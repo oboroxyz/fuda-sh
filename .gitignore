@@ -1,0 +1,20 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+.gstack/
+.worktrees/
+
+# Playwright (generated)
+test-results/
+playwright-report/
+
+# Local Worker secrets (per-package)
+.dev.vars
+
+# wrangler local state
+.wrangler/
+
+# Claude Code per-user local state
+.claude/settings.local.json
+.claude/worktrees/
