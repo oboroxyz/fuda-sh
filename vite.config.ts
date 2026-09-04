@@ -56,7 +56,7 @@ export default defineConfig({
       },
       // Cloudflare Worker entry code runs in the workerd global scope:
       {
-        files: ['src/worker/**'],
+        files: ['**/src/worker/**'],
         env: { serviceworker: true },
       },
     ],
