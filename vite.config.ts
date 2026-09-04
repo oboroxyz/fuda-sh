@@ -70,6 +70,6 @@ export default defineConfig({
     singleQuote: true,
     trailingComma: 'all',
     // Markdown stays hand-formatted (proseWrap would rewrap prose):
-    ignorePatterns: [...oxfmtPreset.ignorePatterns, '**/*.md'],
+    ignorePatterns: [...(oxfmtPreset.ignorePatterns ?? []), '**/*.md'],
   },
 })

@@ -4,3 +4,9 @@ packages:
 allowBuilds:
   esbuild: true
   workerd: true
+# vite-plus pins oxlint/oxfmt exactly; ultracite floats. Without these overrides
+# two oxlint copies get installed and the ultracite presets' OxlintConfig type
+# no longer matches vite-plus's defineConfig (TS2769 in vite.config.ts).
+overrides:
+  oxlint: '=1.79.0'
+  oxfmt: '=0.64.0'
