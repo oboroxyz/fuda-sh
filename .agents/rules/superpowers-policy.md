@@ -27,16 +27,16 @@ When a Superpowers skill specifies its default location under `docs/superpowers/
 When determining the current behavior or intended specification of the system, use sources in this order:
 
 1. **Tests and implementation** — actual current behavior
-2. **`docs/spec/`** — current product and system specification
+2. **`docs/specs/`** — current product and system specification
 3. **`docs/adr/`** — durable architectural decisions and their rationale
 4. **`.superpowers/specs/`** — temporary design snapshots for active work
 5. **`.superpowers/plans/`** — temporary implementation instructions for active work
 
 Never treat a completed Superpowers spec or plan as the current source of truth.
 
-If an active Superpowers artifact conflicts with `docs/spec/`, explicitly determine whether the current task is intended to change the canonical specification before proceeding.
+If an active Superpowers artifact conflicts with `docs/specs/`, explicitly determine whether the current task is intended to change the canonical specification before proceeding.
 
-If implementation or tests conflict with `docs/spec/`, do not silently choose one. Identify the discrepancy and update the canonical documentation as part of the change when appropriate.
+If implementation or tests conflict with `docs/specs/`, do not silently choose one. Identify the discrepancy and update the canonical documentation as part of the change when appropriate.
 
 ## Workspace order
 
@@ -72,7 +72,7 @@ delete temporary artifacts
 
 After a change is fully implemented and verified:
 
-1. Update `docs/spec/` with any durable changes to behavior, requirements, interfaces, or constraints.
+1. Update `docs/specs/` with any durable changes to behavior, requirements, interfaces, or constraints.
 2. Add or update `docs/adr/` only when an architectural decision and its rationale are worth preserving.
 3. Delete the completed design spec from `.superpowers/specs/`.
 4. Delete the completed implementation plan from `.superpowers/plans/`.
@@ -84,7 +84,7 @@ Do not rewrite an old completed plan or design spec to describe new behavior. Fo
 
 ## Canonical specifications
 
-`docs/spec/` should describe **what the system does now**, not how a particular change was implemented.
+`docs/specs/` should describe **what the system does now**, not how a particular change was implemented.
 
 Keep canonical specs focused on durable information such as:
 
@@ -154,7 +154,7 @@ Before declaring Superpowers-driven work complete, verify:
 
 - [ ] Implementation matches the approved design.
 - [ ] Relevant tests pass.
-- [ ] `docs/spec/` reflects the resulting current behavior, if needed.
+- [ ] `docs/specs/` reflects the resulting current behavior, if needed.
 - [ ] Relevant architectural rationale is captured in `docs/adr/`, if needed.
 - [ ] Completed `.superpowers/specs/` artifacts are deleted.
 - [ ] Completed `.superpowers/plans/` artifacts are deleted.
