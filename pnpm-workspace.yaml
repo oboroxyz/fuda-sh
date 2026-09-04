@@ -1,6 +1,11 @@
 packages:
   - apps/*
   - packages/*
+# pnpm 11 reads settings from this file, not .npmrc.
+engineStrict: true
+autoInstallPeers: false
+# Node is provisioned by pnpm itself via package.json devEngines.runtime
+# (onFail: download); no .node-version / version manager needed.
 allowBuilds:
   esbuild: true
   workerd: true

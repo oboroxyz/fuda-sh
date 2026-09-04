@@ -17,7 +17,7 @@ One config file, `vite.config.ts`, drives dev/build/test/lint/format through **V
 - Lint is near-full-strict (Ultracite core + anti-slop + vitest presets). Suppress a rule only inline, with a reason:
   `// oxlint-disable-next-line <rule> -- <why>`. Keep these rare.
 - `oxlint` / `oxfmt` are pinned in `pnpm-workspace.yaml` `overrides` to the versions vite-plus bundles. Two copies of oxlint installed at once break the preset types in `vite.config.ts`; keep the overrides in step when bumping vite-plus.
-- Node `24.18.0` (`.node-version`, `engines`), pnpm with `engine-strict`. Install with `pnpm install --frozen-lockfile`.
+- Node `24.18.0` is provisioned by pnpm itself (`devEngines.runtime` in `package.json`, `onFail: download`); no version manager needed. `engineStrict` / `autoInstallPeers` live in `pnpm-workspace.yaml` because pnpm 11 ignores `.npmrc` for them. Install with `pnpm install --frozen-lockfile`.
 - Wrangler local state (`.wrangler/`) and secrets (`.dev.vars*`) are gitignored per app.
 
 ## Agents
