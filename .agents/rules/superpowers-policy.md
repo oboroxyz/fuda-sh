@@ -38,6 +38,16 @@ If an active Superpowers artifact conflicts with `docs/spec/`, explicitly determ
 
 If implementation or tests conflict with `docs/spec/`, do not silently choose one. Identify the discrepancy and update the canonical documentation as part of the change when appropriate.
 
+## Workspace order
+
+Create the isolated workspace **first**, then write the artifacts inside it:
+
+1. Invoke `using-git-worktrees` at the start of feature work (before brainstorming), not only at execution time. Consent is pre-granted: feature work in this repository is worktree-first, so do not ask.
+2. Write the design spec and the implementation plan inside that worktree and commit them there.
+3. Implement, verify, update canonical docs and delete the artifacts on the same branch.
+
+This keeps every temporary artifact, and its deletion, on the feature branch. The base branch never carries a spec or plan commit, and the branch history is the archive the lifecycle below relies on. Merge feature branches with a merge commit or rebase, not squash, so that history survives.
+
 ## Artifact lifecycle
 
 Superpowers artifacts exist only for the lifetime of the change they support.
