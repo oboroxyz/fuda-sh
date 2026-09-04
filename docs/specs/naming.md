@@ -1,0 +1,122 @@
+# Naming
+
+fuda names two things with ENS: the **venue** that issues rights and the
+**member number** printed on a pass. A name is a display and destination
+layer. It never grants authority, never replaces the on-chain right, and never
+enters the admission decision.
+
+> **ENS names the relationship. EAS proves the right.**
+
+## Hierarchy
+
+```text
+fuda.eth                              parent (Ethereum Sepolia, ENSv2)
+└── <venue>.fuda.eth                  venue — resolves to the venue's issuing wallet
+    └── <member-no>.<venue>.fuda.eth  member number — one per right
+fuda.sh  ──alias──►  fuda.eth         DNS alias: <x>.fuda.sh resolves as <x>.fuda.eth
+```
+
+- A **venue label** is the venue's public handle (`/@<handle>`), already
+  restricted to `[a-z0-9-]`.
+- A **member label** is the right's member number, exactly as printed on the
+  pass (see below). Members never type a name; fuda has no personal-identity
+  names (`alice`-style handles are out of scope by design).
+- `fuda.sh` is a read-only alias of the `.eth` tree. Nothing is registered
+  under the DNS name; every rule below applies once, on the `.eth` side, and
+  shows through the alias.
+
+## Member number
+
+Every right receives its own member number at issuance.
+
+| Property       | Rule                                                                                                        |
+| -------------- | ----------------------------------------------------------------------------------------------------------- |
+| Alphabet       | 28 characters `23456789acdefghjkmnpqrtuvwxy` — no `0 1 i l o`, and no `b s z` (read as `8 5 2` upper-cased) |
+| Length         | 12 characters (~58 bits), random per right, no sequential counter                                           |
+| Canonical form | lowercase, `4-4-4` hyphen groups: `qj2y-xphe-pdrk` — this exact string is the ENS label                     |
+| Display        | upper-cased on the pass and dashboard: `QJ2Y-XPHE-PDRK`; any typed-in number is lower-cased before lookup   |
+| Uniqueness     | unique per venue; regenerated on collision                                                                  |
+| Scope          | one number per **right** — a `private + loyalty` member has two unrelated numbers                           |
+
+Why random, not sequential: a counter would make member names enumerable,
+reveal issue order and venue size, and correlate with the order of fuda's
+issuance announcements on chain. Randomness costs nothing and removes all
+three.
+
+## What a name resolves to
+
+| Right                 | `addr()` result                                                                     |
+| --------------------- | ----------------------------------------------------------------------------------- |
+| Venue                 | the venue's issuing wallet (the address that attests its rights)                    |
+| `standard` (Bearer)   | the right's claimable smart-account address — stable, unchanged by later activation |
+| `standard` (Signed)   | the same holder address                                                             |
+| `private` / U3 access | **a fresh one-time stealth address on every query** — never the same address twice  |
+
+A +Private name therefore exists and is usable as a destination, but it never
+exposes a stable address, so it creates no durable on-chain link to the member.
+The label itself is random and reveals nothing about the person.
+
+### Resolution for +Private rights
+
+- Resolution is served by an offchain CCIP-Read gateway. For a +Private
+  right it derives a new stealth address (ERC-5564) from the member's stealth
+  meta-address with a deterministic per-name nonce, so every address it has
+  ever returned can be re-derived from the counter.
+- **A lookup is never announced.** ERC-5564 announcements mark an on-chain
+  _use_ (a right attested to, or value sent to, a stealth address), not the
+  creation of an address. Announcing per lookup would put the name's query
+  volume on chain and inflate the member's scan set.
+- Who announces: fuda, when it issues a right to a name (attest and announce
+  in one step); an ERC-5564-aware sender, for its own transfer. _Tokyo:_ a
+  fuda watcher announces a previously resolved address once it sees on-chain
+  activity there, so ordinary wallets sending to a name are covered too.
+- Members discover rights by scanning announcements with their
+  passkey-derived viewing key (see [Pass types and flows](./pass-types-and-flows.md),
+  U2). The name adds no second discovery path.
+
+## Name lifecycle
+
+A name is created by on-chain evidence and dies with the right it names.
+
+```text
+issue right ──► on-chain evidence confirmed ──► name exists ──► right revoked ──► name stops resolving
+                 +Private: issuance announcement
+                 Bearer/Signed: EAS Attested receipt
+```
+
+- A member name is written only **after** the right's on-chain evidence is
+  confirmed. No name exists for a right that has not landed; a failed issue
+  has no name until its retry succeeds.
+- Revoking the right makes its name stop resolving.
+- A venue name follows the venue's `IssuerDelegation`: its validity mirrors
+  the delegation window, and revoking the delegation removes the name.
+- Bearer → Signed activation changes the smart account's owners, not its
+  address, so the member's name, right, and history all survive unchanged.
+
+## Invariants
+
+- **Not authority.** A resolving name never makes an issuer legitimate or a
+  right valid; surfaces show the name and the delegation / right check as two
+  separate facts, and fall back to the raw address when resolution fails.
+- **Not in the gate path.** Admission never waits on ENS. Member names are
+  never shown at the gate, never written to entry logs, and never included
+  in announcements.
+- **No self-identifying labels.** Labels are venue handles or random member
+  numbers. No handle, email, member-database id, attestation UID, or proof
+  material is published in any ENS record. The only required record is the
+  EVM address (or, for +Private, the rotating answer described above).
+- **No stable address for +Private.** A +Private name must never resolve to
+  the same address twice or to any address that appears elsewhere with the
+  member.
+- **Two numbers in `private + loyalty`.** The access right and the loyalty
+  right carry unrelated member numbers, so no name links the unlinkable
+  access right to the loyalty holder.
+- **Offchain member layer.** Member names live in the offchain gateway;
+  members own no subname and hold no ENS-side key. Venue names may be
+  claimed on chain by the venue wallet and are non-transferable.
+
+## Related specs
+
+- [Architecture overview](./README.md)
+- [Attestation model](./attestation-model.md)
+- [Pass types and flows](./pass-types-and-flows.md)
