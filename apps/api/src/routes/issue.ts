@@ -9,6 +9,7 @@ import { parseSchemaSets } from '../eas/schemas.ts'
 import type { AppEnv } from '../env.ts'
 import { issueBearer, IssueConfigError } from '../issue/issue-bearer.ts'
 import type { IssueContext } from '../issue/issue-bearer.ts'
+import { issueSigned } from '../issue/issue-signed.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { adminAuth } from '../middleware/admin-auth.ts'
 
@@ -65,13 +66,15 @@ issueRoutes.post('/issue', adminAuth(), async (c) => {
     return errorResponse(c, 'chain_error', 502)
   }
   try {
-    const { memberId } = parsed.output
+    const { holder, memberId } = parsed.output
     if (kind === 'bearer' && memberId !== undefined) {
       return jsonResponse(c, await issueBearer(ctx, { ...parsed.output, memberId }))
     }
-    // The Signed branch lands in plan-3 and the Private branch in plan-4; both
-    // replace this line. The spec defines no "not implemented" code, so until
-    // then a well-formed Signed/Private request is answered as bad_input.
+    if (kind === 'signed' && holder !== undefined) {
+      return jsonResponse(c, await issueSigned(ctx, { ...parsed.output, holder }))
+    }
+    // The +Private branch lands in plan-4 and replaces this line. The spec defines
+    // no "not implemented" code, so a well-formed +Private request is bad_input until then.
     return errorResponse(c, 'bad_input', 400)
   } catch (error) {
     if (error instanceof NoSignerError) {

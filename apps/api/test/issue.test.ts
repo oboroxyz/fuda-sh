@@ -129,17 +129,17 @@ describe('POST /issue (bearer)', () => {
     const chain = fakeChain({ signer: ROOT })
     const del = seedRoot(chain)
     const app = appWith({ chain, now: () => NOW })
-    // The lone holder is a well-formed Signed request: 400 until plan-3 lands.
+    // holder + memberId together is malformed under every kind; a lone holder
+    // is now a well-formed Signed request (covered by test/issue-signed.test.ts).
     const bodies = [
       {},
       { holder: `0x${'11'.repeat(20)}`, memberId: 'a' },
-      { holder: `0x${'11'.repeat(20)}` },
       { memberId: 'a', tier: 9 },
       { memberId: '' },
     ]
     const responses = await Promise.all(bodies.map(async (body) => await post(app, configuredEnv(del), body)))
     const payloads = await Promise.all(responses.map(async (res) => await res.json()))
-    expect(responses.map((res) => res.status)).toStrictEqual([400, 400, 400, 400, 400])
+    expect(responses.map((res) => res.status)).toStrictEqual([400, 400, 400, 400])
     expect(payloads).toStrictEqual(bodies.map(() => ({ error: 'bad_input' })))
   })
 
