@@ -1,6 +1,6 @@
 import { APP_ORIGIN } from './config.ts'
 
-export type Route = 'landing' | 'signed' | { redirect: string }
+export type Route = 'landing' | 'signed' | 'private' | { redirect: string }
 
 // The fuda.sh apex and app.fuda.sh are one Worker (spec §13), so the path alone
 // does not say which surface the browser is on. The Signed gate must run on the
@@ -20,11 +20,18 @@ const originOf = (value: string): string | null => {
   return origin === 'null' ? null : origin
 }
 
+// +Private is an extension of Signed, not a separate surface: /private answers
+// to the same origin rule as /signed.
+const APP_ONLY = new Set(['/signed', '/private'])
+
 export const routeFor = (origin: string, pathname: string, appOrigin: string = APP_ORIGIN): Route => {
   const path = pathname.length > 1 ? pathname.replace(/\/+$/u, '') : pathname
   const app = originOf(appOrigin)
-  if (path !== '/signed' || app === null) {
+  if (!APP_ONLY.has(path) || app === null) {
     return 'landing'
   }
-  return originOf(origin) === app ? 'signed' : { redirect: `${app}/signed` }
+  if (originOf(origin) !== app) {
+    return { redirect: `${app}${path}` }
+  }
+  return path === '/signed' ? 'signed' : 'private'
 }

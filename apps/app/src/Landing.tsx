@@ -27,6 +27,7 @@ const LEVELS = [
 
 const LINKS = [
   { href: `${APP_ORIGIN}/signed`, label: 'Enter with your wallet' },
+  { href: `${APP_ORIGIN}/private`, label: '+Private — passkey, meta-address, discover and enter' },
   { href: 'https://gate.fuda.sh', label: 'Gate — scan at the door' },
   { href: 'https://dash.fuda.sh', label: 'Dashboard — issue and revoke' },
 ] as const

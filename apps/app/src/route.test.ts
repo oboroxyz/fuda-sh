@@ -26,6 +26,14 @@ describe(routeFor, () => {
     expect(routeFor(APEX, '/signed/', APP)).toStrictEqual({ redirect: 'https://app.fuda.sh/signed' })
   })
 
+  // +Private is Signed with the privacy extension on, so /private lives on the
+  // same origin and follows the same redirect rule.
+  it('renders +Private on the app origin and redirects it from the apex', () => {
+    expect(routeFor(APP, '/private', APP)).toBe('private')
+    expect(routeFor(APP, '/private/', APP)).toBe('private')
+    expect(routeFor(APEX, '/private', APP)).toStrictEqual({ redirect: 'https://app.fuda.sh/private' })
+  })
+
   it('sends an unknown path to the landing rather than into a redirect', () => {
     expect(routeFor(APEX, '/nope', APP)).toBe('landing')
     expect(routeFor(APP, '/signed/extra', APP)).toBe('landing')
