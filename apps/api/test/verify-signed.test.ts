@@ -169,6 +169,13 @@ describe('POST /verify-signed', () => {
     const second = await enter(app, bindings, uid)
     await expect(second.json()).resolves.toMatchObject({ decision: 'REJECT', reason: 'ALREADY_USED' })
     await expect(db().select().from(slots)).resolves.toHaveLength(1)
+    // Both verdicts are logged on the signature path: the ADMIT that took the
+    // slot and the REJECT that found it burned.
+    const logged = await db().select().from(entryLog).orderBy(entryLog.id)
+    expect(logged.map((row) => [row.decision, row.reason, row.path])).toStrictEqual([
+      ['ADMIT', 'OK', 'signature'],
+      ['REJECT', 'ALREADY_USED', 'signature'],
+    ])
   })
 
   it('admits a level-0 right by signature too (/verify-signed accepts every level)', async () => {
