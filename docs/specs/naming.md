@@ -1,6 +1,6 @@
 # Naming
 
-fuda names two things with ENS: the **venue** that issues rights and the
+fuda names two things with ENS: the **issuer** that attests rights and the
 **member number** printed on a pass. A name is a display and destination
 layer. It never grants authority, never replaces the on-chain right, and never
 enters the admission decision.
@@ -11,13 +11,15 @@ enters the admission decision.
 
 ```text
 fuda.eth                              parent (Ethereum Sepolia, ENSv2)
-└── <venue>.fuda.eth                  venue — resolves to the venue's issuing wallet
-    └── <member-no>.<venue>.fuda.eth  member number — one per right
+└── <issuer>.fuda.eth                 issuer — resolves to the address that attests rights under that handle
+    └── <member-no>.<issuer>.fuda.eth member number — one per right
 fuda.sh  ──alias──►  fuda.eth         DNS alias: <x>.fuda.sh resolves as <x>.fuda.eth
 ```
 
-- A **venue label** is the venue's public handle (`/@<handle>`), already
-  restricted to `[a-z0-9-]`.
+- An **issuer label** is the issuer's public handle (`/@<handle>`), already
+  restricted to `[a-z0-9-]`. In member-facing copy the organization behind a
+  handle is a venue; the ENS layer, like the data model and EAS, names it by
+  its role and calls it the issuer (see the glossary in `docs/CONTEXT.md`).
 - A **member label** is the right's member number, exactly as printed on the
   pass (see below). Members never type a name; fuda has no personal-identity
   names (`alice`-style handles are out of scope by design).
@@ -37,14 +39,14 @@ Every right receives its own member number at issuance.
 | Canonical form  | lowercase, no separators: `qj2yxphepdrka` — stored as-is, and this exact string is the ENS label                                                                                                                                  |
 | Display         | display-only formatting on the pass and dashboard: upper-cased in `4-4-5` groups, `QJ2Y-XPHE-PDRKA` (the last character of the last group is the check). Any typed-in number is lower-cased and stripped of hyphens before lookup |
 | Transport       | passed by scan (QR / pass / link); the check character lets any receiver reject a corrupted or mistyped number before a lookup                                                                                                    |
-| Uniqueness      | unique per venue; regenerated on collision                                                                                                                                                                                        |
+| Uniqueness      | unique per issuer; regenerated on collision                                                                                                                                                                                        |
 | Scope           | one number per **right** — a `private + loyalty` member has two unrelated numbers                                                                                                                                                 |
 
 Hyphens never enter storage, the API, or ENS; they are added by the pass and
 dashboard renderers only.
 
 Why random, not sequential: a counter would make member names enumerable,
-reveal issue order and venue size, and correlate with the order of fuda's
+reveal issue order and issuer size, and correlate with the order of fuda's
 issuance announcements on chain. Randomness costs nothing and removes all
 three.
 
@@ -52,7 +54,7 @@ three.
 
 | Right                 | `addr()` result                                                                     |
 | --------------------- | ----------------------------------------------------------------------------------- |
-| Venue                 | the venue's issuing wallet (the address that attests its rights)                    |
+| Issuer                | the address that attests rights under that handle (the EAS `attester`)              |
 | `standard` (Bearer)   | the right's claimable smart-account address — stable, unchanged by later activation |
 | `standard` (Signed)   | the same holder address                                                             |
 | `private` / U3 access | **a fresh one-time stealth address on every query** — never the same address twice  |
@@ -93,7 +95,7 @@ issue right ──► on-chain evidence confirmed ──► name exists ──�
   confirmed. No name exists for a right that has not landed; a failed issue
   has no name until its retry succeeds.
 - Revoking the right makes its name stop resolving.
-- A venue name follows the venue's `IssuerDelegation`: its validity mirrors
+- An issuer name follows the issuer's `IssuerDelegation`: its validity mirrors
   the delegation window, and revoking the delegation removes the name.
 - Bearer → Signed activation changes the smart account's owners, not its
   address, so the member's name, right, and history all survive unchanged.
@@ -106,7 +108,7 @@ issue right ──► on-chain evidence confirmed ──► name exists ──�
 - **Not in the gate path.** Admission never waits on ENS. Member names are
   never shown at the gate, never written to entry logs, and never included
   in announcements.
-- **No self-identifying labels.** Labels are venue handles or random member
+- **No self-identifying labels.** Labels are issuer handles or random member
   numbers. No handle, email, member-database id, attestation UID, or proof
   material is published in any ENS record. The only required record is the
   EVM address (or, for +Private, the rotating answer described above).
@@ -117,8 +119,8 @@ issue right ──► on-chain evidence confirmed ──► name exists ──�
   right carry unrelated member numbers, so no name links the unlinkable
   access right to the loyalty holder.
 - **Offchain member layer.** Member names live in the offchain gateway;
-  members own no subname and hold no ENS-side key. Venue names may be
-  claimed on chain by the venue wallet and are non-transferable.
+  members own no subname and hold no ENS-side key. Issuer names may be
+  claimed on chain by the issuer's wallet and are non-transferable.
 
 ## Related specs
 

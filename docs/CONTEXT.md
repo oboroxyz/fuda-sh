@@ -102,12 +102,17 @@ _Avoid_: Representative address (say "the Signed Holder used as Member id"),
 username
 
 **Issuer**:
-The address that attests a Right (the EAS `attester`), made legitimate by an
-Issuer delegation. In the MVP the fuda signer; from B1 also a Venue. "Issuer"
+The party that attests a Right — the address in the EAS `attester` slot and
+the `issuer` field of every schema, made legitimate by an Issuer delegation.
+In the MVP the fuda signer attests for every Handle; from B1 each Venue's own
+wallet does. This is the name the specs, data model, EAS schemas, and ENS
+use for the organization that issues: an Issuer owns a Handle and an Issuer
+name, and Rights, Member numbers, and delegations are scoped to it. "Issuer"
 and "attester" name the same party — use Issuer in prose, `attester` only for
-the EAS field and the `venues.attester` policy column (`venue` | `fuda`).
-_Avoid_: Operator (that is a role in the dashboard, not an on-chain party),
-tenant, merchant
+the EAS field.
+_Avoid_: Venue (in specs, schemas, and code — that is the same organization
+seen from the shop floor, see Venue), Operator (that is a role in the
+dashboard, not an on-chain party), tenant, merchant
 
 **Template** (or **verification template**):
 The issuer's per-use-case choice of how a Right is issued, picked at
@@ -134,18 +139,25 @@ _Avoid_: Loyalty card (bare), value Right, companion Right, "the two
 passes"
 
 **Venue**:
-An organization that issues Rights to its members under a Handle. From B1 it
-holds its own smart wallet and is the Issuer of its Rights.
-_Avoid_: Tenant, merchant, operator, shop
+An organization that issues Rights to its members — the shop, club, or
+office as the member and its staff see it. The word for member-facing and
+operator-facing copy and for describing the business. Wherever the
+organization appears as a party in a spec, schema, column, EAS field, or ENS
+name, it is the Issuer: one Venue is one Issuer, and Venue never appears in
+the data model. From B1 it holds its own smart wallet and attests its Rights
+itself.
+_Avoid_: Issuer (in UI copy — say Venue), tenant, merchant, operator, shop
 
 **Handle**:
-A Venue's permanent identifier — the `/@handle` slug, shaped as a DNS/ENS
-label so a naming layer can map onto it 1:1.
-_Avoid_: Slug, username, venue name
+An Issuer's permanent identifier — the `/@handle` slug, shaped as a DNS/ENS
+label so it is also the Issuer's ENS label (`<issuer>.fuda.eth`) 1:1.
+_Avoid_: Slug, username, venue name, issuer name (that is the ENS name built
+from the Handle)
 
 **Agent key**:
-A fuda-held owner key added to a Venue's wallet so the api can issue on the
-Venue's behalf when no human is present; the Venue can remove it at any time.
+A fuda-held owner key added to an Issuer's wallet so the api can issue on
+the Issuer's behalf when no human is present; the Issuer can remove it at any
+time.
 _Avoid_: Session key, API key, delegate key, service key
 
 **Issuer delegation**:
@@ -184,12 +196,14 @@ Entries, whatever their path. Display-only in B1; redemption is out of scope.
 _Avoid_: Point, visit count, check-in
 
 **Member number**:
-The random label every Right receives at issuance: 12 characters from the
-28-character alphabet `23456789acdefghjkmnpqrtuvwxy`, canonical lowercase in
-`4-4-4` groups (`qj2y-xphe-pdrk`), shown upper-cased on the Pass and
-dashboard. One per Right (a `private + loyalty` member has two unrelated
-numbers), unique per Venue, never sequential. It is the ENS member label
-(`<member-no>.<venue>.fuda.eth`, see `docs/specs/naming.md`) and is not
+The random label every Right receives at issuance: 13 characters from the
+28-character alphabet `23456789acdefghjkmnpqrtuvwxy` — 12 random plus one
+check character — stored canonical lowercase with no separators
+(`qj2yxphepdrka`) and shown upper-cased in `4-4-5` groups
+(`QJ2Y-XPHE-PDRKA`) on the Pass and dashboard. One per Right (a
+`private + loyalty` member has two unrelated numbers), unique per Issuer,
+never sequential. It is the ENS member label
+(`<member-no>.<issuer>.fuda.eth`, see `docs/specs/naming.md`) and is not
 the Member id, which groups a Member's several Rights.
 _Avoid_: Member id, serial (that is the Right's lineage field), sequence
 number
@@ -238,11 +252,16 @@ revoke plus reissue whose successor carries the predecessor's uid in `serial`;
 the Holder does not move.
 _Avoid_: Activation, claim, conversion, claim-and-merge, migration
 
-**Venue name**:
-The ENS subname for a Venue (`<venue>.<parent>`), resolving to the Venue's
-issuing wallet — offchain-first, onchain-claimable. Members and Rights are
-never named (decision 2026-09-01); a name never makes an issuer legitimate.
-_Avoid_: ENS handle, member name, username
+**Issuer name**:
+The ENS subname for an Issuer (`<issuer>.fuda.eth`, label = Handle),
+resolving to the address that attests Rights under that Handle —
+offchain-first, onchain-claimable, and living and dying with the Issuer
+delegation. Under it, each Right's Member number is a member label
+(`<member-no>.<issuer>.fuda.eth`, see `docs/specs/naming.md`); Members as
+people and Operators are never named. A name never makes an Issuer
+legitimate.
+_Avoid_: Venue name, ENS handle, username, member name (that names a Right,
+not a person)
 
 **Operator**:
 A person acting for a Venue at the dashboard or the gate (floor staff). Not an
