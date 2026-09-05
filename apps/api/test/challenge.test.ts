@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '../src/db/client.ts'
 import { challenges } from '../src/db/schema.ts'
 import type { Bindings } from '../src/env.ts'
-import { consumeChallenge } from '../src/verify/challenge.ts'
+import { consumeChallenge, mintChallenge } from '../src/verify/challenge.ts'
 import { appWith, fakeChain } from './env.ts'
 import { configuredEnv, NOW, seedRoot } from './fixtures.ts'
 
@@ -68,6 +68,35 @@ describe('POST /challenge', () => {
     const a: { nonce: string } = await resA.json()
     const b: { nonce: string } = await resB.json()
     expect(a.nonce).not.toBe(b.nonce)
+  })
+})
+
+// Past the TTL a nonce can never be consumed again, spent or not, so minting
+// clears the dead rows and keeps the table bounded without a scheduled job.
+describe(mintChallenge, () => {
+  beforeEach(async () => {
+    await db().delete(challenges)
+  })
+
+  it('sweeps rows older than the TTL and leaves live ones alone', async () => {
+    await db()
+      .insert(challenges)
+      .values([
+        { createdAt: NOW - 3600, nonce: `0x${'01'.repeat(16)}`, uid: UID },
+        { createdAt: NOW - 10, nonce: `0x${'02'.repeat(16)}`, uid: UID },
+      ])
+    const { nonce } = await mintChallenge(db(), UID, NOW)
+    const rows = await db().select().from(challenges)
+    expect(rows.map((r) => r.nonce).toSorted()).toStrictEqual([`0x${'02'.repeat(16)}`, nonce].toSorted())
+  })
+
+  it('sweeps a spent nonce too, once it is past the TTL', async () => {
+    await db()
+      .insert(challenges)
+      .values({ createdAt: NOW - 3600, nonce: `0x${'03'.repeat(16)}`, uid: UID, usedAt: NOW - 3590 })
+    const { nonce } = await mintChallenge(db(), UID, NOW)
+    const rows = await db().select().from(challenges)
+    expect(rows.map((r) => r.nonce)).toStrictEqual([nonce])
   })
 })
 
