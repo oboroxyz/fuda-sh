@@ -1,6 +1,7 @@
 import { encodeAbiParameters, getAddress, keccak256 } from 'viem'
 import type { Hex } from 'viem'
 
+import { encodeDelegationV1 } from '../eas/codecs.ts'
 import { ChainError, NoSignerError, ZERO_ADDRESS, ZERO_UID } from './client.ts'
 import type { AttestParams, ChainClient, RawAttestation } from './client.ts'
 
@@ -34,6 +35,24 @@ export class FakeChain implements ChainClient {
 
   signerAddress(): Hex | null {
     return this.signer
+  }
+
+  // Seeds an active root IssuerDelegation attested by the fake signer; returns its uid.
+  seedRootDelegation(delegationSchema: Hex): Hex {
+    if (this.signer === null) {
+      throw new NoSignerError('cannot seed without a signer')
+    }
+    return this.seed({
+      attester: this.signer,
+      data: encodeDelegationV1({ active: true, issuer: this.signer, name: 'fuda root (fake)' }),
+      expirationTime: 0n,
+      recipient: this.signer,
+      refUID: ZERO_UID,
+      revocable: true,
+      revocationTime: 0n,
+      schema: delegationSchema,
+      time: this.now(),
+    })
   }
 
   seed(att: Omit<RawAttestation, 'uid'> & { uid?: Hex }): Hex {

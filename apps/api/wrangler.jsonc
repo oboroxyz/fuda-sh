@@ -23,4 +23,34 @@
     "DELEGATION_UID": "0x0000000000000000000000000000000000000000000000000000000000000000",
     "API_BASE_URL": "https://api.fuda.sh",
   },
+  // `wrangler dev --env dev` with USE_FAKE_CHAIN=1 (see .dev.vars.example): no
+  // signer or RPC needed. ISSUER_ADDRESS/DELEGATION_UID/EAS_SCHEMAS below are
+  // deterministic outputs of FakeChain's default signer and seedRootDelegation
+  // (see src/index.ts) — the fake chain built on the first request re-derives
+  // the same UIDs and address, so this block never needs regenerating.
+  // Named environments don't inherit top-level `vars` or `d1_databases`, so
+  // both are repeated here in full.
+  "env": {
+    "dev": {
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "fuda",
+          "database_id": "REPLACE_AFTER_wrangler_d1_create",
+          "migrations_dir": "migrations",
+        },
+      ],
+      "vars": {
+        "EAS_ADDRESS": "0x4200000000000000000000000000000000000021",
+        "SCHEMA_REGISTRY_ADDRESS": "0x4200000000000000000000000000000000000020",
+        "ANNOUNCER_ADDRESS": "0x55649E01B5Df198D18D95b5cc5051630cfD45564",
+        "ANNOUNCER_FROM_BLOCK": "0",
+        "FACTORY_ADDRESS": "0x0BA5ED0c6AA8c49038F819E587E2633c4A9F428a",
+        "API_BASE_URL": "http://localhost:8787",
+        "ISSUER_ADDRESS": "0xF0F0F0f0f0F0F0f0f0F0f0f0f0f0F0F0f0f0f0F0",
+        "DELEGATION_UID": "0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6",
+        "EAS_SCHEMAS": "{\"entitlement\":[{\"uid\":\"0x42ffdba952267e373cb33ecf9fdc190fb27b30140d0695dabb8383bbed86d616\",\"version\":1}],\"issuerDelegation\":[{\"uid\":\"0x62c93e6e95f3956ba5937fc8454203ba781af5e455657952e915e71c3895f327\",\"version\":1}],\"attendance\":[{\"uid\":\"0x22a41470aabe3a0edec1f9948975a887f21adddd6cf009e865e267cac6e10241\",\"version\":1}]}",
+      },
+    },
+  },
 }

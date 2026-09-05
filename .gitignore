@@ -231,6 +231,7 @@ playwright-report/
 # Local Worker secrets (per-package)
 .dev.vars
 .dev.vars.*
+!.dev.vars.example
 
 # wrangler local state
 .wrangler/

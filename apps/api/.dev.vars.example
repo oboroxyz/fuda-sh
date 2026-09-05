@@ -1,0 +1,6 @@
+# Copy to .dev.vars (gitignored). Leave SIGNER_PRIVATE_KEY and BASE_RPC_URL
+# unset and set USE_FAKE_CHAIN=1 to run the api against an in-memory chain.
+USE_FAKE_CHAIN=1
+#SIGNER_PRIVATE_KEY=0x…
+#BASE_RPC_URL=https://sepolia.base.org
+#ADMIN_TOKEN=change-me
