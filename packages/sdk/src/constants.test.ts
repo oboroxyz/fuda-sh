@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Hex } from './constants.ts'
-import { isUid, LEVEL_CODE, levelFromCode, parseQr, QR_RE, toQr, UID_RE } from './constants.ts'
+import { isUid, LEVEL_CODE, levelFromCode, normalizeUid, parseQr, QR_RE, toQr, UID_RE } from './constants.ts'
 
 // Annotated (not cast): a contextually-typed template literal already narrows to Hex.
 const uid: Hex = `0x${'ab'.repeat(32)}`
@@ -18,6 +18,18 @@ describe('wire constants', () => {
     expect(parseQr(`fuda:v1:${uid}`)).toBe(uid)
     expect(parseQr(`fuda:v2:${uid}`)).toBeNull()
     expect(QR_RE.test(`fuda:v1:${uid}`)).toBeTruthy()
+  })
+
+  it('normalizes a valid uid to lower case and rejects anything else', () => {
+    const upper = `0x${'ab'.repeat(32).toUpperCase()}`
+    expect(normalizeUid(upper)).toBe(uid)
+    expect(normalizeUid(uid)).toBe(uid)
+    expect(normalizeUid('0x')).toBeNull()
+    expect(normalizeUid(upper.toUpperCase())).toBeNull()
+  })
+
+  it('parses an upper-case QR payload down to the canonical uid', () => {
+    expect(parseQr(`fuda:v1:0x${'ab'.repeat(32).toUpperCase()}`)).toBe(uid)
   })
 
   it('level codes are 0/1/2 and invert', () => {

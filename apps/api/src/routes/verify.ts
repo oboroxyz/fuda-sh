@@ -1,4 +1,4 @@
-import { isUid, parseQr, USAGE_MODEL, VerifyBody } from '@fuda/sdk'
+import { normalizeUid, parseQr, USAGE_MODEL, VerifyBody } from '@fuda/sdk'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import * as v from 'valibot'
@@ -77,10 +77,12 @@ export const resolveVerdict = async (c: Context<AppEnv>, uid: Hex, now: number):
 // Read-only preview: answers "is this right valid?", never "may it enter by QR?".
 // Never consumes a slot, never logged, never rejects on level.
 verifyRoutes.get('/verify/:uid', async (c) => {
-  const uid = c.req.param('uid')
-  if (!isUid(uid)) {
+  const uid = normalizeUid(c.req.param('uid'))
+  if (uid === null) {
     return errorResponse(c, 'bad_uid', 400)
   }
+  // A preview is a live read: never let an intermediary answer it from cache.
+  c.header('cache-control', 'no-store')
   const resolved = await resolveVerdict(c, uid, c.get('now')())
   return resolved.ok ? jsonResponse(c, verdictBody(resolved.out)) : resolved.res
 })

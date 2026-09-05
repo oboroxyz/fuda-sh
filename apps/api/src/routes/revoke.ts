@@ -1,8 +1,7 @@
-import { RevokeBody } from '@fuda/sdk'
+import { normalizeUid, RevokeBody } from '@fuda/sdk'
 import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import * as v from 'valibot'
-import type { Hex } from 'viem'
 
 import { ChainError, NoSignerError, ZERO_UID } from '../chain/client.ts'
 import { members } from '../db/schema.ts'
@@ -34,12 +33,12 @@ export const revokeRoutes = new Hono<AppEnv>()
 // (no idempotence in the MVP).
 revokeRoutes.post('/revoke', adminAuth(), async (c) => {
   const parsed = v.safeParse(RevokeBody, await c.req.json().catch(() => null))
-  if (!parsed.success) {
+  // Normalized at entry: the chain read below and the row update at the end must
+  // agree on one spelling of the uid, and D1 holds it lower case.
+  const uid = parsed.success ? normalizeUid(parsed.output.uid) : null
+  if (uid === null) {
     return errorResponse(c, 'bad_uid', 400)
   }
-  // Annotated (not cast): RevokeBody validated uid as 0x + 64 hex, so the
-  // contextually typed template literal narrows to Hex directly.
-  const uid: Hex = `0x${parsed.output.uid.slice(2)}`
   const chain = c.get('chain')
   if (chain.signerAddress() === null) {
     return errorResponse(c, 'no_signer', 501)

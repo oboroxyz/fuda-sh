@@ -10,11 +10,17 @@ export const SIGNATURE_RE = /^0x[0-9a-fA-F]+$/u
 
 export const isUid = (s: string): s is Hex => UID_RE.test(s)
 
+// The canonical form of a uid: EAS and D1 both hold it lowercase, so an
+// upper-case uid from a QR reader or a pasted URL must be folded once, at the
+// edge, or it silently misses every row it names. Annotated (not cast): the
+// template literal is contextually typed as Hex.
+export const normalizeUid = (s: string): Hex | null => (isUid(s) ? `0x${s.slice(2).toLowerCase()}` : null)
+
 export const toQr = (uid: Hex): string => `${QR_PREFIX}${uid}`
 
 export const parseQr = (qr: string): Hex | null => {
   const captured = QR_RE.exec(qr)?.groups?.uid
-  return captured !== undefined && isUid(captured) ? captured : null
+  return captured === undefined ? null : normalizeUid(captured)
 }
 
 // level = the verification level a right was issued at (never "mode").

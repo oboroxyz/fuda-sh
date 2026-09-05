@@ -45,6 +45,28 @@ describe('GET /pass/:uid', () => {
     expect(body).not.toMatch(/\s(?:src|href)=/u)
   })
 
+  it('is never cached: the page carries the live status', async () => {
+    const chain = fakeChain()
+    const del = seedRoot(chain)
+    const uid = seedRight(chain, del)
+    await insertMember(uid)
+    const res = await appWith({ chain, now: () => NOW }).request(`/pass/${uid}`, {}, configuredEnv(del))
+    expect(res.headers.get('cache-control')).toBe('no-store')
+  })
+
+  // D1 stores the uid lower case, so an upper-case one from a pasted URL must be
+  // folded at the route entry or the page 404s on a right that exists.
+  it('renders the same pass for an upper-case uid', async () => {
+    const chain = fakeChain()
+    const del = seedRoot(chain)
+    const uid = seedRight(chain, del, { tier: 2 })
+    await insertMember(uid)
+    const upper = `0x${uid.slice(2).toUpperCase()}`
+    const res = await appWith({ chain, now: () => NOW }).request(`/pass/${upper}`, {}, configuredEnv(del))
+    expect(res.status).toBe(200)
+    await expect(res.text()).resolves.toContain(`fuda:v1:${uid}`)
+  })
+
   it('shows REVOKED on the pass of a revoked right', async () => {
     const chain = fakeChain()
     const del = seedRoot(chain)

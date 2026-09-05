@@ -44,6 +44,24 @@ describe('GET /verify/:uid', () => {
     expect(rows).toHaveLength(0)
   })
 
+  it('answers no-store: a preview is a live read', async () => {
+    const chain = fakeChain()
+    const del = seedRoot(chain)
+    const uid = seedRight(chain, del)
+    const res = await appWith({ chain, now: () => NOW }).request(`/verify/${uid}`, {}, configuredEnv(del))
+    expect(res.headers.get('cache-control')).toBe('no-store')
+  })
+
+  it('previews an upper-case uid against the same attestation', async () => {
+    const chain = fakeChain()
+    const del = seedRoot(chain)
+    const uid = seedRight(chain, del)
+    const upper = `0x${uid.slice(2).toUpperCase()}`
+    const res = await appWith({ chain, now: () => NOW }).request(`/verify/${upper}`, {}, configuredEnv(del))
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toMatchObject({ decision: 'ADMIT', reason: 'OK' })
+  })
+
   it('reports level >= 1 as ADMIT (preview never rejects on level)', async () => {
     const chain = fakeChain()
     const del = seedRoot(chain)

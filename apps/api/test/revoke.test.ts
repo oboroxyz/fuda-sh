@@ -46,6 +46,22 @@ describe('POST /revoke', () => {
     await expect(verifyRes.json()).resolves.toMatchObject({ decision: 'REJECT', reason: 'REVOKED' })
   })
 
+  // Without normalization at entry the chain revoke would succeed while the D1
+  // row stayed 'active': the row is keyed by the lower-case uid.
+  it('revokes through an upper-case uid and still marks the row', async () => {
+    const chain = fakeChain({ signer: ROOT })
+    const del = seedRoot(chain)
+    const app = appWith({ chain, now: () => NOW })
+    const bindings = configuredEnv(del)
+    const issueRes = await post(app, bindings, '/issue', { memberId: 'alice' })
+    const issued: { uid: string } = await issueRes.json()
+    const res = await revoke(app, bindings, `0x${issued.uid.slice(2).toUpperCase()}`)
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toStrictEqual({ revoked: true, uid: issued.uid })
+    const rows = await db().select().from(members)
+    expect(rows[0]?.status).toBe('revoked')
+  })
+
   it('400 bad_uid on a malformed uid', async () => {
     const chain = fakeChain({ signer: ROOT })
     const del = seedRoot(chain)
