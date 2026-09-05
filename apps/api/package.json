@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@fuda/sdk": "workspace:*",
+    "@fuda/stealth": "workspace:*",
     "drizzle-orm": "^0.44.0",
     "hono": "^4.9.0",
     "valibot": "^1.1.0",

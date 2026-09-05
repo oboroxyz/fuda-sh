@@ -26,6 +26,12 @@ passRoutes.get('/pass/:uid', async (c) => {
   if (row === undefined) {
     return errorResponse(c, 'not_found', 404)
   }
+  // A +Private right has no pass (spec §3: the private /issue response carries
+  // no passUrls); its holder is a one-time stealth address only the member can
+  // recover. The page does not exist for it.
+  if (row.level === 'private') {
+    return errorResponse(c, 'not_found', 404)
+  }
   const resolved = await resolveVerdict(c, uid, c.get('now')())
   const outcome: PassOutcome = resolved.ok
     ? { decision: resolved.out.decision, reason: resolved.out.reason }

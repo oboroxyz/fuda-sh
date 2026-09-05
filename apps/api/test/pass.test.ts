@@ -99,6 +99,24 @@ describe('GET /pass/:uid', () => {
     expect(junk.status).toBe(400)
   })
 
+  it('answers 404 for a private row: a +Private right has no pass', async () => {
+    const chain = fakeChain()
+    const del = seedRoot(chain)
+    const uid: Hex = `0x${'77'.repeat(32)}`
+    await db().insert(members).values({
+      attestationUid: uid,
+      createdAt: NOW,
+      holder: null,
+      level: 'private',
+      memberId: '',
+      status: 'active',
+      tier: 0,
+    })
+    const res = await appWith({ chain, now: () => NOW }).request(`/pass/${uid}`, {}, configuredEnv(del))
+    expect(res.status).toBe(404)
+    await expect(res.json()).resolves.toStrictEqual({ error: 'not_found' })
+  })
+
   it('answers 501 for the wallet platforms until they are configured', async () => {
     const chain = fakeChain()
     const del = seedRoot(chain)

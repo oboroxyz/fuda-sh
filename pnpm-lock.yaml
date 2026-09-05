@@ -43,6 +43,9 @@ importers:
       '@fuda/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+      '@fuda/stealth':
+        specifier: workspace:*
+        version: link:../../packages/stealth
       drizzle-orm:
         specifier: ^0.44.0
         version: 0.44.7(@cloudflare/workers-types@4.20260702.1)
@@ -77,6 +80,9 @@ importers:
       '@fuda/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+      '@fuda/stealth':
+        specifier: workspace:*
+        version: link:../../packages/stealth
       '@fuda/web-kit':
         specifier: workspace:*
         version: link:../../packages/web-kit

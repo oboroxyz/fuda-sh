@@ -22,8 +22,7 @@ const isLevel = (s: string): s is Form['level'] => LEVELS.some((l) => l === s)
 const fieldValue = (target: EventTarget | null): string | null =>
   target instanceof HTMLInputElement || target instanceof HTMLSelectElement ? target.value : null
 
-// The api's error code is shown verbatim: +Private answers bad_input until
-// that level lands, and the operator should see exactly what it said.
+// The api's error code is shown verbatim so the operator sees exactly what it said.
 const Outcome = ({ result }: { result: Result<IssueResponse> }): JSX.Element => {
   if (!result.ok) {
     return <div class="alert alert-error">{result.error}</div>
@@ -93,10 +92,6 @@ export const IssueForm = ({
         <option value="signed">Signed — the member's own wallet signs at the gate</option>
         <option value="private">+Private — stealth address from a meta-address</option>
       </select>
-      <p class="text-xs opacity-60">
-        +Private submits today, but the api answers 400 bad_input until that level lands; the error is shown
-        below verbatim.
-      </p>
       {form.level === 'bearer' ? (
         <input
           class="input"

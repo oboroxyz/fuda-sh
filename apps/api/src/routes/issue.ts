@@ -1,4 +1,5 @@
 import { asHex, deriveIssueKind, IssueBody } from '@fuda/sdk'
+import { isMetaAddress } from '@fuda/stealth'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import * as v from 'valibot'
@@ -9,6 +10,7 @@ import { parseSchemaSets } from '../eas/schemas.ts'
 import type { AppEnv } from '../env.ts'
 import { issueBearer, IssueConfigError } from '../issue/issue-bearer.ts'
 import type { IssueContext } from '../issue/issue-bearer.ts'
+import { issuePrivate } from '../issue/issue-private.ts'
 import { issueSigned } from '../issue/issue-signed.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { adminAuth } from '../middleware/admin-auth.ts'
@@ -44,12 +46,23 @@ const issueContext = (c: Context<AppEnv>): IssueContext | null => {
   }
 }
 
+// Which of the two 4xx codes a bad meta-address earns. IssueBody's own regex
+// would fold a malformed stealthMetaAddress into `bad_input`, but §3 names
+// `bad_meta_address` for it, so the field is peeked at before that parse.
+// `isMetaAddress` runs the same 132-hex shape check META_ADDRESS_RE does and
+// then the curve check, so it covers both a wrong shape and an off-curve half.
+const MetaOnly = v.object({ stealthMetaAddress: v.string() })
+
 export const issueRoutes = new Hono<AppEnv>()
 
 // Admin-only write path. The requested `level` is never taken from the body:
 // it follows from which identity key the caller supplied.
 issueRoutes.post('/issue', adminAuth(), async (c) => {
   const body: unknown = await c.req.json().catch(() => null)
+  const peeked = v.safeParse(MetaOnly, body)
+  if (peeked.success && !isMetaAddress(peeked.output.stealthMetaAddress)) {
+    return errorResponse(c, 'bad_meta_address', 400)
+  }
   const parsed = v.safeParse(IssueBody, body)
   if (!parsed.success) {
     return errorResponse(c, 'bad_input', 400)
@@ -66,15 +79,16 @@ issueRoutes.post('/issue', adminAuth(), async (c) => {
     return errorResponse(c, 'chain_error', 502)
   }
   try {
-    const { holder, memberId } = parsed.output
+    const { holder, memberId, stealthMetaAddress } = parsed.output
     if (kind === 'bearer' && memberId !== undefined) {
       return jsonResponse(c, await issueBearer(ctx, { ...parsed.output, memberId }))
     }
     if (kind === 'signed' && holder !== undefined) {
       return jsonResponse(c, await issueSigned(ctx, { ...parsed.output, holder }))
     }
-    // The +Private branch lands in plan-4 and replaces this line. The spec defines
-    // no "not implemented" code, so a well-formed +Private request is bad_input until then.
+    if (kind === 'private' && stealthMetaAddress !== undefined) {
+      return jsonResponse(c, await issuePrivate(ctx, { ...parsed.output, stealthMetaAddress }))
+    }
     return errorResponse(c, 'bad_input', 400)
   } catch (error) {
     if (error instanceof NoSignerError) {
