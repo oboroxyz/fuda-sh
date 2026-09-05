@@ -147,10 +147,14 @@ export const createViemChain = (env: Bindings): ChainClient => {
           signature: p.signature,
         })
       } catch (error) {
-        // The action consults the chain even for an EOA (ERC-6492's deployless
-        // validator), so a transport failure is a chain failure — fail closed as
-        // 502, never as BAD_SIGNATURE. Anything else is a signature that does not
-        // verify (malformed bytes, wrong length).
+        // viem 2.56.3's action folds transport failures into the boolean: verifyHash
+        // wraps an RPC error from the ERC-6492 deployless call into CallExecutionError,
+        // catches it, retries a pure ECDSA recover and returns that (true for a valid
+        // EOA signature, otherwise false). So in production an outage currently reads
+        // as BAD_SIGNATURE, not 502. This branch is for clients that do throw —
+        // FakeChain.failReads, or a future viem version or verification mode that stops
+        // swallowing — and when it fires it is the fail-closed 502 path. Anything else
+        // is a signature that does not verify (malformed bytes, wrong length).
         if (
           error instanceof HttpRequestError ||
           error instanceof TimeoutError ||

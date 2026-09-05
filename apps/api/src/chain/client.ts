@@ -48,7 +48,14 @@ export interface ChainClient {
   attest: (p: AttestParams) => Promise<{ uid: Hex; txHash: Hex }>
   /** Revoke; waits for the receipt. Throws ChainError when the tx reverts (unknown or already-revoked uid). */
   revoke: (schema: Hex, uid: Hex) => Promise<{ txHash: Hex }>
-  /** EIP-191 personal-sign check for the challenge (§3 step 3): EOA via ecrecover, deployed smart accounts via ERC-1271, undeployed via ERC-6492. false for any invalid or malformed signature; ChainError only when the chain could not be consulted. */
+  /**
+   * EIP-191 personal-sign check for the challenge (§3 step 3): EOA via ecrecover, deployed smart
+   * accounts via ERC-1271, undeployed via ERC-6492. false for any invalid or malformed signature.
+   * ChainError means the chain could not be consulted, but it is not guaranteed on every outage:
+   * viem's public-client action folds transport errors into the boolean result (falling back to a
+   * pure ECDSA recover), so an unreachable RPC currently surfaces as false — BAD_SIGNATURE — rather
+   * than 502. Implementations that do throw (FakeChain.failReads) take the fail-closed path.
+   */
   verifyMessage: (p: VerifyMessageParams) => Promise<boolean>
   // Plan 4 extends this with announce() and getAnnouncementLogs().
 }
