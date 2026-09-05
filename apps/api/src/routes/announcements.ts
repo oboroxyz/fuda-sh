@@ -40,6 +40,7 @@ announcementsRoutes.get('/announcements', rateLimit({ budget: DEFAULT_BUDGET }),
   const db = c.get('db')
   const synced = await syncAnnouncements({
     chain: c.get('chain'),
+    confirmations: c.get('confirmations'),
     db,
     fromBlock: floor,
   })

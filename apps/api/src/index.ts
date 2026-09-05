@@ -55,6 +55,13 @@ export const buildChain = (env: DevBindings): ChainClient => {
 export const announcerFromBlockOverride = (env: DevBindings): number | undefined =>
   isFakeChainEnabled(env) ? (devAnnouncerFromBlock ?? undefined) : undefined
 
+// The fake chain's head only moves when a right is issued, so a confirmation
+// depth would hide the pass a developer just announced until five more were
+// issued — the local +Private demo (issue → discover) would go dark. Nothing can
+// re-org in memory, so the fake path syncs right up to its head.
+export const confirmationsOverride = (env: DevBindings): number | undefined =>
+  isFakeChainEnabled(env) ? 0 : undefined
+
 const EMPTY_SETS: SchemaSets = { attendance: [], entitlement: [], issuerDelegation: [] }
 
 // Announced once per isolate, not per request.
@@ -84,6 +91,7 @@ export default {
     const chain = buildChain(env)
     const onAdmit = attendanceHook({ chain, db: getDb(env), sets: schemaSetsOf(env) })
     const announcerFromBlock = announcerFromBlockOverride(env)
-    return createApp({ announcerFromBlock, chain, onAdmit }).fetch(request, env, ctx)
+    const confirmations = confirmationsOverride(env)
+    return createApp({ announcerFromBlock, chain, confirmations, onAdmit }).fetch(request, env, ctx)
   },
 }

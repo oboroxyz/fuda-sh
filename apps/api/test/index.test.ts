@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest'
 
 import { DEV_DELEGATION_UID, FakeChain } from '../src/chain/fake-chain.ts'
 import { decodeDelegation } from '../src/eas/codecs.ts'
-import { announcerFromBlockOverride, buildChain, isFakeChainEnabled, schemaSetsOf } from '../src/index.ts'
+import {
+  announcerFromBlockOverride,
+  buildChain,
+  confirmationsOverride,
+  isFakeChainEnabled,
+  schemaSetsOf,
+} from '../src/index.ts'
 import type { DevBindings } from '../src/index.ts'
 import { testEnv } from './env.ts'
 import { ATT } from './fixtures.ts'
@@ -53,6 +59,15 @@ describe(announcerFromBlockOverride, () => {
 
   it('leaves the production path to fall back to the ANNOUNCER_FROM_BLOCK binding', () => {
     expect(announcerFromBlockOverride(testEnv())).toBeUndefined()
+  })
+})
+
+describe(confirmationsOverride, () => {
+  it('drops the confirmation depth to 0 under the fake chain and leaves production on the default', () => {
+    // The fake head only moves when a right is issued, so a depth would hide the
+    // pass just announced; nothing can re-org in memory either.
+    expect(confirmationsOverride({ ...testEnv(), USE_FAKE_CHAIN: '1' })).toBe(0)
+    expect(confirmationsOverride(testEnv())).toBeUndefined()
   })
 })
 

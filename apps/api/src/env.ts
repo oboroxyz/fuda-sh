@@ -30,6 +30,10 @@ export interface Variables {
   // with the fake chain's head at boot (see `AppDeps.announcerFromBlock` in
   // app.ts and `createDevChain` in index.ts).
   announcerFromBlock: number
+  // How far behind the head the announcements sync stops. Production uses the
+  // CONFIRMATIONS default; the fake-chain dev bootstrap overrides it with 0
+  // (see `confirmationsOverride` in index.ts).
+  confirmations: number
 }
 
 export interface AppEnv {

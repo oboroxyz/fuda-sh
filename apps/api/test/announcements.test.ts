@@ -200,6 +200,12 @@ describe(syncAnnouncements, () => {
     expect(ranges).toStrictEqual([[50, 95]])
   })
 
+  it('syncs right up to the head when the confirmation depth is 0 (the fake-chain dev path)', async () => {
+    const chain = fakeChain()
+    const out = await syncAnnouncements({ chain, confirmations: 0, db: db(), fromBlock: 50 })
+    expect(out).toStrictEqual({ ok: true, syncedTo: 100 })
+  })
+
   it('never lets a concurrent slower sync lower the persisted cursor', async () => {
     const chain = fakeChain()
     chain.blockNumber = async () => await Promise.resolve(205)

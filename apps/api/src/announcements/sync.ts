@@ -27,6 +27,10 @@ export interface SyncDeps {
   chain: ChainClient
   db: Db
   fromBlock: number
+  // How far behind the head the walk stops. Defaults to CONFIRMATIONS; the
+  // fake-chain dev path passes 0, because the fake head only moves when a right
+  // is issued and a five-block wait would hide the pass just announced.
+  confirmations?: number
 }
 
 export type SyncResult = { ok: true; syncedTo: number } | { ok: false; syncedTo: number | null }
@@ -84,7 +88,8 @@ export const syncAnnouncements = async (deps: SyncDeps): Promise<SyncResult> => 
     // Never below `fromBlock - 1`: on a chain younger than CONFIRMATIONS blocks
     // (or a floor set at the very tip) the confirmed head would otherwise go
     // negative and the walk would run backwards.
-    const head = Math.max((await deps.chain.blockNumber()) - CONFIRMATIONS, deps.fromBlock - 1)
+    const behind = deps.confirmations ?? CONFIRMATIONS
+    const head = Math.max((await deps.chain.blockNumber()) - behind, deps.fromBlock - 1)
     for (let i = 0; i < SYNC_CHUNKS_PER_REQUEST && cursor < head; i += 1) {
       const to = Math.min(cursor + CHUNK_BLOCKS, head)
       // oxlint-disable-next-line no-await-in-loop -- chunks are applied in block order; the cursor must not skip ahead

@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 
+import { CONFIRMATIONS } from './announcements/sync.ts'
 import { getDb } from './db/client.ts'
 import type { AppEnv, Variables } from './env.ts'
 import { errorResponse } from './json.ts'
@@ -26,6 +27,9 @@ export interface AppDeps {
   // from the ANNOUNCER_FROM_BLOCK binding. Set only by the fake-chain dev
   // bootstrap in index.ts, to the fake chain's head at boot.
   announcerFromBlock?: number
+  // Overrides the announcements sync confirmation depth. Set only by the
+  // fake-chain dev bootstrap in index.ts, to 0.
+  confirmations?: number
 }
 
 // ANNOUNCER_FROM_BLOCK is a string binding (wrangler env vars are strings). A
@@ -56,6 +60,7 @@ export const createApp = (deps: AppDeps): Hono<AppEnv> => {
       'announcerFromBlock',
       deps.announcerFromBlock ?? parseAnnouncerFromBlock(c.env.ANNOUNCER_FROM_BLOCK),
     )
+    c.set('confirmations', deps.confirmations ?? CONFIRMATIONS)
     await next()
   })
   app.use('*', corsPolicy())
