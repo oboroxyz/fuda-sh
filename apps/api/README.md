@@ -2,9 +2,9 @@
 
 Cloudflare Worker (Hono) implementing the fuda endpoints: `GET /health`,
 `POST /issue`, `GET /verify/:uid`, `POST /verify`, `POST /revoke`,
-`GET /members`, and the browser-based pass (`GET /pass/:uid` and its two
-wallet stubs). `/challenge`, `/verify-signed` and `/announcements` are not
-implemented yet — see Endpoints below.
+`GET /members`, `POST /challenge`, `POST /verify-signed`, and the
+browser-based pass (`GET /pass/:uid` and its two wallet stubs).
+`/announcements` is not implemented yet — see Endpoints below.
 
 ## Run locally
 
@@ -38,6 +38,72 @@ either is missing the hook is a no-op. A failed attest is caught and logged
 is best-effort evidence, not a gate. On success the attestation UID is
 written back to `entry_log.attendance_uid` for the admitting `entry_log` row.
 
+## Signed level: challenge/response
+
+`POST /issue` with a `holder` address (and no `memberId`) issues a Signed
+right: `member_id` is set to the same address, EIP-55-checksummed, and the
+response's `level` is `'signed'`.
+
+Entry at the Signed level is two calls, never a QR scan:
+
+1. `POST /challenge` — body `{ uid }`. Open endpoint, no chain lookup (a
+   challenge for a nonexistent or revoked uid is minted anyway; `/verify-signed`
+   rejects it at step 1). A malformed or missing `uid` answers `400 bad_uid`.
+   Mints a 16-random-byte nonce, stores it in `challenges` and answers:
+
+   ```json
+   { "challenge": "fuda-gate:<uid>:<nonce>", "nonce": "<nonce>" }
+   ```
+
+   The member signs `challenge` verbatim (EIP-191 `personal_sign`) with the
+   holder key. The nonce is single-use and expires 300 s after minting.
+
+2. `POST /verify-signed` — body `{ uid, nonce, signature }`. A missing/malformed
+   `uid` answers `400 bad_uid`; a well-formed `uid` with anything else wrong
+   (nonce, signature) answers `400 bad_input`. Otherwise every verdict is `200`
+   in one shape:
+
+   ```json
+   { "decision": "ADMIT" | "REJECT", "reason": "<Reason>", "path": "signature", "holder"?: "0x…", "stage"?: "entitlement" | "challenge" }
+   ```
+
+   Steps, in order (this order is the contract):
+   1. Decode and validate the entitlement for `uid` (same rules as `/verify`:
+      `NOT_FOUND`, `WRONG_SCHEMA`, `REVOKED`, delegation/timing reasons,
+      `LEVEL_REQUIRED` if the right is not Signed). A rejection here answers
+      `stage: 'entitlement'`, and carries `holder` only once the attestation
+      decoded far enough to know it.
+   2. Consume the challenge (`nonce` bound to `uid`, unused, inside the 300 s
+      TTL) — the spec's single conditional `UPDATE`; the write is the lock. A
+      miss (replayed or expired nonce) answers `reason: 'BAD_CHALLENGE'`,
+      `stage: 'challenge'`. Consuming the challenge *before* checking the
+      signature is deliberate: it is the replay protection — a wrong signature
+      still burns its nonce.
+   3. Verify the signature (`ChainClient.verifyMessage`) against the
+      challenge message and the entitlement's `holder`. A mismatch answers
+      `reason: 'BAD_SIGNATURE'` (no `stage`).
+   4. `SINGLE_USE` rights admit atomically via `admitSingleUse`; an
+      already-consumed slot answers `reason: 'ALREADY_USED'`.
+   5. Log the entry (`path: 'signature'`) and run the `onAdmit` attendance hook
+      on every `ADMIT`, exactly as `/verify` does.
+
+   **A chain failure during step 3 answers `502 chain_error` — after the
+   challenge was already consumed in step 2.** This is not a decision, so it
+   is not logged; the member simply fetches a new challenge (nonces are free
+   and cost nothing to mint). In production, `ChainClient.verifyMessage`
+   (`src/chain/viem-chain.ts`) only reaches this `502` for transport-level
+   throws (`HttpRequestError`, `TimeoutError`, `RpcRequestError`) — the kind
+   `FakeChain.failReads` raises for tests. Under viem 2.56.3, `publicClient
+   .verifyMessage`'s own ERC-6492 deployless-call path swallows an RPC error
+   internally and falls back to a pure ECDSA recover instead of throwing, so
+   a live RPC outage today reads as `BAD_SIGNATURE`, not `502` — see the
+   comment above `verifyMessage` in `src/chain/viem-chain.ts` for the full
+   accounting.
+
+Every REJECT and ADMIT on this path is logged with `path: 'signature'` (never
+`'qr'`); a bare QR scan against a Signed-only right still answers
+`LEVEL_REQUIRED` on `/verify`, unconsumed.
+
 ## Browser-based pass
 
 `GET /pass/:uid` renders a self-contained HTML page (inline SVG QR, tier,
@@ -46,13 +112,13 @@ issued answers `404 not_found`. `GET /pass/:uid/google` and
 `GET /pass/:uid/apple.pkpass` are stubs that answer `501` until Plan 5 adds
 the real wallet-pass builders.
 
-The `apps/gate` and `apps/dash` frontends call the api at
+The `apps/gate`, `apps/dash` and `apps/app` frontends call the api at
 `VITE_API_BASE_URL` (baked in at build time; defaults to
 `http://localhost:8787` for local dev). `corsPolicy()` in
 `src/middleware/cors.ts` allows any `http://localhost:<port>` or
 `http://127.0.0.1:<port>` origin in addition to the fixed production origins,
-so both frontends' dev servers (ports 5174 and 5175) work against a locally
-running api without further configuration.
+so all three frontends' dev servers (ports 5174, 5175 and 5173) work against a
+locally running api without further configuration.
 
 ## Tests
 
@@ -181,16 +247,18 @@ as long as a signer is available to `/issue`/`/revoke`).
 | Method | Path | Auth | Notes |
 | --- | --- | --- | --- |
 | GET | `/health` | none | liveness |
-| POST | `/issue` | Bearer (`ADMIN_TOKEN`) | bearer-level entitlement only; `signed`/`private` answer `bad_input` until Plans 3–4 |
+| POST | `/issue` | Bearer (`ADMIN_TOKEN`) | `holder` → Signed (level 1); `memberId` → Bearer (level 0); `+Private` answers `bad_input` until Plan 4 |
 | GET | `/verify/:uid` | none | read-only preview, no slot consumption |
-| POST | `/verify` | none | QR scan; consumes a slot per `usageModel` |
+| POST | `/verify` | none | QR scan; consumes a slot per `usageModel`; a Signed-only right answers `LEVEL_REQUIRED` here |
+| POST | `/challenge` | none | mints a one-time nonce for the Signed gate; no chain lookup |
+| POST | `/verify-signed` | none | challenge-response admission; consumes a slot per `usageModel`, path `signature` |
 | POST | `/revoke` | Bearer (`ADMIN_TOKEN`) | revokes the entitlement attestation |
 | GET | `/members` | Bearer (`ADMIN_TOKEN`) | lists issued entitlements |
 | GET | `/pass/:uid` | none | browser-based pass page; `404 not_found` if fuda never issued that uid |
 | GET | `/pass/:uid/google` | none | wallet-pass stub; `501 google_not_configured` until Plan 5 |
 | GET | `/pass/:uid/apple.pkpass` | none | wallet-pass stub; `501 apple_not_configured` until Plan 5 |
 
-`/challenge`, `/verify-signed` and `/announcements` arrive in Plans 3–4.
+`/announcements` arrives in Plan 4 (`+Private`).
 
 ## Error codes
 
