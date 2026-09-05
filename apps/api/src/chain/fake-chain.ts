@@ -14,6 +14,14 @@ import type {
 
 const DEFAULT_SIGNER: Hex = `0x${'f0'.repeat(20)}`
 
+// The fixed uid `createDevChain` (in `../index.ts`) seeds the fake root
+// IssuerDelegation at. Must match `wrangler.jsonc` `env.dev.vars.DELEGATION_UID`
+// exactly: `FakeChain`'s uid counter (below) starts at a random per-instance
+// offset, so without an explicit uid every `wrangler dev` start would mint a
+// different delegation uid than the one pinned in the dev vars, and
+// verification would fail with NO_DELEGATION.
+export const DEV_DELEGATION_UID: Hex = '0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6'
+
 // Annotated (not cast): a contextually-typed template literal already narrows to Hex.
 const lowerHex = (h: Hex): Hex => `0x${h.slice(2).toLowerCase()}`
 
@@ -54,7 +62,9 @@ export class FakeChain implements ChainClient {
   }
 
   // Seeds an active root IssuerDelegation attested by the fake signer; returns its uid.
-  seedRootDelegation(delegationSchema: Hex): Hex {
+  // `uid` lets callers (e.g. `wrangler dev`'s bootstrap) pin a fixed uid instead of
+  // taking one from the random per-instance counter — see `DEV_DELEGATION_UID`.
+  seedRootDelegation(delegationSchema: Hex, uid?: Hex): Hex {
     if (this.signer === null) {
       throw new NoSignerError('cannot seed without a signer')
     }
@@ -68,6 +78,7 @@ export class FakeChain implements ChainClient {
       revocationTime: 0n,
       schema: delegationSchema,
       time: this.now(),
+      uid,
     })
   }
 

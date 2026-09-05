@@ -1,7 +1,7 @@
 import { createApp } from './app.ts'
 import { attendanceHook } from './attendance/attendance-hook.ts'
 import type { ChainClient } from './chain/client.ts'
-import { FakeChain } from './chain/fake-chain.ts'
+import { DEV_DELEGATION_UID, FakeChain } from './chain/fake-chain.ts'
 import { createViemChain } from './chain/viem-chain.ts'
 import { getDb } from './db/client.ts'
 import { parseSchemaSets, SCHEMA_STRINGS, schemaUid } from './eas/schemas.ts'
@@ -23,7 +23,7 @@ let devChain: FakeChain | null = null
 
 const createDevChain = (): FakeChain => {
   const chain = new FakeChain()
-  const uid = chain.seedRootDelegation(schemaUid(SCHEMA_STRINGS.issuerDelegation))
+  const uid = chain.seedRootDelegation(schemaUid(SCHEMA_STRINGS.issuerDelegation), DEV_DELEGATION_UID)
   // oxlint-disable-next-line no-console -- one-time dev bootstrap hint, printed once per isolate
   console.warn(
     `[fuda-api] USE_FAKE_CHAIN=1: seeded root delegation. Set ISSUER_ADDRESS=${chain.signerAddress() ?? ''} and DELEGATION_UID=${uid} in wrangler.jsonc env.dev.vars.`,

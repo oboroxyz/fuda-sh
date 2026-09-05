@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { FakeChain } from '../src/chain/fake-chain.ts'
+import { DEV_DELEGATION_UID, FakeChain } from '../src/chain/fake-chain.ts'
+import { decodeDelegation } from '../src/eas/codecs.ts'
 import { buildChain, isFakeChainEnabled, schemaSetsOf } from '../src/index.ts'
 import type { DevBindings } from '../src/index.ts'
 import { testEnv } from './env.ts'
@@ -23,6 +24,21 @@ describe(buildChain, () => {
 
     const realEnv: DevBindings = testEnv()
     expect(buildChain(realEnv)).not.toBeInstanceOf(FakeChain)
+  })
+
+  it('seeds the dev root delegation at the fixed uid wrangler.jsonc pins, not a random one', async () => {
+    // Pinned literally (not read from wrangler.jsonc) so a change to either side
+    // of this pairing is a deliberate, visible edit rather than a tautology.
+    expect(DEV_DELEGATION_UID).toBe('0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6')
+
+    const fakeEnv: DevBindings = { ...testEnv(), USE_FAKE_CHAIN: '1' }
+    const chain = buildChain(fakeEnv)
+    expect(chain).toBeInstanceOf(FakeChain)
+
+    const delegation = await chain.readAttestation(DEV_DELEGATION_UID)
+    expect(delegation.uid.toLowerCase()).toBe(DEV_DELEGATION_UID.toLowerCase())
+    expect(delegation.revocationTime).toBe(0n)
+    expect(decodeDelegation(1, delegation.data).active).toBe(true)
   })
 })
 
