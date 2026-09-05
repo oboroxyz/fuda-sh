@@ -9,7 +9,8 @@
     "lint:fix": "vp lint --fix",
     "format": "vp fmt",
     "format:check": "vp fmt --check",
-    "check": "vp check"
+    "check": "vp check",
+    "test": "vp run -r test"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

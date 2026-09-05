@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "fuda-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "fuda",
+      "database_id": "REPLACE_AFTER_wrangler_d1_create",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "vars": {
+    "EAS_ADDRESS": "0x4200000000000000000000000000000000000021",
+    "SCHEMA_REGISTRY_ADDRESS": "0x4200000000000000000000000000000000000020",
+    "ANNOUNCER_ADDRESS": "0x55649E01B5Df198D18D95b5cc5051630cfD45564",
+    "ANNOUNCER_FROM_BLOCK": "0",
+    "FACTORY_ADDRESS": "0x0BA5ED0c6AA8c49038F819E587E2633c4A9F428a",
+    "EAS_SCHEMAS": "{\"entitlement\":[],\"issuerDelegation\":[],\"attendance\":[]}",
+    "ISSUER_ADDRESS": "0x0000000000000000000000000000000000000000",
+    "DELEGATION_UID": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "API_BASE_URL": "https://api.fuda.sh",
+  },
+}
