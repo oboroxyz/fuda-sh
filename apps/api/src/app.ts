@@ -9,6 +9,7 @@ import { corsPolicy } from './middleware/cors.ts'
 import { health } from './routes/health.ts'
 import { issueRoutes } from './routes/issue.ts'
 import { membersRoutes } from './routes/members.ts'
+import { passRoutes } from './routes/pass.ts'
 import { revokeRoutes } from './routes/revoke.ts'
 import { verifyRoutes } from './routes/verify.ts'
 import { noAdmitHook } from './verify/admit.ts'
@@ -45,6 +46,7 @@ export const createApp = (deps: AppDeps): Hono<AppEnv> => {
   app.route('/', issueRoutes)
   app.route('/', revokeRoutes)
   app.route('/', membersRoutes)
+  app.route('/', passRoutes)
   app.onError(unclassifiedError)
   return app
 }

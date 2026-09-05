@@ -55,7 +55,7 @@ export const verifyRoutes = new Hono<AppEnv>()
 // identically, and so neither path can log a non-decision.
 type Resolved = { ok: true; out: VerifyOutcome } | { ok: false; res: Response }
 
-const resolveVerdict = async (c: Context<AppEnv>, uid: Hex, now: number): Promise<Resolved> => {
+export const resolveVerdict = async (c: Context<AppEnv>, uid: Hex, now: number): Promise<Resolved> => {
   // A malformed EAS_SCHEMAS binding is a deployment defect, not attacker input:
   // fail closed with the same chain_error the caller already handles.
   let deps: ReturnType<typeof verifyConfig>
