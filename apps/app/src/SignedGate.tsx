@@ -6,7 +6,6 @@ import { useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import { challenge, verifySigned } from './api.ts'
-import { baseAccountProvider } from './base-account.ts'
 import { displayOf, enterSigned } from './signed-gate.ts'
 import type { SignedDisplay } from './signed-gate.ts'
 import { Verdict } from './Verdict.tsx'
@@ -16,6 +15,14 @@ import type { Eip1193Provider } from './wallet.ts'
 const uidOf = (text: string): Hex | null => {
   const t = text.trim()
   return normalizeUid(t) ?? parseQr(t)
+}
+
+// The passkey rail is a ~600 kB dependency and the same Worker serves the public
+// apex landing, so the SDK is fetched only once the member picks that rail — the
+// landing bundle never carries it.
+const passkeyRail = async (): Promise<Eip1193Provider> => {
+  const { baseAccountProvider } = await import('./base-account.ts')
+  return baseAccountProvider()
 }
 
 // Spec §10.1: enter or scan the pass uid → challenge → sign with the connected
@@ -28,9 +35,12 @@ export const SignedGate = ({ provider }: { provider?: Eip1193Provider | null }):
   const [busy, setBusy] = useState(false)
   const injected = provider === undefined ? injectedProvider() : provider
 
-  const enter = async (target: Hex, rail: Eip1193Provider): Promise<void> => {
+  // The rail arrives as a thunk so a lazily-loaded one is resolved inside the
+  // try: a failed chunk fetch reads as a REJECT verdict, not an unhandled throw.
+  const enter = async (target: Hex, openRail: () => Promise<Eip1193Provider>): Promise<void> => {
     setBusy(true)
     try {
+      const rail = await openRail()
       const address = await requestAccount(rail)
       const outcome = await enterSigned(
         { challenge, sign: async (m) => await personalSign(rail, address, m), verify: verifySigned },
@@ -80,7 +90,7 @@ export const SignedGate = ({ provider }: { provider?: Eip1193Provider | null }):
             disabled={busy || injected === null}
             onClick={() => {
               if (injected !== null) {
-                void enter(uid, injected)
+                void enter(uid, async () => await Promise.resolve(injected))
               }
             }}
           >
@@ -96,7 +106,7 @@ export const SignedGate = ({ provider }: { provider?: Eip1193Provider | null }):
             class="btn btn-secondary"
             disabled={busy}
             onClick={() => {
-              void enter(uid, baseAccountProvider())
+              void enter(uid, passkeyRail)
             }}
           >
             {busy ? 'Signing…' : `Passkey wallet (Base Account): sign for ${short(uid)}`}
