@@ -29,6 +29,23 @@ export interface VerifyMessageParams {
   signature: Hex
 }
 
+export interface AnnounceParams {
+  stealthAddress: Hex
+  ephemeralPubKey: Hex
+  metadata: Hex
+}
+
+export interface AnnouncementLog {
+  txHash: Hex
+  logIndex: number
+  blockNumber: number
+  schemeId: number
+  stealthAddress: Hex
+  caller: Hex
+  ephemeralPubKey: Hex
+  metadata: Hex
+}
+
 export class ChainError extends Error {
   override readonly name = 'ChainError'
 }
@@ -57,7 +74,12 @@ export interface ChainClient {
    * than 502. Implementations that do throw (FakeChain.failReads) take the fail-closed path.
    */
   verifyMessage: (p: VerifyMessageParams) => Promise<boolean>
-  // Plan 4 extends this with announce() and getAnnouncementLogs().
+  /** ERC-5564 Announcer.announce(1, stealthAddress, ephemeralPubKey, metadata); waits for the receipt. Throws NoSignerError / ChainError. */
+  announce: (p: AnnounceParams) => Promise<{ txHash: Hex }>
+  /** Announcement logs with schemeId == 1 in [fromBlock, toBlock], inclusive, no caller filter. Throws ChainError. */
+  getAnnouncementLogs: (fromBlock: number, toBlock: number) => Promise<AnnouncementLog[]>
+  /** The chain head. Throws ChainError. */
+  blockNumber: () => Promise<number>
 }
 
 export const ZERO_UID: Hex = `0x${'00'.repeat(32)}`

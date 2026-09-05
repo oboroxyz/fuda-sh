@@ -3,7 +3,14 @@ import type { Hex } from 'viem'
 
 import { encodeDelegationV1 } from '../eas/codecs.ts'
 import { ChainError, NoSignerError, ZERO_ADDRESS, ZERO_UID } from './client.ts'
-import type { AttestParams, ChainClient, RawAttestation, VerifyMessageParams } from './client.ts'
+import type {
+  AnnounceParams,
+  AnnouncementLog,
+  AttestParams,
+  ChainClient,
+  RawAttestation,
+  VerifyMessageParams,
+} from './client.ts'
 
 const DEFAULT_SIGNER: Hex = `0x${'f0'.repeat(20)}`
 
@@ -24,6 +31,10 @@ export class FakeChain implements ChainClient {
   readonly txs: Hex[] = []
   failReads = false
   failWrites = false
+  failAnnounce = false
+  readonly announcements: AnnouncementLog[] = []
+  // A small in-memory chain height so the sync has a head to walk towards.
+  private head = 100
   // oxlint-disable-next-line class-methods-use-this -- injectable clock; tests replace this field wholesale
   now: () => bigint = () => BigInt(Math.floor(Date.now() / 1000))
   private readonly signer: Hex | null
@@ -155,6 +166,45 @@ export class FakeChain implements ChainClient {
     } catch {
       return false
     }
+  }
+
+  // oxlint-disable-next-line eslint/require-await -- ChainClient's interface is async; this fake resolves synchronously
+  async announce(p: AnnounceParams): Promise<{ txHash: Hex }> {
+    if (this.signer === null) {
+      throw new NoSignerError('SIGNER_PRIVATE_KEY unset')
+    }
+    if (this.failAnnounce) {
+      throw new ChainError('announce reverted')
+    }
+    this.head += 1
+    const txHash = this.nextTx()
+    this.announcements.push({
+      blockNumber: this.head,
+      caller: this.signer,
+      ephemeralPubKey: p.ephemeralPubKey,
+      logIndex: 0,
+      metadata: p.metadata,
+      schemeId: 1,
+      stealthAddress: checksum(p.stealthAddress),
+      txHash,
+    })
+    return { txHash }
+  }
+
+  // oxlint-disable-next-line eslint/require-await -- ChainClient's interface is async; this fake resolves synchronously
+  async getAnnouncementLogs(fromBlock: number, toBlock: number): Promise<AnnouncementLog[]> {
+    if (this.failReads) {
+      throw new ChainError('rpc down')
+    }
+    return this.announcements.filter((l) => l.blockNumber >= fromBlock && l.blockNumber <= toBlock)
+  }
+
+  // oxlint-disable-next-line eslint/require-await -- ChainClient's interface is async; this fake resolves synchronously
+  async blockNumber(): Promise<number> {
+    if (this.failReads) {
+      throw new ChainError('rpc down')
+    }
+    return this.head
   }
 
   private nextUid(): Hex {

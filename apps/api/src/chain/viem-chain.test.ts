@@ -20,6 +20,13 @@ describe(createViemChain, () => {
     expect(createViemChain(testEnv()).verifyMessage).toBeTypeOf('function')
   })
 
+  it('exposes the announcement surface', () => {
+    const chain = createViemChain(testEnv())
+    expect(chain.announce).toBeTypeOf('function')
+    expect(chain.getAnnouncementLogs).toBeTypeOf('function')
+    expect(chain.blockNumber).toBeTypeOf('function')
+  })
+
   it('rejects a malformed address in the bindings', () => {
     expect(() => createViemChain(testEnv({ EAS_ADDRESS: 'not-an-address' }))).toThrow(ChainError)
   })

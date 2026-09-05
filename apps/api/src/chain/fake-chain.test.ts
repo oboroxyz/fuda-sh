@@ -129,6 +129,53 @@ describe(FakeChain, () => {
   })
 })
 
+describe('FakeChain announcements', () => {
+  const p = {
+    ephemeralPubKey: `0x02${'11'.repeat(32)}`,
+    metadata: `0x1f${'ab'.repeat(32)}`,
+    stealthAddress: `0x${'22'.repeat(20)}`,
+  } as const
+
+  it('records an announcement with an increasing block number and the signer as caller', async () => {
+    const chain = new FakeChain()
+    const a = await chain.announce(p)
+    const b = await chain.announce({ ...p, metadata: `0x20${'ab'.repeat(32)}` })
+    expect(a.txHash).not.toBe(b.txHash)
+    expect(chain.announcements.map((l) => l.blockNumber)).toStrictEqual([101, 102])
+    expect(chain.announcements[0]).toMatchObject({
+      caller: chain.signerAddress(),
+      logIndex: 0,
+      schemeId: 1,
+    })
+  })
+
+  it('serves logs by inclusive block range and reports the head', async () => {
+    const chain = new FakeChain()
+    await chain.announce(p)
+    await chain.announce(p)
+    await chain.announce(p)
+    const inRange = await chain.getAnnouncementLogs(102, 103)
+    const beyondHead = await chain.getAnnouncementLogs(104, 200)
+    await expect(chain.blockNumber()).resolves.toBe(103)
+    expect(inRange.map((l) => l.blockNumber)).toStrictEqual([102, 103])
+    expect(beyondHead).toStrictEqual([])
+  })
+
+  it('fails announce independently of attest', async () => {
+    const chain = new FakeChain()
+    chain.failAnnounce = true
+    await expect(chain.announce(p)).rejects.toBeInstanceOf(ChainError)
+    chain.failAnnounce = false
+    chain.failReads = true
+    await expect(chain.getAnnouncementLogs(0, 10)).rejects.toBeInstanceOf(ChainError)
+    await expect(chain.blockNumber()).rejects.toBeInstanceOf(ChainError)
+  })
+
+  it('needs a signer to announce', async () => {
+    await expect(new FakeChain({ signer: null }).announce(p)).rejects.toBeInstanceOf(NoSignerError)
+  })
+})
+
 const KEY = `0x${'01'.repeat(32)}` as const
 
 describe('FakeChain.verifyMessage', () => {
