@@ -2,9 +2,8 @@
 
 Cloudflare Worker (Hono) implementing the fuda endpoints: `GET /health`,
 `POST /issue`, `GET /verify/:uid`, `POST /verify`, `POST /revoke`,
-`GET /members`, `POST /challenge`, `POST /verify-signed`, and the
-browser-based pass (`GET /pass/:uid` and its two wallet stubs).
-`/announcements` is not implemented yet — see Endpoints below.
+`GET /members`, `POST /challenge`, `POST /verify-signed`, `GET /announcements`,
+and the browser-based pass (`GET /pass/:uid` and its two wallet stubs).
 
 ## Run locally
 
@@ -105,11 +104,85 @@ Every REJECT and ADMIT on this path is logged with `path: 'signature'` (never
 `'qr'`); a bare QR scan against a Signed-only right still answers
 `LEVEL_REQUIRED` on `/verify`, unconsumed.
 
+## +Private: stealth issuance and announcements
+
++Private is an extension of Signed (never a separate "third level" or "mode"):
+the right still enters through `/verify-signed`, but its holder is a one-time
+stealth address the member derives from a passkey rather than a wallet, and it
+is never printed as a QR — there is no pass to hand over. `@fuda/stealth`
+(`packages/stealth`) implements the ERC-5564 scheme-1 math: derivation from a
+passkey PRF output, stealth-address generation, and announcement matching.
+Every shared secret hashes the **compressed** ECDH point
+(`keccak256(secp256k1.getSharedSecret(priv, pub, true))`) — an interop caveat
+against other ERC-5564 implementations that hash the uncompressed point.
+
+`POST /issue` with a `stealthMetaAddress` (and no `holder`/`memberId` pair for
+Bearer/Signed) issues a +Private right:
+
+1. The meta-address is checked before the general body parse, so a malformed
+   shape or an off-curve half answers `400 bad_meta_address` rather than
+   folding into the generic `bad_input`.
+2. `generateStealthAddress` derives a fresh ephemeral key, the stealth
+   address and a view tag from the meta-address.
+3. The entitlement is attested to the derived stealth address (never the
+   meta-address, never stored).
+4. The api announces on-chain (`ChainClient.announce`, ERC-5564
+   `Announcer.announce(1, stealthAddress, ephemeralPubKey, metadata)`) so the
+   member can discover the right client-side; `metadata` carries the view tag
+   and the attestation uid (`buildAnnouncementMetadata`).
+5. Only after both chain writes land is the `members` row written, with
+   `holder` `NULL` and `member_id` set to the supplied `memberId`.
+
+**If the announce call fails after the attest already landed, the route
+answers `502 chain_error` and persists nothing.** The right exists on chain
+but no announcement points at it, so it is undiscoverable by design; the uid
+is logged (`console.error`) as the only handle on it, and an operator revokes
+this orphaned attestation from the dash.
+
+On success the response carries no `passUrls` and no address — discovery is
+the member's path, not the operator's:
+
+```json
+{ "uid": "0x…", "level": "private", "announced": true, "announceTx": "0x…" }
+```
+
+`GET /announcements?fromBlock=N` serves the cached ERC-5564 log to every
+caller identically; the api never learns which rows are a given caller's —
+matching happens client-side with the viewing key. Each call lazily syncs new
+chain history into D1 first: from the persisted cursor (or
+`ANNOUNCER_FROM_BLOCK`, which must be set to this deployment's actual
+announcer-contract deployment block) in chunks of at most 1000 blocks
+(`eth_getLogs` range cap on public Base Sepolia RPCs), up to 5 chunks per
+request so a cold deployment warms up over a few requests instead of spending
+one request's whole CPU budget. Each chunk's rows and its new cursor are
+applied to D1 in a single batch, so the cursor never advances past rows that
+did not land; a batch insert slices its rows into groups of 12 to stay under
+D1's 100-bound-parameter-per-statement limit.
+
+The response is `{ announcements, syncedTo }`: up to 1000 rows, ascending by
+block number then log index, starting from `fromBlock` (a non-integer or
+negative `fromBlock` clamps to `0`). If the chain RPC is unreachable, the
+route serves the stale cache with the last-known `syncedTo` rather than
+failing; it only answers `502 rpc_unavailable` when no cursor has ever been
+persisted (nothing to serve at all).
+
+This is the only budgeted route in the MVP: a per-IP fixed hourly window of
+120 requests, tracked in D1. A missing `CF-Connecting-IP` header answers
+`400 client_ip_required`; exceeding the budget answers `429 rate_limited`.
+`/verify-signed` carries no such budget.
+
+Entry for a discovered +Private right is the unchanged `/verify-signed` flow,
+signing the challenge with the recovered stealth private key — no wallet
+prompt, no separate admission path.
+
 ## Browser-based pass
 
 `GET /pass/:uid` renders a self-contained HTML page (inline SVG QR, tier,
 holder, live status) for any uid a `members` row exists for; a uid fuda never
-issued answers `404 not_found`. `GET /pass/:uid/google` and
+issued answers `404 not_found`. A +Private row also answers `404 not_found` —
+its holder is a one-time stealth address only the member can recover, and the
+`/issue` response for it carries no `passUrls`, so there is no pass page for
+it to render. `GET /pass/:uid/google` and
 `GET /pass/:uid/apple.pkpass` are stubs that answer `501` until Plan 5 adds
 the real wallet-pass builders.
 
@@ -227,8 +300,11 @@ Vars (`wrangler.jsonc` `vars`):
   entries, produced by `register-schemas`.
 - `ISSUER_ADDRESS`, `DELEGATION_UID` — the root `IssuerDelegation`.
 - `API_BASE_URL` — used to build absolute `passUrls` in `/issue` responses.
-- `ANNOUNCER_ADDRESS`, `ANNOUNCER_FROM_BLOCK` — reserved for the stealth
-  announcer (Plan 4); unused by this plan's routes.
+- `ANNOUNCER_ADDRESS` — the ERC-5564 `Announcer` contract `/issue` writes
+  scheme-1 announcements to and `GET /announcements` reads them back from.
+- `ANNOUNCER_FROM_BLOCK` — the floor `GET /announcements` syncs from; must be
+  set to this announcer contract's actual deployment block on a live chain
+  (the checked-in `"0"` only works against the in-memory `FakeChain`).
 
 ## Smoke test
 
@@ -248,20 +324,21 @@ as long as a signer is available to `/issue`/`/revoke`).
 | Method | Path | Auth | Notes |
 | --- | --- | --- | --- |
 | GET | `/health` | none | liveness |
-| POST | `/issue` | Bearer (`ADMIN_TOKEN`) | `holder` → Signed (level 1); `memberId` → Bearer (level 0); `+Private` answers `bad_input` until Plan 4 |
+| POST | `/issue` | Bearer (`ADMIN_TOKEN`) | `holder` → Signed; `memberId` → Bearer; `stealthMetaAddress` → +Private (`400 bad_meta_address` for a malformed or off-curve one) |
 | GET | `/verify/:uid` | none | read-only preview, no slot consumption |
 | POST | `/verify` | none | QR scan; consumes a slot per `usageModel`; a Signed-only right answers `LEVEL_REQUIRED` here |
 | POST | `/challenge` | none | mints a one-time nonce for the Signed gate; no chain lookup; sweeps expired nonces |
-| POST | `/verify-signed` | none | challenge-response admission at every level; consumes a slot per `usageModel`, path `signature` |
+| POST | `/verify-signed` | none | challenge-response admission at every level, including a discovered +Private right; consumes a slot per `usageModel`, path `signature` |
 | POST | `/revoke` | Bearer (`ADMIN_TOKEN`) | revokes the entitlement attestation |
 | GET | `/members` | Bearer (`ADMIN_TOKEN`) | lists issued entitlements |
-| GET | `/pass/:uid` | none | browser-based pass page; `404 not_found` if fuda never issued that uid |
+| GET | `/pass/:uid` | none | browser-based pass page; `404 not_found` if fuda never issued that uid, or if the row is +Private |
 | GET | `/pass/:uid/google` | none | wallet-pass stub; `501 google_not_configured` until Plan 5 |
 | GET | `/pass/:uid/apple.pkpass` | none | wallet-pass stub; `501 apple_not_configured` until Plan 5 |
-
-`/announcements` arrives in Plan 4 (`+Private`).
+| GET | `/announcements` | none, per-IP budget (120/h) | the cached ERC-5564 announcement log, lazily synced from chain; `502 rpc_unavailable` only with an empty cache |
 
 ## Error codes
 
-`bad_input`, `bad_uid`, `bad_qr`, `not_found`, `unauthorized`, `no_signer`,
-`chain_error`, `internal`, `google_not_configured`, `apple_not_configured`.
+`bad_input`, `bad_uid`, `bad_qr`, `bad_meta_address`, `not_found`,
+`unauthorized`, `no_signer`, `chain_error`, `rpc_unavailable`,
+`rate_limited`, `client_ip_required`, `internal`, `google_not_configured`,
+`apple_not_configured`.

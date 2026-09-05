@@ -20,6 +20,9 @@ One config file, `vite.config.ts`, drives dev/build/test/lint/format through **V
 - `oxlint` / `oxfmt` are pinned in `pnpm-workspace.yaml` `overrides` to the versions vite-plus bundles. Two copies of oxlint installed at once break the preset types in `vite.config.ts`; keep the overrides in step when bumping vite-plus. A third override there, `vite@*` → `@voidzero-dev/vite-plus-core@<version>`, redirects any third-party Vite plugin's `vite` peer (e.g. `@tailwindcss/vite`) to the same vite-plus-core release the workspace uses, so its `Plugin`/`UserConfig` types stay unified with `vite-plus`'s instead of splitting into two nominally distinct types — see the override's comment in `pnpm-workspace.yaml` for the full rationale. Bump this override's version together with vite-plus too.
 - Node `24.18.0` is provisioned by pnpm itself (`devEngines.runtime` in `package.json`, `onFail: download`); no version manager needed. `engineStrict` / `autoInstallPeers` live in `pnpm-workspace.yaml` because pnpm 11 ignores `.npmrc` for them. Install with `pnpm install --frozen-lockfile`.
 - Wrangler local state (`.wrangler/`) and secrets (`.dev.vars*`) are gitignored per app.
+- D1 caps bound parameters at 100 per statement, so a multi-row `INSERT` built
+  from a variable-length list must be sliced into batches under that cap
+  (see `INSERT_ROWS` in `apps/api/src/announcements/sync.ts`).
 
 ## Agents
 
