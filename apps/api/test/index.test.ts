@@ -17,10 +17,8 @@ describe(isFakeChainEnabled, () => {
 
 describe(buildChain, () => {
   it('builds a FakeChain under the opt-in and a viem chain otherwise', () => {
-    const fakeEnv: DevBindings = {
-      ...testEnv({ BASE_RPC_URL: undefined, SIGNER_PRIVATE_KEY: undefined }),
-      USE_FAKE_CHAIN: '1',
-    }
+    // testEnv() strips the opt-in that `.dev.vars` may carry, so this case sets it.
+    const fakeEnv: DevBindings = { ...testEnv(), USE_FAKE_CHAIN: '1' }
     expect(buildChain(fakeEnv)).toBeInstanceOf(FakeChain)
 
     const realEnv: DevBindings = testEnv()
