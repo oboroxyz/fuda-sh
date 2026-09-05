@@ -49,9 +49,14 @@ flowchart LR
    the usage model. Signed policies additionally verify a fresh challenge
    against the holder.
 4. **Admit.** Admission consumes any required operational slot and creates an
-   entry log. The API then attempts to attest Attendance without delaying the
-   gate verdict; an Attendance write failure may leave the successful entry
-   represented only in operational logs.
+   entry log. For a right whose `level` is `0` or `1` the API then attempts
+   to attest Attendance without delaying the gate verdict; an Attendance
+   write failure may leave the successful entry represented only in
+   operational logs. **No Attendance is attested for a `level == 2`
+   (+Private) right**: the stealth holder is unlinkable to the member, but a
+   public Attendance would still publish that right's visit history, which is
+   exactly what +Private exists to hide. Its entries live only in the entry
+   log.
 5. **Revoke.** The issuer revokes the Entitlement on EAS. A later gate read
    rejects the same pass because the on-chain right is no longer valid.
 
@@ -333,7 +338,9 @@ Durable Objects are used in the MVP.
   `LEVEL_REQUIRED` with its slot left unconsumed; same holder issued twice →
   two rows; delegation-missing REJECT; `/revoke` unknown uid →
   `502 chain_error`; +Private issue → member row has `holder = NULL` and
-  `member_id` = the supplied representative id.
+  `member_id` = the supplied representative id; +Private ADMIT via
+  `/verify-signed` → no Attendance attest is attempted and `attendance_uid`
+  stays `NULL`.
 
 ## Related specs
 
