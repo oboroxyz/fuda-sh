@@ -80,18 +80,18 @@ describe(consumeChallenge, () => {
 
   it('consumes an unused, fresh nonce exactly once', async () => {
     await db().insert(challenges).values({ createdAt: NOW, nonce, uid: UID })
-    await expect(consumeChallenge(db(), { nonce, now: NOW + 10, uid: UID })).resolves.toBeTruthy()
-    await expect(consumeChallenge(db(), { nonce, now: NOW + 11, uid: UID })).resolves.toBeFalsy()
+    await expect(consumeChallenge(db(), { nonce, now: NOW + 10, uid: UID })).resolves.toBe(true)
+    await expect(consumeChallenge(db(), { nonce, now: NOW + 11, uid: UID })).resolves.toBe(false)
     const rows = await db().select().from(challenges)
     expect(rows[0]?.usedAt).toBe(NOW + 10)
   })
 
   it('refuses a nonce minted for another uid, or older than the TTL', async () => {
     await db().insert(challenges).values({ createdAt: NOW, nonce, uid: UID })
-    await expect(
-      consumeChallenge(db(), { nonce, now: NOW + 10, uid: `0x${'ee'.repeat(32)}` }),
-    ).resolves.toBeFalsy()
-    await expect(consumeChallenge(db(), { nonce, now: NOW + 300, uid: UID })).resolves.toBeFalsy()
-    await expect(consumeChallenge(db(), { nonce, now: NOW + 299, uid: UID })).resolves.toBeTruthy()
+    await expect(consumeChallenge(db(), { nonce, now: NOW + 10, uid: `0x${'ee'.repeat(32)}` })).resolves.toBe(
+      false,
+    )
+    await expect(consumeChallenge(db(), { nonce, now: NOW + 300, uid: UID })).resolves.toBe(false)
+    await expect(consumeChallenge(db(), { nonce, now: NOW + 299, uid: UID })).resolves.toBe(true)
   })
 })

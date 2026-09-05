@@ -11,7 +11,7 @@ const viewBoxOf = (s: string): string | undefined => /viewBox="[^"]+"/u.exec(s)?
 describe(qrSvg, () => {
   it('returns one self-contained svg with a module-unit viewBox', () => {
     const svg = qrSvg(`fuda:v1:${UID}`)
-    expect(svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg"')).toBeTruthy()
+    expect(svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg"')).toBe(true)
     expect(svg).toMatch(/viewBox="0 0 \d+ \d+"/u)
     expect(svg).toContain('<path d="M')
     expect(svg).not.toContain('href=')

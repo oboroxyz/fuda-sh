@@ -90,7 +90,7 @@ describe('Attendance on ADMIT', () => {
       await Promise.all(kept)
       expect(kept).toHaveLength(2)
       expect(warn).toHaveBeenCalledOnce()
-      expect([...chain.attestations.values()].some((a) => a.schema === ATT)).toBeFalsy()
+      expect([...chain.attestations.values()].some((a) => a.schema === ATT)).toBe(false)
     } finally {
       warn.mockRestore()
     }
@@ -107,6 +107,6 @@ describe('Attendance on ADMIT', () => {
     // assertions below without ever reaching the reject path.
     await expect(res.json()).resolves.toMatchObject({ decision: 'REJECT', reason: 'LEVEL_REQUIRED' })
     expect(kept).toHaveLength(0)
-    expect([...chain.attestations.values()].some((a) => a.schema === ATT)).toBeFalsy()
+    expect([...chain.attestations.values()].some((a) => a.schema === ATT)).toBe(false)
   })
 })

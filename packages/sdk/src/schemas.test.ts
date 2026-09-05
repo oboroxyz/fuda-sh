@@ -36,16 +36,16 @@ describe('IssueBody schema', () => {
   })
 
   it('rejects out-of-range tier / usageModel and empty memberId', () => {
-    expect(v.safeParse(IssueBody, { memberId: 'a', tier: 4 }).success).toBeFalsy()
-    expect(v.safeParse(IssueBody, { memberId: 'a', usageModel: 3 }).success).toBeFalsy()
-    expect(v.safeParse(IssueBody, { memberId: '' }).success).toBeFalsy()
+    expect(v.safeParse(IssueBody, { memberId: 'a', tier: 4 }).success).toBe(false)
+    expect(v.safeParse(IssueBody, { memberId: 'a', usageModel: 3 }).success).toBe(false)
+    expect(v.safeParse(IssueBody, { memberId: '' }).success).toBe(false)
   })
 })
 
 describe('VerifyBody / RevokeBody', () => {
   it('accepts a fuda:v1 qr and a uid', () => {
-    expect(v.safeParse(VerifyBody, { qr: `fuda:v1:${uid}` }).success).toBeTruthy()
-    expect(v.safeParse(VerifyBody, { qr: uid }).success).toBeFalsy()
-    expect(v.safeParse(RevokeBody, { uid }).success).toBeTruthy()
+    expect(v.safeParse(VerifyBody, { qr: `fuda:v1:${uid}` }).success).toBe(true)
+    expect(v.safeParse(VerifyBody, { qr: uid }).success).toBe(false)
+    expect(v.safeParse(RevokeBody, { uid }).success).toBe(true)
   })
 })

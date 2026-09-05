@@ -20,16 +20,16 @@ const uid: Hex = `0x${'ab'.repeat(32)}`
 
 describe('wire constants', () => {
   it('uid regex accepts 0x + 64 hex only', () => {
-    expect(UID_RE.test(uid)).toBeTruthy()
-    expect(UID_RE.test(uid.slice(0, -1))).toBeFalsy()
-    expect(isUid('0x')).toBeFalsy()
+    expect(UID_RE.test(uid)).toBe(true)
+    expect(UID_RE.test(uid.slice(0, -1))).toBe(false)
+    expect(isUid('0x')).toBe(false)
   })
 
   it('QR round-trips through fuda:v1:', () => {
     expect(toQr(uid)).toBe(`fuda:v1:${uid}`)
     expect(parseQr(`fuda:v1:${uid}`)).toBe(uid)
     expect(parseQr(`fuda:v2:${uid}`)).toBeNull()
-    expect(QR_RE.test(`fuda:v1:${uid}`)).toBeTruthy()
+    expect(QR_RE.test(`fuda:v1:${uid}`)).toBe(true)
   })
 
   it('normalizes a valid uid to lower case and rejects anything else', () => {

@@ -8,10 +8,10 @@ import { ATT } from './fixtures.ts'
 
 describe(isFakeChainEnabled, () => {
   it('opts in only when USE_FAKE_CHAIN=1 and no signer or RPC is configured', () => {
-    expect(isFakeChainEnabled({ USE_FAKE_CHAIN: '1' })).toBeTruthy()
-    expect(isFakeChainEnabled({ SIGNER_PRIVATE_KEY: '0xabc', USE_FAKE_CHAIN: '1' })).toBeFalsy()
-    expect(isFakeChainEnabled({ BASE_RPC_URL: 'https://example.test', USE_FAKE_CHAIN: '1' })).toBeFalsy()
-    expect(isFakeChainEnabled({})).toBeFalsy()
+    expect(isFakeChainEnabled({ USE_FAKE_CHAIN: '1' })).toBe(true)
+    expect(isFakeChainEnabled({ SIGNER_PRIVATE_KEY: '0xabc', USE_FAKE_CHAIN: '1' })).toBe(false)
+    expect(isFakeChainEnabled({ BASE_RPC_URL: 'https://example.test', USE_FAKE_CHAIN: '1' })).toBe(false)
+    expect(isFakeChainEnabled({})).toBe(false)
   })
 })
 

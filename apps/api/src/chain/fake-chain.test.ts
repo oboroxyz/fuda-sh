@@ -121,7 +121,7 @@ describe('FakeChain.verifyMessage', () => {
     const chain = new FakeChain()
     await expect(
       chain.verifyMessage({ address: account.address, message: 'fuda-gate:x:y', signature }),
-    ).resolves.toBeTruthy()
+    ).resolves.toBe(true)
   })
 
   it('rejects the same signature over a different message', async () => {
@@ -130,7 +130,7 @@ describe('FakeChain.verifyMessage', () => {
     const chain = new FakeChain()
     await expect(
       chain.verifyMessage({ address: account.address, message: 'fuda-gate:x:z', signature }),
-    ).resolves.toBeFalsy()
+    ).resolves.toBe(false)
   })
 
   it('rejects another key and a malformed signature without throwing', async () => {
@@ -138,15 +138,15 @@ describe('FakeChain.verifyMessage', () => {
     const other = privateKeyToAccount(`0x${'02'.repeat(32)}`)
     const signature = await other.signMessage({ message: 'm' })
     const chain = new FakeChain()
-    await expect(
-      chain.verifyMessage({ address: account.address, message: 'm', signature }),
-    ).resolves.toBeFalsy()
+    await expect(chain.verifyMessage({ address: account.address, message: 'm', signature })).resolves.toBe(
+      false,
+    )
     await expect(
       chain.verifyMessage({ address: account.address, message: 'm', signature: '0x1234' }),
-    ).resolves.toBeFalsy()
+    ).resolves.toBe(false)
     await expect(
       chain.verifyMessage({ address: account.address, message: 'm', signature: '0xdeadbeef' }),
-    ).resolves.toBeFalsy()
+    ).resolves.toBe(false)
   })
 
   it('throws ChainError when reads fail', async () => {

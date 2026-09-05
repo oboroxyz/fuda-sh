@@ -125,6 +125,6 @@ describe(attendanceHook, () => {
     }).not.toThrow()
     expect(kept).toHaveLength(1)
     await Promise.all(kept)
-    expect([...chain.attestations.values()].some((a) => a.schema === ATT)).toBeTruthy()
+    expect([...chain.attestations.values()].some((a) => a.schema === ATT)).toBe(true)
   })
 })

@@ -36,7 +36,7 @@ describe(admitSingleUse, () => {
 
   it('admits once, writing the slot and the ADMIT row together', async () => {
     const first = await admitSingleUse(db(), UID, 'qr', NOW)
-    expect(first.admitted).toBeTruthy()
+    expect(first.admitted).toBe(true)
     const log = await db().select().from(entryLog)
     expect(log).toHaveLength(1)
     expect(log[0]).toMatchObject({ decision: 'ADMIT', path: 'qr', reason: 'OK', uid: UID })
