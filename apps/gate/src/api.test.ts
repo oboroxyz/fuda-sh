@@ -48,6 +48,20 @@ describe(admitQr, () => {
     expect(result).toStrictEqual({ error: 'api 502', network: true, ok: false })
   })
 
+  // A proxy's HTML 4xx is a bad request, not a network outage: the banner is
+  // reserved for conditions the door cannot see past.
+  it('maps a non-JSON 4xx to a non-network failure, with no banner', async () => {
+    stubFetch(() => new Response('<html>not found</html>', { status: 404 }))
+    const result = await admitQr(`fuda:v1:${UID}`)
+    expect(result).toStrictEqual({ error: 'api 404', network: false, ok: false })
+  })
+
+  it('rejects a 2xx whose body is not JSON rather than trusting it', async () => {
+    stubFetch(() => new Response('<html>ok?</html>', { status: 200 }))
+    const result = await admitQr(`fuda:v1:${UID}`)
+    expect(result).toStrictEqual({ error: 'bad_response', network: false, ok: false })
+  })
+
   it('treats a transport failure as a network condition', async () => {
     stubFetch(() => {
       throw new Error('fetch failed')

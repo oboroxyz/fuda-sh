@@ -11,12 +11,18 @@ const call = async (path: string, init: RequestInit): Promise<ApiResult> => {
     if (res.status >= 500) {
       return { error: `api ${res.status}`, network: true, ok: false }
     }
-    const json: unknown = await res.json()
+    // A 4xx from a proxy is often HTML, not JSON: parsing it must not throw into
+    // the transport branch below, or the door shows the network banner for what
+    // is really a bad request.
+    const json: unknown = await res.json().catch(() => null)
     if (!res.ok) {
       // oxlint-disable-next-line anti-slop/no-runtime-typeof -- narrowing an untyped JSON error body
       const isObject = typeof json === 'object' && json !== null
       const error = isObject && 'error' in json ? String(json.error) : `api ${res.status}`
       return { error, network: false, ok: false }
+    }
+    if (json === null) {
+      return { error: 'bad_response', network: false, ok: false }
     }
     // SAFETY: the api's verify endpoints answer VerifyResponse on every 2xx (spec §3).
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the response body is untyped JSON
