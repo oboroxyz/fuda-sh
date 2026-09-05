@@ -1,4 +1,4 @@
-import type { EntryPath, ErrorCode, Hex, Level, Reason } from './constants.ts'
+import type { ErrorCode, Hex, Level, Reason } from './constants.ts'
 
 export interface ErrorResponse {
   error: ErrorCode
@@ -37,8 +37,18 @@ export interface VerifyResponse {
   delegation?: DelegationView
 }
 
-export type VerifySignedResponse = VerifyResponse & {
-  path: EntryPath
+export interface ChallengeResponse {
+  challenge: string
+  nonce: Hex
+}
+
+// Every /verify-signed verdict is 200 in this one shape (spec §3): no entitlement
+// or delegation view, `stage` marks the two early stops, `holder` appears once the
+// attestation was decoded.
+export interface VerifySignedResponse {
+  decision: 'ADMIT' | 'REJECT'
+  reason: Reason
+  path: 'signature'
   holder?: Hex
   stage?: 'entitlement' | 'challenge'
 }

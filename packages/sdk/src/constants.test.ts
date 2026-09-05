@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest'
 import type { Hex } from './constants.ts'
 import {
   asHex,
+  challengeMessage,
   isUid,
   LEVEL_CODE,
   levelFromCode,
+  normalizeNonce,
   normalizeUid,
   parseQr,
   QR_RE,
@@ -59,5 +61,22 @@ describe(asHex, () => {
     expect(asHex(`0x${'ab'.repeat(19)}`, 20)).toBeNull()
     expect(asHex('ab'.repeat(20), 20)).toBeNull()
     expect(asHex(`0x${'zz'.repeat(20)}`, 20)).toBeNull()
+  })
+})
+
+describe(normalizeNonce, () => {
+  it('lowercases a 16-byte nonce and rejects other lengths', () => {
+    expect(normalizeNonce(`0x${'ab'.repeat(16)}`)).toBe(`0x${'ab'.repeat(16)}`)
+    expect(normalizeNonce(`0x${'AB'.repeat(16)}`)).toBe(`0x${'ab'.repeat(16)}`)
+    expect(normalizeNonce(`0x${'ab'.repeat(15)}`)).toBeNull()
+    expect(normalizeNonce(`0x${'ab'.repeat(17)}`)).toBeNull()
+  })
+})
+
+describe(challengeMessage, () => {
+  it('is the spec §5 challenge string', () => {
+    const uidHex = `0x${'11'.repeat(32)}` as const
+    const nonce = `0x${'22'.repeat(16)}` as const
+    expect(challengeMessage(uidHex, nonce)).toBe(`fuda-gate:${uidHex}:${nonce}`)
   })
 })

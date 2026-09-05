@@ -23,6 +23,12 @@ export interface AttestParams {
   expirationTime: bigint
 }
 
+export interface VerifyMessageParams {
+  address: Hex
+  message: string
+  signature: Hex
+}
+
 export class ChainError extends Error {
   override readonly name = 'ChainError'
 }
@@ -42,6 +48,8 @@ export interface ChainClient {
   attest: (p: AttestParams) => Promise<{ uid: Hex; txHash: Hex }>
   /** Revoke; waits for the receipt. Throws ChainError when the tx reverts (unknown or already-revoked uid). */
   revoke: (schema: Hex, uid: Hex) => Promise<{ txHash: Hex }>
+  /** EIP-191 personal-sign check for the challenge (§3 step 3): EOA via ecrecover, deployed smart accounts via ERC-1271, undeployed via ERC-6492. false for any invalid or malformed signature; ChainError only when the chain could not be consulted. */
+  verifyMessage: (p: VerifyMessageParams) => Promise<boolean>
   // Plan 4 extends this with announce() and getAnnouncementLogs().
 }
 

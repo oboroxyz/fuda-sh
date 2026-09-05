@@ -1,4 +1,5 @@
 import type { Hex } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
 
 import { ZERO_UID } from '../src/chain/client.ts'
 import type { FakeChain } from '../src/chain/fake-chain.ts'
@@ -75,3 +76,10 @@ export const configuredEnv = (delegationUid: Hex, overrides: Partial<Bindings> =
     ISSUER_ADDRESS: ROOT,
     ...overrides,
   })
+
+// A real EOA for the Signed tests: the holder of a Signed right, signing for real.
+export const SIGNER_KEY = `0x${'5a'.repeat(32)}` as const
+export const signer = privateKeyToAccount(SIGNER_KEY)
+export const OTHER_KEY = `0x${'5b'.repeat(32)}` as const
+export const other = privateKeyToAccount(OTHER_KEY)
+export const signChallenge = async (message: string): Promise<Hex> => await signer.signMessage({ message })

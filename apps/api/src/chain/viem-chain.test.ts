@@ -16,6 +16,10 @@ describe(createViemChain, () => {
     expect(chain.signerAddress()).toBe('0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A')
   })
 
+  it('exposes verifyMessage', () => {
+    expect(createViemChain(testEnv()).verifyMessage).toBeTypeOf('function')
+  })
+
   it('rejects a malformed address in the bindings', () => {
     expect(() => createViemChain(testEnv({ EAS_ADDRESS: 'not-an-address' }))).toThrow(ChainError)
   })

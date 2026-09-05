@@ -1,4 +1,5 @@
 import { getAddress } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
 import { describe, expect, it } from 'vitest'
 
 import { ChainError, NoSignerError, ZERO_UID } from './client.ts'
@@ -108,5 +109,51 @@ describe(FakeChain, () => {
     const a = await chain.getAddressFromFactory([holder], 1n)
     expect(a).toBe(await chain.getAddressFromFactory([holder], 1n))
     expect(a).not.toBe(await chain.getAddressFromFactory([holder], 2n))
+  })
+})
+
+const KEY = `0x${'01'.repeat(32)}` as const
+
+describe('FakeChain.verifyMessage', () => {
+  it('accepts a signature made by the holder key', async () => {
+    const account = privateKeyToAccount(KEY)
+    const signature = await account.signMessage({ message: 'fuda-gate:x:y' })
+    const chain = new FakeChain()
+    await expect(
+      chain.verifyMessage({ address: account.address, message: 'fuda-gate:x:y', signature }),
+    ).resolves.toBeTruthy()
+  })
+
+  it('rejects the same signature over a different message', async () => {
+    const account = privateKeyToAccount(KEY)
+    const signature = await account.signMessage({ message: 'fuda-gate:x:y' })
+    const chain = new FakeChain()
+    await expect(
+      chain.verifyMessage({ address: account.address, message: 'fuda-gate:x:z', signature }),
+    ).resolves.toBeFalsy()
+  })
+
+  it('rejects another key and a malformed signature without throwing', async () => {
+    const account = privateKeyToAccount(KEY)
+    const other = privateKeyToAccount(`0x${'02'.repeat(32)}`)
+    const signature = await other.signMessage({ message: 'm' })
+    const chain = new FakeChain()
+    await expect(
+      chain.verifyMessage({ address: account.address, message: 'm', signature }),
+    ).resolves.toBeFalsy()
+    await expect(
+      chain.verifyMessage({ address: account.address, message: 'm', signature: '0x1234' }),
+    ).resolves.toBeFalsy()
+    await expect(
+      chain.verifyMessage({ address: account.address, message: 'm', signature: '0xdeadbeef' }),
+    ).resolves.toBeFalsy()
+  })
+
+  it('throws ChainError when reads fail', async () => {
+    const chain = new FakeChain()
+    chain.failReads = true
+    await expect(
+      chain.verifyMessage({ address: `0x${'11'.repeat(20)}`, message: 'm', signature: '0x00' }),
+    ).rejects.toBeInstanceOf(ChainError)
   })
 })

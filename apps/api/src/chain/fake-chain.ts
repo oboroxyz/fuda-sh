@@ -1,9 +1,9 @@
-import { encodeAbiParameters, getAddress, keccak256 } from 'viem'
+import { encodeAbiParameters, getAddress, keccak256, verifyMessage as recoverAndCompare } from 'viem'
 import type { Hex } from 'viem'
 
 import { encodeDelegationV1 } from '../eas/codecs.ts'
 import { ChainError, NoSignerError, ZERO_ADDRESS, ZERO_UID } from './client.ts'
-import type { AttestParams, ChainClient, RawAttestation } from './client.ts'
+import type { AttestParams, ChainClient, RawAttestation, VerifyMessageParams } from './client.ts'
 
 const DEFAULT_SIGNER: Hex = `0x${'f0'.repeat(20)}`
 
@@ -137,6 +137,19 @@ export class FakeChain implements ChainClient {
     }
     this.attestations.set(a.uid, { ...a, revocationTime: this.now() })
     return { txHash: this.nextTx() }
+  }
+
+  // The pure ECDSA path (no RPC): every test key is an EOA. A malformed
+  // signature is "not the holder's", not an error.
+  async verifyMessage(p: VerifyMessageParams): Promise<boolean> {
+    if (this.failReads) {
+      throw new ChainError('rpc down')
+    }
+    try {
+      return await recoverAndCompare({ address: p.address, message: p.message, signature: p.signature })
+    } catch {
+      return false
+    }
   }
 
   private nextUid(): Hex {

@@ -1,4 +1,13 @@
-import { createPublicClient, createWalletClient, http, isHex, parseEventLogs } from 'viem'
+import {
+  createPublicClient,
+  createWalletClient,
+  http,
+  HttpRequestError,
+  isHex,
+  parseEventLogs,
+  RpcRequestError,
+  TimeoutError,
+} from 'viem'
 import type { Hex } from 'viem'
 import { nonceManager, privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
@@ -129,5 +138,28 @@ export const createViemChain = (env: Bindings): ChainClient => {
     },
 
     signerAddress: () => account?.address ?? null,
+
+    verifyMessage: async (p) => {
+      try {
+        return await publicClient.verifyMessage({
+          address: p.address,
+          message: p.message,
+          signature: p.signature,
+        })
+      } catch (error) {
+        // The action consults the chain even for an EOA (ERC-6492's deployless
+        // validator), so a transport failure is a chain failure — fail closed as
+        // 502, never as BAD_SIGNATURE. Anything else is a signature that does not
+        // verify (malformed bytes, wrong length).
+        if (
+          error instanceof HttpRequestError ||
+          error instanceof TimeoutError ||
+          error instanceof RpcRequestError
+        ) {
+          throw new ChainError(error.message)
+        }
+        return false
+      }
+    },
   }
 }
