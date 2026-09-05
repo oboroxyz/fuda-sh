@@ -7,10 +7,24 @@ export type Route = 'landing' | 'signed' | { redirect: string }
 // app origin: it is the only one the api's CORS list allows, so rendering it at
 // the apex would fail every /challenge with the network banner. The apex answers
 // the landing and hands /signed over to app.fuda.sh instead.
+
+// An origin is compared by what the URL parser makes of it, not by its spelling:
+// a VITE_APP_ORIGIN with a trailing slash or an upper-case host would otherwise
+// never equal `location.origin` and the gate would redirect to itself forever.
+// `URL` reports an opaque origin as the string "null", which is no origin at all.
+const originOf = (value: string): string | null => {
+  if (!URL.canParse(value)) {
+    return null
+  }
+  const { origin } = new URL(value)
+  return origin === 'null' ? null : origin
+}
+
 export const routeFor = (origin: string, pathname: string, appOrigin: string = APP_ORIGIN): Route => {
   const path = pathname.length > 1 ? pathname.replace(/\/+$/u, '') : pathname
-  if (path !== '/signed') {
+  const app = originOf(appOrigin)
+  if (path !== '/signed' || app === null) {
     return 'landing'
   }
-  return origin === appOrigin ? 'signed' : { redirect: `${appOrigin}/signed` }
+  return originOf(origin) === app ? 'signed' : { redirect: `${app}/signed` }
 }
