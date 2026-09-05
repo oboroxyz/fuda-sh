@@ -150,6 +150,36 @@ describe(syncAnnouncements, () => {
     await syncAnnouncements({ chain, db: db(), fromBlock: 100 })
     await expect(db().select().from(announcements)).resolves.toHaveLength(2)
   })
+
+  it('floors a persisted cursor below fromBlock - 1: the first requested range starts at fromBlock', async () => {
+    const chain = fakeChain()
+    chain.blockNumber = async () => await Promise.resolve(200)
+    await db().insert(syncState).values({ key: 'announcements', value: 10 })
+    const ranges: [number, number][] = []
+    const spy = chain.getAnnouncementLogs.bind(chain)
+    chain.getAnnouncementLogs = async (from, to) => {
+      ranges.push([from, to])
+      return await spy(from, to)
+    }
+    const out = await syncAnnouncements({ chain, db: db(), fromBlock: 100 })
+    expect(out).toStrictEqual({ ok: true, syncedTo: 200 })
+    expect(ranges).toStrictEqual([[100, 200]])
+  })
+
+  it('keeps a persisted cursor above fromBlock - 1', async () => {
+    const chain = fakeChain()
+    chain.blockNumber = async () => await Promise.resolve(500)
+    await db().insert(syncState).values({ key: 'announcements', value: 300 })
+    const ranges: [number, number][] = []
+    const spy = chain.getAnnouncementLogs.bind(chain)
+    chain.getAnnouncementLogs = async (from, to) => {
+      ranges.push([from, to])
+      return await spy(from, to)
+    }
+    const out = await syncAnnouncements({ chain, db: db(), fromBlock: 100 })
+    expect(out).toStrictEqual({ ok: true, syncedTo: 500 })
+    expect(ranges).toStrictEqual([[301, 500]])
+  })
 })
 
 describe('GET /announcements', () => {

@@ -20,10 +20,18 @@ export const isFakeChainEnabled = (env: FakeChainSignal): boolean =>
 
 // One FakeChain per isolate so `wrangler dev` keeps issued rights across requests.
 let devChain: FakeChain | null = null
+// The fake chain's head at boot: the announcements sync floor for the fake-chain
+// dev path. ANNOUNCER_FROM_BLOCK is meant for production's real chain height;
+// `FakeChain.head` starts at the current unix time (way ahead of any dev
+// binding), so walking from the binding's floor would take ~5.7 years of dev
+// requests to reach it. Captured once, at the same moment `devChain` is created,
+// so it never drifts from the instance it floors.
+let devAnnouncerFromBlock: number | null = null
 
 const createDevChain = (): FakeChain => {
   const chain = new FakeChain()
   const uid = chain.seedRootDelegation(schemaUid(SCHEMA_STRINGS.issuerDelegation), DEV_DELEGATION_UID)
+  devAnnouncerFromBlock = chain.blockHeight
   // oxlint-disable-next-line no-console -- one-time dev bootstrap hint, printed once per isolate
   console.warn(
     `[fuda-api] USE_FAKE_CHAIN=1: seeded root delegation. Set ISSUER_ADDRESS=${chain.signerAddress() ?? ''} and DELEGATION_UID=${uid} in wrangler.jsonc env.dev.vars.`,
@@ -40,6 +48,12 @@ export const buildChain = (env: DevBindings): ChainClient => {
   }
   return createViemChain(env)
 }
+
+// Exported for tests. `undefined` under the production path leaves `AppDeps`
+// to fall back to the ANNOUNCER_FROM_BLOCK binding, byte-identical to before
+// this override existed.
+export const announcerFromBlockOverride = (env: DevBindings): number | undefined =>
+  isFakeChainEnabled(env) ? (devAnnouncerFromBlock ?? undefined) : undefined
 
 const EMPTY_SETS: SchemaSets = { attendance: [], entitlement: [], issuerDelegation: [] }
 
@@ -69,6 +83,7 @@ export default {
   fetch: (request: Request, env: DevBindings, ctx: ExecutionContext): Response | Promise<Response> => {
     const chain = buildChain(env)
     const onAdmit = attendanceHook({ chain, db: getDb(env), sets: schemaSetsOf(env) })
-    return createApp({ chain, onAdmit }).fetch(request, env, ctx)
+    const announcerFromBlock = announcerFromBlockOverride(env)
+    return createApp({ announcerFromBlock, chain, onAdmit }).fetch(request, env, ctx)
   },
 }

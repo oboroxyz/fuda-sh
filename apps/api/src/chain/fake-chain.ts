@@ -66,6 +66,13 @@ export class FakeChain implements ChainClient {
     return this.signer
   }
 
+  // Synchronous view of `head`, for the dev bootstrap in `index.ts`: it needs
+  // the boot-time value to floor the announcements sync before any request
+  // reaches the async `ChainClient` surface.
+  get blockHeight(): number {
+    return this.head
+  }
+
   // Seeds an active root IssuerDelegation attested by the fake signer; returns its uid.
   // `uid` lets callers (e.g. `wrangler dev`'s bootstrap) pin a fixed uid instead of
   // taking one from the random per-instance counter — see `DEV_DELEGATION_UID`.

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { DEV_DELEGATION_UID, FakeChain } from '../src/chain/fake-chain.ts'
 import { decodeDelegation } from '../src/eas/codecs.ts'
-import { buildChain, isFakeChainEnabled, schemaSetsOf } from '../src/index.ts'
+import { announcerFromBlockOverride, buildChain, isFakeChainEnabled, schemaSetsOf } from '../src/index.ts'
 import type { DevBindings } from '../src/index.ts'
 import { testEnv } from './env.ts'
 import { ATT } from './fixtures.ts'
@@ -39,6 +39,20 @@ describe(buildChain, () => {
     expect(delegation.uid.toLowerCase()).toBe(DEV_DELEGATION_UID.toLowerCase())
     expect(delegation.revocationTime).toBe(0n)
     expect(decodeDelegation(1, delegation.data).active).toBe(true)
+  })
+})
+
+describe(announcerFromBlockOverride, () => {
+  it('floors the dev announcements sync at the fake chain head captured at boot, not the ANNOUNCER_FROM_BLOCK binding', async () => {
+    const fakeEnv: DevBindings = { ...testEnv(), ANNOUNCER_FROM_BLOCK: '0', USE_FAKE_CHAIN: '1' }
+    const chain = buildChain(fakeEnv)
+    expect(chain).toBeInstanceOf(FakeChain)
+
+    expect(announcerFromBlockOverride(fakeEnv)).toBe(await chain.blockNumber())
+  })
+
+  it('leaves the production path to fall back to the ANNOUNCER_FROM_BLOCK binding', () => {
+    expect(announcerFromBlockOverride(testEnv())).toBeUndefined()
   })
 })
 

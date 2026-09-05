@@ -22,6 +22,17 @@ export interface AppDeps {
   chain: Variables['chain']
   now?: () => number
   onAdmit?: AdmitHook
+  // Overrides the announcements sync floor that would otherwise be parsed
+  // from the ANNOUNCER_FROM_BLOCK binding. Set only by the fake-chain dev
+  // bootstrap in index.ts, to the fake chain's head at boot.
+  announcerFromBlock?: number
+}
+
+// ANNOUNCER_FROM_BLOCK is a string binding (wrangler env vars are strings);
+// a malformed value degrades to 0 rather than breaking the route.
+const parseAnnouncerFromBlock = (raw: string): number => {
+  const n = Math.trunc(Number(raw))
+  return Number.isFinite(n) ? n : 0
 }
 
 // Any error not already turned into a decision-shaped response by a route
@@ -40,6 +51,10 @@ export const createApp = (deps: AppDeps): Hono<AppEnv> => {
     c.set('db', getDb(c.env))
     c.set('now', deps.now ?? (() => Math.floor(Date.now() / 1000)))
     c.set('onAdmit', deps.onAdmit ?? noAdmitHook)
+    c.set(
+      'announcerFromBlock',
+      deps.announcerFromBlock ?? parseAnnouncerFromBlock(c.env.ANNOUNCER_FROM_BLOCK),
+    )
     await next()
   })
   app.use('*', corsPolicy())

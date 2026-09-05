@@ -16,14 +16,14 @@ export const announcementsRoutes = new Hono<AppEnv>()
 // key. The only budgeted route in the MVP: it is open, unauthenticated, and each
 // call may cost RPC reads.
 announcementsRoutes.get('/announcements', rateLimit({ budget: DEFAULT_BUDGET }), async (c) => {
-  const floor = Math.trunc(Number(c.env.ANNOUNCER_FROM_BLOCK))
+  const floor = c.get('announcerFromBlock')
   const fromParam = Math.trunc(Number(c.req.query('fromBlock') ?? '0'))
   const fromBlock = Number.isFinite(fromParam) && fromParam >= 0 ? fromParam : 0
   const db = c.get('db')
   const synced = await syncAnnouncements({
     chain: c.get('chain'),
     db,
-    fromBlock: Number.isFinite(floor) ? floor : 0,
+    fromBlock: floor,
   })
   const rows = await db
     .select()

@@ -25,6 +25,11 @@ export interface Variables {
   now: () => number
   // called once per admission; a no-op unless the deployment wires Attendance
   onAdmit: AdmitHook
+  // Floor for the announcements sync walk. Production derives this from the
+  // ANNOUNCER_FROM_BLOCK binding; the fake-chain dev bootstrap overrides it
+  // with the fake chain's head at boot (see `AppDeps.announcerFromBlock` in
+  // app.ts and `createDevChain` in index.ts).
+  announcerFromBlock: number
 }
 
 export interface AppEnv {

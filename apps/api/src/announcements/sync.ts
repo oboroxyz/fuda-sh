@@ -66,7 +66,11 @@ const applyChunk = async (db: Db, logs: AnnouncementLog[], to: number): Promise<
 // failure or the per-request cap. Logs are keyed by (tx_hash, log_index), so a
 // re-scan of an already-held range is a no-op.
 export const syncAnnouncements = async (deps: SyncDeps): Promise<SyncResult> => {
-  let cursor = (await readCursor(deps.db)) ?? deps.fromBlock - 1
+  const persisted = await readCursor(deps.db)
+  // Floored at the configured start: a persisted cursor from before
+  // `fromBlock` was raised (or a stale/foreign value) must never pull the
+  // walk back below the configured floor, in dev or production.
+  let cursor = Math.max(persisted ?? deps.fromBlock - 1, deps.fromBlock - 1)
   const started = cursor >= deps.fromBlock ? cursor : null
   try {
     const head = await deps.chain.blockNumber()
