@@ -79,12 +79,12 @@ describe(displayState, () => {
   })
 
   it('is RED with a network banner when the api is unreachable or 5xx', () => {
-    const s = displayState('admit', { error: 'fetch failed', network: true, ok: false })
+    const s = displayState('admit', { error: 'fetch failed', network: true, ok: false, status: 0 })
     expect(s).toMatchObject({ banner: 'network', tone: 'red' })
   })
 
   it('is RED with the error code and no banner for a 4xx', () => {
-    const s = displayState('preview', { error: 'bad_uid', network: false, ok: false })
+    const s = displayState('preview', { error: 'bad_uid', network: false, ok: false, status: 400 })
     expect(s).toMatchObject({ detail: 'bad_uid', title: 'REJECT', tone: 'red' })
     expect(s.tone === 'red' ? s.banner : 'network').toBeUndefined()
   })

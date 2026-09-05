@@ -1,5 +1,6 @@
 import { TIER_LABEL, toQr } from '@fuda/sdk'
 import type { Hex, Level, MemberRow, PassUrls } from '@fuda/sdk'
+import { short } from '@fuda/web-kit'
 
 export interface MemberRowView {
   uid: Hex
@@ -11,8 +12,6 @@ export interface MemberRowView {
   qr: string
   passUrls: PassUrls | null
 }
-
-const short = (a: string): string => `${a.slice(0, 6)}…${a.slice(-4)}`
 
 // The QR is the right's identifier, not its credential: it is safe to show for
 // every level because the gate rejects a Signed/+Private QR with LEVEL_REQUIRED.

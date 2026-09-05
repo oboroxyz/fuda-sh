@@ -27,13 +27,13 @@ describe(listMembers, () => {
   it('maps a 401 to a failure carrying the status, so the dash can ask for the token again', async () => {
     stubFetch(() => json({ error: 'unauthorized' }, 401))
     const result = await listMembers('wrong')
-    expect(result).toStrictEqual({ error: 'unauthorized', ok: false, status: 401 })
+    expect(result).toStrictEqual({ error: 'unauthorized', network: false, ok: false, status: 401 })
   })
 
-  it('falls back to the status when an error body is not json', async () => {
+  it('treats a 5xx as a network condition, falling back to the status for its message', async () => {
     stubFetch(() => new Response('<html>gateway</html>', { status: 502 }))
     const result = await listMembers(TOKEN)
-    expect(result).toStrictEqual({ error: 'api 502', ok: false, status: 502 })
+    expect(result).toStrictEqual({ error: 'api 502', network: true, ok: false, status: 502 })
   })
 
   it('reports a transport failure with status 0', async () => {
@@ -41,7 +41,7 @@ describe(listMembers, () => {
       throw new Error('fetch failed')
     })
     const result = await listMembers(TOKEN)
-    expect(result).toStrictEqual({ error: 'fetch failed', ok: false, status: 0 })
+    expect(result).toStrictEqual({ error: 'fetch failed', network: true, ok: false, status: 0 })
   })
 })
 
@@ -60,7 +60,7 @@ describe(issueRight, () => {
   it('surfaces the api error code verbatim', async () => {
     stubFetch(() => json({ error: 'bad_input' }, 400))
     const result = await issueRight(TOKEN, { holder: '0x00', tier: 1, usageModel: 1 })
-    expect(result).toStrictEqual({ error: 'bad_input', ok: false, status: 400 })
+    expect(result).toStrictEqual({ error: 'bad_input', network: false, ok: false, status: 400 })
   })
 })
 

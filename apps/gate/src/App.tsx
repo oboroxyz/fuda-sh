@@ -1,9 +1,9 @@
+import { Scanner } from '@fuda/web-kit'
 /** @jsxImportSource hono/jsx/dom */
 import { useCallback, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import { admitQr, previewUid } from './api.ts'
-import { Scanner } from './Scanner.tsx'
 import { classifyInput, displayState } from './verdict.ts'
 import type { DisplayState } from './verdict.ts'
 import { Verdict } from './Verdict.tsx'

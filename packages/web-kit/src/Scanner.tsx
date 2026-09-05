@@ -11,6 +11,12 @@ export const Scanner = ({ onInput }: { onInput: (text: string) => void }): JSX.E
   const [camera, setCamera] = useState<'idle' | 'on' | 'unavailable'>('idle')
   const [pasted, setPasted] = useState('')
 
+  // The effect runs once: a parent that passes a fresh `onInput` on every render
+  // would otherwise tear down and reopen the camera mid-scan. The ref keeps the
+  // callback current without putting it in the dependency list.
+  const latest = useRef(onInput)
+  latest.current = onInput
+
   useEffect(() => {
     const detector = createQrDetector()
     const el = video.current
@@ -29,7 +35,7 @@ export const Scanner = ({ onInput }: { onInput: (text: string) => void }): JSX.E
         const codes = await detector.detect(el)
         const [first] = codes
         if (first !== undefined) {
-          onInput(first.rawValue)
+          latest.current(first.rawValue)
           return
         }
       } catch {
@@ -66,7 +72,7 @@ export const Scanner = ({ onInput }: { onInput: (text: string) => void }): JSX.E
         track.stop()
       }
     }
-  }, [onInput])
+  }, [])
 
   return (
     <div class="flex flex-col items-center gap-4 p-4">

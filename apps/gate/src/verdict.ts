@@ -1,5 +1,7 @@
 import { isUid, parseQr, TIER_LABEL } from '@fuda/sdk'
 import type { Hex, VerifyResponse } from '@fuda/sdk'
+import { short } from '@fuda/web-kit'
+import type { Result } from '@fuda/web-kit'
 
 export type InputKind = { kind: 'preview'; uid: Hex } | { kind: 'admit'; qr: string } | { kind: 'invalid' }
 
@@ -13,14 +15,12 @@ export const classifyInput = (text: string): InputKind => {
   return parseQr(t) === null ? { kind: 'invalid' } : { kind: 'admit', qr: t }
 }
 
-export type ApiResult = { ok: true; body: VerifyResponse } | { ok: false; error: string; network: boolean }
+export type ApiResult = Result<VerifyResponse>
 
 export type DisplayState =
   | { tone: 'green'; title: 'ADMIT'; detail: string }
   | { tone: 'yellow'; title: 'VALID — signature required'; detail: string }
   | { tone: 'red'; title: 'REJECT'; detail: string; banner?: 'network' }
-
-const short = (a: string): string => `${a.slice(0, 6)}…${a.slice(-4)}`
 
 const summary = (body: VerifyResponse): string => {
   const e = body.entitlement
