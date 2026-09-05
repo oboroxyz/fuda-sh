@@ -6,6 +6,7 @@ import type { AppEnv, Variables } from './env.ts'
 import { errorResponse } from './json.ts'
 import { authModeHeader } from './middleware/admin-auth.ts'
 import { corsPolicy } from './middleware/cors.ts'
+import { challengeRoutes } from './routes/challenge.ts'
 import { health } from './routes/health.ts'
 import { issueRoutes } from './routes/issue.ts'
 import { membersRoutes } from './routes/members.ts'
@@ -42,6 +43,7 @@ export const createApp = (deps: AppDeps): Hono<AppEnv> => {
   app.use('*', corsPolicy())
   app.use('*', authModeHeader())
   app.route('/', health)
+  app.route('/', challengeRoutes)
   app.route('/', verifyRoutes)
   app.route('/', issueRoutes)
   app.route('/', revokeRoutes)
