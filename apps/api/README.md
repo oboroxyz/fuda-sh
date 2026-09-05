@@ -69,10 +69,11 @@ Entry at the Signed level is two calls, never a QR scan:
 
    Steps, in order (this order is the contract):
    1. Decode and validate the entitlement for `uid` (same rules as `/verify`:
-      `NOT_FOUND`, `WRONG_SCHEMA`, `REVOKED`, delegation/timing reasons,
-      `LEVEL_REQUIRED` if the right is not Signed). A rejection here answers
-      `stage: 'entitlement'`, and carries `holder` only once the attestation
-      decoded far enough to know it.
+      `NOT_FOUND`, `WRONG_SCHEMA`, `REVOKED`, delegation/timing reasons). The
+      level check is `/verify`'s alone — this path accepts every level, so a
+      Bearer right entered by signature is admitted, never `LEVEL_REQUIRED`.
+      A rejection here answers `stage: 'entitlement'`, and carries `holder`
+      only once the attestation decoded far enough to know it.
    2. Consume the challenge (`nonce` bound to `uid`, unused, inside the 300 s
       TTL) — the spec's single conditional `UPDATE`; the write is the lock. A
       miss (replayed or expired nonce) answers `reason: 'BAD_CHALLENGE'`,
@@ -250,8 +251,8 @@ as long as a signer is available to `/issue`/`/revoke`).
 | POST | `/issue` | Bearer (`ADMIN_TOKEN`) | `holder` → Signed (level 1); `memberId` → Bearer (level 0); `+Private` answers `bad_input` until Plan 4 |
 | GET | `/verify/:uid` | none | read-only preview, no slot consumption |
 | POST | `/verify` | none | QR scan; consumes a slot per `usageModel`; a Signed-only right answers `LEVEL_REQUIRED` here |
-| POST | `/challenge` | none | mints a one-time nonce for the Signed gate; no chain lookup |
-| POST | `/verify-signed` | none | challenge-response admission; consumes a slot per `usageModel`, path `signature` |
+| POST | `/challenge` | none | mints a one-time nonce for the Signed gate; no chain lookup; sweeps expired nonces |
+| POST | `/verify-signed` | none | challenge-response admission at every level; consumes a slot per `usageModel`, path `signature` |
 | POST | `/revoke` | Bearer (`ADMIN_TOKEN`) | revokes the entitlement attestation |
 | GET | `/members` | Bearer (`ADMIN_TOKEN`) | lists issued entitlements |
 | GET | `/pass/:uid` | none | browser-based pass page; `404 not_found` if fuda never issued that uid |
