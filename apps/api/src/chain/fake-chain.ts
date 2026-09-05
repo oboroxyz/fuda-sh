@@ -53,6 +53,13 @@ export class FakeChain implements ChainClient {
   // already `members.attestation_uid` primary keys. A random per-instance start
   // keeps uids deterministic within one instance and distinct across restarts.
   private counter = crypto.getRandomValues(new Uint32Array(1))[0] ?? 0
+  // Same restart problem as `counter`, but for tx hashes: the local D1
+  // `announcements` table (PK `(tx_hash, log_index)`) persists across
+  // `wrangler dev` restarts while `this.txs` resets, so a tx counter from
+  // zero re-mints hashes `syncAnnouncements`'s `INSERT OR IGNORE` has already
+  // seen and silently drops. A random per-instance start keeps tx hashes
+  // deterministic within one instance and distinct across restarts.
+  private txCounter = crypto.getRandomValues(new Uint32Array(1))[0] ?? 0
 
   constructor(opts: { signer?: Hex | null; head?: number } = {}) {
     const signer = opts.signer === undefined ? DEFAULT_SIGNER : opts.signer
@@ -239,7 +246,8 @@ export class FakeChain implements ChainClient {
   }
 
   private nextTx(): Hex {
-    const tx = keccak256(`0x${'ff'.repeat(16)}${(this.txs.length + 1).toString(16).padStart(32, '0')}`)
+    this.txCounter += 1
+    const tx = keccak256(`0x${'ff'.repeat(16)}${this.txCounter.toString(16).padStart(32, '0')}`)
     this.txs.push(tx)
     return tx
   }
