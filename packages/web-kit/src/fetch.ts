@@ -1,23 +1,45 @@
 export type Result<T> = { ok: true; body: T } | { ok: false; error: string; status: number; network: boolean }
 
-export interface ApiInit extends RequestInit {
+// The request headers as this client models them: a plain record, because the
+// merge below spreads them and spreading a `Headers` instance or an entry array
+// would silently drop every header the caller passed.
+export interface ApiHeaders {
+  [name: string]: string
+}
+
+export interface ApiInit extends Omit<RequestInit, 'headers'> {
+  headers?: ApiHeaders
   token?: string
 }
 
-const headersFor = (token: string | undefined): HeadersInit =>
-  token === undefined
-    ? { 'content-type': 'application/json' }
-    : { authorization: `Bearer ${token}`, 'content-type': 'application/json' }
+// The caller's headers are the base and this pair wins on a conflict — the token
+// and the body's media type are the client's contract, not the call site's.
+// `content-type` is set only when there is a body: a bodyless GET that carries
+// it is a non-simple request and buys a CORS preflight for nothing.
+const headersFor = (
+  base: ApiHeaders | undefined,
+  token: string | undefined,
+  hasBody: boolean,
+): ApiHeaders => {
+  const headers: ApiHeaders = { ...base }
+  if (hasBody) {
+    headers['content-type'] = 'application/json'
+  }
+  if (token !== undefined) {
+    headers.authorization = `Bearer ${token}`
+  }
+  return headers
+}
 
 // Every 5xx and every transport failure is a network condition (the gate fails
 // closed on it, spec §11); a 4xx carries the api's error code; a 2xx that is not
 // JSON is a bad response, not an outage.
 export const apiFetch = async <T>(base: string, path: string, init: ApiInit = {}): Promise<Result<T>> => {
-  const { token, ...rest } = init
+  const { headers, token, ...rest } = init
   try {
     const res = await fetch(`${base.replace(/\/$/u, '')}${path}`, {
       ...rest,
-      headers: headersFor(token),
+      headers: headersFor(headers, token, rest.body !== undefined && rest.body !== null),
     })
     if (res.status >= 500) {
       return { error: `api ${res.status}`, network: true, ok: false, status: res.status }

@@ -5,6 +5,8 @@ import { issueRight, listMembers, revokeRight } from './api.ts'
 const UID = `0x${'ab'.repeat(32)}`
 const TOKEN = 's3cret'
 const HEADERS = { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' }
+// A bodyless GET carries no content-type, so it stays a CORS-simple request.
+const GET_HEADERS = { authorization: `Bearer ${TOKEN}` }
 
 // `fetch` is the only thing stubbed: the client is exercised through its real
 // request/response handling. A sync stub is fine — the client awaits its result.
@@ -21,7 +23,7 @@ describe(listMembers, () => {
     const spy = stubFetch(() => json({ members: [] }, 200))
     const result = await listMembers(TOKEN)
     expect(result).toStrictEqual({ body: { members: [] }, ok: true })
-    expect(spy).toHaveBeenCalledWith('http://localhost:8787/members', { headers: HEADERS })
+    expect(spy).toHaveBeenCalledWith('http://localhost:8787/members', { headers: GET_HEADERS })
   })
 
   it('maps a 401 to a failure carrying the status, so the dash can ask for the token again', async () => {

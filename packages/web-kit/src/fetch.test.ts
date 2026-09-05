@@ -47,6 +47,31 @@ describe(apiFetch, () => {
     })
   })
 
+  // A bodyless GET with content-type is no longer a CORS-simple request, so the
+  // browser preflights it for a header nothing reads.
+  it('sends content-type only when there is a body', async () => {
+    const spy = stubFetch(() => json({}, 200))
+    await apiFetch('http://api', '/x', { method: 'GET' })
+    expect(spy.mock.calls[0]?.[1]?.headers).toStrictEqual({})
+    await apiFetch('http://api', '/x', { body: '{}', method: 'POST' })
+    expect(spy.mock.calls[1]?.[1]?.headers).toStrictEqual({ 'content-type': 'application/json' })
+  })
+
+  it('keeps caller headers and lets the fixed pair win on a conflict', async () => {
+    const spy = stubFetch(() => json({}, 200))
+    await apiFetch('http://api', '/x', {
+      body: '{}',
+      headers: { 'content-type': 'text/plain', 'x-trace': 'abc' },
+      method: 'POST',
+      token: 't',
+    })
+    expect(spy.mock.calls[0]?.[1]?.headers).toStrictEqual({
+      authorization: 'Bearer t',
+      'content-type': 'application/json',
+      'x-trace': 'abc',
+    })
+  })
+
   it('joins a base with a trailing slash to the path without doubling it', async () => {
     const spy = stubFetch(() => json({}, 200))
     await apiFetch('http://api/', '/x')
