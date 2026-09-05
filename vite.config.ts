@@ -42,9 +42,14 @@ export default defineConfig({
     overrides: [
       // Vitest preset curation must live at override level (the preset applies
       // its rules via a test-file override, which top-level `rules` cannot beat).
+      // `plugins: ['vitest']` is required here too: an override without its own
+      // `plugins` list only inherits the base (non-test) `lint.plugins` list, which
+      // doesn't include vitest, so `vitest/*` keys below are silently dropped
+      // without it (see vite-plus monorepo docs, "root config with overrides").
       {
         files: ['**/*.test.ts', '**/*.test.tsx', '**/test/**'],
         env: { jest: true },
+        plugins: ['vitest'],
         rules: {
           // These two rewrite exact `toBe(true/false)` into truthy/falsy checks —
           // they WEAKEN assertions, so they stay off even in a strict setup:
