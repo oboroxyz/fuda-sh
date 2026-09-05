@@ -1,6 +1,8 @@
 /** @jsxImportSource hono/jsx/dom */
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
+import { APP_ORIGIN } from './config.ts'
+
 // The fuda.sh apex (spec §13): one static screen served by this Worker's `/`
 // route. Vocabulary is fixed by docs/CONTEXT.md — Venue for the organization,
 // pass for what a member shows, two levels with +Private as an extension of
@@ -24,7 +26,7 @@ const LEVELS = [
 ] as const
 
 const LINKS = [
-  { href: '/signed', label: 'Enter with your wallet' },
+  { href: `${APP_ORIGIN}/signed`, label: 'Enter with your wallet' },
   { href: 'https://gate.fuda.sh', label: 'Gate — scan at the door' },
   { href: 'https://dash.fuda.sh', label: 'Dashboard — issue and revoke' },
 ] as const
@@ -42,7 +44,7 @@ export const Landing = (): JSX.Element => (
     <section class="flex flex-col gap-3">
       <h2 class="text-xl font-bold">Two levels</h2>
       <p class="text-sm opacity-70">
-        A Venue picks the level when it issues your pass, and the level never changes afterwards.
+        A Venue picks the level when it issues your pass, and the level is fixed for that pass.
       </p>
       <div class="grid gap-4 md:grid-cols-3">
         {LEVELS.map((level): JSX.Element => (
