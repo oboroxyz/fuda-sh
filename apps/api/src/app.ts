@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 
+import { getDb } from './db/client.ts'
 import type { AppEnv, Variables } from './env.ts'
 import { health } from './routes/health.ts'
 
@@ -12,6 +13,7 @@ export const createApp = (deps: AppDeps): Hono<AppEnv> => {
   const app = new Hono<AppEnv>()
   app.use('*', async (c, next) => {
     c.set('chain', deps.chain)
+    c.set('db', getDb(c.env))
     c.set('now', deps.now ?? (() => Math.floor(Date.now() / 1000)))
     await next()
   })
