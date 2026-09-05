@@ -12,6 +12,7 @@ import { issueRoutes } from './routes/issue.ts'
 import { membersRoutes } from './routes/members.ts'
 import { passRoutes } from './routes/pass.ts'
 import { revokeRoutes } from './routes/revoke.ts'
+import { verifySignedRoutes } from './routes/verify-signed.ts'
 import { verifyRoutes } from './routes/verify.ts'
 import { noAdmitHook } from './verify/admit.ts'
 import type { AdmitHook } from './verify/admit.ts'
@@ -45,6 +46,7 @@ export const createApp = (deps: AppDeps): Hono<AppEnv> => {
   app.route('/', health)
   app.route('/', challengeRoutes)
   app.route('/', verifyRoutes)
+  app.route('/', verifySignedRoutes)
   app.route('/', issueRoutes)
   app.route('/', revokeRoutes)
   app.route('/', membersRoutes)
