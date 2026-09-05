@@ -24,6 +24,30 @@ export const verdictBody = (
   reason: out.reason,
 })
 
+// A rejection from a best-effort side effect is not this request's business,
+// but leaving it unobserved would surface as an unhandled rejection.
+const swallow = async (p: Promise<unknown>): Promise<void> => {
+  try {
+    await p
+  } catch {
+    // best-effort by construction: nothing here can fail an admission
+  }
+}
+
+// Hono's `c.executionCtx` getter throws when the app is invoked without one
+// (`app.request(...)` in tests). The fallback just lets the promise run to
+// completion inside the request, which is what a test wants anyway.
+const waitUntilOf = (c: Context<AppEnv>): ((p: Promise<unknown>) => void) => {
+  try {
+    const ctx = c.executionCtx
+    return ctx.waitUntil.bind(ctx)
+  } catch {
+    return (p) => {
+      void swallow(p)
+    }
+  }
+}
+
 export const verifyRoutes = new Hono<AppEnv>()
 
 // Either the §6 outcome, or the error response to return unchanged. Shared by
@@ -95,6 +119,16 @@ verifyRoutes.post('/verify', async (c) => {
     return await reject('ALREADY_USED')
   }
   const entryLogId = await logEntry(db, { at: now, decision: 'ADMIT', path: 'qr', reason: 'OK', uid })
-  c.get('onAdmit')({ entryLogId, holder: out.canonical.holder, now, uid })
+  try {
+    c.get('onAdmit')({
+      entryLogId,
+      holder: out.canonical.holder,
+      now,
+      uid,
+      waitUntil: waitUntilOf(c),
+    })
+  } catch {
+    // Attendance is best-effort (spec §8): a failed side effect never fails an admission
+  }
   return jsonResponse(c, verdictBody(out))
 })

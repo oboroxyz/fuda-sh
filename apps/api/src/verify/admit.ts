@@ -40,6 +40,8 @@ export interface AdmitInfo {
   holder: Hex
   entryLogId: number
   now: number
+  /** Keeps a best-effort side effect alive past the response, when the runtime offers one. */
+  waitUntil: (p: Promise<unknown>) => void
 }
 
 export type AdmitHook = (info: AdmitInfo) => void

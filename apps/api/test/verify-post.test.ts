@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '../src/db/client.ts'
 import { entryLog, slots } from '../src/db/schema.ts'
 import type { Bindings } from '../src/env.ts'
+import type { AdmitInfo } from '../src/verify/admit.ts'
 import { appWith, fakeChain } from './env.ts'
 import { configuredEnv, HOLDER, NOW, seedRight, seedRoot } from './fixtures.ts'
 
@@ -170,11 +171,11 @@ describe('POST /verify', () => {
     expect(log).toHaveLength(0)
   })
 
-  it('calls onAdmit once with the entry log id on ADMIT', async () => {
+  it('calls onAdmit once with the entry log id and a waitUntil on ADMIT', async () => {
     const chain = fakeChain()
     const del = seedRoot(chain)
     const uid = seedRight(chain, del)
-    const calls: unknown[] = []
+    const calls: AdmitInfo[] = []
     const app = appWith({
       chain,
       now: () => NOW,
@@ -186,6 +187,28 @@ describe('POST /verify', () => {
     const log = await db().select().from(entryLog)
     expect(calls).toHaveLength(1)
     expect(calls[0]).toMatchObject({ entryLogId: log[0]?.id, holder: getAddress(HOLDER), now: NOW, uid })
+    expect(calls[0]?.waitUntil).toBeTypeOf('function')
+  })
+
+  // Attendance is best-effort (spec §8): a throwing hook must not turn an
+  // admission into a 500.
+  it('still ADMITs and logs the entry when onAdmit throws', async () => {
+    const chain = fakeChain()
+    const del = seedRoot(chain)
+    const uid = seedRight(chain, del)
+    const app = appWith({
+      chain,
+      now: () => NOW,
+      onAdmit: () => {
+        throw new Error('attendance backend down')
+      },
+    })
+    const res = await scan(app, configuredEnv(del), `fuda:v1:${uid}`)
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toMatchObject({ decision: 'ADMIT', reason: 'OK' })
+    const log = await db().select().from(entryLog)
+    expect(log).toHaveLength(1)
+    expect(log[0]).toMatchObject({ decision: 'ADMIT', path: 'qr', reason: 'OK', uid })
   })
 
   it('does not call onAdmit on a REJECT', async () => {
