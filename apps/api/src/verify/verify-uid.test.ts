@@ -27,6 +27,7 @@ interface RightOverrides {
   schema?: Hex
   attester?: Hex
   revocationTime?: bigint
+  data?: Hex
 }
 
 describe(verifyUid, () => {
@@ -34,14 +35,16 @@ describe(verifyUid, () => {
   let deps: VerifyDeps
   let delegationUid: Hex
 
-  const seedDelegation = (opts: { issuer?: Hex; active?: boolean; attester?: Hex } = {}): Hex =>
+  const seedDelegation = (opts: { issuer?: Hex; active?: boolean; attester?: Hex; data?: Hex } = {}): Hex =>
     chain.seed({
       attester: opts.attester ?? ROOT,
-      data: encodeDelegationV1({
-        active: opts.active ?? true,
-        issuer: opts.issuer ?? ROOT,
-        name: 'fuda root',
-      }),
+      data:
+        opts.data ??
+        encodeDelegationV1({
+          active: opts.active ?? true,
+          issuer: opts.issuer ?? ROOT,
+          name: 'fuda root',
+        }),
       expirationTime: 0n,
       recipient: ROOT,
       refUID: ZERO_UID,
@@ -54,17 +57,19 @@ describe(verifyUid, () => {
   const seedRight = (over: RightOverrides = {}): Hex =>
     chain.seed({
       attester: over.attester ?? ROOT,
-      data: encodeEntitlementV1({
-        holder: HOLDER,
-        issuer: ROOT,
-        level: over.level ?? 0,
-        metaURI: '',
-        serial: ZERO_UID,
-        tier: 1,
-        usageModel: over.usageModel ?? 1,
-        validFrom: over.validFrom ?? 0n,
-        validUntil: over.validUntil ?? 0n,
-      }),
+      data:
+        over.data ??
+        encodeEntitlementV1({
+          holder: HOLDER,
+          issuer: ROOT,
+          level: over.level ?? 0,
+          metaURI: '',
+          serial: ZERO_UID,
+          tier: 1,
+          usageModel: over.usageModel ?? 1,
+          validFrom: over.validFrom ?? 0n,
+          validUntil: over.validUntil ?? 0n,
+        }),
       expirationTime: 0n,
       recipient: HOLDER,
       refUID: over.refUID ?? delegationUid,
@@ -121,6 +126,17 @@ describe(verifyUid, () => {
 
     it('rejects WRONG_SCHEMA for a uid outside the accepted set', async () => {
       await expect(reasonOf(seedRight({ schema: `0x${'99'.repeat(32)}` }))).resolves.toBe('WRONG_SCHEMA')
+    })
+
+    it('rejects WRONG_SCHEMA when the payload under an accepted schema cannot be decoded', async () => {
+      await expect(reasonOf(seedRight({ data: '0x' }))).resolves.toBe('WRONG_SCHEMA')
+    })
+
+    it('omits the entitlement but reports the attester when the payload cannot be decoded', async () => {
+      const out = await verifyUid(deps, seedRight({ data: '0xdeadbeef' }))
+      expect(out.decision).toBe('REJECT')
+      expect(out.entitlement).toBeUndefined()
+      expect(out.attester).toBe(ROOT)
     })
 
     it('rejects REVOKED', async () => {
@@ -193,6 +209,12 @@ describe(verifyUid, () => {
         time: 1n,
       })
       await expect(reasonOf(seedRight({ refUID: offSchema }))).resolves.toBe('NO_DELEGATION')
+    })
+
+    it('rejects NO_DELEGATION when the delegation payload cannot be decoded', async () => {
+      await expect(reasonOf(seedRight({ refUID: seedDelegation({ data: '0x' }) }))).resolves.toBe(
+        'NO_DELEGATION',
+      )
     })
 
     it('rejects ISSUER_NOT_DELEGATED when the delegation names another issuer', async () => {

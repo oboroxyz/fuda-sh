@@ -4,7 +4,7 @@ import type { Hex } from 'viem'
 import { ZERO_ADDRESS, ZERO_UID } from '../chain/client.ts'
 import type { ChainClient, RawAttestation } from '../chain/client.ts'
 import { decodeDelegation, decodeEntitlement } from '../eas/codecs.ts'
-import type { Entitlement } from '../eas/codecs.ts'
+import type { Delegation, Entitlement } from '../eas/codecs.ts'
 import { findVersion } from '../eas/schemas.ts'
 import type { VerifyDeps } from './config.ts'
 
@@ -48,6 +48,25 @@ const readOrNull = async (chain: ChainClient, uid: Hex): Promise<RawAttestation 
   }
 }
 
+// EAS does not validate an attestation's `data` against its schema, so anyone can
+// attest arbitrary bytes under a public schema UID. A decode failure is therefore a
+// normal, attacker-reachable input, not a bug: it must stay decision-shaped.
+const decodeEntitlementOrNull = (version: number, data: Hex): Entitlement | null => {
+  try {
+    return decodeEntitlement(version, data)
+  } catch {
+    return null
+  }
+}
+
+const decodeDelegationOrNull = (version: number, data: Hex): Delegation | null => {
+  try {
+    return decodeDelegation(version, data)
+  } catch {
+    return null
+  }
+}
+
 type DelegationResult = { ok: true; view: DelegationView } | { ok: false; reason: Reason }
 
 // The authority boundary: the Entitlement's refUID must be a live IssuerDelegation
@@ -73,8 +92,8 @@ const checkDelegation = async (deps: VerifyDeps, refUID: Hex, attester: Hex): Pr
   ) {
     return { ok: false, reason: 'NO_DELEGATION' }
   }
-  const d = decodeDelegation(version.version, raw.data)
-  if (!d.active) {
+  const d = decodeDelegationOrNull(version.version, raw.data)
+  if (d === null || !d.active) {
     return { ok: false, reason: 'NO_DELEGATION' }
   }
   if (!sameAddress(d.issuer, attester)) {
@@ -112,7 +131,11 @@ export const verifyUid = async (deps: VerifyDeps, uid: Hex): Promise<VerifyOutco
   if (version === null) {
     return { decision: 'REJECT', reason: 'WRONG_SCHEMA' }
   }
-  const canonical = decodeEntitlement(version.version, raw.data)
+  const canonical = decodeEntitlementOrNull(version.version, raw.data)
+  if (canonical === null) {
+    // §6 puts "decode and upcast to canonical" inside the WRONG_SCHEMA row.
+    return { attester: raw.attester, decision: 'REJECT', reason: 'WRONG_SCHEMA' }
+  }
   const entitlement = toEntitlementView(canonical)
   const reject = (reason: Reason): VerifyOutcome => ({
     attester: raw.attester,
