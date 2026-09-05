@@ -1,4 +1,4 @@
-import { encodeAbiParameters, keccak256 } from 'viem'
+import { encodeAbiParameters, getAddress, keccak256 } from 'viem'
 import type { Hex } from 'viem'
 
 import { ChainError, NoSignerError, ZERO_ADDRESS, ZERO_UID } from './client.ts'
@@ -8,6 +8,12 @@ const DEFAULT_SIGNER: Hex = `0x${'f0'.repeat(20)}`
 
 // Annotated (not cast): a contextually-typed template literal already narrows to Hex.
 const lowerHex = (h: Hex): Hex => `0x${h.slice(2).toLowerCase()}`
+
+// viem EIP-55-checksums every address it decodes — readContract struct fields,
+// parseEventLogs args, account.address, the factory's getAddress return. The fake
+// mirrors that so `att.attester === chain.signerAddress()` behaves identically here
+// and on Base Sepolia.
+const checksum = (h: Hex): Hex => getAddress(h)
 
 // In-memory EAS + factory used by the workerd integration tests and by
 // `wrangler dev` without a signer. Deterministic, no network.
@@ -22,7 +28,8 @@ export class FakeChain implements ChainClient {
   private counter = 0
 
   constructor(opts: { signer?: Hex | null } = {}) {
-    this.signer = opts.signer === undefined ? DEFAULT_SIGNER : opts.signer
+    const signer = opts.signer === undefined ? DEFAULT_SIGNER : opts.signer
+    this.signer = signer === null ? null : checksum(signer)
   }
 
   signerAddress(): Hex | null {
@@ -31,7 +38,12 @@ export class FakeChain implements ChainClient {
 
   seed(att: Omit<RawAttestation, 'uid'> & { uid?: Hex }): Hex {
     const uid = att.uid === undefined ? this.nextUid() : lowerHex(att.uid)
-    this.attestations.set(uid, { ...att, uid })
+    this.attestations.set(uid, {
+      ...att,
+      attester: checksum(att.attester),
+      recipient: checksum(att.recipient),
+      uid,
+    })
     return uid
   }
 
@@ -67,7 +79,7 @@ export class FakeChain implements ChainClient {
   // oxlint-disable-next-line class-methods-use-this, eslint/require-await -- stateless CREATE2 stand-in; interface is async
   async getAddressFromFactory(owners: Hex[], nonce: bigint): Promise<Hex> {
     const h = keccak256(encodeAbiParameters([{ type: 'bytes[]' }, { type: 'uint256' }], [owners, nonce]))
-    return `0x${h.slice(-40)}`
+    return checksum(`0x${h.slice(-40)}`)
   }
 
   // oxlint-disable-next-line eslint/require-await -- ChainClient's interface is async; this fake resolves synchronously
@@ -83,7 +95,7 @@ export class FakeChain implements ChainClient {
       attester: this.signer,
       data: p.data,
       expirationTime: p.expirationTime,
-      recipient: p.recipient,
+      recipient: checksum(p.recipient),
       refUID: p.refUID,
       revocable: p.revocable,
       revocationTime: 0n,

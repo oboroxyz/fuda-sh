@@ -1,3 +1,4 @@
+import { getAddress } from 'viem'
 import { describe, expect, it } from 'vitest'
 
 import { ChainError, NoSignerError, ZERO_UID } from './client.ts'
@@ -58,6 +59,48 @@ describe(FakeChain, () => {
     const flaky = new FakeChain()
     flaky.failReads = true
     await expect(flaky.readAttestation(ZERO_UID)).rejects.toBeInstanceOf(ChainError)
+  })
+
+  it('checksums the signer and seeded addresses, whatever case they come in as', async () => {
+    const lower = `0x${'ab'.repeat(20)}` as const
+    const chain = new FakeChain({ signer: lower })
+    expect(chain.signerAddress()).toBe(getAddress(lower))
+    expect(new FakeChain().signerAddress()).toBe(getAddress(`0x${'f0'.repeat(20)}`))
+
+    const uid = chain.seed({
+      attester: lower,
+      data: '0x',
+      expirationTime: 0n,
+      recipient: lower,
+      refUID: ZERO_UID,
+      revocable: true,
+      revocationTime: 0n,
+      schema,
+      time: 0n,
+    })
+    const seeded = await chain.readAttestation(uid)
+    expect(seeded.recipient).toBe(getAddress(lower))
+    expect(seeded.attester).toBe(getAddress(lower))
+  })
+
+  it('checksums attested and factory-derived addresses', async () => {
+    const lower = `0x${'ab'.repeat(20)}` as const
+    const chain = new FakeChain({ signer: lower })
+    const { uid } = await chain.attest({
+      data: '0x',
+      expirationTime: 0n,
+      recipient: lower,
+      refUID: ZERO_UID,
+      revocable: true,
+      schema,
+    })
+    const a = await chain.readAttestation(uid)
+    expect(a.recipient).toBe(getAddress(lower))
+    expect(a.attester).toBe(getAddress(lower))
+
+    // getAddress is idempotent on a checksummed value and would rewrite a lowercase one.
+    const factoryAddress = await chain.getAddressFromFactory([holder], 1n)
+    expect(factoryAddress).toBe(getAddress(factoryAddress))
   })
 
   it('factory addresses are deterministic in owners + nonce', async () => {
