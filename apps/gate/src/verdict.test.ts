@@ -46,6 +46,17 @@ describe(displayState, () => {
     expect(s).toMatchObject({ title: 'VALID — signature required', tone: 'yellow' })
   })
 
+  it('is YELLOW for a preview ADMIT that carries no entitlement', () => {
+    const s = displayState('preview', { body: { decision: 'ADMIT', reason: 'OK' }, ok: true })
+    expect(s).toMatchObject({ title: 'VALID — signature required', tone: 'yellow' })
+    expect(s.detail).toContain('level unknown')
+  })
+
+  it('is GREEN for an admission ADMIT that carries no entitlement', () => {
+    const s = displayState('admit', { body: { decision: 'ADMIT', reason: 'OK' }, ok: true })
+    expect(s).toMatchObject({ title: 'ADMIT', tone: 'green' })
+  })
+
   it('is GREEN for a preview ADMIT of a level 0 right', () => {
     const s = displayState('preview', {
       body: { decision: 'ADMIT', entitlement: ent(0), reason: 'OK' },

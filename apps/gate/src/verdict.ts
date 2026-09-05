@@ -42,8 +42,15 @@ export const displayState = (kind: 'preview' | 'admit', result: ApiResult): Disp
   if (body.decision === 'REJECT') {
     return { detail: body.reason, title: 'REJECT', tone: 'red' }
   }
-  if (kind === 'preview' && (body.entitlement?.level ?? 0) >= 1) {
-    return { detail: summary(body), title: 'VALID — signature required', tone: 'yellow' }
+  // Fail closed on a preview whose entitlement the api did not report: an
+  // unknown level may be Signed/+Private, and green would wave it through.
+  const e = body.entitlement
+  if (kind === 'preview' && (e === undefined || e.level >= 1)) {
+    return {
+      detail: e === undefined ? 'level unknown — signature required' : summary(body),
+      title: 'VALID — signature required',
+      tone: 'yellow',
+    }
   }
   return { detail: summary(body), title: 'ADMIT', tone: 'green' }
 }
