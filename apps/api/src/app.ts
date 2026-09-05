@@ -2,9 +2,11 @@ import { Hono } from 'hono'
 
 import { getDb } from './db/client.ts'
 import type { AppEnv, Variables } from './env.ts'
+import { errorResponse } from './json.ts'
 import { authModeHeader } from './middleware/admin-auth.ts'
 import { corsPolicy } from './middleware/cors.ts'
 import { health } from './routes/health.ts'
+import { verifyRoutes } from './routes/verify.ts'
 
 export interface AppDeps {
   chain: Variables['chain']
@@ -22,5 +24,9 @@ export const createApp = (deps: AppDeps): Hono<AppEnv> => {
   app.use('*', corsPolicy())
   app.use('*', authModeHeader())
   app.route('/', health)
+  app.route('/', verifyRoutes)
+  // Any error not already turned into a decision-shaped response by a route
+  // handler. Not in @fuda/sdk's ErrorCode list — it names an unclassified defect.
+  app.onError((_err, c) => errorResponse(c, 'internal', 500))
   return app
 }
