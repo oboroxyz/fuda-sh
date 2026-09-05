@@ -1,8 +1,10 @@
+import { USAGE_MODEL } from '@fuda/sdk'
 import type { EntryPath, Reason } from '@fuda/sdk'
 import type { Hex } from 'viem'
 
 import type { Db } from '../db/client.ts'
 import { entryLog, slots } from '../db/schema.ts'
+import type { Entitlement } from '../eas/codecs.ts'
 
 // The MVP issues one slot per right; named so a later multi-slot right can add
 // its own rows without a migration.
@@ -75,4 +77,54 @@ export type AdmitHook = (info: AdmitInfo) => void
 // Deployments without an Attendance hook admit without any further side effect.
 export const noAdmitHook: AdmitHook = () => {
   // no Attendance hook wired: admission has no further side effect
+}
+
+export interface AdmitContext {
+  db: Db
+  uid: Hex
+  canonical: Pick<Entitlement, 'holder' | 'usageModel'>
+  path: EntryPath
+  now: number
+  onAdmit: AdmitHook
+  waitUntil: (p: Promise<unknown>) => void
+}
+
+export type AdmitOutcome =
+  | { admitted: true; entryLogId: number }
+  | { admitted: false; reason: 'ALREADY_USED' }
+
+// The spine every entry path shares once §6 (and, for the signature path, the
+// challenge and the signature) have said the right may enter: burn the slot of a
+// SINGLE_USE right or log a plain ADMIT, then fire the best-effort hook. The
+// caller still writes its own REJECT row for ALREADY_USED, because the REJECT's
+// response shape differs per path.
+export const admitAndHook = async (ctx: AdmitContext): Promise<AdmitOutcome> => {
+  let entryLogId: number
+  if (ctx.canonical.usageModel === USAGE_MODEL.SINGLE_USE) {
+    const admitted = await admitSingleUse(ctx.db, ctx.uid, ctx.path, ctx.now)
+    if (!admitted.admitted) {
+      return { admitted: false, reason: 'ALREADY_USED' }
+    }
+    ;({ entryLogId } = admitted)
+  } else {
+    entryLogId = await logEntry(ctx.db, {
+      at: ctx.now,
+      decision: 'ADMIT',
+      path: ctx.path,
+      reason: 'OK',
+      uid: ctx.uid,
+    })
+  }
+  try {
+    ctx.onAdmit({
+      entryLogId,
+      holder: ctx.canonical.holder,
+      now: ctx.now,
+      uid: ctx.uid,
+      waitUntil: ctx.waitUntil,
+    })
+  } catch {
+    // Attendance is best-effort (spec §8): a failed side effect never fails an admission
+  }
+  return { admitted: true, entryLogId }
 }

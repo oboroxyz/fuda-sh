@@ -1,4 +1,4 @@
-import { normalizeUid, parseQr, USAGE_MODEL, VerifyBody } from '@fuda/sdk'
+import { normalizeUid, parseQr, VerifyBody } from '@fuda/sdk'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import * as v from 'valibot'
@@ -7,7 +7,7 @@ import type { Hex } from 'viem'
 import { ChainError } from '../chain/client.ts'
 import type { AppEnv } from '../env.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
-import { admitSingleUse, logEntry } from '../verify/admit.ts'
+import { admitAndHook, logEntry } from '../verify/admit.ts'
 import { verifyConfig } from '../verify/config.ts'
 import type { VerifyOutcome } from '../verify/verify-uid.ts'
 import { verifyUid } from '../verify/verify-uid.ts'
@@ -117,26 +117,17 @@ verifyRoutes.post('/verify', async (c) => {
   if (out.canonical.level !== 0) {
     return await reject('LEVEL_REQUIRED')
   }
-  let entryLogId: number
-  if (out.canonical.usageModel === USAGE_MODEL.SINGLE_USE) {
-    const admitted = await admitSingleUse(db, uid, 'qr', now)
-    if (!admitted.admitted) {
-      return await reject('ALREADY_USED')
-    }
-    ;({ entryLogId } = admitted)
-  } else {
-    entryLogId = await logEntry(db, { at: now, decision: 'ADMIT', path: 'qr', reason: 'OK', uid })
-  }
-  try {
-    c.get('onAdmit')({
-      entryLogId,
-      holder: out.canonical.holder,
-      now,
-      uid,
-      waitUntil: waitUntilOf(c),
-    })
-  } catch {
-    // Attendance is best-effort (spec §8): a failed side effect never fails an admission
+  const outcome = await admitAndHook({
+    canonical: out.canonical,
+    db,
+    now,
+    onAdmit: c.get('onAdmit'),
+    path: 'qr',
+    uid,
+    waitUntil: waitUntilOf(c),
+  })
+  if (!outcome.admitted) {
+    return await reject(outcome.reason)
   }
   return jsonResponse(c, verdictBody(out))
 })

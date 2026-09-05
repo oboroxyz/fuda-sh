@@ -1,11 +1,4 @@
-import {
-  challengeMessage,
-  isUid,
-  normalizeNonce,
-  normalizeUid,
-  USAGE_MODEL,
-  VerifySignedBody,
-} from '@fuda/sdk'
+import { challengeMessage, isUid, normalizeNonce, normalizeUid, VerifySignedBody } from '@fuda/sdk'
 import type { VerifySignedResponse } from '@fuda/sdk'
 import { Hono } from 'hono'
 import * as v from 'valibot'
@@ -14,7 +7,7 @@ import type { Hex } from 'viem'
 import { ChainError } from '../chain/client.ts'
 import type { AppEnv } from '../env.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
-import { admitSingleUse, logEntry } from '../verify/admit.ts'
+import { admitAndHook, logEntry } from '../verify/admit.ts'
 import { consumeChallenge } from '../verify/challenge.ts'
 import { resolveVerdict, waitUntilOf } from './verify.ts'
 
@@ -111,20 +104,17 @@ verifySignedRoutes.post('/verify-signed', async (c) => {
   if (!valid) {
     return await answer({ decision: 'REJECT', holder, path: 'signature', reason: 'BAD_SIGNATURE' })
   }
-  let entryLogId: number
-  if (out.canonical.usageModel === USAGE_MODEL.SINGLE_USE) {
-    const admitted = await admitSingleUse(db, uid, 'signature', now)
-    if (!admitted.admitted) {
-      return await answer({ decision: 'REJECT', holder, path: 'signature', reason: 'ALREADY_USED' })
-    }
-    ;({ entryLogId } = admitted)
-  } else {
-    entryLogId = await logEntry(db, { at: now, decision: 'ADMIT', path: 'signature', reason: 'OK', uid })
-  }
-  try {
-    c.get('onAdmit')({ entryLogId, holder, now, uid, waitUntil: waitUntilOf(c) })
-  } catch {
-    // Attendance is best-effort (spec §8): a failed side effect never fails an admission
+  const outcome = await admitAndHook({
+    canonical: out.canonical,
+    db,
+    now,
+    onAdmit: c.get('onAdmit'),
+    path: 'signature',
+    uid,
+    waitUntil: waitUntilOf(c),
+  })
+  if (!outcome.admitted) {
+    return await answer({ decision: 'REJECT', holder, path: 'signature', reason: outcome.reason })
   }
   return jsonResponse(c, {
     decision: 'ADMIT',
