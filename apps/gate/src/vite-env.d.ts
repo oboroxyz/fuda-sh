@@ -1,4 +1,4 @@
-/// <reference types="vite-plus/client" />
+/// <reference types="vite/client" />
 
 // Opts into strict `ImportMetaEnv` typing (no implicit fallback to `any` for
 // unknown keys) and declares the env vars this app actually reads.
