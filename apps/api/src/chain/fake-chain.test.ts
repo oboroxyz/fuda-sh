@@ -166,6 +166,8 @@ describe('FakeChain announcements', () => {
     chain.failAnnounce = true
     await expect(chain.announce(p)).rejects.toBeInstanceOf(ChainError)
     chain.failAnnounce = false
+    chain.failWrites = true
+    await expect(chain.announce(p)).resolves.toHaveProperty('txHash')
     chain.failReads = true
     await expect(chain.getAnnouncementLogs(0, 10)).rejects.toBeInstanceOf(ChainError)
     await expect(chain.blockNumber()).rejects.toBeInstanceOf(ChainError)
