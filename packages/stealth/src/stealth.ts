@@ -89,9 +89,10 @@ export interface AnnouncementRow {
   metadata: Hex
 }
 
-// Receiver side: the view tag is the cheap prefilter (one byte, rejects 255/256
-// of foreign announcements); a match then does the full ECDH and compares the
-// derived address.
+// Receiver side. The view tag is byte 0 of the ECDH-derived shared secret, so the
+// ECDH cannot be skipped — it runs first. The tag then gates the expensive half
+// (the tweak multiplication, the point addition and the address derivation),
+// rejecting 255/256 of foreign announcements before any of it.
 export const checkAnnouncement = (keys: StealthKeys, a: AnnouncementRow): boolean => {
   const meta = parseAnnouncementMetadata(a.metadata)
   if (meta === null) {
