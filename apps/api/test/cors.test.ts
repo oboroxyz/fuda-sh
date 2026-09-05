@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { corsPolicy } from '../src/middleware/cors.ts'
-import { appWith, testEnv } from './env.ts'
+import { appWith, fakeChain, testEnv } from './env.ts'
 
 const ALLOWED_ORIGINS = [
   'https://app.fuda.sh',
@@ -12,7 +12,7 @@ const ALLOWED_ORIGINS = [
 
 describe(corsPolicy, () => {
   it('allows the three fuda hosts and a localhost dev port, not others', async () => {
-    const app = appWith({ chain: {} })
+    const app = appWith({ chain: fakeChain() })
     const responses = await Promise.all(
       ALLOWED_ORIGINS.map((origin) => app.request('/health', { headers: { Origin: origin } }, testEnv())),
     )
