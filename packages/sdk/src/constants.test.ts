@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Hex } from './constants.ts'
-import { isUid, LEVEL_CODE, levelFromCode, normalizeUid, parseQr, QR_RE, toQr, UID_RE } from './constants.ts'
+import {
+  asHex,
+  isUid,
+  LEVEL_CODE,
+  levelFromCode,
+  normalizeUid,
+  parseQr,
+  QR_RE,
+  toQr,
+  UID_RE,
+} from './constants.ts'
 
 // Annotated (not cast): a contextually-typed template literal already narrows to Hex.
 const uid: Hex = `0x${'ab'.repeat(32)}`
@@ -36,5 +46,18 @@ describe('wire constants', () => {
     expect(LEVEL_CODE).toStrictEqual({ bearer: 0, private: 2, signed: 1 })
     expect(levelFromCode(1)).toBe('signed')
     expect(levelFromCode(3)).toBeNull()
+  })
+})
+
+describe(asHex, () => {
+  it('accepts exactly the requested byte length', () => {
+    expect(asHex(`0x${'ab'.repeat(20)}`, 20)).toBe(`0x${'ab'.repeat(20)}`)
+    expect(asHex(`0x${'AB'.repeat(32)}`, 32)).toBe(`0x${'AB'.repeat(32)}`)
+  })
+
+  it('rejects the wrong length, a missing prefix and non-hex', () => {
+    expect(asHex(`0x${'ab'.repeat(19)}`, 20)).toBeNull()
+    expect(asHex('ab'.repeat(20), 20)).toBeNull()
+    expect(asHex(`0x${'zz'.repeat(20)}`, 20)).toBeNull()
   })
 })

@@ -16,6 +16,15 @@ export const isUid = (s: string): s is Hex => UID_RE.test(s)
 // template literal is contextually typed as Hex.
 export const normalizeUid = (s: string): Hex | null => (isUid(s) ? `0x${s.slice(2).toLowerCase()}` : null)
 
+// Validated hex of an exact byte length. Annotated (not cast): the regex
+// guarantees the 0x prefix, so the template literal narrows to Hex. Case is
+// preserved — addresses keep their EIP-55 checksum, uids are folded by
+// normalizeUid separately.
+export const asHex = (s: string, bytes: number): Hex | null => {
+  const re = new RegExp(`^0x[0-9a-fA-F]{${bytes * 2}}$`, 'u')
+  return re.test(s) ? `0x${s.slice(2)}` : null
+}
+
 export const toQr = (uid: Hex): string => `${QR_PREFIX}${uid}`
 
 export const parseQr = (qr: string): Hex | null => {

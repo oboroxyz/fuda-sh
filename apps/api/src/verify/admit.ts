@@ -35,6 +35,44 @@ export const logEntry = async (db: Db, row: EntryRow): Promise<number> => {
   return inserted.id
 }
 
+export type AdmitResult = { admitted: true; entryLogId: number } | { admitted: false }
+
+// SQLite names the violated key in its message; D1 wraps it but keeps the text.
+const SLOT_TAKEN_RE = /UNIQUE constraint failed: slots\.uid, slots\.slot/u
+
+// SINGLE_USE admission as one transaction: the slot row and the ADMIT log row
+// commit together or not at all. The slot insert is a plain INSERT, so a second
+// scan violates the (uid, slot) primary key and D1 rolls the whole batch back —
+// the ADMIT row is never written for a slot that was already burned, and two
+// concurrent scans cannot both commit. The caller logs the REJECT separately;
+// that single statement has nothing to lose.
+export const admitSingleUse = async (
+  db: Db,
+  uid: Hex,
+  path: EntryPath,
+  now: number,
+): Promise<AdmitResult> => {
+  try {
+    const [, inserted] = await db.batch([
+      db.insert(slots).values({ consumedAt: now, slot: DEFAULT_SLOT, uid }),
+      db
+        .insert(entryLog)
+        .values({ at: now, decision: 'ADMIT', path, reason: 'OK', uid })
+        .returning({ id: entryLog.id }),
+    ])
+    const [row] = inserted
+    if (row === undefined) {
+      throw new Error('entry_log insert returned no row')
+    }
+    return { admitted: true, entryLogId: row.id }
+  } catch (error) {
+    if (error instanceof Error && SLOT_TAKEN_RE.test(error.message)) {
+      return { admitted: false }
+    }
+    throw error
+  }
+}
+
 export interface AdmitInfo {
   uid: Hex
   holder: Hex

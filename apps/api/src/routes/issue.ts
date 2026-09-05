@@ -1,4 +1,4 @@
-import { deriveIssueKind, IssueBody } from '@fuda/sdk'
+import { asHex, deriveIssueKind, IssueBody } from '@fuda/sdk'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import * as v from 'valibot'
@@ -12,22 +12,17 @@ import type { IssueContext } from '../issue/issue-bearer.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { adminAuth } from '../middleware/admin-auth.ts'
 
-// Annotated (not cast): the regex guarantees the 0x prefix and length, so the
-// contextually typed template literal narrows to Hex directly. An unset binding
-// reads as the zero value, which counts as unconfigured.
-const asHex = (s: string, digits: number, zero: Hex): Hex | null => {
-  if (!new RegExp(`^0x[0-9a-fA-F]{${digits}}$`, 'u').test(s)) {
-    return null
-  }
-  const hex: Hex = `0x${s.slice(2)}`
-  return hex.toLowerCase() === zero ? null : hex
+// An unset binding reads as the zero value, which counts as unconfigured.
+const configuredHex = (s: string, bytes: number, zero: Hex): Hex | null => {
+  const hex = asHex(s, bytes)
+  return hex === null || hex.toLowerCase() === zero ? null : hex
 }
 
 // null means "this deployment cannot issue": ISSUER_ADDRESS / DELEGATION_UID
 // unset or zero, or a malformed EAS_SCHEMAS binding. All answer 502 chain_error.
 const issueContext = (c: Context<AppEnv>): IssueContext | null => {
-  const issuerAddress = asHex(c.env.ISSUER_ADDRESS, 40, ZERO_ADDRESS)
-  const delegationUid = asHex(c.env.DELEGATION_UID, 64, ZERO_UID)
+  const issuerAddress = configuredHex(c.env.ISSUER_ADDRESS, 20, ZERO_ADDRESS)
+  const delegationUid = configuredHex(c.env.DELEGATION_UID, 32, ZERO_UID)
   if (issuerAddress === null || delegationUid === null) {
     return null
   }

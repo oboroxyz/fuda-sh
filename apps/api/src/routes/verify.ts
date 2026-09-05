@@ -7,7 +7,7 @@ import type { Hex } from 'viem'
 import { ChainError } from '../chain/client.ts'
 import type { AppEnv } from '../env.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
-import { consumeSlot, logEntry } from '../verify/admit.ts'
+import { admitSingleUse, logEntry } from '../verify/admit.ts'
 import { verifyConfig } from '../verify/config.ts'
 import type { VerifyOutcome } from '../verify/verify-uid.ts'
 import { verifyUid } from '../verify/verify-uid.ts'
@@ -37,7 +37,7 @@ const swallow = async (p: Promise<unknown>): Promise<void> => {
 // Hono's `c.executionCtx` getter throws when the app is invoked without one
 // (`app.request(...)` in tests). The fallback starts the promise and swallows
 // its rejection, so a test never sees an unhandled one.
-const waitUntilOf = (c: Context<AppEnv>): ((p: Promise<unknown>) => void) => {
+export const waitUntilOf = (c: Context<AppEnv>): ((p: Promise<unknown>) => void) => {
   try {
     const ctx = c.executionCtx
     return ctx.waitUntil.bind(ctx)
@@ -117,10 +117,16 @@ verifyRoutes.post('/verify', async (c) => {
   if (out.canonical.level !== 0) {
     return await reject('LEVEL_REQUIRED')
   }
-  if (out.canonical.usageModel === USAGE_MODEL.SINGLE_USE && !(await consumeSlot(db, uid, now))) {
-    return await reject('ALREADY_USED')
+  let entryLogId: number
+  if (out.canonical.usageModel === USAGE_MODEL.SINGLE_USE) {
+    const admitted = await admitSingleUse(db, uid, 'qr', now)
+    if (!admitted.admitted) {
+      return await reject('ALREADY_USED')
+    }
+    ;({ entryLogId } = admitted)
+  } else {
+    entryLogId = await logEntry(db, { at: now, decision: 'ADMIT', path: 'qr', reason: 'OK', uid })
   }
-  const entryLogId = await logEntry(db, { at: now, decision: 'ADMIT', path: 'qr', reason: 'OK', uid })
   try {
     c.get('onAdmit')({
       entryLogId,

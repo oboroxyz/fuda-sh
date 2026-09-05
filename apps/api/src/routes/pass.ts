@@ -1,7 +1,6 @@
-import { normalizeUid } from '@fuda/sdk'
+import { asHex, normalizeUid } from '@fuda/sdk'
 import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
-import type { Hex } from 'viem'
 
 import { members } from '../db/schema.ts'
 import type { AppEnv } from '../env.ts'
@@ -31,8 +30,9 @@ passRoutes.get('/pass/:uid', async (c) => {
   const outcome: PassOutcome = resolved.ok
     ? { decision: resolved.out.decision, reason: resolved.out.reason }
     : null
-  // Annotated (not cast): holder is written only from validated Hex values.
-  const holder: Hex | null = row.holder === null ? null : `0x${row.holder.slice(2)}`
+  // Written only from checksummed addresses (bearerHolder / getAddress), so a
+  // null here means a malformed row, which the page treats as "no holder".
+  const holder = row.holder === null ? null : asHex(row.holder, 20)
   return await c.html(PassPage(passView({ holder, level: row.level, tier: row.tier, uid }, outcome)))
 })
 
