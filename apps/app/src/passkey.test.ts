@@ -57,4 +57,25 @@ describe(passkeyUserId, () => {
     store.block()
     expect(passkeyUserId(store.storage)).toHaveLength(16)
   })
+
+  it('still returns an id when reading the default storage itself throws', () => {
+    // A sandboxed iframe or a browser with site data blocked can throw a
+    // SecurityError on the `localStorage` property access itself, before any
+    // getItem/setItem call. `passkeyUserId()` (no explicit storage) must fall
+    // back to a throwaway id instead of letting that escape the ceremony.
+    const original = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      get: () => {
+        throw new DOMException('blocked', 'SecurityError')
+      },
+    })
+    try {
+      expect(passkeyUserId()).toHaveLength(16)
+    } finally {
+      if (original) {
+        Object.defineProperty(globalThis, 'localStorage', original)
+      }
+    }
+  })
 })

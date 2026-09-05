@@ -24,27 +24,29 @@ const hexOf = (bytes: Uint8Array): string => [...bytes].map((b) => b.toString(16
 const bytesOfHex = (hex: string): Uint8Array<ArrayBuffer> =>
   Uint8Array.from(hex.match(/../gu) ?? [], (pair) => Number.parseInt(pair, 16))
 
-// Generated once and kept: a cleared store, or a browser that throws on storage
-// access outright, only costs the member a duplicate credential, so every access
-// here is wrapped rather than trusted. (`createPasskey`'s default argument reads
-// `globalThis.localStorage` before this runs; a browser that throws on that read
-// surfaces through the screen's error banner, not as a crash.)
-export const passkeyUserId = (storage: IdStorage): Uint8Array<ArrayBuffer> => {
+// Generated once and kept: a cleared store, a browser that throws on storage
+// access outright, or one that throws merely reading `localStorage` itself
+// (blocked site data, a sandboxed iframe -> SecurityError) only costs the
+// member a duplicate credential, so every access here -- including resolving
+// the default storage -- is wrapped rather than trusted.
+export const passkeyUserId = (storage?: IdStorage): Uint8Array<ArrayBuffer> => {
   try {
-    const stored = storage.getItem(USER_ID_KEY)
+    const store = storage ?? globalThis.localStorage
+    const stored = store.getItem(USER_ID_KEY)
     if (stored !== null && USER_ID_HEX_RE.test(stored)) {
       return bytesOfHex(stored)
     }
+    const fresh = crypto.getRandomValues(new Uint8Array(USER_ID_BYTES))
+    try {
+      store.setItem(USER_ID_KEY, hexOf(fresh))
+    } catch {
+      // storage blocked: the id lives for this ceremony only
+    }
+    return fresh
   } catch {
-    // storage blocked: fall through to a fresh id
+    // storage blocked, or reading it threw outright: fall back to a throwaway id
+    return crypto.getRandomValues(new Uint8Array(USER_ID_BYTES))
   }
-  const fresh = crypto.getRandomValues(new Uint8Array(USER_ID_BYTES))
-  try {
-    storage.setItem(USER_ID_KEY, hexOf(fresh))
-  } catch {
-    // storage blocked: the id lives for this ceremony only
-  }
-  return fresh
 }
 
 // The PRF result is typed as a BufferSource: an ArrayBuffer today, but a view
@@ -100,7 +102,7 @@ export const loadPasskey = async (rpId: string): Promise<PrfResult> => {
 export const createPasskey = async (
   rpId: string,
   userName: string,
-  storage: IdStorage = globalThis.localStorage,
+  storage?: IdStorage,
 ): Promise<PrfResult> => {
   try {
     await navigator.credentials.create({
