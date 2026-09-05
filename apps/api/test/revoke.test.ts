@@ -5,7 +5,7 @@ import { getDb } from '../src/db/client.ts'
 import { members } from '../src/db/schema.ts'
 import type { Bindings } from '../src/env.ts'
 import { appWith, fakeChain } from './env.ts'
-import { configuredEnv, NOW, ROOT, seedRoot } from './fixtures.ts'
+import { ATT, configuredEnv, DEL, ENT, ENT_V2, NOW, ROOT, seedRight, seedRoot } from './fixtures.ts'
 
 type App = ReturnType<typeof appWith>
 
@@ -54,15 +54,60 @@ describe('POST /revoke', () => {
     expect(res.status).toBe(400)
   })
 
-  it('502 chain_error for an unknown uid, with the row untouched', async () => {
+  it('502 chain_error for an unknown uid, with the row untouched and nothing revoked', async () => {
     const chain = fakeChain({ signer: ROOT })
     const del = seedRoot(chain)
     const app = appWith({ chain, now: () => NOW })
     const res = await revoke(app, configuredEnv(del), `0x${'ee'.repeat(32)}`)
     expect(res.status).toBe(502)
     await expect(res.json()).resolves.toStrictEqual({ error: 'chain_error' })
+    expect(chain.txs).toHaveLength(0)
     const rows = await db().select().from(members)
     expect(rows).toHaveLength(0)
+  })
+
+  // The uid's own schema is what EAS.revoke must be given: revoking against the
+  // newest accepted version would make every v1 right unrevocable here.
+  it('revokes a v1 right while a newer Entitlement version is also accepted', async () => {
+    const chain = fakeChain({ signer: ROOT })
+    const del = seedRoot(chain)
+    const uid = seedRight(chain, del)
+    const bindings = configuredEnv(del, {
+      EAS_SCHEMAS: JSON.stringify({
+        attendance: [{ uid: ATT, version: 1 }],
+        entitlement: [
+          { uid: ENT, version: 1 },
+          { uid: ENT_V2, version: 2 },
+        ],
+        issuerDelegation: [{ uid: DEL, version: 1 }],
+      }),
+    })
+    const res = await revoke(appWith({ chain, now: () => NOW }), bindings, uid)
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toStrictEqual({ revoked: true, uid })
+    const attestation = await chain.readAttestation(uid)
+    expect(attestation.revocationTime).not.toBe(0n)
+  })
+
+  it('502 chain_error on a malformed EAS_SCHEMAS binding, leaving the attestation live', async () => {
+    const chain = fakeChain({ signer: ROOT })
+    const del = seedRoot(chain)
+    const uid = seedRight(chain, del)
+    const bindings = configuredEnv(del, { EAS_SCHEMAS: 'nonsense' })
+    const res = await revoke(appWith({ chain, now: () => NOW }), bindings, uid)
+    expect(res.status).toBe(502)
+    await expect(res.json()).resolves.toStrictEqual({ error: 'chain_error' })
+    const attestation = await chain.readAttestation(uid)
+    expect(attestation.revocationTime).toBe(0n)
+  })
+
+  it('502 chain_error for a uid that is not an accepted Entitlement', async () => {
+    const chain = fakeChain({ signer: ROOT })
+    const del = seedRoot(chain)
+    const res = await revoke(appWith({ chain, now: () => NOW }), configuredEnv(del), del)
+    expect(res.status).toBe(502)
+    const attestation = await chain.readAttestation(del)
+    expect(attestation.revocationTime).toBe(0n)
   })
 
   it('502 chain_error revoking an already-revoked uid', async () => {

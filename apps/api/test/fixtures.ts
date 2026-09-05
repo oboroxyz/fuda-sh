@@ -10,6 +10,9 @@ import { testEnv } from './env.ts'
 export const ENT = schemaUid(SCHEMA_STRINGS.entitlement)
 export const DEL = schemaUid(SCHEMA_STRINGS.issuerDelegation)
 export const ATT = schemaUid(SCHEMA_STRINGS.attendance)
+// Stand-in for a future v2 Entitlement schema: nothing is ever seeded under it,
+// it only proves that accepting a newer version keeps v1 rights revocable.
+export const ENT_V2: Hex = `0x${'e2'.repeat(32)}`
 export const ROOT: Hex = `0x${'f0'.repeat(20)}`
 export const HOLDER: Hex = `0x${'11'.repeat(20)}`
 export const NOW = 1_757_000_000
