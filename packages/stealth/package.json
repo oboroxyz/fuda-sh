@@ -1,0 +1,20 @@
+{
+  "name": "@fuda/stealth",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vp test"
+  },
+  "dependencies": {
+    "@noble/curves": "1.9.1",
+    "@noble/hashes": "1.8.0",
+    "viem": "^2.56.3"
+  },
+  "devDependencies": {
+    "vitest": "4.1.11"
+  }
+}
