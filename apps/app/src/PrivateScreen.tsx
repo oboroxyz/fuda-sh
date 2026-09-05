@@ -5,7 +5,7 @@ import { short } from '@fuda/web-kit'
 import { useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
-import { announcements, challenge, verifySigned } from './api.ts'
+import { announcements, challenge, pageAnnouncements, verifySigned } from './api.ts'
 import { RP_ID } from './config.ts'
 import type { PrfResult } from './passkey.ts'
 import { displayOf, enterSigned } from './signed-gate.ts'
@@ -14,7 +14,8 @@ import { Verdict } from './Verdict.tsx'
 
 // Member-facing copy for the three ways a PRF ceremony ends without a secret.
 const PRF_COPY = {
-  cancelled: 'The passkey prompt was dismissed. Try again when you are ready.',
+  cancelled:
+    'The passkey prompt was dismissed. If this device already holds your fuda passkey, choose "Use existing passkey" — creating a second one would give you a second meta-address.',
   error: 'The passkey ceremony failed.',
   unsupported:
     'This passkey or device cannot derive a +Private key (no PRF support). Try a platform passkey on a recent phone or browser.',
@@ -93,6 +94,9 @@ export const PrivateScreen = (): JSX.Element => {
   // Every button funnels through here, so a failed chunk fetch or a broken
   // clipboard reads as a message on screen rather than an unhandled rejection.
   const run = async (fn: () => Promise<void>): Promise<void> => {
+    // Cleared on entry, so a banner from the previous attempt is never read as
+    // the outcome of this one.
+    setProblem(null)
     setBusy(true)
     try {
       await fn()
@@ -104,13 +108,18 @@ export const PrivateScreen = (): JSX.Element => {
   }
 
   const find = async (k: StealthKeys): Promise<void> => {
-    const res = await announcements(0)
+    // The api answers at most 1000 rows per call, so one call is a page, not the
+    // log: `pageAnnouncements` walks the rest before anything is matched.
+    const res = await pageAnnouncements(announcements, 0)
     if (!res.ok) {
       setProblem(res.network ? 'Could not reach the api — try again.' : res.error)
       return
     }
     const { discover } = await stealthKit()
-    setPasses(discover(k, res.body.announcements))
+    setPasses(discover(k, res.body.rows))
+    if (!res.body.complete) {
+      setProblem('The announcement list is longer than this app reads in one go — it may be incomplete.')
+    }
   }
 
   const enter = async (pass: DiscoveredPass): Promise<void> => {
