@@ -33,8 +33,9 @@ const Sets = v.object({
 
 const lowerUids = (list: readonly v.InferOutput<typeof Version>[]): AcceptedVersion[] =>
   list.map((e) => {
-    // SAFETY: `e.uid` already matched the ^0x[0-9a-fA-F]{64}$ schema above; lowercasing preserves that shape.
-    const uid = e.uid.toLowerCase() as Hex
+    // Annotated (not cast): `e.uid` already matched the ^0x[0-9a-fA-F]{64}$ schema above, so the
+    // 0x prefix is preserved and this contextually-typed template literal narrows to Hex directly.
+    const uid: Hex = `0x${e.uid.slice(2).toLowerCase()}`
     return { uid, version: e.version }
   })
 

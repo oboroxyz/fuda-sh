@@ -14,7 +14,9 @@ describe(corsPolicy, () => {
   it('allows the three fuda hosts and a localhost dev port, not others', async () => {
     const app = appWith({ chain: fakeChain() })
     const responses = await Promise.all(
-      ALLOWED_ORIGINS.map((origin) => app.request('/health', { headers: { Origin: origin } }, testEnv())),
+      ALLOWED_ORIGINS.map(
+        async (origin) => await app.request('/health', { headers: { Origin: origin } }, testEnv()),
+      ),
     )
     expect(responses.map((res) => res.headers.get('access-control-allow-origin'))).toStrictEqual(
       ALLOWED_ORIGINS,

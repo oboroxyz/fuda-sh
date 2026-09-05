@@ -15,8 +15,8 @@ const budgeted = (now: number) =>
     })
     .get('/limited', rateLimit({ budget: 3 }), (c) => c.json({ ok: true }))
 
-const hit = (now: number, ip = '203.0.113.7') =>
-  budgeted(now).request('/limited', { headers: { 'CF-Connecting-IP': ip } }, testEnv())
+const hit = async (now: number, ip = '203.0.113.7') =>
+  await budgeted(now).request('/limited', { headers: { 'CF-Connecting-IP': ip } }, testEnv())
 
 describe(rateLimit, () => {
   it('400s without a client IP', async () => {

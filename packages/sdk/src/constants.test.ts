@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
+import type { Hex } from './constants.ts'
 import { isUid, LEVEL_CODE, levelFromCode, parseQr, QR_RE, toQr, UID_RE } from './constants.ts'
 
-const uid = `0x${'ab'.repeat(32)}`
+// Annotated (not cast): a contextually-typed template literal already narrows to Hex.
+const uid: Hex = `0x${'ab'.repeat(32)}`
 
 describe('wire constants', () => {
   it('uid regex accepts 0x + 64 hex only', () => {

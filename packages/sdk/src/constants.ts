@@ -13,7 +13,7 @@ export const isUid = (s: string): s is Hex => UID_RE.test(s)
 export const toQr = (uid: Hex): string => `${QR_PREFIX}${uid}`
 
 export const parseQr = (qr: string): Hex | null => {
-  const captured = QR_RE.exec(qr)?.groups?.['uid']
+  const captured = QR_RE.exec(qr)?.groups?.uid
   return captured !== undefined && isUid(captured) ? captured : null
 }
 

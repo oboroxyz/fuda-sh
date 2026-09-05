@@ -21,7 +21,7 @@ describe('D1 schema', () => {
   })
 
   it('inserts a member row through drizzle', async () => {
-    const db = getDb({ DB: env.DB } as never)
+    const db = getDb({ DB: env.DB })
     await db.insert(members).values({
       attestationUid: `0x${'01'.repeat(32)}`,
       createdAt: 1,
@@ -37,7 +37,7 @@ describe('D1 schema', () => {
   })
 
   it('INSERT OR IGNORE on slots reports changes', async () => {
-    const db = getDb({ DB: env.DB } as never)
+    const db = getDb({ DB: env.DB })
     const uid = `0x${'02'.repeat(32)}`
     const first = await db
       .insert(slots)

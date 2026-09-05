@@ -37,11 +37,11 @@ export const createViemChain = (env: Bindings): ChainClient => {
   const wallet = account === null ? null : createWalletClient({ account, chain: baseSepolia, transport })
 
   return {
-    attest: (p: AttestParams) => {
+    attest: async (p: AttestParams) => {
       if (wallet === null || account === null) {
-        return Promise.reject(new NoSignerError('SIGNER_PRIVATE_KEY unset'))
+        throw new NoSignerError('SIGNER_PRIVATE_KEY unset')
       }
-      return wrap(async () => {
+      return await wrap(async () => {
         const txHash = await wallet.writeContract({
           abi: EAS_ABI,
           account,
@@ -74,18 +74,19 @@ export const createViemChain = (env: Bindings): ChainClient => {
       })
     },
 
-    getAddressFromFactory: (owners, nonce) =>
-      wrap(() =>
-        publicClient.readContract({
-          abi: FACTORY_ABI,
-          address: factory,
-          args: [owners, nonce],
-          functionName: 'getAddress',
-        }),
+    getAddressFromFactory: async (owners, nonce) =>
+      await wrap(
+        async () =>
+          await publicClient.readContract({
+            abi: FACTORY_ABI,
+            address: factory,
+            args: [owners, nonce],
+            functionName: 'getAddress',
+          }),
       ),
 
-    readAttestation: (uid) =>
-      wrap(async () => {
+    readAttestation: async (uid) =>
+      await wrap(async () => {
         const a = await publicClient.readContract({
           abi: EAS_ABI,
           address: eas,
@@ -106,11 +107,11 @@ export const createViemChain = (env: Bindings): ChainClient => {
         }
       }),
 
-    revoke: (schema, uid) => {
+    revoke: async (schema, uid) => {
       if (wallet === null || account === null) {
-        return Promise.reject(new NoSignerError('SIGNER_PRIVATE_KEY unset'))
+        throw new NoSignerError('SIGNER_PRIVATE_KEY unset')
       }
-      return wrap(async () => {
+      return await wrap(async () => {
         const txHash = await wallet.writeContract({
           abi: EAS_ABI,
           account,

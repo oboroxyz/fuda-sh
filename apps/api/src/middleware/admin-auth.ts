@@ -2,8 +2,17 @@ import type { MiddlewareHandler } from 'hono'
 
 import type { AppEnv } from '../env.ts'
 
-const sha256 = (s: string): Promise<ArrayBuffer> =>
-  crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))
+// workerd implements crypto.subtle.timingSafeEqual (constant-time buffer compare),
+// but @cloudflare/workers-types does not declare it yet. Narrow augmentation
+// instead of a cast so the rest of SubtleCrypto stays fully typed.
+declare global {
+  interface SubtleCrypto {
+    timingSafeEqual: (a: ArrayBuffer | ArrayBufferView, b: ArrayBuffer | ArrayBufferView) => boolean
+  }
+}
+
+const sha256 = async (s: string): Promise<ArrayBuffer> =>
+  await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))
 
 // Constant-time compare: hash both sides to equal length, then timingSafeEqual.
 export const tokenMatches = async (presented: string, expected: string): Promise<boolean> => {
@@ -11,7 +20,8 @@ export const tokenMatches = async (presented: string, expected: string): Promise
   return crypto.subtle.timingSafeEqual(a, b)
 }
 
-const isTokenUnset = (token: string | undefined): boolean => token === undefined || token === ''
+const isTokenUnset = (token: string | undefined): token is undefined | '' =>
+  token === undefined || token === ''
 
 export const adminAuth = (): MiddlewareHandler<AppEnv> => async (c, next) => {
   const expected = c.env.ADMIN_TOKEN

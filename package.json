@@ -10,6 +10,7 @@
     "format": "vp fmt",
     "format:check": "vp fmt --check",
     "check": "vp check",
+    "typecheck": "vp check --no-fmt --no-lint",
     "test": "vp run -r test"
   },
   "devDependencies": {

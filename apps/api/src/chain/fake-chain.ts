@@ -6,9 +6,8 @@ import type { AttestParams, ChainClient, RawAttestation } from './client.ts'
 
 const DEFAULT_SIGNER: Hex = `0x${'f0'.repeat(20)}`
 
-const lowerHex = (h: Hex): Hex =>
-  // SAFETY: lowercasing a 0x-prefixed hex string keeps it a 0x-prefixed hex string.
-  h.toLowerCase() as Hex
+// Annotated (not cast): a contextually-typed template literal already narrows to Hex.
+const lowerHex = (h: Hex): Hex => `0x${h.slice(2).toLowerCase()}`
 
 // In-memory EAS + factory used by the workerd integration tests and by
 // `wrangler dev` without a signer. Deterministic, no network.
@@ -44,11 +43,12 @@ export class FakeChain implements ChainClient {
     }
   }
 
-  readAttestation(uid: Hex): Promise<RawAttestation> {
+  // oxlint-disable-next-line eslint/require-await -- ChainClient's interface is async; this fake resolves synchronously
+  async readAttestation(uid: Hex): Promise<RawAttestation> {
     if (this.failReads) {
-      return Promise.reject(new ChainError('rpc down'))
+      throw new ChainError('rpc down')
     }
-    return Promise.resolve(
+    return (
       this.attestations.get(lowerHex(uid)) ?? {
         attester: ZERO_ADDRESS,
         data: '0x',
@@ -60,22 +60,23 @@ export class FakeChain implements ChainClient {
         schema: ZERO_UID,
         time: 0n,
         uid: ZERO_UID,
-      },
+      }
     )
   }
 
-  // oxlint-disable-next-line class-methods-use-this -- ChainClient method; the fake's CREATE2 stand-in is stateless
-  getAddressFromFactory(owners: Hex[], nonce: bigint): Promise<Hex> {
+  // oxlint-disable-next-line class-methods-use-this, eslint/require-await -- stateless CREATE2 stand-in; interface is async
+  async getAddressFromFactory(owners: Hex[], nonce: bigint): Promise<Hex> {
     const h = keccak256(encodeAbiParameters([{ type: 'bytes[]' }, { type: 'uint256' }], [owners, nonce]))
-    return Promise.resolve<Hex>(`0x${h.slice(-40)}`)
+    return `0x${h.slice(-40)}`
   }
 
-  attest(p: AttestParams): Promise<{ uid: Hex; txHash: Hex }> {
+  // oxlint-disable-next-line eslint/require-await -- ChainClient's interface is async; this fake resolves synchronously
+  async attest(p: AttestParams): Promise<{ uid: Hex; txHash: Hex }> {
     if (this.signer === null) {
-      return Promise.reject(new NoSignerError('SIGNER_PRIVATE_KEY unset'))
+      throw new NoSignerError('SIGNER_PRIVATE_KEY unset')
     }
     if (this.failWrites) {
-      return Promise.reject(new ChainError('tx failed'))
+      throw new ChainError('tx failed')
     }
     const uid = this.nextUid()
     this.attestations.set(uid, {
@@ -91,19 +92,20 @@ export class FakeChain implements ChainClient {
       uid,
     })
     const txHash = this.nextTx()
-    return Promise.resolve({ txHash, uid })
+    return { txHash, uid }
   }
 
-  revoke(schema: Hex, uid: Hex): Promise<{ txHash: Hex }> {
+  // oxlint-disable-next-line eslint/require-await -- ChainClient's interface is async; this fake resolves synchronously
+  async revoke(schema: Hex, uid: Hex): Promise<{ txHash: Hex }> {
     if (this.signer === null) {
-      return Promise.reject(new NoSignerError('SIGNER_PRIVATE_KEY unset'))
+      throw new NoSignerError('SIGNER_PRIVATE_KEY unset')
     }
     const a = this.attestations.get(lowerHex(uid))
     if (this.failWrites || a === undefined || a.schema !== schema || a.revocationTime !== 0n) {
-      return Promise.reject(new ChainError('revert'))
+      throw new ChainError('revert')
     }
     this.attestations.set(a.uid, { ...a, revocationTime: this.now() })
-    return Promise.resolve({ txHash: this.nextTx() })
+    return { txHash: this.nextTx() }
   }
 
   private nextUid(): Hex {
