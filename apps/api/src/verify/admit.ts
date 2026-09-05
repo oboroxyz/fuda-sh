@@ -8,18 +8,6 @@ import { entryLog, slots } from '../db/schema.ts'
 // its own rows without a migration.
 export const DEFAULT_SLOT = 'default'
 
-// SINGLE_USE consumption. INSERT OR IGNORE on the (uid, slot) primary key makes
-// the write itself the lock: the slot is ours iff the insert changed a row, so
-// two concurrent scans of the same pass cannot both be admitted.
-export const consumeSlot = async (db: Db, uid: Hex, now: number): Promise<boolean> => {
-  const res = await db
-    .insert(slots)
-    .values({ consumedAt: now, slot: DEFAULT_SLOT, uid })
-    .onConflictDoNothing()
-    .run()
-  return res.meta.changes > 0
-}
-
 export interface EntryRow {
   uid: Hex
   decision: 'ADMIT' | 'REJECT'

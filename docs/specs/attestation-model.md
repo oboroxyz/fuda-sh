@@ -314,8 +314,11 @@ CREATE TABLE entry_log (
 );
 ```
 
-SINGLE_USE consumption is a D1 `INSERT OR IGNORE` on the `(uid, slot)` key,
-consumed iff `meta.changes > 0`. No Durable Objects are used in the MVP.
+SINGLE_USE consumption is a D1 batch that writes the `slots` row and the `ADMIT`
+`entry_log` row together: the slot insert is a plain `INSERT`, so a second scan
+violates the `(uid, slot)` primary key and the whole batch rolls back — the slot
+is the lock, and no `ADMIT` is ever logged against a slot already burned. No
+Durable Objects are used in the MVP.
 
 ### Tests that pin this model
 
