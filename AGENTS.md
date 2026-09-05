@@ -16,7 +16,7 @@ One config file, `vite.config.ts`, drives dev/build/test/lint/format through **V
 - `pnpm lint` / `pnpm format` / `pnpm check` are the entry points (see `package.json` scripts). Plain `vp lint` runs the built-in; `vpr lint` runs the npm script.
 - Lint is near-full-strict (Ultracite core + anti-slop + vitest presets). Suppress a rule only inline, with a reason:
   `// oxlint-disable-next-line <rule> -- <why>`. Keep these rare.
-- `oxlint` / `oxfmt` are pinned in `pnpm-workspace.yaml` `overrides` to the versions vite-plus bundles. Two copies of oxlint installed at once break the preset types in `vite.config.ts`; keep the overrides in step when bumping vite-plus.
+- `oxlint` / `oxfmt` are pinned in `pnpm-workspace.yaml` `overrides` to the versions vite-plus bundles. Two copies of oxlint installed at once break the preset types in `vite.config.ts`; keep the overrides in step when bumping vite-plus. A third override there, `vite@*` → `@voidzero-dev/vite-plus-core@<version>`, redirects any third-party Vite plugin's `vite` peer (e.g. `@tailwindcss/vite`) to the same vite-plus-core release the workspace uses, so its `Plugin`/`UserConfig` types stay unified with `vite-plus`'s instead of splitting into two nominally distinct types — see the override's comment in `pnpm-workspace.yaml` for the full rationale. Bump this override's version together with vite-plus too.
 - Node `24.18.0` is provisioned by pnpm itself (`devEngines.runtime` in `package.json`, `onFail: download`); no version manager needed. `engineStrict` / `autoInstallPeers` live in `pnpm-workspace.yaml` because pnpm 11 ignores `.npmrc` for them. Install with `pnpm install --frozen-lockfile`.
 - Wrangler local state (`.wrangler/`) and secrets (`.dev.vars*`) are gitignored per app.
 

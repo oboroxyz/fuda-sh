@@ -1,8 +1,9 @@
 # fuda-api
 
-Cloudflare Worker (Hono) implementing the fuda MVP-1 endpoints: `GET /health`,
-`POST /issue`, `GET /verify/:uid`, `POST /verify`, `POST /revoke`, `GET /members`.
-`/challenge`, `/verify-signed`, `/pass/*` and `/announcements` are not
+Cloudflare Worker (Hono) implementing the fuda endpoints: `GET /health`,
+`POST /issue`, `GET /verify/:uid`, `POST /verify`, `POST /revoke`,
+`GET /members`, and the browser-based pass (`GET /pass/:uid` and its two
+wallet stubs). `/challenge`, `/verify-signed` and `/announcements` are not
 implemented yet — see Endpoints below.
 
 ## Run locally
@@ -26,6 +27,32 @@ then serves; `--env dev` reads `.dev.vars.dev` when present and falls back to
 `.dev.vars` otherwise. Setting either `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL`
 always wins over `USE_FAKE_CHAIN` — the fake chain is never constructed in
 production, only under this explicit local opt-in.
+
+## Attendance
+
+Every `ADMIT` verdict from `POST /verify` schedules an on-chain `Attendance`
+attestation via `waitUntil` — it is always on, not opt-in. The attest needs a
+signer (real or `FakeChain`) and an `attendance` entry in `EAS_SCHEMAS`; if
+either is missing the hook is a no-op. A failed attest is caught and logged
+(`console.warn`) but never fails the admission that triggered it — attendance
+is best-effort evidence, not a gate. On success the attestation UID is
+written back to `entry_log.attendance_uid` for the admitting `entry_log` row.
+
+## Browser-based pass
+
+`GET /pass/:uid` renders a self-contained HTML page (inline SVG QR, tier,
+holder, live status) for any uid a `members` row exists for; a uid fuda never
+issued answers `404 not_found`. `GET /pass/:uid/google` and
+`GET /pass/:uid/apple.pkpass` are stubs that answer `501` until Plan 5 adds
+the real wallet-pass builders.
+
+The `apps/gate` and `apps/dash` frontends call the api at
+`VITE_API_BASE_URL` (baked in at build time; defaults to
+`http://localhost:8787` for local dev). `corsPolicy()` in
+`src/middleware/cors.ts` allows any `http://localhost:<port>` or
+`http://127.0.0.1:<port>` origin in addition to the fixed production origins,
+so both frontends' dev servers (ports 5174 and 5175) work against a locally
+running api without further configuration.
 
 ## Tests
 
@@ -159,11 +186,13 @@ as long as a signer is available to `/issue`/`/revoke`).
 | POST | `/verify` | none | QR scan; consumes a slot per `usageModel` |
 | POST | `/revoke` | Bearer (`ADMIN_TOKEN`) | revokes the entitlement attestation |
 | GET | `/members` | Bearer (`ADMIN_TOKEN`) | lists issued entitlements |
+| GET | `/pass/:uid` | none | browser-based pass page; `404 not_found` if fuda never issued that uid |
+| GET | `/pass/:uid/google` | none | wallet-pass stub; `501 google_not_configured` until Plan 5 |
+| GET | `/pass/:uid/apple.pkpass` | none | wallet-pass stub; `501 apple_not_configured` until Plan 5 |
 
-`/challenge`, `/verify-signed`, `/pass/*` and `/announcements` arrive in
-Plans 2–4.
+`/challenge`, `/verify-signed` and `/announcements` arrive in Plans 3–4.
 
 ## Error codes
 
-`bad_input`, `bad_uid`, `bad_qr`, `unauthorized`, `no_signer`, `chain_error`,
-`internal`.
+`bad_input`, `bad_uid`, `bad_qr`, `not_found`, `unauthorized`, `no_signer`,
+`chain_error`, `internal`, `google_not_configured`, `apple_not_configured`.
