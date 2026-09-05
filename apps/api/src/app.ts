@@ -6,6 +6,7 @@ import { errorResponse } from './json.ts'
 import { authModeHeader } from './middleware/admin-auth.ts'
 import { corsPolicy } from './middleware/cors.ts'
 import { health } from './routes/health.ts'
+import { issueRoutes } from './routes/issue.ts'
 import { verifyRoutes } from './routes/verify.ts'
 
 export interface AppDeps {
@@ -25,6 +26,7 @@ export const createApp = (deps: AppDeps): Hono<AppEnv> => {
   app.use('*', authModeHeader())
   app.route('/', health)
   app.route('/', verifyRoutes)
+  app.route('/', issueRoutes)
   // Any error not already turned into a decision-shaped response by a route
   // handler. Not in @fuda/sdk's ErrorCode list — it names an unclassified defect.
   app.onError((_err, c) => errorResponse(c, 'internal', 500))
