@@ -2,7 +2,7 @@ import { challengeMessage } from '@fuda/sdk'
 import { createExecutionContext, env } from 'cloudflare:test'
 import { getAddress } from 'viem'
 import type { Hex } from 'viem'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { attendanceHook } from '../src/attendance/attendance-hook.ts'
 import { ChainError } from '../src/chain/client.ts'
@@ -55,6 +55,10 @@ describe('POST /verify-signed', () => {
     await db().delete(slots)
     await db().delete(entryLog)
     await db().delete(members)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('ADMITs a Signed right whose holder signed the challenge', async () => {
@@ -133,6 +137,7 @@ describe('POST /verify-signed', () => {
     const res = await post(app, bindings, '/verify-signed', { nonce, signature, uid })
     await expect(res.json()).resolves.toStrictEqual({
       decision: 'REJECT',
+      holder: getAddress(signer.address),
       path: 'signature',
       reason: 'REVOKED',
       stage: 'entitlement',
@@ -141,6 +146,20 @@ describe('POST /verify-signed', () => {
     expect(log[0]).toMatchObject({ decision: 'REJECT', path: 'signature', reason: 'REVOKED' })
     const rows = await db().select().from(challenges)
     expect(rows[0]?.usedAt).toBeNull()
+  })
+
+  it('omits holder when nothing was decoded (unknown uid rejects NOT_FOUND)', async () => {
+    const { app, bindings } = setup()
+    const unknown = `0x${'99'.repeat(32)}` as const
+    const { nonce } = await mint(app, bindings, unknown)
+    const signature = await signer.signMessage({ message: challengeMessage(unknown, nonce) })
+    const res = await post(app, bindings, '/verify-signed', { nonce, signature, uid: unknown })
+    await expect(res.json()).resolves.toStrictEqual({
+      decision: 'REJECT',
+      path: 'signature',
+      reason: 'NOT_FOUND',
+      stage: 'entitlement',
+    })
   })
 
   it('SINGLE_USE admits once by signature and rejects ALREADY_USED the second time', async () => {

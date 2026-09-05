@@ -71,7 +71,19 @@ verifySignedRoutes.post('/verify-signed', async (c) => {
   }
   const { out } = resolved
   if (out.decision === 'REJECT') {
-    return await answer({ decision: 'REJECT', path: 'signature', reason: out.reason, stage: 'entitlement' })
+    // §3: `holder` is present once the attestation was decoded. Every decoded
+    // rejection carries the entitlement view; NOT_FOUND and WRONG_SCHEMA do not,
+    // and answer without a holder.
+    const verdict: VerifySignedResponse = {
+      decision: 'REJECT',
+      path: 'signature',
+      reason: out.reason,
+      stage: 'entitlement',
+    }
+    if (out.entitlement !== undefined) {
+      verdict.holder = out.entitlement.holder
+    }
+    return await answer(verdict)
   }
   const { holder } = out.canonical
   if (!(await consumeChallenge(db, { nonce, now, uid }))) {
