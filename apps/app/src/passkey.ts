@@ -24,9 +24,11 @@ const hexOf = (bytes: Uint8Array): string => [...bytes].map((b) => b.toString(16
 const bytesOfHex = (hex: string): Uint8Array<ArrayBuffer> =>
   Uint8Array.from(hex.match(/../gu) ?? [], (pair) => Number.parseInt(pair, 16))
 
-// Generated once and kept: a cleared store (or a browser that denies storage
-// outright) only costs the member a duplicate credential, never a crash, so
-// every access is wrapped rather than trusted.
+// Generated once and kept: a cleared store, or a browser that throws on storage
+// access outright, only costs the member a duplicate credential, so every access
+// here is wrapped rather than trusted. (`createPasskey`'s default argument reads
+// `globalThis.localStorage` before this runs; a browser that throws on that read
+// surfaces through the screen's error banner, not as a crash.)
 export const passkeyUserId = (storage: IdStorage): Uint8Array<ArrayBuffer> => {
   try {
     const stored = storage.getItem(USER_ID_KEY)

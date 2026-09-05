@@ -117,8 +117,8 @@ describe(pageAnnouncements, () => {
   })
 
   it('gives up after the page cap and reports the list as incomplete', async () => {
-    // Every page is full and never advances past its own last block, the case
-    // the cap exists for.
+    // Every page comes back full, so the walk never sees the short page that
+    // ends it: a log longer than MAX_PAGES pages stops at the cap.
     const fetchPage = vi.fn<PageFetcher>(async (from) => await Promise.resolve(page(fullPage(from + 1))))
     const result = await pageAnnouncements(fetchPage)
     expect(fetchPage).toHaveBeenCalledTimes(MAX_PAGES)
