@@ -29,14 +29,19 @@ fuda.sh  ──alias──►  fuda.eth         DNS alias: <x>.fuda.sh resolves 
 
 Every right receives its own member number at issuance.
 
-| Property       | Rule                                                                                                        |
-| -------------- | ----------------------------------------------------------------------------------------------------------- |
-| Alphabet       | 28 characters `23456789acdefghjkmnpqrtuvwxy` — no `0 1 i l o`, and no `b s z` (read as `8 5 2` upper-cased) |
-| Length         | 12 characters (~58 bits), random per right, no sequential counter                                           |
-| Canonical form | lowercase, `4-4-4` hyphen groups: `qj2y-xphe-pdrk` — this exact string is the ENS label                     |
-| Display        | upper-cased on the pass and dashboard: `QJ2Y-XPHE-PDRK`; any typed-in number is lower-cased before lookup   |
-| Uniqueness     | unique per venue; regenerated on collision                                                                  |
-| Scope          | one number per **right** — a `private + loyalty` member has two unrelated numbers                           |
+| Property        | Rule                                                                                                                                                                                                                              |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Alphabet        | 28 characters `23456789acdefghjkmnpqrtuvwxy` — no `0 1 i l o`, and no `b s z` (read as `8 5 2` upper-cased)                                                                                                                       |
+| Length          | 13 characters: 12 random (~58 bits, no sequential counter) + 1 check character                                                                                                                                                    |
+| Check character | Luhn mod 28 over the 12 random characters (weights 2,1,2,… from the right, digit-sum carry, complement to 0 mod 28); detects every single-character error and almost all adjacent transpositions                                  |
+| Canonical form  | lowercase, no separators: `qj2yxphepdrka` — stored as-is, and this exact string is the ENS label                                                                                                                                  |
+| Display         | display-only formatting on the pass and dashboard: upper-cased in `4-4-5` groups, `QJ2Y-XPHE-PDRKA` (the last character of the last group is the check). Any typed-in number is lower-cased and stripped of hyphens before lookup |
+| Transport       | passed by scan (QR / pass / link); the check character lets any receiver reject a corrupted or mistyped number before a lookup                                                                                                    |
+| Uniqueness      | unique per venue; regenerated on collision                                                                                                                                                                                        |
+| Scope           | one number per **right** — a `private + loyalty` member has two unrelated numbers                                                                                                                                                 |
+
+Hyphens never enter storage, the API, or ENS; they are added by the pass and
+dashboard renderers only.
 
 Why random, not sequential: a counter would make member names enumerable,
 reveal issue order and venue size, and correlate with the order of fuda's
