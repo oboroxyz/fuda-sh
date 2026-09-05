@@ -31,6 +31,10 @@ announcementsRoutes.get('/announcements', rateLimit({ budget: DEFAULT_BUDGET }),
     .where(gte(announcements.blockNumber, fromBlock))
     .orderBy(asc(announcements.blockNumber), asc(announcements.logIndex))
     .limit(ANNOUNCEMENTS_LIMIT)
+  // "Nothing was ever synced" is the cursor's absence, not the row count: a
+  // persisted cursor over a range that held no announcements still answers 200
+  // with an empty list, and rows left behind by a wiped sync_state answer 502
+  // rather than passing off an unanchored cache as current.
   if (!synced.ok && synced.syncedTo === null) {
     return errorResponse(c, 'rpc_unavailable', 502)
   }

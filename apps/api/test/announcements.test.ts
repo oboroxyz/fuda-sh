@@ -103,7 +103,20 @@ describe(syncAnnouncements, () => {
   it('keeps the chunks that landed when the RPC fails on a later one', async () => {
     const chain = fakeChain()
     // 3500 blocks past fromBlock: four windows of <=1000, the last one short.
+    // One log per window, so the rows prove which chunks were committed.
     chain.blockNumber = async () => await Promise.resolve(3599)
+    for (const blockNumber of [150, 1200, 2500, 3300]) {
+      chain.announcements.push({
+        blockNumber,
+        caller: chain.signerAddress() ?? `0x${'00'.repeat(20)}`,
+        ephemeralPubKey: '0x02',
+        logIndex: 0,
+        metadata: '0x00',
+        schemeId: 1,
+        stealthAddress: `0x${'22'.repeat(20)}`,
+        txHash: `0x${blockNumber.toString(16).padStart(64, '0')}`,
+      })
+    }
     const ranges: [number, number][] = []
     const spy = chain.getAnnouncementLogs.bind(chain)
     chain.getAnnouncementLogs = async (from, to) => {
@@ -114,8 +127,11 @@ describe(syncAnnouncements, () => {
       return await spy(from, to)
     }
     const first = await syncAnnouncements({ chain, db: db(), fromBlock: 100 })
+    // The two committed chunks survive the third one's failure.
+    const landed = await db().select().from(announcements)
     const second = await syncAnnouncements({ chain, db: db(), fromBlock: 100 })
     expect(first).toStrictEqual({ ok: false, syncedTo: 2099 })
+    expect(landed.map((row) => row.blockNumber).toSorted((a, b) => a - b)).toStrictEqual([150, 1200])
     expect(second).toStrictEqual({ ok: true, syncedTo: 3599 })
     expect(ranges).toStrictEqual([
       [100, 1099],

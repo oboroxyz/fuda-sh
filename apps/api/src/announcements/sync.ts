@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm'
+import type { BatchItem } from 'drizzle-orm/batch'
 
 import { ChainError } from '../chain/client.ts'
 import type { AnnouncementLog, ChainClient } from '../chain/client.ts'
@@ -34,14 +35,30 @@ const readCursor = async (db: Db): Promise<number | null> => {
   return row?.value ?? null
 }
 
-const insertLogs = async (db: Db, logs: AnnouncementLog[]): Promise<void> => {
+const rowSlices = (logs: AnnouncementLog[]): AnnouncementLog[][] => {
+  const slices: AnnouncementLog[][] = []
   for (let i = 0; i < logs.length; i += INSERT_ROWS) {
-    // oxlint-disable-next-line no-await-in-loop -- slices of one chunk are applied in order; parallel writes would reorder the cursor
-    await db
-      .insert(announcements)
-      .values(logs.slice(i, i + INSERT_ROWS))
-      .onConflictDoNothing()
+    slices.push(logs.slice(i, i + INSERT_ROWS))
   }
+  return slices
+}
+
+// One chunk's rows and its cursor reach D1 as a single batch: one binding call
+// (a statement per slice would spend the Workers subrequest budget on a busy
+// chunk, failing before the cursor advances and re-failing on every later
+// request) and one implicit transaction, so the cursor can never advance past
+// rows that did not land. The cursor statement leads the batch only to keep the
+// array a non-empty tuple; the batch is atomic, so its position carries no
+// meaning.
+const applyChunk = async (db: Db, logs: AnnouncementLog[], to: number): Promise<void> => {
+  const cursorWrite: BatchItem<'sqlite'> = db
+    .insert(syncState)
+    .values({ key: SYNC_KEY, value: to })
+    .onConflictDoUpdate({ set: { value: to }, target: syncState.key })
+  const inserts = rowSlices(logs).map((rows): BatchItem<'sqlite'> =>
+    db.insert(announcements).values(rows).onConflictDoNothing(),
+  )
+  await db.batch([cursorWrite, ...inserts])
 }
 
 // Lazily pulls scheme-1 announcements into D1, ≤1000 blocks at a time, and
@@ -58,12 +75,7 @@ export const syncAnnouncements = async (deps: SyncDeps): Promise<SyncResult> => 
       // oxlint-disable-next-line no-await-in-loop -- chunks are applied in block order; the cursor must not skip ahead
       const logs = await deps.chain.getAnnouncementLogs(cursor + 1, to)
       // oxlint-disable-next-line no-await-in-loop -- see above
-      await insertLogs(deps.db, logs)
-      // oxlint-disable-next-line no-await-in-loop -- see above
-      await deps.db
-        .insert(syncState)
-        .values({ key: SYNC_KEY, value: to })
-        .onConflictDoUpdate({ set: { value: to }, target: syncState.key })
+      await applyChunk(deps.db, logs, to)
       cursor = to
     }
     return { ok: true, syncedTo: cursor }
