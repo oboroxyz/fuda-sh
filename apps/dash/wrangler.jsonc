@@ -1,0 +1,7 @@
+{
+  "$schema": "../api/node_modules/wrangler/config-schema.json",
+  "name": "fuda-dash",
+  "compatibility_date": "2025-09-01",
+  // Assets-only Worker: no `main`. dash.fuda.sh is attached as a custom domain at deploy time (Plan 5).
+  "assets": { "directory": "./dist", "not_found_handling": "single-page-application" },
+}
