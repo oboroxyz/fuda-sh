@@ -191,6 +191,9 @@ export class FakeChain implements ChainClient {
     }
   }
 
+  // viem decodes `bytes` event args as lower-case hex (and checksums addresses),
+  // so the fake stores the same casing a real log read would return: a client
+  // comparing announcement bytes byte-for-byte behaves identically on both.
   // oxlint-disable-next-line eslint/require-await -- ChainClient's interface is async; this fake resolves synchronously
   async announce(p: AnnounceParams): Promise<{ txHash: Hex }> {
     if (this.signer === null) {
@@ -204,9 +207,9 @@ export class FakeChain implements ChainClient {
     this.announcements.push({
       blockNumber: this.head,
       caller: this.signer,
-      ephemeralPubKey: p.ephemeralPubKey,
+      ephemeralPubKey: lowerHex(p.ephemeralPubKey),
       logIndex: 0,
-      metadata: p.metadata,
+      metadata: lowerHex(p.metadata),
       schemeId: 1,
       stealthAddress: checksum(p.stealthAddress),
       txHash,

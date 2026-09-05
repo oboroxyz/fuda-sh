@@ -173,6 +173,18 @@ describe('FakeChain announcements', () => {
     expect(second).toBe((first ?? 0) + 1)
   })
 
+  it('stores the announced bytes lower-cased and the stealth address checksummed, as viem decodes them', async () => {
+    const chain = new FakeChain({ head: 100 })
+    await chain.announce({
+      ephemeralPubKey: `0x02${'AB'.repeat(32)}`,
+      metadata: `0x1F${'CD'.repeat(32)}`,
+      stealthAddress: `0x${'22'.repeat(20)}`,
+    })
+    expect(chain.announcements[0]?.ephemeralPubKey).toBe(`0x02${'ab'.repeat(32)}`)
+    expect(chain.announcements[0]?.metadata).toBe(`0x1f${'cd'.repeat(32)}`)
+    expect(chain.announcements[0]?.stealthAddress).toBe(getAddress(`0x${'22'.repeat(20)}`))
+  })
+
   it('fails announce independently of attest', async () => {
     const chain = new FakeChain()
     chain.failAnnounce = true
