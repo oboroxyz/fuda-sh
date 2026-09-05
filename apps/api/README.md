@@ -34,8 +34,16 @@ Tests run inside workerd via `@cloudflare/vitest-pool-workers`, with a real D1
 binding (migrations applied from `migrations/` by `test/setup.ts`) and the
 in-memory `FakeChain` — no network calls.
 
-Type checking: `pnpm typecheck` (types only) or `vp check` from the repo root
-(format + lint + type-aware type check).
+Type checking: `pnpm typecheck` (types only, run from the repo root) or
+`vp check` from the repo root (format + lint + type-aware type check).
+
+## Migrations
+
+Migrations under `migrations/` are hand-written SQL for the MVP — there is no
+`drizzle-kit` snapshot (`migrations/meta/`) yet. Before ever running
+`drizzle-kit generate` for a schema change, bootstrap that baseline snapshot
+first; otherwise `generate` has no prior state to diff against and re-emits
+every table as a new migration instead of just the change.
 
 ## One-time chain setup
 
