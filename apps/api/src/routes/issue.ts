@@ -1,5 +1,5 @@
 import { asHex, deriveIssueKind, IssueBody } from '@fuda/sdk'
-import { isMetaAddress } from '@fuda/stealth'
+import { asMetaAddress } from '@fuda/stealth'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import * as v from 'valibot'
@@ -49,8 +49,10 @@ const issueContext = (c: Context<AppEnv>): IssueContext | null => {
 // Which of the two 4xx codes a bad meta-address earns. IssueBody's own regex
 // would fold a malformed stealthMetaAddress into `bad_input`, but §3 names
 // `bad_meta_address` for it, so the field is peeked at before that parse.
-// `isMetaAddress` runs the same 132-hex shape check META_ADDRESS_RE does and
-// then the curve check, so it covers both a wrong shape and an off-curve half.
+// `asMetaAddress` runs the same 132-hex shape check META_ADDRESS_RE does and
+// then the curve check, so it covers both a wrong shape and an off-curve half —
+// and hands back the accepted value as `Hex`, so the private branch below never
+// re-types the string.
 const MetaOnly = v.object({ stealthMetaAddress: v.string() })
 
 export const issueRoutes = new Hono<AppEnv>()
@@ -60,7 +62,8 @@ export const issueRoutes = new Hono<AppEnv>()
 issueRoutes.post('/issue', adminAuth(), async (c) => {
   const body: unknown = await c.req.json().catch(() => null)
   const peeked = v.safeParse(MetaOnly, body)
-  if (peeked.success && !isMetaAddress(peeked.output.stealthMetaAddress)) {
+  const metaAddress = peeked.success ? asMetaAddress(peeked.output.stealthMetaAddress) : null
+  if (peeked.success && metaAddress === null) {
     return errorResponse(c, 'bad_meta_address', 400)
   }
   const parsed = v.safeParse(IssueBody, body)
@@ -79,15 +82,15 @@ issueRoutes.post('/issue', adminAuth(), async (c) => {
     return errorResponse(c, 'chain_error', 502)
   }
   try {
-    const { holder, memberId, stealthMetaAddress } = parsed.output
+    const { holder, memberId } = parsed.output
     if (kind === 'bearer' && memberId !== undefined) {
       return jsonResponse(c, await issueBearer(ctx, { ...parsed.output, memberId }))
     }
     if (kind === 'signed' && holder !== undefined) {
       return jsonResponse(c, await issueSigned(ctx, { ...parsed.output, holder }))
     }
-    if (kind === 'private' && stealthMetaAddress !== undefined) {
-      return jsonResponse(c, await issuePrivate(ctx, { ...parsed.output, stealthMetaAddress }))
+    if (kind === 'private' && metaAddress !== null) {
+      return jsonResponse(c, await issuePrivate(ctx, { ...parsed.output, stealthMetaAddress: metaAddress }))
     }
     return errorResponse(c, 'bad_input', 400)
   } catch (error) {

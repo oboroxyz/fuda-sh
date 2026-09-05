@@ -2,8 +2,9 @@ import { deriveMemberSecret, deriveStealthKeys, matchAnnouncements } from '@fuda
 import { env } from 'cloudflare:test'
 import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ChainError } from '../src/chain/client.ts'
 import { getDb } from '../src/db/client.ts'
 import { challenges, entryLog, members, slots } from '../src/db/schema.ts'
 import type { Bindings } from '../src/env.ts'
@@ -50,6 +51,10 @@ describe('POST /issue (+Private)', () => {
     await db().delete(challenges)
     await db().delete(slots)
     await db().delete(entryLog)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('attests to a fresh stealth address, announces it, and answers without passUrls or the address', async () => {
@@ -163,8 +168,33 @@ describe('POST /issue (+Private)', () => {
     expect(res.status).toBe(502)
     await expect(res.json()).resolves.toStrictEqual({ error: 'chain_error' })
     await expect(db().select().from(members)).resolves.toHaveLength(0)
-    // The root delegation plus the orphaned right: the attest did land.
+    // The root delegation plus the orphaned right: the attest did land, and
+    // nothing was announced for it.
     expect(chain.attestations.size).toBe(2)
+    expect(chain.announcements).toHaveLength(0)
+  })
+
+  it('logs the failed announce without the stealth address', async () => {
+    const { app, bindings, chain } = setup()
+    let stealth = ''
+    // Shaped like a viem write failure: the failing call's arguments (the stealth
+    // address among them) sit past the first 120 characters of the message and in
+    // a nested property, so logging the error object or an untruncated message
+    // would leak the one value +Private must not put in a log sink.
+    chain.announce = async (p) => {
+      stealth = p.stealthAddress
+      const error = new ChainError(
+        `${'the contract function reverted. '.repeat(6)}args: (1, ${p.stealthAddress})`,
+      )
+      error.cause = { args: [p.stealthAddress] }
+      return await Promise.reject(error)
+    }
+    const spy = vi.spyOn(console, 'error').mockReturnValue()
+    const res = await post(app, bindings, '/issue', { stealthMetaAddress: keys.metaAddress })
+    const logged = JSON.stringify(spy.mock.calls).toLowerCase()
+    expect(res.status).toBe(502)
+    expect(logged).not.toContain(stealth.toLowerCase())
+    expect(spy.mock.calls[0]?.[1]).toMatchObject({ name: 'ChainError' })
   })
 
   it('answers 502 chain_error with no row and no announcement when the attest fails', async () => {

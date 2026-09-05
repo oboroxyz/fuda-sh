@@ -6,6 +6,7 @@ import { deriveMemberSecret, deriveStealthKeys } from './derive.ts'
 import { buildAnnouncementMetadata } from './metadata.ts'
 import type { AnnouncementRow } from './stealth.ts'
 import {
+  asMetaAddress,
   checkAnnouncement,
   generateStealthAddress,
   isMetaAddress,
@@ -62,6 +63,14 @@ describe(isMetaAddress, () => {
     expect(isMetaAddress(keys.metaAddress)).toBe(true)
     expect(isMetaAddress('0x1234')).toBe(false)
     expect(isMetaAddress(`0x02${'ff'.repeat(32)}${keys.spendPub.slice(2)}`)).toBe(false)
+  })
+})
+
+describe(asMetaAddress, () => {
+  it('returns the accepted meta-address as Hex and null for the shape and curve failures', () => {
+    expect(asMetaAddress(keys.metaAddress)).toBe(keys.metaAddress)
+    expect(asMetaAddress('0x1234')).toBeNull()
+    expect(asMetaAddress(`0x02${'ff'.repeat(32)}${keys.spendPub.slice(2)}`)).toBeNull()
   })
 })
 

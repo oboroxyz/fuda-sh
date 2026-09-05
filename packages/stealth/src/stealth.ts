@@ -66,16 +66,21 @@ const splitMeta = (metaAddress: string): MetaAddressParts => {
   return { spendPub, viewPub }
 }
 
-// A throw-free pre-check for callers that need to reject a bad meta-address before
-// doing any work (the api at /issue answers 400 bad_meta_address from this).
-export const isMetaAddress = (hex: string): boolean => {
+// A throw-free narrowing for callers that need to reject a bad meta-address before
+// doing any work (the api at /issue answers 400 bad_meta_address from this) and then
+// carry the accepted value on as `Hex` — the annotated template literal below narrows
+// the string that `splitMeta` just accepted, so no caller has to re-type it.
+export const asMetaAddress = (hex: string): Hex | null => {
   try {
     splitMeta(hex)
-    return true
   } catch {
-    return false
+    return null
   }
+  return `0x${hex.slice(2)}`
 }
+
+// The boolean face of the same validation.
+export const isMetaAddress = (hex: string): boolean => asMetaAddress(hex) !== null
 
 // The uncompressed 65-byte form viem's publicKeyToAddress expects.
 const addressOf = (compressed: Uint8Array): Hex =>

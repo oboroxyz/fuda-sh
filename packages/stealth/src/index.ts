@@ -12,6 +12,7 @@ export type { StealthKeys } from './derive.ts'
 export { buildAnnouncementMetadata, parseAnnouncementMetadata } from './metadata.ts'
 export type { AnnouncementMetadata } from './metadata.ts'
 export {
+  asMetaAddress,
   checkAnnouncement,
   generateStealthAddress,
   isMetaAddress,
