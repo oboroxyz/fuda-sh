@@ -35,8 +35,8 @@ const swallow = async (p: Promise<unknown>): Promise<void> => {
 }
 
 // Hono's `c.executionCtx` getter throws when the app is invoked without one
-// (`app.request(...)` in tests). The fallback just lets the promise run to
-// completion inside the request, which is what a test wants anyway.
+// (`app.request(...)` in tests). The fallback starts the promise and swallows
+// its rejection, so a test never sees an unhandled one.
 const waitUntilOf = (c: Context<AppEnv>): ((p: Promise<unknown>) => void) => {
   try {
     const ctx = c.executionCtx

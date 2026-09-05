@@ -21,7 +21,7 @@ logs the `ISSUER_ADDRESS` / `DELEGATION_UID` it used; `wrangler.jsonc`'s
 `env.dev.vars` block already carries the matching (deterministic) values, and
 `pnpm --filter api dev` runs `wrangler dev --env dev`, so the quick start above
 works as written. Both the top-level and the `env.dev` D1 block name the same
-database, so `migrate:local` migrates exactly the local database `--env dev`
+database, so `migrate:local` targets the same local database that `--env dev`
 then serves; `--env dev` reads `.dev.vars.dev` when present and falls back to
 `.dev.vars` otherwise. Setting either `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL`
 always wins over `USE_FAKE_CHAIN` — the fake chain is never constructed in
