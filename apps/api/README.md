@@ -152,7 +152,8 @@ matching happens client-side with the viewing key. Each call lazily syncs new
 chain history into D1 first: from the persisted cursor (or
 `ANNOUNCER_FROM_BLOCK`, which must be set to this deployment's actual
 announcer-contract deployment block) in chunks of at most 1000 blocks
-(`eth_getLogs` range cap on public Base Sepolia RPCs), up to 5 chunks per
+(`eth_getLogs` range cap on public Base Sepolia RPCs), stopping 5 blocks short
+of the head so a re-org cannot strand a row behind the cursor, up to 5 chunks per
 request so a cold deployment warms up over a few requests instead of spending
 one request's whole CPU budget. Each chunk's rows and its new cursor are
 applied to D1 in a single batch, so the cursor never advances past rows that
@@ -163,8 +164,9 @@ The response is `{ announcements, syncedTo }`: up to 1000 rows, ascending by
 block number then log index, starting from `fromBlock` (a non-integer or
 negative `fromBlock` clamps to `0`). If the chain RPC is unreachable, the
 route serves the stale cache with the last-known `syncedTo` rather than
-failing; it only answers `502 rpc_unavailable` when no cursor has ever been
-persisted (nothing to serve at all).
+failing; it answers `502 rpc_unavailable` when no cursor has ever been
+persisted (nothing to serve at all), and likewise when `ANNOUNCER_FROM_BLOCK`
+is unset (see Vars below).
 
 This is the only budgeted route in the MVP: a per-IP fixed hourly window of
 120 requests, tracked in D1. A missing `CF-Connecting-IP` header answers
@@ -303,8 +305,11 @@ Vars (`wrangler.jsonc` `vars`):
 - `ANNOUNCER_ADDRESS` — the ERC-5564 `Announcer` contract `/issue` writes
   scheme-1 announcements to and `GET /announcements` reads them back from.
 - `ANNOUNCER_FROM_BLOCK` — the floor `GET /announcements` syncs from; must be
-  set to this announcer contract's actual deployment block on a live chain
-  (the checked-in `"0"` only works against the in-memory `FakeChain`).
+  set to this announcer contract's actual deployment block on a live chain.
+  Missing, unparseable or `0` (the checked-in placeholder) counts as
+  unconfigured: the route answers `502 rpc_unavailable` without touching the
+  chain rather than walking from genesis. The fake-chain dev path ignores the
+  binding and floors the sync at the fake chain's head at boot.
 
 ## Smoke test
 

@@ -28,8 +28,9 @@ export interface AppDeps {
   announcerFromBlock?: number
 }
 
-// ANNOUNCER_FROM_BLOCK is a string binding (wrangler env vars are strings);
-// a malformed value degrades to 0 rather than breaking the route.
+// ANNOUNCER_FROM_BLOCK is a string binding (wrangler env vars are strings). A
+// malformed value degrades to 0, which `GET /announcements` reads as "not
+// configured" and answers 502 to, rather than walking the chain from genesis.
 const parseAnnouncerFromBlock = (raw: string): number => {
   const n = Math.trunc(Number(raw))
   return Number.isFinite(n) ? n : 0

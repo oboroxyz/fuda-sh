@@ -9,6 +9,9 @@ import { DEFAULT_BUDGET, rateLimit } from '../middleware/rate-limit.ts'
 
 export const ANNOUNCEMENTS_LIMIT = 1000
 
+// A misconfigured floor is announced once per isolate, not once per request.
+let floorWarned = false
+
 export const announcementsRoutes = new Hono<AppEnv>()
 
 // The cached ERC-5564 log served to member apps (spec §3): the api never learns
@@ -17,6 +20,21 @@ export const announcementsRoutes = new Hono<AppEnv>()
 // call may cost RPC reads.
 announcementsRoutes.get('/announcements', rateLimit({ budget: DEFAULT_BUDGET }), async (c) => {
   const floor = c.get('announcerFromBlock')
+  // ANNOUNCER_FROM_BLOCK missing, unparseable or 0 is a misconfiguration, not a
+  // floor: syncing from genesis would walk millions of blocks 1000 at a time and
+  // never reach the head, burning the deployment's RPC budget on every request.
+  // The fake-chain dev path never lands here — it overrides the floor with the
+  // fake chain's head at boot (see `announcerFromBlockOverride` in index.ts).
+  if (floor <= 0) {
+    if (!floorWarned) {
+      floorWarned = true
+      // oxlint-disable-next-line no-console -- a misconfigured binding disables the route; the log line is the only trace
+      console.error(
+        '[fuda-api] ANNOUNCER_FROM_BLOCK must be the announcer contract deployment block; GET /announcements is disabled until it is set.',
+      )
+    }
+    return errorResponse(c, 'rpc_unavailable', 502)
+  }
   const fromParam = Math.trunc(Number(c.req.query('fromBlock') ?? '0'))
   const fromBlock = Number.isFinite(fromParam) && fromParam >= 0 ? fromParam : 0
   const db = c.get('db')

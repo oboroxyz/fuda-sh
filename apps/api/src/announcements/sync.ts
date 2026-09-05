@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import type { BatchItem } from 'drizzle-orm/batch'
 
 import { ChainError } from '../chain/client.ts'
@@ -17,6 +17,11 @@ export const SYNC_KEY = 'announcements'
 // so a multi-row INSERT has to be sliced or the statement is rejected on
 // Cloudflare — a chunk can easily carry more than a dozen logs.
 export const INSERT_ROWS = 12
+// Base Sepolia reorgs are shallow, but a log read at the tip can still be
+// re-org'd out after its row and the cursor landed, and the cursor never walks
+// back. Syncing only up to head - CONFIRMATIONS trades a few seconds of
+// freshness for rows that are settled.
+export const CONFIRMATIONS = 5
 
 export interface SyncDeps {
   chain: ChainClient
@@ -54,26 +59,32 @@ const applyChunk = async (db: Db, logs: AnnouncementLog[], to: number): Promise<
   const cursorWrite: BatchItem<'sqlite'> = db
     .insert(syncState)
     .values({ key: SYNC_KEY, value: to })
-    .onConflictDoUpdate({ set: { value: to }, target: syncState.key })
+    // `max(...)`, not a plain assignment: two requests can sync concurrently, and
+    // the slower one must not pull the cursor back to its own lower `to` — that
+    // would re-walk (and, with a wiped rows table, re-read) settled history.
+    .onConflictDoUpdate({ set: { value: sql`max(${syncState.value}, ${to})` }, target: syncState.key })
   const inserts = rowSlices(logs).map((rows): BatchItem<'sqlite'> =>
     db.insert(announcements).values(rows).onConflictDoNothing(),
   )
   await db.batch([cursorWrite, ...inserts])
 }
 
-// Lazily pulls scheme-1 announcements into D1, ≤1000 blocks at a time, and
-// persists the cursor after every chunk so partial progress survives an RPC
-// failure or the per-request cap. Logs are keyed by (tx_hash, log_index), so a
-// re-scan of an already-held range is a no-op.
+// Lazily pulls scheme-1 announcements into D1, ≤1000 blocks at a time and never
+// closer than CONFIRMATIONS blocks to the head, and persists the cursor after
+// every chunk so partial progress survives an RPC failure or the per-request
+// cap. Logs are keyed by (tx_hash, log_index), so a re-scan of an already-held
+// range is a no-op.
 export const syncAnnouncements = async (deps: SyncDeps): Promise<SyncResult> => {
   const persisted = await readCursor(deps.db)
   // Floored at the configured start: a persisted cursor from before
   // `fromBlock` was raised (or a stale/foreign value) must never pull the
   // walk back below the configured floor, in dev or production.
   let cursor = Math.max(persisted ?? deps.fromBlock - 1, deps.fromBlock - 1)
-  const started = cursor >= deps.fromBlock ? cursor : null
   try {
-    const head = await deps.chain.blockNumber()
+    // Never below `fromBlock - 1`: on a chain younger than CONFIRMATIONS blocks
+    // (or a floor set at the very tip) the confirmed head would otherwise go
+    // negative and the walk would run backwards.
+    const head = Math.max((await deps.chain.blockNumber()) - CONFIRMATIONS, deps.fromBlock - 1)
     for (let i = 0; i < SYNC_CHUNKS_PER_REQUEST && cursor < head; i += 1) {
       const to = Math.min(cursor + CHUNK_BLOCKS, head)
       // oxlint-disable-next-line no-await-in-loop -- chunks are applied in block order; the cursor must not skip ahead
@@ -85,7 +96,7 @@ export const syncAnnouncements = async (deps: SyncDeps): Promise<SyncResult> => 
     return { ok: true, syncedTo: cursor }
   } catch (error) {
     if (error instanceof ChainError) {
-      return { ok: false, syncedTo: cursor >= deps.fromBlock ? cursor : started }
+      return { ok: false, syncedTo: cursor >= deps.fromBlock ? cursor : null }
     }
     throw error
   }
