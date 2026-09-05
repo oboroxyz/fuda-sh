@@ -61,6 +61,7 @@ describe('POST /verify-signed', () => {
     const { app, bindings, uid } = setup()
     const res = await enter(app, bindings, uid)
     expect(res.status).toBe(200)
+    expect(res.headers.get('cache-control')).toBe('no-store')
     await expect(res.json()).resolves.toStrictEqual({
       decision: 'ADMIT',
       holder: getAddress(signer.address),
