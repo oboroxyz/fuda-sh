@@ -18,11 +18,14 @@ and no `SIGNER_PRIVATE_KEY` / `BASE_RPC_URL`, the api runs against an
 in-memory `FakeChain` instead of Base Sepolia — no signer, no RPC, no funds
 needed. `src/index.ts` seeds a root `IssuerDelegation` on first request and
 logs the `ISSUER_ADDRESS` / `DELEGATION_UID` it used; `wrangler.jsonc`'s
-`env.dev.vars` block already carries the matching (deterministic) values, so
-`wrangler dev --env dev` works out of the box. Setting either
-`SIGNER_PRIVATE_KEY` or `BASE_RPC_URL` always wins over `USE_FAKE_CHAIN` — the
-fake chain is never constructed in production, only under this explicit local
-opt-in.
+`env.dev.vars` block already carries the matching (deterministic) values, and
+`pnpm --filter api dev` runs `wrangler dev --env dev`, so the quick start above
+works as written. Both the top-level and the `env.dev` D1 block name the same
+database, so `migrate:local` migrates exactly the local database `--env dev`
+then serves; `--env dev` reads `.dev.vars.dev` when present and falls back to
+`.dev.vars` otherwise. Setting either `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL`
+always wins over `USE_FAKE_CHAIN` — the fake chain is never constructed in
+production, only under this explicit local opt-in.
 
 ## Tests
 

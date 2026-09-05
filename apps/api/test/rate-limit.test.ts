@@ -1,7 +1,9 @@
+import { env } from 'cloudflare:test'
 import { Hono } from 'hono'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import { getDb } from '../src/db/client.ts'
+import { rateLimits } from '../src/db/schema.ts'
 import type { AppEnv } from '../src/env.ts'
 import { rateLimit } from '../src/middleware/rate-limit.ts'
 import { testEnv } from './env.ts'
@@ -19,6 +21,12 @@ const hit = async (now: number, ip = '203.0.113.7') =>
   await budgeted(now).request('/limited', { headers: { 'CF-Connecting-IP': ip } }, testEnv())
 
 describe(rateLimit, () => {
+  // Storage is shared across the tests in this file, so the one table this file
+  // writes starts empty for every test.
+  beforeEach(async () => {
+    await getDb({ DB: env.DB }).delete(rateLimits)
+  })
+
   it('400s without a client IP', async () => {
     const res = await budgeted(1_000_000).request('/limited', {}, testEnv())
     expect(res.status).toBe(400)

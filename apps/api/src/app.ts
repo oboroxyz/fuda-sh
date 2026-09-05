@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import type { Context } from 'hono'
 
 import { getDb } from './db/client.ts'
 import type { AppEnv, Variables } from './env.ts'
@@ -19,6 +20,15 @@ export interface AppDeps {
   onAdmit?: AdmitHook
 }
 
+// Any error not already turned into a decision-shaped response by a route
+// handler. 'internal' is not in @fuda/sdk's ErrorCode list — it names an
+// unclassified defect, so the error itself is logged rather than swallowed.
+const unclassifiedError = (err: Error, c: Context<AppEnv>): Response => {
+  // oxlint-disable-next-line no-console -- unclassified defect: the only signal wrangler tail gets
+  console.error(err)
+  return errorResponse(c, 'internal', 500)
+}
+
 export const createApp = (deps: AppDeps): Hono<AppEnv> => {
   const app = new Hono<AppEnv>()
   app.use('*', async (c, next) => {
@@ -35,8 +45,6 @@ export const createApp = (deps: AppDeps): Hono<AppEnv> => {
   app.route('/', issueRoutes)
   app.route('/', revokeRoutes)
   app.route('/', membersRoutes)
-  // Any error not already turned into a decision-shaped response by a route
-  // handler. Not in @fuda/sdk's ErrorCode list — it names an unclassified defect.
-  app.onError((_err, c) => errorResponse(c, 'internal', 500))
+  app.onError(unclassifiedError)
   return app
 }
