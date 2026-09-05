@@ -11,6 +11,7 @@
     "test": "vp test"
   },
   "dependencies": {
+    "@base-org/account": "2.5.10",
     "@fuda/sdk": "workspace:*",
     "@fuda/web-kit": "workspace:*",
     "hono": "^4.13.5",
