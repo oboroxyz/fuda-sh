@@ -2,7 +2,7 @@ import { LEVEL_CODE, toQr } from '@fuda/sdk'
 import type { IssueRequest, IssueResponse } from '@fuda/sdk'
 import type { Hex } from 'viem'
 
-import { ZERO_UID } from '../chain/client.ts'
+import { ChainError, ZERO_UID } from '../chain/client.ts'
 import type { ChainClient } from '../chain/client.ts'
 import type { Db } from '../db/client.ts'
 import { members } from '../db/schema.ts'
@@ -59,14 +59,25 @@ export const attestRight = async (ctx: IssueContext, p: RightParams): Promise<Is
     revocable: true,
     schema: schema.uid,
   })
-  await ctx.db.insert(members).values({
-    attestationUid: uid,
-    createdAt: ctx.now,
-    holder: p.holder,
-    level: p.level,
-    memberId: p.memberId,
-    status: 'active',
-    tier: p.body.tier,
-  })
+  // The attestation is already on chain by the time this runs, so a failing
+  // insert (an attestation_uid that collides with an existing row, a db outage)
+  // leaves a right nothing in fuda's tables knows about. The uid is logged
+  // because it is the only handle an operator has on that orphan, and the
+  // caller is told the chain leg is the problem: 502, not an unhandled 500.
+  try {
+    await ctx.db.insert(members).values({
+      attestationUid: uid,
+      createdAt: ctx.now,
+      holder: p.holder,
+      level: p.level,
+      memberId: p.memberId,
+      status: 'active',
+      tier: p.body.tier,
+    })
+  } catch (error) {
+    // oxlint-disable-next-line no-console -- the orphaned attestation uid is the only trace of an on-chain right with no member row
+    console.error('members insert failed after attest', { error, uid })
+    throw new ChainError(`members insert failed for attestation ${uid}`)
+  }
   return { holder: p.holder, level: p.level, passUrls: passUrls(ctx.baseUrl, uid), qr: toQr(uid), uid }
 }

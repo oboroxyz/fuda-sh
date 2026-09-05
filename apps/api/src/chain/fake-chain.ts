@@ -17,7 +17,8 @@ const lowerHex = (h: Hex): Hex => `0x${h.slice(2).toLowerCase()}`
 const checksum = (h: Hex): Hex => getAddress(h)
 
 // In-memory EAS + factory used by the workerd integration tests and by
-// `wrangler dev` without a signer. Deterministic, no network.
+// `wrangler dev` without a signer. No network; deterministic within one
+// instance, with uids that differ between instances (see `counter`).
 export class FakeChain implements ChainClient {
   readonly attestations = new Map<Hex, RawAttestation>()
   readonly txs: Hex[] = []
@@ -26,7 +27,11 @@ export class FakeChain implements ChainClient {
   // oxlint-disable-next-line class-methods-use-this -- injectable clock; tests replace this field wholesale
   now: () => bigint = () => BigInt(Math.floor(Date.now() / 1000))
   private readonly signer: Hex | null
-  private counter = 0
+  // `wrangler dev --local` keeps its D1 file across restarts while every isolate
+  // starts a fresh FakeChain, so a counter from zero re-mints uids that are
+  // already `members.attestation_uid` primary keys. A random per-instance start
+  // keeps uids deterministic within one instance and distinct across restarts.
+  private counter = crypto.getRandomValues(new Uint32Array(1))[0] ?? 0
 
   constructor(opts: { signer?: Hex | null } = {}) {
     const signer = opts.signer === undefined ? DEFAULT_SIGNER : opts.signer

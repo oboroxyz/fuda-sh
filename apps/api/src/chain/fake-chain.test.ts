@@ -104,6 +104,23 @@ describe(FakeChain, () => {
     expect(factoryAddress).toBe(getAddress(factoryAddress))
   })
 
+  // Local D1 outlives the isolate that seeded it, so two FakeChains must not
+  // hand out the same attestation uid and collide on members.attestation_uid.
+  it('mints uids that differ between instances', async () => {
+    const attest = async (chain: FakeChain) =>
+      await chain.attest({
+        data: '0x',
+        expirationTime: 0n,
+        recipient: holder,
+        refUID: ZERO_UID,
+        revocable: true,
+        schema,
+      })
+    const first = await attest(new FakeChain())
+    const second = await attest(new FakeChain())
+    expect(first.uid).not.toBe(second.uid)
+  })
+
   it('factory addresses are deterministic in owners + nonce', async () => {
     const chain = new FakeChain()
     const a = await chain.getAddressFromFactory([holder], 1n)

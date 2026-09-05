@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:test'
 import type { Hex } from 'viem'
 import { getAddress } from 'viem'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getDb } from '../src/db/client.ts'
 import { members } from '../src/db/schema.ts'
@@ -34,6 +34,10 @@ describe('POST /issue (bearer)', () => {
   // restarts per instance, so the members table starts empty for every test.
   beforeEach(async () => {
     await getDb({ DB: env.DB }).delete(members)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('returns the uid, level, qr and all three pass URLs', async () => {
@@ -159,6 +163,36 @@ describe('POST /issue (bearer)', () => {
     expect(res.status).toBe(502)
     await expect(res.json()).resolves.toStrictEqual({ error: 'chain_error' })
     await expect(getDb({ DB: env.DB }).select().from(members)).resolves.toHaveLength(0)
+  })
+
+  // The attestation is already on chain when the members insert runs, so a
+  // collision on attestation_uid (a FakeChain restart against a persisted local
+  // D1, say) must read as a chain-side failure rather than an unhandled 500.
+  it('502 chain_error when the members insert collides after a successful attest', async () => {
+    const chain = fakeChain({ signer: ROOT })
+    const del = seedRoot(chain)
+    const taken = `0x${'7c'.repeat(32)}` as const
+    await getDb({ DB: env.DB })
+      .insert(members)
+      .values({
+        attestationUid: taken,
+        createdAt: NOW,
+        holder: `0x${'11'.repeat(20)}`,
+        level: 'bearer',
+        memberId: 'earlier',
+        status: 'active',
+        tier: 1,
+      })
+    vi.spyOn(chain, 'attest').mockResolvedValue({ txHash: `0x${'ee'.repeat(32)}`, uid: taken })
+    const logged = vi.spyOn(console, 'error').mockReturnValue()
+    const res = await post(appWith({ chain, now: () => NOW }), configuredEnv(del), { memberId: 'a' })
+    expect(res.status).toBe(502)
+    await expect(res.json()).resolves.toStrictEqual({ error: 'chain_error' })
+    await expect(getDb({ DB: env.DB }).select().from(members)).resolves.toHaveLength(1)
+    expect(logged).toHaveBeenCalledWith(
+      'members insert failed after attest',
+      expect.objectContaining({ uid: taken }),
+    )
   })
 
   it('502 chain_error when ISSUER_ADDRESS or DELEGATION_UID is unconfigured', async () => {
