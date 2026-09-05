@@ -2,6 +2,7 @@ import { env } from 'cloudflare:test'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { syncAnnouncements } from '../src/announcements/sync.ts'
+import { ChainError } from '../src/chain/client.ts'
 import { getDb } from '../src/db/client.ts'
 import { announcements, rateLimits, syncState } from '../src/db/schema.ts'
 import { appWith, fakeChain } from './env.ts'
@@ -97,6 +98,32 @@ describe(syncAnnouncements, () => {
     const second = await syncAnnouncements({ chain, db: db(), fromBlock: 100 })
     expect(first.ok).toBe(true)
     expect(second).toStrictEqual({ ok: false, syncedTo: 101 })
+  })
+
+  it('keeps the chunks that landed when the RPC fails on a later one', async () => {
+    const chain = fakeChain()
+    // 3500 blocks past fromBlock: four windows of <=1000, the last one short.
+    chain.blockNumber = async () => await Promise.resolve(3599)
+    const ranges: [number, number][] = []
+    const spy = chain.getAnnouncementLogs.bind(chain)
+    chain.getAnnouncementLogs = async (from, to) => {
+      ranges.push([from, to])
+      if (ranges.length === 3) {
+        throw new ChainError('rpc down')
+      }
+      return await spy(from, to)
+    }
+    const first = await syncAnnouncements({ chain, db: db(), fromBlock: 100 })
+    const second = await syncAnnouncements({ chain, db: db(), fromBlock: 100 })
+    expect(first).toStrictEqual({ ok: false, syncedTo: 2099 })
+    expect(second).toStrictEqual({ ok: true, syncedTo: 3599 })
+    expect(ranges).toStrictEqual([
+      [100, 1099],
+      [1100, 2099],
+      [2100, 3099],
+      [2100, 3099],
+      [3100, 3599],
+    ])
   })
 
   it('ignores a log it already holds', async () => {
