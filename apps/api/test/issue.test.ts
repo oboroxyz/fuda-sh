@@ -27,7 +27,7 @@ const post = async (app: App, bindings: Bindings, body: unknown): Promise<Respon
     bindings,
   )
 
-const issued = async (res: Response): Promise<IssuedBody> => (await res.json()) as IssuedBody
+const issued = async (res: Response): Promise<IssuedBody> => await res.json()
 
 describe('POST /issue (bearer)', () => {
   // Storage is shared across the tests in this file and FakeChain's uid counter
@@ -108,7 +108,7 @@ describe('POST /issue (bearer)', () => {
     const body = await issued(await post(app, bindings, { memberId: 'alice' }))
     const res = await app.request(`/verify/${body.uid}`, {}, bindings)
     expect(res.status).toBe(200)
-    const verdict = (await res.json()) as { decision: string; entitlement: { level: number } }
+    const verdict: { decision: string; entitlement: { level: number } } = await res.json()
     expect(verdict.decision).toBe('ADMIT')
     expect(verdict.entitlement.level).toBe(0)
   })

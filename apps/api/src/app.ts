@@ -8,10 +8,13 @@ import { corsPolicy } from './middleware/cors.ts'
 import { health } from './routes/health.ts'
 import { issueRoutes } from './routes/issue.ts'
 import { verifyRoutes } from './routes/verify.ts'
+import { noAdmitHook } from './verify/admit.ts'
+import type { AdmitHook } from './verify/admit.ts'
 
 export interface AppDeps {
   chain: Variables['chain']
   now?: () => number
+  onAdmit?: AdmitHook
 }
 
 export const createApp = (deps: AppDeps): Hono<AppEnv> => {
@@ -20,6 +23,7 @@ export const createApp = (deps: AppDeps): Hono<AppEnv> => {
     c.set('chain', deps.chain)
     c.set('db', getDb(c.env))
     c.set('now', deps.now ?? (() => Math.floor(Date.now() / 1000)))
+    c.set('onAdmit', deps.onAdmit ?? noAdmitHook)
     await next()
   })
   app.use('*', corsPolicy())

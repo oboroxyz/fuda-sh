@@ -1,5 +1,6 @@
 import type { ChainClient } from './chain/client.ts'
 import type { Db } from './db/client.ts'
+import type { AdmitHook } from './verify/admit.ts'
 
 export interface Bindings {
   DB: D1Database
@@ -22,6 +23,8 @@ export interface Variables {
   db: Db
   // unix seconds — injectable for tests
   now: () => number
+  // called once per admission; a no-op unless the deployment wires Attendance
+  onAdmit: AdmitHook
 }
 
 export interface AppEnv {
