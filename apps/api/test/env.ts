@@ -21,6 +21,10 @@ export const testEnv = (overrides: Partial<Bindings> = {}): Bindings => {
   return { ...base, ...overrides }
 }
 
-export const fakeChain = (opts: { signer?: Hex | null } = {}): FakeChain => new FakeChain(opts)
+// Announcement tests assert exact block numbers and chunk ranges, so the fake
+// starts at a fixed head here rather than FakeChain's real-time default;
+// pass `head` explicitly to override it.
+export const fakeChain = (opts: { signer?: Hex | null; head?: number } = {}): FakeChain =>
+  new FakeChain({ head: 100, ...opts })
 
 export const appWith = (deps: AppDeps) => createApp(deps)

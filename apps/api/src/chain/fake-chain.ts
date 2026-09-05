@@ -42,7 +42,9 @@ export class FakeChain implements ChainClient {
   failAnnounce = false
   readonly announcements: AnnouncementLog[] = []
   // A small in-memory chain height so the sync has a head to walk towards.
-  private head = 100
+  // Monotonic across dev restarts so a persisted sync cursor from a previous
+  // run never outruns the chain.
+  private head = Math.floor(Date.now() / 1000)
   // oxlint-disable-next-line class-methods-use-this -- injectable clock; tests replace this field wholesale
   now: () => bigint = () => BigInt(Math.floor(Date.now() / 1000))
   private readonly signer: Hex | null
@@ -52,9 +54,12 @@ export class FakeChain implements ChainClient {
   // keeps uids deterministic within one instance and distinct across restarts.
   private counter = crypto.getRandomValues(new Uint32Array(1))[0] ?? 0
 
-  constructor(opts: { signer?: Hex | null } = {}) {
+  constructor(opts: { signer?: Hex | null; head?: number } = {}) {
     const signer = opts.signer === undefined ? DEFAULT_SIGNER : opts.signer
     this.signer = signer === null ? null : checksum(signer)
+    if (opts.head !== undefined) {
+      this.head = opts.head
+    }
   }
 
   signerAddress(): Hex | null {

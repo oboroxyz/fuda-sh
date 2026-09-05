@@ -137,7 +137,7 @@ describe('FakeChain announcements', () => {
   } as const
 
   it('records an announcement with an increasing block number and the signer as caller', async () => {
-    const chain = new FakeChain()
+    const chain = new FakeChain({ head: 100 })
     const a = await chain.announce(p)
     const b = await chain.announce({ ...p, metadata: `0x20${'ab'.repeat(32)}` })
     expect(a.txHash).not.toBe(b.txHash)
@@ -150,7 +150,7 @@ describe('FakeChain announcements', () => {
   })
 
   it('serves logs by inclusive block range and reports the head', async () => {
-    const chain = new FakeChain()
+    const chain = new FakeChain({ head: 100 })
     await chain.announce(p)
     await chain.announce(p)
     await chain.announce(p)
@@ -159,6 +159,18 @@ describe('FakeChain announcements', () => {
     await expect(chain.blockNumber()).resolves.toBe(103)
     expect(inRange.map((l) => l.blockNumber)).toStrictEqual([102, 103])
     expect(beyondHead).toStrictEqual([])
+  })
+
+  it('starts the head at the current unix time so a stale persisted cursor can never outrun it', async () => {
+    const nowSeconds = Math.floor(Date.now() / 1000)
+    const chain = new FakeChain()
+    const startHead = await chain.blockNumber()
+    expect(startHead).toBeGreaterThanOrEqual(nowSeconds)
+    const a = await chain.announce(p)
+    const b = await chain.announce({ ...p, metadata: `0x20${'ab'.repeat(32)}` })
+    expect(a.txHash).not.toBe(b.txHash)
+    const [first, second] = chain.announcements.map((l) => l.blockNumber)
+    expect(second).toBe((first ?? 0) + 1)
   })
 
   it('fails announce independently of attest', async () => {
