@@ -8,6 +8,7 @@ import type { AnnouncementRow } from './stealth.ts'
 import {
   checkAnnouncement,
   generateStealthAddress,
+  isMetaAddress,
   matchAnnouncements,
   recoverStealthPrivateKey,
   tweakFromShared,
@@ -35,7 +36,32 @@ describe(generateStealthAddress, () => {
   })
 
   it('rejects a malformed meta-address', () => {
-    expect(() => generateStealthAddress('0x1234')).toThrow(/meta-address/u)
+    expect(() => generateStealthAddress('0x1234')).toThrow(/malformed meta-address/u)
+  })
+
+  // A 132-hex string is not automatically two public keys. These are refused here,
+  // on the same message prefix, rather than deep inside noble at ECDH time.
+  it('rejects a well-shaped meta-address whose halves are not curve points', () => {
+    const good = keys.spendPub.slice(2)
+    // x = 2**256 - 1, which is larger than the field prime: no such point exists.
+    const offCurve = `02${'ff'.repeat(32)}`
+    expect(() => generateStealthAddress(`0x${offCurve}${good}`)).toThrow(/malformed meta-address/u)
+    expect(() => generateStealthAddress(`0x${good}${offCurve}`)).toThrow(/malformed meta-address/u)
+  })
+
+  it('rejects a meta-address half with a non-compressed prefix byte', () => {
+    const good = keys.spendPub.slice(2)
+    const body = keys.viewPub.slice(4)
+    expect(() => generateStealthAddress(`0x${good}04${body}`)).toThrow(/malformed meta-address/u)
+    expect(() => generateStealthAddress(`0x${good}05${body}`)).toThrow(/malformed meta-address/u)
+  })
+})
+
+describe(isMetaAddress, () => {
+  it('accepts a derived meta-address and rejects the shape and curve failures', () => {
+    expect(isMetaAddress(keys.metaAddress)).toBe(true)
+    expect(isMetaAddress('0x1234')).toBe(false)
+    expect(isMetaAddress(`0x02${'ff'.repeat(32)}${keys.spendPub.slice(2)}`)).toBe(false)
   })
 })
 

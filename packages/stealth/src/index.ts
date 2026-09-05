@@ -14,6 +14,7 @@ export type { AnnouncementMetadata } from './metadata.ts'
 export {
   checkAnnouncement,
   generateStealthAddress,
+  isMetaAddress,
   matchAnnouncements,
   recoverStealthPrivateKey,
   tweakFromShared,

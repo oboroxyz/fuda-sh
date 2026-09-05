@@ -45,12 +45,36 @@ interface MetaAddressParts {
   viewPub: Uint8Array
 }
 
-const splitMeta = (metaAddress: Hex): MetaAddressParts => {
+// Both failure modes throw on the same `malformed meta-address` prefix, so a caller
+// (the api at /issue) maps one prefix to one 400 rather than matching noble's internals.
+const splitMeta = (metaAddress: string): MetaAddressParts => {
   if (!META_RE.test(metaAddress)) {
-    throw new Error('malformed meta-address')
+    throw new Error('malformed meta-address: expected 0x followed by 132 hex characters')
   }
   const body = metaAddress.slice(2)
-  return { spendPub: hexToBytes(body.slice(0, 66)), viewPub: hexToBytes(body.slice(66)) }
+  const spendPub = hexToBytes(body.slice(0, 66))
+  const viewPub = hexToBytes(body.slice(66))
+  // The shape alone is not enough: a well-formed 132-hex string can still carry a
+  // bad prefix byte or an off-curve x. Without this, the failure surfaces deep
+  // inside noble at ECDH time with a message the caller cannot attribute.
+  try {
+    secp256k1.ProjectivePoint.fromHex(spendPub)
+    secp256k1.ProjectivePoint.fromHex(viewPub)
+  } catch {
+    throw new Error('malformed meta-address: both halves must be compressed secp256k1 points')
+  }
+  return { spendPub, viewPub }
+}
+
+// A throw-free pre-check for callers that need to reject a bad meta-address before
+// doing any work (the api at /issue answers 400 bad_meta_address from this).
+export const isMetaAddress = (hex: string): boolean => {
+  try {
+    splitMeta(hex)
+    return true
+  } catch {
+    return false
+  }
 }
 
 // The uncompressed 65-byte form viem's publicKeyToAddress expects.
