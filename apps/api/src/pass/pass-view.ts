@@ -36,7 +36,8 @@ export const passView = (row: PassRow, outcome: PassOutcome): PassView => ({
   level: row.level,
   qr: toQr(row.uid),
   status: statusOf(outcome),
-  // `.at` (not an index) so a tier outside the known labels is typed as absent.
-  tier: TIER_LABEL.at(row.tier) ?? `TIER ${row.tier}`,
+  // Indexed (not `.at`), which would wrap a negative tier round to FOUNDER;
+  // an unknown tier falls back to its number, as the gate and dash views do.
+  tier: TIER_LABEL[row.tier] ?? `TIER ${row.tier}`,
   uid: row.uid,
 })

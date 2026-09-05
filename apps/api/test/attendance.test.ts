@@ -1,12 +1,12 @@
 import { createExecutionContext, env } from 'cloudflare:test'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { attendanceHook } from '../src/attendance/attendance-hook.ts'
 import { getDb } from '../src/db/client.ts'
 import { entryLog, slots } from '../src/db/schema.ts'
 import { parseSchemaSets } from '../src/eas/schemas.ts'
 import { appWith, fakeChain } from './env.ts'
-import { ATT, configuredEnv, NOW, seedRight, seedRoot } from './fixtures.ts'
+import { ATT, configuredEnv, DEL, ENT, NOW, seedRight, seedRoot } from './fixtures.ts'
 
 const db = () => getDb({ DB: env.DB })
 
@@ -67,6 +67,33 @@ describe('Attendance on ADMIT', () => {
     expect(att?.refUID).toBe(uid)
     const row = await db().select().from(entryLog).get()
     expect(row?.attendanceUid).toBe(att?.uid)
+  })
+
+  // A hook that silently does nothing is the failure mode worth naming, but one
+  // line per admission would drown the log: it is announced once per isolate.
+  it('warns exactly once when no Attendance schema is configured', async () => {
+    const warn = vi.spyOn(console, 'warn').mockReturnValue()
+    try {
+      const chain = fakeChain()
+      const del = seedRoot(chain)
+      const uid = seedRight(chain, del)
+      const bindings = configuredEnv(del, {
+        EAS_SCHEMAS: JSON.stringify({
+          attendance: [],
+          entitlement: [{ uid: ENT, version: 1 }],
+          issuerDelegation: [{ uid: DEL, version: 1 }],
+        }),
+      })
+      const kept: Promise<unknown>[] = []
+      await scanWith(chain, uid, bindings, kept)
+      await scanWith(chain, uid, bindings, kept)
+      await Promise.all(kept)
+      expect(kept).toHaveLength(2)
+      expect(warn).toHaveBeenCalledOnce()
+      expect([...chain.attestations.values()].some((a) => a.schema === ATT)).toBeFalsy()
+    } finally {
+      warn.mockRestore()
+    }
   })
 
   it('does not attest on a REJECT', async () => {

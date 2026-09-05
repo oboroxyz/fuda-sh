@@ -43,6 +43,9 @@ export const buildChain = (env: DevBindings): ChainClient => {
 
 const EMPTY_SETS: SchemaSets = { attendance: [], entitlement: [], issuerDelegation: [] }
 
+// Announced once per isolate, not per request.
+let schemaWarned = false
+
 // A malformed EAS_SCHEMAS binding must not take the door down: the routes
 // already answer 502 for it, and the hook simply has no schema to attest under.
 // Exported for tests.
@@ -50,6 +53,11 @@ export const schemaSetsOf = (env: Pick<DevBindings, 'EAS_SCHEMAS'>): SchemaSets 
   try {
     return parseSchemaSets(env.EAS_SCHEMAS)
   } catch {
+    if (!schemaWarned) {
+      schemaWarned = true
+      // oxlint-disable-next-line no-console -- a malformed binding degrades every chain route; the log line is the only trace
+      console.warn('[fuda-api] EAS_SCHEMAS is malformed: no schema is accepted and Attendance is disabled.')
+    }
     return EMPTY_SETS
   }
 }
