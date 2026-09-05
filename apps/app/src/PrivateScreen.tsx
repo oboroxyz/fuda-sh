@@ -26,6 +26,8 @@ const PRF_COPY = {
 const stealthKit = async () => await import('./private-member.ts')
 const passkeyKit = async () => await import('./passkey.ts')
 
+const COPY_LABEL = { done: 'Copied', failed: 'Copy failed', idle: 'Copy' } as const
+
 const MetaAddress = ({
   keys,
   onDiscover,
@@ -35,10 +37,17 @@ const MetaAddress = ({
   onDiscover: () => void
   busy: boolean
 }): JSX.Element => {
-  const [copied, setCopied] = useState(false)
+  // The clipboard is denied outright in some browsers when the document is not
+  // focused, so the button reports the failure instead of rejecting silently:
+  // the meta-address is on screen and can still be selected by hand.
+  const [copied, setCopied] = useState<keyof typeof COPY_LABEL>('idle')
   const copy = async (value: Hex): Promise<void> => {
-    await navigator.clipboard.writeText(value)
-    setCopied(true)
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied('done')
+    } catch {
+      setCopied('failed')
+    }
   }
   return (
     <div class="flex w-full max-w-md flex-col gap-2">
@@ -52,7 +61,7 @@ const MetaAddress = ({
             void copy(keys.metaAddress)
           }}
         >
-          {copied ? 'Copied' : 'Copy'}
+          {COPY_LABEL[copied]}
         </button>
         <button type="button" class="btn btn-sm btn-primary" disabled={busy} onClick={onDiscover}>
           Discover my passes
