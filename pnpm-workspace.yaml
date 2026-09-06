@@ -12,6 +12,15 @@ allowBuilds:
 # vite-plus pins oxlint/oxfmt exactly; ultracite floats. Without these overrides
 # two oxlint copies get installed and the ultracite presets' OxlintConfig type
 # no longer matches vite-plus's defineConfig (TS2769 in vite.config.ts).
+#
+# vite-plus-core is a fork of vite: a third-party Vite plugin (e.g.
+# @tailwindcss/vite) that declares a `vite` peer otherwise resolves the real
+# `vite` package, splitting the graph into two structurally similar but
+# nominally distinct `Plugin`/`UserConfig` types (TS2321/TS2769 in
+# vite.config.ts). Redirecting the peer to the same vite-plus-core release
+# unifies the types (see vite-plus docs/guide/migrate-rules.md "Vite and
+# Overrides").
 overrides:
   oxlint: '=1.79.0'
   oxfmt: '=0.64.0'
+  vite@*: npm:@voidzero-dev/vite-plus-core@0.3.0

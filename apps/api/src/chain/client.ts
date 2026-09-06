@@ -1,0 +1,86 @@
+/* oxlint-disable max-classes-per-file -- ChainError and NoSignerError are the two failure modes of this one port; splitting them would separate an error from its interface */
+import type { Hex } from 'viem'
+
+export interface RawAttestation {
+  uid: Hex
+  schema: Hex
+  time: bigint
+  expirationTime: bigint
+  revocationTime: bigint
+  refUID: Hex
+  recipient: Hex
+  attester: Hex
+  revocable: boolean
+  data: Hex
+}
+
+export interface AttestParams {
+  schema: Hex
+  recipient: Hex
+  refUID: Hex
+  data: Hex
+  revocable: boolean
+  expirationTime: bigint
+}
+
+export interface VerifyMessageParams {
+  address: Hex
+  message: string
+  signature: Hex
+}
+
+export interface AnnounceParams {
+  stealthAddress: Hex
+  ephemeralPubKey: Hex
+  metadata: Hex
+}
+
+export interface AnnouncementLog {
+  txHash: Hex
+  logIndex: number
+  blockNumber: number
+  schemeId: number
+  stealthAddress: Hex
+  caller: Hex
+  ephemeralPubKey: Hex
+  metadata: Hex
+}
+
+export class ChainError extends Error {
+  override readonly name = 'ChainError'
+}
+
+export class NoSignerError extends Error {
+  override readonly name = 'NoSignerError'
+}
+
+export interface ChainClient {
+  /** Signer address, or null when SIGNER_PRIVATE_KEY is unset (write calls then throw NoSignerError). */
+  signerAddress: () => Hex | null
+  /** EAS.getAttestation via eth_call. A missing uid returns a struct with uid = 0x00…00. Throws ChainError on RPC failure. */
+  readAttestation: (uid: Hex) => Promise<RawAttestation>
+  /** Coinbase Smart Wallet factory getAddress(owners, nonce) — pure CREATE2 computation, nothing deployed. */
+  getAddressFromFactory: (owners: Hex[], nonce: bigint) => Promise<Hex>
+  /** Submit an attestation and wait for the receipt; returns the new uid. Throws NoSignerError / ChainError. */
+  attest: (p: AttestParams) => Promise<{ uid: Hex; txHash: Hex }>
+  /** Revoke; waits for the receipt. Throws ChainError when the tx reverts (unknown or already-revoked uid). */
+  revoke: (schema: Hex, uid: Hex) => Promise<{ txHash: Hex }>
+  /**
+   * EIP-191 personal-sign check for the challenge (docs/specs/pass-types-and-flows.md#gate-protocol): EOA via ecrecover, deployed smart
+   * accounts via ERC-1271, undeployed via ERC-6492. false for any invalid or malformed signature.
+   * ChainError means the chain could not be consulted, but it is not guaranteed on every outage:
+   * viem's public-client action folds transport errors into the boolean result (falling back to a
+   * pure ECDSA recover), so an unreachable RPC currently surfaces as false — BAD_SIGNATURE — rather
+   * than 502. Implementations that do throw (FakeChain.failReads) take the fail-closed path.
+   */
+  verifyMessage: (p: VerifyMessageParams) => Promise<boolean>
+  /** ERC-5564 Announcer.announce(1, stealthAddress, ephemeralPubKey, metadata); waits for the receipt. Throws NoSignerError / ChainError. */
+  announce: (p: AnnounceParams) => Promise<{ txHash: Hex }>
+  /** Announcement logs with schemeId == 1 in [fromBlock, toBlock], inclusive, no caller filter. Throws ChainError. */
+  getAnnouncementLogs: (fromBlock: number, toBlock: number) => Promise<AnnouncementLog[]>
+  /** The chain head. Throws ChainError. */
+  blockNumber: () => Promise<number>
+}
+
+export const ZERO_UID: Hex = `0x${'00'.repeat(32)}`
+export const ZERO_ADDRESS: Hex = `0x${'00'.repeat(20)}`

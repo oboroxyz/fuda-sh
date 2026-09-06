@@ -19,6 +19,10 @@ import { defineConfig } from 'vite-plus'
 export default defineConfig({
   lint: {
     extends: [core, antiSlop, vitest],
+    options: {
+      typeAware: true,
+      typeCheck: true,
+    },
     rules: {
       // -- structural exclusions (not taste) ----------------------------------
       // The fixer adds parentheses around nested ternaries; oxfmt strips them
@@ -26,6 +30,9 @@ export default defineConfig({
       'unicorn/no-nested-ternary': 'off',
       // False positive on Hono middleware (`await next()`):
       'node/callback-return': 'off',
+      // False positive on Hono middleware: MiddlewareHandler's contract is Response | void,
+      // so returning a Response on the early-exit path and nothing on the happy path is the API:
+      'typescript/consistent-return': 'off',
       // -- config, not off ----------------------------------------------------
       // JSX component files keep PascalCase names (App.tsx); everything else kebab:
       'unicorn/filename-case': ['error', { cases: { kebabCase: true, pascalCase: true } }],
@@ -35,9 +42,14 @@ export default defineConfig({
     overrides: [
       // Vitest preset curation must live at override level (the preset applies
       // its rules via a test-file override, which top-level `rules` cannot beat).
+      // `plugins: ['vitest']` is required here too: an override without its own
+      // `plugins` list only inherits the base (non-test) `lint.plugins` list, which
+      // doesn't include vitest, so `vitest/*` keys below are silently dropped
+      // without it (see vite-plus monorepo docs, "root config with overrides").
       {
         files: ['**/*.test.ts', '**/*.test.tsx', '**/test/**'],
         env: { jest: true },
+        plugins: ['vitest'],
         rules: {
           // These two rewrite exact `toBe(true/false)` into truthy/falsy checks —
           // they WEAKEN assertions, so they stay off even in a strict setup:
@@ -52,6 +64,13 @@ export default defineConfig({
           'anti-slop/no-unknown-returns': 'off',
           'anti-slop/no-module-mocking': 'off',
           'anti-slop/require-safety-comment-for-type-assertion': 'off',
+          // Same latitude for the `env as unknown as Bindings` style casts the
+          // vitest-pool-workers test harness forces in test setup and fixtures:
+          'typescript/no-unsafe-type-assertion': 'off',
+          // `cloudflare:test`'s `env` is deprecated in favor of `cloudflare:workers`'s
+          // `env`, but the latter is request-scoped (AsyncLocalStorage) and does not
+          // work in top-level test setup or outside a request; tests keep the harness API:
+          'typescript/no-deprecated': 'off',
         },
       },
       // Cloudflare Worker entry code runs in the workerd global scope:

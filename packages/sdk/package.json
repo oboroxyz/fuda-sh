@@ -1,0 +1,19 @@
+{
+  "name": "@fuda/sdk",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vp test"
+  },
+  "dependencies": {
+    "uqr": "0.1.3",
+    "valibot": "^1.1.0"
+  },
+  "devDependencies": {
+    "vitest": "4.1.11"
+  }
+}
