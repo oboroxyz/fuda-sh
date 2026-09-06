@@ -62,9 +62,9 @@ If Task 2 cannot stream a real Base Sepolia announcement by the evening of Septe
 - Consumes: `apps/api/wrangler.jsonc` values `EAS_SCHEMAS` and `ANNOUNCER_FROM_BLOCK`
 - Produces: `readMvpGraphConfig(path, options?): MvpGraphConfig`
 
-- [ ] Write failing tests that preserve all three MVP keys (`entitlement`, `issuerDelegation`, `attendance`) and multiple accepted versions, normalize UIDs to lowercase, and reject missing/empty sets, malformed UIDs, duplicate UIDs or versions, and non-positive start blocks. Test both top-level production vars and an explicitly selected Wrangler environment without importing API implementation code.
-- [ ] Run `pnpm exec vitest run subgraphs/rights/scripts/read-mvp-config.test.ts`; expect module-not-found failure.
-- [ ] Implement:
+- [x] Write failing tests that preserve all three MVP keys (`entitlement`, `issuerDelegation`, `attendance`) and multiple accepted versions, normalize UIDs to lowercase, and reject missing/empty sets, malformed UIDs, duplicate UIDs or versions, and non-positive start blocks. Test both top-level production vars and an explicitly selected Wrangler environment without importing API implementation code.
+- [x] Run `pnpm exec vitest run subgraphs/rights/scripts/read-mvp-config.test.ts`; expect module-not-found failure.
+- [x] Implement:
 
   ```ts
   interface SchemaVersion { uid: `0x${string}`; version: number }
@@ -82,9 +82,9 @@ If Task 2 cannot stream a real Base Sepolia announcement by the evening of Septe
   ): MvpGraphConfig;
   ```
 
-- [ ] Add root `graph:prepare`, `graph:codegen`, `graph:test`, and `graph:build` scripts delegating to `subgraphs/rights`; pin Graph CLI, Graph TS, and Matchstick in `subgraphs/rights/package.json` and update `pnpm-lock.yaml` through pnpm.
-- [ ] Run the focused test and `pnpm check`; expect success.
-- [ ] Commit with `chore(graph): add graph toolchain and MVP config boundary`.
+- [x] Add root `graph:prepare`, `graph:codegen`, `graph:test`, and `graph:build` scripts delegating to `subgraphs/rights`; pin Graph CLI, Graph TS, and Matchstick in `subgraphs/rights/package.json` and update `pnpm-lock.yaml` through pnpm.
+- [x] Run the focused test and `pnpm check`; expect success.
+- [x] Commit with `chore(graph): add graph toolchain and MVP config boundary`.
 
 ### Task 2: Build and live-gate the reusable ERC-5564 package
 

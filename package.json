@@ -5,6 +5,10 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
+    "graph:build": "pnpm --dir subgraphs/rights run build",
+    "graph:codegen": "pnpm --dir subgraphs/rights run codegen",
+    "graph:prepare": "pnpm --dir subgraphs/rights run graph:prepare",
+    "graph:test": "pnpm --dir subgraphs/rights run test",
     "lint": "vp lint",
     "lint:fix": "vp lint --fix",
     "format": "vp fmt",
