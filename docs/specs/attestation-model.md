@@ -92,7 +92,7 @@ address.
 | IssuerDelegation authority and revocation                         | One-time Signed challenges and consumption timestamps |
 | Entitlement contents and revocation                               | SINGLE_USE slot consumption                           |
 | Confirmed Attendance evidence                                     | Gate entry logs and optional Attendance UID backfill  |
-| ERC-5564 announcement events                                      | Announcement cache and sync cursor                    |
+| ERC-5564 announcement events                                      | — (queried from the rights subgraph)                   |
 
 D1 can make the product responsive and enforce admission state that EAS does
 not model, but it cannot make an invalid or revoked Entitlement valid. If the
@@ -133,7 +133,7 @@ configuration, and tests must agree on.
 | EAS                           | `0x4200000000000000000000000000000000000021`                                                                                                                        |
 | SchemaRegistry                | `0x4200000000000000000000000000000000000020`                                                                                                                        |
 | Chain / RPC                   | Base Sepolia; `BASE_RPC_URL` secret, fallback `https://sepolia.base.org`                                                                                            |
-| ERC-5564 Announcer            | `0x55649E01B5Df198D18D95b5cc5051630cfD45564` (`ANNOUNCER_ADDRESS`); scan floor `ANNOUNCER_FROM_BLOCK` = the block this contract was deployed at on the target chain |
+| ERC-5564 Announcer            | `0x55649E01B5Df198D18D95b5cc5051630cfD45564` (`ANNOUNCER_ADDRESS`); indexed by the rights subgraph from its configured start block                              |
 | Coinbase Smart Wallet factory | `0x0BA5ED0c6AA8c49038F819E587E2633c4A9F428a` (`FACTORY_ADDRESS`); derives the counterfactual claimable-smart-account address for Bearer holders                     |
 
 ### Wire constants
@@ -205,8 +205,7 @@ Attested with `recipient = holder` and `refUID = rightUID`.
 | `EAS_SCHEMAS`                                                                              | `wrangler.jsonc` `vars` | Accepted-version set per record type: `[{ uid, version }]`, one entry per type at launch                                                                                                                                                                                                                               |
 | `DELEGATION_UID`                                                                           | `wrangler.jsonc` `vars` | UID of the root IssuerDelegation that every issued Entitlement references                                                                                                                                                                                                                                              |
 | `ISSUER_ADDRESS`                                                                           | `wrangler.jsonc` `vars` | The configured root attester; the gate accepts only delegations attested by this address                                                                                                                                                                                                                               |
-| `ANNOUNCER_ADDRESS`                                                                        | `wrangler.jsonc` `vars` | The ERC-5564 Announcer `/issue` writes +Private announcements to and `GET /announcements` reads                                                                                                                                                                                                                        |
-| `ANNOUNCER_FROM_BLOCK`                                                                     | `wrangler.jsonc` `vars` | Sync floor for the announcement cache. Must be this deployment's Announcer deployment block; `0`, missing or unparseable counts as unconfigured and `GET /announcements` answers `502 rpc_unavailable` without touching the chain (fails closed rather than walking from genesis)                                      |
+| `ANNOUNCER_ADDRESS`                                                                        | `wrangler.jsonc` `vars` | The ERC-5564 Announcer `/issue` writes +Private announcements to                                                                                                                                                                                                                                                       |
 | `FACTORY_ADDRESS`                                                                          | `wrangler.jsonc` `vars` | Coinbase Smart Wallet factory used to derive Bearer holder addresses                                                                                                                                                                                                                                                   |
 | `API_BASE_URL`                                                                             | `wrangler.jsonc` `vars` | Absolute base for the `passUrls` in `/issue` responses; its origin is the api entry in the Google Wallet `origins` claim, which also lists `https://dash.fuda.sh` and `https://app.fuda.sh`                                                                                                                            |
 | Signer key (`SIGNER_PRIVATE_KEY`)                                                          | Worker secret           | Signs Entitlement, IssuerDelegation, and Attendance transactions; endpoints answer `501 no_signer` without                                                                                                                                                                                                             |
@@ -292,7 +291,6 @@ decision: it fails closed as `502 chain_error` and is never written to
 | `no_signer`                                      | 501    | write route without `SIGNER_PRIVATE_KEY`                                                                                                                                                                                                                   |
 | `google_not_configured` / `apple_not_configured` | 501    | wallet platform secrets absent                                                                                                                                                                                                                             |
 | `chain_error`                                    | 502    | chain write reverted or failed; the gate cannot read the attestation or its schema binding at verify time (fail closed); or the deployment cannot issue: `ISSUER_ADDRESS` or `DELEGATION_UID` unset or zero, or the accepted schema set empty or malformed |
-| `rpc_unavailable`                                | 502    | announcement cache empty and the chain unreachable, or `ANNOUNCER_FROM_BLOCK` unconfigured                                                                                                                                                                 |
 
 The `ErrorCode` union in `packages/sdk` is this list.
 
@@ -448,22 +446,6 @@ CREATE TABLE entry_log (
   attendance_uid TEXT                          -- written back after the Attendance attest lands
 );
 
-CREATE TABLE announcements (
-  tx_hash           TEXT NOT NULL,
-  log_index         INTEGER NOT NULL,
-  block_number      INTEGER NOT NULL,
-  scheme_id         INTEGER NOT NULL,
-  stealth_address   TEXT NOT NULL,
-  caller            TEXT NOT NULL,
-  ephemeral_pub_key TEXT NOT NULL,
-  metadata          TEXT NOT NULL,
-  PRIMARY KEY (tx_hash, log_index)
-);
-
-CREATE TABLE sync_state (
-  key   TEXT PRIMARY KEY,
-  value INTEGER NOT NULL
-);
 ```
 
 SINGLE_USE consumption is a D1 batch that writes the `slots` row and the `ADMIT`
@@ -475,42 +457,18 @@ Durable Objects are used in the MVP.
 `challenges` rows are one-time and short-lived: `POST /verify-signed` consumes a
 nonce with a conditional `UPDATE … WHERE used_at IS NULL AND created_at > now −
 300`, and `POST /challenge` opportunistically deletes rows older than the 300 s
-TTL on every mint, so the table holds only live nonces. `rate_limits` is the
-per-IP fixed hourly window (`floor(now / 3600) * 3600`) behind
-`GET /announcements` only: 120 requests per hour per IP; the gate routes, admin
-routes and `/health` are never budgeted. `announcements` and `sync_state` are
-the ERC-5564 log cache and its cursor (next subsection).
+TTL on every mint, so the table holds only live nonces. `rate_limits` remains a
+generic per-IP fixed hourly-window primitive for future public routes; current
+product routes do not apply it.
 
-### Announcement cache (`GET /announcements`)
+### Announcement discovery
 
-The api mirrors every scheme-1 `Announcement` event of the configured Announcer
-into D1 and serves it to every caller identically; it never filters by caller or
-by anything a member could be identified by
-([ADR 0002](../adr/0002-unfiltered-announcement-log.md)). Contract:
-
-- **Lazy sync.** Each request first syncs from the persisted cursor (floor:
-  `max(sync_state, ANNOUNCER_FROM_BLOCK − 1)`) in chunks of at most 1000 blocks,
-  at most 5 chunks per request; each chunk's rows and its new cursor land in one
-  D1 batch, and the cursor write is monotone (`max`) so concurrent requests
-  cannot lower it. Rows are insert-or-ignore keyed on `(tx_hash, log_index)`, so
-  re-scanning a held range is a no-op, and multi-row inserts are sliced to stay
-  under D1's 100-parameter cap.
-- **Reorg guarantee.** Sync stops `CONFIRMATIONS = 5` blocks short of the head,
-  so a re-org cannot strand a row behind the cursor.
-- **Response.** `{ announcements, syncedTo }`: up to 1000 rows ascending by
-  `(block_number, log_index)` starting at `fromBlock` (default 0; a fractional
-  value truncates, a negative or non-numeric one clamps to 0).
-- **Paging (client rule).** A page shorter than 1000 rows is the last one.
-  Otherwise resume at the last row's `blockNumber` (the api pages by block, so
-  the boundary block is returned again) and de-duplicate on `(txHash,
-  logIndex)`. The member app caps a discovery walk at 50 pages and marks the
-  result incomplete when the cap is hit; a full walk of a large log can
-  therefore spend up to 50 of the caller's 120 hourly requests.
-- **Degradation.** With the chain unreachable the route serves the stale cache
-  and its last `syncedTo`; it answers `502 rpc_unavailable` only when nothing
-  has ever been cached, and likewise when `ANNOUNCER_FROM_BLOCK` is
-  unconfigured. A freshly deployed api therefore needs one warm-up call (or the
-  live smoke) before the first member discovery.
+The rights subgraph indexes every ERC-5564 `Announcement` without caller,
+scheme, or view-tag filtering. The member app fetches pages of 1,000 from a
+public Graph endpoint with a stable `(blockNumber, id)` cursor, validates every
+response field, preserves Graph integer scalars as JavaScript `bigint`, and
+passes the raw candidates to local viewing-key matching. No announcement or
+stealth holder is persisted in D1, and `GET /announcements` does not exist.
 
 ### Operational reconciliation
 

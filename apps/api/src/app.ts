@@ -1,13 +1,11 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 
-import { CONFIRMATIONS } from './announcements/sync.ts'
 import { getDb } from './db/client.ts'
 import type { AppEnv, Variables } from './env.ts'
 import { errorResponse } from './json.ts'
 import { authModeHeader } from './middleware/admin-auth.ts'
 import { corsPolicy } from './middleware/cors.ts'
-import { announcementsRoutes } from './routes/announcements.ts'
 import { challengeRoutes } from './routes/challenge.ts'
 import { health } from './routes/health.ts'
 import { issueRoutes } from './routes/issue.ts'
@@ -23,21 +21,6 @@ export interface AppDeps {
   chain: Variables['chain']
   now?: () => number
   onAdmit?: AdmitHook
-  // Overrides the announcements sync floor that would otherwise be parsed
-  // from the ANNOUNCER_FROM_BLOCK binding. Set only by the fake-chain dev
-  // bootstrap in index.ts, to the fake chain's head at boot.
-  announcerFromBlock?: number
-  // Overrides the announcements sync confirmation depth. Set only by the
-  // fake-chain dev bootstrap in index.ts, to 0.
-  confirmations?: number
-}
-
-// ANNOUNCER_FROM_BLOCK is a string binding (wrangler env vars are strings). A
-// malformed value degrades to 0, which `GET /announcements` reads as "not
-// configured" and answers 502 to, rather than walking the chain from genesis.
-const parseAnnouncerFromBlock = (raw: string): number => {
-  const n = Math.trunc(Number(raw))
-  return Number.isFinite(n) ? n : 0
 }
 
 // Any error not already turned into a decision-shaped response by a route
@@ -56,11 +39,6 @@ export const createApp = (deps: AppDeps): Hono<AppEnv> => {
     c.set('db', getDb(c.env))
     c.set('now', deps.now ?? (() => Math.floor(Date.now() / 1000)))
     c.set('onAdmit', deps.onAdmit ?? noAdmitHook)
-    c.set(
-      'announcerFromBlock',
-      deps.announcerFromBlock ?? parseAnnouncerFromBlock(c.env.ANNOUNCER_FROM_BLOCK),
-    )
-    c.set('confirmations', deps.confirmations ?? CONFIRMATIONS)
     await next()
   })
   app.use('*', corsPolicy())
@@ -73,7 +51,6 @@ export const createApp = (deps: AppDeps): Hono<AppEnv> => {
   app.route('/', revokeRoutes)
   app.route('/', membersRoutes)
   app.route('/', passRoutes)
-  app.route('/', announcementsRoutes)
   app.onError(unclassifiedError)
   return app
 }

@@ -52,23 +52,3 @@ export const entryLog = sqliteTable('entry_log', {
   reason: text('reason').notNull(),
   uid: text('uid').notNull(),
 })
-
-export const announcements = sqliteTable(
-  'announcements',
-  {
-    blockNumber: integer('block_number').notNull(),
-    caller: text('caller').notNull(),
-    ephemeralPubKey: text('ephemeral_pub_key').notNull(),
-    logIndex: integer('log_index').notNull(),
-    metadata: text('metadata').notNull(),
-    schemeId: integer('scheme_id').notNull(),
-    stealthAddress: text('stealth_address').notNull(),
-    txHash: text('tx_hash').notNull(),
-  },
-  (t) => [primaryKey({ columns: [t.txHash, t.logIndex] })],
-)
-
-export const syncState = sqliteTable('sync_state', {
-  key: text('key').primaryKey(),
-  value: integer('value').notNull(),
-})

@@ -10,7 +10,6 @@ export interface Bindings {
   EAS_ADDRESS: string
   SCHEMA_REGISTRY_ADDRESS: string
   ANNOUNCER_ADDRESS: string
-  ANNOUNCER_FROM_BLOCK: string
   FACTORY_ADDRESS: string
   EAS_SCHEMAS: string
   ISSUER_ADDRESS: string
@@ -36,15 +35,6 @@ export interface Variables {
   now: () => number
   // called once per admission; a no-op unless the deployment wires Attendance
   onAdmit: AdmitHook
-  // Floor for the announcements sync walk. Production derives this from the
-  // ANNOUNCER_FROM_BLOCK binding; the fake-chain dev bootstrap overrides it
-  // with the fake chain's head at boot (see `AppDeps.announcerFromBlock` in
-  // app.ts and `createDevChain` in index.ts).
-  announcerFromBlock: number
-  // How far behind the head the announcements sync stops. Production uses the
-  // CONFIRMATIONS default; the fake-chain dev bootstrap overrides it with 0
-  // (see `confirmationsOverride` in index.ts).
-  confirmations: number
 }
 
 export interface AppEnv {

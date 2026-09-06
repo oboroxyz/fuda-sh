@@ -134,13 +134,13 @@ The issuance response does not identify the stealth destination. Each private
 right uses a different holder, so on-chain observers cannot link it to the
 member or to the member's other private rights.
 
-**Discovery.** The member app walks `GET /announcements` from block 0 (the
-paging rule is in the
-[attestation model](./attestation-model.md#announcement-cache-get-announcements))
-and matches the rows locally with the viewing key; the api never learns which
-rows are the member's. Matching runs the ECDH against the row's ephemeral key,
-checks the announcement's view tag against byte 0 of the resulting shared
-secret, and only then derives the stealth address to compare.
+**Discovery.** The member app pages raw announcements from the rights subgraph
+through its configured public Graph endpoint and matches them locally with the
+viewing key; the api is not involved and never learns which rows are the
+member's. Pages use a stable `(blockNumber, id)` cursor, and Graph `BigInt`
+scalars remain JavaScript `bigint` values. Matching runs the ECDH against the
+row's ephemeral key, checks the announcement's view tag against byte 0 of the
+resulting shared secret, and only then derives the stealth address to compare.
 
 **Interoperability caveat.** fuda's shared secret is the `keccak256` of the
 **compressed** 33-byte ECDH point. An ERC-5564 scanner that hashes a different

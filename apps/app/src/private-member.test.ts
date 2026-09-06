@@ -1,13 +1,12 @@
-import { challengeMessage } from '@fuda/sdk'
-import type { ChallengeResponse, Hex } from '@fuda/sdk'
+import { challengeMessage, fetchAnnouncements } from '@fuda/sdk'
+import type { ChallengeResponse, GraphAnnouncement, Hex } from '@fuda/sdk'
 import { buildAnnouncementMetadata, generateStealthAddress } from '@fuda/stealth-address'
 import type { GeneratedStealthAddress } from '@fuda/stealth-address'
 import type { Result } from '@fuda/ui'
 import { verifyMessage } from 'viem'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { discover, keysFromPrf, stealthSigner } from './private-member.ts'
-import type { AnnouncementDto } from './private-member.ts'
 import { enterSigned } from './signed-gate.ts'
 import type { SignedGateIo } from './signed-gate.ts'
 
@@ -15,15 +14,17 @@ const PRF = new Uint8Array(32).fill(42)
 const UID: Hex = `0x${'ab'.repeat(32)}`
 const NONCE: Hex = `0x${'cd'.repeat(16)}`
 
-const row = (g: GeneratedStealthAddress, uid: Hex, block: number): AnnouncementDto => ({
-  blockNumber: block,
+const row = (g: GeneratedStealthAddress, uid: Hex, block: number): GraphAnnouncement => ({
+  blockNumber: BigInt(block),
   caller: `0x${'00'.repeat(20)}`,
   ephemeralPubKey: g.ephemeralPublicKey,
-  logIndex: 0,
+  id: `${'00'.repeat(32)}00000000`,
+  logIndex: 0n,
   metadata: buildAnnouncementMetadata(g.viewTag, uid),
-  schemeId: 1,
+  schemeId: 1n,
   stealthAddress: g.stealthAddress,
-  txHash: `0x${block.toString(16).padStart(64, '0')}`,
+  timestamp: 0n,
+  transactionHash: `0x${block.toString(16).padStart(64, '0')}`,
 })
 
 describe(keysFromPrf, () => {
@@ -43,6 +44,36 @@ describe(discover, () => {
     const theirs = generateStealthAddress(stranger.metaAddress)
     const found = discover(keys, [row(theirs, `0x${'11'.repeat(32)}`, 1), row(mine, UID, 2)])
     expect(found.map((f) => f.uid)).toStrictEqual([UID])
+  })
+
+  it('discovers a pass from the validated Graph response', async () => {
+    const keys = keysFromPrf(PRF)
+    const generated = generateStealthAddress(keys.metaAddress)
+    const candidate = row(generated, UID, 2)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          await Promise.resolve(
+            Response.json({
+              data: {
+                announcements: [
+                  {
+                    ...candidate,
+                    blockNumber: candidate.blockNumber.toString(),
+                    logIndex: candidate.logIndex.toString(),
+                    schemeId: candidate.schemeId.toString(),
+                    timestamp: candidate.timestamp.toString(),
+                  },
+                ],
+              },
+            }),
+          ),
+      ),
+    )
+
+    const candidates = await fetchAnnouncements('https://graph.example/query', 0n)
+    expect(discover(keys, candidates).map((pass) => pass.uid)).toStrictEqual([UID])
   })
 })
 

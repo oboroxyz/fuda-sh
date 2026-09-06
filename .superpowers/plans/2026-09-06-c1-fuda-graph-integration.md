@@ -231,11 +231,11 @@ If Task 2 cannot stream a real Base Sepolia announcement by the evening of Septe
 - Consumes: `GRAPH_RIGHTS_ENDPOINT` and paginated announcements
 - Produces: `fetchAnnouncements(endpoint, fromBlock, signal)`; removes `GET /announcements`
 
-- [ ] Test bigint-safe parsing, stable ordering, pagination, GraphQL/network errors, abort, integration with the existing `discover` function, and the API returning 404 for the removed route.
-- [ ] Fetch pages of 1,000 with a stable `(blockNumber, id)` cursor and pass raw candidates to the existing dynamically imported `discover` function; remove `announcements`, `pageAnnouncements`, `PAGE_ROWS`, and `MAX_PAGES` from `apps/app/src/api.ts`.
-- [ ] Keep API secrets out of browser bundles. Use Studio for the event demo and document the post-event public gateway or same-origin proxy decision.
+- [x] Test bigint-safe parsing, stable ordering, pagination, GraphQL/network errors, abort, integration with the existing `discover` function, and the API returning 404 for the removed route.
+- [x] Fetch pages of 1,000 with a stable `(blockNumber, id)` cursor and pass raw candidates to the existing dynamically imported `discover` function; remove `announcements`, `pageAnnouncements`, `PAGE_ROWS`, and `MAX_PAGES` from `apps/app/src/api.ts`.
+- [x] Keep API secrets out of browser bundles. Use Studio for the event demo and document the post-event public gateway or same-origin proxy decision.
 - [ ] Remove the API route/cache/sync code, `AppDeps` announcement overrides, and `ANNOUNCER_FROM_BLOCK` binding. Add migration `0001_drop_announcement_cache.sql` dropping `announcements` and `sync_state`; retain `rate_limits`, the admin middleware, and all issue behavior.
-- [ ] Run `pnpm test && pnpm check && pnpm format:check`; expect success and no server-side matching.
+- [x] Run `pnpm test && pnpm check && pnpm format:check`; expect success and no server-side matching.
 - [ ] Commit with `feat(graph): discover private rights through the subgraph`.
 
 ### Task 8: Add card and chain-truth views

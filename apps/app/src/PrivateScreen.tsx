@@ -1,12 +1,13 @@
 /** @jsxImportSource hono/jsx/dom */
+import { fetchAnnouncements } from '@fuda/sdk'
 import type { Hex } from '@fuda/sdk'
 import type { DiscoveredPass, StealthKeys } from '@fuda/stealth-address'
 import { short } from '@fuda/ui'
 import { useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
-import { announcements, challenge, pageAnnouncements, verifySigned } from './api.ts'
-import { RP_ID } from './config.ts'
+import { challenge, verifySigned } from './api.ts'
+import { GRAPH_RIGHTS_ENDPOINT, RP_ID } from './config.ts'
 import type { PrfResult } from './passkey.ts'
 import { displayOf, enterSigned } from './signed-gate.ts'
 import type { SignedDisplay } from './signed-gate.ts'
@@ -108,18 +109,12 @@ export const PrivateScreen = (): JSX.Element => {
   }
 
   const find = async (k: StealthKeys): Promise<void> => {
-    // The api answers at most 1000 rows per call, so one call is a page, not the
-    // log: `pageAnnouncements` walks the rest before anything is matched.
-    const res = await pageAnnouncements(announcements, 0)
-    if (!res.ok) {
-      setProblem(res.network ? 'Could not reach the api — try again.' : res.error)
-      return
+    if (GRAPH_RIGHTS_ENDPOINT === '') {
+      throw new Error('Rights discovery is not configured.')
     }
+    const rows = await fetchAnnouncements(GRAPH_RIGHTS_ENDPOINT, 0n)
     const { discover } = await stealthKit()
-    setPasses(discover(k, res.body.rows))
-    if (!res.body.complete) {
-      setProblem('The announcement list is longer than this app reads in one go — it may be incomplete.')
-    }
+    setPasses(discover(k, rows))
   }
 
   const enter = async (pass: DiscoveredPass): Promise<void> => {

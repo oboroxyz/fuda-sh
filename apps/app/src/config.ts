@@ -1,6 +1,9 @@
 // VITE_API_BASE_URL is baked in at build time; local dev talks to `wrangler dev --env dev`.
 export const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8787'
 
+// Public Graph gateway or a same-origin proxy URL. Never put a Studio deploy key in a VITE_* binding.
+export const GRAPH_RIGHTS_ENDPOINT: string = import.meta.env.VITE_GRAPH_RIGHTS_ENDPOINT ?? ''
+
 // The origin the Signed gate must run on — the only one of this Worker's two
 // hostnames that the api's CORS list allows (docs/specs/pass-types-and-flows.md#surfaces). Set VITE_APP_ORIGIN to
 // the dev origin (http://localhost:5173) when running locally.
