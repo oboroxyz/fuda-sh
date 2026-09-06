@@ -1,4 +1,4 @@
-# Naming
+# ENS naming
 
 fuda names two things with ENS: the **issuer** that attests rights and the
 **member number** printed on a pass. A name is a display and destination

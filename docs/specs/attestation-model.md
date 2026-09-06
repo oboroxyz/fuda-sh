@@ -559,4 +559,4 @@ a trace an operator reconciles by hand:
 
 - [Architecture overview](../architecture.md)
 - [Pass types and flows](./pass-types-and-flows.md)
-- [Naming](./naming.md)
+- [ENS naming](./ens-naming.md)

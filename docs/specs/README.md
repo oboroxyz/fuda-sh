@@ -11,5 +11,5 @@ The system overview, component map and trust boundaries live in the
 - [Pass types and flows](./pass-types-and-flows.md) — use-case templates,
   wallet roles, standard activation, privacy-first issuance, the gate protocol,
   the pass contracts, and the deployed surfaces
-- [Naming](./naming.md) — ENS hierarchy, the member number, what a name
+- [ENS naming](./ens-naming.md) — ENS hierarchy, the member number, what a name
   resolves to (rotating stealth addresses for +Private), name lifecycle

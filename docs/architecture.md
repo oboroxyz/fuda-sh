@@ -94,7 +94,7 @@ the UX layer temporarily holds authority, and the decentralized exit
 - [Pass types and flows](./specs/pass-types-and-flows.md) — use-case templates,
   wallet roles, standard activation, privacy-first issuance, the gate protocol,
   the pass contracts, and the deployed surfaces
-- [Naming](./specs/naming.md) — ENS hierarchy, the member number, what a name
+- [ENS naming](./specs/ens-naming.md) — ENS hierarchy, the member number, what a name
   resolves to (rotating stealth addresses for +Private), name lifecycle
 
 ## Configuration
