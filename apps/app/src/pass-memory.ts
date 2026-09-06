@@ -20,23 +20,24 @@ const isEntry = (value: unknown): value is PassMemoryEntry => {
     return false
   }
 
-  // SAFETY: the object/array checks above establish that this is a decoded record candidate.
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion, anti-slop/no-unsafe-dictionary-type -- indexed access is required to validate untrusted JSON fields
-  const record = value as Record<string, unknown>
-  const keys = Object.keys(record)
+  if (!('uid' in value) || !('holder' in value) || !('addedAt' in value)) {
+    return false
+  }
+
+  const keys = Object.keys(value)
   return (
     keys.length === 3 &&
     keys.includes('uid') &&
     keys.includes('holder') &&
     keys.includes('addedAt') &&
-    typeof record.uid === 'string' &&
-    isUid(record.uid) &&
-    normalizeUid(record.uid) === record.uid &&
-    typeof record.holder === 'string' &&
-    asHex(record.holder, 20) !== null &&
-    typeof record.addedAt === 'number' &&
-    Number.isFinite(record.addedAt) &&
-    record.addedAt >= 0
+    typeof value.uid === 'string' &&
+    isUid(value.uid) &&
+    normalizeUid(value.uid) === value.uid &&
+    typeof value.holder === 'string' &&
+    asHex(value.holder, 20) !== null &&
+    typeof value.addedAt === 'number' &&
+    Number.isFinite(value.addedAt) &&
+    value.addedAt >= 0
   )
 }
 

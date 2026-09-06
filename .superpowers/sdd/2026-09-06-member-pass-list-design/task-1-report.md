@@ -64,3 +64,17 @@ GREEN command: `pnpm --filter app test -- src/pass-memory.test.ts`
 GREEN output: `1` test file and `10` tests passed.
 
 Additional verification: `pnpm lint` remains blocked by the pre-existing `packages/subgraphs/rights/tsconfig.json` error: cannot find type definition file for `vitest`.
+
+## Fix round 2
+
+### Changed code
+
+Removed the unsafe `value as Record<string, unknown>` assertion from `isEntry`. After the existing object/null/array checks, the validator now narrows `uid`, `holder`, and `addedAt` with `in` checks before reading them. Exact-key validation and all runtime behavior are unchanged.
+
+### Verification
+
+- `pnpm --filter app test -- src/pass-memory.test.ts`: passed, `1` test file and `10` tests.
+- `pnpm --filter app exec tsc --noEmit`: passed with exit code 0 and no output.
+- `pnpm typecheck`: failed with 4 unrelated existing `typescript(no-unsafe-type-assertion)` diagnostics in `packages/ui/src/barcode.ts`, `packages/ui/src/fetch.ts`, and `apps/api/scripts/smoke-live.ts`; no diagnostic remains for `apps/app/src/pass-memory.ts`.
+
+A production-behavior RED test was not applicable for this round: the requested change only removes a static type assertion and preserves the already-covered runtime behavior. The focused runtime suite remained green before and after the repair.
