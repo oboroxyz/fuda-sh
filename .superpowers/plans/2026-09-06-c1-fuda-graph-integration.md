@@ -10,6 +10,12 @@
 
 **Spec:** `/home/yuji/code/github.com/oboroxyz/fuda-sh-poc/public/docs/superpowers/specs/2026-09-04-c1-fuda-graph-integration.md`
 
+## Current status (2026-09-06)
+
+Repository-local implementation and documentation are complete through commit `1bd1d55`. The reviewed local gates pass: 415 workspace tests, 12 Matchstick tests, 13 Graph configuration tests, both locked Cargo suites and release WASM builds, both Substreams package builds, browser builds, Vite+ checks, formatting, and whitespace checks.
+
+Deployment is intentionally pending. Keep this plan active until the remaining live gates have evidence: register the Entitlement and Attendance schemas, configure production schema UIDs/start block, stream the unchanged package on two chains, capture the composed revoke, deploy and smoke-test the rights subgraph, verify both browser views before/after revoke, run the timed demo, and prove product reads continue after stopping Substreams. `app.fuda.sh` and `api.fuda.sh` are not yet deployed.
+
 ## Global Constraints
 
 - Use `base-sepolia`, EAS `0x4200000000000000000000000000000000000021`, and Announcer `0x55649E01B5Df198D18D95b5cc5051630cfD45564`.
@@ -262,12 +268,12 @@ If Task 2 cannot stream a real Base Sepolia announcement by the evening of Septe
 - Consumes: rights by holder, attendances by right, delegations by issuer
 - Produces: typed query functions and two UI views
 
-- [ ] Add an app-only rights-list route alongside the existing `landing`, `signed`, and `private` decisions; do not render it on the apex origin.
-- [ ] Test address normalization, multiple/revoked/empty/error results, app cards, and dash chain-truth rendering without a D1 member row. Keep the existing Members view and admin-token flow intact.
-- [ ] Implement runtime-validated responses and explicit loading, empty, and error states.
-- [ ] Keep D1 member data and chain truth visibly separate. Never persist a private stealth holder to D1.
+- [x] Add an app-only rights-list route alongside the existing `landing`, `signed`, and `private` decisions; do not render it on the apex origin.
+- [x] Test address normalization, multiple/revoked/empty/error results, app cards, and dash chain-truth rendering without a D1 member row. Keep the existing Members view and admin-token flow intact.
+- [x] Implement runtime-validated responses and explicit loading, empty, and error states.
+- [x] Keep D1 member data and chain truth visibly separate. Never persist a private stealth holder to D1.
 - [ ] Run all tests/checks and manually verify both views before and after revoke.
-- [ ] Commit with `feat(graph): show chain-truth rights and attendance views`.
+- [x] Commit with `feat(graph): show chain-truth rights and attendance views`.
 
 ### Task 9: Finalize evidence and canonical documentation
 
@@ -283,6 +289,6 @@ If Task 2 cannot stream a real Base Sepolia announcement by the evening of Septe
 
 - [ ] Time a 2–4 minute demo: identical package checksum on two chains, composed live revoke, rights query, and next gate scan turning red.
 - [ ] Stop Substreams and prove discovery, card list, dash views, and revoke queries still work.
-- [ ] Run both Cargo suites, Graph tests/build, workspace tests/check/format, and `git diff --check`; require zero failures.
-- [ ] Update canonical specs with current behavior only. Record the push/query split, no-sink decision, and rejected composition-source claim in the ADR.
+- [x] Run both Cargo suites, Graph tests/build, workspace tests/check/format, and `git diff --check`; require zero failures.
+- [x] Update canonical specs with current behavior only. Record the push/query split, no-sink decision, and rejected composition-source claim in the ADR.
 - [ ] Delete this completed temporary plan in the final implementation commit.
