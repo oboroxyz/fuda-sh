@@ -222,7 +222,7 @@ interface RefreshTicket {
 export interface PassListRefreshGate {
   beginListLoad: () => number
   isListCurrent: (generation: number) => boolean
-  beginRefresh: () => RefreshTicket
+  beginRefresh: (listGeneration: number) => RefreshTicket
   isRefreshCurrent: (ticket: RefreshTicket) => boolean
 }
 
@@ -235,9 +235,9 @@ export const createPassListRefreshGate = (): PassListRefreshGate => {
       refreshGeneration += 1
       return listGeneration
     },
-    beginRefresh: () => {
+    beginRefresh: (ticketListGeneration) => {
       refreshGeneration += 1
-      return { listGeneration, refreshGeneration }
+      return { listGeneration: ticketListGeneration, refreshGeneration }
     },
     isListCurrent: (generation) => generation === listGeneration,
     isRefreshCurrent: (ticket) =>
@@ -247,10 +247,11 @@ export const createPassListRefreshGate = (): PassListRefreshGate => {
 
 export const refreshCurrentPassStatuses = async (
   gate: PassListRefreshGate,
+  listGeneration: number,
   rows: readonly MemberPassRow[],
   verify: MemberPassListIo['verify'],
 ): Promise<MemberPassRow[] | null> => {
-  const ticket = gate.beginRefresh()
+  const ticket = gate.beginRefresh(listGeneration)
   const refreshed = await refreshPassStatuses(rows, verify)
   return gate.isRefreshCurrent(ticket) ? refreshed : null
 }

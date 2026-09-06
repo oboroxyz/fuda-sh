@@ -33,7 +33,7 @@ export type RightsListState =
 type MemberListState =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
-  | { kind: 'ready'; result: MemberPassListResult }
+  | { kind: 'ready'; result: MemberPassListResult; generation: number }
 
 const SAFE_META_PROTOCOLS = new Set(['http:', 'https:', 'ipfs:'])
 
@@ -200,7 +200,7 @@ export const RightsList = ({
           io,
         )
         if (current && refreshGate.current.isListCurrent(generation)) {
-          setState({ kind: 'ready', result })
+          setState({ generation, kind: 'ready', result })
         }
       } catch (error) {
         if (current && refreshGate.current.isListCurrent(generation)) {
@@ -238,9 +238,14 @@ export const RightsList = ({
           }
           void (async () => {
             try {
-              const rows = await refreshCurrentPassStatuses(refreshGate.current, state.result.rows, io.verify)
+              const rows = await refreshCurrentPassStatuses(
+                refreshGate.current,
+                state.generation,
+                state.result.rows,
+                io.verify,
+              )
               if (rows !== null) {
-                setState({ kind: 'ready', result: { ...state.result, rows } })
+                setState({ generation: state.generation, kind: 'ready', result: { ...state.result, rows } })
               }
             } catch (error) {
               setProblem(error instanceof Error ? error.message : 'Could not refresh pass status.')

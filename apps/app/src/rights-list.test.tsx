@@ -284,7 +284,7 @@ describe('status refresh lifecycle', () => {
     const pending = new Promise<Result<VerifyResponse>>((resolve) => {
       release = resolve
     })
-    const refresh = refreshCurrentPassStatuses(gate, [memberRow({})], async () => await pending)
+    const refresh = refreshCurrentPassStatuses(gate, 1, [memberRow({})], async () => await pending)
 
     gate.beginListLoad()
     release?.(admitted(HOLDER_A))
@@ -311,13 +311,45 @@ describe('status refresh lifecycle', () => {
       return await (result ?? Promise.reject(new Error('unexpected refresh')))
     }
 
-    const older = refreshCurrentPassStatuses(gate, [memberRow({})], verify)
-    const newer = refreshCurrentPassStatuses(gate, [memberRow({})], verify)
+    const older = refreshCurrentPassStatuses(gate, 1, [memberRow({})], verify)
+    const newer = refreshCurrentPassStatuses(gate, 1, [memberRow({})], verify)
     releaseSecond?.({ body: { decision: 'REJECT', reason: 'REVOKED' }, ok: true })
 
     await expect(newer).resolves.toMatchObject([{ preview: { decision: 'REJECT', reason: 'REVOKED' } }])
     releaseFirst?.(admitted(HOLDER_A))
     await expect(older).resolves.toBeNull()
+  })
+
+  it('does not let an old-row refresh started during a new load overwrite the committed new list', async () => {
+    const gate = createPassListRefreshGate()
+    const oldGeneration = gate.beginListLoad()
+    const newGeneration = gate.beginListLoad()
+    let release: ((value: Result<VerifyResponse>) => void) | undefined
+    // oxlint-disable-next-line promise/avoid-new -- the test controls the old row's in-flight verify response
+    const pending = new Promise<Result<VerifyResponse>>((resolve) => {
+      release = resolve
+    })
+    const oldRow = memberRow({ uid: RIGHT })
+    const newRow = memberRow({ uid: UID_C })
+    let renderedRows = [oldRow]
+    const oldRefresh = refreshCurrentPassStatuses(
+      gate,
+      oldGeneration,
+      renderedRows,
+      async () => await pending,
+    ).then((rows) => {
+      if (rows !== null) {
+        renderedRows = rows
+      }
+    })
+
+    if (gate.isListCurrent(newGeneration)) {
+      renderedRows = [newRow]
+    }
+    release?.(admitted(HOLDER_A))
+    await oldRefresh
+
+    expect(renderedRows).toStrictEqual([newRow])
   })
 
   it('skips hidden-document ticks and clears its interval on teardown', () => {
@@ -462,6 +494,7 @@ describe(RightsListView, () => {
   it('uses a live REVOKED preview over an active Graph row and tags memory-only rows', () => {
     const graphView = RightsListView({
       state: {
+        generation: 1,
         kind: 'ready',
         result: {
           indexUnavailable: false,
@@ -473,6 +506,7 @@ describe(RightsListView, () => {
     })
     const memoryView = RightsListView({
       state: {
+        generation: 1,
         kind: 'ready',
         result: {
           indexUnavailable: false,
@@ -490,7 +524,7 @@ describe(RightsListView, () => {
 
   it('renders the exact saved-pass banner when the public index is unavailable', () => {
     const view = RightsListView({
-      state: { kind: 'ready', result: { indexUnavailable: true, rows: [memberRow({})] } },
+      state: { generation: 1, kind: 'ready', result: { indexUnavailable: true, rows: [memberRow({})] } },
     })
 
     expect(viewText(view)).toContain('index unavailable; showing passes saved on this device')
