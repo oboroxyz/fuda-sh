@@ -44,6 +44,9 @@ const languageOptions = (options: readonly LanguageOption[]): JSX.Element[] => {
   return elements
 }
 
+const hasStringValue = (target: EventTarget | null): target is EventTarget & { value: string } =>
+  typeof target === 'object' && target !== null && 'value' in target && typeof target.value === 'string'
+
 export const ThemeToggle = ({ labels, mode, onChange }: ThemeToggleProps): JSX.Element =>
   IconButton({
     children: <span aria-hidden="true">{themeGlyphs[mode]}</span>,
@@ -64,8 +67,9 @@ export const LanguageSwitcher = ({
     <select
       aria-label={label}
       onChange={(event) => {
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Hono exposes generic Event currentTarget types.
-        onChange((event.currentTarget as HTMLSelectElement).value)
+        if (hasStringValue(event.currentTarget)) {
+          onChange(event.currentTarget.value)
+        }
       }}
       style={{ minBlockSize: '44px' }}
       value={current}
