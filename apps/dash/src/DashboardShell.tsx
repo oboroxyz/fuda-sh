@@ -62,7 +62,7 @@ const navigationItems = (copy: DashCopy): readonly NavItem[] => [
 ]
 
 const Navigation = ({ copy, onNavigate, onSelection, route }: NavigationProps): JSX.Element => (
-  <nav aria-label={copy.chrome.navigation} class="menu w-full gap-1">
+  <nav aria-label={copy.chrome.navigation} class="dash-nav">
     {navigationItems(copy).map((item): JSX.Element => (
       <a
         aria-current={route === item.route ? 'page' : undefined}
@@ -104,8 +104,8 @@ export const DashboardShell = ({
   }
 
   return (
-    <div class="bg-base-100 min-h-screen lg:grid lg:grid-cols-[18rem_1fr]">
-      <aside class="bg-base-200 border-base-300 hidden min-h-screen flex-col gap-6 border-r p-5 lg:flex">
+    <div class="dash-app">
+      <aside class="dash-sidebar">
         <div>
           <p class="text-xl font-bold">{copy.chrome.brand}</p>
           <p class="text-sm opacity-70">{copy.chrome.subtitle}</p>
@@ -114,8 +114,8 @@ export const DashboardShell = ({
         <div class="mt-auto">{appearance}</div>
       </aside>
 
-      <div class="min-w-0">
-        <header class="navbar bg-base-200 border-base-300 border-b lg:hidden">
+      <div class="dash-workspace">
+        <header class="dash-mobile-header">
           <div>
             <p class="font-bold">{copy.chrome.brand}</p>
             <p class="text-xs opacity-70">{copy.chrome.subtitle}</p>
@@ -123,7 +123,7 @@ export const DashboardShell = ({
           <div class="ml-auto">
             <button
               aria-label={copy.chrome.openMenu}
-              class="btn btn-ghost btn-square"
+              class="dash-menu-button btn btn-ghost btn-square"
               onClick={() => {
                 dialog?.showModal()
               }}
@@ -136,12 +136,12 @@ export const DashboardShell = ({
             </button>
           </div>
         </header>
-        <main class="p-4 sm:p-6">{children}</main>
+        <main class="dash-main">{children}</main>
       </div>
 
       <dialog
         aria-label={copy.chrome.navigation}
-        class="modal modal-bottom sm:modal-middle lg:hidden"
+        class="dash-drawer"
         onCancel={(event: Event): void => {
           event.preventDefault()
           closeDrawer()
@@ -160,7 +160,7 @@ export const DashboardShell = ({
           return subscribeToDesktopEntry(breakpoint, closeOpenDrawerForDesktop)
         }}
       >
-        <div class="modal-box flex flex-col gap-6">
+        <div class="dash-drawer-panel">
           <div class="flex items-start justify-between gap-4">
             <div>
               <p class="text-xl font-bold">{copy.chrome.brand}</p>

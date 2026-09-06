@@ -129,6 +129,9 @@ importers:
       '@fuda/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+      '@fuda/styles':
+        specifier: workspace:*
+        version: link:../../packages/styles
       '@fuda/ui':
         specifier: workspace:*
         version: link:../../packages/ui

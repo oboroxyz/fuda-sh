@@ -24,7 +24,7 @@ export const TokenGateView = ({
   onValue,
   value,
 }: TokenGateViewProps): JSX.Element => (
-  <main class="min-h-screen p-4 sm:p-6">
+  <main class="dash-auth">
     <div class="flex justify-end">{appearance}</div>
     <form
       class="card bg-base-200 mx-auto mt-16 flex max-w-md flex-col gap-3 p-6"

@@ -42,7 +42,7 @@ export const OverviewPage = ({ apiBaseUrl, copy, graphEndpoint, state }: Overvie
     }
     if (initialLoading) {
       return (
-        <span aria-hidden="true" class="loading loading-dots loading-sm">
+        <span aria-hidden="true" class="dash-skeleton">
           …
         </span>
       )
@@ -57,18 +57,18 @@ export const OverviewPage = ({ apiBaseUrl, copy, graphEndpoint, state }: Overvie
         <p class="opacity-70">{copy.description}</p>
       </header>
 
-      <section class="card bg-base-200 p-4" aria-label={copy.title}>
+      <section class="flex flex-col gap-3" aria-label={copy.title}>
         {stateMessage === null ? null : <p class="text-sm opacity-70">{stateMessage}</p>}
-        <div class="stats stats-vertical sm:stats-horizontal shadow">
-          <div class="stat">
+        <div class="dash-overview-cards">
+          <div class="dash-stat">
             <div class="stat-title">{copy.total}</div>
             <div class="stat-value">{countValue(counts?.total ?? null)}</div>
           </div>
-          <div class="stat">
+          <div class="dash-stat">
             <div class="stat-title">{copy.active}</div>
             <div class="stat-value">{countValue(counts?.active ?? null)}</div>
           </div>
-          <div class="stat">
+          <div class="dash-stat">
             <div class="stat-title">{copy.revoked}</div>
             <div class="stat-value">{countValue(counts?.revoked ?? null)}</div>
           </div>

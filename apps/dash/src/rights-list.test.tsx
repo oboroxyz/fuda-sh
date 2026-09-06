@@ -135,10 +135,10 @@ describe(RightsList, () => {
       },
       table: { class: viewProps(table!).class, exists: table !== undefined },
     }).toStrictEqual({
-      cards: { class: 'flex flex-col gap-3 lg:hidden', exists: true },
+      cards: { class: 'rights-cards', exists: true },
       private: { anchorCount: 0, recordCount: 2, showsFallback: true },
       public: { includesPrivatePass: false, links: 12 },
-      table: { class: 'hidden lg:block', exists: true },
+      table: { class: 'rights-table', exists: true },
     })
   })
 

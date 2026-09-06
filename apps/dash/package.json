@@ -13,6 +13,7 @@
   "dependencies": {
     "@fuda/i18n": "workspace:*",
     "@fuda/sdk": "workspace:*",
+    "@fuda/styles": "workspace:*",
     "@fuda/ui": "workspace:*",
     "hono": "^4.13.5"
   },

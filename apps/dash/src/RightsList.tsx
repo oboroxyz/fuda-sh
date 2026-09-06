@@ -44,7 +44,7 @@ const passLinks = (copy: DashCopy['rights'], row: MemberRowView): JSX.Element =>
     return <span class="opacity-50">—</span>
   }
   return (
-    <span class="flex gap-2 text-xs">
+    <span class="dash-actions text-xs">
       <a class="link" href={row.passUrls.web} target="_blank" rel="noreferrer">
         {copy.web}
       </a>
@@ -89,7 +89,7 @@ const actions = ({
   const qrOpen = openQr === row.uid
   const revokeDisabled = row.status === 'revoked' || revokingUid === row.uid
   return (
-    <div class="flex gap-2">
+    <div class="dash-actions">
       <button
         type="button"
         class="btn btn-xs"
@@ -172,7 +172,7 @@ const cardRecord = (props: RightsListProps, row: MemberRowView): JSX.Element => 
 
 export const RightsList = (props: RightsListProps): JSX.Element => (
   <>
-    <div data-testid="rights-table" class="hidden lg:block">
+    <div data-testid="rights-table" class="rights-table">
       <div class="overflow-x-auto">
         <table class="table-zebra table">
           <thead>
@@ -191,7 +191,7 @@ export const RightsList = (props: RightsListProps): JSX.Element => (
         </table>
       </div>
     </div>
-    <div data-testid="rights-cards" class="flex flex-col gap-3 lg:hidden">
+    <div data-testid="rights-cards" class="rights-cards">
       {props.rows.map((row): JSX.Element => cardRecord(props, row))}
     </div>
   </>
