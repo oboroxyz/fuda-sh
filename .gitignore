@@ -226,6 +226,7 @@ dist/
 *.log
 .gstack/
 .worktrees/
+docs/internal
 
 # Playwright (generated)
 test-results/
