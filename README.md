@@ -27,6 +27,9 @@ production default (`fuda.sh`), which is not a registrable suffix of the dev
 host. In production it stays `fuda.sh` so the apex and `app.fuda.sh` share one
 passkey.
 
+See [`docs/runbook.md`](docs/runbook.md) for the one-time Cloudflare/Base
+Sepolia setup and deploy runbook.
+
 ## Setup
 
 ```sh

@@ -224,104 +224,12 @@ Migrations under `migrations/` are hand-written SQL for the MVP — there is no
 first; otherwise `generate` has no prior state to diff against and re-emits
 every table as a new migration instead of just the change.
 
-## One-time chain setup
+## One-time chain setup, secrets and deploy
 
-Before the first real deploy, the EAS schemas must be registered and a root
-`IssuerDelegation` attested on Base Sepolia:
-
-1. Fund the signer address (`privateKeyToAccount(SIGNER_PRIVATE_KEY).address`)
-   with a small amount of Base Sepolia ETH.
-2. Register the three fuda schemas on the EAS SchemaRegistry:
-
-   ```bash
-   SIGNER_PRIVATE_KEY=0x… pnpm --filter api register-schemas
-   ```
-
-   Prints each schema's UID and a ready-to-paste `EAS_SCHEMAS` JSON blob.
-
-3. Attest the root `IssuerDelegation` — the signer delegating issuance rights
-   to itself:
-
-   ```bash
-   SIGNER_PRIVATE_KEY=0x… pnpm --filter api attest-root-delegation
-   ```
-
-   Prints `ISSUER_ADDRESS` (the signer) and `DELEGATION_UID` (the new
-   attestation). It attests under the newest `issuerDelegation` uid in
-   `EAS_SCHEMAS` when that variable is exported, and otherwise under the
-   deterministic uid of the current schema string — the two agree unless the
-   schema has been versioned. Idempotence is the operator's: run it once per
-   deployment. With `DELEGATION_UID` already set in the environment it warns
-   first, then attests a second, equally valid delegation.
-
-4. Paste `EAS_SCHEMAS`, `DELEGATION_UID` and `ISSUER_ADDRESS` into
-   `wrangler.jsonc`'s top-level `vars`.
-5. Create the D1 database and paste its id into `wrangler.jsonc`:
-
-   ```bash
-   wrangler d1 create fuda
-   ```
-
-6. Apply migrations to the remote database:
-
-   ```bash
-   pnpm --filter api migrate:remote
-   ```
-
-7. Set secrets and deploy:
-
-   ```bash
-   wrangler secret put SIGNER_PRIVATE_KEY
-   wrangler secret put ADMIN_TOKEN
-   wrangler secret put BASE_RPC_URL
-   pnpm --filter api deploy
-   ```
-
-   `wrangler.jsonc` declares `api.fuda.sh` as a custom domain of this Worker,
-   so the first deploy attaches the hostname (the zone must already be on the
-   account). `wrangler deploy --dry-run` validates the config without
-   deploying.
-
-## Secrets and vars
-
-Secrets (`wrangler secret put`, never committed):
-
-- `SIGNER_PRIVATE_KEY` — the issuer's EOA private key.
-- `ADMIN_TOKEN` — bearer token required by `/issue`, `/revoke` and `/members`.
-  Required whenever `SIGNER_PRIVATE_KEY` is set: with a signer and no token the
-  api locks every admin route (`401 unauthorized`, `x-auth-mode: locked` on
-  every response) and logs the reason once per isolate. With `ADMIN_TOKEN`
-  unset **and no signer configured** the admin routes are open and every
-  response carries `x-auth-mode: open`; local dev on the fake chain has no
-  signer and so stays open.
-- `BASE_RPC_URL` — Base Sepolia RPC endpoint.
-- `GOOGLE_ISSUER_ID`, `GOOGLE_CLASS_ID`, `GOOGLE_SA_EMAIL`, `GOOGLE_SA_KEY_PEM`
-  — the Google Wallet issuer, the generic class the pass belongs to, and the
-  service account that signs the save link. All four, or
-  `GET /pass/:uid/google` answers `501 google_not_configured`.
-- `APPLE_PASS_TYPE_ID`, `APPLE_TEAM_ID`, `APPLE_CERT_PEM`, `APPLE_KEY_PEM`,
-  `APPLE_WWDR_PEM` — the Apple Wallet pass type, team and signing chain. All
-  five, or `GET /pass/:uid/apple.pkpass` answers `501 apple_not_configured`.
-
-A PEM secret pasted straight out of a service-account JSON keeps its literal
-`\n` escapes; the api normalizes them, so either form works.
-
-Vars (`wrangler.jsonc` `vars`):
-
-- `EAS_ADDRESS`, `SCHEMA_REGISTRY_ADDRESS`, `FACTORY_ADDRESS` — deployed
-  contract addresses.
-- `EAS_SCHEMAS` — JSON map of schema kind to accepted `{ uid, version }`
-  entries, produced by `register-schemas`.
-- `ISSUER_ADDRESS`, `DELEGATION_UID` — the root `IssuerDelegation`.
-- `API_BASE_URL` — used to build absolute `passUrls` in `/issue` responses.
-- `ANNOUNCER_ADDRESS` — the ERC-5564 `Announcer` contract `/issue` writes
-  scheme-1 announcements to and `GET /announcements` reads them back from.
-- `ANNOUNCER_FROM_BLOCK` — the floor `GET /announcements` syncs from; must be
-  set to this announcer contract's actual deployment block on a live chain.
-  Missing, unparseable or `0` (the checked-in placeholder) counts as
-  unconfigured: the route answers `502 rpc_unavailable` without touching the
-  chain rather than walking from genesis. The fake-chain dev path ignores the
-  binding and floors the sync at the fake chain's head at boot.
+Covered in [`docs/runbook.md`](../../docs/runbook.md) — chain setup order,
+`wrangler secret put` names, wallet-platform setup, deploy order and the live
+smoke/manual checks. `apps/api/src/env.ts` is the source of truth for every
+binding name.
 
 ## Smoke test
 
