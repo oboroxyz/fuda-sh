@@ -32,7 +32,7 @@ flowchart LR
 | Component          | Path                  | Responsibility                                                                                                                                               |
 | ------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | API                | `apps/api`            | Coordinates issuance, revocation, gate operational state, pass generation, and +Private announcement writes                                                    |
-| Operator dashboard | `apps/dash`           | Gives authorized issuers the controls to issue, inspect, and revoke rights                                                                                   |
+| Operator dashboard | `apps/dash` | Gives authorized issuers routed Overview, Rights, and Issue views; derives operational summaries from D1 member rows, issues and revokes through the API, and queries chain status separately through the rights subgraph |
 | Member app         | `apps/app`            | Holds member signing rails, answers Signed challenges, lists public member passes from holder addresses and device memory, and discovers +Private rights client-side |
 | Gate               | `apps/gate`           | Reads presented rights, requests proof when required, and renders an ADMIT or REJECT verdict                                                                 |
 | EAS on Base        | External; `apps/api`  | Records Entitlements, issuer delegation, revocation, and Attendance evidence                                                                                 |

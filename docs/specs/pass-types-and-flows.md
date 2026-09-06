@@ -434,7 +434,7 @@ current challenge for the Entitlement holder?
 | ---------------- | ----------- | -------- | ------------------------------------------------------------------------------------------------- |
 | `api.fuda.sh`    | `apps/api`  | 8787     | the api                                                                                           |
 | `gate.fuda.sh`   | `apps/gate` | 5174     | scanner: uid preview, QR admission, verdict                                                       |
-| `dash.fuda.sh`   | `apps/dash` | 5175     | operator dashboard: issue, D1 member list, revoke, pass links, and separate on-chain-status lookup    |
+| `dash.fuda.sh`   | `apps/dash` | 5175     | operator dashboard: `/` overview from D1 member rows and client configuration, `/rights` D1 search/filter/revoke/pass links plus separate on-chain lookup, and `/issue` issuance |
 | `app.fuda.sh`    | `apps/app`  | 5173     | member app: `/signed` challenge-response, `/private` enrolment and discovery, `/rights` member pass list |
 | `fuda.sh` (apex) | Cloudflare zone | —     | `/@*` redirect to the same path on `app.fuda.sh`; other apex paths are outside this repository    |
 
@@ -487,6 +487,8 @@ shows `index unavailable; showing passes saved on this device`. Address-derived
 rows remain unavailable until the index recovers. Graph-only discovery on
 `/private` still reports that discovery is not configured and does not fall
 back to the API or D1.
+
+The dashboard keeps its admin token in the current tab's memory only and applies the gate to every Dash route. English is the first-visit language; an explicit English/Japanese choice and a light/dark/system theme mode persist in browser-local preferences. These presentation preferences do not enter API requests and changing them does not clear route or operational state. At widths below 64 rem, navigation uses a modal drawer and D1 rights use cards; at and above 64 rem, navigation is persistent and rights use a table. Revocation always requires confirmation and suppresses a duplicate submission while the selected UID is in flight.
 
 ## Related specs
 
