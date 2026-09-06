@@ -9,7 +9,7 @@ import type { DashboardShellProps } from './DashboardShell.tsx'
 import { findViewNodes, viewProps, viewText, walkView } from './test/test-view.ts'
 
 type ClickHandler = (event: MouseEvent) => void
-type DialogRef = (element: HTMLDialogElement | null) => void
+type DialogRef = (element: HTMLDialogElement | null) => (() => void) | undefined
 type ButtonRef = (element: HTMLButtonElement | null) => void
 
 const shell = (route: '/' | '/rights' | '/issue' = '/'): JSX.Element =>
@@ -150,5 +150,60 @@ describe('dashboard shell', () => {
     } as unknown as MouseEvent)
     expect(calls).toStrictEqual(['close', '/rights', 'close', 'close', 'close'])
     expect(focusCalls).toBe(4)
+  })
+
+  it('closes an open mobile drawer when entering desktop and cleans up the breakpoint listener', () => {
+    let listener: ((event: MediaQueryListEvent) => void) | undefined
+    let removed: ((event: MediaQueryListEvent) => void) | undefined
+    const breakpoint = {
+      addEventListener: (_type: 'change', next: EventListenerOrEventListenerObject | null): void => {
+        listener = next as (event: MediaQueryListEvent) => void
+      },
+      matches: false,
+      removeEventListener: (_type: 'change', next: EventListenerOrEventListenerObject | null): void => {
+        removed = next as (event: MediaQueryListEvent) => void
+      },
+    } as unknown as MediaQueryList
+    const matchMedia = vi.fn<(query: string) => MediaQueryList>(() => breakpoint)
+    vi.stubGlobal('matchMedia', matchMedia)
+
+    try {
+      const view = shell()
+      const [dialog] = findViewNodes(view, 'dialog')
+      const openMenu = walkView(view).find((node) => viewProps(node)['aria-label'] === 'Open menu')
+      let closeCalls = 0
+      let focusCalls = 0
+      const drawer = {
+        close: (): void => {
+          closeCalls += 1
+        },
+        open: true,
+      } as unknown as HTMLDialogElement
+      const opener = {
+        focus: (): void => {
+          focusCalls += 1
+        },
+      } as unknown as HTMLButtonElement
+
+      ;(viewProps(openMenu!).ref as ButtonRef)(opener)
+      const cleanup = (viewProps(dialog).ref as DialogRef)(drawer)
+      if (listener === undefined) {
+        throw new Error('Expected a breakpoint listener')
+      }
+
+      listener({ matches: false } as MediaQueryListEvent)
+      listener({ matches: true } as MediaQueryListEvent)
+      listener({ matches: true } as MediaQueryListEvent)
+
+      cleanup?.()
+      expect({ closeCalls, focusCalls, query: matchMedia.mock.calls, removed }).toStrictEqual({
+        closeCalls: 1,
+        focusCalls: 1,
+        query: [['(min-width: 64rem)']],
+        removed: listener,
+      })
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })

@@ -24,6 +24,34 @@ interface NavItem {
   route: DashRoute
 }
 
+export const DASH_DESKTOP_MEDIA_QUERY = '(min-width: 64rem)'
+
+export interface DesktopBreakpoint {
+  addEventListener: (type: 'change', listener: (event: MediaQueryListEvent) => void) => void
+  matches: boolean
+  removeEventListener: (type: 'change', listener: (event: MediaQueryListEvent) => void) => void
+}
+
+export const subscribeToDesktopEntry = (
+  breakpoint: DesktopBreakpoint,
+  onEnterDesktop: () => void,
+): (() => void) => {
+  let wasDesktop = breakpoint.matches
+  const listener = (event: MediaQueryListEvent): void => {
+    if (!wasDesktop && event.matches) {
+      onEnterDesktop()
+    }
+    wasDesktop = event.matches
+  }
+  breakpoint.addEventListener('change', listener)
+  return (): void => {
+    breakpoint.removeEventListener('change', listener)
+  }
+}
+
+const desktopBreakpoint = (): DesktopBreakpoint | null =>
+  globalThis.matchMedia?.(DASH_DESKTOP_MEDIA_QUERY) ?? null
+
 const isPrimaryNavigation = (event: MouseEvent): boolean =>
   event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey
 
@@ -67,6 +95,12 @@ export const DashboardShell = ({
   const closeDrawer = (): void => {
     dialog?.close()
     opener?.focus()
+  }
+
+  const closeOpenDrawerForDesktop = (): void => {
+    if (dialog?.open === true) {
+      closeDrawer()
+    }
   }
 
   return (
@@ -117,8 +151,13 @@ export const DashboardShell = ({
             closeDrawer()
           }
         }}
-        ref={(element: HTMLDialogElement | null): void => {
+        ref={(element: HTMLDialogElement | null): (() => void) | undefined => {
           dialog = element
+          const breakpoint = desktopBreakpoint()
+          if (element === null || breakpoint === null) {
+            return
+          }
+          return subscribeToDesktopEntry(breakpoint, closeOpenDrawerForDesktop)
         }}
       >
         <div class="modal-box flex flex-col gap-6">
