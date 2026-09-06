@@ -3,7 +3,8 @@
 Cloudflare Worker (Hono) implementing the fuda endpoints: `GET /health`,
 `POST /issue`, `GET /verify/:uid`, `POST /verify`, `POST /revoke`,
 `GET /members`, `POST /challenge`, `POST /verify-signed`, `GET /announcements`,
-and the browser-based pass (`GET /pass/:uid` and its two wallet stubs).
+and the passes (`GET /pass/:uid` plus the Google Wallet and Apple Wallet
+endpoints).
 
 ## Run locally
 
@@ -186,9 +187,13 @@ holder, live status) for any uid a `members` row exists for; a uid fuda never
 issued answers `404 not_found`. A +Private row also answers `404 not_found` —
 its holder is a one-time stealth address only the member can recover, and the
 `/issue` response for it carries no `passUrls`, so there is no pass page for
-it to render. `GET /pass/:uid/google` and
-`GET /pass/:uid/apple.pkpass` are stubs that answer `501` until Plan 5 adds
-the real wallet-pass builders.
+it to render. `GET /pass/:uid/google` answers `{ saveUrl }` (a signed Google
+Wallet save link) when the four `GOOGLE_*` secrets are set and
+`501 google_not_configured` otherwise; `GET /pass/:uid/apple.pkpass` streams a
+`.pkpass` when the five `APPLE_*` secrets are set and `501 apple_not_configured`
+otherwise. Both answer `404 not_found` for an unknown uid and for a +Private row
+before any platform check. The pass page carries an "Add to Google Wallet"
+button that stays hidden unless the Google endpoint answers `200`.
 
 The `apps/gate`, `apps/dash` and `apps/app` frontends call the api at
 `VITE_API_BASE_URL` (baked in at build time; defaults to
@@ -301,6 +306,16 @@ Secrets (`wrangler secret put`, never committed):
   response carries `x-auth-mode: open`; local dev on the fake chain has no
   signer and so stays open.
 - `BASE_RPC_URL` — Base Sepolia RPC endpoint.
+- `GOOGLE_ISSUER_ID`, `GOOGLE_CLASS_ID`, `GOOGLE_SA_EMAIL`, `GOOGLE_SA_KEY_PEM`
+  — the Google Wallet issuer, the generic class the pass belongs to, and the
+  service account that signs the save link. All four, or
+  `GET /pass/:uid/google` answers `501 google_not_configured`.
+- `APPLE_PASS_TYPE_ID`, `APPLE_TEAM_ID`, `APPLE_CERT_PEM`, `APPLE_KEY_PEM`,
+  `APPLE_WWDR_PEM` — the Apple Wallet pass type, team and signing chain. All
+  five, or `GET /pass/:uid/apple.pkpass` answers `501 apple_not_configured`.
+
+A PEM secret pasted straight out of a service-account JSON keeps its literal
+`\n` escapes; the api normalizes them, so either form works.
 
 Vars (`wrangler.jsonc` `vars`):
 
@@ -345,8 +360,8 @@ as long as a signer is available to `/issue`/`/revoke`).
 | POST | `/revoke` | Bearer (`ADMIN_TOKEN`) | revokes the entitlement attestation |
 | GET | `/members` | Bearer (`ADMIN_TOKEN`) | lists issued entitlements |
 | GET | `/pass/:uid` | none | browser-based pass page; `404 not_found` if fuda never issued that uid, or if the row is +Private |
-| GET | `/pass/:uid/google` | none | wallet-pass stub; `501 google_not_configured` until Plan 5 |
-| GET | `/pass/:uid/apple.pkpass` | none | wallet-pass stub; `501 apple_not_configured` until Plan 5 |
+| GET | `/pass/:uid/google` | none | `{ saveUrl }`, a signed Google Wallet save link; `501 google_not_configured` unless all four `GOOGLE_*` secrets are set; `404 not_found` first for an unknown uid or a +Private row |
+| GET | `/pass/:uid/apple.pkpass` | none | the `.pkpass` bundle; `501 apple_not_configured` unless all five `APPLE_*` secrets are set; `404 not_found` first for an unknown uid or a +Private row |
 | GET | `/announcements` | none, per-IP budget (120/h) | the cached ERC-5564 announcement log, lazily synced from chain; `502 rpc_unavailable` only with an empty cache |
 
 ## Error codes

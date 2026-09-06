@@ -12,6 +12,12 @@
       "migrations_dir": "migrations",
     },
   ],
+  // Secrets (`wrangler secret put`, never `vars`): SIGNER_PRIVATE_KEY,
+  // ADMIN_TOKEN, BASE_RPC_URL and the wallet-platform names —
+  // GOOGLE_ISSUER_ID, GOOGLE_CLASS_ID, GOOGLE_SA_EMAIL, GOOGLE_SA_KEY_PEM
+  // (all four, or GET /pass/:uid/google answers 501) and
+  // APPLE_PASS_TYPE_ID, APPLE_TEAM_ID, APPLE_CERT_PEM, APPLE_KEY_PEM,
+  // APPLE_WWDR_PEM (all five, or GET /pass/:uid/apple.pkpass answers 501).
   "vars": {
     "EAS_ADDRESS": "0x4200000000000000000000000000000000000021",
     "SCHEMA_REGISTRY_ADDRESS": "0x4200000000000000000000000000000000000020",

@@ -40,6 +40,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@fuda/pass':
+        specifier: workspace:*
+        version: link:../../packages/pass
       '@fuda/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk

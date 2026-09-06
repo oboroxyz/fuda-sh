@@ -16,6 +16,17 @@ export interface Bindings {
   ISSUER_ADDRESS: string
   DELEGATION_UID: string
   API_BASE_URL: string
+  // Wallet-platform secrets. Each platform is configured only when every one
+  // of its names is set and non-empty; otherwise that pass endpoint answers 501.
+  GOOGLE_ISSUER_ID?: string
+  GOOGLE_CLASS_ID?: string
+  GOOGLE_SA_EMAIL?: string
+  GOOGLE_SA_KEY_PEM?: string
+  APPLE_PASS_TYPE_ID?: string
+  APPLE_TEAM_ID?: string
+  APPLE_CERT_PEM?: string
+  APPLE_KEY_PEM?: string
+  APPLE_WWDR_PEM?: string
 }
 
 export interface Variables {

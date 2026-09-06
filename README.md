@@ -10,6 +10,7 @@ Membership rights as on-chain attestations, verified at a physical gate.
 | member app | `apps/app` | `pnpm --filter app dev` (http://localhost:5173; apex landing plus the `/signed` challenge-response gate and the `/private` +Private screens) |
 | shared contract | `packages/sdk` | types, validators, `qrSvg` |
 | stealth crypto | `packages/stealth` | ERC-5564 scheme-1 stealth address math: meta-address derivation, generation, and announcement matching — shared by the api and `apps/app`'s `/private` screens |
+| wallet passes | `packages/pass` | Google Wallet save-link JWT and Apple `.pkpass` builders (WebCrypto; no platform SDKs) |
 | shared web UI kit | `packages/web-kit` | `Scanner`, the fetch wrapper, `short` — shared by `apps/gate`, `apps/dash` and `apps/app` |
 
 Frontends read the api origin from `VITE_API_BASE_URL` (default `http://localhost:8787`).

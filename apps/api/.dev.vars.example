@@ -4,3 +4,16 @@ USE_FAKE_CHAIN=1
 #SIGNER_PRIVATE_KEY=0x…
 #BASE_RPC_URL=https://sepolia.base.org
 #ADMIN_TOKEN=change-me
+
+# Wallet passes: set all four GOOGLE_* (resp. all five APPLE_*) or that pass
+# endpoint answers 501. A PEM pasted straight out of a service-account JSON
+# keeps its literal \n escapes; that form is accepted as-is.
+#GOOGLE_ISSUER_ID=
+#GOOGLE_CLASS_ID=
+#GOOGLE_SA_EMAIL=
+#GOOGLE_SA_KEY_PEM=
+#APPLE_PASS_TYPE_ID=
+#APPLE_TEAM_ID=
+#APPLE_CERT_PEM=
+#APPLE_KEY_PEM=
+#APPLE_WWDR_PEM=

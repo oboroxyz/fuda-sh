@@ -13,6 +13,7 @@
     "smoke:live": "tsx scripts/smoke-live.ts"
   },
   "dependencies": {
+    "@fuda/pass": "workspace:*",
     "@fuda/sdk": "workspace:*",
     "@fuda/stealth": "workspace:*",
     "drizzle-orm": "^0.44.0",
