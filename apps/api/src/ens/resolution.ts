@@ -24,6 +24,10 @@ const parseGatewaySecret = (secret: string): Uint8Array => {
   return hexToBytes(normalized)
 }
 
+export const assertGatewaySecret = (secret: string): void => {
+  parseGatewaySecret(secret)
+}
+
 const counterBytes = (counter: number): Uint8Array => {
   if (!Number.isSafeInteger(counter) || counter < 0) {
     throw new Error('invalid ENS resolution counter')

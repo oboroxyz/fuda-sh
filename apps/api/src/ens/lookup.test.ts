@@ -37,7 +37,7 @@ describe('ENS lookup', () => {
         now: 10,
         parentName: 'fuda.eth',
       }),
-    ).resolves.toStrictEqual({ address: TARGET, type: 'address' })
+    ).resolves.toStrictEqual({ address: TARGET, expiresAt: null, type: 'address' })
   })
 
   it('returns a derivation instruction without allocating a +Private address', async () => {
@@ -66,6 +66,7 @@ describe('ENS lookup', () => {
       }),
     ).resolves.toStrictEqual({
       ensNameId: inserted[0]?.id,
+      expiresAt: null,
       stealthMetaAddress: META_ADDRESS,
       type: 'stealth',
     })
@@ -99,7 +100,7 @@ describe('ENS lookup', () => {
     ).resolves.toBeNull()
     await expect(
       lookupEnsName(db, { name: 'boundary.fuda.eth', now: 10, parentName: 'fuda.eth' }),
-    ).resolves.toStrictEqual({ address: TARGET, type: 'address' })
+    ).resolves.toStrictEqual({ address: TARGET, expiresAt: 10, type: 'address' })
   })
 
   it.each(['unknown.fuda.eth', 'bakery.other.eth', 'too.deep.bakery.fuda.eth'])(
@@ -132,7 +133,7 @@ describe('ENS lookup', () => {
         now: 10,
         parentName: 'fuda.eth',
       }),
-    ).resolves.toStrictEqual({ address: TARGET, type: 'address' })
+    ).resolves.toStrictEqual({ address: TARGET, expiresAt: null, type: 'address' })
   })
 
   it('does not expose a malformed persisted address', async () => {

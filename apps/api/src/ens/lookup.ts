@@ -7,8 +7,8 @@ import { issuerEnsName, memberEnsName, parseFudaEnsName } from './names.ts'
 import { ensNames } from './schema.ts'
 
 export type EnsLookupResult =
-  | { address: Address; type: 'address' }
-  | { ensNameId: number; stealthMetaAddress: Hex; type: 'stealth' }
+  | { address: Address; expiresAt: number | null; type: 'address' }
+  | { ensNameId: number; expiresAt: number | null; stealthMetaAddress: Hex; type: 'stealth' }
 
 interface LookupInput {
   name: string
@@ -46,11 +46,16 @@ export const lookupEnsName = async (db: Db, input: LookupInput): Promise<EnsLook
     return row.stealthMetaAddress !== null &&
       row.stealthMetaAddress.length === 134 &&
       isHex(row.stealthMetaAddress)
-      ? { ensNameId: row.id, stealthMetaAddress: row.stealthMetaAddress, type: 'stealth' }
+      ? {
+          ensNameId: row.id,
+          expiresAt: row.expiry,
+          stealthMetaAddress: row.stealthMetaAddress,
+          type: 'stealth',
+        }
       : null
   }
 
   return row.targetAddress !== null && isAddress(row.targetAddress, { strict: true })
-    ? { address: row.targetAddress, type: 'address' }
+    ? { address: row.targetAddress, expiresAt: row.expiry, type: 'address' }
     : null
 }
