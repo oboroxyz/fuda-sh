@@ -1,0 +1,33 @@
+specVersion: v0.1.0
+
+package:
+  name: fuda_erc5564
+  version: v0.1.0
+  description: Raw ERC-5564 Announcement events for reusable EVM pipelines
+  url: https://github.com/oboroxyz/fuda-sh/tree/main/packages/substreams/erc5564
+
+protobuf:
+  files:
+    - erc5564.proto
+  importPaths:
+    - ./proto
+
+binaries:
+  default:
+    type: wasm/rust-v1
+    file: ./target/wasm32-unknown-unknown/release/fuda_erc5564_substreams.wasm
+
+modules:
+  - name: map_announcements
+    kind: map
+    initialBlock: 0
+    inputs:
+      - params: string
+      - source: sf.ethereum.type.v2.Block
+    output:
+      type: proto:fuda.erc5564.v1.Announcements
+
+params:
+  map_announcements: 0x55649E01B5Df198D18D95b5cc5051630cfD45564
+
+network: base-sepolia

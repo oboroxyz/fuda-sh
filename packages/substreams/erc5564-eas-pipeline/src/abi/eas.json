@@ -1,0 +1,24 @@
+[
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "name": "recipient", "type": "address" },
+      { "indexed": true, "name": "attester", "type": "address" },
+      { "indexed": false, "name": "uid", "type": "bytes32" },
+      { "indexed": true, "name": "schemaUID", "type": "bytes32" }
+    ],
+    "name": "Attested",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "name": "recipient", "type": "address" },
+      { "indexed": true, "name": "attester", "type": "address" },
+      { "indexed": false, "name": "uid", "type": "bytes32" },
+      { "indexed": true, "name": "schemaUID", "type": "bytes32" }
+    ],
+    "name": "Revoked",
+    "type": "event"
+  }
+]

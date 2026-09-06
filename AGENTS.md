@@ -5,7 +5,7 @@ Guidance for AI coding agents working in this repository. `CLAUDE.md` imports th
 ## What this repo is
 
 **fuda** — a pnpm workspace monorepo.
-`apps/*` are deployable surfaces (Cloudflare Workers via wrangler), `packages/*` are shared libraries. Both are empty at the time of writing; add packages under those folders and they join the workspace automatically.
+`apps/*` are deployable surfaces (Cloudflare Workers via wrangler), while `packages/*` contains shared libraries and reusable packages. Direct children with a `package.json` join the pnpm workspace automatically. `packages/substreams/` is an organizational directory for independently built Rust/Substreams packages, not a pnpm workspace package.
 
 Everything here is written from scratch inside the build window. Do not copy code, specs or designs in from other repositories, even sibling projects on this machine.
 

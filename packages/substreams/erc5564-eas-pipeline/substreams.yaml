@@ -1,0 +1,45 @@
+specVersion: v0.1.0
+
+package:
+  name: erc5564_eas_pipeline
+  version: v0.1.0
+  description: Composed raw ERC-5564 and EAS events for the fuda live pipeline
+  url: https://github.com/oboroxyz/fuda-sh/tree/main/packages/substreams/erc5564-eas-pipeline
+
+imports:
+  erc5564: ../erc5564/fuda-erc5564-v0.1.0.spkg
+
+protobuf:
+  files:
+    - fuda.proto
+  importPaths:
+    - ./proto
+    - ../erc5564/proto
+
+binaries:
+  default:
+    type: wasm/rust-v1
+    file: ./target/wasm32-unknown-unknown/release/erc5564_eas_pipeline_substreams.wasm
+
+modules:
+  - name: map_eas_events
+    kind: map
+    initialBlock: 0
+    inputs:
+      - params: string
+      - source: sf.ethereum.type.v2.Block
+    output:
+      type: proto:fuda.pipeline.v1.EasEvents
+  - name: fuda_events
+    kind: map
+    initialBlock: 0
+    inputs:
+      - map: erc5564:map_announcements
+      - map: map_eas_events
+    output:
+      type: proto:fuda.pipeline.v1.FudaEvents
+
+params:
+  map_eas_events: 0x4200000000000000000000000000000000000021
+
+network: base-sepolia

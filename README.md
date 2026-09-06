@@ -12,6 +12,8 @@ Membership rights as on-chain attestations, verified at a physical gate.
 | stealth crypto | `packages/stealth-address` | ERC-5564 scheme-1 stealth address math: meta-address derivation, generation, and announcement matching — shared by the api and `apps/app`'s `/private` screens |
 | wallet passes | `packages/pass` | Google Wallet save-link JWT and Apple `.pkpass` builders (WebCrypto; no platform SDKs) |
 | shared web UI kit | `packages/ui` | `Scanner`, the fetch wrapper, `short` — shared by `apps/gate`, `apps/dash` and `apps/app` |
+| ERC-5564 Substreams | `packages/substreams/erc5564` | reusable raw `Announcement` extraction with a parameterized Announcer address |
+| ERC-5564 + EAS pipeline | `packages/substreams/erc5564-eas-pipeline` | composes the ERC-5564 package with raw EAS `Attested` and `Revoked` events |
 
 Frontends read the api origin from `VITE_API_BASE_URL` (default `http://localhost:8787`).
 

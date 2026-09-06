@@ -13,3 +13,5 @@ The system overview, component map and trust boundaries live in the
   the pass contracts, and the deployed surfaces
 - [ENS naming](./ens-naming.md) — ENS hierarchy, the member number, what a name
   resolves to (rotating stealth addresses for +Private), name lifecycle
+- [Substreams packages](./substreams.md) — reusable ERC-5564 extraction, raw
+  EAS event composition, protobuf interfaces, and compatibility guarantees
