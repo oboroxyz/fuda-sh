@@ -24,7 +24,7 @@
   // APPLE_PASS_TYPE_ID, APPLE_TEAM_ID, APPLE_CERT_PEM, APPLE_KEY_PEM,
   // APPLE_WWDR_PEM (all five, or GET /pass/:uid/apple.pkpass answers 501).
   //
-  // Deploy-time fills (the runbook in README.md replaces each one; every one of
+  // Deploy-time fills (docs/runbook.md replaces each one; every one of
   // them fails closed until it is): `d1_databases[].database_id` above, and below
   // EAS_SCHEMAS (empty sets → /issue answers 502 chain_error), ISSUER_ADDRESS and
   // DELEGATION_UID (zero → the same 502) and ANNOUNCER_FROM_BLOCK ("0" →

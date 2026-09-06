@@ -1,9 +1,7 @@
 # Deploy runbook
 
 Operator instructions for standing up fuda on Cloudflare and Base Sepolia, in
-order. Vocabulary note: the four surfaces are Issuer-facing (api, dash) and
-Venue-facing (gate) internally, but this document uses "Venue" the way copy
-does, not "mode" for anything.
+order.
 
 ## 1. Prerequisites
 
@@ -36,12 +34,16 @@ depends on.
    ```
 
    Prints `ISSUER_ADDRESS` (the signer) and `DELEGATION_UID` (the new
-   attestation). Paste both into `wrangler.jsonc`'s `vars`. Idempotence is the
-   operator's: run this once per deployment; a second run mints a second,
-   equally valid delegation.
+   attestation). Paste both into `wrangler.jsonc`'s top-level `vars`. The
+   script warns (but still proceeds) if `DELEGATION_UID` is already set in
+   the environment, and it attests under the newest `issuerDelegation` uid in
+   an exported `EAS_SCHEMAS` when present, falling back to the deterministic
+   uid of the current schema string otherwise (`apps/api/scripts/attest-root-delegation.ts:22-39`).
+   Idempotence is the operator's: run this once per deployment; a second run
+   mints a second, equally valid delegation.
 
 4. Look up the `Announcer` contract's deployment block on the Base Sepolia
-   explorer and set `vars.ANNOUNCER_FROM_BLOCK` to it. The checked-in
+   explorer and set the top-level `vars.ANNOUNCER_FROM_BLOCK` to it. The checked-in
    placeholder is `"0"`; the api treats a missing, unparseable, or `"0"` value
    as unconfigured and answers `502 rpc_unavailable` on `/announcements`
    without touching the chain — this is the operator-visible fail-closed
@@ -86,9 +88,12 @@ for what each secret gates at the route level.
 ## 4. Google Wallet setup
 
 1. Create a Google Wallet issuer account.
-2. Create a GenericClass whose id matches `GOOGLE_CLASS_ID`. An object that
-   references a non-existent class fails, so this must exist before the
-   first `GET /pass/:uid/google` call.
+2. Create a GenericClass whose id matches `GOOGLE_CLASS_ID`. `GOOGLE_CLASS_ID`
+   is used verbatim as the object's `classId`, so it must be the
+   fully-qualified `<issuerId>.<suffix>` id. `GET /pass/:uid/google` signs the
+   save-link JWT locally (`packages/pass/src/google.ts`) and does not check
+   the class against Google's API, so a missing or mismatched class is not
+   caught there — it fails only when the holder opens the save link.
 3. Request publishing approval — this can take time, so start it early.
 4. While unapproved, add the demo phones' Google accounts as testers so
    `/pass/:uid` → "Add to Google Wallet" works for the demo before approval
@@ -137,24 +142,37 @@ Each app's `deploy` script builds then runs `wrangler deploy`. Every
 `wrangler.jsonc` declares its hostname(s) as custom domains — `api.fuda.sh`,
 `gate.fuda.sh`, `dash.fuda.sh`, and both `app.fuda.sh` and the `fuda.sh` apex
 on `apps/app` — so the first deploy of each Worker attaches them; the zone
-must already be on the account. Add `--dry-run` to a `wrangler deploy` to
-validate config without shipping.
+must already be on the account. Validate config without shipping with
+`pnpm --filter api deploy -- --dry-run` (or `pnpm --filter <app> deploy --
+--dry-run` for a frontend).
 
 ## 8. Warm-up and live smoke
 
 ```bash
-curl https://api.fuda.sh/health
+curl -i https://api.fuda.sh/health
 ```
 
-Expect no `x-auth-mode: locked` header (its absence, or `x-auth-mode: open`,
-means the admin lock is not stuck closed).
+`x-auth-mode` is a response header, so `-i` is needed to see it. Expect the
+header to be **absent**. If it is present, the deploy is misconfigured:
+`locked` means `ADMIN_TOKEN` is unset while a signer (`SIGNER_PRIVATE_KEY`)
+is configured — the admin routes are 401ing everything; `open` means neither
+a token nor a signer is set — the admin routes are unauthenticated. Both are
+fail states in production, not acceptable resting states (see
+`apps/api/src/middleware/admin-auth.ts:32-77`).
 
 ```bash
 curl https://api.fuda.sh/announcements
 ```
 
-One call is enough to warm the announcements cache — the sync is lazy and
-runs on the first request that touches it.
+A single call does not fully warm the cache: each request syncs at most
+`SYNC_CHUNKS_PER_REQUEST * CHUNK_BLOCKS` (5 × 1000 = 5000) blocks and stops
+`CONFIRMATIONS` (5) blocks short of the chain head
+(`apps/api/src/announcements/sync.ts`). Repeat the call until the response's
+`syncedTo` is within a few blocks of head — roughly
+`(head - ANNOUNCER_FROM_BLOCK) / 5000` requests. Each call counts against the
+120/h per-IP budget (§12), so set `ANNOUNCER_FROM_BLOCK` to the Announcer's
+real deployment block (not genesis) and start warming early — or spread the
+calls across more than one IP — when the gap is large.
 
 ```bash
 API_URL=https://api.fuda.sh ADMIN_TOKEN=… pnpm --filter api smoke:live --ladder all
@@ -192,7 +210,7 @@ after a deploy and periodically thereafter (see
   revoke).
 - **Lost `attendance_uid`.** Attendance attests best-effort after the
   verdict; a failed attest leaves the admission standing but the on-chain
-  evidence missing. List them:
+  evidence missing. List them, from `apps/api`:
 
   ```bash
   wrangler d1 execute fuda --remote --command "SELECT id, uid, at FROM entry_log WHERE decision = 'ADMIT' AND attendance_uid IS NULL"
@@ -205,14 +223,15 @@ See `apps/api/README.md` for local dev: `USE_FAKE_CHAIN=1` and
 `apps/api/wrangler.jsonc`, and the four dev ports (api 8787, gate 5174, dash
 5175, app 5173). Local D1 state under `.wrangler/state` persists across
 `wrangler dev` restarts; wipe it if the fake chain's world (schemas,
-delegation, seeded rows) changes shape. `.dev.vars` is read by the workerd
-test pool during local dev, but the test suite itself strips the dev vars, so
-`vp test` never depends on `.dev.vars` being present.
+delegation, seeded rows) changes shape. `.dev.vars` is read both by
+`wrangler dev` during local dev and by the workerd test pool during `vp
+test`; `apps/api/test/env.ts` strips it back out for every test, so `vp test`
+never depends on `.dev.vars` being present or on what it contains.
 
 ## 12. Budget note
 
 `GET /announcements` is the only budgeted route in the MVP: a fixed hourly
 window of 120 requests per IP. A Discover walk of a large announcement log
-can use up to ~50 of those on its own (see `apps/api/README.md`'s smoke-test
-notes). The venue gate (`/verify`, `/challenge`, `/verify-signed`) and the
-admin routes (`/issue`, `/revoke`, `/members`) are never budgeted.
+can use up to `MAX_PAGES` (50) of those on its own (`apps/app/src/api.ts`).
+The gate routes (`/verify`, `/challenge`, `/verify-signed`) and the admin
+routes (`/issue`, `/revoke`, `/members`) are never budgeted.
