@@ -97,6 +97,27 @@ The label itself is random and reveals nothing about the person.
 
 ### CCIP-Read transport
 
+```mermaid
+sequenceDiagram
+    participant Client as ENS client
+    participant Resolver as FudaResolver<br/>packages/ens-contracts
+    participant Gateway as POST /ens/gateway<br/>apps/api
+    participant DB as D1 naming data
+
+    Client->>Resolver: resolve(name, addr record)
+    Resolver-->>Client: OffchainLookup revert<br/>(gateway URL + original request)
+
+    Client->>Gateway: sender + original request
+    Gateway->>DB: Look up ENS name
+    DB-->>Gateway: Stable address or one-time stealth allocation
+    Gateway->>Gateway: Sign resolver + expiry<br/>+ request + result
+    Gateway-->>Client: Signed response envelope
+
+    Client->>Resolver: resolveWithProof(response)
+    Resolver->>Resolver: Verify target, expiry,<br/>signer, request, and result
+    Resolver-->>Client: Verified address
+```
+
 `POST /ens/gateway` accepts the standard JSON request
 `{"sender":"0x…","data":"0x…"}`. `sender` must match a configured resolver
 address (case-insensitively), and `data` must encode the complete ENSIP-10
