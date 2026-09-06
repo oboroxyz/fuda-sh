@@ -24,15 +24,15 @@ flowchart LR
 
 ## Components
 
-| Component          | Path                  | Responsibility                                                                                                           |
-| ------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| API                | `apps/api`            | Coordinates issuance, revocation, gate operational state, pass generation, and announcement indexing                     |
-| Operator dashboard | `apps/dash`           | Gives authorized issuers the controls to issue, inspect, and revoke rights                                               |
-| Member app         | `apps/app`            | Holds member signing rails, answers Signed challenges, and discovers +Private rights client-side                         |
-| Gate               | `apps/gate`           | Reads presented rights, requests proof when required, and renders an ADMIT or REJECT verdict                             |
-| EAS on Base        | External; `apps/api`  | Records Entitlements, issuer delegation, revocation, and Attendance evidence                                             |
-| D1 (SQLite)        | `apps/api/migrations` | Stores operational state such as challenges, SINGLE_USE consumption, entry logs, member indexes, and announcement caches |
-| Passes             | `packages/pass`       | Present a right through Apple Wallet, Google Wallet, a browser-based pass, and QR; they are not the source of truth      |
+| Component          | Path                  | Responsibility                                                                                                                                               |
+| ------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| API                | `apps/api`            | Coordinates issuance, revocation, gate operational state, pass generation, and announcement indexing                                                         |
+| Operator dashboard | `apps/dash`           | Gives authorized issuers the controls to issue, inspect, and revoke rights                                                                                   |
+| Member app         | `apps/app`            | Holds member signing rails, answers Signed challenges, and discovers +Private rights client-side                                                             |
+| Gate               | `apps/gate`           | Reads presented rights, requests proof when required, and renders an ADMIT or REJECT verdict                                                                 |
+| EAS on Base        | External; `apps/api`  | Records Entitlements, issuer delegation, revocation, and Attendance evidence                                                                                 |
+| D1 (SQLite)        | `apps/api/migrations` | Stores operational state such as challenges, SINGLE_USE consumption, entry logs, member indexes, and announcement caches                                     |
+| Passes             | `packages/pass`       | Builds the Google Wallet save link and the Apple `.pkpass`; the api renders the browser-based pass. Passes present a right and are never its source of truth |
 
 ## Authority and trust boundaries
 
@@ -47,6 +47,15 @@ flowchart LR
 - **Private discovery is client-side.** The member app derives viewing keys and
   matches ERC-5564 announcements locally; the API only serves candidate
   announcement data.
+- **Admin routes fail closed.** Issue, revoke and member listing require
+  `ADMIN_TOKEN`; a deployment with a signer and no token locks them rather than
+  opening them.
+- **The public verify endpoints are unauthenticated by design.** `GET
+  /verify/:uid` and `POST /verify` take a uid that is public on chain, so anyone
+  who learns one can preview it — and burn a SINGLE_USE slot. What that buys an
+  attacker, and why Signed is the answer for rights that must resist it, is in
+  the attestation model's [threat model of the public verify
+  endpoints](./attestation-model.md#api-payloads-that-touch-attestations).
 
 ## UX and decentralization
 
@@ -81,10 +90,45 @@ the UX layer temporarily holds authority, and the decentralized exit
 - [Attestation model](./attestation-model.md) — Entitlement,
   IssuerDelegation, Attendance, lifecycle, and the EAS/D1 authority boundary
 - [Pass types and flows](./pass-types-and-flows.md) — use-case templates,
-  wallet roles, standard activation, and privacy-first issuance
+  wallet roles, standard activation, privacy-first issuance, the gate protocol,
+  the pass contracts, and the deployed surfaces
 - [Naming](./naming.md) — ENS hierarchy, the member number, what a name
   resolves to (rotating stealth addresses for +Private), name lifecycle
 
+## Configuration
+
+Every value the deployment is configured with, and what fails when it is
+missing, is tabulated once in the attestation model's [configured
+values](./attestation-model.md#configured-values). In outline:
+
+- **`apps/api/wrangler.jsonc` `vars`** — the chain addresses and the api's own
+  base: `EAS_ADDRESS`, `SCHEMA_REGISTRY_ADDRESS`, `EAS_SCHEMAS`,
+  `ISSUER_ADDRESS`, `DELEGATION_UID`, `ANNOUNCER_ADDRESS`,
+  `ANNOUNCER_FROM_BLOCK` (the announcement cache's sync floor),
+  `FACTORY_ADDRESS` (the smart-wallet factory the Bearer holder address is
+  derived from), and `API_BASE_URL` (the absolute base of the `passUrls` in an
+  `/issue` response, and the api entry in the Google Wallet `origins` claim).
+- **Worker secrets** — `SIGNER_PRIVATE_KEY`, `ADMIN_TOKEN`, `BASE_RPC_URL`, the
+  four `GOOGLE_*` names and the five `APPLE_*` names. A wallet platform is
+  all-or-nothing: a missing name answers `501`, never a broken pass.
+- **`USE_FAKE_CHAIN`** — local development only (`apps/api/.dev.vars`); it swaps
+  in an in-memory chain and is never set in a deployed environment.
+- **Frontend build environment** — `VITE_API_BASE_URL` in all three apps, plus
+  `VITE_APP_ORIGIN` and `VITE_RP_ID` in the member app. Vite bakes these in at
+  build time, so changing one means rebuilding and redeploying that app.
+
+The strings a client and the api must agree on byte-for-byte — the QR payload,
+the challenge string, the nonce shape, the announcement metadata, the HKDF salt,
+the PRF eval input and the passkey `rp.id` — are pinned in the attestation
+model's [wire constants](./attestation-model.md#wire-constants). Changing any of
+them is a protocol version bump.
+
 ## Related documentation
 
-- TBD
+- [Runbook](../runbook.md) — one-time chain setup, secrets and vars, deploy
+  order, smoke ladders, reconciliation
+- [ADR 0001 — EAS-native target architecture](../adr/0001-eas-native-target-architecture.md)
+- [ADR 0002 — unfiltered announcement log](../adr/0002-unfiltered-announcement-log.md)
+- [api README](../../apps/api/README.md) — running the api locally, endpoints,
+  error codes
+- [Glossary](../CONTEXT.md)
