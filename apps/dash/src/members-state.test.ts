@@ -15,6 +15,7 @@ const UID = `0x${'ab'.repeat(32)}` as const
 
 const rows: readonly MemberRowView[] = [
   {
+    holder: `0x${'11'.repeat(20)}`,
     holderShort: '0x1111…1111',
     level: 'bearer',
     memberId: 'alice',
@@ -25,6 +26,7 @@ const rows: readonly MemberRowView[] = [
     uid: UID,
   },
   {
+    holder: `0x${'22'.repeat(20)}`,
     holderShort: '0x2222…2222',
     level: 'signed',
     memberId: 'bob',
@@ -35,6 +37,7 @@ const rows: readonly MemberRowView[] = [
     uid: UID,
   },
   {
+    holder: null,
     holderShort: null,
     level: 'private',
     memberId: 'carol',

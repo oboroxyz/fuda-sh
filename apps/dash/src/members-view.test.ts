@@ -21,6 +21,7 @@ describe(memberRowView, () => {
       API,
     )
     expect(v).toMatchObject({
+      holder: HOLDER,
       holderShort: '0x1111…1111',
       memberId: 'alice',
       qr: `fuda:v1:${UID}`,
@@ -71,6 +72,7 @@ describe(memberRowView, () => {
       API,
     )
     expect(v).toMatchObject({
+      holder: null,
       holderShort: null,
       memberId: '',
       passUrls: null,

@@ -5,6 +5,7 @@ import { short } from '@fuda/ui'
 export interface MemberRowView {
   uid: Hex
   memberId: string
+  holder: Hex | null
   holderShort: string | null
   level: Level
   tier: string
@@ -18,6 +19,7 @@ export interface MemberRowView {
 // Private rows show memberId + uid only — there is no holder to show and no
 // pass to hand out (discovery is the member's path, docs/specs/pass-types-and-flows.md#u2-privacy-first-issuance).
 export const memberRowView = (row: MemberRow, apiBase: string): MemberRowView => ({
+  holder: row.holder,
   holderShort: row.holder === null ? null : short(row.holder),
   level: row.level,
   memberId: row.memberId,
