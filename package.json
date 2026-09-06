@@ -5,6 +5,11 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
+    "dev": "tsx tooling/portless/dev.ts",
+    "dev:api": "tsx tooling/portless/dev.ts apps/api",
+    "dev:app": "tsx tooling/portless/dev.ts apps/app",
+    "dev:dash": "tsx tooling/portless/dev.ts apps/dash",
+    "dev:gate": "tsx tooling/portless/dev.ts apps/gate",
     "lint": "vp lint",
     "lint:fix": "vp lint --fix",
     "format": "vp fmt",
