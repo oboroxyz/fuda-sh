@@ -156,18 +156,20 @@ const signedLadder = async (): Promise<void> => {
   expectMatch('signed issue', issued, { level: 'signed' })
   const { uid } = issued
 
-  expectMatch('signed preview', await call<VerifyResponse>(`/verify/${uid}`), { decision: 'ADMIT' })
-  if ('qr' in issued) {
-    expectMatch(
-      'signed qr scan',
-      await call<VerifyResponse>('/verify', {
-        body: JSON.stringify({ qr: issued.qr }),
-        headers,
-        method: 'POST',
-      }),
-      { decision: 'REJECT', reason: 'LEVEL_REQUIRED' },
-    )
+  if (!('qr' in issued)) {
+    throw new Error(`signed issue: expected a qr on the response, got ${JSON.stringify(issued)}`)
   }
+
+  expectMatch('signed preview', await call<VerifyResponse>(`/verify/${uid}`), { decision: 'ADMIT' })
+  expectMatch(
+    'signed qr scan',
+    await call<VerifyResponse>('/verify', {
+      body: JSON.stringify({ qr: issued.qr }),
+      headers,
+      method: 'POST',
+    }),
+    { decision: 'REJECT', reason: 'LEVEL_REQUIRED' },
+  )
 
   // Wrong key: the nonce is burned by the attempt, so the same nonce with the
   // right key then answers BAD_CHALLENGE rather than admitting.
@@ -329,6 +331,20 @@ const privateLadder = async (): Promise<void> => {
   if (verdict.holder?.toLowerCase() !== found.stealthAddress.toLowerCase()) {
     throw new Error(`private admit: expected holder ${found.stealthAddress}, got ${String(verdict.holder)}`)
   }
+
+  // The ladder must not leave a usable right behind: this one is MULTI_USE and
+  // its stealth key is derivable from the fixed PRF bytes above, so anyone with
+  // this repo could keep entering with it. Revoking closes that door and
+  // exercises /revoke against a +Private row.
+  expectMatch(
+    'private revoke',
+    await call<RevokeResponse>('/revoke', { body: JSON.stringify({ uid }), headers, method: 'POST' }),
+    { revoked: true },
+  )
+  expectMatch('private after revoke', await call<VerifyResponse>(`/verify/${uid}`), {
+    decision: 'REJECT',
+    reason: 'REVOKED',
+  })
 }
 
 const LADDERS = ['bearer', 'signed', 'private'] as const

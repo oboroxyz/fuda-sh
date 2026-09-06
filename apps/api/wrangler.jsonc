@@ -4,8 +4,10 @@
   "main": "src/index.ts",
   "compatibility_date": "2025-09-01",
   "compatibility_flags": ["nodejs_compat"],
-  // api.fuda.sh is a custom domain of this Worker. `wrangler dev --env dev` never
-  // deploys, so the named `dev` environment below declares no routes.
+  // api.fuda.sh is a custom domain of this Worker. `routes` is inheritable, so the
+  // named `dev` environment below overrides it with an empty list: `wrangler dev
+  // --env dev` never deploys, and a stray `wrangler deploy --env dev` must not
+  // take the production hostname over.
   "routes": [{ "pattern": "api.fuda.sh", "custom_domain": true }],
   "d1_databases": [
     {
@@ -47,6 +49,7 @@
   // both are repeated here in full.
   "env": {
     "dev": {
+      "routes": [],
       "d1_databases": [
         {
           "binding": "DB",
