@@ -41,8 +41,8 @@ export const createViemChain = (env: Bindings): ChainClient => {
   const factory = toHexAddress(env.FACTORY_ADDRESS)
   const announcer = toHexAddress(env.ANNOUNCER_ADDRESS)
   const key = env.SIGNER_PRIVATE_KEY
-  // One account with viem's nonce manager: /issue attests, announces (Plan 4) and
-  // waitUntil Attendance attests (Plan 2) share this signer concurrently.
+  // One account with viem's nonce manager: /issue attests, announces and the
+  // waitUntil Attendance attest all share this signer concurrently.
   const account = key !== undefined && isHex(key) ? privateKeyToAccount(key, { nonceManager }) : null
   const wallet = account === null ? null : createWalletClient({ account, chain: baseSepolia, transport })
 

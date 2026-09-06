@@ -1,9 +1,12 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
+  "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "fuda-api",
   "main": "src/index.ts",
   "compatibility_date": "2025-09-01",
   "compatibility_flags": ["nodejs_compat"],
+  // api.fuda.sh is a custom domain of this Worker. `wrangler dev --env dev` never
+  // deploys, so the named `dev` environment below declares no routes.
+  "routes": [{ "pattern": "api.fuda.sh", "custom_domain": true }],
   "d1_databases": [
     {
       "binding": "DB",
@@ -18,6 +21,12 @@
   // (all four, or GET /pass/:uid/google answers 501) and
   // APPLE_PASS_TYPE_ID, APPLE_TEAM_ID, APPLE_CERT_PEM, APPLE_KEY_PEM,
   // APPLE_WWDR_PEM (all five, or GET /pass/:uid/apple.pkpass answers 501).
+  //
+  // Deploy-time fills (the runbook in README.md replaces each one; every one of
+  // them fails closed until it is): `d1_databases[].database_id` above, and below
+  // EAS_SCHEMAS (empty sets → /issue answers 502 chain_error), ISSUER_ADDRESS and
+  // DELEGATION_UID (zero → the same 502) and ANNOUNCER_FROM_BLOCK ("0" →
+  // /announcements answers 502 rpc_unavailable).
   "vars": {
     "EAS_ADDRESS": "0x4200000000000000000000000000000000000021",
     "SCHEMA_REGISTRY_ADDRESS": "0x4200000000000000000000000000000000000020",
