@@ -1,7 +1,7 @@
 /** @jsxImportSource hono/jsx/dom */
 import { normalizeUid, parseQr } from '@fuda/sdk'
 import type { Hex } from '@fuda/sdk'
-import { Scanner, short } from '@fuda/web-kit'
+import { Scanner, short } from '@fuda/ui'
 import { useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 

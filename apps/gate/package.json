@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@fuda/sdk": "workspace:*",
-    "@fuda/web-kit": "workspace:*",
+    "@fuda/ui": "workspace:*",
     "hono": "^4.13.5"
   },
   "devDependencies": {

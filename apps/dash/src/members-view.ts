@@ -1,6 +1,6 @@
 import { passUrls, TIER_LABEL, toQr } from '@fuda/sdk'
 import type { Hex, Level, MemberRow, PassUrls } from '@fuda/sdk'
-import { short } from '@fuda/web-kit'
+import { short } from '@fuda/ui'
 
 export interface MemberRowView {
   uid: Hex

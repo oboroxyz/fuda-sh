@@ -2,7 +2,7 @@ import { challengeMessage } from '@fuda/sdk'
 import type { ChallengeResponse, Hex } from '@fuda/sdk'
 import { buildAnnouncementMetadata, generateStealthAddress } from '@fuda/stealth'
 import type { GeneratedStealthAddress } from '@fuda/stealth'
-import type { Result } from '@fuda/web-kit'
+import type { Result } from '@fuda/ui'
 import { verifyMessage } from 'viem'
 import { describe, expect, it } from 'vitest'
 

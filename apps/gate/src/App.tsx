@@ -1,4 +1,4 @@
-import { Scanner } from '@fuda/web-kit'
+import { Scanner } from '@fuda/ui'
 /** @jsxImportSource hono/jsx/dom */
 import { useCallback, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'

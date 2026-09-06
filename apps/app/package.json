@@ -14,7 +14,7 @@
     "@base-org/account": "2.5.10",
     "@fuda/sdk": "workspace:*",
     "@fuda/stealth": "workspace:*",
-    "@fuda/web-kit": "workspace:*",
+    "@fuda/ui": "workspace:*",
     "hono": "^4.13.5",
     "viem": "^2.56.3"
   },

@@ -1,6 +1,6 @@
 import { challengeMessage } from '@fuda/sdk'
 import type { ChallengeResponse, Hex, VerifySignedResponse } from '@fuda/sdk'
-import type { Result } from '@fuda/web-kit'
+import type { Result } from '@fuda/ui'
 import { verifyMessage } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { describe, expect, it } from 'vitest'

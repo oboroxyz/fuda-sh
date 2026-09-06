@@ -92,9 +92,9 @@ importers:
       '@fuda/stealth':
         specifier: workspace:*
         version: link:../../packages/stealth
-      '@fuda/web-kit':
+      '@fuda/ui':
         specifier: workspace:*
-        version: link:../../packages/web-kit
+        version: link:../../packages/ui
       hono:
         specifier: ^4.13.5
         version: 4.13.5
@@ -123,9 +123,9 @@ importers:
       '@fuda/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
-      '@fuda/web-kit':
+      '@fuda/ui':
         specifier: workspace:*
-        version: link:../../packages/web-kit
+        version: link:../../packages/ui
       hono:
         specifier: ^4.13.5
         version: 4.13.5
@@ -151,9 +151,9 @@ importers:
       '@fuda/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
-      '@fuda/web-kit':
+      '@fuda/ui':
         specifier: workspace:*
-        version: link:../../packages/web-kit
+        version: link:../../packages/ui
       hono:
         specifier: ^4.13.5
         version: 4.13.5
@@ -219,7 +219,7 @@ importers:
         specifier: 4.1.11
         version: 4.1.11(@types/node@24.13.3)(@vitest/browser-preview@4.1.11)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0)
 
-  packages/web-kit:
+  packages/ui:
     dependencies:
       hono:
         specifier: ^4.13.5
