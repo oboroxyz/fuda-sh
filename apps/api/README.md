@@ -2,8 +2,8 @@
 
 Cloudflare Worker (Hono) implementing the fuda endpoints: `GET /health`,
 `POST /issue`, `GET /verify/:uid`, `POST /verify`, `POST /revoke`,
-`GET /members`, `POST /challenge`, `POST /verify-signed`, `GET /announcements`,
-and the passes (`GET /pass/:uid` plus the Google Wallet and Apple Wallet
+`GET /members`, `POST /challenge`, `POST /verify-signed`, and the passes
+(`GET /pass/:uid` plus the Google Wallet and Apple Wallet
 endpoints).
 
 ## Run locally
@@ -120,21 +120,9 @@ the member's path, not the operator's:
 { "uid": "0x…", "level": "private", "announced": true, "announceTx": "0x…" }
 ```
 
-`GET /announcements?fromBlock=N` serves the cached ERC-5564 log to every caller
-identically, lazily syncing new chain history into D1 on each call. The sync
-bounds, the `{ announcements, syncedTo }` response and the degradation rules are
-the [announcement
-cache](../../docs/specs/attestation-model.md#announcement-cache-get-announcements)
-contract.
-
-App-local: on the fake chain the sync floor comes from the fake chain's head at
-boot (`announcerFromBlockOverride` in `src/index.ts`), so a local dev run never
-needs `ANNOUNCER_FROM_BLOCK` set.
-
-This is the only budgeted route in the MVP: a per-IP fixed hourly window of
-120 requests, tracked in D1. A missing `CF-Connecting-IP` header answers
-`400 client_ip_required`; exceeding the budget answers `429 rate_limited`.
-`/verify-signed` carries no such budget.
+Announcement discovery is not an api route. The member app pages the rights
+subgraph through its public Graph endpoint and performs viewing-key matching
+locally. The api persists neither announcement rows nor a sync cursor.
 
 Entry for a discovered +Private right is the unchanged `/verify-signed` flow,
 signing the challenge with the recovered stealth private key — no wallet
@@ -196,7 +184,7 @@ deployed binding name; the local-only `USE_FAKE_CHAIN` opt-in lives in
 
 ## Smoke test
 
-`scripts/smoke-live.ts` drives a live api through three ladders and exits
+`scripts/smoke-live.ts` drives a live api through two ladders and exits
 non-zero on the first unexpected verdict:
 
 - **bearer** — issue → preview → scan → re-scan (`ALREADY_USED`) → revoke →
@@ -206,33 +194,30 @@ non-zero on the first unexpected verdict:
   `BAD_SIGNATURE` (and burns its nonce, so replaying that nonce answers
   `BAD_CHALLENGE`), a fresh challenge signed by the holder admits with
   `path: 'signature'`, replaying it answers `BAD_CHALLENGE`, and a third
-  challenge answers `ALREADY_USED` because the right is `SINGLE_USE`.
-- **private** — issue to a stealth meta-address derived from a fixed PRF
-  output, assert the response carries no `passUrls` and `/pass/:uid` answers
-  `404`, page `/announcements` client-side until `matchAnnouncements` finds the
-  uid, check the QR path still answers `LEVEL_REQUIRED`, admit by signing the
-  challenge with the recovered stealth private key, then revoke. The revoke is
-  not optional cleanup: the right is `MULTI_USE` and its stealth key is
-  derivable from the script's fixed PRF bytes, so leaving it live would leave a
-  usable door into a production gate.
+  challenge answers `ALREADY_USED` because the right is `SINGLE_USE`. The
+  script then revokes it and verifies `REVOKED`.
 
 ```bash
-API_URL=https://api.fuda.sh ADMIN_TOKEN=… pnpm --filter api smoke:live
+SMOKE_LADDERS=bearer,signed API_URL=https://api.fuda.sh ADMIN_TOKEN=… pnpm --filter api smoke:live
 API_URL=https://api.fuda.sh ADMIN_TOKEN=… pnpm --filter api smoke:live --ladder signed
-SMOKE_LADDERS=bearer,private pnpm --filter api smoke:live
+pnpm --filter api smoke:live
 ```
 
 `--ladder` (or `SMOKE_LADDERS`) takes a comma-separated list of `bearer`,
-`signed`, `private`, or `all`; the default is all three. `API_URL` defaults to
+`signed`, or `all`; the default runs both supported ladders. `private` is
+rejected before any issuance, including in a mixed list. `API_URL` defaults to
 `http://localhost:8787`, so the script also works against a locally running
 `wrangler dev` (with or without `USE_FAKE_CHAIN=1`, as long as a signer is
 available to `/issue`/`/revoke`).
 
-On a real chain the +Private announcement is only served once the sync has
-passed the 5-block confirmation depth, so the private ladder polls
-`/announcements` every 5 s for up to 2 minutes before failing — which doubles
-as a cold deployment's sync warm-up. That poll spends at most ~24 of the
-per-IP 120/h `/announcements` budget.
+Every returned issue UID is revoked in `finally`, including when an assertion
+or later request fails. Signed holder keys are generated afresh per run.
+If the revoke request fails, the script exits non-zero; use the logged issue
+UID to retry `/revoke`. An interrupted process or an issue response lost after
+on-chain issuance still requires operational reconciliation.
+
+Use the rights-subgraph smoke query and member app for private discovery after
+Graph deployment; see [the Graph demo](../../docs/graph-demo.md).
 
 ## Endpoints
 
@@ -249,7 +234,6 @@ per-IP 120/h `/announcements` budget.
 | GET | `/pass/:uid` | none | browser-based pass page; `404 not_found` if fuda never issued that uid, or if the row is +Private |
 | GET | `/pass/:uid/google` | none | `{ saveUrl }`, a signed Google Wallet save link; `501 google_not_configured` unless all four `GOOGLE_*` secrets are set; `404 not_found` first for an unknown uid or a +Private row |
 | GET | `/pass/:uid/apple.pkpass` | none | the `.pkpass` bundle; `501 apple_not_configured` unless all five `APPLE_*` secrets are set; `404 not_found` first for an unknown uid or a +Private row |
-| GET | `/announcements` | none, per-IP budget (120/h) | the cached ERC-5564 announcement log, lazily synced from chain; `502 rpc_unavailable` when the cache is empty and the chain unreachable, and whenever `ANNOUNCER_FROM_BLOCK` is unset, unparseable or `0` |
 
 ## Error codes
 

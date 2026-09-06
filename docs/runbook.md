@@ -8,6 +8,9 @@ order.
 - A Cloudflare account with the `fuda.sh` zone already added.
 - A funded Base Sepolia EOA — this becomes the signer. Fund it with a small
   amount of Base Sepolia ETH before step 2.
+- A Graph Studio account for the rights subgraph. A Graph Market token and two
+  compatible Firehose endpoints are additionally required only for the
+  Substreams evidence run in [`graph-demo.md`](./graph-demo.md).
 - `pnpm install --frozen-lockfile` from the repo root.
 
 ## 2. One-time chain setup
@@ -43,11 +46,11 @@ depends on.
    mints a second, equally valid delegation.
 
 4. Look up the `Announcer` contract's deployment block on the Base Sepolia
-   explorer and set the top-level `vars.ANNOUNCER_FROM_BLOCK` to it. The checked-in
-   placeholder is `"0"`; the api treats a missing, unparseable, or `"0"` value
-   as unconfigured and answers `502 rpc_unavailable` on `/announcements`
-   without touching the chain — this is the operator-visible fail-closed
-   state, not a bug.
+   explorer and set the top-level `vars.ANNOUNCER_FROM_BLOCK` to it. The
+   checked-in placeholder is `"0"`. This value is the start block used when
+   generating both data sources in the rights-subgraph manifest; it is not an
+   API binding or a D1 cache floor. `pnpm graph:prepare` rejects zero, missing,
+   and malformed values.
 5. Create the D1 database and paste its id into both `database_id`
    placeholders in `apps/api/wrangler.jsonc` (the top-level `d1_databases`
    entry and the one repeated under `env.dev`):
@@ -122,20 +125,55 @@ lists what it reads; the production values are:
 
 ```bash
 VITE_API_BASE_URL=https://api.fuda.sh   # gate, dash, app
+VITE_GRAPH_RIGHTS_ENDPOINT=https://gateway.thegraph.com/api/<PUBLIC_KEY>/subgraphs/id/<SUBGRAPH_ID> # dash, app
 VITE_APP_ORIGIN=https://app.fuda.sh     # app only
 VITE_RP_ID=fuda.sh                      # app only
 ```
 
-## 7. Deploy order
+The Graph endpoint is browser-visible. Use a public gateway key restricted to
+the deployed subgraph, or a same-origin proxy; never put a Studio deploy key in
+a `VITE_*` value.
 
-api first, then the three frontends:
+## 7. Build and deploy the rights subgraph
+
+After the top-level production `EAS_SCHEMAS` and `ANNOUNCER_FROM_BLOCK` values
+are populated from live receipts, generate and verify the deployable manifest:
+
+```bash
+pnpm graph:prepare
+pnpm graph:codegen
+pnpm graph:test
+pnpm graph:build
+```
+
+`graph:prepare` deliberately fails while the checked-in placeholders remain.
+Create the subgraph in Graph Studio, then authenticate and deploy from its
+independently installed package:
+
+```bash
+cd packages/subgraphs/rights
+pnpm --ignore-workspace exec graph auth --studio <DEPLOY_KEY>
+pnpm --ignore-workspace exec graph deploy --studio <SUBGRAPH_SLUG>
+```
+
+Use the Studio query URL for the controlled event demo. Before building the
+browser clients, provision a public gateway endpoint (or same-origin proxy) and
+use it as `VITE_GRAPH_RIGHTS_ENDPOINT`. Deployment and receipt comparison are
+live gates; follow [`graph-demo.md`](./graph-demo.md) and retain its evidence.
+
+## 8. Deploy order
+
+Deploy the rights subgraph first so its public query endpoint can be baked into
+the member app and dashboard. Then deploy the api and the three frontends:
 
 ```bash
 pnpm --filter api deploy
 
 VITE_API_BASE_URL=https://api.fuda.sh pnpm --filter gate deploy
-VITE_API_BASE_URL=https://api.fuda.sh pnpm --filter dash deploy
-VITE_API_BASE_URL=https://api.fuda.sh VITE_APP_ORIGIN=https://app.fuda.sh VITE_RP_ID=fuda.sh \
+VITE_API_BASE_URL=https://api.fuda.sh VITE_GRAPH_RIGHTS_ENDPOINT=<PUBLIC_GRAPH_ENDPOINT> \
+  pnpm --filter dash deploy
+VITE_API_BASE_URL=https://api.fuda.sh VITE_GRAPH_RIGHTS_ENDPOINT=<PUBLIC_GRAPH_ENDPOINT> \
+  VITE_APP_ORIGIN=https://app.fuda.sh VITE_RP_ID=fuda.sh \
   pnpm --filter app deploy
 ```
 
@@ -147,7 +185,7 @@ must already be on the account. Validate config without shipping with
 `pnpm --filter api deploy -- --dry-run` (or `pnpm --filter <app> deploy --
 --dry-run` for a frontend).
 
-## 8. Warm-up and live smoke
+## 9. Live smoke
 
 ```bash
 curl -i https://api.fuda.sh/health
@@ -162,29 +200,25 @@ admin routes are unauthenticated. Both are fail states in production, not
 acceptable resting states (see `apps/api/src/middleware/admin-auth.ts`).
 
 ```bash
-curl https://api.fuda.sh/announcements
+API_URL=https://api.fuda.sh ADMIN_TOKEN=… \
+  pnpm --filter api smoke:live --ladder bearer,signed
 ```
 
-A single call does not fully warm the cache: each request syncs at most
-`SYNC_CHUNKS_PER_REQUEST * CHUNK_BLOCKS` (5 × 1000 = 5000) blocks and stops
-`CONFIRMATIONS` (5) blocks short of the chain head
-(`apps/api/src/announcements/sync.ts`). Repeat the call until the response's
-`syncedTo` is within a few blocks of head — roughly
-`(head - ANNOUNCER_FROM_BLOCK) / 5000` requests. Each call counts against the
-120/h per-IP budget (§12), so set `ANNOUNCER_FROM_BLOCK` to the Announcer's
-real deployment block (not genesis) and start warming early — or spread the
-calls across more than one IP — when the gap is large.
+Runs the supported bearer and signed ladders end to end against the live API.
+Do not select the script's legacy `private` ladder: it still expects the removed
+API announcement route. Verify +Private discovery through the rights subgraph
+and member app, then enter through the ordinary Signed challenge-response flow,
+as documented in [`graph-demo.md`](./graph-demo.md). The Attendance attestation
+for the Bearer/Signed ladder's ADMIT verdicts appears on the Base Sepolia
+explorer within a few blocks.
 
-```bash
-API_URL=https://api.fuda.sh ADMIN_TOKEN=… pnpm --filter api smoke:live --ladder all
-```
+Query the deployed rights subgraph with real right, delegation, and Attendance
+UIDs using `packages/subgraphs/rights/queries/smoke.graphql`, and compare the
+returned holders, metadata, relations, announcement identity, and revocation
+timestamps with their transaction receipts. The complete command and evidence
+template are in [`graph-demo.md`](./graph-demo.md).
 
-Runs the bearer, signed and private ladders end to end against the live api.
-`--ladder` also accepts a comma-separated subset (`bearer`, `signed`,
-`private`); `all` is the default. The Attendance attestation for the ladder's
-ADMIT verdicts appears on the Base Sepolia explorer within a few blocks.
-
-## 9. Manual checks that no script covers
+## 10. Manual checks that no script covers
 
 - **WebAuthn PRF.** On a real phone, open `https://app.fuda.sh/private`,
   create a passkey, and confirm the derived meta-address renders.
@@ -198,7 +232,7 @@ ADMIT verdicts appears on the Base Sepolia explorer within a few blocks.
   Google Wallet".
 - **Apple Wallet.** Open `/pass/<uid>/apple.pkpass` on an iPhone.
 
-## 10. Reconciliation
+## 11. Reconciliation
 
 Two writes are deliberately non-atomic across the chain and D1; check both
 after a deploy and periodically thereafter (see
@@ -217,7 +251,7 @@ after a deploy and periodically thereafter (see
   wrangler d1 execute fuda --remote --command "SELECT id, uid, at FROM entry_log WHERE decision = 'ADMIT' AND attendance_uid IS NULL"
   ```
 
-## 11. Local development
+## 12. Local development
 
 See `apps/api/README.md` for local dev: `USE_FAKE_CHAIN=1` and
 `.dev.vars.example`, the deterministic `env.dev` block in
@@ -229,10 +263,8 @@ delegation, seeded rows) changes shape. `.dev.vars` is read both by
 test`; `apps/api/test/env.ts` strips it back out for every test, so `vp test`
 never depends on `.dev.vars` being present or on what it contains.
 
-## 12. Budget note
+## 13. Rate-limit state
 
-`GET /announcements` is the only budgeted route in the MVP: a fixed hourly
-window of 120 requests per IP. A Discover walk of a large announcement log
-can use up to `MAX_PAGES` (50) of those on its own (`apps/app/src/api.ts`).
-The gate routes (`/verify`, `/challenge`, `/verify-signed`) and the admin
-routes (`/issue`, `/revoke`, `/members`) are never budgeted.
+The D1 `rate_limits` table remains available as a generic fixed-window
+primitive, but no current product route applies it. Announcement discovery is a
+browser-to-Graph query and does not pass through the API.

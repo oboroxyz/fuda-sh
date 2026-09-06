@@ -1,0 +1,68 @@
+type Right @entity(immutable: false) {
+  id: Bytes!
+  schemaUID: Bytes!
+  schemaVersion: Int!
+  attester: Bytes!
+  recipient: Bytes!
+  holder: Bytes!
+  issuer: Bytes!
+  usageModel: Int!
+  tier: Int!
+  level: Int!
+  serial: Bytes!
+  validFrom: BigInt!
+  validUntil: BigInt!
+  metaURI: String!
+  refUID: Bytes!
+  delegation: Delegation
+  revokedAt: BigInt
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  transactionHash: Bytes!
+  attendances: [Attendance!]! @derivedFrom(field: "right")
+}
+
+type Delegation @entity(immutable: false) {
+  id: Bytes!
+  schemaUID: Bytes!
+  schemaVersion: Int!
+  attester: Bytes!
+  recipient: Bytes!
+  issuer: Bytes!
+  active: Boolean!
+  name: String!
+  revokedAt: BigInt
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  transactionHash: Bytes!
+  rights: [Right!]! @derivedFrom(field: "delegation")
+}
+
+type Attendance @entity(immutable: true) {
+  id: Bytes!
+  schemaUID: Bytes!
+  schemaVersion: Int!
+  attester: Bytes!
+  recipient: Bytes!
+  right: Right!
+  rightUID: Bytes!
+  holder: Bytes!
+  enteredAt: BigInt!
+  slotId: Bytes!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type Announcement @entity(immutable: true) {
+  id: Bytes!
+  schemeId: BigInt!
+  stealthAddress: Bytes!
+  caller: Bytes!
+  ephemeralPubKey: Bytes!
+  metadata: Bytes!
+  transactionHash: Bytes!
+  logIndex: BigInt!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+}

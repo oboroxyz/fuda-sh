@@ -5,13 +5,17 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
+    "graph:build": "pnpm --ignore-workspace --dir packages/subgraphs/rights run build",
+    "graph:codegen": "pnpm --ignore-workspace --dir packages/subgraphs/rights run codegen",
+    "graph:prepare": "pnpm --ignore-workspace --dir packages/subgraphs/rights run graph:prepare",
+    "graph:test": "pnpm --ignore-workspace --dir packages/subgraphs/rights run test",
     "lint": "vp lint",
     "lint:fix": "vp lint --fix",
     "format": "vp fmt",
     "format:check": "vp fmt --check",
     "check": "vp check",
     "typecheck": "vp check --no-fmt --no-lint",
-    "test": "vp run -r test"
+    "test": "vp run --filter './apps/*' --filter './packages/*' test && pnpm --filter api test:scripts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

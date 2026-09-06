@@ -5,18 +5,16 @@ import { getDb } from '../src/db/client.ts'
 import { members, slots } from '../src/db/schema.ts'
 
 describe('D1 schema', () => {
-  it('has all seven tables after migration', async () => {
+  it('has only the five retained tables after migration', async () => {
     const rows = await env.DB.prepare(
       "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'd1_%' AND name NOT LIKE '_cf_%'",
     ).all<{ name: string }>()
     expect(rows.results.map((r) => r.name).toSorted()).toStrictEqual([
-      'announcements',
       'challenges',
       'entry_log',
       'members',
       'rate_limits',
       'slots',
-      'sync_state',
     ])
   })
 

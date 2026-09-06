@@ -9,4 +9,10 @@ describe('GET /health', () => {
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toStrictEqual({ ok: true })
   })
+
+  it('does not expose the removed announcement-cache route', async () => {
+    const app = appWith({ chain: fakeChain() })
+    const res = await app.request('/announcements', {}, testEnv())
+    expect(res.status).toBe(404)
+  })
 })

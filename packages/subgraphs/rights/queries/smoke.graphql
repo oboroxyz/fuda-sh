@@ -1,0 +1,45 @@
+query RightsSmoke($rightUID: Bytes!, $delegationUID: Bytes!, $attendanceUID: Bytes!) {
+  right(id: $rightUID) {
+    id
+    holder
+    issuer
+    refUID
+    delegation {
+      id
+      issuer
+      revokedAt
+    }
+    revokedAt
+    attendances {
+      id
+      holder
+      enteredAt
+      slotId
+    }
+  }
+  delegation(id: $delegationUID) {
+    id
+    issuer
+    active
+    revokedAt
+  }
+  attendance(id: $attendanceUID) {
+    id
+    rightUID
+    holder
+    enteredAt
+    slotId
+  }
+  announcements(first: 10, orderBy: blockNumber, orderDirection: desc) {
+    id
+    schemeId
+    stealthAddress
+    caller
+    ephemeralPubKey
+    metadata
+    transactionHash
+    logIndex
+    blockNumber
+    timestamp
+  }
+}

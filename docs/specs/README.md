@@ -7,11 +7,14 @@ The system overview, component map and trust boundaries live in the
 [architecture overview](../architecture.md).
 
 - [Attestation model](./attestation-model.md) — Entitlement,
-  IssuerDelegation, Attendance, lifecycle, and the EAS/D1 authority boundary
+  IssuerDelegation, Attendance, lifecycle, the EAS/D1 authority boundary, and
+  rights-subgraph query behavior
 - [Pass types and flows](./pass-types-and-flows.md) — use-case templates,
   wallet roles, standard activation, privacy-first issuance, the gate protocol,
   the pass contracts, and the deployed surfaces
 - [ENS naming](./ens-naming.md) — ENS hierarchy, the member number, what a name
   resolves to (rotating stealth addresses for +Private), name lifecycle
-- [Substreams packages](./substreams.md) — reusable ERC-5564 extraction, raw
-  EAS event composition, protobuf interfaces, and compatibility guarantees
+- [Substreams packages](./substreams.md) — the optional push lane: reusable
+  ERC-5564 extraction, raw EAS event composition, protobuf interfaces, and
+  compatibility guarantees; product queries use the independent rights
+  subgraph

@@ -2,9 +2,8 @@
 
 fuda treats membership and access as on-chain rights. The API coordinates
 issuance and operational state, while EAS on Base remains the authority for a
-right's contents, issuer delegation, and revocation. Passes and apps
-present or control those rights; they do not replace the chain as the source
-of validity.
+right's contents, issuer delegation, and revocation. Passes and apps present or
+control those rights; they do not replace the chain as the source of validity.
 
 ```mermaid
 flowchart LR
@@ -12,11 +11,17 @@ flowchart LR
     API -->|attest / revoke| EAS[(EAS · Base)]
     API <--> D1[(D1 operational state)]
     API -->|build| P[Pass]
+    API -->|announce +Private| AN[(ERC-5564 Announcer)]
     P --> M[Member]
     M -->|present QR| G[Gate]
     M -->|uses| A[Member app]
     A -->|present signed proof| G
-    A -->|read announcements| API
+    EAS --> Q[Rights subgraph]
+    AN --> Q
+    A -->|discover + query rights| Q
+    D -->|query chain truth| Q
+    EAS -. raw events .-> S[Optional Substreams push lane]
+    AN -. raw events .-> S
     G -->|read right + delegation| EAS
     G -->|challenge / consume / log| API
     API -->|record admission| EAS
@@ -26,13 +31,15 @@ flowchart LR
 
 | Component          | Path                  | Responsibility                                                                                                                                               |
 | ------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| API                | `apps/api`            | Coordinates issuance, revocation, gate operational state, pass generation, and announcement indexing                                                         |
+| API                | `apps/api`            | Coordinates issuance, revocation, gate operational state, pass generation, and +Private announcement writes                                                    |
 | Operator dashboard | `apps/dash`           | Gives authorized issuers the controls to issue, inspect, and revoke rights                                                                                   |
 | Member app         | `apps/app`            | Holds member signing rails, answers Signed challenges, and discovers +Private rights client-side                                                             |
 | Gate               | `apps/gate`           | Reads presented rights, requests proof when required, and renders an ADMIT or REJECT verdict                                                                 |
 | EAS on Base        | External; `apps/api`  | Records Entitlements, issuer delegation, revocation, and Attendance evidence                                                                                 |
-| D1 (SQLite)        | `apps/api/migrations` | Stores operational state such as challenges, SINGLE_USE consumption, entry logs, member indexes, and announcement caches                                     |
+| D1 (SQLite)        | `apps/api/migrations` | Stores operational state such as challenges, SINGLE_USE consumption, entry logs, and member indexes; it does not cache announcements                          |
 | Passes             | `packages/pass`       | Builds the Google Wallet save link and the Apple `.pkpass`; the api renders the browser-based pass. Passes present a right and are never its source of truth |
+| Rights subgraph    | `packages/subgraphs/rights` | Indexes EAS and the Announcer directly for discovery, right cards, and dashboard chain-truth queries                                                     |
+| Substreams         | `packages/substreams` | Provides optional raw event push packages for reuse and live demonstration; fuda has no resident sink or product-read dependency                           |
 
 ## Authority and trust boundaries
 
@@ -45,8 +52,11 @@ flowchart LR
 - **Passes are presentation surfaces.** Revoking an Entitlement changes the
   next gate verdict without replacing its Apple, Google, web, or QR pass.
 - **Private discovery is client-side.** The member app derives viewing keys and
-  matches ERC-5564 announcements locally; the API only serves candidate
-  announcement data.
+  matches ERC-5564 announcements locally after fetching raw candidates from the
+  public rights subgraph. The API and D1 are not involved in discovery.
+- **Push and query lanes are independent.** The rights subgraph reads EAS and
+  the Announcer directly. Stopping the optional Substreams push lane does not
+  stop discovery, right cards, dashboard chain truth, issuance, or gate checks.
 - **Admin routes fail closed.** Issue, revoke and member listing require
   `ADMIN_TOKEN` wherever a signer or `BASE_RPC_URL` is configured; a deployment
   with either binding and no token locks them rather than opening them.
@@ -54,9 +64,9 @@ flowchart LR
   /verify/:uid` and `POST /verify` take a uid that is public on chain, so anyone
   who learns one can preview it. `GET /verify/:uid` is a read-only preview and
   never consumes a slot; a bare `POST /verify` is an admission, so it burns a
-  SINGLE_USE right's slot. What that buys an
-  attacker, and why Signed is the answer for rights that must resist it, is in
-  the attestation model's [threat model of the public verify
+  SINGLE_USE right's slot. What that buys an attacker, and why Signed is the
+  answer for rights that must resist it, is in the attestation model's [threat
+  model of the public verify
   endpoints](./specs/attestation-model.md#api-payloads-that-touch-attestations).
 
 ## UX and decentralization
@@ -78,7 +88,7 @@ somewhat worse UX — because the fallback is the core itself.
 | Signing keys         | passkey with OS sync                                 | bring-your-own EOA or compatible smart wallet                                                          | open signature rails: ECDSA, ERC-1271, ERC-6492                            |
 | Sign-up (first mile) | anonymous `/save` mint to a claimable smart account  | direct Signed issuance to a member wallet                                                              | issuance still works; the instant, frictionless path is fuda's added value |
 | Account control      | unclaimed account managed by fuda for instant Bearer | activation swaps in the member's own key at the same address; fuda removes itself                      | self-custody at the same holder address                                    |
-| +Private discovery   | API-assisted announcement scan                       | client-side scan of ERC-5564 announcements; deterministic re-enumeration from the member's root secret | the full rights list is rebuildable without any fuda server                |
+| +Private discovery   | browser query of the public rights subgraph, followed by local matching | direct client-side scan of ERC-5564 announcements; deterministic re-enumeration from the member's root secret | the full rights list is rebuildable without any fuda server |
 | Restore              | OS-standard passkey sync and pass re-download        | key restore at the same holder, owner rotation, or issuer re-attestation as a last resort              | points and history persist on-chain at the stable holder                   |
 
 Two patterns cover every row. In most rows the UX layer only carries
@@ -107,7 +117,8 @@ values](./specs/attestation-model.md#configured-values). In outline:
 - **`apps/api/wrangler.jsonc` `vars`** — the chain addresses and the api's own
   base: `EAS_ADDRESS`, `SCHEMA_REGISTRY_ADDRESS`, `EAS_SCHEMAS`,
   `ISSUER_ADDRESS`, `DELEGATION_UID`, `ANNOUNCER_ADDRESS`,
-  `ANNOUNCER_FROM_BLOCK` (the announcement cache's sync floor),
+  `ANNOUNCER_FROM_BLOCK` (the rights-subgraph manifest's generated start block;
+  it is not read by the API),
   `FACTORY_ADDRESS` (the smart-wallet factory the Bearer holder address is
   derived from), and `API_BASE_URL` (the absolute base of the `passUrls` in an
   `/issue` response, and the api entry in the Google Wallet `origins` claim).
@@ -116,7 +127,8 @@ values](./specs/attestation-model.md#configured-values). In outline:
   all-or-nothing: a missing name answers `501`, never a broken pass.
 - **`USE_FAKE_CHAIN`** — local development only (`apps/api/.dev.vars`); it swaps
   in an in-memory chain and is never set in a deployed environment.
-- **Frontend build environment** — `VITE_API_BASE_URL` in all three apps, plus
+- **Frontend build environment** — `VITE_API_BASE_URL` in all three apps;
+  `VITE_GRAPH_RIGHTS_ENDPOINT` in the member app and dashboard; plus
   `VITE_APP_ORIGIN` and `VITE_RP_ID` in the member app. Vite bakes these in at
   build time, so changing one means rebuilding and redeploying that app.
 
@@ -132,6 +144,7 @@ them is a protocol version bump.
   order, smoke ladders, reconciliation
 - [ADR 0001 — EAS-native target architecture](./adr/0001-eas-native-target-architecture.md)
 - [ADR 0002 — unfiltered announcement log](./adr/0002-unfiltered-announcement-log.md)
+- [ADR 0003 — separate Graph push and query lanes](./adr/0003-graph-push-query-lanes.md)
 - [api README](../apps/api/README.md) — running the api locally, endpoints,
   error codes
 - [Glossary](./CONTEXT.md)

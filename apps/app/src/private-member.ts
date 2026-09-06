@@ -1,4 +1,4 @@
-import type { Hex } from '@fuda/sdk'
+import type { GraphAnnouncement, Hex } from '@fuda/sdk'
 import { deriveMemberSecret, deriveStealthKeys, matchAnnouncements } from '@fuda/stealth-address'
 import type { DiscoveredPass, StealthKeys } from '@fuda/stealth-address'
 import { privateKeyToAccount } from 'viem/accounts'
@@ -8,20 +8,8 @@ import { privateKeyToAccount } from 'viem/accounts'
 export const keysFromPrf = (prfOutput: Uint8Array): StealthKeys =>
   deriveStealthKeys(deriveMemberSecret(prfOutput))
 
-// The row shape GET /announcements serves.
-export interface AnnouncementDto {
-  txHash: Hex
-  logIndex: number
-  blockNumber: number
-  schemeId: number
-  stealthAddress: Hex
-  caller: Hex
-  ephemeralPubKey: Hex
-  metadata: Hex
-}
-
-// Entirely client-side: the api only served candidates.
-export const discover = (keys: StealthKeys, rows: AnnouncementDto[]): DiscoveredPass[] =>
+// Entirely client-side: Graph serves only raw public candidates.
+export const discover = (keys: StealthKeys, rows: GraphAnnouncement[]): DiscoveredPass[] =>
   matchAnnouncements(keys, rows)
 
 // The stealth key is derived, not held by a wallet: it signs the same challenge

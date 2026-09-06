@@ -10,6 +10,12 @@
 
 **Spec:** `/home/yuji/code/github.com/oboroxyz/fuda-sh-poc/public/docs/superpowers/specs/2026-09-04-c1-fuda-graph-integration.md`
 
+## Current status (2026-09-06)
+
+Repository-local implementation and documentation are complete through commit `1bd1d55`. The reviewed local gates pass: 415 workspace tests, 12 Matchstick tests, 13 Graph configuration tests, both locked Cargo suites and release WASM builds, both Substreams package builds, browser builds, Vite+ checks, formatting, and whitespace checks.
+
+Deployment is intentionally pending. Keep this plan active until the remaining live gates have evidence: register the Entitlement and Attendance schemas, configure production schema UIDs/start block, stream the unchanged package on two chains, capture the composed revoke, deploy and smoke-test the rights subgraph, verify both browser views before/after revoke, run the timed demo, and prove product reads continue after stopping Substreams. `app.fuda.sh` and `api.fuda.sh` are not yet deployed.
+
 ## Global Constraints
 
 - Use `base-sepolia`, EAS `0x4200000000000000000000000000000000000021`, and Announcer `0x55649E01B5Df198D18D95b5cc5051630cfD45564`.
@@ -53,18 +59,19 @@ If Task 2 cannot stream a real Base Sepolia announcement by the evening of Septe
 **Files:**
 - Modify: `package.json`
 - Create: `packages/substreams/README.md`
-- Create: `subgraphs/rights/package.json`
-- Create: `subgraphs/rights/config/base-sepolia.json`
-- Create: `subgraphs/rights/scripts/read-mvp-config.mjs`
-- Create: `subgraphs/rights/scripts/read-mvp-config.test.ts`
+- Create: `packages/subgraphs/rights/package.json`
+- Create: `packages/subgraphs/rights/pnpm-lock.yaml`
+- Create: `packages/subgraphs/rights/config/base-sepolia.json`
+- Create: `packages/subgraphs/rights/scripts/read-mvp-config.mjs`
+- Create: `packages/subgraphs/rights/scripts/read-mvp-config.test.ts`
 
 **Interfaces:**
 - Consumes: `apps/api/wrangler.jsonc` values `EAS_SCHEMAS` and `ANNOUNCER_FROM_BLOCK`
 - Produces: `readMvpGraphConfig(path, options?): MvpGraphConfig`
 
-- [ ] Write failing tests that preserve all three MVP keys (`entitlement`, `issuerDelegation`, `attendance`) and multiple accepted versions, normalize UIDs to lowercase, and reject missing/empty sets, malformed UIDs, duplicate UIDs or versions, and non-positive start blocks. Test both top-level production vars and an explicitly selected Wrangler environment without importing API implementation code.
-- [ ] Run `pnpm exec vitest run subgraphs/rights/scripts/read-mvp-config.test.ts`; expect module-not-found failure.
-- [ ] Implement:
+- [x] Write failing tests that preserve all three MVP keys (`entitlement`, `issuerDelegation`, `attendance`) and multiple accepted versions, normalize UIDs to lowercase, and reject missing/empty sets, malformed UIDs, duplicate UIDs or versions, and non-positive start blocks. Test both top-level production vars and an explicitly selected Wrangler environment without importing API implementation code.
+- [x] Run `pnpm exec vitest run packages/subgraphs/rights/scripts/read-mvp-config.test.ts`; expect module-not-found failure.
+- [x] Implement:
 
   ```ts
   interface SchemaVersion { uid: `0x${string}`; version: number }
@@ -82,9 +89,9 @@ If Task 2 cannot stream a real Base Sepolia announcement by the evening of Septe
   ): MvpGraphConfig;
   ```
 
-- [ ] Add root `graph:prepare`, `graph:codegen`, `graph:test`, and `graph:build` scripts delegating to `subgraphs/rights`; pin Graph CLI, Graph TS, and Matchstick in `subgraphs/rights/package.json` and update `pnpm-lock.yaml` through pnpm.
-- [ ] Run the focused test and `pnpm check`; expect success.
-- [ ] Commit with `chore(graph): add graph toolchain and MVP config boundary`.
+- [x] Add root `graph:prepare`, `graph:codegen`, `graph:test`, and `graph:build` scripts delegating to the independently installed `packages/subgraphs/rights`; pin Graph CLI, Graph TS, and Matchstick in its `package.json` and update its `pnpm-lock.yaml` through pnpm.
+- [x] Run the focused test and `pnpm check`; expect success.
+- [x] Commit with `chore(graph): add graph toolchain and MVP config boundary`.
 
 ### Task 2: Build and live-gate the reusable ERC-5564 package
 
@@ -141,63 +148,63 @@ If Task 2 cannot stream a real Base Sepolia announcement by the evening of Septe
 ### Task 4: Generate a deterministic rights subgraph
 
 **Files:**
-- Create: `subgraphs/rights/schema.graphql`
-- Create: `subgraphs/rights/subgraph.template.yaml`
-- Create: `subgraphs/rights/networks.json`
-- Create: `subgraphs/rights/abis/EAS.json`
-- Create: `subgraphs/rights/abis/Announcer.json`
-- Create: `subgraphs/rights/scripts/prepare.mjs`
-- Create: `subgraphs/rights/scripts/prepare.test.ts`
-- Create: `subgraphs/rights/src/schema-uids.ts`
-- Create: `subgraphs/rights/subgraph.yaml`
+- Create: `packages/subgraphs/rights/schema.graphql`
+- Create: `packages/subgraphs/rights/subgraph.template.yaml`
+- Create: `packages/subgraphs/rights/networks.json`
+- Create: `packages/subgraphs/rights/abis/EAS.json`
+- Create: `packages/subgraphs/rights/abis/Announcer.json`
+- Create: `packages/subgraphs/rights/scripts/prepare.mjs`
+- Create: `packages/subgraphs/rights/scripts/prepare.test.ts`
+- Create: `packages/subgraphs/rights/src/schema-uids.ts`
+- Create: `packages/subgraphs/rights/subgraph.yaml`
 
 **Interfaces:**
 - Consumes: Task 1 config reader, MVP schema shapes, and subgraph-owned contract ABIs
 - Produces: generated manifest/constants and `Right`, `Delegation`, `Attendance`, `Announcement`
 
-- [ ] Write generation tests proving multiple versions survive, addresses/start blocks enter the manifest, and absent live configuration fails rather than inserting fixtures.
-- [ ] Define mutable Right with the exact MVP canonical Entitlement fields (including `serial`, `metaURI`, and schema version), issuer-delegation relation, revocation, block metadata, and derived attendances. Define mutable Delegation, immutable Attendance with `slotId`, and immutable raw Announcement with transaction/log identity and timestamp.
-- [ ] Run the generation test; expect failure before `prepare.mjs` exists.
-- [ ] Generate AssemblyScript UID/version maps and `subgraph.yaml` only from top-level production vars in `apps/api/wrangler.jsonc`. Keep fixture generation inside tests and never commit fixture UIDs as a deployable manifest.
+- [x] Write generation tests proving multiple versions survive, addresses/start blocks enter the manifest, and absent live configuration fails rather than inserting fixtures.
+- [x] Define mutable Right with the exact MVP canonical Entitlement fields (including `serial`, `metaURI`, and schema version), issuer-delegation relation, revocation, block metadata, and derived attendances. Define mutable Delegation, immutable Attendance with `slotId`, and immutable raw Announcement with transaction/log identity and timestamp.
+- [x] Run the generation test; expect failure before `prepare.mjs` exists.
+- [x] Generate AssemblyScript UID/version maps and `subgraph.yaml` only from top-level production vars in `apps/api/wrangler.jsonc`. Keep fixture generation inside tests and never commit fixture UIDs as a deployable manifest.
 - [ ] Before production values exist, run `pnpm graph:prepare`; expect an explicit configuration failure. After live schema registration and start-block configuration, run `pnpm graph:prepare && pnpm graph:codegen && pnpm graph:build`; expect success.
 - [ ] Commit with `feat(graph): define the fuda rights subgraph`.
 
 ### Task 5: Index EAS entities and revocations
 
 **Files:**
-- Create: `subgraphs/rights/src/eas.ts`
-- Create: `subgraphs/rights/src/codecs.ts`
-- Create: `subgraphs/rights/tests/eas.test.ts`
-- Modify: `subgraphs/rights/subgraph.template.yaml`
+- Create: `packages/subgraphs/rights/src/eas.ts`
+- Create: `packages/subgraphs/rights/src/codecs.ts`
+- Create: `packages/subgraphs/rights/tests/eas.test.ts`
+- Modify: `packages/subgraphs/rights/subgraph.template.yaml`
 
 **Interfaces:**
 - Consumes: generated `try_getAttestation(uid)` and UID/version maps keyed by `issuerDelegation`
 - Produces: populated entities and revocation transitions
 
-- [ ] Write Matchstick tests for accepted versions, unknown-schema ignore, call revert, both relations, both mutable-entity revokes, and unknown-entity revoke.
-- [ ] Run the focused test; expect failure before handlers exist.
-- [ ] Use a subgraph-owned EAS JSON ABI containing both official `Attested` and `Revoked` events plus `getAttestation`; the MVP TypeScript `EAS_ABI` is not the Graph codegen input.
-- [ ] Implement `entitlementVersion`, `issuerDelegationVersion`, `attendanceVersion`, `handleAttested`, and `handleRevoked`.
-- [ ] Match the schema before one `try_getAttestation` call. Decode by version and upcast. Link Right by `refUID`; link Attendance by decoded `rightUID`.
-- [ ] Ignore malformed data and holder/recipient mismatches. Save the event time as `revokedAt` for known entities.
-- [ ] Run focused tests and Graph build; expect success.
+- [x] Write Matchstick tests for accepted versions, unknown-schema ignore, call revert, both relations, both mutable-entity revokes, and unknown-entity revoke.
+- [x] Run the focused test; expect failure before handlers exist.
+- [x] Use a subgraph-owned EAS JSON ABI containing both official `Attested` and `Revoked` events plus `getAttestation`; the MVP TypeScript `EAS_ABI` is not the Graph codegen input.
+- [x] Implement `entitlementVersion`, `issuerDelegationVersion`, `attendanceVersion`, `handleAttested`, and `handleRevoked`.
+- [x] Match the schema before one `try_getAttestation` call. Decode by version and upcast. Link Right by `refUID`; link Attendance by decoded `rightUID`.
+- [x] Ignore malformed data and holder/recipient mismatches. Save the event time as `revokedAt` for known entities.
+- [x] Run focused tests and Graph build; expect success.
 - [ ] Commit with `feat(graph): index fuda rights and attendance attestations`.
 
 ### Task 6: Index announcements and verify live data
 
 **Files:**
-- Create: `subgraphs/rights/src/announcer.ts`
-- Create: `subgraphs/rights/tests/announcer.test.ts`
-- Create: `subgraphs/rights/queries/smoke.graphql`
-- Create: `subgraphs/rights/README.md`
+- Create: `packages/subgraphs/rights/src/announcer.ts`
+- Create: `packages/subgraphs/rights/tests/announcer.test.ts`
+- Create: `packages/subgraphs/rights/queries/smoke.graphql`
+- Create: `packages/subgraphs/rights/README.md`
 
 **Interfaces:**
 - Consumes: generated Announcement binding
 - Produces: immutable raw Announcement entities and a deployed endpoint
 
-- [ ] Test both known and unknown schemes, exact field preservation, and multiple logs in one transaction.
-- [ ] Implement ID `transactionHash.concatI32(logIndex)` with no view-tag or caller filtering.
-- [ ] Run `pnpm graph:test && pnpm graph:build && pnpm check`; expect success.
+- [x] Test both known and unknown schemes, exact field preservation, and multiple logs in one transaction.
+- [x] Implement ID `transactionHash.concatI32(logIndex)` with no view-tag or caller filtering.
+- [x] Run `pnpm graph:test && pnpm graph:build && pnpm check`; expect success.
 - [ ] After production MVP configuration is populated, emit live issue, Attendance, Announcement, and revoke events; deploy to Studio and run the smoke query.
 - [ ] Compare UIDs, holders, metadata, relations, and revocation state with receipts. Require real Right, Delegation, Attendance, and Announcement entities.
 - [ ] Commit with `feat(graph): index announcements and document subgraph deployment`.
@@ -230,11 +237,11 @@ If Task 2 cannot stream a real Base Sepolia announcement by the evening of Septe
 - Consumes: `GRAPH_RIGHTS_ENDPOINT` and paginated announcements
 - Produces: `fetchAnnouncements(endpoint, fromBlock, signal)`; removes `GET /announcements`
 
-- [ ] Test bigint-safe parsing, stable ordering, pagination, GraphQL/network errors, abort, integration with the existing `discover` function, and the API returning 404 for the removed route.
-- [ ] Fetch pages of 1,000 with a stable `(blockNumber, id)` cursor and pass raw candidates to the existing dynamically imported `discover` function; remove `announcements`, `pageAnnouncements`, `PAGE_ROWS`, and `MAX_PAGES` from `apps/app/src/api.ts`.
-- [ ] Keep API secrets out of browser bundles. Use Studio for the event demo and document the post-event public gateway or same-origin proxy decision.
+- [x] Test bigint-safe parsing, stable ordering, pagination, GraphQL/network errors, abort, integration with the existing `discover` function, and the API returning 404 for the removed route.
+- [x] Fetch pages of 1,000 with a stable `(blockNumber, id)` cursor and pass raw candidates to the existing dynamically imported `discover` function; remove `announcements`, `pageAnnouncements`, `PAGE_ROWS`, and `MAX_PAGES` from `apps/app/src/api.ts`.
+- [x] Keep API secrets out of browser bundles. Use Studio for the event demo and document the post-event public gateway or same-origin proxy decision.
 - [ ] Remove the API route/cache/sync code, `AppDeps` announcement overrides, and `ANNOUNCER_FROM_BLOCK` binding. Add migration `0001_drop_announcement_cache.sql` dropping `announcements` and `sync_state`; retain `rate_limits`, the admin middleware, and all issue behavior.
-- [ ] Run `pnpm test && pnpm check && pnpm format:check`; expect success and no server-side matching.
+- [x] Run `pnpm test && pnpm check && pnpm format:check`; expect success and no server-side matching.
 - [ ] Commit with `feat(graph): discover private rights through the subgraph`.
 
 ### Task 8: Add card and chain-truth views
@@ -261,12 +268,12 @@ If Task 2 cannot stream a real Base Sepolia announcement by the evening of Septe
 - Consumes: rights by holder, attendances by right, delegations by issuer
 - Produces: typed query functions and two UI views
 
-- [ ] Add an app-only rights-list route alongside the existing `landing`, `signed`, and `private` decisions; do not render it on the apex origin.
-- [ ] Test address normalization, multiple/revoked/empty/error results, app cards, and dash chain-truth rendering without a D1 member row. Keep the existing Members view and admin-token flow intact.
-- [ ] Implement runtime-validated responses and explicit loading, empty, and error states.
-- [ ] Keep D1 member data and chain truth visibly separate. Never persist a private stealth holder to D1.
+- [x] Add an app-only rights-list route alongside the existing `landing`, `signed`, and `private` decisions; do not render it on the apex origin.
+- [x] Test address normalization, multiple/revoked/empty/error results, app cards, and dash chain-truth rendering without a D1 member row. Keep the existing Members view and admin-token flow intact.
+- [x] Implement runtime-validated responses and explicit loading, empty, and error states.
+- [x] Keep D1 member data and chain truth visibly separate. Never persist a private stealth holder to D1.
 - [ ] Run all tests/checks and manually verify both views before and after revoke.
-- [ ] Commit with `feat(graph): show chain-truth rights and attendance views`.
+- [x] Commit with `feat(graph): show chain-truth rights and attendance views`.
 
 ### Task 9: Finalize evidence and canonical documentation
 
@@ -282,6 +289,6 @@ If Task 2 cannot stream a real Base Sepolia announcement by the evening of Septe
 
 - [ ] Time a 2–4 minute demo: identical package checksum on two chains, composed live revoke, rights query, and next gate scan turning red.
 - [ ] Stop Substreams and prove discovery, card list, dash views, and revoke queries still work.
-- [ ] Run both Cargo suites, Graph tests/build, workspace tests/check/format, and `git diff --check`; require zero failures.
-- [ ] Update canonical specs with current behavior only. Record the push/query split, no-sink decision, and rejected composition-source claim in the ADR.
+- [x] Run both Cargo suites, Graph tests/build, workspace tests/check/format, and `git diff --check`; require zero failures.
+- [x] Update canonical specs with current behavior only. Record the push/query split, no-sink decision, and rejected composition-source claim in the ADR.
 - [ ] Delete this completed temporary plan in the final implementation commit.

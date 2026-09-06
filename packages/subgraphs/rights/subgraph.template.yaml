@@ -1,0 +1,48 @@
+specVersion: 1.3.0
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum/contract
+    name: EAS
+    network: __NETWORK__
+    source:
+      address: '__EAS_ADDRESS__'
+      abi: EAS
+      startBlock: __ANNOUNCER_FROM_BLOCK__
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - Right
+        - Delegation
+        - Attendance
+      abis:
+        - name: EAS
+          file: ./abis/EAS.json
+      eventHandlers:
+        - event: Attested(indexed address,indexed address,bytes32,indexed bytes32)
+          handler: handleAttested
+        - event: Revoked(indexed address,indexed address,bytes32,indexed bytes32)
+          handler: handleRevoked
+      file: ./src/eas.ts
+  - kind: ethereum/contract
+    name: Announcer
+    network: __NETWORK__
+    source:
+      address: '__ANNOUNCER_ADDRESS__'
+      abi: Announcer
+      startBlock: __ANNOUNCER_FROM_BLOCK__
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - Announcement
+      abis:
+        - name: Announcer
+          file: ./abis/Announcer.json
+      eventHandlers:
+        - event: Announcement(indexed uint256,indexed address,indexed address,bytes,bytes)
+          handler: handleAnnouncement
+      file: ./src/announcer.ts

@@ -9,5 +9,10 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true
-  }
+  },
+  "exclude": [
+    "packages/subgraphs/rights/generated/**",
+    "packages/subgraphs/rights/src/**",
+    "packages/subgraphs/rights/tests/**"
+  ]
 }
