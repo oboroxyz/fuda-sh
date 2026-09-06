@@ -9,6 +9,7 @@
   },
   "scripts": {
     "build": "hardhat build",
+    "ens:preflight": "tsx scripts/ens-preflight.ts",
     "test": "vp test && hardhat test solidity"
   },
   "dependencies": {
