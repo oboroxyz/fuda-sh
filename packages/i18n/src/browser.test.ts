@@ -23,6 +23,12 @@ describe('browser locale preference', () => {
     expect(getLocale(env)).toBe('en')
   })
 
+  it('persists the selected locale', () => {
+    const env = environment(null)
+    setLocale('ja', env)
+    expect(env.writeStored).toHaveBeenCalledWith('ja')
+  })
+
   it('updates document language even when persistence is blocked', () => {
     const env = environment(null)
     env.writeStored = () => {
