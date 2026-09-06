@@ -115,7 +115,7 @@ If Task 2 cannot stream a real Base Sepolia announcement by the evening of Septe
 - [x] Run `cargo test --manifest-path packages/substreams/erc5564/Cargo.toml`; observe failure before the mapping exists.
 - [x] Implement raw `Announcement(uint256,address,address,bytes,bytes)` extraction. Reject malformed address parameters and do not interpret metadata.
 - [x] Run tests, release WASM build, and `substreams pack packages/substreams/erc5564/substreams.yaml`; expect `fuda-erc5564-v0.1.0.spkg`.
-- [ ] Export the The Graph Market JWT as `SUBSTREAMS_API_TOKEN`, use the Base Sepolia endpoint shown by Market, and stream from the MVP start block. If empty, issue one +Private right and rerun from its receipt block.
+- [x] Export the The Graph Market JWT as `SUBSTREAMS_API_TOKEN`, use the Base Sepolia endpoint shown by Market, and stream from the MVP start block. If empty, issue one +Private right and rerun from its receipt block. _Done 2026-09-06: recent window empty; issued +Private right `0xe5c5…f7bf`, `map_announcements` streamed it at block 46468812 from `basesepolia.substreams.pinax.network:443`._
 - [ ] Run the unchanged package on a second Firehose-supported EVM chain with Announcer activity. Record an unchanged `sha256sum`.
 - [ ] Commit with `feat(graph): extract ERC-5564 announcements with Substreams`.
 
@@ -142,7 +142,7 @@ If Task 2 cannot stream a real Base Sepolia announcement by the evening of Septe
 - [x] Run tests; observe failure before modules exist.
 - [x] Import Task 2's package and merge its output with local EAS output. Do not filter schemas, decode data, or call RPC.
 - [x] Run tests, release WASM build, and pack.
-- [ ] Stream `fuda_events`, revoke a live right through the MVP dashboard/API, and verify the same UID appears promptly.
+- [x] Stream `fuda_events`, revoke a live right through the MVP dashboard/API, and verify the same UID appears promptly. _Done 2026-09-06: composed `Attested` (block 46468810) + announcement (46468812), then `Revoked` (46468842), same UID._
 - [ ] Commit with `feat(graph): compose ERC-5564 and EAS Substreams modules`.
 
 ### Task 4: Generate a deterministic rights subgraph
