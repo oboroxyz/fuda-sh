@@ -3,7 +3,7 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "jsxImportSource": "hono/jsx/dom",
-    "types": ["vite/client"]
+    "types": ["vite/client", "@cloudflare/workers-types"]
   },
   "include": ["src", "vite.config.ts"]
 }

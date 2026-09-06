@@ -434,24 +434,26 @@ current challenge for the Entitlement holder?
 | ---------------- | ----------- | -------- | ------------------------------------------------------------------------------------------------- |
 | `api.fuda.sh`    | `apps/api`  | 8787     | the api                                                                                           |
 | `gate.fuda.sh`   | `apps/gate` | 5174     | scanner: uid preview, QR admission, verdict                                                       |
-| `dash.fuda.sh`   | `apps/dash` | 5175     | operator dashboard: issue, D1 member list, revoke, pass links, and separate chain-truth lookup    |
+| `dash.fuda.sh`   | `apps/dash` | 5175     | operator dashboard: issue, D1 member list, revoke, pass links, and separate on-chain-status lookup    |
 | `app.fuda.sh`    | `apps/app`  | 5173     | member app: `/signed` challenge-response, `/private` enrolment and discovery, `/rights` member pass list |
-| `fuda.sh` (apex) | `apps/app`  | —        | landing only                                                                                      |
+| `fuda.sh` (apex) | Cloudflare zone | —     | `/@*` redirect to the same path on `app.fuda.sh`; other apex paths are outside this repository    |
 
-Each host is a custom domain of its Worker, and the dev ports are pinned in each
-app's `vite.config.ts`. The frontends call the api cross-origin at
+Each Worker-backed host is its Worker's custom domain, and the dev ports are
+pinned in each app's `vite.config.ts`. The frontends call the api cross-origin at
 `VITE_API_BASE_URL`, baked in at build time and defaulting to
 `http://localhost:8787`. The api's CORS allow-list is exactly
 `https://app.fuda.sh`, `https://dash.fuda.sh` and `https://gate.fuda.sh`, plus
 any `http://localhost:<port>` or `http://127.0.0.1:<port>` origin.
 
-The apex `fuda.sh` is served by the member-app Worker but is **not** a CORS
-origin: it hosts the landing only, and `/signed`, `/private`, and `/rights` on
-the apex redirect to `VITE_APP_ORIGIN` (`https://app.fuda.sh`) behind a one-line
-interstitial, so every api call originates from an allowed origin. `VITE_RP_ID`
-fixes the passkey `rp.id` to `fuda.sh` in production builds, so the apex and
-`app.fuda.sh` share one passkey; local dev must set it to `localhost`, since a
-browser rejects an `rp.id` that is not a registrable suffix of the page's host.
+The member-app Worker claims only `app.fuda.sh`; it does not claim the apex.
+A zone-level Single Redirect maps `fuda.sh/@*` to the same path on
+`app.fuda.sh` and preserves its query string. Handling for every other apex path
+is outside this repository. The app Worker runs `/@*` before Workers Static
+Assets and returns the SPA shell directly, preventing the asset layer from
+canonicalizing a literal `@` to `%40` with an extra redirect. `VITE_RP_ID` fixes
+the passkey `rp.id` to `fuda.sh` in production builds, which is a registrable
+suffix of `app.fuda.sh`; local dev must set it to `localhost`, since a browser
+rejects an `rp.id` that is not a registrable suffix of the page's host.
 
 The member app and dashboard read on-chain views directly from the public
 rights subgraph configured by `VITE_GRAPH_RIGHTS_ENDPOINT`. The member list at
@@ -469,9 +471,9 @@ rights subgraph configured by `VITE_GRAPH_RIGHTS_ENDPOINT`. The member list at
 5. It provides each public row's browser pass URL and, when available, its
    Google Wallet and Apple Wallet links; private passes do not have pass links.
 
-The dashboard's Chain truth section queries rights by holder, Attendance by
+The dashboard's On-chain status section queries rights by holder, Attendance by
 right UID, and IssuerDelegation by issuer. It is visually and operationally
-separate from the admin-token-protected D1 Members section: chain-truth reads
+separate from the admin-token-protected D1 Members section: on-chain-status reads
 do not create or update member rows. A +Private stealth holder may be entered
 locally for a lookup but is never persisted to D1 by either view. If
 `VITE_GRAPH_RIGHTS_ENDPOINT` is empty or a holder query fails, `/rights` keeps

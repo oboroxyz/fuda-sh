@@ -30,7 +30,7 @@ production default (`fuda.sh`), which is not a registrable suffix of the dev
 host. In production it stays `fuda.sh` so the apex and `app.fuda.sh` share one
 passkey.
 
-`apps/app` and `apps/dash` read chain-truth views from the public Graph endpoint
+`apps/app` and `apps/dash` read on-chain status views from the public Graph endpoint
 in `VITE_GRAPH_RIGHTS_ENDPOINT`. The member app also uses that endpoint to load
 raw announcements before matching them locally. The Substreams packages are an
 optional live push lane with no resident sink; product reads use the rights

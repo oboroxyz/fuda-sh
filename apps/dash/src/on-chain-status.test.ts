@@ -1,8 +1,8 @@
 import type { GraphAttendance, GraphDelegation, GraphRight } from '@fuda/sdk'
 import { describe, expect, it, vi } from 'vitest'
 
-import { loadChainTruth } from './chain-truth.ts'
-import type { ChainTruthIo } from './chain-truth.ts'
+import { loadOnChainStatus } from './on-chain-status.ts'
+import type { OnChainStatusIo } from './on-chain-status.ts'
 
 const RIGHT_UID = `0x${'aa'.repeat(32)}` as const
 const ISSUER = `0x${'22'.repeat(20)}` as const
@@ -39,22 +39,24 @@ const attendance: GraphAttendance = {
   timestamp: 11n,
 }
 
-describe(loadChainTruth, () => {
+describe(loadOnChainStatus, () => {
   it('loads graph relations without consulting the D1 member API', async () => {
-    const attendancesByRight = vi.fn<ChainTruthIo['attendancesByRight']>(
+    const attendancesByRight = vi.fn<OnChainStatusIo['attendancesByRight']>(
       async () => await Promise.resolve([attendance]),
     )
-    const delegationsByIssuer = vi.fn<ChainTruthIo['delegationsByIssuer']>(
+    const delegationsByIssuer = vi.fn<OnChainStatusIo['delegationsByIssuer']>(
       async () => await Promise.resolve([delegation]),
     )
-    const rightsByHolder = vi.fn<ChainTruthIo['rightsByHolder']>(async () => await Promise.resolve([right]))
+    const rightsByHolder = vi.fn<OnChainStatusIo['rightsByHolder']>(
+      async () => await Promise.resolve([right]),
+    )
     const io = {
       attendancesByRight,
       delegationsByIssuer,
       rightsByHolder,
     }
 
-    const result = await loadChainTruth(io, 'https://graph.example/query', right.holder)
+    const result = await loadOnChainStatus(io, 'https://graph.example/query', right.holder)
 
     expect(result).toStrictEqual({
       attendances: { [RIGHT_UID]: [attendance] },

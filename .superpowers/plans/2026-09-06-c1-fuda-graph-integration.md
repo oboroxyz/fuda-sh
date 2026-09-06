@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a reusable ERC-5564 Substreams package, compose it with a fuda EAS stream, deploy a Base Sepolia rights subgraph, and move +Private discovery and chain-truth views to that subgraph.
+**Goal:** Build a reusable ERC-5564 Substreams package, compose it with a fuda EAS stream, deploy a Base Sepolia rights subgraph, and move +Private discovery and on-chain status views to that subgraph.
 
 **Architecture:** `erc5564.spkg` and `erc5564-eas-pipeline.spkg` form a disposable push lane for the submission and live demo. The rights subgraph is the self-sufficient product query lane. The completed MVP is merged first; fixture-backed Graph work then proceeds against its concrete interfaces while deployment waits for live configuration and events.
 
@@ -244,17 +244,17 @@ If Task 2 cannot stream a real Base Sepolia announcement by the evening of Septe
 - [x] Run `pnpm test && pnpm check && pnpm format:check`; expect success and no server-side matching.
 - [ ] Commit with `feat(graph): discover private rights through the subgraph`.
 
-### Task 8: Add card and chain-truth views
+### Task 8: Add card and on-chain status views
 
 **Files:**
 - Modify: `packages/sdk/src/graph.ts`
 - Modify: `packages/sdk/src/graph.test.ts`
 - Create: `apps/app/src/RightsList.tsx`
 - Create: `apps/app/src/rights-list.test.tsx`
-- Create: `apps/dash/src/chain-truth.ts`
-- Create: `apps/dash/src/chain-truth.test.ts`
-- Create: `apps/dash/src/ChainTruth.tsx`
-- Create: `apps/dash/src/chain-truth-view.test.tsx`
+- Create: `apps/dash/src/on-chain-status.ts`
+- Create: `apps/dash/src/on-chain-status.test.ts`
+- Create: `apps/dash/src/OnChainStatus.tsx`
+- Create: `apps/dash/src/on-chain-status-view.test.tsx`
 - Modify: `apps/app/src/App.tsx`
 - Modify: `apps/app/src/route.ts`
 - Modify: `apps/app/src/route.test.ts`
@@ -269,11 +269,11 @@ If Task 2 cannot stream a real Base Sepolia announcement by the evening of Septe
 - Produces: typed query functions and two UI views
 
 - [x] Add an app-only rights-list route alongside the existing `landing`, `signed`, and `private` decisions; do not render it on the apex origin.
-- [x] Test address normalization, multiple/revoked/empty/error results, app cards, and dash chain-truth rendering without a D1 member row. Keep the existing Members view and admin-token flow intact.
+- [x] Test address normalization, multiple/revoked/empty/error results, app cards, and dash on-chain-status rendering without a D1 member row. Keep the existing Members view and admin-token flow intact.
 - [x] Implement runtime-validated responses and explicit loading, empty, and error states.
-- [x] Keep D1 member data and chain truth visibly separate. Never persist a private stealth holder to D1.
-- [ ] Run all tests/checks and manually verify both views before and after revoke.
-- [x] Commit with `feat(graph): show chain-truth rights and attendance views`.
+- [x] Keep D1 member data and on-chain status visibly separate. Never persist a private stealth holder to D1.
+- [x] Run all tests/checks and manually verify both views before and after revoke. _Done 2026-09-07 00:50 JST on production: member app discovered `0xf025…4a08` through the subgraph on a phone; dash on-chain status view rendered the revoked bearer right, its attendance and the active root delegation (a BigInt-as-JSX-child render bug was fixed on the way); after revoking `0xf025…4a08` the subgraph reported `revokedAt` within 10 s and `/verify` answers REJECT._
+- [x] Commit with `feat(graph): show on-chain-status rights and attendance views`.
 
 ### Task 9: Finalize evidence and canonical documentation
 

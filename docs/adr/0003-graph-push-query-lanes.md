@@ -19,7 +19,7 @@ resident consumer.
 
 The rights subgraph is the self-contained product query lane. It indexes EAS
 and the ERC-5564 Announcer directly, and serves announcement discovery, member
-right cards, and dashboard chain-truth lookups. Browser clients depend on its
+right cards, and dashboard on-chain-status lookups. Browser clients depend on its
 configured public Graph endpoint, not on the Substreams packages. The API no
 longer serves or stores an announcement cache; its top-level
 `ANNOUNCER_FROM_BLOCK` value remains only as the source used to generate the
@@ -32,7 +32,7 @@ support would therefore misstate the current schema.
 
 ## Consequences
 
-- Stopping Substreams does not interrupt discovery, right cards, chain-truth
+- Stopping Substreams does not interrupt discovery, right cards, on-chain-status
   lookups, revocation queries, issuance, or gate verification.
 - The browser query surfaces fail explicitly when no public rights-subgraph
   endpoint is configured; they do not fall back to the API or D1.

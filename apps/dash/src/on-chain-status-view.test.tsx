@@ -1,7 +1,7 @@
 import type { GraphAttendance, GraphDelegation, GraphRight } from '@fuda/sdk'
 import { describe, expect, it } from 'vitest'
 
-import { ChainTruthView } from './ChainTruth.tsx'
+import { OnChainStatusView } from './OnChainStatus.tsx'
 
 const RIGHT_UID = `0x${'aa'.repeat(32)}` as const
 const DELEGATION_UID = `0x${'bb'.repeat(32)}` as const
@@ -63,10 +63,10 @@ const attendance: GraphAttendance = {
   timestamp: 56n,
 }
 
-describe(ChainTruthView, () => {
+describe(OnChainStatusView, () => {
   it('renders a right whose delegation is unresolved without hiding the other rights', () => {
     const text = viewText(
-      ChainTruthView({
+      OnChainStatusView({
         state: {
           attendances: {},
           delegations: [delegation],
@@ -83,7 +83,7 @@ describe(ChainTruthView, () => {
 
   it('renders chain rights, delegations, and attendance without a D1 member row', () => {
     const text = viewText(
-      ChainTruthView({
+      OnChainStatusView({
         state: {
           attendances: { [RIGHT_UID]: [attendance] },
           delegations: [delegation],
@@ -92,7 +92,7 @@ describe(ChainTruthView, () => {
         },
       }),
     ).replaceAll(/\s+/gu, ' ')
-    expect(text).toContain(`Chain truth ${RIGHT_UID}`)
+    expect(text).toContain(`On-chain status ${RIGHT_UID}`)
     expect(text).toContain(DELEGATION_UID)
     expect(text).toContain('ACTIVE root')
     expect(text).toContain('entered at 55')
@@ -100,11 +100,11 @@ describe(ChainTruthView, () => {
   })
 
   it('renders explicit loading, empty, and error states', () => {
-    expect(viewText(ChainTruthView({ state: { kind: 'loading' } }))).toContain('Loading chain truth')
+    expect(viewText(OnChainStatusView({ state: { kind: 'loading' } }))).toContain('Loading on-chain status')
     expect(
-      viewText(ChainTruthView({ state: { attendances: {}, delegations: [], kind: 'ready', rights: [] } })),
+      viewText(OnChainStatusView({ state: { attendances: {}, delegations: [], kind: 'ready', rights: [] } })),
     ).toContain('No on-chain rights found')
-    expect(viewText(ChainTruthView({ state: { kind: 'error', message: 'Graph unavailable' } }))).toContain(
+    expect(viewText(OnChainStatusView({ state: { kind: 'error', message: 'Graph unavailable' } }))).toContain(
       'Graph unavailable',
     )
   })

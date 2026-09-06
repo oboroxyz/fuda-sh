@@ -5,12 +5,12 @@ import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import { issueRight, listMembers, revokeRight } from './api.ts'
 import type { Result } from './api.ts'
-import { ChainTruth } from './ChainTruth.tsx'
 import { API_BASE_URL } from './config.ts'
 import { IssueForm } from './IssueForm.tsx'
 import { memberRowView } from './members-view.ts'
 import type { MemberRowView } from './members-view.ts'
 import { MembersTable } from './MembersTable.tsx'
+import { OnChainStatus } from './OnChainStatus.tsx'
 import { TokenGate } from './TokenGate.tsx'
 
 export const App = (): JSX.Element => {
@@ -97,7 +97,7 @@ export const App = (): JSX.Element => {
           }}
         />
       </section>
-      <ChainTruth />
+      <OnChainStatus />
     </main>
   )
 }

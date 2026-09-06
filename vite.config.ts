@@ -9,6 +9,7 @@
 //   2. rules that would WEAKEN assertions,
 //   3. the test-fixture latitude every codebase needs.
 //   4. Graph AssemblyScript, which is compiled by graph-cli rather than TypeScript.
+//   5. generated declarations, which must remain byte-for-byte reproducible.
 // Deliberate exceptions in code use `// oxlint-disable-next-line <rule> -- reason`
 // (e.g. an intentional sequential-await loop over D1); keep them rare and reasoned.
 import oxfmtPreset from 'ultracite/oxfmt'
@@ -21,6 +22,7 @@ export default defineConfig({
   lint: {
     extends: [core, antiSlop, vitest],
     ignorePatterns: [
+      '**/worker-configuration.d.ts',
       'packages/subgraphs/rights/generated/**',
       'packages/subgraphs/rights/src/**',
       'packages/subgraphs/rights/tests/**',

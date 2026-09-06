@@ -473,7 +473,7 @@ stealth holder is persisted in D1, and `GET /announcements` does not exist.
 The subgraph reads the EAS and Announcer contracts directly; it neither consumes
 the Substreams packages nor requires a Substreams process or sink.
 
-### Rights and chain-truth views
+### Rights and on-chain status views
 
 The shared SDK queries the rights subgraph for Rights by normalized holder,
 Attendance by right UID, and IssuerDelegation by normalized issuer. It validates
@@ -501,7 +501,7 @@ decoded as v1. Unsupported wire versions produce no decoded entity.
 The member app exposes the holder's rights as active or revoked cards at the
 app-only `/rights` route. The operator dashboard retains its existing
 admin-token-protected Members view for D1 operational rows and presents chain
-truth in a separate section. Chain truth does not depend on a matching member
+truth in a separate section. On-chain status does not depend on a matching member
 row and never writes query results to D1. In particular, entering a +Private
 stealth holder for a local lookup must not attach that address to the D1 member
 record.

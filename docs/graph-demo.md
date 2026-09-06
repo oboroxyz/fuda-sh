@@ -221,7 +221,7 @@ identity agree, and `right.revokedAt` is initially `null`.
 ## 5. Timed 2–4 minute demo
 
 Start a screen recording and a timer. Open the member app `/private` and
-`/rights` pages, the dashboard's Chain truth section, and the gate scanner.
+`/rights` pages, the dashboard's On-chain status section, and the gate scanner.
 Also keep a terminal streaming the composed module from the issue block:
 
 ```sh
@@ -238,7 +238,7 @@ Use this sequence:
 2. **0:30–1:15 — discovery and query.** Discover the +Private right in
    `/private`; enter it through that screen's Signed challenge-response action,
    not the QR scanner. Then run the live Graph query for the separate Bearer
-   right and show its `/rights` card and dashboard chain-truth record.
+   right and show its `/rights` card and dashboard on-chain-status record.
 3. **1:15–1:40 — initial QR scan.** Present the Bearer right's QR pass to the
    gate and capture its green ADMIT verdict.
 4. **1:40–2:30 — revoke.** Revoke that exact Bearer right through the deployed
@@ -293,7 +293,7 @@ Keep the following together with the screen recording:
 | composed push lane | live Attested/Announcement context and Revoked event with the demonstrated UID |
 | receipts | issue, Attendance, Announcement, and revoke transaction hashes and blocks |
 | query lane | Graph response before and after revoke, with entity/receipt comparison |
-| user surfaces | +Private discovery/Signed entry; Bearer right card, dashboard chain truth, initial green QR result, and next red QR result |
+| user surfaces | +Private discovery/Signed entry; Bearer right card, dashboard on-chain status, initial green QR result, and next red QR result |
 | no-runner proof | stopped-process output plus the repeated query and surface captures |
 
 Redact secrets, then hash the finished evidence files and note where the private

@@ -19,7 +19,7 @@ flowchart LR
     EAS --> Q[Rights subgraph]
     AN --> Q
     A -->|discover + query rights| Q
-    D -->|query chain truth| Q
+    D -->|query on-chain status| Q
     EAS -. raw events .-> S[Optional Substreams push lane]
     AN -. raw events .-> S
     G -->|read right + delegation| EAS
@@ -38,7 +38,7 @@ flowchart LR
 | EAS on Base        | External; `apps/api`  | Records Entitlements, issuer delegation, revocation, and Attendance evidence                                                                                 |
 | D1 (SQLite)        | `apps/api/migrations` | Stores operational state such as challenges, SINGLE_USE consumption, entry logs, and member indexes; it does not cache announcements                          |
 | Passes             | `packages/pass`       | Builds the Google Wallet save link and the Apple `.pkpass`; the api renders the browser-based pass. Passes present a right and are never its source of truth |
-| Rights subgraph    | `packages/subgraphs/rights` | Indexes EAS and the Announcer directly for discovery, right cards, and dashboard chain-truth queries                                                     |
+| Rights subgraph    | `packages/subgraphs/rights` | Indexes EAS and the Announcer directly for discovery, right cards, and dashboard on-chain-status queries                                                     |
 | Substreams         | `packages/substreams` | Provides optional raw event push packages for reuse and live demonstration; fuda has no resident sink or product-read dependency                           |
 
 ## Authority and trust boundaries
@@ -56,7 +56,7 @@ flowchart LR
   public rights subgraph. The API and D1 are not involved in discovery.
 - **Push and query lanes are independent.** The rights subgraph reads EAS and
   the Announcer directly. Stopping the optional Substreams push lane does not
-  stop discovery, right cards, dashboard chain truth, issuance, or gate checks.
+  stop discovery, right cards, dashboard on-chain status, issuance, or gate checks.
 - **Admin routes fail closed.** Issue, revoke and member listing require
   `ADMIN_TOKEN` wherever a signer or `BASE_RPC_URL` is configured; a deployment
   with either binding and no token locks them rather than opening them.

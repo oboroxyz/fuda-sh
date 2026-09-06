@@ -8,7 +8,7 @@
     "build": "vp build",
     "preview": "vp preview",
     "deploy": "vp build && wrangler deploy",
-    "test": "vp test"
+    "test": "vp build && vp test"
   },
   "dependencies": {
     "@base-org/account": "2.5.10",
@@ -19,6 +19,7 @@
     "viem": "^2.56.3"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250905.0",
     "@tailwindcss/vite": "4.3.3",
     "daisyui": "5.7.28",
     "tailwindcss": "4.3.3",

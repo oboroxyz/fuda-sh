@@ -197,7 +197,7 @@ describe(fetchAnnouncements, () => {
   })
 })
 
-describe('chain-truth Graph queries', () => {
+describe('on-chain-status Graph queries', () => {
   it.each([`0x${'00'.repeat(32)}`, TX_B])(
     'keeps rights with unresolved delegation references (%s) in nested query results',
     async (refUID) => {
@@ -386,7 +386,7 @@ describe('chain-truth Graph queries', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
-  it('rejects malformed chain-truth responses', async () => {
+  it('rejects malformed on-chain-status responses', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => await Promise.resolve(Response.json({ data: { rights: [{ id: 'bad' }] } }))),

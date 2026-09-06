@@ -262,10 +262,11 @@ VITE_API_BASE_URL=https://api.fuda.sh VITE_GRAPH_RIGHTS_ENDPOINT=<PUBLIC_GRAPH_E
 ```
 
 Each app's `deploy` script builds then runs `wrangler deploy`. Every
-`wrangler.jsonc` declares its hostname(s) as custom domains — `api.fuda.sh`,
-`gate.fuda.sh`, `dash.fuda.sh`, and both `app.fuda.sh` and the `fuda.sh` apex
-on `apps/app` — so the first deploy of each Worker attaches them; the zone
-must already be on the account. Validate config without shipping with
+`wrangler.jsonc` declares its hostname as a custom domain — `api.fuda.sh`,
+`gate.fuda.sh`, `dash.fuda.sh`, and `app.fuda.sh` — so the first deploy of each
+Worker attaches it; the zone must already be on the account. The `fuda.sh/@*`
+redirect is a zone-level Single Redirect and is not managed by Wrangler.
+Validate config without shipping with
 `pnpm --filter api run deploy -- --dry-run` (or `pnpm --filter <app> run deploy --
 --dry-run` for a frontend).
 

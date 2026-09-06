@@ -1,29 +1,29 @@
 import { fetchAttendancesByRight, fetchDelegationsByIssuer, fetchRightsByHolder } from '@fuda/sdk'
 import type { GraphAttendance, GraphDelegation, GraphRight, Hex } from '@fuda/sdk'
 
-export interface ChainTruthData {
+export interface OnChainStatusData {
   attendances: Record<string, GraphAttendance[]>
   delegations: GraphDelegation[]
   rights: GraphRight[]
 }
 
-export interface ChainTruthIo {
+export interface OnChainStatusIo {
   attendancesByRight: (endpoint: string, right: Hex) => Promise<GraphAttendance[]>
   delegationsByIssuer: (endpoint: string, issuer: string) => Promise<GraphDelegation[]>
   rightsByHolder: (endpoint: string, holder: string) => Promise<GraphRight[]>
 }
 
-export const graphChainTruthIo: ChainTruthIo = {
+export const graphOnChainStatusIo: OnChainStatusIo = {
   attendancesByRight: fetchAttendancesByRight,
   delegationsByIssuer: fetchDelegationsByIssuer,
   rightsByHolder: fetchRightsByHolder,
 }
 
-export const loadChainTruth = async (
-  io: ChainTruthIo,
+export const loadOnChainStatus = async (
+  io: OnChainStatusIo,
   endpoint: string,
   holder: string,
-): Promise<ChainTruthData> => {
+): Promise<OnChainStatusData> => {
   const rights = await io.rightsByHolder(endpoint, holder)
   const issuers = [...new Set(rights.map(({ issuer }) => issuer))]
   const [attendanceLists, delegationLists] = await Promise.all([
