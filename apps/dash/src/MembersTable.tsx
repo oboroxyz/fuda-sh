@@ -2,6 +2,7 @@
 import { useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
+import { DASH_COPY } from './copy.ts'
 import type { MemberRowView } from './members-view.ts'
 import { QrBlock } from './QrBlock.tsx'
 
@@ -95,7 +96,7 @@ export const MembersTable = ({
           open === r.uid ? (
             <tr key={`${r.uid}:qr`}>
               <td colspan={7}>
-                <QrBlock qr={r.qr} />
+                <QrBlock label={DASH_COPY.en.rights.qrLabel} qr={r.qr} />
               </td>
             </tr>
           ) : null,

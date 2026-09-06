@@ -26,7 +26,7 @@ export interface RightsPageProps {
 const fieldValue = (target: EventTarget | null): string | null =>
   target instanceof HTMLInputElement || target instanceof HTMLSelectElement ? target.value : null
 
-export const RightsPage = ({ copy, members, onRevoke }: RightsPageProps): JSX.Element => {
+export const RightsPage = ({ copy, graphEndpoint, members, onRevoke }: RightsPageProps): JSX.Element => {
   const [filters, setFilters] = useState<RightsFilters>(DEFAULT_RIGHTS_FILTERS)
   const [openQr, setOpenQr] = useState<string | null>(null)
   const [revokeTarget, setRevokeTarget] = useState<MemberRowView | null>(null)
@@ -223,7 +223,7 @@ export const RightsPage = ({ copy, members, onRevoke }: RightsPageProps): JSX.El
         {collection()}
       </section>
       <section class="border-base-300 border-t pt-8" aria-label={copy.chain.title}>
-        <OnChainStatus />
+        <OnChainStatus copy={copy.chain} endpoint={graphEndpoint} />
       </section>
       <RevokeDialog
         busy={revokingUid !== null}

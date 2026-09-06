@@ -65,10 +65,15 @@ const uidDisplay = (row: MemberRowView): JSX.Element => (
   </code>
 )
 
-const qrDisclosure = (layout: RightsLayout, openQr: string | null, row: MemberRowView): JSX.Element | null =>
+const qrDisclosure = (
+  copy: DashCopy['rights'],
+  layout: RightsLayout,
+  openQr: string | null,
+  row: MemberRowView,
+): JSX.Element | null =>
   openQr === row.uid ? (
     <div id={qrPanelId(layout, row.uid)} class="pt-3">
-      <QrBlock qr={row.qr} />
+      <QrBlock label={copy.qrLabel} qr={row.qr} />
     </div>
   ) : null
 
@@ -128,7 +133,7 @@ const tableRecord = (props: RightsListProps, row: MemberRowView): JSX.Element[] 
     </tr>,
     props.openQr === row.uid ? (
       <tr key={`${row.uid}:qr`}>
-        <td colspan={8}>{qrDisclosure('table', props.openQr, row)}</td>
+        <td colspan={8}>{qrDisclosure(props.copy, 'table', props.openQr, row)}</td>
       </tr>
     ) : null,
   ].filter((record): record is JSX.Element => record !== null)
@@ -161,7 +166,7 @@ const cardRecord = (props: RightsListProps, row: MemberRowView): JSX.Element => 
       </div>
     </dl>
     {actions({ ...props, layout: 'cards', row })}
-    {qrDisclosure('cards', props.openQr, row)}
+    {qrDisclosure(props.copy, 'cards', props.openQr, row)}
   </article>
 )
 

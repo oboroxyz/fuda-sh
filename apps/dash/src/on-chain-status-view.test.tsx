@@ -1,7 +1,11 @@
 import type { GraphAttendance, GraphDelegation, GraphRight } from '@fuda/sdk'
 import { describe, expect, it } from 'vitest'
 
+import { DASH_COPY } from './copy.ts'
 import { OnChainStatusView } from './OnChainStatus.tsx'
+import { walkView } from './test/test-view.ts'
+
+const copy = DASH_COPY.ja.chain
 
 const RIGHT_UID = `0x${'aa'.repeat(32)}` as const
 const DELEGATION_UID = `0x${'bb'.repeat(32)}` as const
@@ -67,6 +71,7 @@ describe(OnChainStatusView, () => {
   it('renders a right whose delegation is unresolved without hiding the other rights', () => {
     const text = viewText(
       OnChainStatusView({
+        copy,
         state: {
           attendances: {},
           delegations: [delegation],
@@ -76,14 +81,15 @@ describe(OnChainStatusView, () => {
       }),
     ).replaceAll(/\s+/gu, ' ')
 
-    expect(text).toContain(`Unresolved delegation ${DELEGATION_UID}`)
-    expect(text).toContain(`delegation ${DELEGATION_UID}`)
+    expect(text).toContain(`未解決の委任 ${DELEGATION_UID}`)
+    expect(text).toContain(`委任 ${DELEGATION_UID}`)
     expect(text).toContain(RIGHT_UID)
   })
 
   it('renders chain rights, delegations, and attendance without a D1 member row', () => {
     const text = viewText(
       OnChainStatusView({
+        copy,
         state: {
           attendances: { [RIGHT_UID]: [attendance] },
           delegations: [delegation],
@@ -92,20 +98,50 @@ describe(OnChainStatusView, () => {
         },
       }),
     ).replaceAll(/\s+/gu, ' ')
-    expect(text).toContain(`On-chain status ${RIGHT_UID}`)
+    expect(text).toContain(`オンチェーン権利 ${RIGHT_UID}`)
     expect(text).toContain(DELEGATION_UID)
-    expect(text).toContain('ACTIVE root')
-    expect(text).toContain('entered at 55')
+    expect(text).toContain('有効 root')
+    expect(text).toContain('入場日時 55')
     expect(text).not.toContain('member')
   })
 
   it('renders explicit loading, empty, and error states', () => {
-    expect(viewText(OnChainStatusView({ state: { kind: 'loading' } }))).toContain('Loading on-chain status')
+    expect(viewText(OnChainStatusView({ copy, state: { kind: 'idle' } }))).toContain('保有者を入力')
+    expect(viewText(OnChainStatusView({ copy, state: { kind: 'loading' } }))).toContain('読み込み中')
     expect(
-      viewText(OnChainStatusView({ state: { attendances: {}, delegations: [], kind: 'ready', rights: [] } })),
-    ).toContain('No on-chain rights found')
-    expect(viewText(OnChainStatusView({ state: { kind: 'error', message: 'Graph unavailable' } }))).toContain(
-      'Graph unavailable',
-    )
+      viewText(
+        OnChainStatusView({ copy, state: { attendances: {}, delegations: [], kind: 'ready', rights: [] } }),
+      ),
+    ).toContain('オンチェーン権利が見つかりません')
+    expect(
+      viewText(OnChainStatusView({ copy, state: { kind: 'error', message: 'Graph unavailable' } })),
+    ).toContain('Graph unavailable')
+  })
+
+  it('keeps error details verbatim inside a localized alert', () => {
+    const view = OnChainStatusView({ copy, state: { kind: 'error', message: 'GRAPH_TIMEOUT [42]' } })
+    expect(viewText(view)).toContain('チェーン検索に失敗しました。')
+    expect(viewText(view)).toContain('GRAPH_TIMEOUT [42]')
+    expect(walkView(view).some((node) => node.props.role === 'alert')).toBe(true)
+  })
+
+  it('renders revoked BigInt timestamps and inactive delegations as strings', () => {
+    const view = OnChainStatusView({
+      copy,
+      state: {
+        attendances: { [RIGHT_UID]: [attendance] },
+        delegations: [
+          { ...delegation, revokedAt: 99n },
+          { ...delegation, active: false },
+        ],
+        kind: 'ready',
+        rights: [{ ...right, revokedAt: 88n }],
+      },
+    })
+    expect(viewText(view)).toContain('取り消し日時 88')
+    expect(viewText(view)).toContain('取り消し日時 99 root')
+    expect(viewText(view)).toContain('無効 root')
+    const children = new Set(walkView(view).map((node) => node.props.children))
+    expect([55n, 88n, 99n].filter((timestamp) => children.has(timestamp))).toStrictEqual([])
   })
 })

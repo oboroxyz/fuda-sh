@@ -106,7 +106,7 @@ const render = (
   onRevoke: (uid: string) => Promise<Result<RevokeResponse>> = async () => await Promise.resolve(success),
 ): JSX.Element => {
   hooks.index = 0
-  const view = RightsPage({ copy, graphEndpoint: '', members, onRevoke })
+  const view = RightsPage({ copy, graphEndpoint: 'https://index.example/rights', members, onRevoke })
   const headingRef = viewProps(findViewNodes(view, 'h1')[0]).ref as
     | { current: HTMLHeadingElement | null }
     | undefined
@@ -202,7 +202,13 @@ describe('rights page', () => {
       (section) =>
         findViewNodes(section, OnChainStatus).length === 1 && findViewNodes(section, RightsList).length === 0,
     )
-    expect(chainSection).toBeDefined()
+    expect({
+      props: viewProps(findViewNodes(stale, OnChainStatus)[0]),
+      separate: chainSection !== undefined,
+    }).toMatchObject({
+      props: { copy: copy.chain, endpoint: 'https://index.example/rights' },
+      separate: true,
+    })
   })
 
   it('connects confirmation to the UID, suppresses immediate duplicates, and closes on success', async () => {

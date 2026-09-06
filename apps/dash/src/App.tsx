@@ -5,7 +5,8 @@ import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import { issueRight, listMembers, revokeRight } from './api.ts'
 import type { Result } from './api.ts'
-import { API_BASE_URL } from './config.ts'
+import { API_BASE_URL, GRAPH_RIGHTS_ENDPOINT } from './config.ts'
+import { DASH_COPY } from './copy.ts'
 import { IssueForm } from './IssueForm.tsx'
 import { memberRowView } from './members-view.ts'
 import type { MemberRowView } from './members-view.ts'
@@ -55,7 +56,7 @@ export const App = (): JSX.Element => {
     return (
       <>
         {error === null ? null : <div class="alert alert-error mx-auto mt-6 max-w-md">{error}</div>}
-        <TokenGate onToken={setToken} />
+        <TokenGate appearance={<></>} copy={DASH_COPY.en.auth} error={null} onToken={setToken} />
       </>
     )
   }
@@ -87,7 +88,7 @@ export const App = (): JSX.Element => {
         <span class="px-2 text-xs opacity-60">{API_BASE_URL}</span>
       </header>
       {error === null ? null : <div class="alert alert-error">{error}</div>}
-      <IssueForm onIssue={onIssue} />
+      <IssueForm copy={DASH_COPY.en.issue} onIssue={onIssue} />
       <section class="card bg-base-200 p-4">
         <h2 class="mb-2 text-lg font-bold">Members</h2>
         <MembersTable
@@ -97,7 +98,7 @@ export const App = (): JSX.Element => {
           }}
         />
       </section>
-      <OnChainStatus />
+      <OnChainStatus copy={DASH_COPY.en.chain} endpoint={GRAPH_RIGHTS_ENDPOINT} />
     </main>
   )
 }

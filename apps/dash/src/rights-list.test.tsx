@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { DASH_COPY } from './copy.ts'
 import type { MemberRowView } from './members-view.ts'
+import { QrBlock } from './QrBlock.tsx'
 import { RightsList } from './RightsList.tsx'
 import { findViewNodes, viewProps, viewText, walkView } from './test/test-view.ts'
 
@@ -62,6 +63,23 @@ const panelIds = (view: unknown): string[] =>
     .filter((id): id is string => typeof id === 'string')
 
 describe(RightsList, () => {
+  it('passes the localized QR label and full payload in both layouts', () => {
+    const view = RightsList({
+      copy: DASH_COPY.ja.rights,
+      onRequestRevoke: (): void => {},
+      onToggleQr: (): void => {},
+      openQr: UID,
+      revokingUid: null,
+      rows,
+    })
+    expect(
+      findViewNodes(view, QrBlock).map((node) => ({ label: node.props.label, qr: node.props.qr })),
+    ).toStrictEqual([
+      { label: '権利識別子の QR', qr: `fuda:v1:${UID}` },
+      { label: '権利識別子の QR', qr: `fuda:v1:${UID}` },
+    ])
+  })
+
   it('passes the invoking button from currentTarget for table and card revoke actions', () => {
     vi.stubGlobal('HTMLButtonElement', Object)
     const onRequestRevoke = vi.fn<(row: MemberRowView, invoker: HTMLButtonElement) => void>()
