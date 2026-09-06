@@ -1,0 +1,62 @@
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  --fuda-font-mono: ui-monospace, monospace;
+  --fuda-space-1: 0.25rem;
+  --fuda-space-2: 0.5rem;
+  --fuda-space-3: 0.75rem;
+  --fuda-space-4: 1rem;
+  --fuda-bg: #f6f5f2;
+  --fuda-surface: #ffffff;
+  --fuda-text: #20211f;
+  --fuda-muted: #666963;
+  --fuda-border: #d9dbd5;
+  --fuda-accent: #315f4c;
+  --fuda-danger: #a53d35;
+  --fuda-focus: #356fda;
+}
+
+:root.dark {
+  color-scheme: dark;
+  --fuda-bg: #171916;
+  --fuda-surface: #222520;
+  --fuda-text: #f2f3ee;
+  --fuda-muted: #b6bab1;
+  --fuda-border: #3c4039;
+  --fuda-accent: #91c5ad;
+  --fuda-danger: #ef8f86;
+  --fuda-focus: #8db4ff;
+}
+
+@layer base {
+  body {
+    background: var(--fuda-bg);
+    color: var(--fuda-text);
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--fuda-focus);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .fuda-icon-button {
+    align-items: center;
+    display: inline-flex;
+    justify-content: center;
+    min-block-size: 44px;
+    min-inline-size: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
