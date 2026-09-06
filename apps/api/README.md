@@ -193,7 +193,9 @@ Wallet save link) when the four `GOOGLE_*` secrets are set and
 `.pkpass` when the five `APPLE_*` secrets are set and `501 apple_not_configured`
 otherwise. Both answer `404 not_found` for an unknown uid and for a +Private row
 before any platform check. The pass page carries an "Add to Google Wallet"
-button that stays hidden unless the Google endpoint answers `200`.
+button that stays hidden unless the Google endpoint answers `200`. Open the
+downloaded `.pkpass` on an iPhone, or run `openssl smime -verify -in
+signature -inform DER -content manifest.json -noverify` after unzipping.
 
 The `apps/gate`, `apps/dash` and `apps/app` frontends call the api at
 `VITE_API_BASE_URL` (baked in at build time; defaults to
