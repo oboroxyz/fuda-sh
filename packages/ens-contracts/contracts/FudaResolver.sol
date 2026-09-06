@@ -17,6 +17,7 @@ contract FudaResolver {
     error InactiveIssuer();
     error InvalidDNSName();
     error InvalidRecord();
+    error InvalidCallbackState();
     error OffchainLookup(
         address sender,
         string[] urls,
@@ -134,6 +135,19 @@ contract FudaResolver {
             abi.encodePacked(hex"1900", target, expires, keccak256(request), keccak256(result))
         );
         if (FudaECDSA.recover(digest, signature) != signer) revert InvalidSignature();
+
+        (bool offchain, bytes memory currentRouting) = address(this).staticcall(request);
+        bytes memory expectedRouting = abi.encodeWithSelector(
+            OffchainLookup.selector,
+            address(this),
+            _gatewayUrls,
+            request,
+            this.resolveWithProof.selector,
+            abi.encode(address(this), request)
+        );
+        if (offchain || keccak256(currentRouting) != keccak256(expectedRouting)) {
+            revert InvalidCallbackState();
+        }
     }
 
     function _suffixNodes(bytes calldata name) private pure returns (bytes32[] memory nodes) {

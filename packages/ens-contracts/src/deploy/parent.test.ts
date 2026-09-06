@@ -66,6 +66,7 @@ interface Scenario {
   available?: boolean
   balance?: bigint
   commitmentAt?: bigint
+  confirmedNow?: bigint
   fail?: Failure
   failBlock?: 'latest' | 'confirmed'
   failOperation?: Operation
@@ -185,7 +186,7 @@ const fixture = (scenario: Scenario = {}) => {
     if (operation === 'register' && scenario.missingRegistryEvent !== true) {
       logs.push(
         eventLog('LabelRegistered', scenario.registryEmitter ?? contracts.ETHRegistry, {
-          expiry: (scenario.now ?? 1000n) + 31_536_000n,
+          expiry: (scenario.confirmedNow ?? scenario.now ?? 1000n) + 31_536_000n,
           label: 'fuda',
           labelHash: labelhash('fuda'),
           owner,
@@ -240,7 +241,7 @@ const fixture = (scenario: Scenario = {}) => {
         sha3Uncles: zeroHash,
         size: 1000n,
         stateRoot: zeroHash,
-        timestamp: scenario.now ?? 1000n,
+        timestamp: registered ? (scenario.confirmedNow ?? scenario.now ?? 1000n) : (scenario.now ?? 1000n),
         totalDifficulty: 0n,
         transactions: [],
         transactionsRoot: zeroHash,
@@ -574,6 +575,11 @@ describe('parent commit and reveal', () => {
     ])
     expect(result).toMatchObject({ owner, status: 'registered' })
     expect(JSON.stringify(result)).not.toContain(secret)
+  })
+
+  it('derives registry expiry from a later confirmed block instead of the preflight block', async () => {
+    const { context } = fixture({ commitmentAt: 900n, confirmedNow: 1005n, now: 1000n })
+    await expect(revealParentName(context)).resolves.toMatchObject({ owner, status: 'registered' })
   })
 
   it('uses a higher current price for reveal shortfalls', async () => {

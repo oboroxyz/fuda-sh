@@ -276,12 +276,23 @@ contract FudaSubnameRegistrarTest {
         _rejectClaim("coffee", 3_000, 0, 2_000, abi.encodePacked(bytes32(0), bytes32(0), uint8(27)));
     }
 
-    // Break: consumed vouchers work again after expiry or on repeated renewals.
+    // Break: consumed claim vouchers are accepted because replay rejection is hidden behind expiry validation.
     function testRejectsReplay() public {
         bytes memory claimSignature = _signature(CLAIM_TYPE, "coffee", 1_100, 0, 2_000, SIGNER_KEY);
         _claim("coffee", 1_100, 0);
+        VM.prank(issuer);
+        (bool ok, bytes memory revertData) = address(registrar).call(
+            abi.encodeCall(
+                FudaSubnameRegistrar.claim,
+                ("coffee", issuer, 1_100, 0, 2_000, claimSignature)
+            )
+        );
+        require(!ok, "claim replay accepted");
+        require(
+            _revertSelector(revertData) == FudaSubnameRegistrar.InvalidNonce.selector,
+            "claim replay did not reject its nonce"
+        );
         VM.warp(1_100);
-        _rejectClaim("coffee", 1_100, 0, 2_000, claimSignature);
         _claim("coffee", 3_000, 1);
         bytes memory signature = _signature(RENEW_TYPE, "coffee", 4_000, 2, 2_000, SIGNER_KEY);
         VM.prank(issuer);
@@ -413,6 +424,13 @@ contract FudaSubnameRegistrarTest {
     function _signDigest(bytes32 digest) private returns (bytes memory) {
         (uint8 v, bytes32 r, bytes32 s) = VM.sign(SIGNER_KEY, digest);
         return abi.encodePacked(r, s, v);
+    }
+
+    function _revertSelector(bytes memory data) private pure returns (bytes4 selector) {
+        if (data.length < 4) return bytes4(0);
+        assembly ("memory-safe") {
+            selector := mload(add(data, 0x20))
+        }
     }
 
     function _claim(string memory label, uint64 expiry, uint256 nonce) private returns (uint256) {

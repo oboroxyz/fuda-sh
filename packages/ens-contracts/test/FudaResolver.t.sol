@@ -323,6 +323,69 @@ contract FudaResolverTest {
         require(keccak256(resolved) == keccak256(result), "wrong signed result");
     }
 
+    // Break: removing callback-time routing revalidation returns a stale member result after issuer inactivation.
+    function testCallbackRejectsActiveMemberResultAfterIssuerBecomesInactive() public {
+        VM.warp(1_000);
+        _claim(OUTSIDER);
+        (,, bytes memory request,, bytes memory extraData) =
+            _offchainLookup(_memberName(), _legacy(_namehash("alice.coffee.fuda.eth")));
+        bytes memory response =
+            _signedEnvelope(address(resolver), request, _result(), 1_300, SIGNER_KEY);
+
+        registry.setOwner(keccak256("coffee"), address(0));
+
+        _requireCallbackStateFailure(response, extraData);
+    }
+
+    // Break: removing callback-time routing revalidation returns stale D1 issuer data after an onchain claim.
+    function testCallbackRejectsNeverClaimedIssuerResultAfterActiveClaim() public {
+        VM.warp(1_000);
+        (,, bytes memory request,, bytes memory extraData) = _offchainLookup(_name(), _record());
+        bytes memory response =
+            _signedEnvelope(address(resolver), request, _result(), 1_300, SIGNER_KEY);
+
+        _claim(OUTSIDER);
+
+        _requireCallbackStateFailure(response, extraData);
+    }
+
+    // Break: removing callback-time routing revalidation returns a signed result after the registry starts failing.
+    function testCallbackRejectsActiveMemberResultAfterRegistryFailure() public {
+        VM.warp(1_000);
+        _claim(OUTSIDER);
+        (,, bytes memory request,, bytes memory extraData) =
+            _offchainLookup(_memberName(), _legacy(_namehash("alice.coffee.fuda.eth")));
+        bytes memory response =
+            _signedEnvelope(address(resolver), request, _result(), 1_300, SIGNER_KEY);
+
+        registry.setFailure(true);
+
+        _requireCallbackStateFailure(response, extraData);
+    }
+
+    // Break: accepting any callback self-call revert lets an inactive issuer's unsupported record reach stale data.
+    function testCallbackRejectsUnsupportedRecordAfterIssuerBecomesInactive() public {
+        VM.warp(1_000);
+        _claim(OUTSIDER);
+        (,, bytes memory request,, bytes memory extraData) = _offchainLookup(_memberName(), hex"deadbeef");
+        bytes memory response =
+            _signedEnvelope(address(resolver), request, _result(), 1_300, SIGNER_KEY);
+
+        registry.setOwner(keccak256("coffee"), address(0));
+
+        _requireCallbackStateFailure(response, extraData);
+    }
+
+    // Break: skipping exact OffchainLookup envelope validation accepts a signed malformed resolve request.
+    function testCallbackRejectsSignedMalformedResolveRequest() public {
+        VM.warp(1_000);
+        bytes memory request = _request(hex"00", _record());
+        bytes memory response =
+            _signedEnvelope(address(resolver), request, _result(), 1_300, SIGNER_KEY);
+
+        _requireCallbackStateFailure(response, abi.encode(address(resolver), request));
+    }
+
     function testAcceptsResponseAtExactExpiry() public {
         VM.warp(1_300);
         bytes memory request = _request(_name(), _record());
@@ -529,6 +592,17 @@ contract FudaResolverTest {
             abi.encodeCall(FudaResolver.resolveWithProof, (response, extraData))
         );
         require(!ok, "invalid response accepted");
+    }
+
+    function _requireCallbackStateFailure(bytes memory response, bytes memory extraData) private view {
+        (bool ok, bytes memory reason) = address(resolver).staticcall(
+            abi.encodeCall(FudaResolver.resolveWithProof, (response, extraData))
+        );
+        require(!ok, "stale callback result accepted");
+        require(
+            _selector(reason) == bytes4(keccak256("InvalidCallbackState()")),
+            "wrong callback state error"
+        );
     }
 
     function _signedEnvelope(

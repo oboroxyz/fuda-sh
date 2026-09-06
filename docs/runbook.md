@@ -62,37 +62,85 @@ depends on.
    pnpm --filter api migrate:remote
    ```
 
-### ENS CCIP-Read transport
+### ENSv2 parent and hybrid resolver topology
 
 The D1 migrations create the `ens_names` mirror and `stealth_resolutions`
-ledger. The api exposes `POST /ens/gateway`, and `packages/ens-contracts`
-contains the matching signed ENSIP-10 resolver. The route fails closed with 503
-unless all four ENS bindings are present, so the ordinary deployment above does
-not need placeholder ENS values.
+ledger. The API exposes `POST /ens/gateway`, and `packages/ens-contracts`
+contains the matching hybrid ENSIP-10 resolver, issuer registrar, pinned
+ETHOnline 2026 Sepolia address family, and noninteractive deployment tools.
+The gateway route fails closed with 503 unless all four API-side ENS bindings
+are present, so the ordinary deployment above does not need placeholder ENS
+values.
 
-Live ENS setup remains gated on Issuer onboarding and confirmed Right evidence
-writing the corresponding `ens_names` rows. When that dependency lands, use this
-order:
+Use only the dedicated deployment on Ethereum Sepolia (`11155111`). Every
+client must use its Universal Resolver override
+`0xd26f2040d083af1cd2962ba303f4bea0c4faf142`; do not substitute normal
+Sepolia ENS addresses. Keep the parent, voucher, gateway, allocation, and EAS
+issuer keys separate, and never paste real keys into a checked-in file.
 
-1. Pin an exact `ensdomains/contracts-v2` commit and its matching Sepolia
-   deployment manifest. Do not combine addresses from different beta releases.
-2. Register exactly `fuda.eth` on that deployment and keep its owner key separate
-   from the EAS issuer and gateway signer.
-3. Generate two independent 32-byte secrets: an ECDSA key for
-   `ENS_GATEWAY_SIGNER_KEY` and an HMAC key for `ENS_GATEWAY_SECRET`.
-4. Run `pnpm --filter @fuda/ens-contracts test`, then deploy `FudaResolver` with
-   the signer address and `https://api.fuda.sh/ens/gateway` as its URL. This
-   repository deliberately does not pin or deploy a live resolver address yet.
-5. Set `ENS_PARENT_NAME=fuda.eth` and set `ENS_RESOLVER_ADDRESSES` to the
-   comma-separated deployed resolver allowlist. A claimed issuer's resolver must
-   be included if it delegates member-label resolution to the same gateway.
-6. Attach the wildcard resolver to the parent using the pinned ENSv2 contracts,
-   then verify both a stable issuer row and two consecutive +Private lookups. The
-   stable answer must repeat; the private answers must differ and create two
-   `stealth_resolutions` rows.
-7. Configure the `fuda.sh` DNS alias only after the exact DNSAliasResolver grammar
-   has been verified against that same deployment. DNS aliasing is not shipped by
-   this repository.
+Run the read-only preflight first:
+
+```bash
+ENS_RPC_URL=https://… pnpm --filter @fuda/ens-contracts ens:preflight
+```
+
+Register the parent with the two-step commit/reveal flow:
+
+```bash
+ENS_RPC_URL=https://… ENS_PARENT_ADDRESS=0x… ENS_PARENT_KEY=0x… ENS_COMMITMENT_SECRET=0x… ENS_PARENT_DURATION=31536000 pnpm --filter @fuda/ens-contracts ens:parent:commit
+ENS_RPC_URL=https://… ENS_PARENT_ADDRESS=0x… ENS_PARENT_KEY=0x… ENS_COMMITMENT_SECRET=0x… ENS_PARENT_DURATION=31536000 pnpm --filter @fuda/ens-contracts ens:parent:reveal
+```
+
+After a fresh successful commit, rerun the commit command safely: it recognizes
+the existing commitment without sending and reports `readyAt` and `expiresAt`.
+Reveal is accepted when the confirmed commitment age is inclusively between
+the registrar's `MIN_COMMITMENT_AGE` and `MAX_COMMITMENT_AGE`. Before the
+minimum it stops without sending; after the maximum, submit a new commit. Reuse
+the same `ENS_COMMITMENT_SECRET`, owner, and duration for reveal.
+
+Deploy and wire the fuda User Registry, shared resolver, and registrar:
+
+```bash
+ENS_RPC_URL=https://… ENS_PARENT_KEY=0x… ENS_VOUCHER_KEY=0x… ENS_GATEWAY_SIGNER_KEY=0x… pnpm --filter @fuda/ens-contracts ens:topology:deploy
+```
+
+Topology deployment is resumable. Set `ENS_PARENT_ADDRESS` as a public owner
+assertion, and set any already-created `ENS_USER_REGISTRY_ADDRESS`,
+`ENS_RESOLVER_ADDRESS`, and `ENS_REGISTRAR_ADDRESS` values before retrying.
+Every supplied or discovered address is checked for runtime code, owner,
+implementation, immutables, and compatible existing links before any later
+send. The command reports a newly confirmed address before subsequent reads,
+so retain that public progress output if a verification read interrupts the
+run.
+
+Run standalone verification with public values only:
+
+```bash
+ENS_RPC_URL=https://… ENS_PARENT_ADDRESS=0x… ENS_VOUCHER_SIGNER_ADDRESS=0x… ENS_GATEWAY_SIGNER_ADDRESS=0x… ENS_USER_REGISTRY_ADDRESS=0x… ENS_RESOLVER_ADDRESS=0x… ENS_REGISTRAR_ADDRESS=0x… pnpm --filter @fuda/ens-contracts ens:verify
+```
+
+Preflight and standalone verification are read-only. The parent commit,
+parent reveal, and topology deployment commands mutate Sepolia. All three
+mutation commands are prepared but were not executed as part of repository
+implementation; running them requires credentials and explicit operational
+authorization. Live `.eth` resolution checks also remain outstanding.
+
+After topology verification, configure the API with
+`ENS_PARENT_NAME=fuda.eth` and the shared resolver in
+`ENS_RESOLVER_ADDRESSES`, plus independent `ENS_GATEWAY_SIGNER_KEY` and
+`ENS_GATEWAY_SECRET` secrets. B1 issuer onboarding, voucher issuance,
+naming-mirror writes, and lifecycle/unregister integration must land before
+normal product flows populate and maintain these names.
+
+The DNSSEC TXT value required to expose the `.eth` tree through `fuda.sh` is:
+
+```text
+ENS1 0x005a3bf1d92ebe4b1e1641a0c6fa49f38e1762a6 sh eth
+```
+
+This value is documented only. The `fuda.sh` zone was not changed, and the
+alias must not be treated as live until DNSSEC and scratch resolution are
+verified operationally.
 
 ## 3. Secrets
 

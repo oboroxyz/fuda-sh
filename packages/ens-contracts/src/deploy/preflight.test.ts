@@ -89,8 +89,8 @@ interface Scenario {
   invalidInterfaceSupported?: boolean
   malformedRead?: string
   owner?: Address
+  ownerMismatchAddress?: Address
   rootRegistry?: Address
-  wrongContractOwner?: boolean
 }
 
 const boolean = (value: boolean) => encodeAbiParameters([{ type: 'bool' }], [value])
@@ -186,7 +186,7 @@ const fakeClient = (scenario: Scenario = {}, chain: Chain = ENS_HACKATHON_CHAIN)
               return address(scenario.implementation ?? ENS_HACKATHON_CONTRACTS.UserRegistryImpl)
             }
             case 'owner': {
-              return address(scenario.wrongContractOwner === true ? other : owner)
+              return address(to === scenario.ownerMismatchAddress ? other : owner)
             }
             default: {
               throw new Error(`unexpected ABI read ${functionName}`)
@@ -337,9 +337,15 @@ describe('read-only ENS namespace preflight', () => {
     await expect(runPreflight(fakeClient({ implementation: other }).client, resume)).rejects.toThrow(
       'VerifiableFactory.verifyContract',
     )
-    await expect(runPreflight(fakeClient({ wrongContractOwner: true }).client, resume)).rejects.toThrow(
-      'owner',
+    await expect(runPreflight(fakeClient({ ownerMismatchAddress: resolver }).client, resume)).rejects.toThrow(
+      'FudaResolver.owner',
     )
+  })
+
+  it('rejects a registrar-only owner mismatch after the resolver owner passes', async () => {
+    await expect(
+      runPreflight(fakeClient({ ownerMismatchAddress: registrar }).client, resume),
+    ).rejects.toThrow('FudaSubnameRegistrar.owner')
   })
 
   it.each([
