@@ -51,10 +51,10 @@ export const connectMemberRail = async <T>(
   request: (provider: T) => Promise<Hex>,
 ): Promise<Hex> => await request(await open())
 
-const uniqueAddresses = (input: MemberPassListInput): Hex[] => {
-  const addresses = [...input.addresses, ...input.memory.map(({ holder }) => holder)]
+const uniqueAddresses = (addresses: readonly Hex[], memory: readonly PassMemoryEntry[]): Hex[] => {
+  const withRemembered = [...addresses, ...memory.map(({ holder }) => holder)]
   const seen = new Set<string>()
-  return addresses.filter((address) => {
+  return withRemembered.filter((address) => {
     const key = keyOf(address)
     if (seen.has(key)) {
       return false
@@ -90,7 +90,13 @@ const previewOf = async (uid: Hex, verify: MemberPassListIo['verify']): Promise<
   return result?.ok === true ? result.body : null
 }
 
-const isPrivatePreview = (preview: VerifyResponse | null): boolean => preview?.entitlement?.level === 2
+const isPublicLevel = (level: number | undefined): boolean => level === 0 || level === 1
+
+const isPublicPreview = (preview: VerifyResponse | null): boolean =>
+  isPublicLevel(preview?.entitlement?.level)
+
+const isNonPublicPreview = (preview: VerifyResponse | null): boolean =>
+  preview?.entitlement !== undefined && !isPublicPreview(preview)
 
 export class PrivatePassRecoveryError extends Error {
   constructor() {
@@ -108,7 +114,7 @@ export const rememberQueryPass = async (
   if (!preview.ok) {
     throw new Error(preview.error)
   }
-  if (isPrivatePreview(preview.body)) {
+  if (!isPublicPreview(preview.body)) {
     throw new PrivatePassRecoveryError()
   }
   const holder = preview.body.entitlement?.holder
@@ -169,6 +175,12 @@ const linksOf = async (
   return { appleHref: appleAvailable === true ? passes.apple : null, googleHref, passes }
 }
 
+const unlinkedPassesOf = (uid: Hex): Pick<MemberPassRow, 'appleHref' | 'googleHref' | 'passes'> => ({
+  appleHref: null,
+  googleHref: null,
+  passes: passUrls(API_BASE_URL, uid),
+})
+
 const rowsFrom = (memory: readonly PassMemoryEntry[], graph: readonly GraphRight[]): RowSeed[] => {
   const memoryRows: RowSeed[] = uniqueMemory(memory).map((entry) => ({
     graph: null,
@@ -195,29 +207,58 @@ export const loadMemberPassList = async (
   input: MemberPassListInput,
   io: MemberPassListIo,
 ): Promise<MemberPassListResult> => {
+  const remembered = uniqueMemory(input.memory)
+  const memoryPreviews = await Promise.all(
+    remembered.map(async (entry) => ({ entry, preview: await previewOf(entry.uid, io.verify) })),
+  )
+  const previewByUid = new Map(memoryPreviews.map(({ entry, preview }) => [keyOf(entry.uid), preview]))
+  const nonPublicUids = new Set(
+    memoryPreviews.filter(({ preview }) => isNonPublicPreview(preview)).map(({ entry }) => keyOf(entry.uid)),
+  )
+  const publicMemory = memoryPreviews
+    .filter(({ preview }) => isPublicPreview(preview))
+    .map(({ entry }) => entry)
   let rights: GraphRight[] = []
   let indexUnavailable = !input.graphConfigured
   if (input.graphConfigured) {
     const fetched = await Promise.allSettled(
-      uniqueAddresses(input).map(async (holder) => await io.fetchRights(holder)),
+      uniqueAddresses(input.addresses, publicMemory).map(async (holder) => await io.fetchRights(holder)),
     )
     rights = fetched.flatMap((result) => {
       if (result.status === 'rejected') {
         indexUnavailable = true
         return []
       }
-      return result.value.filter((right) => right.level !== 2)
+      return result.value
     })
   }
 
-  const seeds = rowsFrom(input.memory, rights)
+  for (const right of rights) {
+    if (!isPublicLevel(right.level)) {
+      nonPublicUids.add(keyOf(right.id))
+    }
+  }
+  const publicRights = rights.filter((right) => isPublicLevel(right.level))
+  const eligibleMemory = memoryPreviews
+    .filter(
+      ({ entry, preview }) =>
+        !nonPublicUids.has(keyOf(entry.uid)) && (preview === null || isPublicPreview(preview)),
+    )
+    .map(({ entry }) => entry)
+  const seeds = rowsFrom(eligibleMemory, publicRights).filter((seed) => !nonPublicUids.has(keyOf(seed.uid)))
   const rowsWithPrivateFiltered = await Promise.all(
     seeds.map(async (seed) => {
-      const preview = await previewOf(seed.uid, io.verify)
-      if (isPrivatePreview(preview)) {
+      const uidKey = keyOf(seed.uid)
+      const preview = previewByUid.has(uidKey)
+        ? (previewByUid.get(uidKey) ?? null)
+        : await previewOf(seed.uid, io.verify)
+      if (isNonPublicPreview(preview)) {
         return null
       }
-      const links = await linksOf(seed.uid, io)
+      const links =
+        isPublicLevel(seed.graph?.level) || isPublicPreview(preview)
+          ? await linksOf(seed.uid, io)
+          : unlinkedPassesOf(seed.uid)
       return { ...seed, ...links, preview }
     }),
   )
@@ -228,8 +269,15 @@ export const loadMemberPassList = async (
 export const refreshPassStatuses = async (
   rows: readonly MemberPassRow[],
   verify: MemberPassListIo['verify'],
-): Promise<MemberPassRow[]> =>
-  await Promise.all(rows.map(async (row) => ({ ...row, preview: await previewOf(row.uid, verify) })))
+): Promise<MemberPassRow[]> => {
+  const refreshed = await Promise.all(
+    rows.map(async (row) => {
+      const preview = await previewOf(row.uid, verify)
+      return isNonPublicPreview(preview) ? null : { ...row, preview }
+    }),
+  )
+  return refreshed.filter((row): row is MemberPassRow => row !== null)
+}
 
 interface RefreshTicket {
   listGeneration: number

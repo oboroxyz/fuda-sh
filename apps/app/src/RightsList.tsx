@@ -76,11 +76,49 @@ const memberStatus = (row: MemberPassRow): string => {
   return row.preview.decision === 'ADMIT' ? 'ACTIVE' : row.preview.reason
 }
 
-const memberCard = (row: MemberPassRow): JSX.Element => {
+const memberPassLinks = (row: MemberPassRow, publicPass: boolean): JSX.Element | null => {
+  if (!publicPass) {
+    return null
+  }
+  return (
+    <div class="flex gap-3 text-sm">
+      <a class="link" href={row.passes.web} target="_blank" rel="noreferrer">
+        View pass
+      </a>
+      {row.googleHref === null ? null : (
+        <a class="link" href={row.googleHref} target="_blank" rel="noreferrer">
+          Google Wallet
+        </a>
+      )}
+      {row.appleHref === null ? null : (
+        <a class="link" href={row.appleHref} target="_blank" rel="noreferrer">
+          Apple Wallet
+        </a>
+      )}
+    </div>
+  )
+}
+
+const hasPublicPass = (row: MemberPassRow): boolean =>
+  [row.preview?.entitlement?.level, row.graph?.level].some((level) => level === 0 || level === 1)
+
+const memberMetadata = (row: MemberPassRow): JSX.Element => {
   const live = row.preview?.entitlement
   const issuer = live?.issuer ?? row.graph?.issuer
   const tier = live?.tier ?? row.graph?.tier
   const usageModel = live?.usageModel ?? row.graph?.usageModel
+  return (
+    <>
+      {issuer === undefined ? null : <div class="text-sm">issuer {short(issuer)}</div>}
+      {tier === undefined ? null : <div class="text-sm">tier {tier}</div>}
+      {usageModel === undefined ? null : <div class="text-sm">usage model {usageModel}</div>}
+      {row.graph === null ? null : metaUri(row.graph.metaURI)}
+    </>
+  )
+}
+
+const memberCard = (row: MemberPassRow): JSX.Element => {
+  const publicPass = hasPublicPass(row)
   const status = memberStatus(row)
   return (
     <li class="card bg-base-200" key={row.uid}>
@@ -90,25 +128,8 @@ const memberCard = (row: MemberPassRow): JSX.Element => {
         </div>
         {row.graph === null ? <div class="badge badge-outline">Saved on this device</div> : null}
         <div class="font-mono text-xs break-all">{row.uid}</div>
-        {issuer === undefined ? null : <div class="text-sm">issuer {short(issuer)}</div>}
-        {tier === undefined ? null : <div class="text-sm">tier {tier}</div>}
-        {usageModel === undefined ? null : <div class="text-sm">usage model {usageModel}</div>}
-        {row.graph === null ? null : metaUri(row.graph.metaURI)}
-        <div class="flex gap-3 text-sm">
-          <a class="link" href={row.passes.web} target="_blank" rel="noreferrer">
-            View pass
-          </a>
-          {row.googleHref === null ? null : (
-            <a class="link" href={row.googleHref} target="_blank" rel="noreferrer">
-              Google Wallet
-            </a>
-          )}
-          {row.appleHref === null ? null : (
-            <a class="link" href={row.appleHref} target="_blank" rel="noreferrer">
-              Apple Wallet
-            </a>
-          )}
-        </div>
+        {memberMetadata(row)}
+        {memberPassLinks(row, publicPass)}
       </div>
     </li>
   )

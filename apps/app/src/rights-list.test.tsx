@@ -101,13 +101,13 @@ const admitted = (holder: Hex): Result<VerifyResponse> => ({
   ok: true,
 })
 
-const privateAdmitted = (holder: Hex): Result<VerifyResponse> => ({
+const admittedAtLevel = (holder: Hex, level: number): Result<VerifyResponse> => ({
   body: {
     decision: 'ADMIT',
     entitlement: {
       holder,
       issuer: `0x${'22'.repeat(20)}`,
-      level: 2,
+      level,
       schemaVersion: 1,
       tier: 2,
       usageModel: 1,
@@ -118,6 +118,8 @@ const privateAdmitted = (holder: Hex): Result<VerifyResponse> => ({
   },
   ok: true,
 })
+
+const privateAdmitted = (holder: Hex): Result<VerifyResponse> => admittedAtLevel(holder, 2)
 
 const memberIo = (fetchRights: MemberPassListIo['fetchRights']): MemberPassListIo => ({
   appleAvailable: async () => await Promise.resolve(false),
@@ -225,6 +227,69 @@ describe(loadMemberPassList, () => {
     expect(googleHref).not.toHaveBeenCalled()
     expect(appleAvailable).not.toHaveBeenCalled()
   })
+
+  it('does not query public Graph discovery with a legacy remembered stealth holder', async () => {
+    const fetchRights = vi.fn<MemberPassListIo['fetchRights']>(async () => await Promise.resolve([]))
+
+    const result = await loadMemberPassList(
+      { addresses: [], graphConfigured: true, memory: [{ addedAt: 1, holder: HOLDER_A, uid: RIGHT }] },
+      {
+        appleAvailable: async () => await Promise.resolve(false),
+        fetchRights,
+        googleHref: async () => await Promise.resolve(null),
+        verify: async () => await Promise.resolve(privateAdmitted(HOLDER_A)),
+      },
+    )
+
+    expect(result.rows).toStrictEqual([])
+    expect(fetchRights).not.toHaveBeenCalled()
+  })
+
+  it('keeps a failed remembered preview device-only without pass links or Graph discovery', async () => {
+    const fetchRights = vi.fn<MemberPassListIo['fetchRights']>(async () => await Promise.resolve([]))
+    const googleHref = vi.fn<MemberPassListIo['googleHref']>(async () => await Promise.resolve(null))
+    const appleAvailable = vi.fn<MemberPassListIo['appleAvailable']>(async () => await Promise.resolve(false))
+
+    const result = await loadMemberPassList(
+      { addresses: [], graphConfigured: true, memory: [{ addedAt: 1, holder: HOLDER_A, uid: RIGHT }] },
+      {
+        appleAvailable,
+        fetchRights,
+        googleHref,
+        verify: async () =>
+          await Promise.resolve({ error: 'offline', network: true, ok: false, status: 503 }),
+      },
+    )
+
+    expect(result.rows).toMatchObject([{ appleHref: null, googleHref: null, preview: null, uid: RIGHT }])
+    expect(fetchRights).not.toHaveBeenCalled()
+    expect(googleHref).not.toHaveBeenCalled()
+    expect(appleAvailable).not.toHaveBeenCalled()
+  })
+
+  it('keeps a known non-public Graph UID out of a same-UID memory fallback after its preview fails', async () => {
+    const googleHref = vi.fn<MemberPassListIo['googleHref']>(async () => await Promise.resolve(null))
+    const appleAvailable = vi.fn<MemberPassListIo['appleAvailable']>(async () => await Promise.resolve(false))
+
+    const result = await loadMemberPassList(
+      {
+        addresses: [HOLDER_A],
+        graphConfigured: true,
+        memory: [{ addedAt: 1, holder: HOLDER_A, uid: RIGHT }],
+      },
+      {
+        appleAvailable,
+        fetchRights: async () => await Promise.resolve([{ ...right(RIGHT, null), level: 2 }]),
+        googleHref,
+        verify: async () =>
+          await Promise.resolve({ error: 'offline', network: true, ok: false, status: 503 }),
+      },
+    )
+
+    expect(result.rows).toStrictEqual([])
+    expect(googleHref).not.toHaveBeenCalled()
+    expect(appleAvailable).not.toHaveBeenCalled()
+  })
 })
 
 describe('pass link availability', () => {
@@ -315,6 +380,15 @@ describe(refreshPassStatuses, () => {
 
     expect(refreshed[0]?.preview).toStrictEqual({ decision: 'REJECT', reason: 'REVOKED' })
     expect(verify).toHaveBeenCalledOnce()
+  })
+
+  it('removes a row when a later status preview confirms a non-public entitlement', async () => {
+    const refreshed = await refreshPassStatuses(
+      [memberRow({ appleHref: 'https://apple.example/pass', googleHref: 'https://google.example/pass' })],
+      async () => await Promise.resolve(admittedAtLevel(HOLDER_A, 3)),
+    )
+
+    expect(refreshed).toStrictEqual([])
   })
 })
 
@@ -530,6 +604,22 @@ describe('member rails and query memory', () => {
     expect(remembered).toStrictEqual([])
   })
 
+  it('does not remember a level-3 pass recovered from a /rights uid query', async () => {
+    const remembered: { holder: Hex; uid: Hex }[] = []
+
+    await expect(
+      rememberQueryPass(
+        RIGHT,
+        async () => await Promise.resolve(admittedAtLevel(HOLDER_A, 3)),
+        (pass) => {
+          remembered.push(pass)
+        },
+      ),
+    ).rejects.toBeInstanceOf(PrivatePassRecoveryError)
+
+    expect(remembered).toStrictEqual([])
+  })
+
   it('shows private-recovery guidance with the +Private route', () => {
     const view = QueryRecoveryNotice()
 
@@ -616,6 +706,15 @@ describe(RightsListView, () => {
     expect(viewText(graphView)).toContain('REVOKED')
     expect(viewText(graphView)).not.toContain('ACTIVE')
     expect(viewText(memoryView)).toContain('Saved on this device')
+  })
+
+  it('does not render pass links for an unclassified memory-only row', () => {
+    const row = memberRow({ memory: { addedAt: 1, holder: HOLDER_A, uid: RIGHT }, preview: null })
+    const view = RightsListView({
+      state: { generation: 1, kind: 'ready', result: { indexUnavailable: true, rows: [row] } },
+    })
+
+    expect(viewNodes(view).some(({ props }) => props.href === row.passes.web)).toBe(false)
   })
 
   it('renders the exact saved-pass banner when the public index is unavailable', () => {
