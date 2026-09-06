@@ -9,7 +9,9 @@ export interface LocaleEnvironment {
 
 const browserLocaleEnvironment: LocaleEnvironment = {
   readStored: () => window.localStorage.getItem(LOCALE_STORAGE_KEY),
-  writeStored: (locale) => window.localStorage.setItem(LOCALE_STORAGE_KEY, locale),
+  writeStored: (locale) => {
+    window.localStorage.setItem(LOCALE_STORAGE_KEY, locale)
+  },
   setDocumentLanguage: (locale) => {
     document.documentElement.lang = locale
   },
@@ -23,7 +25,10 @@ export const getLocale = (environment: LocaleEnvironment = browserLocaleEnvironm
   }
 }
 
-export const setLocale = (locale: Locale, environment: LocaleEnvironment = browserLocaleEnvironment): void => {
+export const setLocale = (
+  locale: Locale,
+  environment: LocaleEnvironment = browserLocaleEnvironment,
+): void => {
   try {
     environment.writeStored(locale)
   } catch {

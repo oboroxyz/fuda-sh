@@ -4,9 +4,9 @@ import { getLocale, setLocale } from './browser.ts'
 import type { LocaleEnvironment } from './browser.ts'
 
 const environment = (stored: string | null): LocaleEnvironment => ({
-  readStored: vi.fn(() => stored),
-  setDocumentLanguage: vi.fn(),
-  writeStored: vi.fn(),
+  readStored: vi.fn<LocaleEnvironment['readStored']>(() => stored),
+  setDocumentLanguage: vi.fn<LocaleEnvironment['setDocumentLanguage']>(),
+  writeStored: vi.fn<LocaleEnvironment['writeStored']>(),
 })
 
 describe('browser locale preference', () => {
