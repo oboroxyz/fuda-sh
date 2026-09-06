@@ -4,14 +4,19 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   applePassAvailable,
+  connectMemberRail,
+  createPassListRefreshGate,
   googlePassHref,
   loadMemberPassList,
   rememberQueryPass,
+  refreshCurrentPassStatuses,
   refreshPassStatuses,
+  scheduleVisibleRefresh,
   withConnectedAddress,
 } from './member-pass-list.ts'
 import type { MemberPassListIo, MemberPassRow } from './member-pass-list.ts'
 import { RightsList, RightsListView } from './RightsList.tsx'
+import { requestAccount } from './wallet.ts'
 
 const RIGHT = `0x${'aa'.repeat(32)}` as const
 const DELEGATION = `0x${'bb'.repeat(32)}` as const
@@ -270,6 +275,83 @@ describe(refreshPassStatuses, () => {
   })
 })
 
+describe('status refresh lifecycle', () => {
+  it('drops a deferred refresh once an address reload begins', async () => {
+    const gate = createPassListRefreshGate()
+    gate.beginListLoad()
+    let release: ((value: Result<VerifyResponse>) => void) | undefined
+    // oxlint-disable-next-line promise/avoid-new -- the test controls an in-flight verify response to prove stale completion cannot commit
+    const pending = new Promise<Result<VerifyResponse>>((resolve) => {
+      release = resolve
+    })
+    const refresh = refreshCurrentPassStatuses(gate, [memberRow({})], async () => await pending)
+
+    gate.beginListLoad()
+    release?.(admitted(HOLDER_A))
+
+    await expect(refresh).resolves.toBeNull()
+  })
+
+  it('keeps only the newest overlapping deferred refresh', async () => {
+    const gate = createPassListRefreshGate()
+    gate.beginListLoad()
+    let releaseFirst: ((value: Result<VerifyResponse>) => void) | undefined
+    let releaseSecond: ((value: Result<VerifyResponse>) => void) | undefined
+    // oxlint-disable-next-line promise/avoid-new -- the test needs independently ordered in-flight verify responses
+    const first = new Promise<Result<VerifyResponse>>((resolve) => {
+      releaseFirst = resolve
+    })
+    // oxlint-disable-next-line promise/avoid-new -- the test needs independently ordered in-flight verify responses
+    const second = new Promise<Result<VerifyResponse>>((resolve) => {
+      releaseSecond = resolve
+    })
+    const pending = [first, second]
+    const verify: MemberPassListIo['verify'] = async () => {
+      const result = pending.shift()
+      return await (result ?? Promise.reject(new Error('unexpected refresh')))
+    }
+
+    const older = refreshCurrentPassStatuses(gate, [memberRow({})], verify)
+    const newer = refreshCurrentPassStatuses(gate, [memberRow({})], verify)
+    releaseSecond?.({ body: { decision: 'REJECT', reason: 'REVOKED' }, ok: true })
+
+    await expect(newer).resolves.toMatchObject([{ preview: { decision: 'REJECT', reason: 'REVOKED' } }])
+    releaseFirst?.(admitted(HOLDER_A))
+    await expect(older).resolves.toBeNull()
+  })
+
+  it('skips hidden-document ticks and clears its interval on teardown', () => {
+    let tick: (() => void) | undefined
+    let visible = false
+    let cleared: number | undefined
+    let refreshes = 0
+    const stop = scheduleVisibleRefresh<number>(
+      () => {
+        refreshes += 1
+      },
+      {
+        clearInterval: (id) => {
+          cleared = id
+        },
+        // oxlint-disable-next-line promise/prefer-await-to-callbacks -- the injected timer callback is the behavior under test
+        setInterval: (callback) => {
+          tick = callback
+          return 42
+        },
+        visibilityState: () => (visible ? 'visible' : 'hidden'),
+      },
+    )
+
+    tick?.()
+    visible = true
+    tick?.()
+    stop()
+
+    expect(refreshes).toBe(1)
+    expect(cleared).toBe(42)
+  })
+})
+
 describe('member pass screen', () => {
   it('introduces the member list rails, +Private link, manual disclosure, and empty discovery paths', () => {
     const view = RightsList({ injected: { request: async () => await Promise.resolve([HOLDER_A]) } })
@@ -285,8 +367,21 @@ describe('member pass screen', () => {
 
 describe('member rails and query memory', () => {
   it('adds an injected or passkey account to the next address union without a signature', async () => {
-    const passkeyAddress = await Promise.resolve(HOLDER_A)
-    const walletAddress = await Promise.resolve(HOLDER_B)
+    const requested: string[] = []
+    const passkey = {
+      request: async ({ method }: { method: string }) => {
+        requested.push(method)
+        return await Promise.resolve([HOLDER_A])
+      },
+    }
+    const wallet = {
+      request: async ({ method }: { method: string }) => {
+        requested.push(method)
+        return await Promise.resolve([HOLDER_B])
+      },
+    }
+    const passkeyAddress = await connectMemberRail(async () => await Promise.resolve(passkey), requestAccount)
+    const walletAddress = await connectMemberRail(async () => await Promise.resolve(wallet), requestAccount)
     const connected = withConnectedAddress(withConnectedAddress([], passkeyAddress), walletAddress)
     const fetchRights = vi.fn<MemberPassListIo['fetchRights']>(async () => await Promise.resolve([]))
 
@@ -297,6 +392,7 @@ describe('member rails and query memory', () => {
 
     expect(fetchRights).toHaveBeenCalledWith(HOLDER_A)
     expect(fetchRights).toHaveBeenCalledWith(HOLDER_B)
+    expect(requested).toStrictEqual(['eth_requestAccounts', 'eth_requestAccounts'])
   })
 
   it('turns a /rights uid preview into remembered holder memory', async () => {
@@ -311,6 +407,26 @@ describe('member rails and query memory', () => {
 
     expect(entry).toMatchObject({ holder: HOLDER_A, uid: RIGHT })
     expect(remembered).toStrictEqual([{ holder: HOLDER_A, uid: RIGHT }])
+  })
+
+  it('reports an unsuccessful query preview instead of forgetting it', async () => {
+    await expect(
+      rememberQueryPass(
+        RIGHT,
+        async () => await Promise.resolve({ error: 'api 503', network: true, ok: false, status: 503 }),
+        () => {},
+      ),
+    ).rejects.toThrow('api 503')
+  })
+
+  it('reports a transport query preview failure instead of forgetting it', async () => {
+    await expect(
+      rememberQueryPass(
+        RIGHT,
+        async () => await Promise.reject(new Error('offline')),
+        () => {},
+      ),
+    ).rejects.toThrow('offline')
   })
 })
 
@@ -370,5 +486,13 @@ describe(RightsListView, () => {
     expect(viewText(graphView)).toContain('REVOKED')
     expect(viewText(graphView)).not.toContain('ACTIVE')
     expect(viewText(memoryView)).toContain('Saved on this device')
+  })
+
+  it('renders the exact saved-pass banner when the public index is unavailable', () => {
+    const view = RightsListView({
+      state: { kind: 'ready', result: { indexUnavailable: true, rows: [memberRow({})] } },
+    })
+
+    expect(viewText(view)).toContain('index unavailable; showing passes saved on this device')
   })
 })

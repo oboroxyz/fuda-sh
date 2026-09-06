@@ -46,6 +46,11 @@ export const withConnectedAddress = (addresses: readonly Hex[], address: Hex): H
   return addresses.some((stored) => keyOf(stored) === target) ? [...addresses] : [...addresses, address]
 }
 
+export const connectMemberRail = async <T>(
+  open: () => Promise<T>,
+  request: (provider: T) => Promise<Hex>,
+): Promise<Hex> => await request(await open())
+
 const uniqueAddresses = (input: MemberPassListInput): Hex[] => {
   const addresses = [...input.addresses, ...input.memory.map(({ holder }) => holder)]
   const seen = new Set<string>()
@@ -90,8 +95,11 @@ export const rememberQueryPass = async (
   verify: MemberPassListIo['verify'],
   remember: (pass: Pick<PassMemoryEntry, 'holder' | 'uid'>) => void,
 ): Promise<PassMemoryEntry | null> => {
-  const preview = await previewOf(uid, verify)
-  const holder = preview?.entitlement?.holder
+  const preview = await verify(uid)
+  if (!preview.ok) {
+    throw new Error(preview.error)
+  }
+  const holder = preview.body.entitlement?.holder
   if (holder === undefined) {
     return null
   }
@@ -205,3 +213,64 @@ export const refreshPassStatuses = async (
   verify: MemberPassListIo['verify'],
 ): Promise<MemberPassRow[]> =>
   await Promise.all(rows.map(async (row) => ({ ...row, preview: await previewOf(row.uid, verify) })))
+
+interface RefreshTicket {
+  listGeneration: number
+  refreshGeneration: number
+}
+
+export interface PassListRefreshGate {
+  beginListLoad: () => number
+  isListCurrent: (generation: number) => boolean
+  beginRefresh: () => RefreshTicket
+  isRefreshCurrent: (ticket: RefreshTicket) => boolean
+}
+
+export const createPassListRefreshGate = (): PassListRefreshGate => {
+  let listGeneration = 0
+  let refreshGeneration = 0
+  return {
+    beginListLoad: () => {
+      listGeneration += 1
+      refreshGeneration += 1
+      return listGeneration
+    },
+    beginRefresh: () => {
+      refreshGeneration += 1
+      return { listGeneration, refreshGeneration }
+    },
+    isListCurrent: (generation) => generation === listGeneration,
+    isRefreshCurrent: (ticket) =>
+      ticket.listGeneration === listGeneration && ticket.refreshGeneration === refreshGeneration,
+  }
+}
+
+export const refreshCurrentPassStatuses = async (
+  gate: PassListRefreshGate,
+  rows: readonly MemberPassRow[],
+  verify: MemberPassListIo['verify'],
+): Promise<MemberPassRow[] | null> => {
+  const ticket = gate.beginRefresh()
+  const refreshed = await refreshPassStatuses(rows, verify)
+  return gate.isRefreshCurrent(ticket) ? refreshed : null
+}
+
+export interface VisibleRefreshIo<TInterval> {
+  setInterval: (callback: () => void, milliseconds: number) => TInterval
+  clearInterval: (interval: TInterval) => void
+  visibilityState: () => DocumentVisibilityState
+}
+
+export const scheduleVisibleRefresh = <TInterval>(
+  refresh: () => void,
+  io: VisibleRefreshIo<TInterval>,
+): (() => void) => {
+  const interval = io.setInterval(() => {
+    if (io.visibilityState() === 'visible') {
+      refresh()
+    }
+  }, 30_000)
+  return () => {
+    io.clearInterval(interval)
+  }
+}

@@ -2,17 +2,20 @@
 import { asHex, fetchRightsByHolder, normalizeUid } from '@fuda/sdk'
 import type { GraphRight, Hex } from '@fuda/sdk'
 import { short } from '@fuda/ui'
-import { useEffect, useState } from 'hono/jsx/dom'
+import { useEffect, useRef, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import { verifyUid } from './api.ts'
 import { GRAPH_RIGHTS_ENDPOINT } from './config.ts'
 import {
   applePassAvailable,
+  connectMemberRail,
+  createPassListRefreshGate,
   googlePassHref,
   loadMemberPassList,
   rememberQueryPass,
-  refreshPassStatuses,
+  refreshCurrentPassStatuses,
+  scheduleVisibleRefresh,
   withConnectedAddress,
 } from './member-pass-list.ts'
 import type { MemberPassListIo, MemberPassListResult, MemberPassRow } from './member-pass-list.ts'
@@ -126,9 +129,23 @@ export const RightsListView = ({ state }: { state: RightsListState | MemberListS
     return <ul class="grid gap-3 md:grid-cols-2">{state.rights.map(graphCard)}</ul>
   }
   if (state.result.rows.length === 0) {
-    return <p class="text-sm opacity-70">No passes found yet.</p>
+    return (
+      <>
+        {state.result.indexUnavailable ? (
+          <div class="alert alert-warning">index unavailable; showing passes saved on this device</div>
+        ) : null}
+        <p class="text-sm opacity-70">No passes found yet.</p>
+      </>
+    )
   }
-  return <ul class="grid gap-3 md:grid-cols-2">{state.result.rows.map(memberCard)}</ul>
+  return (
+    <>
+      {state.result.indexUnavailable ? (
+        <div class="alert alert-warning">index unavailable; showing passes saved on this device</div>
+      ) : null}
+      <ul class="grid gap-3 md:grid-cols-2">{state.result.rows.map(memberCard)}</ul>
+    </>
+  )
 }
 
 const fieldValue = (target: EventTarget | null): string | null =>
@@ -171,20 +188,22 @@ export const RightsList = ({
   const [manual, setManual] = useState('')
   const [problem, setProblem] = useState<string | null>(null)
   const uid = queryUid === undefined ? queryUidFromLocation() : queryUid
+  const refreshGate = useRef(createPassListRefreshGate())
 
   useEffect(() => {
     let current = true
+    const generation = refreshGate.current.beginListLoad()
     void (async () => {
       try {
         const result = await loadMemberPassList(
           { addresses, graphConfigured: GRAPH_RIGHTS_ENDPOINT !== '', memory },
           io,
         )
-        if (current) {
+        if (current && refreshGate.current.isListCurrent(generation)) {
           setState({ kind: 'ready', result })
         }
       } catch (error) {
-        if (current) {
+        if (current && refreshGate.current.isListCurrent(generation)) {
           setState({ kind: 'error', message: error instanceof Error ? error.message : 'Pass list failed.' })
         }
       }
@@ -204,29 +223,38 @@ export const RightsList = ({
           setMemory(rememberPass(pass))
         })
       } catch (error) {
-        setProblem(error instanceof Error ? error.message : 'Could not load this pass.')
+        const detail = error instanceof Error ? error.message : 'unknown error'
+        setProblem(`Could not recover this pass: ${detail}`)
       }
     })()
   }, [io, uid])
 
-  useEffect(() => {
-    const interval = globalThis.setInterval(() => {
-      if (globalThis.document.visibilityState !== 'visible' || state.kind !== 'ready') {
-        return
-      }
-      void (async () => {
-        try {
-          const rows = await refreshPassStatuses(state.result.rows, io.verify)
-          setState({ kind: 'ready', result: { ...state.result, rows } })
-        } catch (error) {
-          setProblem(error instanceof Error ? error.message : 'Could not refresh pass status.')
-        }
-      })()
-    }, 30_000)
-    return () => {
-      globalThis.clearInterval(interval)
-    }
-  }, [io.verify, state])
+  useEffect(
+    () =>
+      scheduleVisibleRefresh(
+        () => {
+          if (state.kind !== 'ready') {
+            return
+          }
+          void (async () => {
+            try {
+              const rows = await refreshCurrentPassStatuses(refreshGate.current, state.result.rows, io.verify)
+              if (rows !== null) {
+                setState({ kind: 'ready', result: { ...state.result, rows } })
+              }
+            } catch (error) {
+              setProblem(error instanceof Error ? error.message : 'Could not refresh pass status.')
+            }
+          })()
+        },
+        {
+          clearInterval: globalThis.clearInterval,
+          setInterval: globalThis.setInterval,
+          visibilityState: () => globalThis.document.visibilityState,
+        },
+      ),
+    [io.verify, state],
+  )
 
   const addAddress = (address: Hex): void => {
     setAddresses((stored) => withConnectedAddress(stored, address))
@@ -235,7 +263,7 @@ export const RightsList = ({
   const connect = async (open: () => Promise<Eip1193Provider>): Promise<void> => {
     setProblem(null)
     try {
-      addAddress(await requestAccount(await open()))
+      addAddress(await connectMemberRail(open, requestAccount))
     } catch (error) {
       setProblem(error instanceof Error ? error.message : 'Could not connect wallet.')
     }
@@ -251,7 +279,6 @@ export const RightsList = ({
     addAddress(holder)
   }
 
-  const indexUnavailable = state.kind === 'ready' && state.result.indexUnavailable
   return (
     <main class="flex min-h-screen flex-col gap-4 p-6">
       <h1 class="text-xl font-bold">Your passes</h1>
@@ -310,9 +337,6 @@ export const RightsList = ({
           </button>
         </form>
       </details>
-      {indexUnavailable ? (
-        <div class="alert alert-warning">The public rights index is unavailable.</div>
-      ) : null}
       {problem === null ? null : <div class="alert alert-error">{problem}</div>}
       <RightsListView state={state} />
     </main>
