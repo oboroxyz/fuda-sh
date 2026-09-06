@@ -1,4 +1,4 @@
-import { USAGE_MODEL } from '@fuda/sdk'
+import { LEVEL_CODE, USAGE_MODEL } from '@fuda/sdk'
 import type { EntryPath, Reason } from '@fuda/sdk'
 import type { Hex } from 'viem'
 
@@ -82,7 +82,7 @@ export const noAdmitHook: AdmitHook = () => {
 export interface AdmitContext {
   db: Db
   uid: Hex
-  canonical: Pick<Entitlement, 'holder' | 'usageModel'>
+  canonical: Pick<Entitlement, 'holder' | 'level' | 'usageModel'>
   path: EntryPath
   now: number
   onAdmit: AdmitHook
@@ -114,6 +114,11 @@ export const admitAndHook = async (ctx: AdmitContext): Promise<AdmitOutcome> => 
       reason: 'OK',
       uid: ctx.uid,
     })
+  }
+  // Spec §8: no Attendance for a +Private right — a public record would publish
+  // the visit history +Private exists to hide. Its entries live only in the log.
+  if (ctx.canonical.level === LEVEL_CODE.private) {
+    return { admitted: true, entryLogId }
   }
   try {
     ctx.onAdmit({

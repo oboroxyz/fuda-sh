@@ -11,7 +11,7 @@ import { challenges, entryLog, members, slots } from '../src/db/schema.ts'
 import { parseSchemaSets } from '../src/eas/schemas.ts'
 import type { Bindings } from '../src/env.ts'
 import { appWith, fakeChain } from './env.ts'
-import { configuredEnv, NOW, other, seedRight, seedRoot, signer } from './fixtures.ts'
+import { ATT, configuredEnv, NOW, other, seedRight, seedRoot, signer } from './fixtures.ts'
 
 type App = ReturnType<typeof appWith>
 const db = () => getDb({ DB: env.DB })
@@ -40,6 +40,21 @@ const enter = async (app: App, bindings: Bindings, uid: Hex, key = signer): Prom
   const { challenge, nonce } = await mint(app, bindings, uid)
   const signature = await key.signMessage({ message: challenge })
   return await post(app, bindings, '/verify-signed', { nonce, signature, uid })
+}
+
+// An app whose ADMIT hook is the real Attendance hook, with a real
+// ExecutionContext whose scheduled promises the test awaits itself.
+const attendanceApp = (chain: ReturnType<typeof fakeChain>, bindings: Bindings, kept: Promise<unknown>[]) => {
+  const ctx = createExecutionContext()
+  ctx.waitUntil = (p: Promise<unknown>) => {
+    kept.push(p)
+  }
+  const app = appWith({
+    chain,
+    now: () => NOW,
+    onAdmit: attendanceHook({ chain, db: db(), sets: parseSchemaSets(bindings.EAS_SCHEMAS) }),
+  })
+  return { app, ctx }
 }
 
 const setup = (over: Parameters<typeof seedRight>[2] = {}) => {
@@ -230,15 +245,7 @@ describe('POST /verify-signed', () => {
   it('attests Attendance on a signature ADMIT through the same hook', async () => {
     const { bindings, chain, uid } = setup()
     const kept: Promise<unknown>[] = []
-    const ctx = createExecutionContext()
-    ctx.waitUntil = (p: Promise<unknown>) => {
-      kept.push(p)
-    }
-    const app = appWith({
-      chain,
-      now: () => NOW,
-      onAdmit: attendanceHook({ chain, db: db(), sets: parseSchemaSets(bindings.EAS_SCHEMAS) }),
-    })
+    const { app, ctx } = attendanceApp(chain, bindings, kept)
     const { challenge, nonce } = await mint(app, bindings, uid)
     const signature = await signer.signMessage({ message: challengeMessage(uid, nonce) })
     expect(challenge).toBe(challengeMessage(uid, nonce))
@@ -246,5 +253,22 @@ describe('POST /verify-signed', () => {
     await Promise.all(kept)
     const log = await db().select().from(entryLog)
     expect(log[0]?.attendanceUid).toMatch(/^0x[0-9a-f]{64}$/u)
+  })
+
+  // Spec: a +Private right's visits stay in the entry log only — a public
+  // Attendance would publish the very history +Private exists to hide.
+  it('never attests Attendance for a +Private right that entered by signature', async () => {
+    const { bindings, chain, uid } = setup({ level: 2 })
+    const kept: Promise<unknown>[] = []
+    const { app, ctx } = attendanceApp(chain, bindings, kept)
+    const { nonce } = await mint(app, bindings, uid)
+    const signature = await signer.signMessage({ message: challengeMessage(uid, nonce) })
+    const res = await post(app, bindings, '/verify-signed', { nonce, signature, uid }, ctx)
+    await expect(res.json()).resolves.toMatchObject({ decision: 'ADMIT', path: 'signature' })
+    // The hook always schedules through waitUntil, so an empty list is proof it never ran.
+    expect(kept).toHaveLength(0)
+    const log = await db().select().from(entryLog)
+    expect(log).toMatchObject([{ attendanceUid: null, decision: 'ADMIT', path: 'signature' }])
+    expect([...chain.attestations.values()].some((a) => a.schema === ATT)).toBe(false)
   })
 })

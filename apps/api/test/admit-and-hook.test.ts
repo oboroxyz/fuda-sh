@@ -23,7 +23,7 @@ describe(admitAndHook, () => {
   it('logs a MULTI_USE admission without touching slots and calls the hook once', async () => {
     const calls: AdmitInfo[] = []
     const out = await admitAndHook({
-      canonical: { holder: HOLDER, usageModel: 1 },
+      canonical: { holder: HOLDER, level: 1, usageModel: 1 },
       db: db(),
       now: NOW,
       onAdmit: (info) => {
@@ -41,7 +41,7 @@ describe(admitAndHook, () => {
 
   it('burns the slot of a SINGLE_USE right and rejects the second admission', async () => {
     const ctx = {
-      canonical: { holder: HOLDER, usageModel: 0 as const },
+      canonical: { holder: HOLDER, level: 0, usageModel: 0 as const },
       db: db(),
       now: NOW,
       onAdmit: () => {
@@ -60,7 +60,7 @@ describe(admitAndHook, () => {
 
   it('keeps the admission when the hook throws synchronously', async () => {
     const out = await admitAndHook({
-      canonical: { holder: HOLDER, usageModel: 1 },
+      canonical: { holder: HOLDER, level: 0, usageModel: 1 },
       db: db(),
       now: NOW,
       onAdmit: () => {
@@ -73,5 +73,26 @@ describe(admitAndHook, () => {
     expect(out.admitted).toBe(true)
     const rows = await db().select().from(entryLog)
     expect(rows.map((r) => [r.decision, r.reason])).toStrictEqual([['ADMIT', 'OK']])
+  })
+
+  // Spec: a +Private right is never attested — a public Attendance would publish
+  // the visit history +Private exists to hide. Its entries stay in the log only.
+  it('logs a +Private admission but never calls the hook', async () => {
+    const calls: AdmitInfo[] = []
+    const out = await admitAndHook({
+      canonical: { holder: HOLDER, level: 2, usageModel: 1 },
+      db: db(),
+      now: NOW,
+      onAdmit: (info) => {
+        calls.push(info)
+      },
+      path: 'signature',
+      uid: UID,
+      waitUntil: keep,
+    })
+    expect(out.admitted).toBe(true)
+    expect(calls).toHaveLength(0)
+    const rows = await db().select().from(entryLog)
+    expect(rows).toMatchObject([{ attendanceUid: null, decision: 'ADMIT', path: 'signature', uid: UID }])
   })
 })

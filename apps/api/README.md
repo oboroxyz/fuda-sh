@@ -36,6 +36,8 @@ either is missing the hook is a no-op. A failed attest is caught and logged
 (`console.warn`) but never fails the admission that triggered it — attendance
 is best-effort evidence, not a gate. On success the attestation UID is
 written back to `entry_log.attendance_uid` for the admitting `entry_log` row.
++Private (level 2) rights are never attested; their entries live only in
+`entry_log`.
 
 ## Signed level: challenge/response
 
