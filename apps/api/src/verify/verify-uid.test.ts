@@ -27,6 +27,7 @@ interface RightOverrides {
   schema?: Hex
   attester?: Hex
   revocationTime?: bigint
+  expirationTime?: bigint
   data?: Hex
 }
 
@@ -70,7 +71,7 @@ describe(verifyUid, () => {
           validFrom: over.validFrom ?? 0n,
           validUntil: over.validUntil ?? 0n,
         }),
-      expirationTime: 0n,
+      expirationTime: over.expirationTime ?? 0n,
       recipient: HOLDER,
       refUID: over.refUID ?? delegationUid,
       revocable: true,
@@ -141,6 +142,30 @@ describe(verifyUid, () => {
 
     it('rejects REVOKED', async () => {
       await expect(reasonOf(seedRight({ revocationTime: 5n }))).resolves.toBe('REVOKED')
+    })
+
+    it('rejects EXPIRED for an attestation past its EAS expirationTime', async () => {
+      const out = await verifyUid(deps, seedRight({ expirationTime: BigInt(NOW - 1) }))
+      expect(out.decision).toBe('REJECT')
+      expect(out.reason).toBe('EXPIRED')
+      expect(out.entitlement?.holder).toBe(HOLDER)
+    })
+
+    it('ADMITs while the EAS expirationTime is still in the future', async () => {
+      await expect(decisionOf(seedRight({ expirationTime: BigInt(NOW + 100) }))).resolves.toBe('ADMIT')
+    })
+
+    it('treats the EAS expirationTime as inclusive at the bound', async () => {
+      await expect(decisionOf(seedRight({ expirationTime: BigInt(NOW) }))).resolves.toBe('ADMIT')
+    })
+
+    it('checks EAS expirationTime before revocation and the usage-model check', async () => {
+      await expect(
+        reasonOf(seedRight({ expirationTime: BigInt(NOW - 1), revocationTime: 5n })),
+      ).resolves.toBe('REVOKED')
+      await expect(reasonOf(seedRight({ expirationTime: BigInt(NOW - 1), usageModel: 3 }))).resolves.toBe(
+        'EXPIRED',
+      )
     })
 
     it('rejects UNKNOWN_USAGE_MODEL for usageModel 3', async () => {

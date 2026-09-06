@@ -146,6 +146,12 @@ export const verifyUid = async (deps: VerifyDeps, uid: Hex): Promise<VerifyOutco
   if (raw.revocationTime !== 0n) {
     return reject('REVOKED')
   }
+  // EAS-level expiry on the attestation itself, distinct from the schema's
+  // validUntil. fuda's own /issue pins it to 0; a delegated third-party
+  // attester may set it, and EAS does not reject reads of an expired uid.
+  if (raw.expirationTime !== 0n && BigInt(deps.now) > raw.expirationTime) {
+    return reject('EXPIRED')
+  }
   const windowReason = checkWindow(canonical, deps.now)
   if (windowReason !== null) {
     return reject(windowReason)

@@ -39,6 +39,7 @@ export type RightOverrides = Partial<{
   validUntil: bigint
   holder: Hex
   refUID: Hex
+  expirationTime: bigint
 }>
 
 export const seedRight = (chain: FakeChain, delegationUid: Hex, over: RightOverrides = {}): Hex =>
@@ -55,7 +56,7 @@ export const seedRight = (chain: FakeChain, delegationUid: Hex, over: RightOverr
       validFrom: over.validFrom ?? 0n,
       validUntil: over.validUntil ?? 0n,
     }),
-    expirationTime: 0n,
+    expirationTime: over.expirationTime ?? 0n,
     recipient: over.holder ?? HOLDER,
     refUID: over.refUID ?? delegationUid,
     revocable: true,

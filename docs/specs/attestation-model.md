@@ -204,19 +204,20 @@ Failures map to `NO_DELEGATION`, `ISSUER_NOT_DELEGATED`,
 `verifyUid(uid)` reads `EAS.getAttestation(uid)` via `eth_call`, then checks
 in this order. The first failing check is the reported reason.
 
-| Check                                                                          | REJECT reason                                                                                     |
-| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| attestation exists (`uid != 0`)                                                | `NOT_FOUND`                                                                                       |
-| schema in the Entitlement accepted-version set; decode and upcast to canonical | `WRONG_SCHEMA`                                                                                    |
-| `revocationTime == 0`                                                          | `REVOKED`                                                                                         |
-| `usageModel <= 2`                                                              | `UNKNOWN_USAGE_MODEL`                                                                             |
-| `validFrom == 0 \|\| now >= validFrom`                                         | `NOT_YET_VALID`                                                                                   |
-| `validUntil == 0 \|\| now <= validUntil`                                       | `EXPIRED`                                                                                         |
-| delegation chain valid (see above)                                             | `NO_DELEGATION` / `ISSUER_NOT_DELEGATED` / `DELEGATION_UNAVAILABLE` / `DELEGATION_CONFIG_MISSING` |
-| `level == 0` (`POST /verify` only; `/verify-signed` accepts every level)       | `LEVEL_REQUIRED`                                                                                  |
-| slot not consumed (SINGLE_USE, action endpoints only)                          | `ALREADY_USED`                                                                                    |
-| challenge valid (signed endpoint only)                                         | `BAD_CHALLENGE`                                                                                   |
-| signature valid (signed endpoint only)                                         | `BAD_SIGNATURE`                                                                                   |
+| Check                                                                                                                       | REJECT reason                                                                                     |
+| --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| attestation exists (`uid != 0`)                                                                                             | `NOT_FOUND`                                                                                       |
+| schema in the Entitlement accepted-version set; decode and upcast to canonical                                              | `WRONG_SCHEMA`                                                                                    |
+| `revocationTime == 0`                                                                                                       | `REVOKED`                                                                                         |
+| `expirationTime == 0 \|\| now <= expirationTime` (EAS-level expiry on the attestation itself; fuda's `/issue` pins it to 0) | `EXPIRED`                                                                                         |
+| `usageModel <= 2`                                                                                                           | `UNKNOWN_USAGE_MODEL`                                                                             |
+| `validFrom == 0 \|\| now >= validFrom`                                                                                      | `NOT_YET_VALID`                                                                                   |
+| `validUntil == 0 \|\| now <= validUntil`                                                                                    | `EXPIRED`                                                                                         |
+| delegation chain valid (see above)                                                                                          | `NO_DELEGATION` / `ISSUER_NOT_DELEGATED` / `DELEGATION_UNAVAILABLE` / `DELEGATION_CONFIG_MISSING` |
+| `level == 0` (`POST /verify` only; `/verify-signed` accepts every level)                                                    | `LEVEL_REQUIRED`                                                                                  |
+| slot not consumed (SINGLE_USE, action endpoints only)                                                                       | `ALREADY_USED`                                                                                    |
+| challenge valid (signed endpoint only)                                                                                      | `BAD_CHALLENGE`                                                                                   |
+| signature valid (signed endpoint only)                                                                                      | `BAD_SIGNATURE`                                                                                   |
 
 Every chain error fails closed. `LEVEL_REQUIRED` is checked before slot
 consumption, so a photographed Signed pass cannot burn its SINGLE_USE slot.
