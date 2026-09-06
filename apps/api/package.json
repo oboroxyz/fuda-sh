@@ -8,8 +8,8 @@
     "deploy": "wrangler deploy",
     "test": "vp test",
     "test:scripts": "vp test --config vite.scripts.config.ts",
-    "migrate:local": "wrangler d1 migrations apply fuda --local",
-    "migrate:remote": "wrangler d1 migrations apply fuda --remote",
+    "migrate:local": "wrangler d1 migrations apply fuda-beta --local",
+    "migrate:remote": "wrangler d1 migrations apply fuda-beta --remote",
     "register-schemas": "tsx scripts/register-schemas.ts",
     "attest-root-delegation": "tsx scripts/attest-root-delegation.ts",
     "smoke:live": "tsx scripts/smoke-live.ts"

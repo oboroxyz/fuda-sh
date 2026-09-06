@@ -56,7 +56,7 @@ depends on.
    entry and the one repeated under `env.dev`):
 
    ```bash
-   wrangler d1 create fuda
+   wrangler d1 create fuda-beta
    ```
 
 6. Apply migrations to the remote database:

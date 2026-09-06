@@ -12,8 +12,8 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "fuda",
-      "database_id": "REPLACE_AFTER_wrangler_d1_create",
+      "database_name": "fuda-beta",
+      "database_id": "d4cd9c4d-8986-4bbc-a14d-15c453b6d620",
       "migrations_dir": "migrations",
     },
   ],
@@ -34,11 +34,11 @@
     "EAS_ADDRESS": "0x4200000000000000000000000000000000000021",
     "SCHEMA_REGISTRY_ADDRESS": "0x4200000000000000000000000000000000000020",
     "ANNOUNCER_ADDRESS": "0x55649E01B5Df198D18D95b5cc5051630cfD45564",
-    "ANNOUNCER_FROM_BLOCK": "0",
+    "ANNOUNCER_FROM_BLOCK": "7552655",
     "FACTORY_ADDRESS": "0x0BA5ED0c6AA8c49038F819E587E2633c4A9F428a",
-    "EAS_SCHEMAS": "{\"entitlement\":[],\"issuerDelegation\":[],\"attendance\":[]}",
-    "ISSUER_ADDRESS": "0x0000000000000000000000000000000000000000",
-    "DELEGATION_UID": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "EAS_SCHEMAS": "{\"attendance\":[{\"uid\":\"0x22a41470aabe3a0edec1f9948975a887f21adddd6cf009e865e267cac6e10241\",\"version\":1}],\"entitlement\":[{\"uid\":\"0x42ffdba952267e373cb33ecf9fdc190fb27b30140d0695dabb8383bbed86d616\",\"version\":1}],\"issuerDelegation\":[{\"uid\":\"0x62c93e6e95f3956ba5937fc8454203ba781af5e455657952e915e71c3895f327\",\"version\":1}]}",
+    "ISSUER_ADDRESS": "0xAA64E3814A88f4bA4588787EB04e5eACBabcd77E",
+    "DELEGATION_UID": "0x7bb324ad1ec399488f18178153a046d7bcca44bb9688e72e0ce9581a61a6e155",
     "API_BASE_URL": "https://api.fuda.sh",
   },
   // `wrangler dev --env dev` with USE_FAKE_CHAIN=1 (see .dev.vars.example): no
@@ -54,8 +54,8 @@
       "d1_databases": [
         {
           "binding": "DB",
-          "database_name": "fuda",
-          "database_id": "REPLACE_AFTER_wrangler_d1_create",
+          "database_name": "fuda-beta",
+          "database_id": "d4cd9c4d-8986-4bbc-a14d-15c453b6d620",
           "migrations_dir": "migrations",
         },
       ],
