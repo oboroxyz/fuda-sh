@@ -135,26 +135,28 @@ the gate still observes the particular right presented at that entry.
 paging rule is in the
 [attestation model](./attestation-model.md#announcement-cache-get-announcements))
 and matches the rows locally with the viewing key; the api never learns which
-rows are the member's. Matching is the ERC-5564 view-tag prefilter followed by
-the full ECDH check.
+rows are the member's. Matching runs the ECDH against the row's ephemeral key,
+checks the announcement's view tag against byte 0 of the resulting shared
+secret, and only then derives the stealth address to compare.
 
 **Interoperability caveat.** fuda's shared secret is the `keccak256` of the
 **compressed** 33-byte ECDH point. An ERC-5564 scanner that hashes a different
 encoding of the same point derives different addresses, so it will not discover
-fuda's announcements and fuda will not discover its; the meta-address format and
-the announcement layout are otherwise standard scheme 1.
+fuda's announcements and fuda will not discover the ones it publishes; the
+meta-address format and the announcement layout are otherwise standard scheme 1.
 
 **Same meta-address on every device** holds for a passkey that the platform
 syncs (iCloud Keychain, Google Password Manager). A device-bound passkey yields a
 different member secret, hence a different meta-address, and rights issued to the
-first one are not discoverable from the second. For the same reason the app
-re-uses one stored WebAuthn `user.id`, so a second "create passkey" replaces the
+first one are not discoverable from the second. The app also re-uses one stored
+WebAuthn `user.id`, so a second "create passkey" replaces the
 credential instead of adding one; if the browser blocks that storage the id is
 per-ceremony, and a member who enrolls twice ends up with two passkeys, two
 meta-addresses, and rights only the first one can find.
 
 **Privacy boundary.** Unlinkability holds against chain observers, not against
-the issuer: the api's `members` row carries `member_id` next to the uid, the uid
+the issuer: the api's `members` row may carry the representative `member_id`
+next to the uid, the uid
 resolves publicly to the EAS attestation, and the issuer can therefore join
 `member_id ↔ uid ↔ stealth address`. The gate likewise sees which right entered.
 Members who need unlinkability from the issuer as well are outside the MVP
@@ -243,9 +245,10 @@ After the challenge is consumed the signature is verified (`BAD_SIGNATURE` — a
 wrong signature also burns the nonce), then the SINGLE_USE slot
 (`ALREADY_USED`), then `ADMIT`. The slot insert and the ADMIT log row are one D1
 batch. Every verdict is logged with `path: 'signature'` and carries `no-store`.
-The one non-decision answer is `502 chain_error`, when the signature check
-itself cannot reach the chain: the nonce stays consumed and the member simply
-mints a fresh one, which is why the burn is cheap. What an RPC outage actually
+The one non-decision answer is `502 chain_error`: from the chain read that
+precedes the challenge, or from the signature check itself — in which case the
+nonce stays consumed and the member simply mints a fresh one, which is why the
+burn is cheap. What an RPC outage actually
 looks like through viem's verification is recorded in the
 [attestation model](./attestation-model.md#api-payloads-that-touch-attestations).
 
@@ -347,7 +350,7 @@ current challenge for the Entitlement holder?
 | Host             | Worker      | Dev port | Role                                                                         |
 | ---------------- | ----------- | -------- | ---------------------------------------------------------------------------- |
 | `api.fuda.sh`    | `apps/api`  | 8787     | the api                                                                      |
-| `gate.fuda.sh`   | `apps/gate` | 5174     | scanner: QR preview, verdict, Signed hand-off                                |
+| `gate.fuda.sh`   | `apps/gate` | 5174     | scanner: uid preview, QR admission, verdict                                  |
 | `dash.fuda.sh`   | `apps/dash` | 5175     | operator dashboard: issue, list, revoke, pass links                          |
 | `app.fuda.sh`    | `apps/app`  | 5173     | member app: `/signed` challenge-response, `/private` enrolment and discovery |
 | `fuda.sh` (apex) | `apps/app`  | —        | landing only                                                                 |

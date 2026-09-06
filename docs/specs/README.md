@@ -97,8 +97,9 @@ the UX layer temporarily holds authority, and the decentralized exit
 
 ## Configuration
 
-Every value the deployment is configured with, and what fails when it is
-missing, is tabulated once in the attestation model's [configured
+The deployment's configured values, and what fails when one is missing, are
+tabulated once in the attestation model's [chain
+fixtures](./attestation-model.md#chain-fixtures) and [configured
 values](./attestation-model.md#configured-values). In outline:
 
 - **`apps/api/wrangler.jsonc` `vars`** — the chain addresses and the api's own
