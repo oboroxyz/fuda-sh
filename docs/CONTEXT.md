@@ -97,7 +97,9 @@ The issuer's persistent identifier for a Member, under which that Member's
 several Rights are grouped. For dual-use (a Private-access Right plus a
 companion Persistent-value Right) both Rights carry the same Member id —
 with correlation discipline: an Entry through the Private-access Right
-never auto-credits the companion Persistent-value Right.
+never auto-credits the companion Persistent-value Right. In the admin
+issuance path the Member id is operator-chosen free text; the generated
+member number (see naming) belongs to the self-serve path.
 _Avoid_: Representative address (say "the Signed Holder used as Member id"),
 username
 
@@ -176,6 +178,12 @@ _Avoid_: Scanner (that is the `apps/gate` device), verifier (in prose), door
 How a given entry was made: `qr` (a Bearer QR was scanned) or `signature` (a
 challenge was signed). Level says what a Right _is_; path says how it _got in_.
 _Avoid_: Mode, method, flow
+
+**Level and path, never "mode":** a Right has a **level** (Bearer, Signed;
++Private is a privacy extension of Signed) and an Entry has a **path** (`qr`
+or `signature`). "Mode" is not used for either. The api's `x-auth-mode`
+response header (`open` / `locked`) names the admin-auth state and keeps its
+name.
 
 **Challenge**:
 The one-time string a Signed or +Private member signs to enter, bound to one
