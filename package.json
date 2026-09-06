@@ -11,15 +11,17 @@
     "format:check": "vp fmt --check",
     "check": "vp check",
     "typecheck": "vp check --no-fmt --no-lint",
-    "test": "vp run -r test"
+    "test": "vp run -r test && vp test tooling/portless"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
     "esbuild": "^0.28.2",
+    "portless": "0.15.6",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2",
     "ultracite": "^7.10.7",
     "vite-plus": "^0.3.0",
+    "vitest": "4.1.11",
     "wrangler": "^4.129.0"
   },
   "devEngines": {
@@ -33,5 +35,21 @@
     "node": "24.18.0",
     "pnpm": ">=11.12.0 <12"
   },
-  "packageManager": "pnpm@11.20.0+sha512.9a6f330a95b66446ea088faf1521405a8a01f07fde7124cc9958dfed52d4bb436737e65b08f85f37b46fcba375092558ac51262b816844b22f63406ed166bfee"
+  "packageManager": "pnpm@11.20.0+sha512.9a6f330a95b66446ea088faf1521405a8a01f07fde7124cc9958dfed52d4bb436737e65b08f85f37b46fcba375092558ac51262b816844b22f63406ed166bfee",
+  "portless": {
+    "apps": {
+      "apps/app": {
+        "name": "app"
+      },
+      "apps/api": {
+        "name": "api"
+      },
+      "apps/gate": {
+        "name": "gate"
+      },
+      "apps/dash": {
+        "name": "dash"
+      }
+    }
+  }
 }
