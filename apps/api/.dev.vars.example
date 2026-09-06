@@ -5,6 +5,14 @@ USE_FAKE_CHAIN=1
 #BASE_RPC_URL=https://sepolia.base.org
 #ADMIN_TOKEN=change-me
 
+# ENS CCIP-Read stays disabled unless all four values are configured. The
+# signer key authenticates gateway answers; the separate gateway secret derives
+# deterministic +Private destinations. Never reuse either key elsewhere.
+#ENS_PARENT_NAME=fuda.eth
+#ENS_RESOLVER_ADDRESSES=0x…
+#ENS_GATEWAY_SIGNER_KEY=0x…
+#ENS_GATEWAY_SECRET=0x…
+
 # Wallet passes: set all four GOOGLE_* (resp. all five APPLE_*) or that pass
 # endpoint answers 501. A PEM pasted straight out of a service-account JSON
 # keeps its literal \n escapes; that form is accepted as-is.
