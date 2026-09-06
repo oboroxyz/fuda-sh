@@ -18,7 +18,7 @@ export const verifySignedRoutes = new Hono<AppEnv>()
 // signature) is `bad_input`.
 const UidOnly = v.object({ uid: v.string() })
 
-// Challenge-response admission (spec §3). Order is the contract: §6 chain
+// Challenge-response admission (docs/specs/pass-types-and-flows.md#gate-protocol). Order is the contract: chain
 // verification → consume the challenge → verify the signature → SINGLE_USE slot →
 // log → onAdmit. Consuming the challenge before checking the signature is the
 // replay protection: a wrong signature burns its nonce. Every verdict is 200 in

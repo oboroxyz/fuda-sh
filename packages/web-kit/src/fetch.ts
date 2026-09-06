@@ -32,7 +32,7 @@ const headersFor = (
 }
 
 // Every 5xx and every transport failure is a network condition (the gate fails
-// closed on it, spec §11); a 4xx carries the api's error code; a 2xx that is not
+// closed on it); a 4xx carries the api's error code; a 2xx that is not
 // JSON is a bad response, not an outage.
 export const apiFetch = async <T>(base: string, path: string, init: ApiInit = {}): Promise<Result<T>> => {
   const { headers, token, ...rest } = init
@@ -57,7 +57,7 @@ export const apiFetch = async <T>(base: string, path: string, init: ApiInit = {}
     if (json === null) {
       return { error: 'bad_response', network: false, ok: false, status: res.status }
     }
-    // SAFETY: each api endpoint's 2xx body is the typed response the caller names (spec §3).
+    // SAFETY: each api endpoint's 2xx body is the typed response the caller names.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the response body is untyped JSON
     return { body: json as T, ok: true }
   } catch (error) {

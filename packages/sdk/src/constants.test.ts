@@ -74,7 +74,7 @@ describe(normalizeNonce, () => {
 })
 
 describe(challengeMessage, () => {
-  it('is the spec §5 challenge string', () => {
+  it('is the documented challenge string', () => {
     const uidHex = `0x${'11'.repeat(32)}` as const
     const nonce = `0x${'22'.repeat(16)}` as const
     expect(challengeMessage(uidHex, nonce)).toBe(`fuda-gate:${uidHex}:${nonce}`)

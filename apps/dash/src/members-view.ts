@@ -16,7 +16,7 @@ export interface MemberRowView {
 // The QR is the right's identifier, not its credential: it is safe to show for
 // every level because the gate rejects a Signed/+Private QR with LEVEL_REQUIRED.
 // Private rows show memberId + uid only — there is no holder to show and no
-// pass to hand out (discovery is the member's path, spec §7).
+// pass to hand out (discovery is the member's path, docs/specs/pass-types-and-flows.md#u2-privacy-first-issuance).
 export const memberRowView = (row: MemberRow, apiBase: string): MemberRowView => ({
   holderShort: row.holder === null ? null : short(row.holder),
   level: row.level,

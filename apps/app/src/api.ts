@@ -27,7 +27,7 @@ export interface AnnouncementsResponse {
 }
 
 // The whole cached ERC-5564 log from the floor: matching is client-side, so the
-// api never learns which rows are this member's (spec §3).
+// api never learns which rows are this member's (docs/specs/attestation-model.md#announcement-cache-get-announcements).
 export const announcements = async (fromBlock = 0): Promise<Result<AnnouncementsResponse>> =>
   await apiFetch<AnnouncementsResponse>(API_BASE_URL, `/announcements?fromBlock=${fromBlock}`)
 

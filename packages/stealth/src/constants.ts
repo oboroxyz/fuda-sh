@@ -1,4 +1,4 @@
-// Every string here is a wire constant (spec §5, §7): changing one changes
+// Every string here is a wire constant (docs/specs/attestation-model.md#wire-constants): changing one changes
 // every meta-address ever derived, so none may be edited in place.
 const utf8 = (s: string): Uint8Array => new TextEncoder().encode(s)
 

@@ -26,7 +26,7 @@ export const loadPassRow = async (c: Context<AppEnv>, rawUid: string): Promise<P
   if (row === undefined) {
     return { ok: false, res: errorResponse(c, 'not_found', 404) }
   }
-  // A +Private right has no pass (spec §3: the private /issue response carries
+  // A +Private right has no pass (docs/specs/pass-types-and-flows.md#passes: the private /issue response carries
   // no passUrls); its holder is a one-time stealth address only the member can
   // recover. None of the three endpoints exists for it.
   if (row.level === 'private') {

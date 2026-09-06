@@ -81,7 +81,7 @@ describe(googleConfigFrom, () => {
 })
 
 describe(buildGenericObject, () => {
-  it('builds the spec §9 object: issuer-scoped id, class, QR payload', () => {
+  it('builds the documented object: issuer-scoped id, class, QR payload', () => {
     const obj = buildGenericObject({ classId: 'c', issuerId: '338', saEmail: 'e', saKeyPem: 'p' }, INPUT)
     expect(obj.id).toBe(`338.${UID.slice(2)}`)
     expect(obj.classId).toBe('c')

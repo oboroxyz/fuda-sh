@@ -6,7 +6,7 @@ import type { Result } from '@fuda/web-kit'
 export type InputKind = { kind: 'preview'; uid: Hex } | { kind: 'admit'; qr: string } | { kind: 'invalid' }
 
 // A bare uid asks "is this right valid?" (read-only preview); the fuda:v1
-// payload asks for admission (spec §10).
+// payload asks for admission (docs/specs/pass-types-and-flows.md#gate-protocol).
 export const classifyInput = (text: string): InputKind => {
   const t = text.trim()
   if (isUid(t)) {
@@ -27,7 +27,7 @@ const summary = (body: VerifyResponse): string => {
   return e === undefined ? '' : `${TIER_LABEL[e.tier] ?? `TIER ${e.tier}`} · ${short(e.holder)}`
 }
 
-// Three states, not two (spec §10): a preview ADMIT of a Signed/+Private right
+// Three states, not two (docs/specs/pass-types-and-flows.md#gate-protocol): a preview ADMIT of a Signed/+Private right
 // is valid but may not enter by QR, and staff must not read it as an admit.
 export const displayState = (kind: 'preview' | 'admit', result: ApiResult): DisplayState => {
   if (!result.ok) {

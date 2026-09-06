@@ -3,7 +3,7 @@ import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import { APP_ORIGIN } from './config.ts'
 
-// The fuda.sh apex (spec §13): one static screen served by this Worker's `/`
+// The fuda.sh apex (docs/specs/pass-types-and-flows.md#surfaces): one static screen served by this Worker's `/`
 // route. Vocabulary is fixed by docs/CONTEXT.md — Venue for the organization,
 // pass for what a member shows, two levels with +Private as an extension of
 // Signed and never a third level.

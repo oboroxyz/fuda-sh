@@ -18,7 +18,7 @@ export const IssueBody = v.object({
 })
 export type IssueRequest = v.InferOutput<typeof IssueBody>
 
-// Exact rule from spec §3: stealthMetaAddress → private (holder forbidden);
+// Exact rule from docs/specs/attestation-model.md#api-payloads-that-touch-attestations: stealthMetaAddress → private (holder forbidden);
 // else holder → signed (memberId forbidden); else memberId → bearer; else null.
 export const deriveIssueKind = (b: IssueRequest): 'bearer' | 'signed' | 'private' | null => {
   if (b.stealthMetaAddress !== undefined) {

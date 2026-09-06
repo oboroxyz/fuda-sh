@@ -6,7 +6,7 @@ import { PrivateScreen } from './PrivateScreen.tsx'
 import { routeFor } from './route.ts'
 import { SignedGate } from './SignedGate.tsx'
 
-// One Worker serves both the fuda.sh apex landing and app.fuda.sh (spec §13),
+// One Worker serves both the fuda.sh apex landing and app.fuda.sh (docs/specs/pass-types-and-flows.md#surfaces),
 // so the route depends on the origin as well as the path; `routeFor` holds that
 // decision and is tested on its own. `single-page-application` asset handling
 // delivers index.html for /signed on either hostname.

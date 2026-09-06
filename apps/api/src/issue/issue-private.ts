@@ -11,7 +11,7 @@ import type { IssueContext } from './issue-right.ts'
 // the stealth address through.
 const LOG_MESSAGE_CHARS = 120
 
-// +Private (spec §3, §7): the right goes to a one-time stealth address derived
+// +Private (docs/specs/attestation-model.md#api-payloads-that-touch-attestations): the right goes to a one-time stealth address derived
 // from the member's meta-address, then the ERC-5564 announcement lets the member
 // discover it client-side. Both chain writes are synchronous and share the
 // signer; the member row is written only after both landed. The stealth address

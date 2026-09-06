@@ -2,7 +2,7 @@ import { APP_ORIGIN } from './config.ts'
 
 export type Route = 'landing' | 'signed' | 'private' | { redirect: string }
 
-// The fuda.sh apex and app.fuda.sh are one Worker (spec §13), so the path alone
+// The fuda.sh apex and app.fuda.sh are one Worker (docs/specs/pass-types-and-flows.md#surfaces), so the path alone
 // does not say which surface the browser is on. The Signed gate must run on the
 // app origin: it is the only one the api's CORS list allows, so rendering it at
 // the apex would fail every /challenge with the network banner. The apex answers

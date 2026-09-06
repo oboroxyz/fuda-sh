@@ -8,7 +8,7 @@ import { mintChallenge } from '../verify/challenge.ts'
 
 export const challengeRoutes = new Hono<AppEnv>()
 
-// Open endpoint (spec §3): mints a one-time nonce for the Signed gate.
+// Open endpoint (docs/specs/pass-types-and-flows.md#gate-protocol): mints a one-time nonce for the Signed gate.
 challengeRoutes.post('/challenge', async (c) => {
   const body: unknown = await c.req.json().catch(() => null)
   const parsed = v.safeParse(ChallengeBody, body)

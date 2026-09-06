@@ -11,7 +11,7 @@ export type SignedOutcome =
   | { kind: 'verdict'; body: VerifySignedResponse }
   | { kind: 'error'; error: string; network: boolean }
 
-// The member-side flow (spec §10.1): mint → sign the exact challenge string →
+// The member-side flow (docs/specs/pass-types-and-flows.md#gate-protocol): mint → sign the exact challenge string →
 // verify. The wallet signs what the api minted, byte for byte; nothing here
 // reconstructs the message.
 export const enterSigned = async (io: SignedGateIo, uid: Hex): Promise<SignedOutcome> => {

@@ -6,7 +6,7 @@ import type { HtmlEscapedString } from 'hono/utils/html'
 import type { PassView } from './pass-view.ts'
 
 // Self-contained: inline CSS, inline SVG, one inline script that re-reads the
-// live status from GET /verify/:uid. No external assets (spec §9).
+// live status from GET /verify/:uid. No external assets (docs/specs/pass-types-and-flows.md#passes).
 const STYLE = `
   :root{color-scheme:light}body{margin:0;font-family:system-ui,sans-serif;background:#141414;color:#fff;display:flex;justify-content:center}
   main{max-width:420px;width:100%;padding:24px;box-sizing:border-box}

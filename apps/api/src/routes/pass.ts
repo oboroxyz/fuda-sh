@@ -11,7 +11,7 @@ import { resolveVerdict } from './verify.ts'
 
 export const passRoutes = new Hono<AppEnv>()
 
-// The browser-based pass: the all-OS floor (spec §9). Depends on no platform
+// The browser-based pass: the all-OS floor (docs/specs/pass-types-and-flows.md#passes). Depends on no platform
 // secrets and never 5xxs — a chain failure only degrades the status to UNKNOWN.
 passRoutes.get('/pass/:uid', async (c) => {
   const found = await loadPassRow(c, c.req.param('uid'))

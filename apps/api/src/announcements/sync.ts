@@ -6,7 +6,7 @@ import type { AnnouncementLog, ChainClient } from '../chain/client.ts'
 import type { Db } from '../db/client.ts'
 import { announcements, syncState } from '../db/schema.ts'
 
-// Public Base Sepolia RPCs cap eth_getLogs ranges (spec §3).
+// Public Base Sepolia RPCs cap eth_getLogs ranges (docs/specs/attestation-model.md#announcement-cache-get-announcements).
 export const CHUNK_BLOCKS = 1000
 // A cold deployment warms up across a few requests instead of spending one
 // request's whole CPU budget on a deep history.

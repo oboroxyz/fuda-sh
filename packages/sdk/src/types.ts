@@ -42,7 +42,7 @@ export interface ChallengeResponse {
   nonce: Hex
 }
 
-// Every /verify-signed verdict is 200 in this one shape (spec §3): no entitlement
+// Every /verify-signed verdict is 200 in this one shape (docs/specs/pass-types-and-flows.md#gate-protocol): no entitlement
 // or delegation view, `stage` marks the two early stops, `holder` appears once the
 // attestation was decoded.
 export interface VerifySignedResponse {

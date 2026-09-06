@@ -129,7 +129,7 @@ export const admitAndHook = async (ctx: AdmitContext): Promise<AdmitOutcome> => 
       waitUntil: ctx.waitUntil,
     })
   } catch {
-    // Attendance is best-effort (spec §8): a failed side effect never fails an admission
+    // Attendance is best-effort (docs/specs/attestation-model.md#operational-reconciliation): a failed side effect never fails an admission
   }
   return { admitted: true, entryLogId }
 }

@@ -3,7 +3,7 @@ import { useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 // The token is fuda's API authorization for this Venue, held in memory for the
-// tab's lifetime only — never localStorage, never a cookie (spec §10).
+// tab's lifetime only — never localStorage, never a cookie (docs/specs/pass-types-and-flows.md#surfaces).
 export const TokenGate = ({ onToken }: { onToken: (t: string) => void }): JSX.Element => {
   const [value, setValue] = useState('')
   return (

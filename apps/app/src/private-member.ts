@@ -4,7 +4,7 @@ import type { DiscoveredPass, StealthKeys } from '@fuda/stealth'
 import { privateKeyToAccount } from 'viem/accounts'
 
 // One passkey + one eval input → one member secret → the same meta-address on
-// every device that holds the passkey (spec §7).
+// every device that holds the passkey (docs/specs/pass-types-and-flows.md#u2-privacy-first-issuance).
 export const keysFromPrf = (prfOutput: Uint8Array): StealthKeys =>
   deriveStealthKeys(deriveMemberSecret(prfOutput))
 

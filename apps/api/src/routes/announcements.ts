@@ -14,7 +14,7 @@ let floorWarned = false
 
 export const announcementsRoutes = new Hono<AppEnv>()
 
-// The cached ERC-5564 log served to member apps (spec §3): the api never learns
+// The cached ERC-5564 log served to member apps (docs/specs/attestation-model.md#announcement-cache-get-announcements): the api never learns
 // which rows are the caller's — matching happens client-side with the viewing
 // key. The only budgeted route in the MVP: it is open, unauthenticated, and each
 // call may cost RPC reads.

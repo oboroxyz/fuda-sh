@@ -9,7 +9,7 @@ export interface IssueForm {
   usageModel: number
 }
 
-// Mirrors the api's derivation rule (spec §3): exactly one identity key per
+// Mirrors the api's derivation rule (docs/specs/attestation-model.md#api-payloads-that-touch-attestations): exactly one identity key per
 // level, so the request can never carry both holder and memberId.
 export const issueBodyFrom = (f: IssueForm): Record<string, string | number> | null => {
   const common = { tier: f.tier, usageModel: f.usageModel }

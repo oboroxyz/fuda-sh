@@ -3,7 +3,7 @@
   "name": "fuda-app",
   "compatibility_date": "2025-09-01",
   // Assets-only Worker: no `main`. app.fuda.sh and the fuda.sh apex are both custom
-  // domains of this Worker; the apex landing is this app's `/` route (spec §13), and
+  // domains of this Worker; the apex landing is this app's `/` route (docs/specs/pass-types-and-flows.md#surfaces), and
   // /signed and /private on the apex redirect to app.fuda.sh.
   // SPA handling so a deep link like /signed is served index.html and routed client-side.
   "routes": [
