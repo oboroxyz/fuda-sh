@@ -155,6 +155,8 @@ them is a protocol version bump.
 - [ADR 0001 — EAS-native target architecture](./adr/0001-eas-native-target-architecture.md)
 - [ADR 0002 — unfiltered announcement log](./adr/0002-unfiltered-announcement-log.md)
 - [ADR 0003 — separate Graph push and query lanes](./adr/0003-graph-push-query-lanes.md)
+- [ADR 0004 — member pass list derived from holder addresses](./adr/0004-member-pass-list-from-holder.md)
+- [ADR 0005 — one hybrid resolver for the claimed and offchain ENS tree](./adr/0005-hybrid-ensv2-resolver.md)
 - [api README](../apps/api/README.md) — running the api locally, endpoints,
   error codes
 - [Glossary](./CONTEXT.md)
