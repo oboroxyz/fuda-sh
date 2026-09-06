@@ -1,7 +1,7 @@
-import type { Hex } from '@fuda/sdk'
+import type { Hex, VerifyResponse } from '@fuda/sdk'
 import { describe, expect, it, vi } from 'vitest'
 
-import { challenge, verifySigned } from './api.ts'
+import { challenge, verifySigned, verifyUid } from './api.ts'
 
 const UID: Hex = `0x${'ab'.repeat(32)}`
 const NONCE: Hex = `0x${'cd'.repeat(16)}`
@@ -62,5 +62,15 @@ describe(verifySigned, () => {
     })
     const result = await verifySigned(body)
     expect(result).toStrictEqual({ error: 'fetch failed', network: true, ok: false, status: 0 })
+  })
+})
+
+describe(verifyUid, () => {
+  it('GETs the uid preview without a request body', async () => {
+    const body: VerifyResponse = { decision: 'ADMIT', reason: 'OK' }
+    const spy = stubFetch(() => json(body, 200))
+
+    await expect(verifyUid(UID)).resolves.toStrictEqual({ body, ok: true })
+    expect(spy).toHaveBeenCalledWith(`http://localhost:8787/verify/${UID}`, { headers: {}, method: 'GET' })
   })
 })

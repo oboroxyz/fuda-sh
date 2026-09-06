@@ -1,8 +1,8 @@
+import type { Hex } from '@fuda/sdk'
 import { describe, expect, it } from 'vitest'
 
 import { PASS_MEMORY_KEY, readPassMemory, rememberPass } from './pass-memory.ts'
 import type { PassMemoryStorage } from './pass-memory.ts'
-import type { Hex } from '@fuda/sdk'
 
 const uid: Hex = `0x${'11'.repeat(32)}`
 const holder: Hex = `0x${'22'.repeat(20)}`
@@ -104,7 +104,9 @@ describe(rememberPass, () => {
       },
     }
 
-    expect(rememberPass({ holder: newerHolder, uid: mixedCaseUid }, writableStorage, 200)).toStrictEqual(expected)
+    expect(rememberPass({ holder: newerHolder, uid: mixedCaseUid }, writableStorage, 200)).toStrictEqual(
+      expected,
+    )
     expect(JSON.parse(written)).toStrictEqual(expected)
   })
 

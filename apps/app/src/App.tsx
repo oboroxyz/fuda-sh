@@ -12,7 +12,10 @@ import { SignedGate } from './SignedGate.tsx'
 // decision and is tested on its own. `single-page-application` asset handling
 // delivers index.html for /signed on either hostname.
 export const App = (): JSX.Element => {
-  const route = routeFor(globalThis.location.origin, globalThis.location.pathname)
+  const route = routeFor(
+    globalThis.location.origin,
+    `${globalThis.location.pathname}${globalThis.location.search}`,
+  )
   if (route === 'signed') {
     return <SignedGate />
   }

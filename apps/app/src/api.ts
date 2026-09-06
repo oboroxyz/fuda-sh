@@ -1,4 +1,4 @@
-import type { ChallengeResponse, Hex, VerifySignedResponse } from '@fuda/sdk'
+import type { ChallengeResponse, Hex, VerifyResponse, VerifySignedResponse } from '@fuda/sdk'
 import { apiFetch } from '@fuda/ui'
 import type { Result } from '@fuda/ui'
 
@@ -19,3 +19,6 @@ export const verifySigned = async (body: {
     body: JSON.stringify(body),
     method: 'POST',
   })
+
+export const verifyUid = async (uid: Hex): Promise<Result<VerifyResponse>> =>
+  await apiFetch<VerifyResponse>(API_BASE_URL, `/verify/${uid}`, { method: 'GET' })
