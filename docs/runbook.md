@@ -62,6 +62,19 @@ depends on.
    pnpm --filter api migrate:remote
    ```
 
+### ENS naming foundation
+
+The D1 migrations create the `ens_names` mirror and `stealth_resolutions`
+ledger, but this release does not expose a CCIP-Read endpoint or send ENSv2
+transactions. No ENS secret, RPC URL, contract address, parent registration, or
+DNS record is required to deploy the current foundation. Do not invent placeholder
+ENS values in `wrangler.jsonc`.
+
+The later integration phase begins only after Issuer onboarding and
+Issuer-signed issuance land. It must pin a specific
+`ensdomains/contracts-v2` commit and the matching Sepolia deployment manifest
+before adding ENS configuration or running setup transactions.
+
 ## 3. Secrets
 
 Set with `wrangler secret put <NAME>` from `apps/api`:

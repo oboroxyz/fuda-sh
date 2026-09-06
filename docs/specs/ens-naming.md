@@ -7,7 +7,27 @@ enters the admission decision.
 
 > **ENS names the relationship. EAS proves the right.**
 
-## Hierarchy
+## Current implementation boundary
+
+The api currently implements the naming foundation, not public ENS resolution:
+
+- canonical Issuer Handle and member-number validation, construction, and parsing;
+- the D1 `ens_names` operational mirror and `stealth_resolutions` derivation ledger;
+- an internal lookup service that exposes active, unexpired stable targets and
+  identifies +Private names that require a fresh stealth destination.
+
+The lookup service deliberately has no Hono or ENS-contract dependency. Issuer
+onboarding and confirmed Right evidence do not write naming rows yet. CCIP-Read
+transport and response signing, +Private nonce allocation and derivation,
+Issuer lifecycle wiring, onchain claims, and the `fuda.sh` DNS alias are planned
+behavior described below, not deployed behavior. No Gate or Entry path calls the
+lookup service.
+
+This split avoids pinning the application to a moving ENSv2 beta deployment. The
+integration phase must first pin one `ensdomains/contracts-v2` commit and its
+matching Sepolia deployment manifest.
+
+## Target hierarchy
 
 ```text
 fuda.eth                              parent (Ethereum Sepolia, ENSv2)
@@ -59,7 +79,7 @@ member number format. The two coexist: an admin-issued right has whatever id
 the operator typed, a self-serve right has a generated member number. No
 route in the api generates member numbers.
 
-## What a name resolves to
+## Target resolution
 
 | Right                 | `addr()` result                                                                     |
 | --------------------- | ----------------------------------------------------------------------------------- |
@@ -72,7 +92,7 @@ A +Private name therefore exists and is usable as a destination, but it never
 exposes a stable address, so it creates no durable on-chain link to the member.
 The label itself is random and reveals nothing about the person.
 
-### Resolution for +Private rights
+### Planned resolution for +Private rights
 
 - Resolution is served by an offchain CCIP-Read gateway. For a +Private
   right it derives a new stealth address (ERC-5564) from the member's stealth
@@ -90,7 +110,7 @@ The label itself is random and reveals nothing about the person.
   passkey-derived viewing key (see [Pass types and flows](./pass-types-and-flows.md),
   U2). The name adds no second discovery path.
 
-## Name lifecycle
+## Planned name lifecycle
 
 A name is created by on-chain evidence and dies with the right it names.
 
