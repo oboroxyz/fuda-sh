@@ -10,6 +10,7 @@
     "migrate:local": "wrangler d1 migrations apply fuda --local",
     "migrate:remote": "wrangler d1 migrations apply fuda --remote",
     "register-schemas": "tsx scripts/register-schemas.ts",
+    "attest-root-delegation": "tsx scripts/attest-root-delegation.ts",
     "smoke:live": "tsx scripts/smoke-live.ts"
   },
   "dependencies": {
