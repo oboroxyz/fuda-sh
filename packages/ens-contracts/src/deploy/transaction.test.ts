@@ -57,7 +57,9 @@ describe(simulateSendAndConfirm, () => {
     })
 
     expect(calls).toStrictEqual(['simulate', 'send', 'receipt', 'assert'])
-    expect(outcome).toStrictEqual({ hash, receipt: confirmed, result })
+    expect(outcome.hash).toBe(hash)
+    expect(outcome.receipt).toBe(confirmed)
+    expect(outcome.result).toBe(result)
   })
 
   it('does not send when simulation fails', async () => {
@@ -149,6 +151,36 @@ describe(simulateSendAndConfirm, () => {
     expect(calls).toStrictEqual(['simulate', 'send', 'receipt'])
   })
 
+  it('propagates receipt-wait failures without asserting', async () => {
+    const calls: string[] = []
+    const failure = new Error('receipt unavailable')
+
+    await expect(
+      simulateSendAndConfirm({
+        assertReceipt: () => {
+          calls.push('assert')
+        },
+        send: async () => {
+          await defer()
+          calls.push('send')
+          return hash
+        },
+        simulate: async () => {
+          await defer()
+          calls.push('simulate')
+          return { request, result }
+        },
+        wait: async () => {
+          await defer()
+          calls.push('receipt')
+          throw failure
+        },
+      }),
+    ).rejects.toBe(failure)
+
+    expect(calls).toStrictEqual(['simulate', 'send', 'receipt'])
+  })
+
   it('propagates receipt assertion failures after confirming success', async () => {
     const calls: string[] = []
     const failure = new Error('unexpected outcome')
@@ -157,6 +189,40 @@ describe(simulateSendAndConfirm, () => {
     await expect(
       simulateSendAndConfirm({
         assertReceipt: (actual) => {
+          calls.push('assert')
+          expect(actual).toBe(confirmed)
+          throw failure
+        },
+        send: async () => {
+          await defer()
+          calls.push('send')
+          return hash
+        },
+        simulate: async () => {
+          await defer()
+          calls.push('simulate')
+          return { request, result }
+        },
+        wait: async () => {
+          await defer()
+          calls.push('receipt')
+          return confirmed
+        },
+      }),
+    ).rejects.toBe(failure)
+
+    expect(calls).toStrictEqual(['simulate', 'send', 'receipt', 'assert'])
+  })
+
+  it('awaits asynchronous receipt assertion failures', async () => {
+    const calls: string[] = []
+    const failure = new Error('async outcome failure')
+    const confirmed = receipt('success')
+
+    await expect(
+      simulateSendAndConfirm({
+        assertReceipt: async (actual) => {
+          await defer()
           calls.push('assert')
           expect(actual).toBe(confirmed)
           throw failure
