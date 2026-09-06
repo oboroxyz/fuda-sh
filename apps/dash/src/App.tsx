@@ -107,6 +107,8 @@ export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Eleme
   })
   const latestMembersLoad = useRef(0)
   const { token } = session
+  const activeToken = useRef(token)
+  activeToken.current = token
   const copy = pick(DASH_COPY, locale)
 
   useEffect(() => {
@@ -136,6 +138,10 @@ export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Eleme
 
   const reload = useCallback(
     async (currentToken: string): Promise<void> => {
+      // A completed write may still carry a token from a replaced session.
+      if (activeToken.current !== currentToken) {
+        return
+      }
       latestMembersLoad.current += 1
       const generation = latestMembersLoad.current
       setSession((state) =>

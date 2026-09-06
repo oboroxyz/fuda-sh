@@ -1,7 +1,7 @@
 /** @jsxImportSource hono/jsx/dom */
 import { setTimeout } from 'node:timers/promises'
 
-import type { MembersResponse } from '@fuda/sdk'
+import type { IssueResponse, MembersResponse } from '@fuda/sdk'
 import { LanguageSwitcher, ThemeToggle } from '@fuda/ui'
 import type { LanguageSwitcherProps, ThemeToggleProps } from '@fuda/ui'
 import type * as HonoDom from 'hono/jsx/dom'
@@ -432,5 +432,42 @@ describe(App, () => {
     await setTimeout(0)
     expect(render(io).members).toBe(replaced.members)
     expect(render(io).token).toBe('replacement')
+  })
+
+  it('keeps the replacement token load current when an earlier token issue succeeds after 401', async () => {
+    const io = fixture()
+    const initial = Promise.withResolvers<Result<MembersResponse>>()
+    const replacement = Promise.withResolvers<Result<MembersResponse>>()
+    const issue = Promise.withResolvers<Result<IssueResponse>>()
+    io.listMembers.mockReturnValueOnce(initial.promise).mockReturnValueOnce(replacement.promise)
+    io.issueRight.mockReturnValueOnce(issue.promise)
+    render(io).onToken('secret')
+    render(io)
+    const pendingWrite = render(io).onIssue({ memberId: 'alice', tier: 1, usageModel: 1 })
+
+    initial.resolve(unauthorized)
+    await setTimeout(0)
+    expect(render(io).token).toBeNull()
+    render(io).onToken('replacement')
+    render(io)
+
+    issue.resolve({
+      body: {
+        holder: `0x${'11'.repeat(20)}`,
+        level: 'bearer',
+        passUrls: { apple: '/apple', google: '/google', web: '/pass' },
+        qr: `fuda:v1:${UID}`,
+        uid: UID,
+      },
+      ok: true,
+    })
+    await pendingWrite
+    replacement.resolve(listSuccess)
+    await setTimeout(0)
+
+    const loaded = render(io)
+    expect(loaded.token).toBe('replacement')
+    expect(loaded.members).toMatchObject({ kind: 'ready', rows: [{ memberId: 'alice', uid: UID }] })
+    expect(io.listMembers.mock.calls).toStrictEqual([['secret'], ['replacement']])
   })
 })
