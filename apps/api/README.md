@@ -291,7 +291,13 @@ Before the first real deploy, the EAS schemas must be registered and a root
 Secrets (`wrangler secret put`, never committed):
 
 - `SIGNER_PRIVATE_KEY` — the issuer's EOA private key.
-- `ADMIN_TOKEN` — bearer token required by `/issue` and `/revoke`.
+- `ADMIN_TOKEN` — bearer token required by `/issue`, `/revoke` and `/members`.
+  Required whenever `SIGNER_PRIVATE_KEY` is set: with a signer and no token the
+  api locks every admin route (`401 unauthorized`, `x-auth-mode: locked` on
+  every response) and logs the reason once per isolate. With `ADMIN_TOKEN`
+  unset **and no signer configured** the admin routes are open and every
+  response carries `x-auth-mode: open`; local dev on the fake chain has no
+  signer and so stays open.
 - `BASE_RPC_URL` — Base Sepolia RPC endpoint.
 
 Vars (`wrangler.jsonc` `vars`):

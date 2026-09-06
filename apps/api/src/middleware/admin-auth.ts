@@ -1,6 +1,6 @@
 import type { MiddlewareHandler } from 'hono'
 
-import type { AppEnv } from '../env.ts'
+import type { AppEnv, Bindings } from '../env.ts'
 
 // workerd implements crypto.subtle.timingSafeEqual (constant-time buffer compare),
 // but @cloudflare/workers-types does not declare it yet. Narrow augmentation
@@ -23,7 +23,31 @@ export const tokenMatches = async (presented: string, expected: string): Promise
 const isTokenUnset = (token: string | undefined): token is undefined | '' =>
   token === undefined || token === ''
 
+const isSet = (v: string | undefined): v is string => v !== undefined && v !== ''
+
+// A deployment with a real signer but no ADMIN_TOKEN would expose /issue,
+// /revoke and /members to the internet. Fail closed: the admin routes answer
+// 401 until the secret is set. Local dev on the fake chain has no signer, so
+// it stays open (the fake-chain opt-in already requires SIGNER_PRIVATE_KEY unset).
+export const adminLocked = (env: Pick<Bindings, 'ADMIN_TOKEN' | 'SIGNER_PRIVATE_KEY'>): boolean =>
+  isTokenUnset(env.ADMIN_TOKEN) && isSet(env.SIGNER_PRIVATE_KEY)
+
+let lockedWarned = false
+const warnLockedOnce = (): void => {
+  if (!lockedWarned) {
+    lockedWarned = true
+    // oxlint-disable-next-line no-console -- a misconfigured deploy must be visible in wrangler tail
+    console.error(
+      '[fuda-api] ADMIN_TOKEN is unset while SIGNER_PRIVATE_KEY is set: admin routes are locked. Run `wrangler secret put ADMIN_TOKEN`.',
+    )
+  }
+}
+
 export const adminAuth = (): MiddlewareHandler<AppEnv> => async (c, next) => {
+  if (adminLocked(c.env)) {
+    warnLockedOnce()
+    return c.json({ error: 'unauthorized' }, 401)
+  }
   const expected = c.env.ADMIN_TOKEN
   if (isTokenUnset(expected)) {
     await next()
@@ -38,9 +62,15 @@ export const adminAuth = (): MiddlewareHandler<AppEnv> => async (c, next) => {
   await next()
 }
 
-// Global: every response carries x-auth-mode: open while ADMIN_TOKEN is unset (local dev).
+// Global: every response carries x-auth-mode: open while ADMIN_TOKEN is unset and
+// no signer is configured (local dev), or locked while the fail-closed guard is
+// active, so an operator can read the state off any response (e.g. GET /health).
 export const authModeHeader = (): MiddlewareHandler<AppEnv> => async (c, next) => {
   await next()
+  if (adminLocked(c.env)) {
+    c.res.headers.set('x-auth-mode', 'locked')
+    return
+  }
   if (isTokenUnset(c.env.ADMIN_TOKEN)) {
     c.res.headers.set('x-auth-mode', 'open')
   }
