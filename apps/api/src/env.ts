@@ -1,0 +1,53 @@
+import type { ChainClient } from './chain/client.ts'
+import type { Db } from './db/client.ts'
+import type { AdmitHook } from './verify/admit.ts'
+
+export interface Bindings {
+  DB: D1Database
+  ADMIN_TOKEN?: string
+  SIGNER_PRIVATE_KEY?: string
+  BASE_RPC_URL?: string
+  EAS_ADDRESS: string
+  SCHEMA_REGISTRY_ADDRESS: string
+  ANNOUNCER_ADDRESS: string
+  ANNOUNCER_FROM_BLOCK: string
+  FACTORY_ADDRESS: string
+  EAS_SCHEMAS: string
+  ISSUER_ADDRESS: string
+  DELEGATION_UID: string
+  API_BASE_URL: string
+  // Wallet-platform secrets. Each platform is configured only when every one
+  // of its names is set and non-empty; otherwise that pass endpoint answers 501.
+  GOOGLE_ISSUER_ID?: string
+  GOOGLE_CLASS_ID?: string
+  GOOGLE_SA_EMAIL?: string
+  GOOGLE_SA_KEY_PEM?: string
+  APPLE_PASS_TYPE_ID?: string
+  APPLE_TEAM_ID?: string
+  APPLE_CERT_PEM?: string
+  APPLE_KEY_PEM?: string
+  APPLE_WWDR_PEM?: string
+}
+
+export interface Variables {
+  chain: ChainClient
+  db: Db
+  // unix seconds — injectable for tests
+  now: () => number
+  // called once per admission; a no-op unless the deployment wires Attendance
+  onAdmit: AdmitHook
+  // Floor for the announcements sync walk. Production derives this from the
+  // ANNOUNCER_FROM_BLOCK binding; the fake-chain dev bootstrap overrides it
+  // with the fake chain's head at boot (see `AppDeps.announcerFromBlock` in
+  // app.ts and `createDevChain` in index.ts).
+  announcerFromBlock: number
+  // How far behind the head the announcements sync stops. Production uses the
+  // CONFIRMATIONS default; the fake-chain dev bootstrap overrides it with 0
+  // (see `confirmationsOverride` in index.ts).
+  confirmations: number
+}
+
+export interface AppEnv {
+  Bindings: Bindings
+  Variables: Variables
+}

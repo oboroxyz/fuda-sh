@@ -1,0 +1,33 @@
+{
+  "name": "api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --env dev",
+    "deploy": "wrangler deploy",
+    "test": "vp test",
+    "migrate:local": "wrangler d1 migrations apply fuda --local",
+    "migrate:remote": "wrangler d1 migrations apply fuda --remote",
+    "register-schemas": "tsx scripts/register-schemas.ts",
+    "attest-root-delegation": "tsx scripts/attest-root-delegation.ts",
+    "smoke:live": "tsx scripts/smoke-live.ts"
+  },
+  "dependencies": {
+    "@fuda/pass": "workspace:*",
+    "@fuda/sdk": "workspace:*",
+    "@fuda/stealth-address": "workspace:*",
+    "drizzle-orm": "^0.44.0",
+    "hono": "^4.9.0",
+    "valibot": "^1.1.0",
+    "viem": "^2.37.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
+    "@cloudflare/workers-types": "^4.20250905.0",
+    "asn1js": "3.0.10",
+    "drizzle-kit": "^0.31.0",
+    "pkijs": "3.4.0",
+    "vitest": "4.1.11"
+  }
+}

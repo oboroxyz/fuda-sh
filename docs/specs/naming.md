@@ -50,6 +50,15 @@ reveal issue order and issuer size, and correlate with the order of fuda's
 issuance announcements on chain. Randomness costs nothing and removes all
 three.
 
+**Member number and the admin `memberId`.** The member number above is the
+identifier the self-serve issuance path generates for a right. The admin path
+(`POST /issue` from the dashboard) accepts `memberId` as free-text — any
+non-empty string the operator chooses — and stores it as-is in
+`members.member_id`; it is neither validated against nor converted to the
+member number format. The two coexist: an admin-issued right has whatever id
+the operator typed, a self-serve right has a generated member number. No
+route in the api generates member numbers.
+
 ## What a name resolves to
 
 | Right                 | `addr()` result                                                                     |

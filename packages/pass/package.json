@@ -1,0 +1,21 @@
+{
+  "name": "@fuda/pass",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./apple": "./src/apple/index.ts"
+  },
+  "scripts": {
+    "test": "vp test"
+  },
+  "dependencies": {
+    "@fuda/sdk": "workspace:*",
+    "asn1js": "3.0.10",
+    "pkijs": "3.4.0"
+  },
+  "devDependencies": {
+    "vitest": "4.1.11"
+  }
+}

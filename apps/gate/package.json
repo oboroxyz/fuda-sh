@@ -1,0 +1,25 @@
+{
+  "name": "gate",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vp dev",
+    "build": "vp build",
+    "preview": "vp preview",
+    "deploy": "vp build && wrangler deploy",
+    "test": "vp test"
+  },
+  "dependencies": {
+    "@fuda/sdk": "workspace:*",
+    "@fuda/ui": "workspace:*",
+    "hono": "^4.13.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.3",
+    "daisyui": "5.7.28",
+    "tailwindcss": "4.3.3",
+    "vite": "^8.2.2",
+    "vitest": "4.1.11"
+  }
+}

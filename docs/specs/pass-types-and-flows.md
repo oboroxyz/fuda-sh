@@ -7,6 +7,10 @@ verification rules applied by the gate.
 
 ## Choose by use case
 
+Templates and the self-serve handle route are the product model. The api
+derives a right's level from the keys present in the request and issues only
+through the admin `POST /issue`; the `fuda.sh` apex serves the landing page.
+
 **The template is the issuer's choice, made at issuance time.** The issuer
 configures which templates are available and sets the default. An authorized
 operator selects one when issuing a right. In a self-service flow such as
@@ -128,8 +132,34 @@ flowchart LR
 
 The issuance response does not identify the stealth destination. Each private
 right uses a different holder, so on-chain observers cannot link it to the
-member or to the member's other private rights. This boundary is on-chain:
-the gate still observes the particular right presented at that entry.
+member or to the member's other private rights.
+
+**Discovery.** The member app walks `GET /announcements` from block 0 (the
+paging rule is in the
+[attestation model](./attestation-model.md#announcement-cache-get-announcements))
+and matches the rows locally with the viewing key; the api never learns which
+rows are the member's. Matching runs the ECDH against the row's ephemeral key,
+checks the announcement's view tag against byte 0 of the resulting shared
+secret, and only then derives the stealth address to compare.
+
+**Interoperability caveat.** fuda's shared secret is the `keccak256` of the
+**compressed** 33-byte ECDH point. An ERC-5564 scanner that hashes a different
+encoding of the same point derives different addresses, so it will not discover
+fuda's announcements and fuda will not discover the ones it publishes; the
+meta-address format and the announcement layout are otherwise standard scheme 1.
+
+**Same meta-address on every device** holds for a passkey that the platform
+syncs (iCloud Keychain, Google Password Manager). A device-bound passkey yields a
+different member secret, hence a different meta-address, and rights issued to the
+first one are not discoverable from the second. The app also re-uses one stored
+WebAuthn `user.id`, so a second "create passkey" replaces the credential instead
+of adding one; if the browser blocks that storage the id is per-ceremony, and a
+member who enrolls twice ends up with two passkeys, two meta-addresses, and
+rights only the first one can find.
+
+**Privacy boundary.** Unlinkability holds against chain observers, not against
+the issuer; see the [+Private privacy
+boundary](./attestation-model.md#api-payloads-that-touch-attestations).
 
 Moving a U1 right into +Private or a U2 right into a stable holder requires a
 new attestation. The old and new rights must not publish an on-chain lineage
@@ -151,6 +181,102 @@ must not also request the persistent-value right, and admission must not
 automatically award value against it. Either action would correlate the
 stealth right with the member's persistent history. Value actions happen as a
 separate, explicit interaction.
+
+## Gate protocol
+
+### Bearer entry (`POST /verify`)
+
+The gate scans `fuda:v1:<uid>`, posts `{ "qr" }`, and renders the verdict. A
+verdict is always `200` and decision-shaped, and every verdict is appended to
+`entry_log` with `path: 'qr'`. A malformed payload answers `400 bad_qr`, and a
+chain read the gate cannot complete answers `502 chain_error`; neither is a
+decision, so neither is logged. A Signed or +Private right presented by bare QR
+answers `REJECT LEVEL_REQUIRED` before any slot is consumed — a photo of a
+Signed pass does not admit. The full order of checks and the reason each one
+reports live in the
+[attestation model](./attestation-model.md#gate-verification-order-and-reasons).
+
+**Three-state gate rule.** The scanner classifies what it reads: a bare uid is a
+read-only preview (`GET /verify/:uid`), a `fuda:v1:` payload is an admission
+(`POST /verify`). A preview never consumes a slot and is never logged. The
+display has three states, not two:
+
+| State  | When                                                                                                                                                                                                                                       |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GREEN  | an admission `ADMIT`, or a preview `ADMIT` whose `entitlement.level` is `0`                                                                                                                                                                |
+| YELLOW | a preview `ADMIT` with `level ≥ 1` — valid, but it has to enter through the Signed flow — or a preview whose `entitlement` is missing, which fails closed because an unknown level may be Signed                                           |
+| RED    | any `REJECT`, and any answer that is not a verdict: a `4xx`, or a `5xx` or transport failure, which additionally raise the network banner. Input the scanner cannot classify is red too, rendered as "not a fuda pass" without an api call |
+
+### Signed entry (`POST /challenge` → `POST /verify-signed`)
+
+`POST /challenge { "uid" }` answers `200 { "challenge", "nonce" }`; both strings
+are pinned in the attestation model's [wire
+constants](./attestation-model.md#wire-constants). There is no chain lookup: a
+challenge for an unknown or revoked uid is minted anyway and rejected at the next
+step. `400 bad_uid` for a malformed uid; `Cache-Control: no-store`. Every mint
+also sweeps the nonces that have outlived the TTL.
+
+`POST /verify-signed { "uid", "nonce", "signature" }` answers `400 bad_uid` when
+the uid is absent or is not a uid, and `400 bad_input` when the uid is well
+formed but the nonce or the signature is not. Every decision is `200` in one
+shape:
+
+```jsonc
+{
+  "decision": "ADMIT" | "REJECT",
+  "reason": "<reason>",
+  "path": "signature",
+  // present once the attestation was decoded
+  "holder": "0x…",
+  // only on the two early stops
+  "stage": "entitlement" | "challenge"
+}
+```
+
+`stage` marks those two early stops: `entitlement` (chain verification failed —
+`reason` is the gate reason table's entry) and `challenge` (`BAD_CHALLENGE`: the
+nonce is unknown, expired, or already used). Later verdicts —
+`BAD_SIGNATURE`, `ALREADY_USED`, `ADMIT` — carry no `stage`. `holder` is present
+once the attestation was decoded, including on the `entitlement` rejections;
+`NOT_FOUND` and `WRONG_SCHEMA` decoded nothing and answer without it.
+
+After the challenge is consumed the signature is verified (`BAD_SIGNATURE` — a
+wrong signature also burns the nonce), then the SINGLE_USE slot
+(`ALREADY_USED`), then `ADMIT`. For a SINGLE_USE right the slot insert and the
+ADMIT log row are one D1 batch; any other usage model just appends the log row.
+Every verdict is logged with `path: 'signature'` and carries `no-store`. The one
+non-decision answer past validation is `502 chain_error`: from the chain read that
+precedes the challenge, or from the signature check itself — in which case the
+nonce stays consumed and the member simply mints a fresh one, which is why the
+burn is cheap. What an RPC outage actually
+looks like through viem's verification is recorded in the
+[attestation model](./attestation-model.md#api-payloads-that-touch-attestations).
+
+### +Private entry
+
+Identical to Signed. The member recovers the stealth address's private key
+client-side and signs the same challenge; `holder` in the verdict is the stealth
+address. There is no separate +Private gate machinery.
+
+## Passes
+
+A pass presents a right; it is never the source of validity. The api serves
+three forms for every Bearer and Signed right, all linked from the `/issue`
+response (`passUrls.web`, `.google`, `.apple`) and from the dashboard. A
++Private right has no pass: its holder is a one-time stealth address only the
+member can recover, its `/issue` response carries no `passUrls`, and all three
+pass routes answer `404 not_found` for it. Every pass response — the `404`s and
+`501`s included — carries `Cache-Control: no-store`.
+
+| Route                         | Answer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /pass/:uid`              | self-contained HTML: an inline SVG QR of `fuda:v1:<uid>`, the tier, the short holder, an add-to-home-screen hint, an "Add to Google Wallet" button that appears only when `/pass/:uid/google` answers, and a live status re-read from `GET /verify/:uid` every 30 seconds. Never `5xx`: a chain failure renders the status as `UNKNOWN`                                                                                                                                                                         |
+| `GET /pass/:uid/google`       | `200 { "saveUrl": "https://pay.google.com/gp/v/save/<jwt>" }` — an RS256 `savetowallet` JWT (`iss` = the service-account email, `aud: google`, `origins` = the api origin, `https://dash.fuda.sh` and `https://app.fuda.sh`) carrying one GenericObject: id `<issuerId>.<uid without 0x>`, card title "fuda membership", header = the tier label, QR barcode `fuda:v1:<uid>`, text modules Tier and Member. `501 google_not_configured` without all four `GOOGLE_*` secrets, or when the key cannot be imported |
+| `GET /pass/:uid/apple.pkpass` | `application/vnd.apple.pkpass` as an attachment: a stored (uncompressed) ZIP of `pass.json` (a storeCard; serial = the uid; QR `fuda:v1:<uid>`; fields TIER, MEMBER and Attestation), `icon.png`, `manifest.json` (SHA-1 per file) and a detached CMS `signature` (RSASSA-PKCS1-v1_5 over SHA-256, made with the Pass Type ID certificate and carrying the Apple WWDR intermediate). `501 apple_not_configured` without all five `APPLE_*` secrets, or when the certificate or key cannot be used               |
+
+The check order on every pass route is bad uid (`400 bad_uid`) → unknown uid
+(`404 not_found`) → +Private (`404 not_found`) → platform configuration, so a
+`404` never reveals whether a wallet platform is configured.
 
 ## Supporting verification concepts
 
@@ -218,6 +344,31 @@ holder:
 
 All paths answer the same gate question: does this signature answer the
 current challenge for the Entitlement holder?
+
+## Surfaces
+
+| Host             | Worker      | Dev port | Role                                                                         |
+| ---------------- | ----------- | -------- | ---------------------------------------------------------------------------- |
+| `api.fuda.sh`    | `apps/api`  | 8787     | the api                                                                      |
+| `gate.fuda.sh`   | `apps/gate` | 5174     | scanner: uid preview, QR admission, verdict                                  |
+| `dash.fuda.sh`   | `apps/dash` | 5175     | operator dashboard: issue, list, revoke, pass links                          |
+| `app.fuda.sh`    | `apps/app`  | 5173     | member app: `/signed` challenge-response, `/private` enrolment and discovery |
+| `fuda.sh` (apex) | `apps/app`  | —        | landing only                                                                 |
+
+Each host is a custom domain of its Worker, and the dev ports are pinned in each
+app's `vite.config.ts`. The frontends call the api cross-origin at
+`VITE_API_BASE_URL`, baked in at build time and defaulting to
+`http://localhost:8787`. The api's CORS allow-list is exactly
+`https://app.fuda.sh`, `https://dash.fuda.sh` and `https://gate.fuda.sh`, plus
+any `http://localhost:<port>` or `http://127.0.0.1:<port>` origin.
+
+The apex `fuda.sh` is served by the member-app Worker but is **not** a CORS
+origin: it hosts the landing only, and `/signed` and `/private` on the apex
+redirect to `VITE_APP_ORIGIN` (`https://app.fuda.sh`) behind a one-line
+interstitial, so every api call originates from an allowed origin. `VITE_RP_ID`
+fixes the passkey `rp.id` to `fuda.sh` in production builds, so the apex and
+`app.fuda.sh` share one passkey; local dev must set it to `localhost`, since a
+browser rejects an `rp.id` that is not a registrable suffix of the page's host.
 
 ## Related specs
 
