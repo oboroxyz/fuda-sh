@@ -97,6 +97,23 @@ const boolean = (value: boolean) => encodeAbiParameters([{ type: 'bool' }], [val
 const address = (value: Address) => encodeAbiParameters([{ type: 'address' }], [value])
 const uint = (value: bigint) => encodeAbiParameters([{ type: 'uint256' }], [value])
 
+const preflightReadNames = [
+  'supportsInterface',
+  'isAvailable',
+  'MIN_COMMITMENT_AGE',
+  'MAX_COMMITMENT_AGE',
+  'getOwner',
+  'getSubregistry',
+  'proxyLogic',
+  'balanceOf',
+  'verifyContract',
+  'owner',
+] as const
+type PreflightReadName = (typeof preflightReadNames)[number]
+
+const isPreflightReadName = (value: string): value is PreflightReadName =>
+  preflightReadNames.some((name) => name === value)
+
 const fakeClient = (scenario: Scenario = {}, chain: Chain = ENS_HACKATHON_CHAIN) => {
   const calls: string[] = []
   const client = createPublicClient({
@@ -133,7 +150,9 @@ const fakeClient = (scenario: Scenario = {}, chain: Chain = ENS_HACKATHON_CHAIN)
           if (scenario.malformedRead === `${to}:${functionName}`) {
             return '0x'
           }
-          // oxlint-disable-next-line typescript/switch-exhaustiveness-check -- unapproved ABI functions intentionally fail in the default branch.
+          if (!isPreflightReadName(functionName)) {
+            throw new Error(`unexpected ABI read ${functionName}`)
+          }
           switch (functionName) {
             case 'supportsInterface': {
               if (args[0] !== '0x01ffc9a7' && args[0] !== '0xffffffff') {
@@ -187,9 +206,6 @@ const fakeClient = (scenario: Scenario = {}, chain: Chain = ENS_HACKATHON_CHAIN)
             }
             case 'owner': {
               return address(to === scenario.ownerMismatchAddress ? other : owner)
-            }
-            default: {
-              throw new Error(`unexpected ABI read ${functionName}`)
             }
           }
         },

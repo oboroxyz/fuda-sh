@@ -26,21 +26,25 @@ if (token !== undefined) {
   headers.set('authorization', `Bearer ${token}`)
 }
 
+const readResponseJson = async <T>(response: Response): Promise<T> =>
+  await new Promise((resolve, reject) => {
+    void response.text().then(JSON.parse).then(resolve, reject)
+  })
+
 const call = async <T>(
   path: string,
   init?: RequestInit,
   describe: (body: T) => string = (body) => JSON.stringify(body),
 ): Promise<T> => {
   const res = await fetch(`${api}${path}`, init)
-  // SAFETY: this is a throwaway smoke script, not app code — the caller names
-  // the response type it expects and trusts the api's documented contract;
-  // there is no runtime schema to validate an ad hoc HTTP JSON body against.
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- see SAFETY comment above
-  const body = (await res.json()) as T
+  const body = await readResponseJson<T>(res)
   // oxlint-disable-next-line no-console -- smoke script progress output, not app logging
   console.log(`${init?.method ?? 'GET'} ${path} → ${res.status}`, describe(body))
   return body
 }
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null
 
 const expectMatch = (
   label: string,
@@ -50,9 +54,8 @@ const expectMatch = (
   expected: Record<string, unknown>,
 ): void => {
   for (const [k, v] of Object.entries(expected)) {
-    // SAFETY: `expected`'s keys name fields the api's response contract documents; a mismatch throws below.
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion, anti-slop/no-unsafe-dictionary-type -- see SAFETY comment above
-    if ((actual as Record<string, unknown>)[k] !== v) {
+    const actualValue = isRecord(actual) ? actual[k] : undefined
+    if (actualValue !== v) {
       throw new Error(`${label}: expected ${k}=${String(v)}, got ${JSON.stringify(actual)}`)
     }
   }
