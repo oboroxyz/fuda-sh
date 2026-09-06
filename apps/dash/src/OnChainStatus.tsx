@@ -32,8 +32,13 @@ export interface OnChainStatusViewProps {
 // These private markers are translated only by the view and never shown directly.
 const UNCONFIGURED = '\0fuda:chain:unconfigured'
 const LOOKUP_FAILED = '\0fuda:chain:lookup-failed'
+const EXTERNAL_ERROR = '\0fuda:chain:external:'
 
 const errorMessage = (copy: DashCopy['chain'], message: string): string => {
+  if (message.startsWith(EXTERNAL_ERROR)) {
+    // Strip exactly our outer prefix; arbitrary external content is never interpreted.
+    return `${copy.errorFallback} ${message.slice(EXTERNAL_ERROR.length)}`
+  }
   if (message === UNCONFIGURED) {
     return copy.unconfigured
   }
@@ -131,7 +136,10 @@ export const OnChainStatus = ({ copy, endpoint }: OnChainStatusProps): JSX.Eleme
         ...(await loadOnChainStatus(graphOnChainStatusIo, endpoint, holder)),
       })
     } catch (error) {
-      setState({ kind: 'error', message: error instanceof Error ? error.message : LOOKUP_FAILED })
+      setState({
+        kind: 'error',
+        message: error instanceof Error ? `${EXTERNAL_ERROR}${error.message}` : LOOKUP_FAILED,
+      })
     }
   }
   return (

@@ -318,6 +318,12 @@ describe('localized operation views', () => {
   it.each([
     ['offline', 'チェーン検索に失敗しました。'],
     [new Error('RPC_DENIED [42]'), 'チェーン検索に失敗しました。 RPC_DENIED [42]'],
+    [new Error('\0fuda:chain:unconfigured'), 'チェーン検索に失敗しました。 \0fuda:chain:unconfigured'],
+    [new Error('\0fuda:chain:lookup-failed'), 'チェーン検索に失敗しました。 \0fuda:chain:lookup-failed'],
+    [
+      new Error('\0fuda:chain:external:\0fuda:chain:lookup-failed'),
+      'チェーン検索に失敗しました。 \0fuda:chain:external:\0fuda:chain:lookup-failed',
+    ],
   ])('uses the current language when an in-flight Graph query rejects with %j', async (failure, message) => {
     const pending = Promise.withResolvers<[]>()
     vi.spyOn(graphOnChainStatusIo, 'rightsByHolder').mockReturnValue(pending.promise)
