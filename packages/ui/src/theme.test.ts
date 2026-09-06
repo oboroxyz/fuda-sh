@@ -14,7 +14,7 @@ const environment = (stored: string | null, dark = false): ThemeEnvironment => (
   applyRoot: vi.fn<ThemeEnvironment['applyRoot']>(),
   prefersDark: vi.fn<ThemeEnvironment['prefersDark']>(() => dark),
   readStored: vi.fn<ThemeEnvironment['readStored']>(() => stored),
-  subscribeSystem: vi.fn<ThemeEnvironment['subscribeSystem']>(() => () => undefined),
+  subscribeSystem: vi.fn<ThemeEnvironment['subscribeSystem']>(() => () => {}),
   writeStored: vi.fn<ThemeEnvironment['writeStored']>(),
 })
 
@@ -46,7 +46,7 @@ describe('theme preference', () => {
     const env = environment('system')
     const listener = vi.fn<() => void>()
     const unsubscribe = vi.fn<() => void>()
-    env.subscribeSystem = vi.fn<ThemeEnvironment['subscribeSystem']>((next) => {
+    vi.spyOn(env, 'subscribeSystem').mockImplementation((next) => {
       listener.mockImplementation(next)
       return unsubscribe
     })

@@ -10,6 +10,7 @@ export interface ThemeEnvironment {
   subscribeSystem: (listener: () => void) => () => void
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- this function validates persisted browser input
 export const resolveThemeMode = (value: unknown): ThemeMode =>
   THEME_MODES.find((mode) => mode === value) ?? 'system'
 
@@ -17,22 +18,22 @@ export const nextThemeMode = (mode: ThemeMode): ThemeMode =>
   THEME_MODES[(THEME_MODES.indexOf(mode) + 1) % THEME_MODES.length] ?? 'system'
 
 const browserThemeEnvironment: ThemeEnvironment = {
-  readStored: () => window.localStorage.getItem(THEME_STORAGE_KEY),
-  writeStored: (mode) => {
-    window.localStorage.setItem(THEME_STORAGE_KEY, mode)
-  },
-  prefersDark: () => window.matchMedia('(prefers-color-scheme: dark)').matches,
   applyRoot: (mode, dark) => {
     document.documentElement.dataset.themeMode = mode
     document.documentElement.dataset.theme = dark ? 'dark' : 'light'
     document.documentElement.classList.toggle('dark', dark)
   },
+  prefersDark: () => window.matchMedia('(prefers-color-scheme: dark)').matches,
+  readStored: () => window.localStorage.getItem(THEME_STORAGE_KEY),
   subscribeSystem: (listener) => {
     const query = window.matchMedia('(prefers-color-scheme: dark)')
     query.addEventListener('change', listener)
     return () => {
       query.removeEventListener('change', listener)
     }
+  },
+  writeStored: (mode) => {
+    window.localStorage.setItem(THEME_STORAGE_KEY, mode)
   },
 }
 
@@ -71,4 +72,6 @@ export const watchThemeMode = (
     ? environment.subscribeSystem(() => {
         applyThemeMode('system', environment)
       })
-    : () => undefined
+    : () => {
+        // A non-system theme has no media-query subscription to release.
+      }

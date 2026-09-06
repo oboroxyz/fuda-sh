@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { LanguageSwitcher, ThemeToggle } from './controls.tsx'
 
 interface ControlNode {
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Hono JSX test nodes contain heterogeneous props
   props: Record<string, unknown>
   tag: unknown
 }
@@ -17,7 +18,10 @@ const findControl = (value: unknown, tag: string): ControlNode | undefined => {
   if (Array.isArray(value)) {
     return value.map((child) => findControl(child, tag)).find((child) => child !== undefined)
   }
-  if (!isControlNode(value)) return undefined
+  if (!isControlNode(value)) {
+    return undefined
+  }
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- this test traverses Hono's untyped JSX node representation
   const matchesTag = value.tag === tag || (typeof value.tag === 'function' && value.tag.name === tag)
   return matchesTag ? value : findControl(value.props.children, tag)
 }
@@ -70,6 +74,6 @@ describe('appearance controls', () => {
 
     expect(handler).toBeTypeOf('function')
     handler?.({ currentTarget: { value: 'ja' } })
-    expect(changes).toEqual(['ja'])
+    expect(changes).toStrictEqual(['ja'])
   })
 })

@@ -13,6 +13,7 @@ export interface ApiInit extends Omit<RequestInit, 'headers'> {
 }
 
 const readEndpointJson = async <T>(response: Response): Promise<T> =>
+  // oxlint-disable-next-line promise/avoid-new -- bridge the DOM's untyped json promise into the caller-owned response contract
   await new Promise((resolve, reject) => {
     void response.json().then(resolve, reject)
   })

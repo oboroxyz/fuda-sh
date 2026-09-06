@@ -125,6 +125,7 @@ export interface DashCopy {
   }
 }
 
+/* oxlint-disable eslint/sort-keys -- translation objects follow the shared DashCopy UI grouping */
 export const DASH_COPY = {
   en: {
     chrome: {
@@ -377,3 +378,4 @@ export const DASH_COPY = {
     },
   },
 } satisfies Copy<DashCopy>
+/* oxlint-enable eslint/sort-keys */

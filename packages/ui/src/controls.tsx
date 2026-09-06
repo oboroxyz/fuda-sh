@@ -30,11 +30,11 @@ export interface LanguageSwitcherProps {
   onChange: (value: string) => void
 }
 
-const themeGlyphs: Record<ThemeMode, string> = {
+const themeGlyphs = {
   dark: '☾',
   light: '☀',
   system: '◐',
-}
+} satisfies Record<ThemeMode, string>
 
 const languageOptions = (options: readonly LanguageOption[]): JSX.Element[] => {
   const elements: JSX.Element[] = []

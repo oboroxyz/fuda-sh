@@ -9,11 +9,11 @@ export interface LocaleEnvironment {
 
 const browserLocaleEnvironment: LocaleEnvironment = {
   readStored: () => window.localStorage.getItem(LOCALE_STORAGE_KEY),
-  writeStored: (locale) => {
-    window.localStorage.setItem(LOCALE_STORAGE_KEY, locale)
-  },
   setDocumentLanguage: (locale) => {
     document.documentElement.lang = locale
+  },
+  writeStored: (locale) => {
+    window.localStorage.setItem(LOCALE_STORAGE_KEY, locale)
   },
 }
 
