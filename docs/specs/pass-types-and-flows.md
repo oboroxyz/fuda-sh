@@ -435,7 +435,7 @@ current challenge for the Entitlement holder?
 | `api.fuda.sh`    | `apps/api`  | 8787     | the api                                                                                           |
 | `gate.fuda.sh`   | `apps/gate` | 5174     | scanner: uid preview, QR admission, verdict                                                       |
 | `dash.fuda.sh`   | `apps/dash` | 5175     | operator dashboard: issue, D1 member list, revoke, pass links, and separate chain-truth lookup    |
-| `app.fuda.sh`    | `apps/app`  | 5173     | member app: `/signed` challenge-response, `/private` enrolment and discovery, `/rights` card list |
+| `app.fuda.sh`    | `apps/app`  | 5173     | member app: `/signed` challenge-response, `/private` enrolment and discovery, `/rights` member pass list |
 | `fuda.sh` (apex) | `apps/app`  | —        | landing only                                                                                      |
 
 Root Portless commands expose app, api, gate, and dash under HTTPS `.localhost`
@@ -466,15 +466,32 @@ of the page's host.
 Production `fuda.sh` / `app.fuda.sh` passkey behavior remains unchanged.
 
 The member app and dashboard read on-chain views directly from the public
-rights subgraph configured by `VITE_GRAPH_RIGHTS_ENDPOINT`. `/rights`
-normalizes a holder address and renders every matching right as a separate
-active or revoked card. The dashboard's Chain truth section queries rights by
-holder, Attendance by right UID, and IssuerDelegation by issuer. It is visually
-and operationally separate from the admin-token-protected D1 Members section:
-chain-truth reads do not create or update member rows. A +Private stealth holder
-may be entered locally for a lookup but is never persisted to D1 by either view.
-If `VITE_GRAPH_RIGHTS_ENDPOINT` is empty, these Graph-backed screens report that
-lookup or discovery is not configured; they do not fall back to the API or D1.
+rights subgraph configured by `VITE_GRAPH_RIGHTS_ENDPOINT`. The member list at
+`/rights` follows these rules:
+
+1. It derives public passes from connected or manually entered holder addresses;
+   it has no fuda account, server-side member list, or API write.
+2. A Base Account passkey or injected wallet supplies a holder address for this
+   public query and does not sign to read it.
+3. It retains a claimed or opened public pass's uid and holder in this browser,
+   then re-reads its live status from `GET /verify/:uid`; losing that local
+   memory loses the device-only row.
+4. It keeps +Private discovery on `/private`: it never combines public-holder
+   queries with a stealth address.
+5. It provides each public row's browser pass URL and, when available, its
+   Google Wallet and Apple Wallet links; private passes do not have pass links.
+
+The dashboard's Chain truth section queries rights by holder, Attendance by
+right UID, and IssuerDelegation by issuer. It is visually and operationally
+separate from the admin-token-protected D1 Members section: chain-truth reads
+do not create or update member rows. A +Private stealth holder may be entered
+locally for a lookup but is never persisted to D1 by either view. If
+`VITE_GRAPH_RIGHTS_ENDPOINT` is empty or a holder query fails, `/rights` keeps
+device-remembered rows and refreshes each one through `GET /verify/:uid`; it
+shows `index unavailable; showing passes saved on this device`. Address-derived
+rows remain unavailable until the index recovers. Graph-only discovery on
+`/private` still reports that discovery is not configured and does not fall
+back to the API or D1.
 
 ## Related specs
 

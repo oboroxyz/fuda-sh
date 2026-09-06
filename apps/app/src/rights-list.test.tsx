@@ -1,7 +1,24 @@
-import type { GraphRight } from '@fuda/sdk'
-import { describe, expect, it } from 'vitest'
+import type { GraphRight, Hex, VerifyResponse } from '@fuda/sdk'
+import type { Result } from '@fuda/ui'
+import { describe, expect, it, vi } from 'vitest'
 
-import { RightsListView } from './RightsList.tsx'
+import {
+  applePassAvailable,
+  connectMemberRail,
+  createPassListRefreshGate,
+  googlePassHref,
+  loadMemberPassList,
+  PrivatePassRecoveryError,
+  rememberQueryPass,
+  refreshCurrentPassStatuses,
+  refreshPassStatuses,
+  scheduleVisibleRefresh,
+  visibleRefreshIoFrom,
+  withConnectedAddress,
+} from './member-pass-list.ts'
+import type { MemberPassListIo, MemberPassRow } from './member-pass-list.ts'
+import { QueryRecoveryNotice, RightsList, RightsListView } from './RightsList.tsx'
+import { requestAccount } from './wallet.ts'
 
 const RIGHT = `0x${'aa'.repeat(32)}` as const
 const DELEGATION = `0x${'bb'.repeat(32)}` as const
@@ -61,6 +78,576 @@ const right = (id: `0x${string}`, revokedAt: bigint | null): GraphRight => ({
   validUntil: 999n,
 })
 
+const HOLDER_A: Hex = `0x${'11'.repeat(20)}`
+const HOLDER_B: Hex = `0x${'33'.repeat(20)}`
+const UID_B: Hex = `0x${'bb'.repeat(32)}`
+const UID_C: Hex = `0x${'cc'.repeat(32)}`
+
+const admitted = (holder: Hex): Result<VerifyResponse> => ({
+  body: {
+    decision: 'ADMIT',
+    entitlement: {
+      holder,
+      issuer: `0x${'22'.repeat(20)}`,
+      level: 1,
+      schemaVersion: 1,
+      tier: 2,
+      usageModel: 1,
+      validFrom: 0,
+      validUntil: 999,
+    },
+    reason: 'OK',
+  },
+  ok: true,
+})
+
+const admittedAtLevel = (holder: Hex, level: number): Result<VerifyResponse> => ({
+  body: {
+    decision: 'ADMIT',
+    entitlement: {
+      holder,
+      issuer: `0x${'22'.repeat(20)}`,
+      level,
+      schemaVersion: 1,
+      tier: 2,
+      usageModel: 1,
+      validFrom: 0,
+      validUntil: 999,
+    },
+    reason: 'OK',
+  },
+  ok: true,
+})
+
+const privateAdmitted = (holder: Hex): Result<VerifyResponse> => admittedAtLevel(holder, 2)
+
+const memberIo = (fetchRights: MemberPassListIo['fetchRights']): MemberPassListIo => ({
+  appleAvailable: async () => await Promise.resolve(false),
+  fetchRights,
+  googleHref: async () => await Promise.resolve(null),
+  verify: async (uid) => await Promise.resolve(admitted(uid === UID_C ? HOLDER_B : HOLDER_A)),
+})
+
+const memberRow = (overrides: Partial<MemberPassRow>): MemberPassRow => ({
+  appleHref: null,
+  googleHref: null,
+  graph: null,
+  memory: null,
+  passes: {
+    apple: `http://localhost:8787/pass/${RIGHT}/apple.pkpass`,
+    google: `http://localhost:8787/pass/${RIGHT}/google`,
+    web: `http://localhost:8787/pass/${RIGHT}`,
+  },
+  preview: { decision: 'ADMIT', reason: 'OK' },
+  uid: RIGHT,
+  ...overrides,
+})
+
+describe(loadMemberPassList, () => {
+  it('unions case-insensitive holders and uid rows without duplicate Graph queries', async () => {
+    const fetchRights = vi.fn<MemberPassListIo['fetchRights']>(
+      async (holder) =>
+        await Promise.resolve(
+          holder.toLowerCase() === HOLDER_A.toLowerCase() ? [right(RIGHT, null)] : [right(UID_B, null)],
+        ),
+    )
+
+    const result = await loadMemberPassList(
+      {
+        addresses: [HOLDER_A, HOLDER_A.toLowerCase() as Hex, HOLDER_B],
+        graphConfigured: true,
+        memory: [
+          { addedAt: 20, holder: HOLDER_A, uid: RIGHT },
+          { addedAt: 10, holder: HOLDER_B, uid: UID_C },
+        ],
+      },
+      memberIo(fetchRights),
+    )
+
+    expect(fetchRights).toHaveBeenCalledTimes(2)
+    expect(result.indexUnavailable).toBe(false)
+    expect(result.rows.map(({ uid }) => uid)).toStrictEqual([RIGHT, UID_C, UID_B])
+  })
+
+  it('keeps successful Graph and memory rows when another holder query rejects', async () => {
+    const result = await loadMemberPassList(
+      {
+        addresses: [HOLDER_A, HOLDER_B],
+        graphConfigured: true,
+        memory: [{ addedAt: 1, holder: HOLDER_B, uid: UID_C }],
+      },
+      memberIo(async (holder) => {
+        if (holder === HOLDER_A) {
+          return await Promise.resolve([right(RIGHT, null)])
+        }
+        return await Promise.reject(new Error('Graph offline'))
+      }),
+    )
+
+    expect(result.rows.map(({ uid }) => uid)).toStrictEqual([UID_C, RIGHT])
+    expect(result.indexUnavailable).toBe(true)
+  })
+
+  it('does not query Graph and marks the index unavailable when no endpoint is configured', async () => {
+    const fetchRights = vi.fn<MemberPassListIo['fetchRights']>(async () => await Promise.resolve([]))
+
+    const result = await loadMemberPassList(
+      {
+        addresses: [HOLDER_A],
+        graphConfigured: false,
+        memory: [{ addedAt: 1, holder: HOLDER_A, uid: UID_C }],
+      },
+      memberIo(fetchRights),
+    )
+
+    expect(fetchRights).not.toHaveBeenCalled()
+    expect(result.indexUnavailable).toBe(true)
+    expect(result.rows.map(({ uid }) => uid)).toStrictEqual([UID_C])
+  })
+
+  it('excludes a +Private Graph row before it verifies status or probes pass links', async () => {
+    const verify = vi.fn<MemberPassListIo['verify']>(
+      async () => await Promise.resolve(privateAdmitted(HOLDER_A)),
+    )
+    const googleHref = vi.fn<MemberPassListIo['googleHref']>(async () => await Promise.resolve(null))
+    const appleAvailable = vi.fn<MemberPassListIo['appleAvailable']>(async () => await Promise.resolve(false))
+
+    const result = await loadMemberPassList(
+      { addresses: [HOLDER_A], graphConfigured: true, memory: [] },
+      {
+        appleAvailable,
+        fetchRights: async () => await Promise.resolve([{ ...right(RIGHT, null), level: 2 }]),
+        googleHref,
+        verify,
+      },
+    )
+
+    expect(result.rows).toStrictEqual([])
+    expect(verify).not.toHaveBeenCalled()
+    expect(googleHref).not.toHaveBeenCalled()
+    expect(appleAvailable).not.toHaveBeenCalled()
+  })
+
+  it('does not query public Graph discovery with a legacy remembered stealth holder', async () => {
+    const fetchRights = vi.fn<MemberPassListIo['fetchRights']>(async () => await Promise.resolve([]))
+
+    const result = await loadMemberPassList(
+      { addresses: [], graphConfigured: true, memory: [{ addedAt: 1, holder: HOLDER_A, uid: RIGHT }] },
+      {
+        appleAvailable: async () => await Promise.resolve(false),
+        fetchRights,
+        googleHref: async () => await Promise.resolve(null),
+        verify: async () => await Promise.resolve(privateAdmitted(HOLDER_A)),
+      },
+    )
+
+    expect(result.rows).toStrictEqual([])
+    expect(fetchRights).not.toHaveBeenCalled()
+  })
+
+  it('keeps a failed remembered preview device-only without pass links or Graph discovery', async () => {
+    const fetchRights = vi.fn<MemberPassListIo['fetchRights']>(async () => await Promise.resolve([]))
+    const googleHref = vi.fn<MemberPassListIo['googleHref']>(async () => await Promise.resolve(null))
+    const appleAvailable = vi.fn<MemberPassListIo['appleAvailable']>(async () => await Promise.resolve(false))
+
+    const result = await loadMemberPassList(
+      { addresses: [], graphConfigured: true, memory: [{ addedAt: 1, holder: HOLDER_A, uid: RIGHT }] },
+      {
+        appleAvailable,
+        fetchRights,
+        googleHref,
+        verify: async () =>
+          await Promise.resolve({ error: 'offline', network: true, ok: false, status: 503 }),
+      },
+    )
+
+    expect(result.rows).toMatchObject([{ appleHref: null, googleHref: null, preview: null, uid: RIGHT }])
+    expect(fetchRights).not.toHaveBeenCalled()
+    expect(googleHref).not.toHaveBeenCalled()
+    expect(appleAvailable).not.toHaveBeenCalled()
+  })
+
+  it('keeps a known non-public Graph UID out of a same-UID memory fallback after its preview fails', async () => {
+    const googleHref = vi.fn<MemberPassListIo['googleHref']>(async () => await Promise.resolve(null))
+    const appleAvailable = vi.fn<MemberPassListIo['appleAvailable']>(async () => await Promise.resolve(false))
+
+    const result = await loadMemberPassList(
+      {
+        addresses: [HOLDER_A],
+        graphConfigured: true,
+        memory: [{ addedAt: 1, holder: HOLDER_A, uid: RIGHT }],
+      },
+      {
+        appleAvailable,
+        fetchRights: async () => await Promise.resolve([{ ...right(RIGHT, null), level: 2 }]),
+        googleHref,
+        verify: async () =>
+          await Promise.resolve({ error: 'offline', network: true, ok: false, status: 503 }),
+      },
+    )
+
+    expect(result.rows).toStrictEqual([])
+    expect(googleHref).not.toHaveBeenCalled()
+    expect(appleAvailable).not.toHaveBeenCalled()
+  })
+})
+
+describe('pass link availability', () => {
+  it('keeps the web pass URL and shows platform links only when their probes succeed', async () => {
+    const google = 'https://wallet.google.test/save'
+    const result = await loadMemberPassList(
+      { addresses: [], graphConfigured: false, memory: [{ addedAt: 1, holder: HOLDER_A, uid: RIGHT }] },
+      {
+        appleAvailable: async () => await Promise.resolve(true),
+        fetchRights: async () => await Promise.resolve([]),
+        googleHref: async () => await Promise.resolve(google),
+        verify: async () => await Promise.resolve(admitted(HOLDER_A)),
+      },
+    )
+
+    expect(result.rows[0]).toMatchObject({
+      appleHref: `http://localhost:8787/pass/${RIGHT}/apple.pkpass`,
+      googleHref: google,
+    })
+    expect(result.rows[0]?.passes.web).toBe(`http://localhost:8787/pass/${RIGHT}`)
+  })
+
+  it('hides Google after 501, bad responses, malformed JSON, and transport errors', async () => {
+    const failures = [
+      async () => await Promise.resolve(new Response(null, { status: 501 })),
+      async () => await Promise.resolve(new Response(null, { status: 503 })),
+      async () => await Promise.resolve(Response.json({ nope: 'missing save URL' })),
+      async () => await Promise.reject(new Error('offline')),
+    ]
+
+    await expect(
+      Promise.all(failures.map(async (request) => await googlePassHref('https://api.test/google', request))),
+    ).resolves.toStrictEqual([null, null, null, null])
+  })
+
+  it('hides Apple after 501, other non-2xx responses, and transport errors', async () => {
+    const failures = [
+      async () => await Promise.resolve(new Response(null, { status: 501 })),
+      async () => await Promise.resolve(new Response(null, { status: 503 })),
+      async () => await Promise.reject(new Error('offline')),
+    ]
+
+    await expect(
+      Promise.all(
+        failures.map(async (request) => await applePassAvailable('https://api.test/apple', request)),
+      ),
+    ).resolves.toStrictEqual([false, false, false])
+  })
+
+  it('uses the returned Google saveUrl and a successful Apple HEAD response', async () => {
+    const request = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(
+      async (_url, init) =>
+        await Promise.resolve(
+          init?.method === 'HEAD'
+            ? new Response(null, { status: 204 })
+            : Response.json({ saveUrl: 'https://pay.google.com/gp/v/save' }),
+        ),
+    )
+
+    await expect(googlePassHref('https://api.test/google', request)).resolves.toBe(
+      'https://pay.google.com/gp/v/save',
+    )
+    await expect(applePassAvailable('https://api.test/apple', request)).resolves.toBe(true)
+    expect(request).toHaveBeenCalledWith('https://api.test/apple', { method: 'HEAD' })
+  })
+})
+
+describe(refreshPassStatuses, () => {
+  it('replaces stale status from verify without re-querying Graph', async () => {
+    const stale: MemberPassRow = {
+      appleHref: null,
+      googleHref: null,
+      graph: right(RIGHT, null),
+      memory: null,
+      passes: {
+        apple: `http://localhost:8787/pass/${RIGHT}/apple.pkpass`,
+        google: `http://localhost:8787/pass/${RIGHT}/google`,
+        web: `http://localhost:8787/pass/${RIGHT}`,
+      },
+      preview: { decision: 'ADMIT', reason: 'OK' },
+      uid: RIGHT,
+    }
+    const verify = vi.fn<MemberPassListIo['verify']>(
+      async () => await Promise.resolve({ body: { decision: 'REJECT', reason: 'REVOKED' }, ok: true }),
+    )
+
+    const refreshed = await refreshPassStatuses([stale], verify)
+
+    expect(refreshed[0]?.preview).toStrictEqual({ decision: 'REJECT', reason: 'REVOKED' })
+    expect(verify).toHaveBeenCalledOnce()
+  })
+
+  it('removes a row when a later status preview confirms a non-public entitlement', async () => {
+    const refreshed = await refreshPassStatuses(
+      [memberRow({ appleHref: 'https://apple.example/pass', googleHref: 'https://google.example/pass' })],
+      async () => await Promise.resolve(admittedAtLevel(HOLDER_A, 3)),
+    )
+
+    expect(refreshed).toStrictEqual([])
+  })
+})
+
+describe('status refresh lifecycle', () => {
+  it('drops a deferred refresh once an address reload begins', async () => {
+    const gate = createPassListRefreshGate()
+    gate.beginListLoad()
+    let release: ((value: Result<VerifyResponse>) => void) | undefined
+    // oxlint-disable-next-line promise/avoid-new -- the test controls an in-flight verify response to prove stale completion cannot commit
+    const pending = new Promise<Result<VerifyResponse>>((resolve) => {
+      release = resolve
+    })
+    const refresh = refreshCurrentPassStatuses(gate, 1, [memberRow({})], async () => await pending)
+
+    gate.beginListLoad()
+    release?.(admitted(HOLDER_A))
+
+    await expect(refresh).resolves.toBeNull()
+  })
+
+  it('keeps only the newest overlapping deferred refresh', async () => {
+    const gate = createPassListRefreshGate()
+    gate.beginListLoad()
+    let releaseFirst: ((value: Result<VerifyResponse>) => void) | undefined
+    let releaseSecond: ((value: Result<VerifyResponse>) => void) | undefined
+    // oxlint-disable-next-line promise/avoid-new -- the test needs independently ordered in-flight verify responses
+    const first = new Promise<Result<VerifyResponse>>((resolve) => {
+      releaseFirst = resolve
+    })
+    // oxlint-disable-next-line promise/avoid-new -- the test needs independently ordered in-flight verify responses
+    const second = new Promise<Result<VerifyResponse>>((resolve) => {
+      releaseSecond = resolve
+    })
+    const pending = [first, second]
+    const verify: MemberPassListIo['verify'] = async () => {
+      const result = pending.shift()
+      return await (result ?? Promise.reject(new Error('unexpected refresh')))
+    }
+
+    const older = refreshCurrentPassStatuses(gate, 1, [memberRow({})], verify)
+    const newer = refreshCurrentPassStatuses(gate, 1, [memberRow({})], verify)
+    releaseSecond?.({ body: { decision: 'REJECT', reason: 'REVOKED' }, ok: true })
+
+    await expect(newer).resolves.toMatchObject([{ preview: { decision: 'REJECT', reason: 'REVOKED' } }])
+    releaseFirst?.(admitted(HOLDER_A))
+    await expect(older).resolves.toBeNull()
+  })
+
+  it('does not let an old-row refresh started during a new load overwrite the committed new list', async () => {
+    const gate = createPassListRefreshGate()
+    const oldGeneration = gate.beginListLoad()
+    const newGeneration = gate.beginListLoad()
+    let release: ((value: Result<VerifyResponse>) => void) | undefined
+    // oxlint-disable-next-line promise/avoid-new -- the test controls the old row's in-flight verify response
+    const pending = new Promise<Result<VerifyResponse>>((resolve) => {
+      release = resolve
+    })
+    const oldRow = memberRow({ uid: RIGHT })
+    const newRow = memberRow({ uid: UID_C })
+    let renderedRows = [oldRow]
+    const oldRefresh = refreshCurrentPassStatuses(
+      gate,
+      oldGeneration,
+      renderedRows,
+      async () => await pending,
+    ).then((rows) => {
+      if (rows !== null) {
+        renderedRows = rows
+      }
+    })
+
+    if (gate.isListCurrent(newGeneration)) {
+      renderedRows = [newRow]
+    }
+    release?.(admitted(HOLDER_A))
+    await oldRefresh
+
+    expect(renderedRows).toStrictEqual([newRow])
+  })
+
+  it('skips hidden-document ticks and clears its interval on teardown', () => {
+    let tick: (() => void) | undefined
+    let visible = false
+    let cleared: number | undefined
+    let refreshes = 0
+    const stop = scheduleVisibleRefresh<number>(
+      () => {
+        refreshes += 1
+      },
+      {
+        clearInterval: (id) => {
+          cleared = id
+        },
+        // oxlint-disable-next-line promise/prefer-await-to-callbacks -- the injected timer callback is the behavior under test
+        setInterval: (callback) => {
+          tick = callback
+          return 42
+        },
+        visibilityState: () => (visible ? 'visible' : 'hidden'),
+      },
+    )
+
+    tick?.()
+    visible = true
+    tick?.()
+    stop()
+
+    expect(refreshes).toBe(1)
+    expect(cleared).toBe(42)
+  })
+
+  it('preserves a timer host receiver while scheduling and clearing refreshes', () => {
+    class ReceiverSensitiveTimerHost {
+      readonly document = { visibilityState: 'visible' as const }
+      cleared: number | undefined
+      tick: (() => void) | undefined
+
+      setInterval(callback: () => void, milliseconds: number): number {
+        expect(milliseconds).toBe(30_000)
+        this.tick = callback
+        return 73
+      }
+
+      clearInterval(interval: number): void {
+        this.cleared = interval
+      }
+    }
+
+    const host = new ReceiverSensitiveTimerHost()
+    let refreshes = 0
+    const stop = scheduleVisibleRefresh(() => {
+      refreshes += 1
+    }, visibleRefreshIoFrom(host))
+
+    host.tick?.()
+    stop()
+
+    expect(refreshes).toBe(1)
+    expect(host.cleared).toBe(73)
+  })
+})
+
+describe('member pass screen', () => {
+  it('introduces the member list rails, device-loss activation guidance, +Private link, manual disclosure, and empty discovery paths', () => {
+    const view = RightsList({ injected: { request: async () => await Promise.resolve([HOLDER_A]) } })
+    const text = viewText(view)
+
+    expect(text).toMatch(
+      /^(?=.*Your passes)(?=.*Connect passkey)(?=.*Use wallet)(?=.*Private rights →)(?=.*saved on this device)(?=.*If you lose this device, this saved pass can disappear; activation makes your pass follow the owning key\.)(?=.*\+Private)/u,
+    )
+    expect(viewNodes(view).some(({ props }) => props.href === '/private')).toBe(true)
+    expect(viewNodes(view).some(({ props }) => props.children === 'Look up another address')).toBe(true)
+  })
+})
+
+describe('member rails and query memory', () => {
+  it('adds an injected or passkey account to the next address union without a signature', async () => {
+    const requested: string[] = []
+    const passkey = {
+      request: async ({ method }: { method: string }) => {
+        requested.push(method)
+        return await Promise.resolve([HOLDER_A])
+      },
+    }
+    const wallet = {
+      request: async ({ method }: { method: string }) => {
+        requested.push(method)
+        return await Promise.resolve([HOLDER_B])
+      },
+    }
+    const passkeyAddress = await connectMemberRail(async () => await Promise.resolve(passkey), requestAccount)
+    const walletAddress = await connectMemberRail(async () => await Promise.resolve(wallet), requestAccount)
+    const connected = withConnectedAddress(withConnectedAddress([], passkeyAddress), walletAddress)
+    const fetchRights = vi.fn<MemberPassListIo['fetchRights']>(async () => await Promise.resolve([]))
+
+    await loadMemberPassList(
+      { addresses: connected, graphConfigured: true, memory: [] },
+      memberIo(fetchRights),
+    )
+
+    expect(fetchRights).toHaveBeenCalledWith(HOLDER_A)
+    expect(fetchRights).toHaveBeenCalledWith(HOLDER_B)
+    expect(requested).toStrictEqual(['eth_requestAccounts', 'eth_requestAccounts'])
+  })
+
+  it('turns a /rights uid preview into remembered holder memory', async () => {
+    const remembered: { holder: Hex; uid: Hex }[] = []
+    const entry = await rememberQueryPass(
+      RIGHT,
+      async () => await Promise.resolve(admitted(HOLDER_A)),
+      (pass) => {
+        remembered.push(pass)
+      },
+    )
+
+    expect(entry).toMatchObject({ holder: HOLDER_A, uid: RIGHT })
+    expect(remembered).toStrictEqual([{ holder: HOLDER_A, uid: RIGHT }])
+  })
+
+  it('does not remember a +Private pass recovered from a /rights uid query', async () => {
+    const remembered: { holder: Hex; uid: Hex }[] = []
+
+    await expect(
+      rememberQueryPass(
+        RIGHT,
+        async () => await Promise.resolve(privateAdmitted(HOLDER_A)),
+        (pass) => {
+          remembered.push(pass)
+        },
+      ),
+    ).rejects.toBeInstanceOf(PrivatePassRecoveryError)
+
+    expect(remembered).toStrictEqual([])
+  })
+
+  it('does not remember a level-3 pass recovered from a /rights uid query', async () => {
+    const remembered: { holder: Hex; uid: Hex }[] = []
+
+    await expect(
+      rememberQueryPass(
+        RIGHT,
+        async () => await Promise.resolve(admittedAtLevel(HOLDER_A, 3)),
+        (pass) => {
+          remembered.push(pass)
+        },
+      ),
+    ).rejects.toBeInstanceOf(PrivatePassRecoveryError)
+
+    expect(remembered).toStrictEqual([])
+  })
+
+  it('shows private-recovery guidance with the +Private route', () => {
+    const view = QueryRecoveryNotice()
+
+    expect(viewText(view)).toContain('This is a +Private pass. Open Private rights to recover it.')
+    expect(viewNodes(view).some(({ props }) => props.href === '/private')).toBe(true)
+  })
+
+  it('reports an unsuccessful query preview instead of forgetting it', async () => {
+    await expect(
+      rememberQueryPass(
+        RIGHT,
+        async () => await Promise.resolve({ error: 'api 503', network: true, ok: false, status: 503 }),
+        () => {},
+      ),
+    ).rejects.toThrow('api 503')
+  })
+
+  it('reports a transport query preview failure instead of forgetting it', async () => {
+    await expect(
+      rememberQueryPass(
+        RIGHT,
+        async () => await Promise.reject(new Error('offline')),
+        () => {},
+      ),
+    ).rejects.toThrow('offline')
+  })
+})
+
 describe(RightsListView, () => {
   it('renders separate active and revoked right cards', () => {
     const view = RightsListView({
@@ -88,5 +675,53 @@ describe(RightsListView, () => {
 
     expect(viewText(view)).toContain(unsafe.metaURI)
     expect(viewNodes(view).some(({ props }) => props.href === unsafe.metaURI)).toBe(false)
+  })
+
+  it('uses a live REVOKED preview over an active Graph row and tags memory-only rows', () => {
+    const graphView = RightsListView({
+      state: {
+        generation: 1,
+        kind: 'ready',
+        result: {
+          indexUnavailable: false,
+          rows: [
+            memberRow({ graph: right(RIGHT, null), preview: { decision: 'REJECT', reason: 'REVOKED' } }),
+          ],
+        },
+      },
+    })
+    const memoryView = RightsListView({
+      state: {
+        generation: 1,
+        kind: 'ready',
+        result: {
+          indexUnavailable: false,
+          rows: [
+            memberRow({ memory: { addedAt: 1, holder: HOLDER_A, uid: UID_C }, preview: null, uid: UID_C }),
+          ],
+        },
+      },
+    })
+
+    expect(viewText(graphView)).toContain('REVOKED')
+    expect(viewText(graphView)).not.toContain('ACTIVE')
+    expect(viewText(memoryView)).toContain('Saved on this device')
+  })
+
+  it('does not render pass links for an unclassified memory-only row', () => {
+    const row = memberRow({ memory: { addedAt: 1, holder: HOLDER_A, uid: RIGHT }, preview: null })
+    const view = RightsListView({
+      state: { generation: 1, kind: 'ready', result: { indexUnavailable: true, rows: [row] } },
+    })
+
+    expect(viewNodes(view).some(({ props }) => props.href === row.passes.web)).toBe(false)
+  })
+
+  it('renders the exact saved-pass banner when the public index is unavailable', () => {
+    const view = RightsListView({
+      state: { generation: 1, kind: 'ready', result: { indexUnavailable: true, rows: [memberRow({})] } },
+    })
+
+    expect(viewText(view)).toContain('index unavailable; showing passes saved on this device')
   })
 })

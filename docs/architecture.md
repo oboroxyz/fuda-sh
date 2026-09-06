@@ -33,7 +33,7 @@ flowchart LR
 | ------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | API                | `apps/api`            | Coordinates issuance, revocation, gate operational state, pass generation, and +Private announcement writes                                                    |
 | Operator dashboard | `apps/dash`           | Gives authorized issuers the controls to issue, inspect, and revoke rights                                                                                   |
-| Member app         | `apps/app`            | Holds member signing rails, answers Signed challenges, and discovers +Private rights client-side                                                             |
+| Member app         | `apps/app`            | Holds member signing rails, answers Signed challenges, lists public member passes from holder addresses and device memory, and discovers +Private rights client-side |
 | Gate               | `apps/gate`           | Reads presented rights, requests proof when required, and renders an ADMIT or REJECT verdict                                                                 |
 | EAS on Base        | External; `apps/api`  | Records Entitlements, issuer delegation, revocation, and Attendance evidence                                                                                 |
 | D1 (SQLite)        | `apps/api/migrations` | Stores operational state such as challenges, SINGLE_USE consumption, entry logs, and member indexes; it does not cache announcements                          |
@@ -131,6 +131,16 @@ values](./specs/attestation-model.md#configured-values). In outline:
   `VITE_GRAPH_RIGHTS_ENDPOINT` in the member app and dashboard; plus
   `VITE_APP_ORIGIN` and `VITE_RP_ID` in the member app. Vite bakes these in at
   build time, so changing one means rebuilding and redeploying that app.
+
+## Member app responsibility
+
+`apps/app` is the member-owned public pass surface. Its `/rights` list unions
+public Graph rights for addresses the member connects or enters with pass UIDs
+remembered by that browser, then treats `GET /verify/:uid` as the live source
+for each row's status and entitlement metadata. It can display degraded
+device-only rows when the public index is unavailable, but it neither writes a
+member record to the API nor discovers +Private rights; the latter stays in the
+separate passkey-derived `/private` flow.
 
 The strings a client and the api must agree on byte-for-byte — the QR payload,
 the challenge string, the nonce shape, the announcement metadata, the HKDF salt,

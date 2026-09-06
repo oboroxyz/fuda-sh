@@ -40,6 +40,13 @@ describe(routeFor, () => {
     expect(routeFor(APEX, '/rights', APP)).toStrictEqual({ redirect: 'https://app.fuda.sh/rights' })
   })
 
+  it('preserves a uid query when routing rights from the apex to the app origin', () => {
+    const uid = `0x${'ab'.repeat(32)}`
+    expect(routeFor(APEX, `/rights?uid=${uid}`, APP)).toStrictEqual({
+      redirect: `https://app.fuda.sh/rights?uid=${uid}`,
+    })
+  })
+
   it('sends an unknown path to the landing rather than into a redirect', () => {
     expect(routeFor(APEX, '/nope', APP)).toBe('landing')
     expect(routeFor(APP, '/signed/extra', APP)).toBe('landing')

@@ -25,13 +25,16 @@ const originOf = (value: string): string | null => {
 const APP_ONLY = new Set(['/signed', '/private', '/rights'])
 
 export const routeFor = (origin: string, pathname: string, appOrigin: string = APP_ORIGIN): Route => {
-  const path = pathname.length > 1 ? pathname.replace(/\/+$/u, '') : pathname
+  const queryAt = pathname.indexOf('?')
+  const query = queryAt === -1 ? '' : pathname.slice(queryAt)
+  const pathInput = queryAt === -1 ? pathname : pathname.slice(0, queryAt)
+  const path = pathInput.length > 1 ? pathInput.replace(/\/+$/u, '') : pathInput
   const app = originOf(appOrigin)
   if (!APP_ONLY.has(path) || app === null) {
     return 'landing'
   }
   if (originOf(origin) !== app) {
-    return { redirect: `${app}${path}` }
+    return { redirect: `${app}${path}${query}` }
   }
   if (path === '/signed') {
     return 'signed'
