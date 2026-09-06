@@ -438,8 +438,21 @@ current challenge for the Entitlement holder?
 | `app.fuda.sh`    | `apps/app`  | 5173     | member app: `/signed` challenge-response, `/private` enrolment and discovery, `/rights` member pass list |
 | `fuda.sh` (apex) | Cloudflare zone | —     | `/@*` redirect to the same path on `app.fuda.sh`; other apex paths are outside this repository    |
 
-Each Worker-backed host is its Worker's custom domain, and the dev ports are
-pinned in each app's `vite.config.ts`. The frontends call the api cross-origin at
+Root `pnpm dev` and the selective `dev:api`, `dev:app`, `dev:gate`, and
+`dev:dash` commands expose these four services through Portless as named HTTPS
+`.localhost` routes. A linked worktree receives the same normalized branch
+prefix on every route. Each frontend calls same-origin `/api`; Vite strips the
+prefix and proxies to the matching `api.localhost` or worktree-prefixed api
+route. Wrangler listens on Portless's supplied host and port and uses its named
+public URL as `API_BASE_URL`.
+
+Portless mode sets the member app's `VITE_APP_ORIGIN` to its named public
+origin and `VITE_RP_ID` to that URL's exact hostname. Portless supplies Vite's
+dynamic ports, while the per-package direct commands retain ports 5173, 5174,
+5175, and 8787 and all existing environment defaults.
+
+Each Worker-backed production host is its Worker's custom domain. In direct
+fixed-port development, the frontends call the api cross-origin at
 `VITE_API_BASE_URL`, baked in at build time and defaulting to
 `http://localhost:8787`. The api's CORS allow-list is exactly
 `https://app.fuda.sh`, `https://dash.fuda.sh` and `https://gate.fuda.sh`, plus
@@ -452,8 +465,9 @@ is outside this repository. The app Worker runs `/@*` before Workers Static
 Assets and returns the SPA shell directly, preventing the asset layer from
 canonicalizing a literal `@` to `%40` with an extra redirect. `VITE_RP_ID` fixes
 the passkey `rp.id` to `fuda.sh` in production builds, which is a registrable
-suffix of `app.fuda.sh`; local dev must set it to `localhost`, since a browser
-rejects an `rp.id` that is not a registrable suffix of the page's host.
+suffix of `app.fuda.sh`; direct fixed-port local dev must set it to `localhost`,
+since a browser rejects an `rp.id` that is not a registrable suffix of the
+page's host.
 
 The member app and dashboard read on-chain views directly from the public
 rights subgraph configured by `VITE_GRAPH_RIGHTS_ENDPOINT`. The member list at

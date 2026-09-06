@@ -1,9 +1,11 @@
 import tailwindcss from '@tailwindcss/vite'
 import { defineConfig } from 'vite-plus'
 
-// Pinned dev port (api CORS accepts any localhost port; 5173 is reserved for apps/app).
+import { portlessViteConfig } from '../../config/vite.portless.ts'
+
+// Portless injects its dynamic Vite port; direct development keeps the scanner on 5174.
 export default defineConfig({
+  ...portlessViteConfig('gate', 5174),
   plugins: [tailwindcss()],
-  server: { port: 5174, strictPort: true },
   test: { environment: 'node', include: ['src/**/*.test.ts'], unstubGlobals: true },
 })

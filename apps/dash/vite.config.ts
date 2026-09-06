@@ -1,9 +1,11 @@
 import tailwindcss from '@tailwindcss/vite'
 import { defineConfig } from 'vite-plus'
 
-// Pinned dev port (api CORS accepts any localhost port; 5173 is reserved for apps/app).
+import { portlessViteConfig } from '../../config/vite.portless.ts'
+
+// Portless injects its dynamic Vite port; direct development keeps the dashboard on 5175.
 export default defineConfig({
+  ...portlessViteConfig('dash', 5175),
   plugins: [tailwindcss()],
-  server: { port: 5175, strictPort: true },
   test: { environment: 'node', include: ['src/**/*.test.{ts,tsx}'], unstubGlobals: true },
 })
