@@ -3,8 +3,8 @@
 - **Status**: Accepted 2026-09-06. Implementation deferred until the MVP ships.
 - **Scope**: the durable decisions behind the post-MVP architecture. This ADR
   records only what will still be true once the implementation lands.
-- **Product flow**: U4 `private (group)` in
-  [Pass types and flows](../specs/pass-types-and-flows.md#u4-private-group-membership-v2-design-not-implemented).
+- **Product flow**: U4 `anonymous` in
+  [Pass types and flows](../specs/pass-types-and-flows.md#u4-anonymous-membership-v2-design-not-implemented).
 
 ## Context
 
@@ -25,7 +25,7 @@ day fuda is unavailable.
    The MVP adopts the Attendance half of this rule immediately.
 2. **Proved is a third verification level and coexists with +Private.** A
    zero-knowledge membership proof against an issuer-attested group root,
-   offered as the `private (group)` template (U4). The stealth-address
+   offered as the `anonymous` template (U4). The stealth-address
    +Private templates stay; deprecating them for access is a later, separate
    decision. Stealth addresses remain the value-destination rail.
 3. **Membership groups are EAS attestations, not a separate contract.** The

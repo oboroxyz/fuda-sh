@@ -23,7 +23,7 @@ below. U4 is a v2 design and is not implemented; its column shows the intended
 product behaviour, not something the api offers today. Legend: ◎ effortless · ◯ supported, with some setup or conditions ·
 △ partial · − not provided.
 
-|                                                                       | **U1: `standard`**                                                                                                                               | **U2: `private`**                                                                                                    | **U3: `private + loyalty`**                                                                                         | **U4: `private (group)`**<br>v2 design — not implemented |
+|                                                                       | **U1: `standard`**                                                                                                                               | **U2: `private`**                                                                                                    | **U3: `private + loyalty`**                                                                                         | **U4: `anonymous`**<br>v2 design — not implemented |
 | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | --- |
 | **Typical uses**                                                      | shop membership and stamp cards / retail loyalty / community, coworking, gym, club / event and concert tickets / recurring venue or event passes | employee badges / restricted offices, labs, data centers / backstage and crew access / privacy-sensitive memberships | private club + loyalty / employee access + cafeteria points / coworking + credits / private events + member history | the U2 cases where no per-visit on-chain record may exist at all, and revocation may lag one root rotation |
 | **Sign-up** — what it takes to get the first pass                     | **◎**<br>save the pass in one-tap and use it right away                                                                                          | **◯**<br>create a passkey before save                                                                                | **◯**<br>create a passkey before save; the loyalty card itself works right away                                     | **◯**<br>create a passkey before enrolment; first entry waits for the next root rotation |
@@ -187,16 +187,16 @@ automatically award value against it. Either action would correlate the
 stealth right with the member's persistent history. Value actions happen as a
 separate, explicit interaction.
 
-## U4. Private group membership (v2 design, not implemented)
+## U4. Anonymous membership (v2 design, not implemented)
 
 **Status.** U4 is the post-hackathon v2 template decided in
 [ADR 0001](../adr/0001-eas-native-target-architecture.md). Nothing in this
-section exists today: no api route accepts `private (group)`, the gate has no
+section exists today: no api route accepts `anonymous`, the gate has no
 proof path, and the member app has no enrolment screen. The section records the
 intended product flow so the template has a home next to U1–U3; the ADR is its
 only source, and what the ADR leaves open is listed as such below.
 
-U4 uses `private (group)` for the U2 cases where even a per-right stealth holder
+U4 uses `anonymous` for the U2 cases where even a per-right stealth holder
 is too much on-chain footprint: the venue must publish no per-visit record and
 should not learn which of its members entered. Where U2 hides a stable holder
 behind a fresh stealth address per right, U4 has no per-member on-chain record
