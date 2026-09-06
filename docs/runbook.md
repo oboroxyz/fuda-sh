@@ -62,18 +62,37 @@ depends on.
    pnpm --filter api migrate:remote
    ```
 
-### ENS naming foundation
+### ENS CCIP-Read transport
 
 The D1 migrations create the `ens_names` mirror and `stealth_resolutions`
-ledger, but this release does not expose a CCIP-Read endpoint or send ENSv2
-transactions. No ENS secret, RPC URL, contract address, parent registration, or
-DNS record is required to deploy the current foundation. Do not invent placeholder
-ENS values in `wrangler.jsonc`.
+ledger. The api exposes `POST /ens/gateway`, and `packages/ens-contracts`
+contains the matching signed ENSIP-10 resolver. The route fails closed with 503
+unless all four ENS bindings are present, so the ordinary deployment above does
+not need placeholder ENS values.
 
-The later integration phase begins only after Issuer onboarding and
-Issuer-signed issuance land. It must pin a specific
-`ensdomains/contracts-v2` commit and the matching Sepolia deployment manifest
-before adding ENS configuration or running setup transactions.
+Live ENS setup remains gated on Issuer onboarding and confirmed Right evidence
+writing the corresponding `ens_names` rows. When that dependency lands, use this
+order:
+
+1. Pin an exact `ensdomains/contracts-v2` commit and its matching Sepolia
+   deployment manifest. Do not combine addresses from different beta releases.
+2. Register exactly `fuda.eth` on that deployment and keep its owner key separate
+   from the EAS issuer and gateway signer.
+3. Generate two independent 32-byte secrets: an ECDSA key for
+   `ENS_GATEWAY_SIGNER_KEY` and an HMAC key for `ENS_GATEWAY_SECRET`.
+4. Run `pnpm --filter @fuda/ens-contracts test`, then deploy `FudaResolver` with
+   the signer address and `https://api.fuda.sh/ens/gateway` as its URL. This
+   repository deliberately does not pin or deploy a live resolver address yet.
+5. Set `ENS_PARENT_NAME=fuda.eth` and set `ENS_RESOLVER_ADDRESSES` to the
+   comma-separated deployed resolver allowlist. A claimed issuer's resolver must
+   be included if it delegates member-label resolution to the same gateway.
+6. Attach the wildcard resolver to the parent using the pinned ENSv2 contracts,
+   then verify both a stable issuer row and two consecutive +Private lookups. The
+   stable answer must repeat; the private answers must differ and create two
+   `stealth_resolutions` rows.
+7. Configure the `fuda.sh` DNS alias only after the exact DNSAliasResolver grammar
+   has been verified against that same deployment. DNS aliasing is not shipped by
+   this repository.
 
 ## 3. Secrets
 
@@ -86,6 +105,10 @@ Set with `wrangler secret put <NAME>` from `apps/api`:
   `x-auth-mode: locked`. This is deliberate fail-closed behavior, not a
   misconfiguration to work around.
 - `BASE_RPC_URL` — Base Sepolia RPC endpoint.
+- `ENS_GATEWAY_SIGNER_KEY` — dedicated 32-byte ECDSA private key that signs
+  gateway responses. Do not reuse `SIGNER_PRIVATE_KEY` or the ENS parent key.
+- `ENS_GATEWAY_SECRET` — separate 32-byte HMAC key used to derive deterministic
+  one-time +Private destinations.
 - `GOOGLE_ISSUER_ID`, `GOOGLE_CLASS_ID`, `GOOGLE_SA_EMAIL`, `GOOGLE_SA_KEY_PEM`
   — see §4.
 - `APPLE_PASS_TYPE_ID`, `APPLE_TEAM_ID`, `APPLE_CERT_PEM`, `APPLE_KEY_PEM`,
@@ -188,6 +211,12 @@ A single call does not fully warm the cache: each request syncs at most
 real deployment block (not genesis) and start warming early — or spread the
 calls across more than one IP — when the gap is large.
 
+Once ENS is configured, send one known ENSIP-10 request through the deployed
+resolver or directly to `POST /ens/gateway`. A successful direct response is
+`{"data":"0x…"}` with `Cache-Control: no-store`; malformed, unknown, and
+infrastructure failures use `{"message":"…"}` and are also never cached. The
+gateway is public, so do not send `ADMIN_TOKEN`.
+
 ```bash
 API_URL=https://api.fuda.sh ADMIN_TOKEN=… pnpm --filter api smoke:live --ladder all
 ```
@@ -244,8 +273,9 @@ never depends on `.dev.vars` being present or on what it contains.
 
 ## 12. Budget note
 
-`GET /announcements` is the only budgeted route in the MVP: a fixed hourly
-window of 120 requests per IP. A Discover walk of a large announcement log
-can use up to `MAX_PAGES` (50) of those on its own (`apps/app/src/api.ts`).
-The gate routes (`/verify`, `/challenge`, `/verify-signed`) and the admin
-routes (`/issue`, `/revoke`, `/members`) are never budgeted.
+`GET /announcements` and `POST /ens/gateway` collectively use one fixed hourly
+D1 budget of 120 requests per IP. A Discover walk of a large announcement log
+can use up to `MAX_PAGES` (50) of that shared budget on its own
+(`apps/app/src/api.ts`). The gate routes (`/verify`, `/challenge`,
+`/verify-signed`) and the admin routes (`/issue`, `/revoke`, `/members`) are
+never budgeted.

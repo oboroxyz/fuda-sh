@@ -9,23 +9,26 @@ enters the admission decision.
 
 ## Current implementation boundary
 
-The api currently implements the naming foundation, not public ENS resolution:
+The repository implements the B1-independent naming and resolution transport:
 
 - canonical Issuer Handle and member-number validation, construction, and parsing;
 - the D1 `ens_names` operational mirror and `stealth_resolutions` derivation ledger;
-- an internal lookup service that exposes active, unexpired stable targets and
-  identifies +Private names that require a fresh stealth destination.
+- active and expiry-aware stable lookup plus one-time +Private address allocation;
+- a public EIP-3668 gateway at `POST /ens/gateway`; and
+- a dependency-free ENSIP-10 resolver contract in `packages/ens-contracts` that
+  verifies the gateway's signed responses.
 
-The lookup service deliberately has no Hono or ENS-contract dependency. Issuer
-onboarding and confirmed Right evidence do not write naming rows yet. CCIP-Read
-transport and response signing, +Private nonce allocation and derivation,
-Issuer lifecycle wiring, onchain claims, and the `fuda.sh` DNS alias are planned
-behavior described below, not deployed behavior. No Gate or Entry path calls the
-lookup service.
+The transport is disabled unless all gateway bindings are configured, and the
+resolver contract is not deployed by this repository. Issuer onboarding and
+confirmed Right evidence do not write naming rows yet, so normal application
+flows do not populate the gateway's data source. Issuer lifecycle wiring,
+onchain vouchers and claims, unregister/renew flows, live Sepolia setup, and the
+`fuda.sh` DNS alias remain unshipped. No Gate or Entry path calls ENS lookup or
+the gateway.
 
-This split avoids pinning the application to a moving ENSv2 beta deployment. The
-integration phase must first pin one `ensdomains/contracts-v2` commit and its
-matching Sepolia deployment manifest.
+This boundary avoids pinning the application to a moving ENSv2 beta deployment.
+Live setup must first pin one `ensdomains/contracts-v2` commit and its matching
+Sepolia deployment manifest.
 
 ## Target hierarchy
 
@@ -92,12 +95,63 @@ A +Private name therefore exists and is usable as a destination, but it never
 exposes a stable address, so it creates no durable on-chain link to the member.
 The label itself is random and reveals nothing about the person.
 
-### Planned resolution for +Private rights
+### CCIP-Read transport
+
+`POST /ens/gateway` accepts the standard JSON request
+`{"sender":"0x…","data":"0x…"}`. `sender` must match a configured resolver
+address (case-insensitively), and `data` must encode the complete ENSIP-10
+`resolve(bytes,bytes)` call. The gateway currently answers only the legacy
+`addr(bytes32)` record and multicoin `addr(bytes32,uint256)` with coin type 60.
+The record node must equal `namehash(name)`. Unsupported senders or names answer
+404, malformed requests answer 400, incomplete configuration answers 503, and
+unexpected failures answer 500. Success is `{"data":"0x…"}`; every error is
+`{"message":"…"}`. All responses use `Cache-Control: no-store`.
+
+The endpoint is public and does not use `ADMIN_TOKEN`. It and `/announcements`
+share one fixed hourly D1 counter: together they admit 120 requests per client
+IP and require `CF-Connecting-IP`. The resolver allowlist prevents the service
+from signing responses for arbitrary verifier contracts.
+
+The signed response is ABI-encoded as `(bytes result, uint64 expires, bytes
+signature)`. Its raw ECDSA digest is:
+
+```text
+keccak256(
+  0x1900
+  || resolverAddress
+  || uint64(expires)
+  || keccak256(fullResolveRequest)
+  || keccak256(result)
+)
+```
+
+`expires` is the earlier of five minutes after the request and the name's own
+expiry. The Solidity callback requires its own address as the signed resolver,
+rejects expired responses, accepts only the configured signer, and rejects
+malformed, invalid-recovery-id, and high-s signatures. It returns only the
+signed result bytes.
+
+The endpoint requires all four bindings before it resolves anything:
+
+| Binding                  | Kind          | Meaning                                                   |
+| ------------------------ | ------------- | --------------------------------------------------------- |
+| `ENS_PARENT_NAME`        | plain binding | canonical two-label parent, for example `fuda.eth`        |
+| `ENS_RESOLVER_ADDRESSES` | plain binding | comma-separated allowlist of deployed resolver addresses |
+| `ENS_GATEWAY_SIGNER_KEY` | Worker secret | 32-byte ECDSA private key for response signatures         |
+| `ENS_GATEWAY_SECRET`     | Worker secret | separate 32-byte HMAC key for +Private derivation         |
+
+The signer and allocation keys must be distinct operational secrets and must not
+be reused for ENS parent ownership, EAS issuance, or any other role.
+
+### Gateway resolution for +Private rights
 
 - Resolution is served by an offchain CCIP-Read gateway. For a +Private
   right it derives a new stealth address (ERC-5564) from the member's stealth
   meta-address with a deterministic per-name nonce, so every address it has
-  ever returned can be re-derived from the counter.
+  ever returned can be re-derived from the counter. The counter reservation and
+  derived `(stealthAddress, ephemeralPublicKey, viewTag)` are persisted only
+  after the full request and both gateway secrets validate. Private answers are
+  never cached.
 - **A lookup is never announced.** ERC-5564 announcements mark an on-chain
   _use_ (a right attested to, or value sent to, a stealth address), not the
   creation of an address. Announcing per lookup would put the name's query

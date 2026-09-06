@@ -5,6 +5,7 @@ import {FudaResolver} from "../contracts/FudaResolver.sol";
 
 interface Vm {
     function addr(uint256 privateKey) external returns (address);
+    function etch(address target, bytes calldata newRuntimeBytecode) external;
     function prank(address msgSender) external;
     function sign(uint256 privateKey, bytes32 digest) external returns (uint8 v, bytes32 r, bytes32 s);
     function warp(uint256 timestamp) external;
@@ -69,6 +70,37 @@ contract FudaResolverTest {
         require(keccak256(resolved) == keccak256(result), "wrong signed result");
     }
 
+    function testAcceptsResponseAtExactExpiry() public {
+        VM.warp(1_300);
+        bytes memory request = _request(_name(), _record());
+        bytes memory result = _result();
+        bytes memory response = _signedEnvelope(address(resolver), request, result, 1_300, SIGNER_KEY);
+
+        bytes memory resolved = resolver.resolveWithProof(response, abi.encode(address(resolver), request));
+
+        require(keccak256(resolved) == keccak256(result), "exact-expiry response rejected");
+    }
+
+    function testAcceptsTypeScriptConformanceVector() public {
+        address vectorAddress = address(0x1111111111111111111111111111111111111111);
+        VM.etch(vectorAddress, address(resolver).code);
+        FudaResolver vectorResolver = FudaResolver(vectorAddress);
+        vectorResolver.setSigner(0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf);
+        VM.warp(1_999_999_999);
+        bytes memory response =
+            hex"0000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000007735940000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000200000000000000000000000001234567890123456789012345678901234567890000000000000000000000000000000000000000000000000000000000000004177ae7a3fd3d7e6af762a704497b07c28b76cb655ce6d76bd18811bc6b60bf0534a67bfe9b08fe591aee73d6610f1b0ba11cf782bc10cb96b693f5c659af5e6fb1c00000000000000000000000000000000000000000000000000000000000000";
+        bytes memory extraData =
+            hex"0000000000000000000000001111111111111111111111111111111111111111000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000e49061b92300000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000001106636f666665650466756461036574680000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000243b3b57de0eadf6d0c642109fe0df14e1ffef24a74fb69b639ff49ca376ad093e4eb2b1800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+
+        bytes memory resolved = vectorResolver.resolveWithProof(response, extraData);
+
+        require(
+            keccak256(resolved)
+                == keccak256(hex"0000000000000000000000001234567890123456789012345678901234567890"),
+            "TypeScript vector result rejected"
+        );
+    }
+
     function testRejectsExpiredResponse() public {
         VM.warp(1_001);
         bytes memory request = _request(_name(), _record());
@@ -103,6 +135,14 @@ contract FudaResolverTest {
         bytes memory response = _signedEnvelope(OTHER_RESOLVER, request, _result(), 1_300, SIGNER_KEY);
 
         _requireCallbackFailure(response, abi.encode(OTHER_RESOLVER, request));
+    }
+
+    function testRejectsSignatureForDifferentResolverWithCorrectExtraData() public {
+        VM.warp(1_000);
+        bytes memory request = _request(_name(), _record());
+        bytes memory response = _signedEnvelope(OTHER_RESOLVER, request, _result(), 1_300, SIGNER_KEY);
+
+        _requireCallbackFailure(response, abi.encode(address(resolver), request));
     }
 
     function testRejectsUnauthorizedSigner() public {

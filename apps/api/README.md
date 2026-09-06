@@ -3,8 +3,8 @@
 Cloudflare Worker (Hono) implementing the fuda endpoints: `GET /health`,
 `POST /issue`, `GET /verify/:uid`, `POST /verify`, `POST /revoke`,
 `GET /members`, `POST /challenge`, `POST /verify-signed`, `GET /announcements`,
-and the passes (`GET /pass/:uid` plus the Google Wallet and Apple Wallet
-endpoints).
+`POST /ens/gateway`, and the passes (`GET /pass/:uid` plus the Google Wallet
+and Apple Wallet endpoints).
 
 ## Run locally
 
@@ -250,6 +250,7 @@ per-IP 120/h `/announcements` budget.
 | GET | `/pass/:uid/google` | none | `{ saveUrl }`, a signed Google Wallet save link; `501 google_not_configured` unless all four `GOOGLE_*` secrets are set; `404 not_found` first for an unknown uid or a +Private row |
 | GET | `/pass/:uid/apple.pkpass` | none | the `.pkpass` bundle; `501 apple_not_configured` unless all five `APPLE_*` secrets are set; `404 not_found` first for an unknown uid or a +Private row |
 | GET | `/announcements` | none, per-IP budget (120/h) | the cached ERC-5564 announcement log, lazily synced from chain; `502 rpc_unavailable` when the cache is empty and the chain unreachable, and whenever `ANNOUNCER_FROM_BLOCK` is unset, unparseable or `0` |
+| POST | `/ens/gateway` | none, shared per-IP budget (120/h) | EIP-3668 `{ sender, data }`; disabled with 503 until all four `ENS_*` bindings are configured; success `{ data }`, errors `{ message }`, always `Cache-Control: no-store` |
 
 ## Error codes
 
