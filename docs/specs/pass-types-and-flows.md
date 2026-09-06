@@ -18,20 +18,21 @@ operator selects one when issuing a right. In a self-service flow such as
 advance, so each member does not need an operator to approve the issuance
 manually.
 
-The onboarding flow behind each column is detailed in the U1–U3 sections
-below. Legend: ◎ effortless · ◯ supported, with some setup or conditions ·
+The onboarding flow behind each column is detailed in the U1–U4 sections
+below. U4 is a v2 design and is not implemented; its column shows the intended
+product behaviour, not something the api offers today. Legend: ◎ effortless · ◯ supported, with some setup or conditions ·
 △ partial · − not provided.
 
-|                                                                       | **U1: `standard`**                                                                                                                               | **U2: `private`**                                                                                                    | **U3: `private + loyalty`**                                                                                         |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| **Typical uses**                                                      | shop membership and stamp cards / retail loyalty / community, coworking, gym, club / event and concert tickets / recurring venue or event passes | employee badges / restricted offices, labs, data centers / backstage and crew access / privacy-sensitive memberships | private club + loyalty / employee access + cafeteria points / coworking + credits / private events + member history |
-| **Sign-up** — what it takes to get the first pass                     | **◎**<br>save the pass in one-tap and use it right away                                                                                          | **◯**<br>create a passkey before save                                                                                | **◯**<br>create a passkey before save; the loyalty card itself works right away                                     |
-| **Ownability** — the card is controlled by your own key               | **△** ¹                                                                                                                                          | **◯**                                                                                                                | **◯**                                                                                                               |
-| **Restore** — getting the card back on a new phone                    | **◎** ²                                                                                                                                          | **◯** ³                                                                                                              | **◯** ³                                                                                                             |
-| **Decentralization** — the card keeps working without fuda            | **△** ¹                                                                                                                                          | **◯**                                                                                                                | **◯**                                                                                                               |
-| **Private** — your visits stay unlinkable to you on-chain             | −                                                                                                                                                | **◯**                                                                                                                | **◯**<br>access / − loyalty ⁴                                                                                       |
-| **Loyalty** — points and history build up in one place                | **◯**                                                                                                                                            | −                                                                                                                    | **◯**                                                                                                               |
-| **Name** — `<member-no>.<issuer>.fuda.eth`, see [ENS naming](./ens-naming.md) | **◯**<br>resolves to the stable holder                                                                                                           | **◯**<br>resolves to a fresh stealth address per lookup                                                              | **◯**<br>two numbers: access rotates, loyalty is stable                                                             |
+|                                                                       | **U1: `standard`**                                                                                                                               | **U2: `private`**                                                                                                    | **U3: `private + loyalty`**                                                                                         | **U4: `private (group)`**<br>v2 design — not implemented |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | --- |
+| **Typical uses**                                                      | shop membership and stamp cards / retail loyalty / community, coworking, gym, club / event and concert tickets / recurring venue or event passes | employee badges / restricted offices, labs, data centers / backstage and crew access / privacy-sensitive memberships | private club + loyalty / employee access + cafeteria points / coworking + credits / private events + member history | the U2 cases where no per-visit on-chain record may exist at all, and revocation may lag one root rotation |
+| **Sign-up** — what it takes to get the first pass                     | **◎**<br>save the pass in one-tap and use it right away                                                                                          | **◯**<br>create a passkey before save                                                                                | **◯**<br>create a passkey before save; the loyalty card itself works right away                                     | **◯**<br>create a passkey before enrolment; first entry waits for the next root rotation |
+| **Ownability** — the card is controlled by your own key               | **△** ¹                                                                                                                                          | **◯**                                                                                                                | **◯**                                                                                                               | **◯** ⁵ |
+| **Restore** — getting the card back on a new phone                    | **◎** ²                                                                                                                                          | **◯** ³                                                                                                              | **◯** ³                                                                                                             | **◯** ⁵ |
+| **Decentralization** — the card keeps working without fuda            | **△** ¹                                                                                                                                          | **◯**                                                                                                                | **◯**                                                                                                               | **◯** |
+| **Private** — your visits stay unlinkable to you on-chain             | −                                                                                                                                                | **◯**                                                                                                                | **◯**<br>access / − loyalty ⁴                                                                                       | **◎**<br>no per-member record on chain |
+| **Loyalty** — points and history build up in one place                | **◯**                                                                                                                                            | −                                                                                                                    | **◯**                                                                                                               | − |
+| **Name** — `<member-no>.<issuer>.fuda.eth`, see [ENS naming](./ens-naming.md) | **◯**<br>resolves to the stable holder                                                                                                           | **◯**<br>resolves to a fresh stealth address per lookup                                                              | **◯**<br>two numbers: access rotates, loyalty is stable                                                             | **△**<br>derived member number; resolution not yet specified |
 
 1. A `standard` right starts unclaimed, with fuda controlling the holder
    account. Activation replaces fuda with the member's passkey or EOA at the
@@ -56,6 +57,10 @@ below. Legend: ◎ effortless · ◯ supported, with some setup or conditions ·
    private-access right is unlinkable, while the loyalty (persistent-value)
    right uses a stable public holder by design. The two must not be correlated
    at the gate.
+5. U4 keys derive from a passkey-held identity secret that is also exportable
+   (ADR 0001, decision 8), so a `fuda.sh` passkey is not the only key that can
+   hold it. The membership tree and the member's Merkle path are rebuilt from
+   the issuer's on-chain root attestations, with no fuda server.
 
 ## U1. Standard issuance and optional activation
 
@@ -182,6 +187,76 @@ automatically award value against it. Either action would correlate the
 stealth right with the member's persistent history. Value actions happen as a
 separate, explicit interaction.
 
+## U4. Private group membership (v2 design, not implemented)
+
+**Status.** U4 is the post-hackathon v2 template decided in
+[ADR 0001](../adr/0001-eas-native-target-architecture.md). Nothing in this
+section exists today: no api route accepts `private (group)`, the gate has no
+proof path, and the member app has no enrolment screen. The section records the
+intended product flow so the template has a home next to U1–U3; the ADR is its
+only source, and what the ADR leaves open is listed as such below.
+
+U4 uses `private (group)` for the U2 cases where even a per-right stealth holder
+is too much on-chain footprint: the venue must publish no per-visit record and
+should not learn which of its members entered. Where U2 hides a stable holder
+behind a fresh stealth address per right, U4 has no per-member on-chain record
+at all. The member proves membership in an issuer-attested group. No
+Entitlement is attested for the right; its verification level is marked by the
+record type.
+
+1. The member enrols a passkey and derives an identity secret locally. The
+   secret is exportable, so the passkey bound to `fuda.sh` is not the only key
+   that can hold it.
+2. The member gives the issuer an identity commitment — a leaf, not an address.
+3. The issuer attests the group's Merkle root on EAS. The attestation data
+   carries the leaves added and removed since the previous root, so the tree
+   is reconstructable from chain alone; no separate contract holds it.
+4. The member rebuilds the tree from the issuer's root attestations and computes
+   their own Merkle path locally. No fuda server is involved.
+5. At the gate, the member answers the challenge with a zero-knowledge
+   membership proof against the current attested root, produced in the
+   browser. The gate verifies the proof against the root it reads from EAS.
+   This is the **Proved** level.
+6. The gate writes no Attendance. It hands the member an offchain receipt and
+   timestamps a daily Merkle root of the receipts it issued.
+
+```mermaid
+flowchart LR
+    PK[Passkey] --> S[Identity secret<br/>exportable]
+    S --> C[Identity commitment]
+    C -->|given to issuer| I[Issuer]
+    I -->|attest root + added/removed leaves| R[(Group root on EAS)]
+    R -->|rebuild tree client-side| P[Merkle path]
+    P -->|ZK membership proof| G[Gate ADMIT]
+    G -->|offchain receipt| M[Member]
+    G -->|daily Merkle root of receipts| T[(Timestamp)]
+```
+
+**What an issuer choosing U4 accepts.** Both points are stated to the issuer at
+template selection:
+
+- Revocation lags. Removing a member takes effect at the next root rotation,
+  so revocation acquires a lag equal to the issuer's root-rotation grace
+  window.
+- First entry waits. A newly added member can enter only once a root that
+  includes their leaf has been attested.
+
+**Member number and name.** A U4 member number is derived, not issued:
+`encode28(H(secret, issuer))` plus the standard check character from
+[ENS naming](./ens-naming.md#member-number). It is recomputable without fuda
+and differs per issuer. What a U4 name resolves to is not yet specified.
+
+**Relationship to +Private.** Proved is a third verification level and
+coexists with +Private. The stealth-address templates stay; deprecating them
+for access is a later, separate decision. Stealth addresses remain the rail for
+receiving value, so U4 changes only how access is proved.
+
+**Not yet specified.** The ADR does not decide, and this section does not
+invent: the proof system and circuit; how the proof binds to the gate challenge
+and resists replay; the wire shape of a Proved gate exchange; whether a Proved
+right has a pass; the receipt format and where the daily root is timestamped;
+name resolution for a U4 right.
+
 ## Gate protocol
 
 ### Bearer entry (`POST /verify`)
@@ -293,6 +368,7 @@ Terms (Pass, Device wallet, Crypto wallet, Holder) are defined once in the
 | Passkey                                     | Default member-owned signing key; its PRF extension can also derive +Private keys                   | activated U1; required by U2 and U3 |
 | EOA or compatible external wallet           | Optional open signing rail or direct holder for a right that starts as Signed                       | U1 Signed compatibility paths       |
 | ERC-5564 stealth address                    | Fresh one-time holder controlled by a locally recovered key, preventing a stable public member link | U2; private-access side of U3       |
+| Membership group root (EAS attestation)     | Issuer-attested Merkle root the member proves membership in; rebuilt from chain, no fuda server     | U4 (v2 design, not implemented)     |
 
 A Bearer member needs only the saved pass. Signed entry additionally uses the
 passkey, EOA, smart account, or recovered stealth key associated with the
@@ -310,6 +386,10 @@ fuda has two gate verification levels:
 **+Private is a privacy extension on Signed**, not a third verification level.
 It keeps the Signed challenge while replacing a stable public holder with a
 fresh stealth address for every private right.
+
+[ADR 0001](../adr/0001-eas-native-target-architecture.md) adds a third level
+for v2, **Proved**: a zero-knowledge membership proof against an
+issuer-attested group root, used by U4. It is designed, not implemented.
 
 ### Wallet rail and claim state
 
@@ -374,3 +454,6 @@ browser rejects an `rp.id` that is not a registrable suffix of the page's host.
 
 - [Architecture overview](../architecture.md)
 - [Attestation model](./attestation-model.md)
+- [ENS naming](./ens-naming.md)
+- [ADR 0001 — EAS-native target architecture](../adr/0001-eas-native-target-architecture.md)
+  — the v2 decisions behind U4

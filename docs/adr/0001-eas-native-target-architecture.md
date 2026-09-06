@@ -3,6 +3,8 @@
 - **Status**: Accepted 2026-09-06. Implementation deferred until the MVP ships.
 - **Scope**: the durable decisions behind the post-MVP architecture. This ADR
   records only what will still be true once the implementation lands.
+- **Product flow**: U4 `private (group)` in
+  [Pass types and flows](../specs/pass-types-and-flows.md#u4-private-group-membership-v2-design-not-implemented).
 
 ## Context
 
