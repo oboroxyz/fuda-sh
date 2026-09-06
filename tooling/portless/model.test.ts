@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url'
+
 import { describe, expect, it } from 'vitest'
 
 import { loadPortlessApps, parsePortlessApps, selectPortlessApps } from './model.ts'
@@ -52,7 +54,7 @@ describe(selectPortlessApps, () => {
 describe(loadPortlessApps, () => {
   it('loads all four entries from the root manifest', () => {
     const root = new URL('../..', import.meta.url)
-    expect(loadPortlessApps(root.pathname)).toStrictEqual([
+    expect(loadPortlessApps(fileURLToPath(root))).toStrictEqual([
       { name: 'app', path: 'apps/app' },
       { name: 'api', path: 'apps/api' },
       { name: 'gate', path: 'apps/gate' },

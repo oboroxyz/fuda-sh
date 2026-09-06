@@ -9,6 +9,8 @@ describe(deriveApiOrigin, () => {
     ['https://app.localhost', 'https://api.localhost'],
     ['https://feature-auth.app.localhost', 'https://feature-auth.api.localhost'],
     ['http://app.localhost:1355', 'http://api.localhost:1355'],
+    ['http://app.localhost:80', 'http://api.localhost:80'],
+    ['https://app.localhost:443', 'https://api.localhost:443'],
   ])('derives the matching API origin from %s', (input, expected) => {
     expect(deriveApiOrigin(input, 'app')).toBe(expected)
   })
@@ -40,6 +42,19 @@ describe(parseServiceEnvironment, () => {
       port: 4321,
       publicOrigin: 'https://app.localhost',
     })
+  })
+
+  it.each([
+    ['http://app.localhost:80', 'http://api.localhost:80'],
+    ['https://app.localhost:443', 'https://api.localhost:443'],
+  ])('retains an explicit default port in %s', (publicOrigin, apiOrigin) => {
+    expect(
+      parseServiceEnvironment(app, {
+        HOST: '127.0.0.1',
+        PORT: '4321',
+        PORTLESS_URL: publicOrigin,
+      }),
+    ).toMatchObject({ apiOrigin, publicOrigin })
   })
 
   it.each([
