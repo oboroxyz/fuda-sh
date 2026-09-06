@@ -1,0 +1,12 @@
+{
+  "name": "@fuda/ens-contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "hardhat test solidity"
+  },
+  "devDependencies": {
+    "hardhat": "3.15.0"
+  }
+}
