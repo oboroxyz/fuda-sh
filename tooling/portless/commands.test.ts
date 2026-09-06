@@ -28,7 +28,7 @@ describe('command construction', () => {
     })
   })
 
-  it('constructs the Wrangler override as one argument', () => {
+  it('forwards Wrangler flags directly after the pnpm script name', () => {
     const command = buildServiceCommand(root, api, {
       HOST: '127.0.0.1',
       PORT: '4321',
@@ -39,7 +39,6 @@ describe('command construction', () => {
       '/repo/apps/api',
       'run',
       'dev',
-      '--',
       '--port',
       '4321',
       '--ip',
@@ -49,7 +48,7 @@ describe('command construction', () => {
     ])
   })
 
-  it('constructs Vite host and port arguments', () => {
+  it('forwards Vite flags directly after the pnpm script name', () => {
     const command = buildServiceCommand(root, app, {
       HOST: '::1',
       PORT: '5173',
@@ -60,7 +59,6 @@ describe('command construction', () => {
       '/repo/apps/app',
       'run',
       'dev',
-      '--',
       '--port',
       '5173',
       '--host',

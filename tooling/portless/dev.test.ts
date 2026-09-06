@@ -76,7 +76,6 @@ describe('development launcher', () => {
         fileURLToPath(new URL('../../apps/api', import.meta.url)),
         'run',
         'dev',
-        '--',
         '--port',
         '4321',
         '--ip',

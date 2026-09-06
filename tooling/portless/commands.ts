@@ -40,7 +40,7 @@ export const buildServiceCommand = (
   env: Readonly<Record<string, string | undefined>>,
 ): CommandSpec => {
   const { host, port, publicOrigin } = parseServiceEnvironment(app, env)
-  const args = ['--dir', nodePath.join(rootDir, app.path), 'run', 'dev', '--', '--port', String(port)]
+  const args = ['--dir', nodePath.join(rootDir, app.path), 'run', 'dev', '--port', String(port)]
 
   if (app.path === 'apps/api') {
     args.push('--ip', host, '--var', `API_BASE_URL:${publicOrigin}`)
