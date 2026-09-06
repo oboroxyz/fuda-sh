@@ -33,7 +33,7 @@ flowchart LR
 | ------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | API                | `apps/api`            | Coordinates issuance, revocation, gate operational state, pass generation, and +Private announcement writes                                                    |
 | Operator dashboard | `apps/dash`           | Gives authorized issuers the controls to issue, inspect, and revoke rights                                                                                   |
-| Member app         | `apps/app`            | Holds member signing rails, answers Signed challenges, and discovers +Private rights client-side                                                             |
+| Member app         | `apps/app`            | Holds member signing rails, answers Signed challenges, lists public member passes from holder addresses and device memory, and discovers +Private rights client-side |
 | Gate               | `apps/gate`           | Reads presented rights, requests proof when required, and renders an ADMIT or REJECT verdict                                                                 |
 | EAS on Base        | External; `apps/api`  | Records Entitlements, issuer delegation, revocation, and Attendance evidence                                                                                 |
 | D1 (SQLite)        | `apps/api/migrations` | Stores operational state such as challenges, SINGLE_USE consumption, entry logs, and member indexes; it does not cache announcements                          |
