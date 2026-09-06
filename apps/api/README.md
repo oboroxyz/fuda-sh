@@ -240,35 +240,19 @@ Before the first real deploy, the EAS schemas must be registered and a root
    Prints each schema's UID and a ready-to-paste `EAS_SCHEMAS` JSON blob.
 
 3. Attest the root `IssuerDelegation` — the signer delegating issuance rights
-   to itself. There's no script for this (it runs once); a short `tsx`
-   snippet:
+   to itself:
 
-   ```ts
-   import { http, isHex } from 'viem'
-   import { createWalletClient } from 'viem'
-   import { privateKeyToAccount } from 'viem/accounts'
-   import { baseSepolia } from 'viem/chains'
-   import { EAS_ABI } from './src/eas/abi.ts'
-   import { encodeDelegationV1 } from './src/eas/codecs.ts'
-   import { SCHEMA_STRINGS, schemaUid } from './src/eas/schemas.ts'
-
-   const key = process.env.SIGNER_PRIVATE_KEY
-   if (key === undefined || !isHex(key)) throw new Error('SIGNER_PRIVATE_KEY required')
-   const account = privateKeyToAccount(key)
-   const wallet = createWalletClient({ account, chain: baseSepolia, transport: http(process.env.BASE_RPC_URL) })
-   const data = encodeDelegationV1({ issuer: account.address, active: true, name: 'fuda root' })
-   const zero = `0x${'0'.repeat(64)}` as const
-   const hash = await wallet.writeContract({
-     abi: EAS_ABI,
-     address: '0x4200000000000000000000000000000000000021',
-     args: [{ data: { data, expirationTime: 0n, recipient: account.address, refUID: zero, revocable: true, value: 0n }, schema: schemaUid(SCHEMA_STRINGS.issuerDelegation) }],
-     functionName: 'attest',
-   })
-   console.log('tx', hash)
+   ```bash
+   SIGNER_PRIVATE_KEY=0x… pnpm --filter api attest-root-delegation
    ```
 
-   The returned attestation UID is `DELEGATION_UID`; `account.address` is
-   `ISSUER_ADDRESS`.
+   Prints `ISSUER_ADDRESS` (the signer) and `DELEGATION_UID` (the new
+   attestation). It attests under the newest `issuerDelegation` uid in
+   `EAS_SCHEMAS` when that variable is exported, and otherwise under the
+   deterministic uid of the current schema string — the two agree unless the
+   schema has been versioned. Idempotence is the operator's: run it once per
+   deployment. With `DELEGATION_UID` already set in the environment it warns
+   first, then attests a second, equally valid delegation.
 
 4. Paste `EAS_SCHEMAS`, `DELEGATION_UID` and `ISSUER_ADDRESS` into
    `wrangler.jsonc`'s top-level `vars`.
@@ -292,6 +276,11 @@ Before the first real deploy, the EAS schemas must be registered and a root
    wrangler secret put BASE_RPC_URL
    pnpm --filter api deploy
    ```
+
+   `wrangler.jsonc` declares `api.fuda.sh` as a custom domain of this Worker,
+   so the first deploy attaches the hostname (the zone must already be on the
+   account). `wrangler deploy --dry-run` validates the config without
+   deploying.
 
 ## Secrets and vars
 
@@ -336,16 +325,40 @@ Vars (`wrangler.jsonc` `vars`):
 
 ## Smoke test
 
-`scripts/smoke-live.ts` runs issue → verify → revoke → verify against a live
-api and exits non-zero on the first unexpected verdict:
+`scripts/smoke-live.ts` drives a live api through three ladders and exits
+non-zero on the first unexpected verdict:
+
+- **bearer** — issue → preview → scan → re-scan (`ALREADY_USED`) → revoke →
+  verify (`REVOKED`).
+- **signed** — issue to a holder key, then the challenge/response gate: a QR
+  scan answers `LEVEL_REQUIRED`, a signature from the wrong key answers
+  `BAD_SIGNATURE` (and burns its nonce, so replaying that nonce answers
+  `BAD_CHALLENGE`), a fresh challenge signed by the holder admits with
+  `path: 'signature'`, replaying it answers `BAD_CHALLENGE`, and a third
+  challenge answers `ALREADY_USED` because the right is `SINGLE_USE`.
+- **private** — issue to a stealth meta-address derived from a fixed PRF
+  output, assert the response carries no `passUrls` and `/pass/:uid` answers
+  `404`, page `/announcements` client-side until `matchAnnouncements` finds the
+  uid, check the QR path still answers `LEVEL_REQUIRED`, then admit by signing
+  the challenge with the recovered stealth private key.
 
 ```bash
 API_URL=https://api.fuda.sh ADMIN_TOKEN=… pnpm --filter api smoke:live
+API_URL=https://api.fuda.sh ADMIN_TOKEN=… pnpm --filter api smoke:live --ladder signed
+SMOKE_LADDERS=bearer,private pnpm --filter api smoke:live
 ```
 
-Defaults to `http://localhost:8787` when `API_URL` is unset, so it also works
-against a locally running `wrangler dev` (with or without `USE_FAKE_CHAIN=1`,
-as long as a signer is available to `/issue`/`/revoke`).
+`--ladder` (or `SMOKE_LADDERS`) takes a comma-separated list of `bearer`,
+`signed`, `private`, or `all`; the default is all three. `API_URL` defaults to
+`http://localhost:8787`, so the script also works against a locally running
+`wrangler dev` (with or without `USE_FAKE_CHAIN=1`, as long as a signer is
+available to `/issue`/`/revoke`).
+
+On a real chain the +Private announcement is only served once the sync has
+passed the 5-block confirmation depth, so the private ladder polls
+`/announcements` every 5 s for up to 2 minutes before failing — which doubles
+as a cold deployment's sync warm-up. That poll spends at most ~24 of the
+per-IP 120/h `/announcements` budget.
 
 ## Endpoints
 

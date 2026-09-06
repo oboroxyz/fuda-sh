@@ -35,3 +35,35 @@ pnpm check      # format + lint + type check (vp check)
 pnpm typecheck  # types only (vp check --no-fmt --no-lint)
 pnpm test       # every package's tests (workerd for the api)
 ```
+
+### Production build
+
+The `VITE_*` values are **baked into the bundle at build time**, so they must be
+set in the environment of the build, not of the deploy. Each app ships a
+`.env.example` listing the ones it reads; the production values are:
+
+```sh
+VITE_API_BASE_URL=https://api.fuda.sh   # all three frontends
+VITE_APP_ORIGIN=https://app.fuda.sh     # apps/app only
+VITE_RP_ID=fuda.sh                      # apps/app only
+```
+
+Build, then deploy, one app at a time:
+
+```sh
+VITE_API_BASE_URL=https://api.fuda.sh pnpm --filter gate build
+pnpm --filter gate exec wrangler deploy
+
+VITE_API_BASE_URL=https://api.fuda.sh pnpm --filter dash build
+pnpm --filter dash exec wrangler deploy
+
+VITE_API_BASE_URL=https://api.fuda.sh VITE_APP_ORIGIN=https://app.fuda.sh VITE_RP_ID=fuda.sh \
+  pnpm --filter app build
+pnpm --filter app exec wrangler deploy
+```
+
+Each Worker's `wrangler.jsonc` declares its hostnames as custom domains —
+`api.fuda.sh`, `gate.fuda.sh`, `dash.fuda.sh`, and both `app.fuda.sh` and the
+`fuda.sh` apex on `apps/app` — so a deploy attaches them; the zone must already
+be on the account. Add `--dry-run` to any of the deploys above to validate the
+config without shipping.
