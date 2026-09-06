@@ -115,8 +115,8 @@ export const admitAndHook = async (ctx: AdmitContext): Promise<AdmitOutcome> => 
       uid: ctx.uid,
     })
   }
-  // Spec §8: no Attendance for a +Private right — a public record would publish
-  // the visit history +Private exists to hide. Its entries live only in the log.
+  // No Attendance for a +Private right (docs/specs/attestation-model.md, entitlement
+  // lifecycle): a public record would publish the visit history +Private exists to hide.
   if (ctx.canonical.level === LEVEL_CODE.private) {
     return { admitted: true, entryLogId }
   }
