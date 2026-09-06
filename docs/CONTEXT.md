@@ -211,7 +211,7 @@ check character — stored canonical lowercase with no separators
 (`QJ2Y-XPHE-PDRKA`) on the Pass and dashboard. One per Right (a
 `private + loyalty` member has two unrelated numbers), unique per Issuer,
 never sequential. It is the ENS member label
-(`<member-no>.<issuer>.fuda.eth`, see `docs/specs/naming.md`) and is not
+(`<member-no>.<issuer>.fuda.eth`, see `docs/specs/ens-naming.md`) and is not
 the Member id, which groups a Member's several Rights.
 _Avoid_: Member id, serial (that is the Right's lineage field), sequence
 number
@@ -265,7 +265,7 @@ The ENS subname for an Issuer (`<issuer>.fuda.eth`, label = Handle),
 resolving to the address that attests Rights under that Handle —
 offchain-first, onchain-claimable, and living and dying with the Issuer
 delegation. Under it, each Right's Member number is a member label
-(`<member-no>.<issuer>.fuda.eth`, see `docs/specs/naming.md`); Members as
+(`<member-no>.<issuer>.fuda.eth`, see `docs/specs/ens-naming.md`); Members as
 people and Operators are never named. A name never makes an Issuer
 legitimate.
 _Avoid_: Venue name, ENS handle, username, member name (that names a Right,

@@ -1,4 +1,4 @@
-# Naming
+# ENS naming
 
 fuda names two things with ENS: the **issuer** that attests rights and the
 **member number** printed on a pass. A name is a display and destination
@@ -133,6 +133,6 @@ issue right ──► on-chain evidence confirmed ──► name exists ──�
 
 ## Related specs
 
-- [Architecture overview](./README.md)
+- [Architecture overview](../architecture.md)
 - [Attestation model](./attestation-model.md)
 - [Pass types and flows](./pass-types-and-flows.md)

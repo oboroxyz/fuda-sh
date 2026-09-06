@@ -31,7 +31,7 @@ below. Legend: ◎ effortless · ◯ supported, with some setup or conditions ·
 | **Decentralization** — the card keeps working without fuda            | **△** ¹                                                                                                                                          | **◯**                                                                                                                | **◯**                                                                                                               |
 | **Private** — your visits stay unlinkable to you on-chain             | −                                                                                                                                                | **◯**                                                                                                                | **◯**<br>access / − loyalty ⁴                                                                                       |
 | **Loyalty** — points and history build up in one place                | **◯**                                                                                                                                            | −                                                                                                                    | **◯**                                                                                                               |
-| **Name** — `<member-no>.<issuer>.fuda.eth`, see [Naming](./naming.md) | **◯**<br>resolves to the stable holder                                                                                                           | **◯**<br>resolves to a fresh stealth address per lookup                                                              | **◯**<br>two numbers: access rotates, loyalty is stable                                                             |
+| **Name** — `<member-no>.<issuer>.fuda.eth`, see [ENS naming](./ens-naming.md) | **◯**<br>resolves to the stable holder                                                                                                           | **◯**<br>resolves to a fresh stealth address per lookup                                                              | **◯**<br>two numbers: access rotates, loyalty is stable                                                             |
 
 1. A `standard` right starts unclaimed, with fuda controlling the holder
    account. Activation replaces fuda with the member's passkey or EOA at the
@@ -372,5 +372,5 @@ browser rejects an `rp.id` that is not a registrable suffix of the page's host.
 
 ## Related specs
 
-- [Architecture overview](./README.md)
+- [Architecture overview](../architecture.md)
 - [Attestation model](./attestation-model.md)
