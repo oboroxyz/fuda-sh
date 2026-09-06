@@ -125,6 +125,16 @@ describe(OnChainStatusView, () => {
     expect(walkView(view).some((node) => node.props.role === 'alert')).toBe(true)
   })
 
+  it('keeps external text that matches translated copy as raw details', () => {
+    const state = { kind: 'error', message: 'Chain lookup failed.' } as const
+    expect(viewText(OnChainStatusView({ copy: DASH_COPY.en.chain, state }))).toBe(
+      'Chain lookup failed. Chain lookup failed.',
+    )
+    expect(viewText(OnChainStatusView({ copy, state }))).toBe(
+      'チェーン検索に失敗しました。 Chain lookup failed.',
+    )
+  })
+
   it('renders revoked BigInt timestamps and inactive delegations as strings', () => {
     const view = OnChainStatusView({
       copy,

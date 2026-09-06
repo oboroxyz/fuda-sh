@@ -28,6 +28,21 @@ export interface OnChainStatusViewProps {
   state: OnChainStatusState
 }
 
+// Internal failures retain meaning across locale changes and async completion.
+// These private markers are translated only by the view and never shown directly.
+const UNCONFIGURED = '\0fuda:chain:unconfigured'
+const LOOKUP_FAILED = '\0fuda:chain:lookup-failed'
+
+const errorMessage = (copy: DashCopy['chain'], message: string): string => {
+  if (message === UNCONFIGURED) {
+    return copy.unconfigured
+  }
+  if (message === LOOKUP_FAILED) {
+    return copy.errorFallback
+  }
+  return `${copy.errorFallback} ${message}`
+}
+
 const delegationState = (copy: DashCopy['chain'], { active, revokedAt }: GraphDelegation): string => {
   if (revokedAt !== null) {
     return `${copy.revokedAt} ${revokedAt}`
@@ -49,9 +64,7 @@ export const OnChainStatusView = ({ copy, state }: OnChainStatusViewProps): JSX.
   if (state.kind === 'error') {
     return (
       <div role="alert" class="alert alert-error">
-        {state.message === copy.unconfigured || state.message === copy.errorFallback
-          ? state.message
-          : `${copy.errorFallback} ${state.message}`}
+        {errorMessage(copy, state.message)}
       </div>
     )
   }
@@ -108,7 +121,7 @@ export const OnChainStatus = ({ copy, endpoint }: OnChainStatusProps): JSX.Eleme
       return
     }
     if (endpoint === '') {
-      setState({ kind: 'error', message: copy.unconfigured })
+      setState({ kind: 'error', message: UNCONFIGURED })
       return
     }
     setState({ kind: 'loading' })
@@ -118,7 +131,7 @@ export const OnChainStatus = ({ copy, endpoint }: OnChainStatusProps): JSX.Eleme
         ...(await loadOnChainStatus(graphOnChainStatusIo, endpoint, holder)),
       })
     } catch (error) {
-      setState({ kind: 'error', message: error instanceof Error ? error.message : copy.errorFallback })
+      setState({ kind: 'error', message: error instanceof Error ? error.message : LOOKUP_FAILED })
     }
   }
   return (

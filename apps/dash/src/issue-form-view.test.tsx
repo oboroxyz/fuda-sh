@@ -76,6 +76,11 @@ const view = (patch: Partial<IssueFormViewProps> = {}): JSX.Element =>
   })
 const submitButton = (node: unknown) => walkView(node).find((item) => item.props.type === 'submit')!
 
+const chainText = (rendered: JSX.Element): string => {
+  const props = viewProps(findViewNodes(rendered, OnChainStatusView)[0]) as unknown as OnChainStatusViewProps
+  return viewText(OnChainStatusView(props))
+}
+
 describe('localized operation views', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
@@ -285,4 +290,50 @@ describe('localized operation views', () => {
       expect(submitButton(render()).props.disabled).toBe(false)
     },
   )
+
+  it.each([
+    ['', 'On-chain status is not configured.', 'オンチェーンステータスが設定されていません。'],
+    ['https://index.example/rights', 'Chain lookup failed.', 'チェーン検索に失敗しました。'],
+  ])(
+    'retranslates internal Graph errors after a language change for endpoint %j',
+    async (endpoint, english, japanese) => {
+      vi.spyOn(graphOnChainStatusIo, 'rightsByHolder').mockRejectedValue('offline')
+      const render = (language: 'en' | 'ja'): JSX.Element => {
+        hooks.index = 0
+        return OnChainStatus({ copy: DASH_COPY[language].chain, endpoint })
+      }
+      ;(
+        walkView(render('en')).find((node) => 'onSubmit' in node.props)!.props.onSubmit as (
+          event: Event,
+        ) => void
+      )({ preventDefault: (): void => {} } as Event)
+      await vi.waitFor(() => {
+        expect(chainText(render('en'))).toBe(english)
+      })
+      expect(chainText(render('ja'))).toBe(japanese)
+      expect(chainText(render('en'))).toBe(english)
+    },
+  )
+
+  it.each([
+    ['offline', 'チェーン検索に失敗しました。'],
+    [new Error('RPC_DENIED [42]'), 'チェーン検索に失敗しました。 RPC_DENIED [42]'],
+  ])('uses the current language when an in-flight Graph query rejects with %j', async (failure, message) => {
+    const pending = Promise.withResolvers<[]>()
+    vi.spyOn(graphOnChainStatusIo, 'rightsByHolder').mockReturnValue(pending.promise)
+    const render = (language: 'en' | 'ja'): JSX.Element => {
+      hooks.index = 0
+      return OnChainStatus({ copy: DASH_COPY[language].chain, endpoint: 'https://index.example/rights' })
+    }
+    ;(
+      walkView(render('en')).find((node) => 'onSubmit' in node.props)!.props.onSubmit as (
+        event: Event,
+      ) => void
+    )({ preventDefault: (): void => {} } as Event)
+    expect(chainText(render('ja'))).toBe('オンチェーンステータスを読み込み中です。')
+    pending.reject(failure)
+    await vi.waitFor(() => {
+      expect(chainText(render('ja'))).toBe(message)
+    })
+  })
 })
