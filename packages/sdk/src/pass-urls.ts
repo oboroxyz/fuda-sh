@@ -1,5 +1,5 @@
-import type { PassUrls } from '@fuda/sdk'
-import type { Hex } from 'viem'
+import type { Hex } from './constants.ts'
+import type { PassUrls } from './types.ts'
 
 // Always all three keys, even when a platform is unconfigured (that endpoint 501s).
 export const passUrls = (baseUrl: string, uid: Hex): PassUrls => {

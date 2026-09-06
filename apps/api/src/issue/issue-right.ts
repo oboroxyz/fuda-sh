@@ -1,4 +1,4 @@
-import { LEVEL_CODE, toQr } from '@fuda/sdk'
+import { LEVEL_CODE, passUrls, toQr } from '@fuda/sdk'
 import type { IssueRequest, IssueResponse, Level } from '@fuda/sdk'
 import type { Hex } from 'viem'
 
@@ -9,7 +9,6 @@ import { members } from '../db/schema.ts'
 import { encodeEntitlementV1 } from '../eas/codecs.ts'
 import { newest } from '../eas/schemas.ts'
 import type { SchemaSets } from '../eas/schemas.ts'
-import { passUrls } from './pass-urls.ts'
 
 export interface IssueContext {
   chain: ChainClient

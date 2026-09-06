@@ -90,6 +90,7 @@ export const ERROR_CODES = [
   'no_signer',
   'chain_error',
   'rpc_unavailable',
+  'internal',
   'apple_not_configured',
   'google_not_configured',
 ] as const

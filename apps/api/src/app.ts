@@ -41,8 +41,8 @@ const parseAnnouncerFromBlock = (raw: string): number => {
 }
 
 // Any error not already turned into a decision-shaped response by a route
-// handler. 'internal' is not in @fuda/sdk's ErrorCode list — it names an
-// unclassified defect, so the error itself is logged rather than swallowed.
+// handler. `internal` is the sdk's catch-all ErrorCode for an unclassified
+// defect (500); the error itself is logged rather than swallowed.
 const unclassifiedError = (err: Error, c: Context<AppEnv>): Response => {
   // oxlint-disable-next-line no-console -- unclassified defect: the only signal wrangler tail gets
   console.error(err)
