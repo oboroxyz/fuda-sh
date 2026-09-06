@@ -48,6 +48,29 @@ Create the isolated workspace **first**, then write the artifacts inside it:
 
 This keeps every temporary artifact, and its deletion, on the feature branch. The base branch never carries a spec or plan commit, and the branch history is the archive the lifecycle below relies on. Merge feature branches with a merge commit or rebase, not squash, so that history survives.
 
+### Herdr controller/worker worktrees
+
+When `orchestrating-herdr-worktrees` is installed, evaluate it before the
+ordinary `using-git-worktrees` creation step. Existing linked-worktree
+isolation still wins and never creates a nested worktree.
+
+- If `command -v herdr` reports that `herdr` is absent from `PATH`, use the
+  ordinary Superpowers flow.
+- If `herdr` is installed but `HERDR_ENV` is not `1`, do not control another
+  Herdr session; use the ordinary flow and report the inactive context.
+- If Herdr is installed, active, reachable, and compatible, use
+  `orchestrating-herdr-worktrees`. Its controller performs creation,
+  supervision, adoption, integration, and cleanup; the worker never removes
+  its own workspace.
+- If Herdr is active but unreachable or incompatible, stop before mutation.
+  Do not silently fall back to an unmanaged Git worktree.
+
+The Herdr adapter satisfies and overrides the creation portion of
+`using-git-worktrees` and the worktree-cleanup portion of
+`finishing-a-development-branch`. All other requirements of those skills,
+including existing-isolation detection, baseline verification, integration
+choices, dirty-worktree protection, and discard confirmation, still apply.
+
 ## Artifact lifecycle
 
 Superpowers artifacts exist only for the lifetime of the change they support.
