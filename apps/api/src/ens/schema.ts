@@ -13,6 +13,7 @@ export const ensNames = sqliteTable(
     level: text('level', { enum: ['bearer', 'signed', 'private'] }),
     name: text('name').notNull(),
     ownerAddress: text('owner_address').notNull(),
+    resolutionCounter: integer('resolution_counter').notNull().default(0),
     rightUid: text('right_uid'),
     status: text('status', {
       enum: ['offchain', 'voucher_issued', 'claimed', 'failed', 'unregistered'],
@@ -37,6 +38,7 @@ export const ensNames = sqliteTable(
       'ens_names_status_value',
       sql`${table.status} IN ('offchain', 'voucher_issued', 'claimed', 'failed', 'unregistered')`,
     ),
+    check('ens_names_resolution_counter', sql`${table.resolutionCounter} >= 0`),
     check(
       'ens_names_shape',
       sql`(

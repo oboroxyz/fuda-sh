@@ -55,6 +55,7 @@ describe('ENS mirror schema', () => {
     const rows = await db.select().from(ensNames)
     expect(rows).toHaveLength(3)
     expect(rows.find((row) => row.kind === 'issuer')?.rightUid).toBeNull()
+    expect(rows.every((row) => row.resolutionCounter === 0)).toBe(true)
     expect(rows.find((row) => row.level === 'bearer')?.targetAddress).toBe(TARGET)
     expect(rows.find((row) => row.level === 'private')?.stealthMetaAddress).toBe(META_ADDRESS)
   })
