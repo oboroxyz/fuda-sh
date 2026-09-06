@@ -64,9 +64,8 @@ export const LanguageSwitcher = ({
     <select
       aria-label={label}
       onChange={(event) => {
-        if (event.currentTarget instanceof HTMLSelectElement) {
-          onChange(event.currentTarget.value)
-        }
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Hono exposes generic Event currentTarget types.
+        onChange((event.currentTarget as HTMLSelectElement).value)
       }}
       style={{ minBlockSize: '44px' }}
       value={current}

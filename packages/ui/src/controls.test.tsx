@@ -8,6 +8,8 @@ interface ControlNode {
   tag: unknown
 }
 
+type SelectChangeHandler = (event: { currentTarget: { value: string } }) => void
+
 const isControlNode = (value: unknown): value is ControlNode =>
   typeof value === 'object' && value !== null && 'props' in value && 'tag' in value
 
@@ -49,5 +51,25 @@ describe('appearance controls', () => {
       'aria-label': 'Language',
       value: 'en',
     })
+  })
+
+  it('forwards the selected value without browser constructor globals', () => {
+    const changes: string[] = []
+    const language = LanguageSwitcher({
+      current: 'en',
+      label: 'Language',
+      onChange: (value) => {
+        changes.push(value)
+      },
+      options: [
+        { label: 'English', value: 'en' },
+        { label: '日本語', value: 'ja' },
+      ],
+    })
+    const handler = findControl(language, 'select')?.props.onChange as SelectChangeHandler | undefined
+
+    expect(handler).toBeTypeOf('function')
+    handler?.({ currentTarget: { value: 'ja' } })
+    expect(changes).toEqual(['ja'])
   })
 })
