@@ -123,6 +123,9 @@ importers:
 
   apps/dash:
     dependencies:
+      '@fuda/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
       '@fuda/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
