@@ -16,41 +16,19 @@ Membership rights as on-chain attestations, verified at a physical gate.
 | ERC-5564 Substreams | `packages/substreams/erc5564` | reusable raw `Announcement` extraction with a parameterized Announcer address |
 | ERC-5564 + EAS pipeline | `packages/substreams/erc5564-eas-pipeline` | composes the ERC-5564 package with raw EAS `Attested` and `Revoked` events |
 
-For the complete local stack, run `pnpm dev`. Portless exposes the services at:
-
-| Root command | Local URL |
-| --- | --- |
-| `pnpm dev:app` | `https://app.localhost` |
-| `pnpm dev:api` | `https://api.localhost` |
-| `pnpm dev:gate` | `https://gate.localhost` |
-| `pnpm dev:dash` | `https://dash.localhost` |
-
-A selective frontend command needs `pnpm dev:api` in another terminal for live
-api calls. Linked worktrees receive a branch prefix in their Portless names.
-Portless may request local-CA trust the first time an HTTPS route is used;
-`pnpm exec portless doctor` diagnoses routing and trust problems.
-
-The surface table above remains the direct fixed-port fallback, and the
-`pnpm --filter <name> dev` commands remain available.
-
-Root Portless commands set `VITE_API_BASE_URL`, `VITE_APP_ORIGIN`, and
-`VITE_RP_ID` automatically and proxy frontend `/api` calls to the matching api
-route. Direct fixed-port commands retain the manual environment contract:
-frontends read the api origin from `VITE_API_BASE_URL` (default
-`http://localhost:8787`).
+Frontends read the api origin from `VITE_API_BASE_URL` (default `http://localhost:8787`).
 
 `apps/app` also reads `VITE_APP_ORIGIN`: set it to `http://localhost:5173` in
-direct fixed-port local dev, or the `/signed` gate bounces to the production origin
+local dev, or the `/signed` gate bounces to the production origin
 (`https://app.fuda.sh` by default) instead of running locally — the apex and
 the app are one Worker, and `/signed`, `/private`, and `/rights` only render on the app
 origin (the only one the api's CORS list allows).
 
 `apps/app` also reads `VITE_RP_ID`, the relying-party id of every passkey
-ceremony: set it to `localhost` in direct fixed-port local dev, or the browser refuses the
+ceremony: set it to `localhost` in local dev, or the browser refuses the
 production default (`fuda.sh`), which is not a registrable suffix of the dev
 host. In production it stays `fuda.sh` so the apex and `app.fuda.sh` share one
-passkey. These manual overrides apply to direct fixed-port commands; Portless
-sets the corresponding values for named local routes.
+passkey.
 
 `apps/app` and `apps/dash` read chain-truth views from the public Graph endpoint
 in `VITE_GRAPH_RIGHTS_ENDPOINT`. The member app also uses that endpoint to load

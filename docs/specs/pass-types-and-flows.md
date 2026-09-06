@@ -438,18 +438,8 @@ current challenge for the Entitlement holder?
 | `app.fuda.sh`    | `apps/app`  | 5173     | member app: `/signed` challenge-response, `/private` enrolment and discovery, `/rights` member pass list |
 | `fuda.sh` (apex) | `apps/app`  | —        | landing only                                                                                      |
 
-Root Portless commands expose app, api, gate, and dash under HTTPS `.localhost`
-names. Linked worktrees prepend Portless's normalized branch label. In this
-mode each frontend calls same-origin `/api`; Vite strips that prefix and proxies
-to the matching worktree's api route. The API CORS allow-list is unchanged.
-
-Portless mode sets the member app origin to its public URL and its WebAuthn RP
-ID to that URL's exact hostname. Direct workspace commands keep their fixed
-ports and existing localhost/manual environment contract.
-
 Each host is a custom domain of its Worker, and the dev ports are pinned in each
-app's `vite.config.ts`. In direct fixed-port development, the frontends call the
-api cross-origin at
+app's `vite.config.ts`. The frontends call the api cross-origin at
 `VITE_API_BASE_URL`, baked in at build time and defaulting to
 `http://localhost:8787`. The api's CORS allow-list is exactly
 `https://app.fuda.sh`, `https://dash.fuda.sh` and `https://gate.fuda.sh`, plus
@@ -460,10 +450,8 @@ origin: it hosts the landing only, and `/signed`, `/private`, and `/rights` on
 the apex redirect to `VITE_APP_ORIGIN` (`https://app.fuda.sh`) behind a one-line
 interstitial, so every api call originates from an allowed origin. `VITE_RP_ID`
 fixes the passkey `rp.id` to `fuda.sh` in production builds, so the apex and
-`app.fuda.sh` share one passkey; direct fixed-port local dev must set it to
-`localhost`, since a browser rejects an `rp.id` that is not a registrable suffix
-of the page's host.
-Production `fuda.sh` / `app.fuda.sh` passkey behavior remains unchanged.
+`app.fuda.sh` share one passkey; local dev must set it to `localhost`, since a
+browser rejects an `rp.id` that is not a registrable suffix of the page's host.
 
 The member app and dashboard read on-chain views directly from the public
 rights subgraph configured by `VITE_GRAPH_RIGHTS_ENDPOINT`. The member list at
