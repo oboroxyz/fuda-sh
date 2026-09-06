@@ -1,4 +1,4 @@
-# ADR 0003: one hybrid resolver serves the claimed and offchain ENS tree
+# ADR 0005: one hybrid resolver serves the claimed and offchain ENS tree
 
 - **Status**: Accepted 2026-09-06.
 - **Scope**: resolution routing for issuer and member names below `fuda.eth`.

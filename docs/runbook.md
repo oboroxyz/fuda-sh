@@ -204,7 +204,12 @@ floor — the demo does not depend on Apple Wallet being ready.
 ## 6. Build env for the frontends
 
 `VITE_*` values are baked into the bundle at build time, so they must be set
-in the environment of the build, not the deploy. Each app's `.env.example`
+in the environment of the build, not the deploy. Keep the production values in
+each app's `.env.production` (gitignored; copy the keys from `.env.example`):
+Vite reads it automatically on `vite build`, so a plain `pnpm --filter <app> run
+deploy` from that machine ships the right bundle, and an environment variable
+still overrides it. A deploy from a machine without that file silently bakes
+empty values in (the app then reports "rights discovery is not configured"). Each app's `.env.example`
 lists what it reads; the production values are:
 
 ```bash
