@@ -167,14 +167,14 @@ Deploy the rights subgraph first so its public query endpoint can be baked into
 the member app and dashboard. Then deploy the api and the three frontends:
 
 ```bash
-pnpm --filter api deploy
+pnpm --filter api run deploy
 
-VITE_API_BASE_URL=https://api.fuda.sh pnpm --filter gate deploy
+VITE_API_BASE_URL=https://api.fuda.sh pnpm --filter gate run deploy
 VITE_API_BASE_URL=https://api.fuda.sh VITE_GRAPH_RIGHTS_ENDPOINT=<PUBLIC_GRAPH_ENDPOINT> \
-  pnpm --filter dash deploy
+  pnpm --filter dash run deploy
 VITE_API_BASE_URL=https://api.fuda.sh VITE_GRAPH_RIGHTS_ENDPOINT=<PUBLIC_GRAPH_ENDPOINT> \
   VITE_APP_ORIGIN=https://app.fuda.sh VITE_RP_ID=fuda.sh \
-  pnpm --filter app deploy
+  pnpm --filter app run deploy
 ```
 
 Each app's `deploy` script builds then runs `wrangler deploy`. Every
@@ -182,7 +182,7 @@ Each app's `deploy` script builds then runs `wrangler deploy`. Every
 `gate.fuda.sh`, `dash.fuda.sh`, and both `app.fuda.sh` and the `fuda.sh` apex
 on `apps/app` — so the first deploy of each Worker attaches them; the zone
 must already be on the account. Validate config without shipping with
-`pnpm --filter api deploy -- --dry-run` (or `pnpm --filter <app> deploy --
+`pnpm --filter api run deploy -- --dry-run` (or `pnpm --filter <app> run deploy --
 --dry-run` for a frontend).
 
 ## 9. Live smoke
