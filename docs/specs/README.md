@@ -48,8 +48,8 @@ flowchart LR
   matches ERC-5564 announcements locally; the API only serves candidate
   announcement data.
 - **Admin routes fail closed.** Issue, revoke and member listing require
-  `ADMIN_TOKEN`; a deployment with a signer and no token locks them rather than
-  opening them.
+  `ADMIN_TOKEN` wherever a signer is configured; a deployment with a signer and
+  no token locks them rather than opening them.
 - **The public verify endpoints are unauthenticated by design.** `GET
   /verify/:uid` and `POST /verify` take a uid that is public on chain, so anyone
   who learns one can preview it — and burn a SINGLE_USE slot. What that buys an
