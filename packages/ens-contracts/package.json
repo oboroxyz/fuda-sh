@@ -12,6 +12,8 @@
     "ens:parent:commit": "tsx scripts/ens-parent-commit.ts",
     "ens:parent:reveal": "tsx scripts/ens-parent-reveal.ts",
     "ens:preflight": "tsx scripts/ens-preflight.ts",
+    "ens:topology:deploy": "hardhat build && tsx scripts/ens-topology-deploy.ts",
+    "ens:verify": "tsx scripts/ens-verify.ts",
     "test": "vp test && hardhat test solidity"
   },
   "dependencies": {

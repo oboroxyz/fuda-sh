@@ -92,3 +92,45 @@ export const readParentMutationConfig = (env: Environment) => {
   }
   return { ...config, commitmentSecret, parentAccount, parentDuration: BigInt(duration) }
 }
+
+const accountFromKey = (env: Environment, name: string) => {
+  const key = bytes32(env, name)
+  try {
+    return privateKeyToAccount(key)
+  } catch {
+    throw new Error(`${name}: invalid secp256k1 private key`)
+  }
+}
+
+const requiredAddress = (env: Environment, key: string): Address => {
+  const address = optionalAddress(env, key)
+  if (address === undefined) {
+    throw new Error(`${key}: nonzero Ethereum address required`)
+  }
+  return address
+}
+
+export const readTopologyMutationConfig = (env: Environment) => {
+  const config = readPublicConfig(env)
+  const parentAccount = accountFromKey(env, 'ENS_PARENT_KEY')
+  if (config.parentAddress !== undefined && config.parentAddress !== parentAccount.address) {
+    throw new Error('ENS_PARENT_ADDRESS: does not match ENS_PARENT_KEY account')
+  }
+  return {
+    ...config,
+    gatewaySigner: accountFromKey(env, 'ENS_GATEWAY_SIGNER_KEY').address,
+    parentAccount,
+    parentAddress: parentAccount.address,
+    voucherSigner: accountFromKey(env, 'ENS_VOUCHER_KEY').address,
+  }
+}
+
+export const readTopologyVerificationConfig = (env: Environment) => ({
+  ...readPublicConfig(env),
+  gatewaySigner: requiredAddress(env, 'ENS_GATEWAY_SIGNER_ADDRESS'),
+  parentAddress: requiredAddress(env, 'ENS_PARENT_ADDRESS'),
+  registrarAddress: requiredAddress(env, 'ENS_REGISTRAR_ADDRESS'),
+  resolverAddress: requiredAddress(env, 'ENS_RESOLVER_ADDRESS'),
+  userRegistryAddress: requiredAddress(env, 'ENS_USER_REGISTRY_ADDRESS'),
+  voucherSigner: requiredAddress(env, 'ENS_VOUCHER_SIGNER_ADDRESS'),
+})

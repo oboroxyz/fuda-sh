@@ -32,6 +32,7 @@ export const ETH_REGISTRAR_ABI = parseAbi([
 
 export const ETH_REGISTRY_ABI = parseAbi([
   'function getOwner(uint256 anyId) view returns (address)',
+  'function getTokenId(uint256 anyId) view returns (uint256)',
   'function getResolver(string label) view returns (address)',
   'function getSubregistry(string label) view returns (address)',
   'function setResolver(uint256 anyId,address resolver)',
@@ -66,7 +67,7 @@ export const FUDA_RESOLVER_ABI = parseAbi([
   'function registrar() view returns (address)',
   'function gatewayUrls() view returns (string[])',
   'function setRegistrar(address registrar)',
-  'event RegistrarSet(address indexed registrar)',
+  'event RegistrarSet(address registrar)',
 ])
 
 export const FUDA_REGISTRAR_ABI = parseAbi([
