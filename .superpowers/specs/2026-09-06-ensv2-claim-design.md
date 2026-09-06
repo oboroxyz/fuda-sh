@@ -1,6 +1,6 @@
 # ENSv2 issuer claim and hybrid resolution design
 
-**Status:** approved in chat on 2026-09-06; awaiting written-spec review
+**Status:** written spec approved on 2026-09-06
 
 **Scope:** B1-independent ENSv2 claim contracts, hybrid resolution, and
 hackathon deployment tooling
@@ -273,7 +273,7 @@ when the registry returns a nonzero owner.
 
 The resolver is deployed before the registrar, so `setRegistrar(address)` is a
 one-time owner-only wiring call. It rejects zero and cannot replace an already
-configured registrar.
+configured registrar. Successful wiring emits `RegistrarSet(registrar)`.
 
 ### Resolution algorithm
 
@@ -384,10 +384,12 @@ key or silent network fallback:
    and event receipt. It prints public addresses and transaction hashes only.
 
 Each mutating script simulates its transaction immediately before sending,
-waits for a successful receipt, validates the expected event, and aborts on the
-first mismatch. Re-running a completed step verifies and reports it rather than
-blindly sending a duplicate transaction. Nothing uses the normal Sepolia ENS
-proxy implicitly.
+waits for a successful receipt, and aborts on the first mismatch. Protocol
+method calls validate the expected event. Direct fuda contract creations,
+which have no emitting caller contract, instead validate the receipt's contract
+address, nonempty runtime code, and immutable configuration. Re-running a
+completed step verifies and reports it rather than blindly sending a duplicate
+transaction. Nothing uses the normal Sepolia ENS proxy implicitly.
 
 The tooling reads these secrets only when their step needs them:
 
