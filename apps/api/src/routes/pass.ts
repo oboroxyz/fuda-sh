@@ -56,5 +56,35 @@ passRoutes.get('/pass/:uid/google', async (c) => {
 
 passRoutes.get('/pass/:uid/apple.pkpass', async (c) => {
   const found = await loadPassRow(c, c.req.param('uid'))
-  return found.ok ? errorResponse(c, 'apple_not_configured', 501) : found.res
+  if (!found.ok) {
+    return found.res
+  }
+  // Dynamic: @fuda/pass/apple pulls in pkijs and asn1js, and only this one
+  // route needs them. Importing it lazily keeps them out of the Worker's
+  // startup path, which every other request pays for.
+  const { appleConfigFrom, buildPkpass } = await import('@fuda/pass/apple')
+  const cfg = appleConfigFrom(c.env)
+  if (cfg === null) {
+    return errorResponse(c, 'apple_not_configured', 501)
+  }
+  const view = passView(found.row, null)
+  try {
+    const pkpass = await buildPkpass(
+      cfg,
+      { holderShort: view.holderShort, qr: view.qr, tierLabel: view.tier, uid: found.row.uid },
+      c.get('now')(),
+    )
+    return new Response(pkpass, {
+      headers: {
+        'cache-control': 'no-store',
+        'content-disposition': `attachment; filename="fuda-${found.row.uid.slice(0, 10)}.pkpass"`,
+        'content-type': 'application/vnd.apple.pkpass',
+      },
+    })
+  } catch (error) {
+    // An unparsable certificate or key is a misconfigured deployment, not an
+    // internal defect: the endpoint reads as unconfigured and says why in the log.
+    console.error('[fuda-api] the APPLE_* certificate or key could not be used to sign a pass', error)
+    return errorResponse(c, 'apple_not_configured', 501)
+  }
 })

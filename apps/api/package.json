@@ -25,7 +25,9 @@
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.22.0",
     "@cloudflare/workers-types": "^4.20250905.0",
+    "asn1js": "3.0.10",
     "drizzle-kit": "^0.31.0",
+    "pkijs": "3.4.0",
     "vitest": "4.1.11"
   }
 }
