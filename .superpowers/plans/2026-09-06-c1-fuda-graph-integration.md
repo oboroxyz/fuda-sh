@@ -53,17 +53,18 @@ If Task 2 cannot stream a real Base Sepolia announcement by the evening of Septe
 **Files:**
 - Modify: `package.json`
 - Create: `packages/substreams/README.md`
-- Create: `subgraphs/rights/package.json`
-- Create: `subgraphs/rights/config/base-sepolia.json`
-- Create: `subgraphs/rights/scripts/read-mvp-config.mjs`
-- Create: `subgraphs/rights/scripts/read-mvp-config.test.ts`
+- Create: `packages/subgraphs/rights/package.json`
+- Create: `packages/subgraphs/rights/pnpm-lock.yaml`
+- Create: `packages/subgraphs/rights/config/base-sepolia.json`
+- Create: `packages/subgraphs/rights/scripts/read-mvp-config.mjs`
+- Create: `packages/subgraphs/rights/scripts/read-mvp-config.test.ts`
 
 **Interfaces:**
 - Consumes: `apps/api/wrangler.jsonc` values `EAS_SCHEMAS` and `ANNOUNCER_FROM_BLOCK`
 - Produces: `readMvpGraphConfig(path, options?): MvpGraphConfig`
 
 - [x] Write failing tests that preserve all three MVP keys (`entitlement`, `issuerDelegation`, `attendance`) and multiple accepted versions, normalize UIDs to lowercase, and reject missing/empty sets, malformed UIDs, duplicate UIDs or versions, and non-positive start blocks. Test both top-level production vars and an explicitly selected Wrangler environment without importing API implementation code.
-- [x] Run `pnpm exec vitest run subgraphs/rights/scripts/read-mvp-config.test.ts`; expect module-not-found failure.
+- [x] Run `pnpm exec vitest run packages/subgraphs/rights/scripts/read-mvp-config.test.ts`; expect module-not-found failure.
 - [x] Implement:
 
   ```ts
@@ -82,7 +83,7 @@ If Task 2 cannot stream a real Base Sepolia announcement by the evening of Septe
   ): MvpGraphConfig;
   ```
 
-- [x] Add root `graph:prepare`, `graph:codegen`, `graph:test`, and `graph:build` scripts delegating to `subgraphs/rights`; pin Graph CLI, Graph TS, and Matchstick in `subgraphs/rights/package.json` and update `pnpm-lock.yaml` through pnpm.
+- [x] Add root `graph:prepare`, `graph:codegen`, `graph:test`, and `graph:build` scripts delegating to the independently installed `packages/subgraphs/rights`; pin Graph CLI, Graph TS, and Matchstick in its `package.json` and update its `pnpm-lock.yaml` through pnpm.
 - [x] Run the focused test and `pnpm check`; expect success.
 - [x] Commit with `chore(graph): add graph toolchain and MVP config boundary`.
 
@@ -141,63 +142,63 @@ If Task 2 cannot stream a real Base Sepolia announcement by the evening of Septe
 ### Task 4: Generate a deterministic rights subgraph
 
 **Files:**
-- Create: `subgraphs/rights/schema.graphql`
-- Create: `subgraphs/rights/subgraph.template.yaml`
-- Create: `subgraphs/rights/networks.json`
-- Create: `subgraphs/rights/abis/EAS.json`
-- Create: `subgraphs/rights/abis/Announcer.json`
-- Create: `subgraphs/rights/scripts/prepare.mjs`
-- Create: `subgraphs/rights/scripts/prepare.test.ts`
-- Create: `subgraphs/rights/src/schema-uids.ts`
-- Create: `subgraphs/rights/subgraph.yaml`
+- Create: `packages/subgraphs/rights/schema.graphql`
+- Create: `packages/subgraphs/rights/subgraph.template.yaml`
+- Create: `packages/subgraphs/rights/networks.json`
+- Create: `packages/subgraphs/rights/abis/EAS.json`
+- Create: `packages/subgraphs/rights/abis/Announcer.json`
+- Create: `packages/subgraphs/rights/scripts/prepare.mjs`
+- Create: `packages/subgraphs/rights/scripts/prepare.test.ts`
+- Create: `packages/subgraphs/rights/src/schema-uids.ts`
+- Create: `packages/subgraphs/rights/subgraph.yaml`
 
 **Interfaces:**
 - Consumes: Task 1 config reader, MVP schema shapes, and subgraph-owned contract ABIs
 - Produces: generated manifest/constants and `Right`, `Delegation`, `Attendance`, `Announcement`
 
-- [ ] Write generation tests proving multiple versions survive, addresses/start blocks enter the manifest, and absent live configuration fails rather than inserting fixtures.
-- [ ] Define mutable Right with the exact MVP canonical Entitlement fields (including `serial`, `metaURI`, and schema version), issuer-delegation relation, revocation, block metadata, and derived attendances. Define mutable Delegation, immutable Attendance with `slotId`, and immutable raw Announcement with transaction/log identity and timestamp.
-- [ ] Run the generation test; expect failure before `prepare.mjs` exists.
-- [ ] Generate AssemblyScript UID/version maps and `subgraph.yaml` only from top-level production vars in `apps/api/wrangler.jsonc`. Keep fixture generation inside tests and never commit fixture UIDs as a deployable manifest.
+- [x] Write generation tests proving multiple versions survive, addresses/start blocks enter the manifest, and absent live configuration fails rather than inserting fixtures.
+- [x] Define mutable Right with the exact MVP canonical Entitlement fields (including `serial`, `metaURI`, and schema version), issuer-delegation relation, revocation, block metadata, and derived attendances. Define mutable Delegation, immutable Attendance with `slotId`, and immutable raw Announcement with transaction/log identity and timestamp.
+- [x] Run the generation test; expect failure before `prepare.mjs` exists.
+- [x] Generate AssemblyScript UID/version maps and `subgraph.yaml` only from top-level production vars in `apps/api/wrangler.jsonc`. Keep fixture generation inside tests and never commit fixture UIDs as a deployable manifest.
 - [ ] Before production values exist, run `pnpm graph:prepare`; expect an explicit configuration failure. After live schema registration and start-block configuration, run `pnpm graph:prepare && pnpm graph:codegen && pnpm graph:build`; expect success.
 - [ ] Commit with `feat(graph): define the fuda rights subgraph`.
 
 ### Task 5: Index EAS entities and revocations
 
 **Files:**
-- Create: `subgraphs/rights/src/eas.ts`
-- Create: `subgraphs/rights/src/codecs.ts`
-- Create: `subgraphs/rights/tests/eas.test.ts`
-- Modify: `subgraphs/rights/subgraph.template.yaml`
+- Create: `packages/subgraphs/rights/src/eas.ts`
+- Create: `packages/subgraphs/rights/src/codecs.ts`
+- Create: `packages/subgraphs/rights/tests/eas.test.ts`
+- Modify: `packages/subgraphs/rights/subgraph.template.yaml`
 
 **Interfaces:**
 - Consumes: generated `try_getAttestation(uid)` and UID/version maps keyed by `issuerDelegation`
 - Produces: populated entities and revocation transitions
 
-- [ ] Write Matchstick tests for accepted versions, unknown-schema ignore, call revert, both relations, both mutable-entity revokes, and unknown-entity revoke.
-- [ ] Run the focused test; expect failure before handlers exist.
-- [ ] Use a subgraph-owned EAS JSON ABI containing both official `Attested` and `Revoked` events plus `getAttestation`; the MVP TypeScript `EAS_ABI` is not the Graph codegen input.
-- [ ] Implement `entitlementVersion`, `issuerDelegationVersion`, `attendanceVersion`, `handleAttested`, and `handleRevoked`.
-- [ ] Match the schema before one `try_getAttestation` call. Decode by version and upcast. Link Right by `refUID`; link Attendance by decoded `rightUID`.
-- [ ] Ignore malformed data and holder/recipient mismatches. Save the event time as `revokedAt` for known entities.
-- [ ] Run focused tests and Graph build; expect success.
+- [x] Write Matchstick tests for accepted versions, unknown-schema ignore, call revert, both relations, both mutable-entity revokes, and unknown-entity revoke.
+- [x] Run the focused test; expect failure before handlers exist.
+- [x] Use a subgraph-owned EAS JSON ABI containing both official `Attested` and `Revoked` events plus `getAttestation`; the MVP TypeScript `EAS_ABI` is not the Graph codegen input.
+- [x] Implement `entitlementVersion`, `issuerDelegationVersion`, `attendanceVersion`, `handleAttested`, and `handleRevoked`.
+- [x] Match the schema before one `try_getAttestation` call. Decode by version and upcast. Link Right by `refUID`; link Attendance by decoded `rightUID`.
+- [x] Ignore malformed data and holder/recipient mismatches. Save the event time as `revokedAt` for known entities.
+- [x] Run focused tests and Graph build; expect success.
 - [ ] Commit with `feat(graph): index fuda rights and attendance attestations`.
 
 ### Task 6: Index announcements and verify live data
 
 **Files:**
-- Create: `subgraphs/rights/src/announcer.ts`
-- Create: `subgraphs/rights/tests/announcer.test.ts`
-- Create: `subgraphs/rights/queries/smoke.graphql`
-- Create: `subgraphs/rights/README.md`
+- Create: `packages/subgraphs/rights/src/announcer.ts`
+- Create: `packages/subgraphs/rights/tests/announcer.test.ts`
+- Create: `packages/subgraphs/rights/queries/smoke.graphql`
+- Create: `packages/subgraphs/rights/README.md`
 
 **Interfaces:**
 - Consumes: generated Announcement binding
 - Produces: immutable raw Announcement entities and a deployed endpoint
 
-- [ ] Test both known and unknown schemes, exact field preservation, and multiple logs in one transaction.
-- [ ] Implement ID `transactionHash.concatI32(logIndex)` with no view-tag or caller filtering.
-- [ ] Run `pnpm graph:test && pnpm graph:build && pnpm check`; expect success.
+- [x] Test both known and unknown schemes, exact field preservation, and multiple logs in one transaction.
+- [x] Implement ID `transactionHash.concatI32(logIndex)` with no view-tag or caller filtering.
+- [x] Run `pnpm graph:test && pnpm graph:build && pnpm check`; expect success.
 - [ ] After production MVP configuration is populated, emit live issue, Attendance, Announcement, and revoke events; deploy to Studio and run the smoke query.
 - [ ] Compare UIDs, holders, metadata, relations, and revocation state with receipts. Require real Right, Delegation, Attendance, and Announcement entities.
 - [ ] Commit with `feat(graph): index announcements and document subgraph deployment`.
