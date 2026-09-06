@@ -9,6 +9,8 @@
   },
   "scripts": {
     "build": "hardhat build",
+    "ens:parent:commit": "tsx scripts/ens-parent-commit.ts",
+    "ens:parent:reveal": "tsx scripts/ens-parent-reveal.ts",
     "ens:preflight": "tsx scripts/ens-preflight.ts",
     "test": "vp test && hardhat test solidity"
   },
