@@ -149,7 +149,7 @@ them is a protocol version bump.
 | Announcement metadata                                    | `0x` + viewTag (2 hex) + uid (64 hex)                                                                                                                  |
 | HKDF domain salt (`@fuda/stealth-address`)                       | `fuda.sh/stealth/v1` (UTF-8 bytes)                                                                                                                     |
 | WebAuthn PRF eval input                                  | `prf: { eval: { first: utf8('fuda.sh/stealth/prf/v1') } }` — the PRF output is a function of this input; it must never change                          |
-| WebAuthn `rp.id`                                         | `fuda.sh` for every fuda passkey ceremony in production (`VITE_RP_ID`, baked into the member app at build time; local dev overrides it to `localhost`) |
+| WebAuthn `rp.id`                                         | `fuda.sh` for every fuda passkey ceremony in production (`VITE_RP_ID`, baked into the member app at build time); direct fixed-port development uses `localhost`, while Portless uses the exact named route hostname |
 
 `uid` values are normalized to lowercase at every route entry; a mixed-case uid
 in a QR, path or body is accepted and treated as the same right.

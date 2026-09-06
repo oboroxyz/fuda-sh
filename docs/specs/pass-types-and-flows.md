@@ -438,10 +438,22 @@ current challenge for the Entitlement holder?
 | `app.fuda.sh`    | `apps/app`  | 5173     | member app: `/signed` challenge-response, `/private` enrolment and discovery, `/rights` member pass list |
 | `fuda.sh` (apex) | `apps/app`  | —        | landing only                                                                                      |
 
-Each host is a custom domain of its Worker, and the dev ports are pinned in each
-app's `vite.config.ts`. The frontends call the api cross-origin at
-`VITE_API_BASE_URL`, baked in at build time and defaulting to
-`http://localhost:8787`. The api's CORS allow-list is exactly
+Root `pnpm dev` and the selective `dev:api`, `dev:app`, `dev:gate`, and
+`dev:dash` commands expose these four services through Portless as named HTTPS
+`.localhost` routes. A linked worktree receives the same normalized branch
+prefix on every route. Each frontend calls same-origin `/api`; Vite strips the
+prefix and proxies to the matching `api.localhost` or worktree-prefixed api
+route. Wrangler listens on Portless's supplied host and port and uses its named
+public URL as `API_BASE_URL`.
+
+Portless mode sets the member app's `VITE_APP_ORIGIN` to its named public
+origin and `VITE_RP_ID` to that URL's exact hostname. Portless supplies Vite's
+dynamic ports, while the per-package direct commands retain ports 5173, 5174,
+5175, and 8787 and all existing environment defaults.
+
+Each production host is a custom domain of its Worker. In direct fixed-port
+development, the frontends call the api cross-origin at `VITE_API_BASE_URL`,
+baked in at build time and defaulting to `http://localhost:8787`. The api's CORS allow-list is exactly
 `https://app.fuda.sh`, `https://dash.fuda.sh` and `https://gate.fuda.sh`, plus
 any `http://localhost:<port>` or `http://127.0.0.1:<port>` origin.
 
@@ -450,8 +462,9 @@ origin: it hosts the landing only, and `/signed`, `/private`, and `/rights` on
 the apex redirect to `VITE_APP_ORIGIN` (`https://app.fuda.sh`) behind a one-line
 interstitial, so every api call originates from an allowed origin. `VITE_RP_ID`
 fixes the passkey `rp.id` to `fuda.sh` in production builds, so the apex and
-`app.fuda.sh` share one passkey; local dev must set it to `localhost`, since a
-browser rejects an `rp.id` that is not a registrable suffix of the page's host.
+`app.fuda.sh` share one passkey; direct fixed-port local dev must set it to
+`localhost`, since a browser rejects an `rp.id` that is not a registrable suffix
+of the page's host. Production apex/app passkey behavior is unchanged.
 
 The member app and dashboard read on-chain views directly from the public
 rights subgraph configured by `VITE_GRAPH_RIGHTS_ENDPOINT`. The member list at
