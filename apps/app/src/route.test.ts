@@ -34,6 +34,12 @@ describe(routeFor, () => {
     expect(routeFor(APEX, '/private', APP)).toStrictEqual({ redirect: 'https://app.fuda.sh/private' })
   })
 
+  it('renders the rights list only on the app origin', () => {
+    expect(routeFor(APP, '/rights', APP)).toBe('rights')
+    expect(routeFor(APP, '/rights/', APP)).toBe('rights')
+    expect(routeFor(APEX, '/rights', APP)).toStrictEqual({ redirect: 'https://app.fuda.sh/rights' })
+  })
+
   it('sends an unknown path to the landing rather than into a redirect', () => {
     expect(routeFor(APEX, '/nope', APP)).toBe('landing')
     expect(routeFor(APP, '/signed/extra', APP)).toBe('landing')

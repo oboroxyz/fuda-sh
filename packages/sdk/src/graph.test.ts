@@ -1,9 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { fetchAnnouncements } from './graph.ts'
+import {
+  fetchAnnouncements,
+  fetchAttendancesByRight,
+  fetchDelegationsByIssuer,
+  fetchRightsByHolder,
+} from './graph.ts'
 
-const TX_A = `0x${'aa'.repeat(32)}`
-const TX_B = `0x${'bb'.repeat(32)}`
+const TX_A = `0x${'aa'.repeat(32)}` as const
+const TX_B = `0x${'bb'.repeat(32)}` as const
 
 const graphRow = (blockNumber: bigint, id = `${TX_A}00000000`) => ({
   blockNumber: blockNumber.toString(),
@@ -117,5 +122,174 @@ describe(fetchAnnouncements, () => {
     ).rejects.toMatchObject({
       name: 'AbortError',
     })
+  })
+})
+
+describe('chain-truth Graph queries', () => {
+  it('normalizes the holder and returns multiple rights including revoked state', async () => {
+    const holder = `0x${'AB'.repeat(20)}`
+    const spy = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(
+      async () =>
+        await Promise.resolve(
+          Response.json({
+            data: {
+              rights: [
+                {
+                  delegation: {
+                    active: true,
+                    id: TX_B,
+                    issuer: `0x${'22'.repeat(20)}`,
+                    name: 'root',
+                    revokedAt: null,
+                  },
+                  holder: holder.toLowerCase(),
+                  id: TX_A,
+                  issuer: `0x${'22'.repeat(20)}`,
+                  level: 1,
+                  metaURI: 'ipfs://one',
+                  revokedAt: null,
+                  schemaVersion: 1,
+                  serial: `0x${'00'.repeat(32)}`,
+                  tier: 2,
+                  usageModel: 1,
+                  validFrom: '0',
+                  validUntil: '999',
+                },
+                {
+                  delegation: {
+                    active: false,
+                    id: TX_B,
+                    issuer: `0x${'22'.repeat(20)}`,
+                    name: 'root',
+                    revokedAt: '77',
+                  },
+                  holder: holder.toLowerCase(),
+                  id: `0x${'cc'.repeat(32)}`,
+                  issuer: `0x${'22'.repeat(20)}`,
+                  level: 2,
+                  metaURI: '',
+                  revokedAt: '88',
+                  schemaVersion: 1,
+                  serial: `0x${'11'.repeat(32)}`,
+                  tier: 3,
+                  usageModel: 2,
+                  validFrom: '10',
+                  validUntil: '0',
+                },
+              ],
+            },
+          }),
+        ),
+    )
+    vi.stubGlobal('fetch', spy)
+
+    const rights = await fetchRightsByHolder('https://graph.example/query', holder)
+
+    expect(rights).toHaveLength(2)
+    expect(rights[1]).toMatchObject({ revokedAt: 88n, validFrom: 10n })
+    expect(spy.mock.calls[0]?.[1]?.body).toContain(`"holder":"${holder.toLowerCase()}"`)
+  })
+
+  it('returns attendance and delegation relations, including empty results', async () => {
+    const responses = [
+      Response.json({
+        data: {
+          attendances: [
+            {
+              enteredAt: '55',
+              holder: `0x${'11'.repeat(20)}`,
+              id: TX_A,
+              rightUID: TX_B,
+              slotId: `0x${'00'.repeat(32)}`,
+              timestamp: '56',
+            },
+          ],
+        },
+      }),
+      Response.json({ data: { delegations: [] } }),
+    ]
+    let request = 0
+    const fetchSpy = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => {
+      const response = responses[request]
+      request += 1
+      return await Promise.resolve(response ?? Response.json({ data: {} }))
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    await expect(fetchAttendancesByRight('https://graph.example/query', TX_B)).resolves.toMatchObject([
+      { enteredAt: 55n, rightUID: TX_B },
+    ])
+    await expect(
+      fetchDelegationsByIssuer('https://graph.example/query', `0x${'AB'.repeat(20)}`),
+    ).resolves.toStrictEqual([])
+    expect(fetchSpy.mock.calls[1]?.[1]?.body).toContain(`"issuer":"0x${'ab'.repeat(20)}"`)
+  })
+
+  it('rejects malformed chain-truth responses', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => await Promise.resolve(Response.json({ data: { rights: [{ id: 'bad' }] } }))),
+    )
+    await expect(fetchRightsByHolder('https://graph.example/query', `0x${'11'.repeat(20)}`)).rejects.toThrow(
+      'invalid Graph response',
+    )
+  })
+
+  it('rejects right rows with malformed address fields', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          await Promise.resolve(
+            Response.json({
+              data: {
+                rights: [
+                  {
+                    delegation: {
+                      active: true,
+                      id: TX_B,
+                      issuer: `0x${'22'.repeat(20)}`,
+                      name: 'root',
+                      revokedAt: null,
+                    },
+                    holder: '0x11',
+                    id: TX_A,
+                    issuer: `0x${'22'.repeat(20)}`,
+                    level: 1,
+                    metaURI: '',
+                    revokedAt: null,
+                    schemaVersion: 1,
+                    serial: `0x${'00'.repeat(32)}`,
+                    tier: 2,
+                    usageModel: 1,
+                    validFrom: '0',
+                    validUntil: '999',
+                  },
+                ],
+              },
+            }),
+          ),
+      ),
+    )
+
+    await expect(fetchRightsByHolder('https://graph.example/query', `0x${'11'.repeat(20)}`)).rejects.toThrow(
+      'invalid Graph response',
+    )
+  })
+
+  it('surfaces GraphQL errors even when the response includes partial data', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          await Promise.resolve(
+            Response.json({ data: { rights: [] }, errors: [{ message: 'indexing is behind' }] }),
+          ),
+      ),
+    )
+
+    await expect(fetchRightsByHolder('https://graph.example/query', `0x${'11'.repeat(20)}`)).rejects.toThrow(
+      'indexing is behind',
+    )
   })
 })

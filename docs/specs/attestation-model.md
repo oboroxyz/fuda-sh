@@ -470,6 +470,22 @@ response field, preserves Graph integer scalars as JavaScript `bigint`, and
 passes the raw candidates to local viewing-key matching. No announcement or
 stealth holder is persisted in D1, and `GET /announcements` does not exist.
 
+### Rights and chain-truth views
+
+The shared SDK queries the rights subgraph for Rights by normalized holder,
+Attendance by right UID, and IssuerDelegation by normalized issuer. It validates
+the complete response shape at the network boundary, converts Graph integer
+scalars to JavaScript `bigint`, and surfaces HTTP, GraphQL, and malformed-data
+failures instead of rendering partial chain state.
+
+The member app exposes the holder's rights as active or revoked cards at the
+app-only `/rights` route. The operator dashboard retains its existing
+admin-token-protected Members view for D1 operational rows and presents chain
+truth in a separate section. Chain truth does not depend on a matching member
+row and never writes query results to D1. In particular, entering a +Private
+stealth holder for a local lookup must not attach that address to the D1 member
+record.
+
 ### Operational reconciliation
 
 Two writes are deliberately non-atomic across the chain and D1, and each leaves
@@ -505,13 +521,15 @@ a trace an operator reconciles by hand:
   `/verify-signed` → no Attendance attest is attempted and `attendance_uid`
   stays `NULL`; admin routes locked (`401`, `x-auth-mode: locked`) without
   `ADMIN_TOKEN` when a signer is set, and equally when only `BASE_RPC_URL` is
-  set; `/pass/:uid` `404` for a +Private row (the
-  shared row load precedes any platform check); announcement sync: chunk cap and
-  resume, monotone cursor under a concurrent faster sync, cursor floored at the
-  configured start, and the `CONFIRMATIONS` stop short of the head.
+  set; `/pass/:uid` `404` for a +Private row (the shared row load precedes any
+  platform check).
 - **Unit (member app):** announcement paging — a short page ends the walk, a
   full page resumes from its last block and de-duplicates the repeated boundary
-  row, and the 50-page cap reports the list as incomplete.
+  row, and the 50-page cap reports the list as incomplete; app-only route
+  selection and active, revoked, empty, loading, and error card states.
+- **Unit (Graph views):** holder and issuer normalization; multiple, revoked,
+  empty, malformed, and GraphQL-error responses; Attendance and delegation
+  relation loading; and dashboard rendering without a D1 member row.
 
 ## Related specs
 

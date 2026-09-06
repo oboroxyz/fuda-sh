@@ -3,6 +3,7 @@ import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import { Landing } from './Landing.tsx'
 import { PrivateScreen } from './PrivateScreen.tsx'
+import { RightsList } from './RightsList.tsx'
 import { routeFor } from './route.ts'
 import { SignedGate } from './SignedGate.tsx'
 
@@ -17,6 +18,9 @@ export const App = (): JSX.Element => {
   }
   if (route === 'private') {
     return <PrivateScreen />
+  }
+  if (route === 'rights') {
+    return <RightsList />
   }
   if (route !== 'landing') {
     // The gate cannot work from the apex (the api would reject its origin), so

@@ -8,4 +8,5 @@ interface ViteTypeOptions {
 
 interface ImportMetaEnv {
   readonly VITE_API_BASE_URL?: string
+  readonly VITE_GRAPH_RIGHTS_ENDPOINT?: string
 }

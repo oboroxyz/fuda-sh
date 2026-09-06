@@ -347,13 +347,13 @@ current challenge for the Entitlement holder?
 
 ## Surfaces
 
-| Host             | Worker      | Dev port | Role                                                                         |
-| ---------------- | ----------- | -------- | ---------------------------------------------------------------------------- |
-| `api.fuda.sh`    | `apps/api`  | 8787     | the api                                                                      |
-| `gate.fuda.sh`   | `apps/gate` | 5174     | scanner: uid preview, QR admission, verdict                                  |
-| `dash.fuda.sh`   | `apps/dash` | 5175     | operator dashboard: issue, list, revoke, pass links                          |
-| `app.fuda.sh`    | `apps/app`  | 5173     | member app: `/signed` challenge-response, `/private` enrolment and discovery |
-| `fuda.sh` (apex) | `apps/app`  | —        | landing only                                                                 |
+| Host             | Worker      | Dev port | Role                                                                                              |
+| ---------------- | ----------- | -------- | ------------------------------------------------------------------------------------------------- |
+| `api.fuda.sh`    | `apps/api`  | 8787     | the api                                                                                           |
+| `gate.fuda.sh`   | `apps/gate` | 5174     | scanner: uid preview, QR admission, verdict                                                       |
+| `dash.fuda.sh`   | `apps/dash` | 5175     | operator dashboard: issue, D1 member list, revoke, pass links, and separate chain-truth lookup    |
+| `app.fuda.sh`    | `apps/app`  | 5173     | member app: `/signed` challenge-response, `/private` enrolment and discovery, `/rights` card list |
+| `fuda.sh` (apex) | `apps/app`  | —        | landing only                                                                                      |
 
 Each host is a custom domain of its Worker, and the dev ports are pinned in each
 app's `vite.config.ts`. The frontends call the api cross-origin at
@@ -363,12 +363,21 @@ app's `vite.config.ts`. The frontends call the api cross-origin at
 any `http://localhost:<port>` or `http://127.0.0.1:<port>` origin.
 
 The apex `fuda.sh` is served by the member-app Worker but is **not** a CORS
-origin: it hosts the landing only, and `/signed` and `/private` on the apex
-redirect to `VITE_APP_ORIGIN` (`https://app.fuda.sh`) behind a one-line
+origin: it hosts the landing only, and `/signed`, `/private`, and `/rights` on
+the apex redirect to `VITE_APP_ORIGIN` (`https://app.fuda.sh`) behind a one-line
 interstitial, so every api call originates from an allowed origin. `VITE_RP_ID`
 fixes the passkey `rp.id` to `fuda.sh` in production builds, so the apex and
 `app.fuda.sh` share one passkey; local dev must set it to `localhost`, since a
 browser rejects an `rp.id` that is not a registrable suffix of the page's host.
+
+The member app and dashboard read on-chain views directly from the public
+rights subgraph configured by `VITE_GRAPH_RIGHTS_ENDPOINT`. `/rights`
+normalizes a holder address and renders every matching right as a separate
+active or revoked card. The dashboard's Chain truth section queries rights by
+holder, Attendance by right UID, and IssuerDelegation by issuer. It is visually
+and operationally separate from the admin-token-protected D1 Members section:
+chain-truth reads do not create or update member rows. A +Private stealth holder
+may be entered locally for a lookup but is never persisted to D1 by either view.
 
 ## Related specs
 

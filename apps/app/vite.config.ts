@@ -5,5 +5,5 @@ import { defineConfig } from 'vite-plus'
 export default defineConfig({
   plugins: [tailwindcss()],
   server: { port: 5173, strictPort: true },
-  test: { environment: 'node', include: ['src/**/*.test.ts'], unstubGlobals: true },
+  test: { environment: 'node', include: ['src/**/*.test.{ts,tsx}'], unstubGlobals: true },
 })
