@@ -4,8 +4,9 @@ import * as pkijs from 'pkijs'
 import { pemToDer } from '../pem.ts'
 
 // pkijs reaches WebCrypto through a global "engine" rather than through
-// `globalThis` directly; it registers one from `globalThis.crypto` on import,
-// which resolves in both Node 24 and workerd. `true` throws rather than
+// `globalThis` directly. With no engine set it builds one lazily from
+// `globalThis.crypto` on the first call, which resolves in both Node 24 and
+// workerd, so no `setEngine` call is needed here. `true` throws rather than
 // returning null if a runtime ever fails to provide it.
 const useEngine = (): pkijs.ICryptoEngine => pkijs.getCrypto(true)
 
