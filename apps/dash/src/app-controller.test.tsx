@@ -371,4 +371,66 @@ describe(App, () => {
       token: null,
     })
   })
+
+  it.each([
+    { completion: 'success', result: { body: { members: [] }, ok: true } },
+    { completion: 'non-401 failure', result: { error: 'offline', network: true, ok: false, status: 0 } },
+  ] satisfies { completion: string; result: Result<MembersResponse> }[])(
+    'keeps newer post-issue rows when the initial load finishes with $completion',
+    async ({ result }) => {
+      const io = fixture()
+      const initial = Promise.withResolvers<Result<MembersResponse>>()
+      io.listMembers.mockReturnValueOnce(initial.promise)
+      render(io).onToken('secret')
+      render(io)
+
+      await render(io).onIssue({ memberId: 'alice', tier: 1, usageModel: 1 })
+      const refreshed = render(io)
+      expect(refreshed.members).toMatchObject({
+        kind: 'ready',
+        rows: [{ memberId: 'alice', tier: 'VIP', uid: UID }],
+      })
+
+      initial.resolve(result)
+      await setTimeout(0)
+      expect(render(io).members).toBe(refreshed.members)
+      expect(io.listMembers).toHaveBeenCalledTimes(2)
+    },
+  )
+
+  it('clears the current token when a superseded load returns 401 after the post-issue reload', async () => {
+    const io = fixture()
+    const initial = Promise.withResolvers<Result<MembersResponse>>()
+    io.listMembers.mockReturnValueOnce(initial.promise)
+    render(io).onToken('secret')
+    render(io)
+    await render(io).onIssue({ memberId: 'alice', tier: 1, usageModel: 1 })
+
+    initial.resolve(unauthorized)
+    await setTimeout(0)
+    const rejected = render(io)
+    expect({ authError: rejected.authError, members: rejected.members, token: rejected.token }).toStrictEqual(
+      {
+        authError: 'unauthorized',
+        members: { kind: 'idle' },
+        token: null,
+      },
+    )
+  })
+
+  it('ignores an earlier token load returning 401 after the replacement token has loaded', async () => {
+    const io = fixture()
+    const initial = Promise.withResolvers<Result<MembersResponse>>()
+    io.listMembers.mockReturnValueOnce(initial.promise)
+    render(io).onToken('secret')
+    render(io).onToken('replacement')
+    render(io)
+    await setTimeout(0)
+    const replaced = render(io)
+
+    initial.resolve(unauthorized)
+    await setTimeout(0)
+    expect(render(io).members).toBe(replaced.members)
+    expect(render(io).token).toBe('replacement')
+  })
 })

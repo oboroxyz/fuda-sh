@@ -3,7 +3,7 @@ import { isLocale, pick } from '@fuda/i18n'
 import { getLocale, setLocale } from '@fuda/i18n/browser'
 import { LanguageSwitcher, saveThemeMode, ThemeToggle, watchThemeMode } from '@fuda/ui'
 import type { ThemeMode } from '@fuda/ui'
-import { useCallback, useEffect, useState } from 'hono/jsx/dom'
+import { useCallback, useEffect, useRef, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import { issueRight, listMembers, revokeRight } from './api.ts'
@@ -105,6 +105,7 @@ export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Eleme
     members: { kind: 'idle' },
     token: null,
   })
+  const latestMembersLoad = useRef(0)
   const { token } = session
   const copy = pick(DASH_COPY, locale)
 
@@ -135,15 +136,19 @@ export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Eleme
 
   const reload = useCallback(
     async (currentToken: string): Promise<void> => {
+      latestMembersLoad.current += 1
+      const generation = latestMembersLoad.current
       setSession((state) =>
         state.token === currentToken ? { ...state, members: beginMembersLoad(state.members) } : state,
       )
       const result = await io.listMembers(currentToken)
-      // A load can finish after an action has rejected this session's token.
+      // Only the latest load can replace rows; any current-token 401 still ends the session.
       if (result.ok) {
         const rows = result.body.members.map((row) => memberRowView(row, API_BASE_URL))
         setSession((state) =>
-          state.token === currentToken ? { ...state, members: completeMembersLoad(rows) } : state,
+          state.token === currentToken && generation === latestMembersLoad.current
+            ? { ...state, members: completeMembersLoad(rows) }
+            : state,
         )
         return
       }
@@ -152,7 +157,7 @@ export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Eleme
         return
       }
       setSession((state) =>
-        state.token === currentToken
+        state.token === currentToken && generation === latestMembersLoad.current
           ? { ...state, members: failMembersLoad(state.members, result.error) }
           : state,
       )

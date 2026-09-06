@@ -86,6 +86,23 @@ describe(OnChainStatusView, () => {
     expect(text).toContain(RIGHT_UID)
   })
 
+  it('marks resolved and unresolved delegation identifiers for wrapping on narrow screens', () => {
+    const view = OnChainStatusView({
+      copy,
+      state: {
+        attendances: {},
+        delegations: [],
+        kind: 'ready',
+        rights: [{ ...right, delegation: null }, right],
+      },
+    })
+    const references = walkView(view).filter((node) => node.props.class === 'dash-chain-reference')
+    expect(references.map(viewText)).toStrictEqual([
+      `未解決の委任 ${DELEGATION_UID}`,
+      `委任 ${DELEGATION_UID}`,
+    ])
+  })
+
   it('renders chain rights, delegations, and attendance without a D1 member row', () => {
     const text = viewText(
       OnChainStatusView({

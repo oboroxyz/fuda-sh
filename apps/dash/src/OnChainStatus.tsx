@@ -88,7 +88,7 @@ export const OnChainStatusView = ({ copy, state }: OnChainStatusViewProps): JSX.
           <div class="font-mono text-xs break-all">{right.id}</div>
           <div>{right.revokedAt === null ? copy.active : `${copy.revokedAt} ${right.revokedAt}`}</div>
           <div>{`${copy.holder} ${short(right.holder)}`}</div>
-          <div>
+          <div class="dash-chain-reference">
             {right.delegation === null
               ? `${copy.unresolvedDelegation} ${right.refUID}`
               : `${copy.delegation} ${right.delegation.id}`}
