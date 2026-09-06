@@ -81,6 +81,25 @@ const row: MemberRowView = {
 const success: Result<RevokeResponse> = { body: { revoked: true, uid: UID }, ok: true }
 const copy = pick(DASH_COPY, 'en')
 const ready: MembersState = { kind: 'ready', rows: [row] }
+const focusState = { activeElement: null as { focus: () => void } | null }
+const headingElement = {
+  focus: (): void => {
+    focusState.activeElement = headingElement
+  },
+}
+
+const makeButton = () => {
+  const button = {
+    disabled: false,
+    focus: (): void => {
+      if (!button.disabled && button.isConnected) {
+        focusState.activeElement = button
+      }
+    },
+    isConnected: true,
+  }
+  return button
+}
 
 const render = (
   members: MembersState = ready,
@@ -88,6 +107,12 @@ const render = (
 ): JSX.Element => {
   hooks.index = 0
   const view = RightsPage({ copy, graphEndpoint: '', members, onRevoke })
+  const headingRef = viewProps(findViewNodes(view, 'h1')[0]).ref as
+    | { current: HTMLHeadingElement | null }
+    | undefined
+  if (headingRef !== undefined) {
+    headingRef.current = headingElement as HTMLHeadingElement
+  }
   for (const effect of hooks.effects.splice(0)) {
     const cleanup = effect()
     if (cleanup !== undefined) {
@@ -107,12 +132,15 @@ const input = (view: unknown, label: string, value: string): void => {
     currentTarget: { value },
   } as unknown as Event)
 }
-const requestRevoke = (view: unknown): void => {
+const requestRevoke = (view: unknown, invoker = makeButton()): void => {
   const list = RightsList(listProps(view))
   const revoke = walkView(list).find(
     (node) => viewProps(node).type === 'button' && viewText(node) === 'Revoke',
   )!
-  ;(viewProps(revoke).onClick as () => void)()
+  ;(viewProps(revoke).onClick as (event: MouseEvent) => void)({
+    currentTarget: invoker,
+    target: invoker,
+  } as unknown as MouseEvent)
 }
 
 describe('rights page', () => {
@@ -121,8 +149,10 @@ describe('rights page', () => {
     hooks.slots.clear()
     hooks.effects.length = 0
     hooks.cleanups.length = 0
-    vi.stubGlobal('document', { activeElement: null })
+    focusState.activeElement = null
+    vi.stubGlobal('document', focusState)
     vi.stubGlobal('HTMLElement', Object)
+    vi.stubGlobal('HTMLButtonElement', Object)
     vi.stubGlobal('HTMLInputElement', Object)
     vi.stubGlobal('HTMLSelectElement', Object)
   })
@@ -221,21 +251,58 @@ describe('rights page', () => {
     expect(onRevoke).toHaveBeenCalledTimes(2)
   })
 
-  it('restores invoker focus after cancellation and successful closure', async () => {
-    const focus = vi.fn<() => void>()
-    vi.stubGlobal('document', { activeElement: { focus } })
-    requestRevoke(render())
+  it('restores the actual clicked invoker when pointer activation left another element focused', async () => {
+    const previous = makeButton()
+    const invoker = makeButton()
+    focusState.activeElement = previous
+    requestRevoke(render(), invoker)
     dialogProps(render()).onCancel()
     void render()
     await Promise.resolve()
-    expect(focus).toHaveBeenCalledOnce()
-    requestRevoke(render())
+    expect(focusState.activeElement).toBe(invoker)
+    focusState.activeElement = previous
+    requestRevoke(render(), invoker)
     dialogProps(render()).onConfirm()
     await vi.waitFor(() => {
       expect(dialogProps(render()).target).toBeNull()
     })
     await Promise.resolve()
-    expect(focus).toHaveBeenCalledTimes(2)
+    expect(focusState.activeElement).toBe(invoker)
+  })
+
+  it.each([
+    { filter: 'all', listCount: 1, reason: 'disabled after revocation' },
+    { filter: 'active', listCount: 0, reason: 'removed by the Active filter' },
+  ])('focuses the Rights heading when the invoker is $reason', async ({ filter, listCount }) => {
+    const pending = Promise.withResolvers<Result<RevokeResponse>>()
+    const onRevoke = async (): Promise<Result<RevokeResponse>> => await pending.promise
+    const invoker = makeButton()
+    focusState.activeElement = invoker
+    input(render(ready, onRevoke), 'Filter by status', filter)
+    requestRevoke(render(ready, onRevoke), invoker)
+    dialogProps(render(ready, onRevoke)).onConfirm()
+
+    const refreshed: MembersState = { kind: 'ready', rows: [{ ...row, status: 'revoked' }] }
+    const reloadView = render(refreshed, onRevoke)
+    const lists = findViewNodes(reloadView, RightsList)
+    expect(lists).toHaveLength(listCount)
+    if (lists.length === 0) {
+      invoker.isConnected = false
+    } else {
+      const revoke = walkView(RightsList(listProps(reloadView))).find(
+        (node) => viewProps(node).type === 'button' && viewText(node) === 'Revoke',
+      )!
+      invoker.disabled = viewProps(revoke).disabled as boolean
+    }
+    focusState.activeElement = null
+    pending.resolve(success)
+    await vi.waitFor(() => {
+      expect(dialogProps(render(refreshed, onRevoke)).target).toBeNull()
+    })
+    await Promise.resolve()
+
+    expect(focusState.activeElement).toBe(headingElement)
+    expect(viewProps(findViewNodes(render(refreshed, onRevoke), 'h1')[0]).tabIndex).toBe(-1)
   })
 
   it('does not surface a second error for a 401 and ignores settlement after unmount', async () => {

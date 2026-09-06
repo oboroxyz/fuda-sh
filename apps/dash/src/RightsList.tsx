@@ -8,7 +8,7 @@ import { QrBlock } from './QrBlock.tsx'
 export interface RightsListProps {
   copy: DashCopy['rights']
   openQr: string | null
-  onRequestRevoke: (row: MemberRowView) => void
+  onRequestRevoke: (row: MemberRowView, invoker: HTMLButtonElement) => void
   onToggleQr: (uid: string) => void
   revokingUid: string | null
   rows: readonly MemberRowView[]
@@ -100,8 +100,10 @@ const actions = ({
         type="button"
         class="btn btn-xs btn-error"
         disabled={revokeDisabled}
-        onClick={() => {
-          onRequestRevoke(row)
+        onClick={(event) => {
+          if (event.currentTarget instanceof HTMLButtonElement) {
+            onRequestRevoke(row, event.currentTarget)
+          }
         }}
       >
         {copy.revoke}

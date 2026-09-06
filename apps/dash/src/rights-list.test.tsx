@@ -1,6 +1,6 @@
 /** @jsxImportSource hono/jsx/dom */
 import { pick } from '@fuda/i18n'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { DASH_COPY } from './copy.ts'
 import type { MemberRowView } from './members-view.ts'
@@ -62,6 +62,33 @@ const panelIds = (view: unknown): string[] =>
     .filter((id): id is string => typeof id === 'string')
 
 describe(RightsList, () => {
+  it('passes the invoking button from currentTarget for table and card revoke actions', () => {
+    vi.stubGlobal('HTMLButtonElement', Object)
+    const onRequestRevoke = vi.fn<(row: MemberRowView, invoker: HTMLButtonElement) => void>()
+    const view = RightsList({
+      copy: pick(DASH_COPY, 'en').rights,
+      onRequestRevoke,
+      onToggleQr: (): void => {},
+      openQr: null,
+      revokingUid: null,
+      rows: [rows[0]],
+    })
+    const [tableRevoke, cardRevoke] = buttons(view).filter((node) => viewText(node) === 'Revoke')
+    const tableButton = { id: 'table-button' } as HTMLButtonElement
+    const cardButton = { id: 'card-button' } as HTMLButtonElement
+    const nestedTarget = { id: 'nested-label' } as HTMLSpanElement
+    ;(viewProps(tableRevoke).onClick as (event: MouseEvent) => void)({
+      currentTarget: tableButton,
+      target: nestedTarget,
+    } as unknown as MouseEvent)
+    ;(viewProps(cardRevoke).onClick as (event: MouseEvent) => void)({
+      currentTarget: cardButton,
+      target: nestedTarget,
+    } as unknown as MouseEvent)
+    expect(onRequestRevoke).toHaveBeenNthCalledWith(1, rows[0], tableButton)
+    expect(onRequestRevoke).toHaveBeenNthCalledWith(2, rows[0], cardButton)
+  })
+
   it('renders the same public and private rights in desktop and mobile records without private pass anchors', () => {
     const view = RightsList({
       copy: pick(DASH_COPY, 'en').rights,

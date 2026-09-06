@@ -33,7 +33,8 @@ export const RightsPage = ({ copy, members, onRevoke }: RightsPageProps): JSX.El
   const [revokeError, setRevokeError] = useState<string | null>(null)
   const [revokingUid, setRevokingUid] = useState<string | null>(null)
   const flightRef = useRef<SingleFlight<string> | null>(null)
-  const invokerRef = useRef<HTMLElement | null>(null)
+  const invokerRef = useRef<HTMLButtonElement | null>(null)
+  const headingRef = useRef<HTMLHeadingElement | null>(null)
   const mounted = useRef(true)
   flightRef.current ??= createSingleFlight<string>()
   const flight = flightRef.current
@@ -52,7 +53,14 @@ export const RightsPage = ({ copy, members, onRevoke }: RightsPageProps): JSX.El
       // Run after the dialog's closing effect so the invoker is no longer inert.
       queueMicrotask(() => {
         if (mounted.current) {
-          invokerRef.current?.focus()
+          const invoker = invokerRef.current
+          const canRestore = invoker !== null && invoker.isConnected && !invoker.disabled
+          if (canRestore) {
+            invoker.focus()
+          }
+          if (!canRestore || document.activeElement !== invoker) {
+            headingRef.current?.focus()
+          }
           invokerRef.current = null
         }
       })
@@ -116,12 +124,11 @@ export const RightsPage = ({ copy, members, onRevoke }: RightsPageProps): JSX.El
       <RightsList
         copy={copy.rights}
         openQr={openQr}
-        onRequestRevoke={(row) => {
+        onRequestRevoke={(row, invoker) => {
           if (row.status === 'revoked' || flight.isRunning(row.uid)) {
             return
           }
-          const invoker = document.activeElement
-          invokerRef.current = invoker instanceof HTMLElement ? invoker : null
+          invokerRef.current = invoker
           setRevokeError(null)
           setRevokeTarget(row)
         }}
@@ -138,7 +145,7 @@ export const RightsPage = ({ copy, members, onRevoke }: RightsPageProps): JSX.El
     <div class="flex flex-col gap-8">
       <section class="flex flex-col gap-4" aria-labelledby="rights-title">
         <header>
-          <h1 id="rights-title" class="text-2xl font-bold">
+          <h1 ref={headingRef} id="rights-title" class="text-2xl font-bold" tabIndex={-1}>
             {copy.rights.title}
           </h1>
           <p class="opacity-70">{copy.rights.description}</p>
