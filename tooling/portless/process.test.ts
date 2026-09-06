@@ -1,8 +1,11 @@
 import { spawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
+import { setImmediate } from 'node:timers/promises'
+import { fileURLToPath } from 'node:url'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { run } from './dev.ts'
 import { exitStatus, startCommand, supervise } from './process.ts'
 import type { CommandExit } from './process.ts'
 
@@ -140,5 +143,48 @@ describe('spawn boundary', () => {
     expect(child.eventNames()).toStrictEqual([])
     running.kill('SIGTERM')
     expect(child.kill).not.toHaveBeenCalled()
+  })
+
+  it('normalizes a synchronous spawn exception and logs it once', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(vi.fn<typeof console.error>())
+    vi.mocked(spawn).mockImplementationOnce(() => {
+      throw new Error('spawn EAGAIN')
+    })
+    const command = startCommand({ ...spec, args: [...spec.args] })
+    await expect(command.completed).resolves.toStrictEqual({ code: 1, signal: null })
+    expect(log).toHaveBeenCalledExactlyOnceWith(expect.stringMatching(/pnpm.*EAGAIN/u))
+    expect(() => {
+      command.kill('SIGTERM')
+    }).not.toThrow()
+  })
+
+  it('terminates and awaits an earlier service when a later spawn throws', async () => {
+    vi.spyOn(console, 'error').mockImplementation(vi.fn<typeof console.error>())
+    const proxy = fakeChild()
+    const earlier = fakeChild()
+    vi.mocked(spawn)
+      .mockReturnValueOnce(proxy as unknown as ReturnType<typeof spawn>)
+      .mockReturnValueOnce(earlier as unknown as ReturnType<typeof spawn>)
+      .mockImplementation(() => {
+        throw new Error('spawn EAGAIN')
+      })
+    const finished = vi.fn<() => void>()
+    const rootDir = fileURLToPath(new URL('../..', import.meta.url))
+    const completion = run([], {}, rootDir, startCommand)
+    // Attach rejection handling during RED, where a later spawn still rejects run().
+    void completion.then(finished, finished)
+    proxy.emit('exit', 0, null)
+    try {
+      await vi.waitFor(() => {
+        expect(earlier.kill).toHaveBeenCalledExactlyOnceWith('SIGTERM')
+      })
+      await setImmediate()
+      expect(finished).not.toHaveBeenCalled()
+    } finally {
+      earlier.emit('exit', null, 'SIGTERM')
+      await Promise.allSettled([completion])
+    }
+    await expect(completion).resolves.toBe(1)
+    expect(earlier.eventNames()).toStrictEqual([])
   })
 })

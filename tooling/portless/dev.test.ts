@@ -1,3 +1,4 @@
+import { setImmediate } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -109,4 +110,32 @@ describe('development launcher', () => {
     await expect(run([], {}, repositoryRoot, start)).resolves.toBe(7)
     expect(start).toHaveBeenCalledOnce()
   })
+
+  it.each(['SIGINT', 'SIGTERM'] as const)(
+    'forwards %s during proxy startup and waits without launching services',
+    async (signal) => {
+      const on = vi.spyOn(process, 'on')
+      const proxy = Promise.withResolvers<CommandExit>()
+      const kill = vi.fn<(signal: NodeJS.Signals) => void>()
+      const start = resolvedStarter(0)
+      start.mockReturnValueOnce({ completed: proxy.promise, kill })
+      const finished = vi.fn<() => void>()
+      const completion = run([], {}, repositoryRoot, start)
+      void completion.then(finished)
+      try {
+        const handler = on.mock.calls.find(([event]) => event === signal)?.[1]
+        handler?.()
+        expect(kill).toHaveBeenCalledExactlyOnceWith(signal)
+        await setImmediate()
+        expect(finished).not.toHaveBeenCalled()
+        expect(start).toHaveBeenCalledOnce()
+      } finally {
+        // Successful child cleanup must not erase the requested shutdown status.
+        proxy.resolve({ code: 0, signal: null })
+        await completion
+      }
+      await expect(completion).resolves.toBe(signal === 'SIGINT' ? 130 : 143)
+      expect(start).toHaveBeenCalledOnce()
+    },
+  )
 })

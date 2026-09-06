@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 
 import { buildPortlessCommand, buildProxyStartCommand, buildServiceCommand } from './commands.ts'
 import { APP_PATHS, loadPortlessApps, selectPortlessApps } from './model.ts'
-import { exitStatus, startCommand, supervise } from './process.ts'
+import { startCommand, supervise } from './process.ts'
 import type { StartCommand } from './process.ts'
 
 export const run = async (
@@ -25,7 +25,7 @@ export const run = async (
   }
   const apps = selectPortlessApps(loadPortlessApps(rootDir), selectedPath)
   if (!serviceMode && selectedPath === undefined) {
-    const status = exitStatus(await start(buildProxyStartCommand(rootDir)).completed)
+    const status = await supervise([start(buildProxyStartCommand(rootDir))])
     if (status !== 0) {
       return status
     }

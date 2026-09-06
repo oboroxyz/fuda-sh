@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import type { ChildProcess } from 'node:child_process'
 
 import type { CommandSpec } from './commands.ts'
 
@@ -34,12 +35,24 @@ export const exitStatus = (exit: CommandExit): number =>
   exit.code ?? (exit.signal === null ? 1 : (signalStatuses.get(exit.signal) ?? 1))
 
 export const startCommand: StartCommand = (spec) => {
-  const child = spawn(spec.command, spec.args, {
-    cwd: spec.cwd,
-    env: process.env,
-    shell: false,
-    stdio: 'inherit',
-  })
+  let child: ChildProcess
+  try {
+    child = spawn(spec.command, spec.args, {
+      cwd: spec.cwd,
+      env: process.env,
+      shell: false,
+      stdio: 'inherit',
+    })
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    console.error(`Could not run ${spec.command} ${spec.args.join(' ')}: ${detail}`)
+    return {
+      completed: Promise.resolve({ code: 1, signal: null }),
+      kill: () => {
+        // A synchronous spawn failure has no child to signal.
+      },
+    }
+  }
   const { promise: completed, resolve } = Promise.withResolvers<CommandExit>()
   let settled = false
   const finish = (exit: CommandExit): void => {
