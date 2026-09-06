@@ -4,8 +4,9 @@ import type { Hex } from './constants.ts'
 
 const PAGE_SIZE = 1000
 const HEX = /^0x(?:[0-9a-fA-F]{2})*$/u
+const BYTES_20 = /^0x[0-9a-fA-F]{40}$/u
+const BYTES_32 = /^0x[0-9a-fA-F]{64}$/u
 const DECIMAL = /^(?:0|[1-9][0-9]*)$/u
-const ADDRESS = /^0x[0-9a-fA-F]{40}$/u
 
 const HexSchema = v.pipe(
   v.string(),
@@ -13,23 +14,35 @@ const HexSchema = v.pipe(
   v.transform((input): Hex => `0x${input.slice(2)}`),
 )
 
+const Bytes20Schema = v.pipe(
+  v.string(),
+  v.regex(BYTES_20),
+  v.transform((input): Hex => `0x${input.slice(2)}`),
+)
+
+const Bytes32Schema = v.pipe(
+  v.string(),
+  v.regex(BYTES_32),
+  v.transform((input): Hex => `0x${input.slice(2)}`),
+)
+
 const AddressSchema = v.pipe(
   v.string(),
-  v.regex(ADDRESS),
+  v.regex(BYTES_20),
   v.transform((input): Hex => `0x${input.slice(2).toLowerCase()}`),
 )
 
 const AnnouncementSchema = v.object({
   blockNumber: v.pipe(v.string(), v.regex(DECIMAL)),
-  caller: HexSchema,
+  caller: Bytes20Schema,
   ephemeralPubKey: HexSchema,
   id: v.string(),
   logIndex: v.pipe(v.string(), v.regex(DECIMAL)),
   metadata: HexSchema,
   schemeId: v.pipe(v.string(), v.regex(DECIMAL)),
-  stealthAddress: HexSchema,
+  stealthAddress: Bytes20Schema,
   timestamp: v.pipe(v.string(), v.regex(DECIMAL)),
-  transactionHash: HexSchema,
+  transactionHash: Bytes32Schema,
 })
 
 const ResponseSchema = v.union([
@@ -41,7 +54,7 @@ const ErrorsSchema = v.object({ errors: v.array(v.object({ message: v.string() }
 
 const DelegationSchema = v.object({
   active: v.boolean(),
-  id: HexSchema,
+  id: Bytes32Schema,
   issuer: AddressSchema,
   name: v.string(),
   revokedAt: v.nullable(v.pipe(v.string(), v.regex(DECIMAL))),
@@ -50,13 +63,13 @@ const DelegationSchema = v.object({
 const RightSchema = v.object({
   delegation: DelegationSchema,
   holder: AddressSchema,
-  id: HexSchema,
+  id: Bytes32Schema,
   issuer: AddressSchema,
   level: v.pipe(v.number(), v.integer()),
   metaURI: v.string(),
   revokedAt: v.nullable(v.pipe(v.string(), v.regex(DECIMAL))),
   schemaVersion: v.pipe(v.number(), v.integer()),
-  serial: HexSchema,
+  serial: Bytes32Schema,
   tier: v.pipe(v.number(), v.integer()),
   usageModel: v.pipe(v.number(), v.integer()),
   validFrom: v.pipe(v.string(), v.regex(DECIMAL)),
@@ -66,9 +79,9 @@ const RightSchema = v.object({
 const AttendanceSchema = v.object({
   enteredAt: v.pipe(v.string(), v.regex(DECIMAL)),
   holder: AddressSchema,
-  id: HexSchema,
-  rightUID: HexSchema,
-  slotId: HexSchema,
+  id: Bytes32Schema,
+  rightUID: Bytes32Schema,
+  slotId: Bytes32Schema,
   timestamp: v.pipe(v.string(), v.regex(DECIMAL)),
 })
 
@@ -171,7 +184,7 @@ const postGraph = async <TOutput>(
   schema: v.GenericSchema<unknown, TOutput>,
   endpoint: string,
   query: string,
-  variables: Readonly<Record<string, string>>,
+  variables: Readonly<Record<string, number | string>>,
   signal?: AbortSignal,
 ): Promise<TOutput> => {
   const response = await fetch(endpoint, {
@@ -198,6 +211,14 @@ const normalizedAddress = (address: string): Hex => {
   return parsed.output
 }
 
+const bytes32 = (value: string): Hex => {
+  const parsed = v.safeParse(Bytes32Schema, value)
+  if (!parsed.success) {
+    throw new Error('invalid bytes32')
+  }
+  return parsed.output
+}
+
 const nullableBigInt = (value: string | null): bigint | null => (value === null ? null : BigInt(value))
 
 const toDelegation = (row: v.InferOutput<typeof DelegationSchema>): GraphDelegation => ({
@@ -219,72 +240,113 @@ const toAttendance = (row: v.InferOutput<typeof AttendanceSchema>): GraphAttenda
   timestamp: BigInt(row.timestamp),
 })
 
-const RIGHTS_QUERY = `query RightsByHolder($holder: Bytes!) {
-  rights(where: { holder: $holder }, orderBy: timestamp, orderDirection: desc) {
+const RIGHTS_QUERY = `query RightsByHolder($holder: Bytes!, $first: Int!, $afterId: Bytes!) {
+  rights(first: $first, where: { holder: $holder, id_gt: $afterId }, orderBy: id, orderDirection: asc) {
     id holder issuer usageModel tier level serial validFrom validUntil metaURI schemaVersion revokedAt
     delegation { id issuer active name revokedAt }
   }
 }`
 
-const ATTENDANCES_QUERY = `query AttendancesByRight($right: Bytes!) {
-  attendances(where: { right: $right }, orderBy: timestamp, orderDirection: desc) {
+const ATTENDANCES_QUERY = `query AttendancesByRight($right: Bytes!, $first: Int!, $afterId: Bytes!) {
+  attendances(first: $first, where: { right: $right, id_gt: $afterId }, orderBy: id, orderDirection: asc) {
     id rightUID holder enteredAt slotId timestamp
   }
 }`
 
-const DELEGATIONS_QUERY = `query DelegationsByIssuer($issuer: Bytes!) {
-  delegations(where: { issuer: $issuer }, orderBy: timestamp, orderDirection: desc) {
+const DELEGATIONS_QUERY = `query DelegationsByIssuer($issuer: Bytes!, $first: Int!, $afterId: Bytes!) {
+  delegations(first: $first, where: { issuer: $issuer, id_gt: $afterId }, orderBy: id, orderDirection: asc) {
     id issuer active name revokedAt
   }
 }`
+
+const fetchGraphPages = async <TBody, TRow, TResult>(
+  schema: v.GenericSchema<unknown, TBody>,
+  endpoint: string,
+  query: string,
+  variables: Readonly<Record<string, string>>,
+  pageOf: (body: TBody) => TRow[],
+  idOf: (row: TRow) => string,
+  convert: (row: TRow) => TResult,
+  signal?: AbortSignal,
+): Promise<TResult[]> => {
+  const rows: TResult[] = []
+  let afterId = '0x'
+  while (true) {
+    // oxlint-disable-next-line no-await-in-loop -- each Graph page starts at the previous page's stable id cursor
+    const body = await postGraph(schema, endpoint, query, { ...variables, afterId, first: PAGE_SIZE }, signal)
+    const page = pageOf(body)
+    rows.push(...page.map(convert))
+    const last = page.at(-1)
+    if (page.length < PAGE_SIZE || last === undefined) {
+      break
+    }
+    afterId = idOf(last)
+  }
+  return rows
+}
 
 export const fetchRightsByHolder = async (
   endpoint: string,
   holder: string,
   signal?: AbortSignal,
-): Promise<GraphRight[]> => {
-  const body = await postGraph(
+): Promise<GraphRight[]> =>
+  await fetchGraphPages(
     RightsResponseSchema,
     endpoint,
     RIGHTS_QUERY,
     { holder: normalizedAddress(holder) },
+    (body) => {
+      if ('errors' in body) {
+        throw graphErrors(body.errors)
+      }
+      return body.data.rights
+    },
+    ({ id }) => id,
+    toRight,
     signal,
   )
-  if ('errors' in body) {
-    throw graphErrors(body.errors)
-  }
-  return body.data.rights.map(toRight)
-}
 
 export const fetchAttendancesByRight = async (
   endpoint: string,
   right: Hex,
   signal?: AbortSignal,
-): Promise<GraphAttendance[]> => {
-  const body = await postGraph(AttendancesResponseSchema, endpoint, ATTENDANCES_QUERY, { right }, signal)
-  if ('errors' in body) {
-    throw graphErrors(body.errors)
-  }
-  return body.data.attendances.map(toAttendance)
-}
+): Promise<GraphAttendance[]> =>
+  await fetchGraphPages(
+    AttendancesResponseSchema,
+    endpoint,
+    ATTENDANCES_QUERY,
+    { right: bytes32(right) },
+    (body) => {
+      if ('errors' in body) {
+        throw graphErrors(body.errors)
+      }
+      return body.data.attendances
+    },
+    ({ id }) => id,
+    toAttendance,
+    signal,
+  )
 
 export const fetchDelegationsByIssuer = async (
   endpoint: string,
   issuer: string,
   signal?: AbortSignal,
-): Promise<GraphDelegation[]> => {
-  const body = await postGraph(
+): Promise<GraphDelegation[]> =>
+  await fetchGraphPages(
     DelegationsResponseSchema,
     endpoint,
     DELEGATIONS_QUERY,
     { issuer: normalizedAddress(issuer) },
+    (body) => {
+      if ('errors' in body) {
+        throw graphErrors(body.errors)
+      }
+      return body.data.delegations
+    },
+    ({ id }) => id,
+    toDelegation,
     signal,
   )
-  if ('errors' in body) {
-    throw graphErrors(body.errors)
-  }
-  return body.data.delegations.map(toDelegation)
-}
 
 export const fetchAnnouncements = async (
   endpoint: string,

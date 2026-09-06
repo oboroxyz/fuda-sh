@@ -23,6 +23,41 @@ const graphRow = (blockNumber: bigint, id = `${TX_A}00000000`) => ({
   transactionHash: TX_A,
 })
 
+const bytes32 = (value: number): `0x${string}` => `0x${value.toString(16).padStart(64, '0')}`
+
+const delegationRow = (id: `0x${string}` = TX_B) => ({
+  active: true,
+  id,
+  issuer: `0x${'22'.repeat(20)}`,
+  name: 'root',
+  revokedAt: null,
+})
+
+const rightRow = (id: `0x${string}` = TX_A) => ({
+  delegation: delegationRow(),
+  holder: `0x${'11'.repeat(20)}`,
+  id,
+  issuer: `0x${'22'.repeat(20)}`,
+  level: 1,
+  metaURI: 'ipfs://one',
+  revokedAt: null,
+  schemaVersion: 1,
+  serial: `0x${'00'.repeat(32)}`,
+  tier: 2,
+  usageModel: 1,
+  validFrom: '0',
+  validUntil: '999',
+})
+
+const attendanceRow = (id: `0x${string}` = TX_A) => ({
+  enteredAt: '55',
+  holder: `0x${'11'.repeat(20)}`,
+  id,
+  rightUID: TX_B,
+  slotId: `0x${'00'.repeat(32)}`,
+  timestamp: '56',
+})
+
 describe(fetchAnnouncements, () => {
   it('parses Graph scalars without losing bigint precision and keeps stable order', async () => {
     vi.stubGlobal(
@@ -101,6 +136,25 @@ describe(fetchAnnouncements, () => {
     )
   })
 
+  it.each(['caller', 'stealthAddress', 'transactionHash'] as const)(
+    'rejects an announcement with a wrong-width %s',
+    async (field) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          async () =>
+            await Promise.resolve(
+              Response.json({ data: { announcements: [{ ...graphRow(1n), [field]: '0x12' }] } }),
+            ),
+        ),
+      )
+
+      await expect(fetchAnnouncements('https://graph.example/query', 0n)).rejects.toThrow(
+        'invalid Graph response',
+      )
+    },
+  )
+
   it('reports HTTP/network failures and forwards cancellation', async () => {
     vi.stubGlobal(
       'fetch',
@@ -126,6 +180,60 @@ describe(fetchAnnouncements, () => {
 })
 
 describe('chain-truth Graph queries', () => {
+  it('fetches every rights page using the last id as a stable cursor', async () => {
+    const first = Array.from({ length: 1000 }, (_, index) => rightRow(bytes32(index + 1)))
+    const second = rightRow(bytes32(1001))
+    let request = 0
+    const fetchSpy = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => {
+      request += 1
+      return await Promise.resolve(Response.json({ data: { rights: request === 1 ? first : [second] } }))
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const rows = await fetchRightsByHolder('https://graph.example/query', `0x${'11'.repeat(20)}`)
+
+    expect(rows).toHaveLength(1001)
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    expect(fetchSpy.mock.calls[1]?.[1]?.body).toContain(`"afterId":"${bytes32(1000)}"`)
+    expect(fetchSpy.mock.calls[1]?.[1]?.body).toContain('"first":1000')
+  })
+
+  it('fetches every attendance page using the last id as a stable cursor', async () => {
+    const first = Array.from({ length: 1000 }, (_, index) => attendanceRow(bytes32(index + 1)))
+    const second = attendanceRow(bytes32(1001))
+    let request = 0
+    const fetchSpy = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => {
+      request += 1
+      return await Promise.resolve(Response.json({ data: { attendances: request === 1 ? first : [second] } }))
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const rows = await fetchAttendancesByRight('https://graph.example/query', TX_B)
+
+    expect(rows).toHaveLength(1001)
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    expect(fetchSpy.mock.calls[1]?.[1]?.body).toContain(`"afterId":"${bytes32(1000)}"`)
+    expect(fetchSpy.mock.calls[1]?.[1]?.body).toContain('"first":1000')
+  })
+
+  it('fetches every delegation page using the last id as a stable cursor', async () => {
+    const first = Array.from({ length: 1000 }, (_, index) => delegationRow(bytes32(index + 1)))
+    const second = delegationRow(bytes32(1001))
+    let request = 0
+    const fetchSpy = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => {
+      request += 1
+      return await Promise.resolve(Response.json({ data: { delegations: request === 1 ? first : [second] } }))
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const rows = await fetchDelegationsByIssuer('https://graph.example/query', `0x${'22'.repeat(20)}`)
+
+    expect(rows).toHaveLength(1001)
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    expect(fetchSpy.mock.calls[1]?.[1]?.body).toContain(`"afterId":"${bytes32(1000)}"`)
+    expect(fetchSpy.mock.calls[1]?.[1]?.body).toContain('"first":1000')
+  })
+
   it('normalizes the holder and returns multiple rights including revoked state', async () => {
     const holder = `0x${'AB'.repeat(20)}`
     const spy = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(
@@ -225,6 +333,16 @@ describe('chain-truth Graph queries', () => {
     expect(fetchSpy.mock.calls[1]?.[1]?.body).toContain(`"issuer":"0x${'ab'.repeat(20)}"`)
   })
 
+  it('rejects a non-bytes32 right query input before fetching', async () => {
+    const fetchSpy = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>()
+    vi.stubGlobal('fetch', fetchSpy)
+
+    await expect(fetchAttendancesByRight('https://graph.example/query', '0x12')).rejects.toThrow(
+      'invalid bytes32',
+    )
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
   it('rejects malformed chain-truth responses', async () => {
     vi.stubGlobal(
       'fetch',
@@ -276,6 +394,59 @@ describe('chain-truth Graph queries', () => {
       'invalid Graph response',
     )
   })
+
+  it.each(['id', 'serial'] as const)('rejects a right with a non-bytes32 %s', async (field) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          await Promise.resolve(Response.json({ data: { rights: [{ ...rightRow(), [field]: '0x12' }] } })),
+      ),
+    )
+
+    await expect(fetchRightsByHolder('https://graph.example/query', `0x${'11'.repeat(20)}`)).rejects.toThrow(
+      'invalid Graph response',
+    )
+  })
+
+  it('rejects a right with a non-bytes32 delegation id', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          await Promise.resolve(
+            Response.json({
+              data: { rights: [{ ...rightRow(), delegation: delegationRow('0x12') }] },
+            }),
+          ),
+      ),
+    )
+
+    await expect(fetchRightsByHolder('https://graph.example/query', `0x${'11'.repeat(20)}`)).rejects.toThrow(
+      'invalid Graph response',
+    )
+  })
+
+  it.each(['id', 'rightUID', 'slotId'] as const)(
+    'rejects an attendance with a non-bytes32 %s',
+    async (field) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          async () =>
+            await Promise.resolve(
+              Response.json({
+                data: { attendances: [{ ...attendanceRow(), [field]: '0x12' }] },
+              }),
+            ),
+        ),
+      )
+
+      await expect(fetchAttendancesByRight('https://graph.example/query', TX_B)).rejects.toThrow(
+        'invalid Graph response',
+      )
+    },
+  )
 
   it('surfaces GraphQL errors even when the response includes partial data', async () => {
     vi.stubGlobal(
