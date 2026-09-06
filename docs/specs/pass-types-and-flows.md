@@ -372,5 +372,5 @@ browser rejects an `rp.id` that is not a registrable suffix of the page's host.
 
 ## Related specs
 
-- [Architecture overview](./README.md)
+- [Architecture overview](../architecture.md)
 - [Attestation model](./attestation-model.md)

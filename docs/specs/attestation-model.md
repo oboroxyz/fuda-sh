@@ -557,6 +557,6 @@ a trace an operator reconciles by hand:
 
 ## Related specs
 
-- [Architecture overview](./README.md)
+- [Architecture overview](../architecture.md)
 - [Pass types and flows](./pass-types-and-flows.md)
 - [Naming](./naming.md)
