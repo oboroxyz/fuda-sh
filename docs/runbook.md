@@ -200,13 +200,17 @@ admin routes are unauthenticated. Both are fail states in production, not
 acceptable resting states (see `apps/api/src/middleware/admin-auth.ts`).
 
 ```bash
-API_URL=https://api.fuda.sh ADMIN_TOKEN=… pnpm --filter api smoke:live --ladder all
+API_URL=https://api.fuda.sh ADMIN_TOKEN=… \
+  pnpm --filter api smoke:live --ladder bearer,signed
 ```
 
-Runs the bearer, signed and private ladders end to end against the live api.
-`--ladder` also accepts a comma-separated subset (`bearer`, `signed`,
-`private`); `all` is the default. The Attendance attestation for the ladder's
-ADMIT verdicts appears on the Base Sepolia explorer within a few blocks.
+Runs the supported bearer and signed ladders end to end against the live API.
+Do not select the script's legacy `private` ladder: it still expects the removed
+API announcement route. Verify +Private discovery through the rights subgraph
+and member app, then enter through the ordinary Signed challenge-response flow,
+as documented in [`graph-demo.md`](./graph-demo.md). The Attendance attestation
+for the Bearer/Signed ladder's ADMIT verdicts appears on the Base Sepolia
+explorer within a few blocks.
 
 Query the deployed rights subgraph with real right, delegation, and Attendance
 UIDs using `packages/subgraphs/rights/queries/smoke.graphql`, and compare the

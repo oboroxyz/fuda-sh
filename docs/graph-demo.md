@@ -64,6 +64,28 @@ create only ignored generated files from explicit non-production UIDs:
 ```sh
 export FUDA_GRAPH_FIXTURE="$(mktemp -d /tmp/fuda-rights-fixture.XXXXXX)"
 export FUDA_GRAPH_FIXTURE_CONFIG="$FUDA_GRAPH_FIXTURE/wrangler.jsonc"
+export FUDA_GRAPH_PACKAGE=packages/subgraphs/rights
+if test -f "$FUDA_GRAPH_PACKAGE/subgraph.yaml"; then
+  cp "$FUDA_GRAPH_PACKAGE/subgraph.yaml" "$FUDA_GRAPH_FIXTURE/original-subgraph.yaml"
+  touch "$FUDA_GRAPH_FIXTURE/had-subgraph"
+fi
+if test -f "$FUDA_GRAPH_PACKAGE/src/schema-uids.ts"; then
+  cp "$FUDA_GRAPH_PACKAGE/src/schema-uids.ts" "$FUDA_GRAPH_FIXTURE/original-schema-uids.ts"
+  touch "$FUDA_GRAPH_FIXTURE/had-schema-uids"
+fi
+restore_graph_inputs() {
+  if test -f "$FUDA_GRAPH_FIXTURE/had-subgraph"; then
+    cp "$FUDA_GRAPH_FIXTURE/original-subgraph.yaml" "$FUDA_GRAPH_PACKAGE/subgraph.yaml"
+  else
+    rm -f "$FUDA_GRAPH_PACKAGE/subgraph.yaml"
+  fi
+  if test -f "$FUDA_GRAPH_FIXTURE/had-schema-uids"; then
+    cp "$FUDA_GRAPH_FIXTURE/original-schema-uids.ts" "$FUDA_GRAPH_PACKAGE/src/schema-uids.ts"
+  else
+    rm -f "$FUDA_GRAPH_PACKAGE/src/schema-uids.ts"
+  fi
+}
+trap restore_graph_inputs EXIT INT TERM
 node --input-type=module -e '
   import { writeFile } from "node:fs/promises";
   import path from "node:path";
@@ -96,6 +118,8 @@ node --input-type=module -e '
 pnpm graph:codegen
 pnpm graph:test
 pnpm graph:build
+restore_graph_inputs
+trap - EXIT INT TERM
 ```
 
 Those UIDs are the repository's deterministic test fixtures, not deployable
@@ -115,11 +139,10 @@ pnpm --filter dash build
 git diff --check
 ```
 
-Delete only the two fixture-generated inputs if they did not exist before this
-run: `packages/subgraphs/rights/subgraph.yaml` and
-`packages/subgraphs/rights/src/schema-uids.ts`. Do not treat fixture-backed
-codegen, tests, or builds as proof that production configuration or deployment
-succeeds.
+The trap restores pre-existing manifest/constants even when a verification
+command fails, and removes the fixture versions only when no originals existed.
+Do not treat fixture-backed codegen, tests, or builds as proof that production
+configuration or deployment succeeds.
 
 ## 3. Reusable package on two chains
 
@@ -151,11 +174,21 @@ inactive range does not prove cross-chain reuse.
 
 ## 4. Prepare the live query
 
-Export identifiers from real receipts, never from fixture constants:
+Use separate live rights for separate product flows: a +Private right proves
+private discovery and Signed entry, while a Bearer right with a QR pass proves
+the initial green scan and red scan after revoke. A +Private right is not a
+scannable Bearer pass: presenting its UID to the QR verification path returns
+`LEVEL_REQUIRED`.
+
+Export identifiers from real receipts, never from fixture constants. The smoke
+query below follows the Bearer/QR right; `PRIVATE_RIGHT_UID` and
+`PRIVATE_HOLDER` identify the separate discovery case:
 
 ```sh
 export GRAPH_RIGHTS_ENDPOINT="<STUDIO_OR_PUBLIC_QUERY_URL>"
 export RIGHT_UID="<0x_32_BYTE_RIGHT_UID>"
+export PRIVATE_RIGHT_UID="<0x_32_BYTE_PRIVATE_RIGHT_UID>"
+export PRIVATE_HOLDER="<0x_20_BYTE_STEALTH_HOLDER>"
 export DELEGATION_UID="<0x_32_BYTE_DELEGATION_UID>"
 export ATTENDANCE_UID="<0x_32_BYTE_ATTENDANCE_UID>"
 
@@ -196,17 +229,20 @@ Use this sequence:
 
 1. **0:00–0:30 — reuse.** Show the matching package hashes and one real
    Announcement in each chain's captured stream.
-2. **0:30–1:10 — query.** Run the live Graph query, then show the member's
-   discovered +Private right, its `/rights` card, and the dashboard chain-truth
-   record. Show the initial gate admission.
-3. **1:10–2:10 — revoke.** Revoke that exact right through the deployed
+2. **0:30–1:15 — discovery and query.** Discover the +Private right in
+   `/private`; enter it through that screen's Signed challenge-response action,
+   not the QR scanner. Then run the live Graph query for the separate Bearer
+   right and show its `/rights` card and dashboard chain-truth record.
+3. **1:15–1:40 — initial QR scan.** Present the Bearer right's QR pass to the
+   gate and capture its green ADMIT verdict.
+4. **1:40–2:30 — revoke.** Revoke that exact Bearer right through the deployed
    dashboard/API. Show the transaction receipt and the composed Substreams
    `Revoked` event with the same UID.
-4. **2:10–3:00 — observe.** Wait for the rights subgraph to index the receipt,
+5. **2:30–3:20 — observe.** Wait for the rights subgraph to index the receipt,
    rerun the Graph query, and show a non-null `right.revokedAt` plus REVOKED card
    and dashboard states.
-5. **3:00–4:00 — enforce.** Scan the same pass at the gate again. Capture the
-   red REJECT verdict and reason.
+6. **3:20–4:00 — enforce.** Scan the same Bearer QR pass at the gate again.
+   Capture the red REJECT verdict and reason.
 
 Record the final elapsed time in `timing.txt`. A result outside 2–4 minutes is a
 practice result, not completion of the timing gate.
@@ -227,10 +263,11 @@ echo 'PASS: no Substreams runner is active' \
 
 With Substreams still stopped:
 
-1. Reload `/private`, use the same passkey, and discover the right again.
-2. Reload `/rights`, query the stealth holder, and capture its REVOKED card.
-3. Reload the dashboard, query the holder, and capture Right, Attendance, and
-   IssuerDelegation results without selecting a D1 member row.
+1. Reload `/private`, use the same passkey, and discover the +Private right
+   again.
+2. Reload `/rights`, query the Bearer holder, and capture its REVOKED card.
+3. Reload the dashboard, query the Bearer holder, and capture Right, Attendance,
+   and IssuerDelegation results without selecting a D1 member row.
 4. Rerun the query from section 4 and save it as
    `graph-after-substreams-stop.json`; confirm `revokedAt` remains non-null.
 5. Scan the revoked right once more and capture the same red verdict.
@@ -250,7 +287,7 @@ Keep the following together with the screen recording:
 | composed push lane | live Attested/Announcement context and Revoked event with the demonstrated UID |
 | receipts | issue, Attendance, Announcement, and revoke transaction hashes and blocks |
 | query lane | Graph response before and after revoke, with entity/receipt comparison |
-| user surfaces | discovery, right card, dashboard chain truth, initial gate result, next red gate result |
+| user surfaces | +Private discovery/Signed entry; Bearer right card, dashboard chain truth, initial green QR result, and next red QR result |
 | no-runner proof | stopped-process output plus the repeated query and surface captures |
 
 Redact secrets, then hash the finished evidence files and note where the private
