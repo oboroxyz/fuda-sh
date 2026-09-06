@@ -8,14 +8,16 @@ import {
   createPassListRefreshGate,
   googlePassHref,
   loadMemberPassList,
+  PrivatePassRecoveryError,
   rememberQueryPass,
   refreshCurrentPassStatuses,
   refreshPassStatuses,
   scheduleVisibleRefresh,
+  visibleRefreshIoFrom,
   withConnectedAddress,
 } from './member-pass-list.ts'
 import type { MemberPassListIo, MemberPassRow } from './member-pass-list.ts'
-import { RightsList, RightsListView } from './RightsList.tsx'
+import { QueryRecoveryNotice, RightsList, RightsListView } from './RightsList.tsx'
 import { requestAccount } from './wallet.ts'
 
 const RIGHT = `0x${'aa'.repeat(32)}` as const
@@ -88,6 +90,24 @@ const admitted = (holder: Hex): Result<VerifyResponse> => ({
       holder,
       issuer: `0x${'22'.repeat(20)}`,
       level: 1,
+      schemaVersion: 1,
+      tier: 2,
+      usageModel: 1,
+      validFrom: 0,
+      validUntil: 999,
+    },
+    reason: 'OK',
+  },
+  ok: true,
+})
+
+const privateAdmitted = (holder: Hex): Result<VerifyResponse> => ({
+  body: {
+    decision: 'ADMIT',
+    entitlement: {
+      holder,
+      issuer: `0x${'22'.repeat(20)}`,
+      level: 2,
       schemaVersion: 1,
       tier: 2,
       usageModel: 1,
@@ -181,6 +201,29 @@ describe(loadMemberPassList, () => {
     expect(fetchRights).not.toHaveBeenCalled()
     expect(result.indexUnavailable).toBe(true)
     expect(result.rows.map(({ uid }) => uid)).toStrictEqual([UID_C])
+  })
+
+  it('excludes a +Private Graph row before it verifies status or probes pass links', async () => {
+    const verify = vi.fn<MemberPassListIo['verify']>(
+      async () => await Promise.resolve(privateAdmitted(HOLDER_A)),
+    )
+    const googleHref = vi.fn<MemberPassListIo['googleHref']>(async () => await Promise.resolve(null))
+    const appleAvailable = vi.fn<MemberPassListIo['appleAvailable']>(async () => await Promise.resolve(false))
+
+    const result = await loadMemberPassList(
+      { addresses: [HOLDER_A], graphConfigured: true, memory: [] },
+      {
+        appleAvailable,
+        fetchRights: async () => await Promise.resolve([{ ...right(RIGHT, null), level: 2 }]),
+        googleHref,
+        verify,
+      },
+    )
+
+    expect(result.rows).toStrictEqual([])
+    expect(verify).not.toHaveBeenCalled()
+    expect(googleHref).not.toHaveBeenCalled()
+    expect(appleAvailable).not.toHaveBeenCalled()
   })
 })
 
@@ -382,15 +425,45 @@ describe('status refresh lifecycle', () => {
     expect(refreshes).toBe(1)
     expect(cleared).toBe(42)
   })
+
+  it('preserves a timer host receiver while scheduling and clearing refreshes', () => {
+    class ReceiverSensitiveTimerHost {
+      readonly document = { visibilityState: 'visible' as const }
+      cleared: number | undefined
+      tick: (() => void) | undefined
+
+      setInterval(callback: () => void, milliseconds: number): number {
+        expect(milliseconds).toBe(30_000)
+        this.tick = callback
+        return 73
+      }
+
+      clearInterval(interval: number): void {
+        this.cleared = interval
+      }
+    }
+
+    const host = new ReceiverSensitiveTimerHost()
+    let refreshes = 0
+    const stop = scheduleVisibleRefresh(() => {
+      refreshes += 1
+    }, visibleRefreshIoFrom(host))
+
+    host.tick?.()
+    stop()
+
+    expect(refreshes).toBe(1)
+    expect(host.cleared).toBe(73)
+  })
 })
 
 describe('member pass screen', () => {
-  it('introduces the member list rails, +Private link, manual disclosure, and empty discovery paths', () => {
+  it('introduces the member list rails, device-loss activation guidance, +Private link, manual disclosure, and empty discovery paths', () => {
     const view = RightsList({ injected: { request: async () => await Promise.resolve([HOLDER_A]) } })
     const text = viewText(view)
 
     expect(text).toMatch(
-      /^(?=.*Your passes)(?=.*Connect passkey)(?=.*Use wallet)(?=.*Private rights →)(?=.*saved on this device)(?=.*\+Private)/u,
+      /^(?=.*Your passes)(?=.*Connect passkey)(?=.*Use wallet)(?=.*Private rights →)(?=.*saved on this device)(?=.*If you lose this device, this saved pass can disappear; activation makes your pass follow the owning key\.)(?=.*\+Private)/u,
     )
     expect(viewNodes(view).some(({ props }) => props.href === '/private')).toBe(true)
     expect(viewNodes(view).some(({ props }) => props.children === 'Look up another address')).toBe(true)
@@ -439,6 +512,29 @@ describe('member rails and query memory', () => {
 
     expect(entry).toMatchObject({ holder: HOLDER_A, uid: RIGHT })
     expect(remembered).toStrictEqual([{ holder: HOLDER_A, uid: RIGHT }])
+  })
+
+  it('does not remember a +Private pass recovered from a /rights uid query', async () => {
+    const remembered: { holder: Hex; uid: Hex }[] = []
+
+    await expect(
+      rememberQueryPass(
+        RIGHT,
+        async () => await Promise.resolve(privateAdmitted(HOLDER_A)),
+        (pass) => {
+          remembered.push(pass)
+        },
+      ),
+    ).rejects.toBeInstanceOf(PrivatePassRecoveryError)
+
+    expect(remembered).toStrictEqual([])
+  })
+
+  it('shows private-recovery guidance with the +Private route', () => {
+    const view = QueryRecoveryNotice()
+
+    expect(viewText(view)).toContain('This is a +Private pass. Open Private rights to recover it.')
+    expect(viewNodes(view).some(({ props }) => props.href === '/private')).toBe(true)
   })
 
   it('reports an unsuccessful query preview instead of forgetting it', async () => {

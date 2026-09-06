@@ -74,11 +74,16 @@ export const rememberPass = (
   addedAt = Date.now(),
 ): PassMemoryEntry[] => {
   try {
-    const entry: PassMemoryEntry = { addedAt, holder: pass.holder, uid: pass.uid }
-    const remembered = [
-      entry,
-      ...readPassMemory(storage).filter((stored) => stored.uid.toLowerCase() !== pass.uid.toLowerCase()),
-    ].slice(0, 200)
+    const uid = normalizeUid(pass.uid)
+    const holder = asHex(pass.holder, 20)
+    if (uid === null || holder === null) {
+      return []
+    }
+    const entry: PassMemoryEntry = { addedAt, holder, uid }
+    const remembered = [entry, ...readPassMemory(storage).filter((stored) => stored.uid !== uid)].slice(
+      0,
+      200,
+    )
     const target = storage ?? globalThis.localStorage
     target.setItem(PASS_MEMORY_KEY, JSON.stringify(remembered))
     return remembered

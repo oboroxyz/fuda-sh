@@ -90,6 +90,15 @@ const previewOf = async (uid: Hex, verify: MemberPassListIo['verify']): Promise<
   return result?.ok === true ? result.body : null
 }
 
+const isPrivatePreview = (preview: VerifyResponse | null): boolean => preview?.entitlement?.level === 2
+
+export class PrivatePassRecoveryError extends Error {
+  constructor() {
+    super('This is a +Private pass. Open Private rights to recover it.')
+    this.name = 'PrivatePassRecoveryError'
+  }
+}
+
 export const rememberQueryPass = async (
   uid: Hex,
   verify: MemberPassListIo['verify'],
@@ -98,6 +107,9 @@ export const rememberQueryPass = async (
   const preview = await verify(uid)
   if (!preview.ok) {
     throw new Error(preview.error)
+  }
+  if (isPrivatePreview(preview.body)) {
+    throw new PrivatePassRecoveryError()
   }
   const holder = preview.body.entitlement?.holder
   if (holder === undefined) {
@@ -194,17 +206,22 @@ export const loadMemberPassList = async (
         indexUnavailable = true
         return []
       }
-      return result.value
+      return result.value.filter((right) => right.level !== 2)
     })
   }
 
   const seeds = rowsFrom(input.memory, rights)
-  const rows = await Promise.all(
+  const rowsWithPrivateFiltered = await Promise.all(
     seeds.map(async (seed) => {
-      const [preview, links] = await Promise.all([previewOf(seed.uid, io.verify), linksOf(seed.uid, io)])
+      const preview = await previewOf(seed.uid, io.verify)
+      if (isPrivatePreview(preview)) {
+        return null
+      }
+      const links = await linksOf(seed.uid, io)
       return { ...seed, ...links, preview }
     }),
   )
+  const rows = rowsWithPrivateFiltered.filter((row): row is MemberPassRow => row !== null)
   return { indexUnavailable, rows }
 }
 
@@ -261,6 +278,22 @@ export interface VisibleRefreshIo<TInterval> {
   clearInterval: (interval: TInterval) => void
   visibilityState: () => DocumentVisibilityState
 }
+
+export interface VisibleRefreshHost<TInterval> {
+  setInterval: (callback: () => void, milliseconds: number) => TInterval
+  clearInterval: (interval: TInterval) => void
+  document: Pick<Document, 'visibilityState'>
+}
+
+export const visibleRefreshIoFrom = <TInterval>(
+  host: VisibleRefreshHost<TInterval>,
+): VisibleRefreshIo<TInterval> => ({
+  clearInterval: (interval) => {
+    host.clearInterval(interval)
+  },
+  setInterval: (callback, milliseconds) => host.setInterval(callback, milliseconds),
+  visibilityState: () => host.document.visibilityState,
+})
 
 export const scheduleVisibleRefresh = <TInterval>(
   refresh: () => void,

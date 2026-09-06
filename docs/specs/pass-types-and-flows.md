@@ -474,8 +474,12 @@ right UID, and IssuerDelegation by issuer. It is visually and operationally
 separate from the admin-token-protected D1 Members section: chain-truth reads
 do not create or update member rows. A +Private stealth holder may be entered
 locally for a lookup but is never persisted to D1 by either view. If
-`VITE_GRAPH_RIGHTS_ENDPOINT` is empty, these Graph-backed screens report that
-lookup or discovery is not configured; they do not fall back to the API or D1.
+`VITE_GRAPH_RIGHTS_ENDPOINT` is empty or a holder query fails, `/rights` keeps
+device-remembered rows and refreshes each one through `GET /verify/:uid`; it
+shows `index unavailable; showing passes saved on this device`. Address-derived
+rows remain unavailable until the index recovers. Graph-only discovery on
+`/private` still reports that discovery is not configured and does not fall
+back to the API or D1.
 
 ## Related specs
 

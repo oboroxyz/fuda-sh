@@ -13,9 +13,11 @@ import {
   createPassListRefreshGate,
   googlePassHref,
   loadMemberPassList,
+  PrivatePassRecoveryError,
   rememberQueryPass,
   refreshCurrentPassStatuses,
   scheduleVisibleRefresh,
+  visibleRefreshIoFrom,
   withConnectedAddress,
 } from './member-pass-list.ts'
 import type { MemberPassListIo, MemberPassListResult, MemberPassRow } from './member-pass-list.ts'
@@ -148,6 +150,25 @@ export const RightsListView = ({ state }: { state: RightsListState | MemberListS
   )
 }
 
+export const QueryRecoveryNotice = (): JSX.Element => (
+  <div class="alert alert-warning">
+    This is a +Private pass. Open Private rights to recover it.{' '}
+    <a class="link" href="/private">
+      Private rights
+    </a>
+  </div>
+)
+
+const problemNotice = (problem: Error | null): JSX.Element | null => {
+  if (problem === null) {
+    return null
+  }
+  if (problem instanceof PrivatePassRecoveryError) {
+    return <QueryRecoveryNotice />
+  }
+  return <div class="alert alert-error">{problem.message}</div>
+}
+
 const fieldValue = (target: EventTarget | null): string | null =>
   target instanceof HTMLInputElement ? target.value : null
 
@@ -186,7 +207,7 @@ export const RightsList = ({
   const [memory, setMemory] = useState<PassMemoryEntry[]>(() => [...(givenMemory ?? readPassMemory())])
   const [state, setState] = useState<MemberListState>({ kind: 'loading' })
   const [manual, setManual] = useState('')
-  const [problem, setProblem] = useState<string | null>(null)
+  const [problem, setProblem] = useState<Error | null>(null)
   const uid = queryUid === undefined ? queryUidFromLocation() : queryUid
   const refreshGate = useRef(createPassListRefreshGate())
 
@@ -223,41 +244,39 @@ export const RightsList = ({
           setMemory(rememberPass(pass))
         })
       } catch (error) {
-        const detail = error instanceof Error ? error.message : 'unknown error'
-        setProblem(`Could not recover this pass: ${detail}`)
+        setProblem(
+          error instanceof PrivatePassRecoveryError
+            ? error
+            : new Error(
+                `Could not recover this pass: ${error instanceof Error ? error.message : 'unknown error'}`,
+              ),
+        )
       }
     })()
   }, [io, uid])
 
   useEffect(
     () =>
-      scheduleVisibleRefresh(
-        () => {
-          if (state.kind !== 'ready') {
-            return
-          }
-          void (async () => {
-            try {
-              const rows = await refreshCurrentPassStatuses(
-                refreshGate.current,
-                state.generation,
-                state.result.rows,
-                io.verify,
-              )
-              if (rows !== null) {
-                setState({ generation: state.generation, kind: 'ready', result: { ...state.result, rows } })
-              }
-            } catch (error) {
-              setProblem(error instanceof Error ? error.message : 'Could not refresh pass status.')
+      scheduleVisibleRefresh(() => {
+        if (state.kind !== 'ready') {
+          return
+        }
+        void (async () => {
+          try {
+            const rows = await refreshCurrentPassStatuses(
+              refreshGate.current,
+              state.generation,
+              state.result.rows,
+              io.verify,
+            )
+            if (rows !== null) {
+              setState({ generation: state.generation, kind: 'ready', result: { ...state.result, rows } })
             }
-          })()
-        },
-        {
-          clearInterval: globalThis.clearInterval,
-          setInterval: globalThis.setInterval,
-          visibilityState: () => globalThis.document.visibilityState,
-        },
-      ),
+          } catch (error) {
+            setProblem(error instanceof Error ? error : new Error('Could not refresh pass status.'))
+          }
+        })()
+      }, visibleRefreshIoFrom(globalThis)),
     [io.verify, state],
   )
 
@@ -270,14 +289,14 @@ export const RightsList = ({
     try {
       addAddress(await connectMemberRail(open, requestAccount))
     } catch (error) {
-      setProblem(error instanceof Error ? error.message : 'Could not connect wallet.')
+      setProblem(error instanceof Error ? error : new Error('Could not connect wallet.'))
     }
   }
 
   const lookup = (): void => {
     const holder = asHex(manual.trim(), 20)
     if (holder === null) {
-      setProblem('Enter a valid holder address.')
+      setProblem(new Error('Enter a valid holder address.'))
       return
     }
     setProblem(null)
@@ -290,6 +309,10 @@ export const RightsList = ({
       <p class="text-sm opacity-70">
         Connect a passkey or wallet to find public passes. Passes saved on this device appear here too. For
         private discovery, use +Private.
+      </p>
+      <p class="text-sm opacity-70">
+        If you lose this device, this saved pass can disappear; activation makes your pass follow the owning
+        key.
       </p>
       <div class="flex flex-wrap gap-2">
         <button
@@ -342,7 +365,7 @@ export const RightsList = ({
           </button>
         </form>
       </details>
-      {problem === null ? null : <div class="alert alert-error">{problem}</div>}
+      {problemNotice(problem)}
       <RightsListView state={state} />
     </main>
   )

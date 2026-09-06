@@ -9,6 +9,8 @@ const holder: Hex = `0x${'22'.repeat(20)}`
 const newerUid: Hex = `0x${'33'.repeat(32)}`
 const newerHolder: Hex = `0x${'44'.repeat(20)}`
 const mixedCaseUid: Hex = `0x${'Aa'.repeat(32)}`
+const cappedUid: Hex = `0x${'ff'.repeat(32)}`
+const cappedHolder: Hex = `0x${'ee'.repeat(20)}`
 
 const storageWith = (value: string | null): PassMemoryStorage => ({
   getItem: (key) => (key === PASS_MEMORY_KEY ? value : null),
@@ -94,7 +96,7 @@ describe(rememberPass, () => {
 
   it('replaces an older same-uid entry regardless of hex case', () => {
     const oldEntry = { addedAt: 100, holder, uid: mixedCaseUid.toLowerCase() as Hex }
-    const expected = [{ addedAt: 200, holder: newerHolder, uid: mixedCaseUid }]
+    const expected = [{ addedAt: 200, holder: newerHolder, uid: mixedCaseUid.toLowerCase() }]
     const storage = storageWith(JSON.stringify([oldEntry]))
     let written = ''
     const writableStorage: PassMemoryStorage = {
@@ -110,7 +112,7 @@ describe(rememberPass, () => {
     expect(JSON.parse(written)).toStrictEqual(expected)
   })
 
-  it('caps remembered passes at 200 records', () => {
+  it('caps a genuinely distinct 201st pass and evicts the oldest record', () => {
     const existing = Array.from({ length: 200 }, (_, index) => ({
       addedAt: index,
       holder: `0x${(index + 1).toString(16).padStart(2, '0').repeat(20)}`,
@@ -126,10 +128,42 @@ describe(rememberPass, () => {
       },
     }
 
-    const result = rememberPass({ holder: newerHolder, uid: newerUid }, writableStorage, 200)
+    const result = rememberPass({ holder: cappedHolder, uid: cappedUid }, writableStorage, 200)
     expect(result).toHaveLength(200)
-    expect(result[0]).toStrictEqual({ addedAt: 200, holder: newerHolder, uid: newerUid })
+    expect(result[0]).toStrictEqual({ addedAt: 200, holder: cappedHolder, uid: cappedUid })
+    expect(result.at(-1)?.uid).toBe(`0x${'02'.repeat(32)}`)
+    expect(result.some((entry) => entry.uid === `0x${'01'.repeat(32)}`)).toBe(false)
     expect(JSON.parse(written)).toHaveLength(200)
+  })
+
+  it('normalizes a mixed-case UID so the written pass round-trips through memory', () => {
+    let written = ''
+    const storage: PassMemoryStorage = {
+      getItem: () => written || null,
+      setItem: (_key, value) => {
+        written = value
+      },
+    }
+
+    expect(rememberPass({ holder, uid: mixedCaseUid }, storage, 100)).toStrictEqual([
+      { addedAt: 100, holder, uid: mixedCaseUid.toLowerCase() },
+    ])
+    expect(readPassMemory(storage)).toStrictEqual([{ addedAt: 100, holder, uid: mixedCaseUid.toLowerCase() }])
+  })
+
+  it('rejects invalid uid or holder inputs without overwriting existing memory', () => {
+    const stored = JSON.stringify([{ addedAt: 100, holder, uid }])
+    let written = stored
+    const storage: PassMemoryStorage = {
+      getItem: () => written,
+      setItem: (_key, value) => {
+        written = value
+      },
+    }
+
+    expect(rememberPass({ holder, uid: 'not-a-uid' as Hex }, storage, 200)).toStrictEqual([])
+    expect(rememberPass({ holder: 'not-an-address' as Hex, uid: newerUid }, storage, 200)).toStrictEqual([])
+    expect(written).toBe(stored)
   })
 
   it('returns an empty list when writing is blocked', () => {
