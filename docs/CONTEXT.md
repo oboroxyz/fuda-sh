@@ -273,7 +273,7 @@ not a person)
 
 **Operator**:
 A person acting for a Venue at the dashboard or the gate (floor staff). Not an
-on-chain party, and never ENS-named (operator names deleted 2026-09-01).
+on-chain party, and never ENS-named.
 _Avoid_: Staff, admin (that is fuda's API authorization), issuer
 
 **Meta-address**:

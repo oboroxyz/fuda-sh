@@ -7,6 +7,10 @@ verification rules applied by the gate.
 
 ## Choose by use case
 
+Templates and the self-serve handle route are the product model. The api
+derives a right's level from the keys present in the request and issues only
+through the admin `POST /issue`; the `fuda.sh` apex serves the landing page.
+
 **The template is the issuer's choice, made at issuance time.** The issuer
 configures which templates are available and sets the default. An authorized
 operator selects one when issuing a right. In a self-service flow such as

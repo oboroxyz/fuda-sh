@@ -30,8 +30,9 @@ production, only under this explicit local opt-in.
 
 ## Attendance
 
-Every `ADMIT` verdict from `POST /verify` schedules an on-chain `Attendance`
-attestation via `waitUntil` — it is always on, not opt-in. The attest needs a
+Every `ADMIT` verdict from `POST /verify` and `POST /verify-signed` schedules an
+on-chain `Attendance` attestation via `waitUntil` — both paths run it from the
+shared admission spine (`src/verify/admit.ts`), and it is always on, not opt-in. The attest needs a
 signer (real or `FakeChain`) and an `attendance` entry in `EAS_SCHEMAS`; if
 either is missing the hook is a no-op. A failed attest is caught and logged
 (`console.warn`) but never fails the admission that triggered it — attendance
@@ -188,7 +189,8 @@ every table as a new migration instead of just the change.
 Covered in [`docs/runbook.md`](../../docs/runbook.md) — chain setup order,
 `wrangler secret put` names, wallet-platform setup, deploy order and the live
 smoke/manual checks. `apps/api/src/env.ts` is the source of truth for every
-binding name.
+deployed binding name; the local-only `USE_FAKE_CHAIN` opt-in lives in
+`DevBindings` in `apps/api/src/index.ts` instead.
 
 ## Smoke test
 
@@ -245,7 +247,7 @@ per-IP 120/h `/announcements` budget.
 | GET | `/pass/:uid` | none | browser-based pass page; `404 not_found` if fuda never issued that uid, or if the row is +Private |
 | GET | `/pass/:uid/google` | none | `{ saveUrl }`, a signed Google Wallet save link; `501 google_not_configured` unless all four `GOOGLE_*` secrets are set; `404 not_found` first for an unknown uid or a +Private row |
 | GET | `/pass/:uid/apple.pkpass` | none | the `.pkpass` bundle; `501 apple_not_configured` unless all five `APPLE_*` secrets are set; `404 not_found` first for an unknown uid or a +Private row |
-| GET | `/announcements` | none, per-IP budget (120/h) | the cached ERC-5564 announcement log, lazily synced from chain; `502 rpc_unavailable` only with an empty cache |
+| GET | `/announcements` | none, per-IP budget (120/h) | the cached ERC-5564 announcement log, lazily synced from chain; `502 rpc_unavailable` with an empty cache, and whenever `ANNOUNCER_FROM_BLOCK` is unset, unparseable or `0` |
 
 ## Error codes
 

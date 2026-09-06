@@ -28,7 +28,7 @@ never applies a caller filter.
   request into a statement about the caller and is therefore forbidden by
   this decision.
 - A caller allow-list on the Announcer's `caller` field would break the
-  moment an issuer other than fuda's signer announces (the venue-signed
+  moment an issuer other than fuda's signer announces (the issuer-signed
   issuance path); the receiver's view tag is the filter ERC-5564 intends.
 - Cost is bandwidth and budget: a full walk of a large log takes up to 50
   pages of 1000 rows and spends that many of the caller's 120 hourly

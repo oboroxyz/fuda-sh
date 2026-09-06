@@ -52,7 +52,9 @@ flowchart LR
   with either binding and no token locks them rather than opening them.
 - **The public verify endpoints are unauthenticated by design.** `GET
   /verify/:uid` and `POST /verify` take a uid that is public on chain, so anyone
-  who learns one can preview it — and burn a SINGLE_USE slot. What that buys an
+  who learns one can preview it. `GET /verify/:uid` is a read-only preview and
+  never consumes a slot; a bare `POST /verify` is an admission, so it burns a
+  SINGLE_USE right's slot. What that buys an
   attacker, and why Signed is the answer for rights that must resist it, is in
   the attestation model's [threat model of the public verify
   endpoints](./attestation-model.md#api-payloads-that-touch-attestations).
