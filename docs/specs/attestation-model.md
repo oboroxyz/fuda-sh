@@ -512,7 +512,8 @@ a trace an operator reconciles by hand:
   codec round-trip including `level`; Attendance codec round-trip; reason
   ordering (`LEVEL_REQUIRED` precedes `ALREADY_USED`); versioning seam:
   unknown UID → `WRONG_SCHEMA`, v1 decode → canonical upcast identity,
-  delegation accepted-set lookup.
+  delegation accepted-set lookup; EAS `expirationTime` in the past → `EXPIRED`,
+  taking precedence over the usage-model check.
 - **Integration (api, workerd + real D1):** issue → verify ADMIT (bearer);
   revoke → REJECT; SINGLE_USE double-scan; signed-level right by QR →
   `LEVEL_REQUIRED` with its slot left unconsumed; same holder issued twice →
@@ -520,12 +521,10 @@ a trace an operator reconciles by hand:
   `502 chain_error`; +Private issue → member row has `holder = NULL` and
   `member_id` = the supplied representative id; +Private ADMIT via
   `/verify-signed` → no Attendance attest is attempted and `attendance_uid`
-  stays `NULL`.
-  EAS `expirationTime` in the past → `EXPIRED`, taking precedence over the
-  usage-model check; admin routes locked (`401`, `x-auth-mode: locked`) without
-  `ADMIN_TOKEN` when a signer is set; `/pass/:uid/google` `404` for a +Private
-  row before any platform check; announcement sync: chunk cap and resume,
-  monotone cursor under a concurrent faster sync, cursor floored at the
+  stays `NULL`; admin routes locked (`401`, `x-auth-mode: locked`) without
+  `ADMIN_TOKEN` when a signer is set; `/pass/:uid` `404` for a +Private row (the
+  shared row load precedes any platform check); announcement sync: chunk cap and
+  resume, monotone cursor under a concurrent faster sync, cursor floored at the
   configured start, and the `CONFIRMATIONS` stop short of the head.
 - **Unit (member app):** announcement paging — a short page ends the walk, a
   full page resumes from its last block and de-duplicates the repeated boundary
