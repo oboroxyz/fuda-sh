@@ -1,4 +1,4 @@
-import { asHex, isUid } from '@fuda/sdk'
+import { asHex, isUid, normalizeUid } from '@fuda/sdk'
 import type { Hex } from '@fuda/sdk'
 
 export const PASS_MEMORY_KEY = 'fuda.passes.v1'
@@ -31,6 +31,7 @@ const isEntry = (value: unknown): value is PassMemoryEntry => {
     keys.includes('addedAt') &&
     typeof record.uid === 'string' &&
     isUid(record.uid) &&
+    normalizeUid(record.uid) === record.uid &&
     typeof record.holder === 'string' &&
     asHex(record.holder, 20) !== null &&
     typeof record.addedAt === 'number' &&
@@ -51,7 +52,16 @@ export const readPassMemory = (storage?: PassMemoryStorage): PassMemoryEntry[] =
       return []
     }
 
-    return [...decoded].toSorted((left, right) => right.addedAt - left.addedAt)
+    const sorted = [...decoded].toSorted((left, right) => right.addedAt - left.addedAt)
+    const seen = new Set<string>()
+    return sorted.filter((entry) => {
+      const normalizedUid = entry.uid.toLowerCase()
+      if (seen.has(normalizedUid)) {
+        return false
+      }
+      seen.add(normalizedUid)
+      return true
+    })
   } catch {
     return []
   }

@@ -41,6 +41,19 @@ describe(readPassMemory, () => {
     expect(readPassMemory(storageWith(JSON.stringify(stored)))).toStrictEqual([])
   })
 
+  it('rejects stored UIDs that are not canonical lowercase hex', () => {
+    const stored = [{ addedAt: 100, holder, uid: mixedCaseUid }]
+
+    expect(readPassMemory(storageWith(JSON.stringify(stored)))).toStrictEqual([])
+  })
+
+  it('collapses preexisting duplicate UIDs to the newest record', () => {
+    const older = { addedAt: 100, holder, uid }
+    const newest = { addedAt: 200, holder: newerHolder, uid }
+
+    expect(readPassMemory(storageWith(JSON.stringify([older, newest])))).toStrictEqual([newest])
+  })
+
   it('returns an empty list when accessing default localStorage throws', () => {
     const original = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
     Object.defineProperty(globalThis, 'localStorage', {

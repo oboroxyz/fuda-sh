@@ -44,3 +44,23 @@ Output: `1` test file and `8` tests passed.
 ## Concerns
 
 The repository-wide lint/typecheck baseline is currently red because the rights package references an unavailable `vitest` type definition. The focused app test suite passes.
+
+## Fix round 1
+
+### Changed behavior
+
+- Stored UIDs now must equal `normalizeUid(uid)`, so uppercase hex UIDs are rejected as non-canonical.
+- After sorting decoded entries newest-first, `readPassMemory` removes duplicate UIDs case-insensitively and preserves the newest occurrence. This also prevents unrelated preexisting duplicates from being written back by `rememberPass`.
+- Case-insensitive matching for the newly remembered UID remains in place.
+
+### TDD evidence
+
+RED command: `pnpm --filter app test -- src/pass-memory.test.ts`
+
+RED output/reason: `10 tests | 2 failed`; the uppercase-UID test received the stored entry instead of `[]`, and the duplicate-UID test received both records instead of only the newest. The failures demonstrated both review findings against the prior implementation.
+
+GREEN command: `pnpm --filter app test -- src/pass-memory.test.ts`
+
+GREEN output: `1` test file and `10` tests passed.
+
+Additional verification: `pnpm lint` remains blocked by the pre-existing `packages/subgraphs/rights/tsconfig.json` error: cannot find type definition file for `vitest`.
