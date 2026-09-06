@@ -1,7 +1,6 @@
 packages:
   - apps/*
   - packages/*
-  - subgraphs/*
 # pnpm 11 reads settings from this file, not .npmrc.
 engineStrict: true
 autoInstallPeers: false

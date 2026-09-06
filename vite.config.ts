@@ -8,6 +8,7 @@
 //   1. tool conflicts (a fixer/formatter fight, a framework false positive),
 //   2. rules that would WEAKEN assertions,
 //   3. the test-fixture latitude every codebase needs.
+//   4. Graph AssemblyScript, which is compiled by graph-cli rather than TypeScript.
 // Deliberate exceptions in code use `// oxlint-disable-next-line <rule> -- reason`
 // (e.g. an intentional sequential-await loop over D1); keep them rare and reasoned.
 import oxfmtPreset from 'ultracite/oxfmt'
@@ -19,6 +20,11 @@ import { defineConfig } from 'vite-plus'
 export default defineConfig({
   lint: {
     extends: [core, antiSlop, vitest],
+    ignorePatterns: [
+      'packages/subgraphs/rights/generated/**',
+      'packages/subgraphs/rights/src/**',
+      'packages/subgraphs/rights/tests/**',
+    ],
     options: {
       typeAware: true,
       typeCheck: true,
@@ -89,6 +95,12 @@ export default defineConfig({
     singleQuote: true,
     trailingComma: 'all',
     // Markdown stays hand-formatted (proseWrap would rewrap prose):
-    ignorePatterns: [...(oxfmtPreset.ignorePatterns ?? []), '**/*.md'],
+    ignorePatterns: [
+      ...(oxfmtPreset.ignorePatterns ?? []),
+      '**/*.md',
+      'packages/subgraphs/rights/generated/**',
+      'packages/subgraphs/rights/src/**',
+      'packages/subgraphs/rights/tests/**',
+    ],
   },
 })
