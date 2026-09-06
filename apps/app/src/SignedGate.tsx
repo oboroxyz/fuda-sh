@@ -25,7 +25,7 @@ const passkeyRail = async (): Promise<Eip1193Provider> => {
   return baseAccountProvider()
 }
 
-// Spec §10.1: enter or scan the pass uid → challenge → sign with the connected
+// docs/specs/pass-types-and-flows.md#gate-protocol: enter or scan the pass uid → challenge → sign with the connected
 // wallet → verify → full-screen verdict. The rail is any EIP-1193 provider —
 // either a browser-injected wallet or the Base Account passkey wallet, which
 // the member picks once a pass uid is on screen.

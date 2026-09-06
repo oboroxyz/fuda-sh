@@ -34,7 +34,7 @@ const scalarToBytes = (k: bigint): Uint8Array => {
   return out
 }
 
-// The convergence point of every derivation source (§7): the PRF output today,
+// The convergence point of every derivation source (docs/specs/pass-types-and-flows.md#u2-privacy-first-issuance): the PRF output today,
 // keccak256(personal_sign('fuda.sh/stealth/eoa/v1')) if the EOA source is ever built.
 export const deriveMemberSecret = (entropy: Uint8Array): Uint8Array =>
   hkdf(sha256, entropy, SALT, INFO_MEMBER_SECRET, 32)

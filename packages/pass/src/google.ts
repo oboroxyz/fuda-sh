@@ -60,7 +60,7 @@ export interface GoogleGenericObject {
 
 const localized = (value: string): LocalizedString => ({ defaultValue: { language: 'en-US', value } })
 
-// Spec §9. The object id is issuer-scoped and must be unique per pass, so the
+// docs/specs/pass-types-and-flows.md#passes. The object id is issuer-scoped and must be unique per pass, so the
 // attestation uid (without its 0x) is the suffix.
 export const buildGenericObject = (cfg: GoogleConfig, input: GooglePassInput): GoogleGenericObject => ({
   barcode: { alternateText: input.uid.slice(0, 10), type: 'QR_CODE', value: input.qr },

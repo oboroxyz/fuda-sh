@@ -190,7 +190,7 @@ describe('POST /verify', () => {
     expect(calls[0]?.waitUntil).toBeTypeOf('function')
   })
 
-  // Attendance is best-effort (spec §8): a throwing hook must not turn an
+  // Attendance is best-effort (docs/specs/attestation-model.md#entitlement-lifecycle): a throwing hook must not turn an
   // admission into a 500.
   it('still ADMITs and logs the entry when onAdmit throws', async () => {
     const chain = fakeChain()

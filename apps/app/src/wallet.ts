@@ -29,7 +29,7 @@ export const requestAccount = async (p: Eip1193Provider): Promise<Hex> => {
 }
 
 // EIP-191 personal_sign over the UTF-8 challenge string, the message the api
-// verifies (§5). Params are [hex-encoded message, address] — the order every
+// verifies (docs/specs/attestation-model.md#wire-constants). Params are [hex-encoded message, address] — the order every
 // browser wallet expects.
 export const personalSign = async (p: Eip1193Provider, address: Hex, message: string): Promise<Hex> => {
   const sig = String(await p.request({ method: 'personal_sign', params: [stringToHex(message), address] }))

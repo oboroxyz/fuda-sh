@@ -1,10 +1,8 @@
 # ADR 0001: EAS-native target architecture, adopted after the MVP
 
 - **Status**: Accepted 2026-09-06. Implementation deferred until the MVP ships.
-- **Scope**: the durable decisions behind the post-MVP architecture. The
-  working design lives on the `worktree-eas-native-architecture` branch as a
-  temporary Superpowers spec; this ADR records only what will still be true
-  when that spec is deleted.
+- **Scope**: the durable decisions behind the post-MVP architecture. This ADR
+  records only what will still be true once the implementation lands.
 
 ## Context
 

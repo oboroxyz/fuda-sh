@@ -81,7 +81,7 @@ const expectMatch = (
 }
 
 // The subset of POST /issue's body this script sends; which identity key is
-// present is what picks the level (spec §3).
+// present is what picks the level (docs/specs/attestation-model.md#api-payloads-that-touch-attestations).
 interface IssueInput {
   holder?: Hex
   memberId?: string

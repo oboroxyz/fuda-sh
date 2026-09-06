@@ -41,7 +41,7 @@ describe(enterSigned, () => {
     expect(result).toMatchObject({ body: { decision: 'ADMIT' }, kind: 'verdict' })
     expect(seen[0]).toMatchObject({ nonce: NONCE, uid: UID })
     const posted = seen[0]?.signature ?? '0x'
-    // The api verifies EIP-191 over the challenge string (§5); this is that check,
+    // The api verifies EIP-191 over the challenge string (docs/specs/attestation-model.md#wire-constants); this is that check,
     // run purely, against the signature the flow actually produced.
     await expect(
       verifyMessage({

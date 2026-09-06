@@ -7,7 +7,7 @@ export const INFO_MEMBER_SECRET: Uint8Array = utf8('member-secret')
 export const INFO_SPEND: Uint8Array = utf8('stealth-spend')
 export const INFO_VIEW: Uint8Array = utf8('stealth-view')
 
-// The WebAuthn PRF eval input (§5). The PRF output is a function of this input,
+// The WebAuthn PRF eval input (docs/specs/attestation-model.md#wire-constants). The PRF output is a function of this input,
 // so it must never change.
 export const PRF_EVAL_INPUT = 'fuda.sh/stealth/prf/v1'
 

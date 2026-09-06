@@ -64,7 +64,7 @@ export interface PassJson {
   }
 }
 
-// Spec §9. A storeCard, not a coupon or event ticket: membership has no date
+// docs/specs/pass-types-and-flows.md#passes. A storeCard, not a coupon or event ticket: membership has no date
 // and no venue. The barcode carries the same `fuda:v1:<uid>` payload the
 // browser pass and the Google object do, so one scanner reads all three.
 export const passJson = (cfg: AppleConfig, input: ApplePassInput): PassJson => ({

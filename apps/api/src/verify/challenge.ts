@@ -15,7 +15,7 @@ const randomNonce = (): Hex => {
   return `0x${hex}`
 }
 
-// §3: no chain lookup — a challenge for a nonexistent or revoked uid is minted
+// docs/specs/pass-types-and-flows.md#gate-protocol: no chain lookup — a challenge for a nonexistent or revoked uid is minted
 // anyway and /verify-signed step 1 rejects it later.
 //
 // Minting also sweeps the table: past the TTL a nonce can never be consumed
@@ -35,7 +35,7 @@ export const mintChallenge = async (
   return { challenge: challengeMessage(uid, nonce), nonce }
 }
 
-// The spec's single conditional UPDATE (§3 step 2): one-time, bound to the uid,
+// A single conditional UPDATE: one-time, bound to the uid,
 // and inside the TTL. The write is the lock — consumed iff a row changed.
 export const consumeChallenge = async (
   db: Db,

@@ -47,7 +47,7 @@ const issueContext = (c: Context<AppEnv>): IssueContext | null => {
 }
 
 // Which of the two 4xx codes a bad meta-address earns. IssueBody's own regex
-// would fold a malformed stealthMetaAddress into `bad_input`, but §3 names
+// would fold a malformed stealthMetaAddress into `bad_input`, but docs/specs/attestation-model.md#error-codes names
 // `bad_meta_address` for it, so the field is peeked at before that parse.
 // `asMetaAddress` runs the same 132-hex shape check META_ADDRESS_RE does and
 // then the curve check, so it covers both a wrong shape and an off-curve half —

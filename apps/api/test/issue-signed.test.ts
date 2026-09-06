@@ -84,7 +84,7 @@ describe('POST /issue (signed)', () => {
     expect(body.passUrls.web).toBe(`https://api.test/pass/${body.uid}`)
   })
 
-  // §12: a Signed right by QR → LEVEL_REQUIRED and its SINGLE_USE slot stays unconsumed.
+  // A Signed right by QR → LEVEL_REQUIRED and its SINGLE_USE slot stays unconsumed.
   it('rejects the same right by QR with LEVEL_REQUIRED and leaves its slot unconsumed', async () => {
     const chain = fakeChain({ signer: ROOT })
     const del = seedRoot(chain)

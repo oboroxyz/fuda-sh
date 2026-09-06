@@ -28,7 +28,7 @@ const warnNoop = (why: string): void => {
   console.warn(`[fuda-api] Attendance is disabled: ${why}. Admissions continue unrecorded on chain.`)
 }
 
-// Spec §8: the on-chain entry evidence. Best-effort by construction — a lost
+// docs/specs/attestation-model.md#entitlement-lifecycle: the on-chain entry evidence. Best-effort by construction — a lost
 // record is acceptable, a failed admission is not — so every failure is
 // swallowed here and this promise never rejects.
 export const recordAttendance = async (deps: AttendanceDeps, info: AdmitInfo): Promise<void> => {

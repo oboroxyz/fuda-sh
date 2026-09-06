@@ -14,7 +14,7 @@ import { verifyUid } from '../verify/verify-uid.ts'
 
 // Both entry paths answer the same body. The parameter is the widened shape so a
 // route can report a verdict it decided itself (LEVEL_REQUIRED, ALREADY_USED)
-// over the entitlement and delegation §6 already resolved.
+// over the entitlement and delegation the gate check already resolved.
 export const verdictBody = (
   out: Pick<VerifyOutcome, 'decision' | 'reason' | 'entitlement' | 'delegation'>,
 ) => ({
@@ -50,7 +50,7 @@ export const waitUntilOf = (c: Context<AppEnv>): ((p: Promise<unknown>) => void)
 
 export const verifyRoutes = new Hono<AppEnv>()
 
-// Either the §6 outcome, or the error response to return unchanged. Shared by
+// Either the gate-check outcome, or the error response to return unchanged. Shared by
 // both entry paths so a config or chain failure answers 502 chain_error
 // identically, and so neither path can log a non-decision.
 type Resolved = { ok: true; out: VerifyOutcome } | { ok: false; res: Response }
@@ -87,7 +87,7 @@ verifyRoutes.get('/verify/:uid', async (c) => {
   return resolved.ok ? jsonResponse(c, verdictBody(resolved.out)) : resolved.res
 })
 
-// Admission by QR. Order: §6 chain verification → level 0 only → SINGLE_USE slot
+// Admission by QR. Order: chain verification (docs/specs/attestation-model.md#gate-verification-order-and-reasons) → level 0 only → SINGLE_USE slot
 // → entry log → onAdmit. The level check precedes slot consumption so a
 // photographed Signed pass cannot burn its holder's slot. Every decision-shaped
 // verdict is logged with path 'qr'; 4xx input errors and 502 chain errors are not.

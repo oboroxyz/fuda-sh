@@ -64,7 +64,7 @@ verifySignedRoutes.post('/verify-signed', async (c) => {
   }
   const { out } = resolved
   if (out.decision === 'REJECT') {
-    // §3: `holder` is present once the attestation was decoded. Every decoded
+    // docs/specs/pass-types-and-flows.md#gate-protocol: `holder` is present once the attestation was decoded. Every decoded
     // rejection carries the entitlement view; NOT_FOUND and WRONG_SCHEMA do not,
     // and answer without a holder.
     const verdict: VerifySignedResponse = {

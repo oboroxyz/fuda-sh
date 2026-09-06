@@ -105,7 +105,7 @@ describe(verifyUid, () => {
     }
   })
 
-  describe('§6 ordering', () => {
+  describe('gate check ordering', () => {
     it('ADMITs a valid right with decoded entitlement and delegation views', async () => {
       const out = await verifyUid(deps, seedRight())
       expect(out.decision).toBe('ADMIT')

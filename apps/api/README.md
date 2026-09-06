@@ -77,7 +77,7 @@ Entry at the Signed level is two calls, never a QR scan:
       A rejection here answers `stage: 'entitlement'`, and carries `holder`
       only once the attestation decoded far enough to know it.
    2. Consume the challenge (`nonce` bound to `uid`, unused, inside the 300 s
-      TTL) — the spec's single conditional `UPDATE`; the write is the lock. A
+      TTL) — a single conditional `UPDATE`; the write is the lock. A
       miss (replayed or expired nonce) answers `reason: 'BAD_CHALLENGE'`,
       `stage: 'challenge'`. Consuming the challenge *before* checking the
       signature is deliberate: it is the replay protection — a wrong signature

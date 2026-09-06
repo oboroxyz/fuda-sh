@@ -72,7 +72,7 @@ const MetaAddress = ({
   )
 }
 
-// Spec §10.2: (a) passkey → meta-address, (b) discover, (c) enter with the
+// docs/specs/pass-types-and-flows.md#u2-privacy-first-issuance: (a) passkey → meta-address, (b) discover, (c) enter with the
 // recovered stealth key through the same challenge flow as Signed.
 export const PrivateScreen = (): JSX.Element => {
   const [keys, setKeys] = useState<StealthKeys | null>(null)

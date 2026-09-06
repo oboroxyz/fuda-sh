@@ -28,11 +28,11 @@ export const asHex = (s: string, bytes: number): Hex | null => {
 export const CHALLENGE_PREFIX = 'fuda-gate:'
 export const CHALLENGE_TTL_SECONDS = 300
 
-// The nonce is minted lowercase (§3); a client may echo it upper-cased.
+// The nonce is minted lowercase (docs/specs/attestation-model.md#wire-constants); a client may echo it upper-cased.
 export const normalizeNonce = (s: string): Hex | null =>
   NONCE_RE.test(s) ? `0x${s.slice(2).toLowerCase()}` : null
 
-// What the member signs (§5): the plaintext challenge string, EIP-191 personal-sign.
+// What the member signs (docs/specs/attestation-model.md#wire-constants): the plaintext challenge string, EIP-191 personal-sign.
 export const challengeMessage = (uid: Hex, nonce: Hex): string => `${CHALLENGE_PREFIX}${uid}:${nonce}`
 
 export const toQr = (uid: Hex): string => `${QR_PREFIX}${uid}`
