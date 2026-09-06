@@ -7,6 +7,7 @@
     "dev": "wrangler dev --env dev",
     "deploy": "wrangler deploy",
     "test": "vp test",
+    "test:scripts": "vp test --config vite.scripts.config.ts",
     "migrate:local": "wrangler d1 migrations apply fuda --local",
     "migrate:remote": "wrangler d1 migrations apply fuda --remote",
     "register-schemas": "tsx scripts/register-schemas.ts",

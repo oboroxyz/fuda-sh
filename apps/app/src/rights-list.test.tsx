@@ -51,6 +51,7 @@ const right = (id: `0x${string}`, revokedAt: bigint | null): GraphRight => ({
   issuer: `0x${'22'.repeat(20)}`,
   level: 1,
   metaURI: 'ipfs://right',
+  refUID: DELEGATION,
   revokedAt,
   schemaVersion: 1,
   serial: `0x${'00'.repeat(32)}`,

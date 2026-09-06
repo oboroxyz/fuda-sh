@@ -38,6 +38,12 @@ git rev-parse HEAD | tee "$FUDA_GRAPH_EVIDENCE/git-head.txt"
 
 ## 2. Repository-local verification
 
+Install the rights subgraph's independent dependencies before Graph commands:
+
+```sh
+pnpm --ignore-workspace --dir packages/subgraphs/rights install --frozen-lockfile
+```
+
 Run the two Rust suites and release WASM builds from the repository root:
 
 ```sh

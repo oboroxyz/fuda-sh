@@ -21,8 +21,7 @@ One config file, `vite.config.ts`, drives dev/build/test/lint/format through **V
 - Node `24.18.0` is provisioned by pnpm itself (`devEngines.runtime` in `package.json`, `onFail: download`); no version manager needed. `engineStrict` / `autoInstallPeers` live in `pnpm-workspace.yaml` because pnpm 11 ignores `.npmrc` for them. Install with `pnpm install --frozen-lockfile`.
 - Wrangler local state (`.wrangler/`) and secrets (`.dev.vars*`) are gitignored per app.
 - D1 caps bound parameters at 100 per statement, so a multi-row `INSERT` built
-  from a variable-length list must be sliced into batches under that cap
-  (see `INSERT_ROWS` in `apps/api/src/announcements/sync.ts`).
+  from a variable-length list must be sliced into batches under that cap.
 
 ## Agents
 

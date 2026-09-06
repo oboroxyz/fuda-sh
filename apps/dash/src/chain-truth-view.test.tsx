@@ -45,6 +45,7 @@ const right: GraphRight = {
   issuer: delegation.issuer,
   level: 1,
   metaURI: '',
+  refUID: DELEGATION_UID,
   revokedAt: null,
   schemaVersion: 1,
   serial: `0x${'00'.repeat(32)}`,
@@ -63,6 +64,23 @@ const attendance: GraphAttendance = {
 }
 
 describe(ChainTruthView, () => {
+  it('renders a right whose delegation is unresolved without hiding the other rights', () => {
+    const text = viewText(
+      ChainTruthView({
+        state: {
+          attendances: {},
+          delegations: [delegation],
+          kind: 'ready',
+          rights: [{ ...right, delegation: null, refUID: DELEGATION_UID }, right],
+        },
+      }),
+    ).replaceAll(/\s+/gu, ' ')
+
+    expect(text).toContain(`Unresolved delegation ${DELEGATION_UID}`)
+    expect(text).toContain(`delegation ${DELEGATION_UID}`)
+    expect(text).toContain(RIGHT_UID)
+  })
+
   it('renders chain rights, delegations, and attendance without a D1 member row', () => {
     const text = viewText(
       ChainTruthView({

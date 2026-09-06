@@ -45,12 +45,12 @@ const AnnouncementSchema = v.object({
   transactionHash: Bytes32Schema,
 })
 
-const ResponseSchema = v.union([
-  v.object({ data: v.object({ announcements: v.array(AnnouncementSchema) }) }),
-  v.object({ errors: v.array(v.object({ message: v.string() })) }),
-])
-
 const ErrorsSchema = v.object({ errors: v.array(v.object({ message: v.string() })) })
+
+const ResponseSchema = v.union([
+  ErrorsSchema,
+  v.object({ data: v.object({ announcements: v.array(AnnouncementSchema) }) }),
+])
 
 const DelegationSchema = v.object({
   active: v.boolean(),
@@ -61,12 +61,13 @@ const DelegationSchema = v.object({
 })
 
 const RightSchema = v.object({
-  delegation: DelegationSchema,
+  delegation: v.nullable(DelegationSchema),
   holder: AddressSchema,
   id: Bytes32Schema,
   issuer: AddressSchema,
   level: v.pipe(v.number(), v.integer()),
   metaURI: v.string(),
+  refUID: Bytes32Schema,
   revokedAt: v.nullable(v.pipe(v.string(), v.regex(DECIMAL))),
   schemaVersion: v.pipe(v.number(), v.integer()),
   serial: Bytes32Schema,
@@ -120,12 +121,13 @@ export interface GraphDelegation {
 }
 
 export interface GraphRight {
-  delegation: GraphDelegation
+  delegation: GraphDelegation | null
   holder: Hex
   id: Hex
   issuer: Hex
   level: number
   metaURI: string
+  refUID: Hex
   revokedAt: bigint | null
   schemaVersion: number
   serial: Hex
@@ -228,7 +230,7 @@ const toDelegation = (row: v.InferOutput<typeof DelegationSchema>): GraphDelegat
 
 const toRight = (row: v.InferOutput<typeof RightSchema>): GraphRight => ({
   ...row,
-  delegation: toDelegation(row.delegation),
+  delegation: row.delegation === null ? null : toDelegation(row.delegation),
   revokedAt: nullableBigInt(row.revokedAt),
   validFrom: BigInt(row.validFrom),
   validUntil: BigInt(row.validUntil),
@@ -242,7 +244,7 @@ const toAttendance = (row: v.InferOutput<typeof AttendanceSchema>): GraphAttenda
 
 const RIGHTS_QUERY = `query RightsByHolder($holder: Bytes!, $first: Int!, $afterId: Bytes!) {
   rights(first: $first, where: { holder: $holder, id_gt: $afterId }, orderBy: id, orderDirection: asc) {
-    id holder issuer usageModel tier level serial validFrom validUntil metaURI schemaVersion revokedAt
+    id holder issuer usageModel tier level serial validFrom validUntil metaURI schemaVersion refUID revokedAt
     delegation { id issuer active name revokedAt }
   }
 }`
@@ -380,11 +382,7 @@ export const fetchAnnouncements = async (
       throw new Error('invalid Graph response')
     }
     if ('errors' in body.output) {
-      throw new Error(
-        body.output.errors.length === 0
-          ? 'GraphQL request failed'
-          : body.output.errors.map(({ message }) => message).join('; '),
-      )
+      throw graphErrors(body.output.errors)
     }
     const page = body.output.data.announcements
     rows.push(...page.map(toAnnouncement))

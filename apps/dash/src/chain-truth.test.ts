@@ -21,6 +21,7 @@ const right: GraphRight = {
   issuer: ISSUER,
   level: 1,
   metaURI: '',
+  refUID: DELEGATION_UID,
   revokedAt: null,
   schemaVersion: 1,
   serial: `0x${'00'.repeat(32)}`,

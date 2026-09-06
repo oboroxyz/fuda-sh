@@ -3,6 +3,7 @@ query RightsSmoke($rightUID: Bytes!, $delegationUID: Bytes!, $attendanceUID: Byt
     id
     holder
     issuer
+    refUID
     delegation {
       id
       issuer

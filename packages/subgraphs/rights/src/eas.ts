@@ -36,6 +36,8 @@ export function handleAttested(event: Attested): void {
     return
   }
 
+  // Configuration preserves every accepted UID/version. Wire codecs are
+  // explicit: a future version needs its own decoder/upcast before indexing.
   if (entitlement === 1) {
     const decoded = decodeEntitlementV1(raw.data)
     if (decoded === null || !decoded.holder.equals(raw.recipient) || !decoded.issuer.equals(raw.attester)) return
@@ -53,7 +55,8 @@ export function handleAttested(event: Attested): void {
     right.validFrom = decoded.validFrom
     right.validUntil = decoded.validUntil
     right.metaURI = decoded.metaURI
-    right.delegation = raw.refUID
+    right.refUID = raw.refUID
+    right.delegation = Delegation.load(raw.refUID) === null ? null : raw.refUID
     right.revokedAt = null
     right.blockNumber = event.block.number
     right.timestamp = event.block.timestamp

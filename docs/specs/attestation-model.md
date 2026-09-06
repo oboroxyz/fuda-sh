@@ -481,6 +481,23 @@ the complete response shape at the network boundary, converts Graph integer
 scalars to JavaScript `bigint`, and surfaces HTTP, GraphQL, and malformed-data
 failures instead of rendering partial chain state.
 
+GraphQL errors take precedence even when a response includes data, including
+announcement discovery responses. A Right preserves its raw EAS reference as
+`refUID`. Its nullable `delegation` relation is populated only when that UID
+names an accepted Delegation already indexed when the Right is handled. Zero,
+unaccepted-schema, and missing references leave `delegation: null`; the Right
+remains queryable and the dashboard displays the unresolved reference. This is
+an index relation, not proof of delegation authority or gate admission. If the
+Delegation predates the indexed history, resolving it requires reindexing from
+an earlier start block.
+
+Subgraph configuration preserves all accepted UID/version entries from the
+MVP schema sets. The current wire decoders support v1 for Entitlement,
+IssuerDelegation, and Attendance, using the same flat ABI parameters as the
+API encoders. A future wire version needs an explicit decoder and canonical
+upcast before it can index; a configured positive version is not silently
+decoded as v1. Unsupported wire versions produce no decoded entity.
+
 The member app exposes the holder's rights as active or revoked cards at the
 app-only `/rights` route. The operator dashboard retains its existing
 admin-token-protected Members view for D1 operational rows and presents chain

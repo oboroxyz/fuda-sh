@@ -184,7 +184,7 @@ deployed binding name; the local-only `USE_FAKE_CHAIN` opt-in lives in
 
 ## Smoke test
 
-`scripts/smoke-live.ts` drives a live api through three ladders and exits
+`scripts/smoke-live.ts` drives a live api through two ladders and exits
 non-zero on the first unexpected verdict:
 
 - **bearer** — issue → preview → scan → re-scan (`ALREADY_USED`) → revoke →
@@ -194,27 +194,30 @@ non-zero on the first unexpected verdict:
   `BAD_SIGNATURE` (and burns its nonce, so replaying that nonce answers
   `BAD_CHALLENGE`), a fresh challenge signed by the holder admits with
   `path: 'signature'`, replaying it answers `BAD_CHALLENGE`, and a third
-  challenge answers `ALREADY_USED` because the right is `SINGLE_USE`.
-- **private** — after the rights subgraph is deployed, run the event demo from
-  Graph Studio and use the member app against its public gateway endpoint.
-  Discovery no longer goes through this Worker.
+  challenge answers `ALREADY_USED` because the right is `SINGLE_USE`. The
+  script then revokes it and verifies `REVOKED`.
 
 ```bash
 SMOKE_LADDERS=bearer,signed API_URL=https://api.fuda.sh ADMIN_TOKEN=… pnpm --filter api smoke:live
 API_URL=https://api.fuda.sh ADMIN_TOKEN=… pnpm --filter api smoke:live --ladder signed
-SMOKE_LADDERS=bearer,private pnpm --filter api smoke:live
+pnpm --filter api smoke:live
 ```
 
 `--ladder` (or `SMOKE_LADDERS`) takes a comma-separated list of `bearer`,
-`signed`, `private`, or `all`; select `bearer,signed` until the private ladder
-is moved to the Graph client. `API_URL` defaults to
+`signed`, or `all`; the default runs both supported ladders. `private` is
+rejected before any issuance, including in a mixed list. `API_URL` defaults to
 `http://localhost:8787`, so the script also works against a locally running
 `wrangler dev` (with or without `USE_FAKE_CHAIN=1`, as long as a signer is
 available to `/issue`/`/revoke`).
 
-The current API smoke script exercises the bearer and signed ladders. Use the
-rights-subgraph smoke query and member app for the private ladder after Graph
-deployment.
+Every returned issue UID is revoked in `finally`, including when an assertion
+or later request fails. Signed holder keys are generated afresh per run.
+If the revoke request fails, the script exits non-zero; use the logged issue
+UID to retry `/revoke`. An interrupted process or an issue response lost after
+on-chain issuance still requires operational reconciliation.
+
+Use the rights-subgraph smoke query and member app for private discovery after
+Graph deployment; see [the Graph demo](../../docs/graph-demo.md).
 
 ## Endpoints
 

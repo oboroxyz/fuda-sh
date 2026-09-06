@@ -46,7 +46,11 @@ export const ChainTruthView = ({ state }: { state: ChainTruthState }): JSX.Eleme
           <div class="font-mono text-xs break-all">{right.id}</div>
           <div>{right.revokedAt === null ? 'ACTIVE' : `REVOKED at ${right.revokedAt}`}</div>
           <div>holder {short(right.holder)}</div>
-          <div>delegation {right.delegation.id}</div>
+          <div>
+            {right.delegation === null
+              ? `Unresolved delegation ${right.refUID}`
+              : `delegation ${right.delegation.id}`}
+          </div>
           <ul>
             {(state.attendances[right.id] ?? []).map((attendance): JSX.Element => (
               <li key={attendance.id}>entered at {attendance.enteredAt}</li>

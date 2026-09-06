@@ -40,6 +40,7 @@ const rightRow = (id: `0x${string}` = TX_A) => ({
   issuer: `0x${'22'.repeat(20)}`,
   level: 1,
   metaURI: 'ipfs://one',
+  refUID: TX_B,
   revokedAt: null,
   schemaVersion: 1,
   serial: `0x${'00'.repeat(32)}`,
@@ -136,6 +137,23 @@ describe(fetchAnnouncements, () => {
     )
   })
 
+  it('rejects partial announcement data when GraphQL also returns errors', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          await Promise.resolve(
+            Response.json({
+              data: { announcements: [graphRow(1n)] },
+              errors: [{ message: 'indexing failed' }],
+            }),
+          ),
+      ),
+    )
+
+    await expect(fetchAnnouncements('https://graph.example/query', 0n)).rejects.toThrow('indexing failed')
+  })
+
   it.each(['caller', 'stealthAddress', 'transactionHash'] as const)(
     'rejects an announcement with a wrong-width %s',
     async (field) => {
@@ -180,6 +198,29 @@ describe(fetchAnnouncements, () => {
 })
 
 describe('chain-truth Graph queries', () => {
+  it.each([`0x${'00'.repeat(32)}`, TX_B])(
+    'keeps rights with unresolved delegation references (%s) in nested query results',
+    async (refUID) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          async () =>
+            await Promise.resolve(
+              Response.json({
+                data: { rights: [{ ...rightRow(), delegation: null, refUID }, rightRow(TX_B)] },
+              }),
+            ),
+        ),
+      )
+
+      const rows = await fetchRightsByHolder('https://graph.example/query', `0x${'11'.repeat(20)}`)
+
+      expect(rows).toHaveLength(2)
+      expect(rows[0]).toMatchObject({ delegation: null, id: TX_A, refUID })
+      expect(rows[1]?.delegation?.id).toBe(TX_B)
+    },
+  )
+
   it('fetches every rights page using the last id as a stable cursor', async () => {
     const first = Array.from({ length: 1000 }, (_, index) => rightRow(bytes32(index + 1)))
     const second = rightRow(bytes32(1001))
@@ -255,6 +296,7 @@ describe('chain-truth Graph queries', () => {
                   issuer: `0x${'22'.repeat(20)}`,
                   level: 1,
                   metaURI: 'ipfs://one',
+                  refUID: TX_B,
                   revokedAt: null,
                   schemaVersion: 1,
                   serial: `0x${'00'.repeat(32)}`,
@@ -276,6 +318,7 @@ describe('chain-truth Graph queries', () => {
                   issuer: `0x${'22'.repeat(20)}`,
                   level: 2,
                   metaURI: '',
+                  refUID: TX_B,
                   revokedAt: '88',
                   schemaVersion: 1,
                   serial: `0x${'11'.repeat(32)}`,
