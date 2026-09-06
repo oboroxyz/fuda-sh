@@ -70,9 +70,14 @@ if (log === undefined) {
   throw new Error(`no Attested event in ${txHash}`)
 }
 
-/* oxlint-disable no-console -- a one-time CLI printing the values the operator pastes into wrangler.jsonc */
-console.log(`tx ${txHash}`)
-console.log(`schema ${schema}`)
-console.log('\nPaste into wrangler.jsonc vars:')
-console.log(`ISSUER_ADDRESS=${account.address}`)
-console.log(`DELEGATION_UID=${log.args.uid}`)
+// oxlint-disable-next-line no-console -- a one-time CLI printing the values the operator pastes into wrangler.jsonc
+console.log(
+  [
+    `tx ${txHash}`,
+    `schema ${schema}`,
+    '',
+    'Paste into wrangler.jsonc vars:',
+    `ISSUER_ADDRESS=${account.address}`,
+    `DELEGATION_UID=${log.args.uid}`,
+  ].join('\n'),
+)

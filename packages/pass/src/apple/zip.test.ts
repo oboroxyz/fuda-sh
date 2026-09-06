@@ -32,7 +32,7 @@ describe(buildZip, () => {
       { data: bytes('abc'), name: 'a.txt' },
       { data: bytes('hello'), name: 'b.bin' },
     ])
-    expect(u16(zip, 10)).toBe(0)
+    expect(u16(zip, 8)).toBe(0)
     expect(u32(zip, 18)).toBe(3)
     expect(u32(zip, 22)).toBe(3)
     // The second entry begins right after the first: 30 + 5 + 3.
