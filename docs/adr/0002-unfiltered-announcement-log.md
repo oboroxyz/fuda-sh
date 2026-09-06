@@ -1,6 +1,7 @@
 # ADR 0002: the api serves the whole ERC-5564 announcement log, unfiltered
 
-- **Status**: Accepted 2026-09-06.
+- **Status**: Superseded by ADR 0003 on 2026-09-06. Preserved as the historical
+  API-cache decision.
 - **Scope**: how `GET /announcements` selects what it returns to a caller.
 
 ## Context

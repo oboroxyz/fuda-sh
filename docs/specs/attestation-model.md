@@ -206,6 +206,7 @@ Attested with `recipient = holder` and `refUID = rightUID`.
 | `DELEGATION_UID`                                                                           | `wrangler.jsonc` `vars` | UID of the root IssuerDelegation that every issued Entitlement references                                                                                                                                                                                                                                              |
 | `ISSUER_ADDRESS`                                                                           | `wrangler.jsonc` `vars` | The configured root attester; the gate accepts only delegations attested by this address                                                                                                                                                                                                                               |
 | `ANNOUNCER_ADDRESS`                                                                        | `wrangler.jsonc` `vars` | The ERC-5564 Announcer `/issue` writes +Private announcements to                                                                                                                                                                                                                                                       |
+| `ANNOUNCER_FROM_BLOCK`                                                                     | `wrangler.jsonc` `vars` | Graph-manifest generation source for both rights-subgraph data-source start blocks; it is not read by the API                                                                                                                                                                                                          |
 | `FACTORY_ADDRESS`                                                                          | `wrangler.jsonc` `vars` | Coinbase Smart Wallet factory used to derive Bearer holder addresses                                                                                                                                                                                                                                                   |
 | `API_BASE_URL`                                                                             | `wrangler.jsonc` `vars` | Absolute base for the `passUrls` in `/issue` responses; its origin is the api entry in the Google Wallet `origins` claim, which also lists `https://dash.fuda.sh` and `https://app.fuda.sh`                                                                                                                            |
 | Signer key (`SIGNER_PRIVATE_KEY`)                                                          | Worker secret           | Signs Entitlement, IssuerDelegation, and Attendance transactions; endpoints answer `501 no_signer` without                                                                                                                                                                                                             |
@@ -469,6 +470,8 @@ public Graph endpoint with a stable `(blockNumber, id)` cursor, validates every
 response field, preserves Graph integer scalars as JavaScript `bigint`, and
 passes the raw candidates to local viewing-key matching. No announcement or
 stealth holder is persisted in D1, and `GET /announcements` does not exist.
+The subgraph reads the EAS and Announcer contracts directly; it neither consumes
+the Substreams packages nor requires a Substreams process or sink.
 
 ### Rights and chain-truth views
 
@@ -525,8 +528,8 @@ a trace an operator reconciles by hand:
   platform check).
 - **Unit (member app):** announcement paging — a short page ends the walk, a
   full page resumes from its last block and de-duplicates the repeated boundary
-  row, and the 50-page cap reports the list as incomplete; app-only route
-  selection and active, revoked, empty, loading, and error card states.
+  row; app-only route selection and active, revoked, empty, loading, and error
+  card states.
 - **Unit (Graph views):** holder and issuer normalization; multiple, revoked,
   empty, malformed, and GraphQL-error responses; Attendance and delegation
   relation loading; and dashboard rendering without a D1 member row.

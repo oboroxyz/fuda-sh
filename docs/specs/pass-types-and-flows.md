@@ -141,6 +141,9 @@ member's. Pages use a stable `(blockNumber, id)` cursor, and Graph `BigInt`
 scalars remain JavaScript `bigint` values. Matching runs the ECDH against the
 row's ephemeral key, checks the announcement's view tag against byte 0 of the
 resulting shared secret, and only then derives the stealth address to compare.
+The rights subgraph indexes the Announcer directly. Discovery does not consume
+the optional Substreams push lane and continues when no Substreams process is
+running.
 
 **Interoperability caveat.** fuda's shared secret is the `keccak256` of the
 **compressed** 33-byte ECDH point. An ERC-5564 scanner that hashes a different
@@ -378,6 +381,8 @@ holder, Attendance by right UID, and IssuerDelegation by issuer. It is visually
 and operationally separate from the admin-token-protected D1 Members section:
 chain-truth reads do not create or update member rows. A +Private stealth holder
 may be entered locally for a lookup but is never persisted to D1 by either view.
+If `VITE_GRAPH_RIGHTS_ENDPOINT` is empty, these Graph-backed screens report that
+lookup or discovery is not configured; they do not fall back to the API or D1.
 
 ## Related specs
 

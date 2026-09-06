@@ -2,9 +2,9 @@
 
 fuda ships two Substreams packages under `packages/substreams`. They expose raw
 chain events for reuse and live push consumption. They are not part of the
-product read path: the current member app still discovers +Private rights
-through the API announcement cache, and stopping Substreams does not change
-issuance, discovery, or gate verification.
+product read path: the current member app discovers +Private rights
+through the independently deployed rights subgraph, and stopping Substreams
+does not change issuance, discovery, chain-truth views, or gate verification.
 
 ## Package roles
 

@@ -7,11 +7,12 @@ Membership rights as on-chain attestations, verified at a physical gate.
 | api | `apps/api` | `pnpm --filter api dev` (http://localhost:8787, `--env dev`; set `USE_FAKE_CHAIN=1` in `apps/api/.dev.vars` to run without a signer) |
 | gate scanner | `apps/gate` | `pnpm --filter gate dev` (http://localhost:5174) |
 | operator dash | `apps/dash` | `pnpm --filter dash dev` (http://localhost:5175) |
-| member app | `apps/app` | `pnpm --filter app dev` (http://localhost:5173; apex landing plus the `/signed` challenge-response gate and the `/private` +Private screens) |
+| member app | `apps/app` | `pnpm --filter app dev` (http://localhost:5173; apex landing plus the app-only `/signed`, `/private`, and `/rights` screens) |
 | shared contract | `packages/sdk` | types, validators, `qrSvg` |
 | stealth crypto | `packages/stealth-address` | ERC-5564 scheme-1 stealth address math: meta-address derivation, generation, and announcement matching — shared by the api and `apps/app`'s `/private` screens |
 | wallet passes | `packages/pass` | Google Wallet save-link JWT and Apple `.pkpass` builders (WebCrypto; no platform SDKs) |
 | shared web UI kit | `packages/ui` | `Scanner`, the fetch wrapper, `short` — shared by `apps/gate`, `apps/dash` and `apps/app` |
+| rights subgraph | `packages/subgraphs/rights` | self-contained Base Sepolia query lane for rights, delegations, Attendance, revocations, and raw announcements |
 | ERC-5564 Substreams | `packages/substreams/erc5564` | reusable raw `Announcement` extraction with a parameterized Announcer address |
 | ERC-5564 + EAS pipeline | `packages/substreams/erc5564-eas-pipeline` | composes the ERC-5564 package with raw EAS `Attested` and `Revoked` events |
 
@@ -20,7 +21,7 @@ Frontends read the api origin from `VITE_API_BASE_URL` (default `http://localhos
 `apps/app` also reads `VITE_APP_ORIGIN`: set it to `http://localhost:5173` in
 local dev, or the `/signed` gate bounces to the production origin
 (`https://app.fuda.sh` by default) instead of running locally — the apex and
-the app are one Worker, and `/signed` and `/private` only render on the app
+the app are one Worker, and `/signed`, `/private`, and `/rights` only render on the app
 origin (the only one the api's CORS list allows).
 
 `apps/app` also reads `VITE_RP_ID`, the relying-party id of every passkey
@@ -29,8 +30,15 @@ production default (`fuda.sh`), which is not a registrable suffix of the dev
 host. In production it stays `fuda.sh` so the apex and `app.fuda.sh` share one
 passkey.
 
+`apps/app` and `apps/dash` read chain-truth views from the public Graph endpoint
+in `VITE_GRAPH_RIGHTS_ENDPOINT`. The member app also uses that endpoint to load
+raw announcements before matching them locally. The Substreams packages are an
+optional live push lane with no resident sink; product reads use the rights
+subgraph directly and do not depend on a running Substreams process.
+
 See [`docs/runbook.md`](docs/runbook.md) for the one-time Cloudflare/Base
-Sepolia setup and deploy runbook.
+Sepolia setup and deploy runbook. See [`docs/graph-demo.md`](docs/graph-demo.md)
+for the executable Graph/Substreams demo and evidence checklist.
 
 ## Setup
 
