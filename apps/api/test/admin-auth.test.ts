@@ -48,6 +48,16 @@ describe(adminAuth, () => {
     await expect(res.json()).resolves.toStrictEqual({ error: 'unauthorized' })
   })
 
+  it('locks the route when only BASE_RPC_URL is configured without ADMIN_TOKEN', async () => {
+    const env = testEnv({
+      ADMIN_TOKEN: undefined,
+      BASE_RPC_URL: 'https://sepolia.base.org',
+      SIGNER_PRIVATE_KEY: undefined,
+    })
+    const res = await guarded().request('/admin', {}, env)
+    expect(res.status).toBe(401)
+  })
+
   it('never locks a route while ADMIN_TOKEN is set, signer or not', async () => {
     const env = testEnv({ ADMIN_TOKEN: 'secret', SIGNER_PRIVATE_KEY: SIGNER })
     const ok = await guarded().request('/admin', { headers: { Authorization: 'Bearer secret' } }, env)

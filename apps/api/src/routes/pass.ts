@@ -47,9 +47,10 @@ passRoutes.get('/pass/:uid/google', async (c) => {
     )
     return jsonResponse(c, { saveUrl }, 200)
   } catch (error) {
-    // An unimportable GOOGLE_SA_KEY_PEM is a misconfigured deployment, not an
-    // internal defect: the endpoint reads as unconfigured and says why in the log.
-    console.error('[fuda-api] GOOGLE_SA_KEY_PEM could not be imported as an RS256 key', error)
+    // An unimportable GOOGLE_SA_KEY_PEM or a malformed API_BASE_URL is a misconfigured
+    // deployment, not an internal defect: the endpoint reads as unconfigured and the log says why.
+    // oxlint-disable-next-line no-console -- a misconfigured deploy must be visible in wrangler tail
+    console.error('[fuda-api] the Google pass could not be built (GOOGLE_* secrets or API_BASE_URL)', error)
     return errorResponse(c, 'google_not_configured', 501)
   }
 })
@@ -84,6 +85,7 @@ passRoutes.get('/pass/:uid/apple.pkpass', async (c) => {
   } catch (error) {
     // An unparsable certificate or key is a misconfigured deployment, not an
     // internal defect: the endpoint reads as unconfigured and says why in the log.
+    // oxlint-disable-next-line no-console -- a misconfigured deploy must be visible in wrangler tail
     console.error('[fuda-api] the APPLE_* certificate or key could not be used to sign a pass', error)
     return errorResponse(c, 'apple_not_configured', 501)
   }

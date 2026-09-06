@@ -25,12 +25,17 @@ const isTokenUnset = (token: string | undefined): token is undefined | '' =>
 
 const isSet = (v: string | undefined): v is string => v !== undefined && v !== ''
 
-// A deployment with a real signer but no ADMIN_TOKEN would expose /issue,
-// /revoke and /members to the internet. Fail closed: the admin routes answer
-// 401 until the secret is set. Local dev on the fake chain has no signer, so
-// it stays open (the fake-chain opt-in already requires SIGNER_PRIVATE_KEY unset).
-export const adminLocked = (env: Pick<Bindings, 'ADMIN_TOKEN' | 'SIGNER_PRIVATE_KEY'>): boolean =>
-  isTokenUnset(env.ADMIN_TOKEN) && isSet(env.SIGNER_PRIVATE_KEY)
+// A deployment with a chain binding of any kind but no ADMIN_TOKEN would expose
+// /issue, /revoke and /members to the internet. Fail closed: the admin routes
+// answer 401 until the secret is set. A signer marks a writing deployment; a
+// BASE_RPC_URL alone marks a read-only or mid-rotation one whose /members list is
+// just as sensitive. Local dev on the fake chain sets neither, so it stays open
+// (the fake-chain opt-in already requires SIGNER_PRIVATE_KEY unset). A deployment
+// with neither binding runs on the default public RPC and also stays open; that
+// boundary is deliberate, since closing it would lock every fixture environment.
+export const adminLocked = (
+  env: Pick<Bindings, 'ADMIN_TOKEN' | 'SIGNER_PRIVATE_KEY' | 'BASE_RPC_URL'>,
+): boolean => isTokenUnset(env.ADMIN_TOKEN) && (isSet(env.SIGNER_PRIVATE_KEY) || isSet(env.BASE_RPC_URL))
 
 let lockedWarned = false
 const warnLockedOnce = (): void => {
@@ -38,7 +43,7 @@ const warnLockedOnce = (): void => {
     lockedWarned = true
     // oxlint-disable-next-line no-console -- a misconfigured deploy must be visible in wrangler tail
     console.error(
-      '[fuda-api] ADMIN_TOKEN is unset while SIGNER_PRIVATE_KEY is set: admin routes are locked. Run `wrangler secret put ADMIN_TOKEN`.',
+      '[fuda-api] ADMIN_TOKEN is unset while a chain binding (SIGNER_PRIVATE_KEY or BASE_RPC_URL) is set: admin routes are locked. Run `wrangler secret put ADMIN_TOKEN`.',
     )
   }
 }

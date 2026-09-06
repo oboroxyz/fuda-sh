@@ -73,6 +73,11 @@ export const buildZip = (entries: ZipEntry[]): Uint8Array<ArrayBuffer> => {
   }
   const centralStart = offset
   const centralSize = prepared.reduce((sum, e) => sum + CENTRAL_HEADER_SIZE + e.name.length, 0)
+  // Plain ZIP only: sizes and offsets are 32-bit and the entry count 16-bit. A pkpass is
+  // four small files, so the limit is stated rather than silently wrapped.
+  if (prepared.length > 0xff_ff || centralStart + centralSize > 0xff_ff_ff_ff) {
+    throw new Error('zip: archive exceeds the plain ZIP limits (no ZIP64 support)')
+  }
   const out = new Uint8Array(new ArrayBuffer(centralStart + centralSize + END_RECORD_SIZE))
   const view = new DataView(out.buffer)
   for (const entry of prepared) {

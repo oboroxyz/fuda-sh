@@ -169,7 +169,7 @@ describe('GET /pass/:uid/apple.pkpass', () => {
     expect(ok).toBe(true)
   })
 
-  it('is 501 when any one of the five secrets is missing', async () => {
+  it('is 501 when a required APPLE_* secret is missing', async () => {
     const chain = fakeChain()
     const del = seedRoot(chain)
     const uid = seedRight(chain, del)

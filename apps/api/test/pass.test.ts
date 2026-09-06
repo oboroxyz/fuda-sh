@@ -271,7 +271,7 @@ describe('GET /pass/:uid/google', () => {
     expect(obj?.header.defaultValue.value).toBe('VIP')
   })
 
-  it('is 501 when any one of the four secrets is missing', async () => {
+  it('is 501 when a required GOOGLE_* secret is missing', async () => {
     const chain = fakeChain()
     const del = seedRoot(chain)
     const uid = seedRight(chain, del)
