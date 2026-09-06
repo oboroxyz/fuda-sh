@@ -14,7 +14,9 @@ export interface RightsListProps {
   rows: readonly MemberRowView[]
 }
 
-const qrPanelId = (uid: string): string => `right-qr-${uid}`
+type RightsLayout = 'table' | 'cards'
+
+const qrPanelId = (layout: RightsLayout, uid: string): string => `right-${layout}-qr-${uid}`
 
 const shortenedUid = (uid: string): string => `${uid.slice(0, 10)}…`
 
@@ -63,9 +65,9 @@ const uidDisplay = (row: MemberRowView): JSX.Element => (
   </code>
 )
 
-const qrDisclosure = (openQr: string | null, row: MemberRowView): JSX.Element | null =>
+const qrDisclosure = (layout: RightsLayout, openQr: string | null, row: MemberRowView): JSX.Element | null =>
   openQr === row.uid ? (
-    <div id={qrPanelId(row.uid)} class="pt-3">
+    <div id={qrPanelId(layout, row.uid)} class="pt-3">
       <QrBlock qr={row.qr} />
     </div>
   ) : null
@@ -77,7 +79,8 @@ const actions = ({
   openQr,
   revokingUid,
   row,
-}: RightsListProps & { row: MemberRowView }): JSX.Element => {
+  layout,
+}: RightsListProps & { layout: RightsLayout; row: MemberRowView }): JSX.Element => {
   const qrOpen = openQr === row.uid
   const revokeDisabled = row.status === 'revoked' || revokingUid === row.uid
   return (
@@ -85,7 +88,7 @@ const actions = ({
       <button
         type="button"
         class="btn btn-xs"
-        aria-controls={qrPanelId(row.uid)}
+        aria-controls={qrPanelId(layout, row.uid)}
         aria-expanded={qrOpen}
         onClick={() => {
           onToggleQr(row.uid)
@@ -119,11 +122,11 @@ const tableRecord = (props: RightsListProps, row: MemberRowView): JSX.Element[] 
       <td>{statusBadge(props.copy, row)}</td>
       <td>{uidDisplay(row)}</td>
       <td>{passLinks(props.copy, row)}</td>
-      <td>{actions({ ...props, row })}</td>
+      <td>{actions({ ...props, layout: 'table', row })}</td>
     </tr>,
     props.openQr === row.uid ? (
       <tr key={`${row.uid}:qr`}>
-        <td colspan={8}>{qrDisclosure(props.openQr, row)}</td>
+        <td colspan={8}>{qrDisclosure('table', props.openQr, row)}</td>
       </tr>
     ) : null,
   ].filter((record): record is JSX.Element => record !== null)
@@ -155,8 +158,8 @@ const cardRecord = (props: RightsListProps, row: MemberRowView): JSX.Element => 
         <dd>{passLinks(props.copy, row)}</dd>
       </div>
     </dl>
-    {actions({ ...props, row })}
-    {qrDisclosure(props.openQr, row)}
+    {actions({ ...props, layout: 'cards', row })}
+    {qrDisclosure('cards', props.openQr, row)}
   </article>
 )
 

@@ -1,6 +1,5 @@
 /** @jsxImportSource hono/jsx/dom */
 import { pick } from '@fuda/i18n'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 import { describe, expect, it } from 'vitest'
 
 import { DASH_COPY } from './copy.ts'
@@ -54,12 +53,16 @@ const rows: readonly MemberRowView[] = [
   },
 ]
 
-const buttons = (view: JSX.Element) => walkView(view).filter((node) => viewProps(node).type === 'button')
-const records = (view: JSX.Element, uid: string) =>
+const buttons = (view: unknown) => walkView(view).filter((node) => viewProps(node).type === 'button')
+const records = (view: unknown, uid: string) =>
   walkView(view).filter((node) => viewProps(node)['data-right-uid'] === uid)
+const panelIds = (view: unknown): string[] =>
+  walkView(view)
+    .map((node) => viewProps(node).id)
+    .filter((id): id is string => typeof id === 'string')
 
 describe(RightsList, () => {
-  it('renders the same public and private rights in desktop and mobile records', () => {
+  it('renders the same public and private rights in desktop and mobile records without private pass anchors', () => {
     const view = RightsList({
       copy: pick(DASH_COPY, 'en').rights,
       onRequestRevoke: (): void => {},
@@ -77,7 +80,7 @@ describe(RightsList, () => {
     expect({
       cards: { class: viewProps(cards!).class, exists: cards !== undefined },
       private: {
-        anchorCount: privateRecords.flatMap(findViewNodes).filter((node) => node.tag === 'a').length,
+        anchorCount: privateRecords.flatMap((record) => findViewNodes(record, 'a')).length,
         recordCount: privateRecords.length,
         showsFallback: privateRecords.map(viewText).join(' ').includes('—'),
       },
@@ -106,13 +109,22 @@ describe(RightsList, () => {
     const uidCodes = findViewNodes(view, 'code')
     const qrButtons = buttons(view).filter((node) => ['Show QR', 'Hide QR'].includes(viewText(node)))
     const revokeButtons = buttons(view).filter((node) => viewText(node) === 'Revoke')
+    const table = walkView(view).find((node) => viewProps(node)['data-testid'] === 'rights-table')
+    const cards = walkView(view).find((node) => viewProps(node)['data-testid'] === 'rights-cards')
+    const tableQrButtons = buttons(table!).filter((node) => ['Show QR', 'Hide QR'].includes(viewText(node)))
+    const cardQrButtons = buttons(cards!).filter((node) => ['Show QR', 'Hide QR'].includes(viewText(node)))
 
     expect({
       qr: {
+        cardControls: cardQrButtons.map((node) => viewProps(node)['aria-controls']),
+        cardPanels: panelIds(cards!),
         controls: qrButtons.map((node) => viewProps(node)['aria-controls']),
         expanded: qrButtons.filter((node) => viewProps(node)['aria-expanded'] === true).length,
         hideLabel: qrButtons.filter((node) => viewText(node) === 'Hide QR').length,
+        tableControls: tableQrButtons.map((node) => viewProps(node)['aria-controls']),
+        tablePanels: panelIds(table!),
         total: qrButtons.length,
+        uniquePanels: new Set([...panelIds(table!), ...panelIds(cards!)]).size,
       },
       revoked: revokeButtons.map((node) => viewProps(node).disabled),
       uid: {
@@ -121,17 +133,30 @@ describe(RightsList, () => {
       },
     }).toStrictEqual({
       qr: {
+        cardControls: [
+          `right-cards-qr-${UID}`,
+          `right-cards-qr-${SIGNED_UID}`,
+          `right-cards-qr-${PRIVATE_UID}`,
+        ],
+        cardPanels: [`right-cards-qr-${UID}`],
         controls: [
-          `right-qr-${UID}`,
-          `right-qr-${SIGNED_UID}`,
-          `right-qr-${PRIVATE_UID}`,
-          `right-qr-${UID}`,
-          `right-qr-${SIGNED_UID}`,
-          `right-qr-${PRIVATE_UID}`,
+          `right-table-qr-${UID}`,
+          `right-table-qr-${SIGNED_UID}`,
+          `right-table-qr-${PRIVATE_UID}`,
+          `right-cards-qr-${UID}`,
+          `right-cards-qr-${SIGNED_UID}`,
+          `right-cards-qr-${PRIVATE_UID}`,
         ],
         expanded: 2,
         hideLabel: 2,
+        tableControls: [
+          `right-table-qr-${UID}`,
+          `right-table-qr-${SIGNED_UID}`,
+          `right-table-qr-${PRIVATE_UID}`,
+        ],
+        tablePanels: [`right-table-qr-${UID}`],
         total: 6,
+        uniquePanels: 2,
       },
       revoked: [false, true, false, false, true, false],
       uid: {
