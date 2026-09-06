@@ -37,8 +37,9 @@ either is missing the hook is a no-op. A failed attest is caught and logged
 (`console.warn`) but never fails the admission that triggered it — attendance
 is best-effort evidence, not a gate. On success the attestation UID is
 written back to `entry_log.attendance_uid` for the admitting `entry_log` row.
-+Private (level 2) rights are never attested; their entries live only in
-`entry_log`.
++Private (level 2) rights are never attested; why, and what that leaves behind,
+is in the [entitlement
+lifecycle](../../docs/specs/attestation-model.md#entitlement-lifecycle).
 
 ## Signed level: challenge/response
 
@@ -60,48 +61,15 @@ Entry at the Signed level is two calls, never a QR scan:
    The member signs `challenge` verbatim (EIP-191 `personal_sign`) with the
    holder key. The nonce is single-use and expires 300 s after minting.
 
-2. `POST /verify-signed` — body `{ uid, nonce, signature }`. A missing/malformed
-   `uid` answers `400 bad_uid`; a well-formed `uid` with anything else wrong
-   (nonce, signature) answers `400 bad_input`. Otherwise every verdict is `200`
-   in one shape:
+2. `POST /verify-signed` — body `{ uid, nonce, signature }`. Entitlement →
+   challenge → signature → slot, in that order, every verdict `200` in one
+   shape. The step order, the response fields and the error codes are the
+   [gate protocol](../../docs/specs/pass-types-and-flows.md#gate-protocol).
 
-   ```json
-   { "decision": "ADMIT" | "REJECT", "reason": "<Reason>", "path": "signature", "holder"?: "0x…", "stage"?: "entitlement" | "challenge" }
-   ```
-
-   Steps, in order (this order is the contract):
-   1. Decode and validate the entitlement for `uid` (same rules as `/verify`:
-      `NOT_FOUND`, `WRONG_SCHEMA`, `REVOKED`, delegation/timing reasons). The
-      level check is `/verify`'s alone — this path accepts every level, so a
-      Bearer right entered by signature is admitted, never `LEVEL_REQUIRED`.
-      A rejection here answers `stage: 'entitlement'`, and carries `holder`
-      only once the attestation decoded far enough to know it.
-   2. Consume the challenge (`nonce` bound to `uid`, unused, inside the 300 s
-      TTL) — a single conditional `UPDATE`; the write is the lock. A
-      miss (replayed or expired nonce) answers `reason: 'BAD_CHALLENGE'`,
-      `stage: 'challenge'`. Consuming the challenge *before* checking the
-      signature is deliberate: it is the replay protection — a wrong signature
-      still burns its nonce.
-   3. Verify the signature (`ChainClient.verifyMessage`) against the
-      challenge message and the entitlement's `holder`. A mismatch answers
-      `reason: 'BAD_SIGNATURE'` (no `stage`).
-   4. `SINGLE_USE` rights admit atomically via `admitSingleUse`; an
-      already-consumed slot answers `reason: 'ALREADY_USED'`.
-   5. Log the entry (`path: 'signature'`) and run the `onAdmit` attendance hook
-      on every `ADMIT`, exactly as `/verify` does.
-
-   **A chain failure during step 3 answers `502 chain_error` — after the
-   challenge was already consumed in step 2.** This is not a decision, so it
-   is not logged; the member simply fetches a new challenge (nonces are free
-   and cost nothing to mint). In production, `ChainClient.verifyMessage`
-   (`src/chain/viem-chain.ts`) only reaches this `502` for transport-level
-   throws (`HttpRequestError`, `TimeoutError`, `RpcRequestError`) — the kind
-   `FakeChain.failReads` raises for tests. Under viem 2.56.3, `publicClient
-   .verifyMessage`'s own ERC-6492 deployless-call path swallows an RPC error
-   internally and falls back to a pure ECDSA recover instead of throwing, so
-   a live RPC outage today reads as `BAD_SIGNATURE`, not `502` — see the
-   comment above `verifyMessage` in `src/chain/viem-chain.ts` for the full
-   accounting.
+   App-local: the signature check goes through the `ChainClient.verifyMessage`
+   wrapper in `src/chain/viem-chain.ts`, whose comment accounts for which
+   failures surface as `502 chain_error` and which viem's own ERC-6492
+   deployless-call path swallows into a plain `BAD_SIGNATURE`.
 
 Every REJECT and ADMIT on this path is logged with `path: 'signature'` (never
 `'qr'`); a bare QR scan against a Signed-only right still answers
@@ -149,27 +117,16 @@ the member's path, not the operator's:
 { "uid": "0x…", "level": "private", "announced": true, "announceTx": "0x…" }
 ```
 
-`GET /announcements?fromBlock=N` serves the cached ERC-5564 log to every
-caller identically; the api never learns which rows are a given caller's —
-matching happens client-side with the viewing key. Each call lazily syncs new
-chain history into D1 first: from the persisted cursor (or
-`ANNOUNCER_FROM_BLOCK`, which must be set to this deployment's actual
-announcer-contract deployment block) in chunks of at most 1000 blocks
-(`eth_getLogs` range cap on public Base Sepolia RPCs), stopping 5 blocks short
-of the head so a re-org cannot strand a row behind the cursor, up to 5 chunks per
-request so a cold deployment warms up over a few requests instead of spending
-one request's whole CPU budget. Each chunk's rows and its new cursor are
-applied to D1 in a single batch, so the cursor never advances past rows that
-did not land; a batch insert slices its rows into groups of 12 to stay under
-D1's 100-bound-parameter-per-statement limit.
+`GET /announcements?fromBlock=N` serves the cached ERC-5564 log to every caller
+identically, lazily syncing new chain history into D1 on each call. The sync
+bounds, the `{ announcements, syncedTo }` response and the degradation rules are
+the [announcement
+cache](../../docs/specs/attestation-model.md#announcement-cache-get-announcements)
+contract.
 
-The response is `{ announcements, syncedTo }`: up to 1000 rows, ascending by
-block number then log index, starting from `fromBlock` (a non-integer or
-negative `fromBlock` clamps to `0`). If the chain RPC is unreachable, the
-route serves the stale cache with the last-known `syncedTo` rather than
-failing; it answers `502 rpc_unavailable` when no cursor has ever been
-persisted (nothing to serve at all), and likewise when `ANNOUNCER_FROM_BLOCK`
-is unset (see Vars below).
+App-local: on the fake chain the sync floor comes from the fake chain's head at
+boot (`announcerFromBlockOverride` in `src/index.ts`), so a local dev run never
+needs `ANNOUNCER_FROM_BLOCK` set.
 
 This is the only budgeted route in the MVP: a per-IP fixed hourly window of
 120 requests, tracked in D1. A missing `CF-Connecting-IP` header answers

@@ -210,7 +210,7 @@ Attested with `recipient = holder` and `refUID = rightUID`.
 | `FACTORY_ADDRESS`                                                                          | `wrangler.jsonc` `vars` | Coinbase Smart Wallet factory used to derive Bearer holder addresses                                                                                                                                                                                                                                                   |
 | `API_BASE_URL`                                                                             | `wrangler.jsonc` `vars` | Absolute base for the `passUrls` in `/issue` responses; its origin is the api entry in the Google Wallet `origins` claim, which also lists `https://dash.fuda.sh` and `https://app.fuda.sh`                                                                                                                            |
 | Signer key (`SIGNER_PRIVATE_KEY`)                                                          | Worker secret           | Signs Entitlement, IssuerDelegation, and Attendance transactions; endpoints answer `501 no_signer` without                                                                                                                                                                                                             |
-| `ADMIN_TOKEN`                                                                              | Worker secret           | Bearer token for `/issue`, `/revoke`, `/members`. Required whenever a signer is configured: with `SIGNER_PRIVATE_KEY` set and no token the admin routes answer `401 unauthorized` and every response carries `x-auth-mode: locked`; with neither set (local dev) they are open and responses carry `x-auth-mode: open` |
+| `ADMIN_TOKEN`                                                                              | Worker secret           | Bearer token for `/issue`, `/revoke`, `/members`. Required whenever a chain binding is configured: with `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL` set and no token the admin routes answer `401 unauthorized` and every response carries `x-auth-mode: locked`; with no token and neither binding (local dev) they are open and responses carry `x-auth-mode: open` |
 | `BASE_RPC_URL`                                                                             | Worker secret           | Base Sepolia RPC; falls back to the public endpoint                                                                                                                                                                                                                                                                    |
 | `GOOGLE_ISSUER_ID`, `GOOGLE_CLASS_ID`, `GOOGLE_SA_EMAIL`, `GOOGLE_SA_KEY_PEM`              | Worker secrets          | Google Wallet; all four or `GET /pass/:uid/google` answers `501 google_not_configured`                                                                                                                                                                                                                                 |
 | `APPLE_PASS_TYPE_ID`, `APPLE_TEAM_ID`, `APPLE_CERT_PEM`, `APPLE_KEY_PEM`, `APPLE_WWDR_PEM` | Worker secrets          | Apple Wallet; all five or `GET /pass/:uid/apple.pkpass` answers `501 apple_not_configured`                                                                                                                                                                                                                             |
@@ -317,7 +317,29 @@ anything else → `400 bad_input`.
 ```
 
 Issuance is synchronous: the endpoint submits the attestation transaction and
-waits for the receipt before returning the UID.
+waits for the receipt before returning the UID. A Bearer or Signed issuance
+answers:
+
+```jsonc
+{
+    "uid": "0x…64", // the Entitlement attestation UID
+    "level": "bearer", // or "signed"
+    "holder": "0x…40", // the Entitlement's EAS recipient
+    "qr": "fuda:v1:0x…64", // the payload the gate scanner reads
+    "passUrls": {
+        "web": "https://api.fuda.sh/pass/0x…64",
+        "google": "https://api.fuda.sh/pass/0x…64/google",
+        "apple": "https://api.fuda.sh/pass/0x…64/apple.pkpass",
+    },
+}
+```
+
+All three `passUrls` are absolute against `API_BASE_URL` and always present,
+even where a wallet platform is unconfigured (that route answers `501`). A
++Private issuance answers the other arm — `{ "uid", "level": "private",
+"announced": true, "announceTx" }` — with no `holder`, no `qr` and no
+`passUrls`, because a +Private right has no pass
+([passes](./pass-types-and-flows.md#passes)).
 
 **`POST /revoke`** takes `{ "uid": "0x…64" }`, calls
 `revoke(entitlementSchemaUid, uid)` on EAS, then marks the member row
@@ -524,7 +546,8 @@ a trace an operator reconciles by hand:
   `member_id` = the supplied representative id; +Private ADMIT via
   `/verify-signed` → no Attendance attest is attempted and `attendance_uid`
   stays `NULL`; admin routes locked (`401`, `x-auth-mode: locked`) without
-  `ADMIN_TOKEN` when a signer is set; `/pass/:uid` `404` for a +Private row (the
+  `ADMIN_TOKEN` when a signer is set, and equally when only `BASE_RPC_URL` is
+  set; `/pass/:uid` `404` for a +Private row (the
   shared row load precedes any platform check); announcement sync: chunk cap and
   resume, monotone cursor under a concurrent faster sync, cursor floored at the
   configured start, and the `CONFIRMATIONS` stop short of the head.

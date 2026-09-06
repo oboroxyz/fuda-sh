@@ -67,10 +67,11 @@ depends on.
 Set with `wrangler secret put <NAME>` from `apps/api`:
 
 - `SIGNER_PRIVATE_KEY` — the issuer's EOA private key.
-- `ADMIN_TOKEN` — **required whenever `SIGNER_PRIVATE_KEY` is set.** With a
-  signer configured and no `ADMIN_TOKEN`, the api locks every admin route
-  (`401 unauthorized`) and every response carries `x-auth-mode: locked`. This
-  is deliberate fail-closed behavior, not a misconfiguration to work around.
+- `ADMIN_TOKEN` — **required whenever a chain binding is set.** With
+  `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL` configured and no `ADMIN_TOKEN`, the
+  api locks every admin route (`401 unauthorized`) and every response carries
+  `x-auth-mode: locked`. This is deliberate fail-closed behavior, not a
+  misconfiguration to work around.
 - `BASE_RPC_URL` — Base Sepolia RPC endpoint.
 - `GOOGLE_ISSUER_ID`, `GOOGLE_CLASS_ID`, `GOOGLE_SA_EMAIL`, `GOOGLE_SA_KEY_PEM`
   — see §4.
@@ -154,11 +155,11 @@ curl -i https://api.fuda.sh/health
 
 `x-auth-mode` is a response header, so `-i` is needed to see it. Expect the
 header to be **absent**. If it is present, the deploy is misconfigured:
-`locked` means `ADMIN_TOKEN` is unset while a signer (`SIGNER_PRIVATE_KEY`)
-is configured — the admin routes are 401ing everything; `open` means neither
-a token nor a signer is set — the admin routes are unauthenticated. Both are
-fail states in production, not acceptable resting states (see
-`apps/api/src/middleware/admin-auth.ts:32-77`).
+`locked` means `ADMIN_TOKEN` is unset while a chain binding — a signer
+(`SIGNER_PRIVATE_KEY`) or `BASE_RPC_URL` — is configured, so the admin routes
+are 401ing everything; `open` means no token and neither binding is set, so the
+admin routes are unauthenticated. Both are fail states in production, not
+acceptable resting states (see `apps/api/src/middleware/admin-auth.ts`).
 
 ```bash
 curl https://api.fuda.sh/announcements
