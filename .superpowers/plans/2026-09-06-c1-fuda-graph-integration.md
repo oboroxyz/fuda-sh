@@ -205,8 +205,8 @@ If Task 2 cannot stream a real Base Sepolia announcement by the evening of Septe
 - [x] Test both known and unknown schemes, exact field preservation, and multiple logs in one transaction.
 - [x] Implement ID `transactionHash.concatI32(logIndex)` with no view-tag or caller filtering.
 - [x] Run `pnpm graph:test && pnpm graph:build && pnpm check`; expect success.
-- [ ] After production MVP configuration is populated, emit live issue, Attendance, Announcement, and revoke events; deploy to Studio and run the smoke query.
-- [ ] Compare UIDs, holders, metadata, relations, and revocation state with receipts. Require real Right, Delegation, Attendance, and Announcement entities.
+- [x] After production MVP configuration is populated, emit live issue, Attendance, Announcement, and revoke events; deploy to Studio and run the smoke query. _Done 2026-09-07 00:25 JST: `fuda-rights` v0.1.0 in Studio, synced to head; smoke query returned the live right, delegation, attendance and announcements._
+- [x] Compare UIDs, holders, metadata, relations, and revocation state with receipts. Require real Right, Delegation, Attendance, and Announcement entities. _Done: right `0x2211…b966` holder/issuer/refUID/revokedAt match; delegation `0x7bb3…6155` active; attendance `0x0e92…00d9` linked; announcements at 46468812 and 46469891 match the announce receipts, plus third-party announcements in the same log._
 - [ ] Commit with `feat(graph): index announcements and document subgraph deployment`.
 
 ### Task 7: Replace the D1 announcement cache
