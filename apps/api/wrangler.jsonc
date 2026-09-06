@@ -18,6 +18,7 @@
     },
   ],
   // Secrets (`wrangler secret put`, never `vars`): SIGNER_PRIVATE_KEY,
+  // ENS_GATEWAY_SIGNER_KEY, ENS_GATEWAY_SECRET,
   // ADMIN_TOKEN, BASE_RPC_URL and the wallet-platform names —
   // GOOGLE_ISSUER_ID, GOOGLE_CLASS_ID, GOOGLE_SA_EMAIL, GOOGLE_SA_KEY_PEM
   // (all four, or GET /pass/:uid/google answers 501) and
@@ -29,7 +30,9 @@
   // EAS_SCHEMAS (empty sets → /issue answers 502 chain_error), ISSUER_ADDRESS and
   // DELEGATION_UID (zero → the same 502). ANNOUNCER_FROM_BLOCK is retained here
   // as the rights-subgraph manifest generation source; "0" makes graph:prepare
-  // fail until production configuration is populated.
+  // fail until production configuration is populated. ENS_PARENT_NAME and
+  // ENS_RESOLVER_ADDRESSES stay absent until the matching resolver is deployed;
+  // POST /ens/gateway then answers 503 rather than signing for placeholders.
   "vars": {
     "EAS_ADDRESS": "0x4200000000000000000000000000000000000021",
     "SCHEMA_REGISTRY_ADDRESS": "0x4200000000000000000000000000000000000020",

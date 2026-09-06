@@ -65,6 +65,86 @@ depends on.
    pnpm --filter api migrate:remote
    ```
 
+### ENSv2 parent and hybrid resolver topology
+
+The D1 migrations create the `ens_names` mirror and `stealth_resolutions`
+ledger. The API exposes `POST /ens/gateway`, and `packages/ens-contracts`
+contains the matching hybrid ENSIP-10 resolver, issuer registrar, pinned
+ETHOnline 2026 Sepolia address family, and noninteractive deployment tools.
+The gateway route fails closed with 503 unless all four API-side ENS bindings
+are present, so the ordinary deployment above does not need placeholder ENS
+values.
+
+Use only the dedicated deployment on Ethereum Sepolia (`11155111`). Every
+client must use its Universal Resolver override
+`0xd26f2040d083af1cd2962ba303f4bea0c4faf142`; do not substitute normal
+Sepolia ENS addresses. Keep the parent, voucher, gateway, allocation, and EAS
+issuer keys separate, and never paste real keys into a checked-in file.
+
+Run the read-only preflight first:
+
+```bash
+ENS_RPC_URL=https://… pnpm --filter @fuda/ens-contracts ens:preflight
+```
+
+Register the parent with the two-step commit/reveal flow:
+
+```bash
+ENS_RPC_URL=https://… ENS_PARENT_ADDRESS=0x… ENS_PARENT_KEY=0x… ENS_COMMITMENT_SECRET=0x… ENS_PARENT_DURATION=31536000 pnpm --filter @fuda/ens-contracts ens:parent:commit
+ENS_RPC_URL=https://… ENS_PARENT_ADDRESS=0x… ENS_PARENT_KEY=0x… ENS_COMMITMENT_SECRET=0x… ENS_PARENT_DURATION=31536000 pnpm --filter @fuda/ens-contracts ens:parent:reveal
+```
+
+After a fresh successful commit, rerun the commit command safely: it recognizes
+the existing commitment without sending and reports `readyAt` and `expiresAt`.
+Reveal is accepted when the confirmed commitment age is inclusively between
+the registrar's `MIN_COMMITMENT_AGE` and `MAX_COMMITMENT_AGE`. Before the
+minimum it stops without sending; after the maximum, submit a new commit. Reuse
+the same `ENS_COMMITMENT_SECRET`, owner, and duration for reveal.
+
+Deploy and wire the fuda User Registry, shared resolver, and registrar:
+
+```bash
+ENS_RPC_URL=https://… ENS_PARENT_KEY=0x… ENS_VOUCHER_KEY=0x… ENS_GATEWAY_SIGNER_KEY=0x… pnpm --filter @fuda/ens-contracts ens:topology:deploy
+```
+
+Topology deployment is resumable. Set `ENS_PARENT_ADDRESS` as a public owner
+assertion, and set any already-created `ENS_USER_REGISTRY_ADDRESS`,
+`ENS_RESOLVER_ADDRESS`, and `ENS_REGISTRAR_ADDRESS` values before retrying.
+Every supplied or discovered address is checked for runtime code, owner,
+implementation, immutables, and compatible existing links before any later
+send. The command reports a newly confirmed address before subsequent reads,
+so retain that public progress output if a verification read interrupts the
+run.
+
+Run standalone verification with public values only:
+
+```bash
+ENS_RPC_URL=https://… ENS_PARENT_ADDRESS=0x… ENS_VOUCHER_SIGNER_ADDRESS=0x… ENS_GATEWAY_SIGNER_ADDRESS=0x… ENS_USER_REGISTRY_ADDRESS=0x… ENS_RESOLVER_ADDRESS=0x… ENS_REGISTRAR_ADDRESS=0x… pnpm --filter @fuda/ens-contracts ens:verify
+```
+
+Preflight and standalone verification are read-only. The parent commit,
+parent reveal, and topology deployment commands mutate Sepolia. All three
+mutation commands are prepared but were not executed as part of repository
+implementation; running them requires credentials and explicit operational
+authorization. Live `.eth` resolution checks also remain outstanding.
+
+After topology verification, configure the API with
+`ENS_PARENT_NAME=fuda.eth` and the shared resolver in
+`ENS_RESOLVER_ADDRESSES`, plus independent `ENS_GATEWAY_SIGNER_KEY` and
+`ENS_GATEWAY_SECRET` secrets. B1 issuer onboarding, voucher issuance,
+naming-mirror writes, and lifecycle/unregister integration must land before
+normal product flows populate and maintain these names.
+
+The DNSSEC TXT value required to expose the `.eth` tree through `fuda.sh` is:
+
+```text
+ENS1 0x005a3bf1d92ebe4b1e1641a0c6fa49f38e1762a6 sh eth
+```
+
+This value is documented only. The `fuda.sh` zone was not changed, and the
+alias must not be treated as live until DNSSEC and scratch resolution are
+verified operationally.
+
 ## 3. Secrets
 
 Set with `wrangler secret put <NAME>` from `apps/api`:
@@ -76,6 +156,10 @@ Set with `wrangler secret put <NAME>` from `apps/api`:
   `x-auth-mode: locked`. This is deliberate fail-closed behavior, not a
   misconfiguration to work around.
 - `BASE_RPC_URL` — Base Sepolia RPC endpoint.
+- `ENS_GATEWAY_SIGNER_KEY` — dedicated 32-byte ECDSA private key that signs
+  gateway responses. Do not reuse `SIGNER_PRIVATE_KEY` or the ENS parent key.
+- `ENS_GATEWAY_SECRET` — separate 32-byte HMAC key used to derive deterministic
+  one-time +Private destinations.
 - `GOOGLE_ISSUER_ID`, `GOOGLE_CLASS_ID`, `GOOGLE_SA_EMAIL`, `GOOGLE_SA_KEY_PEM`
   — see §4.
 - `APPLE_PASS_TYPE_ID`, `APPLE_TEAM_ID`, `APPLE_CERT_PEM`, `APPLE_KEY_PEM`,
@@ -212,6 +296,12 @@ as documented in [`graph-demo.md`](./graph-demo.md). The Attendance attestation
 for the Bearer/Signed ladder's ADMIT verdicts appears on the Base Sepolia
 explorer within a few blocks.
 
+Once ENS is configured, send one known ENSIP-10 request through the deployed
+resolver or directly to `POST /ens/gateway`. A successful direct response is
+`{"data":"0x…"}` with `Cache-Control: no-store`; malformed, unknown, and
+infrastructure failures use `{"message":"…"}` and are also never cached. The
+gateway is public, so do not send `ADMIN_TOKEN`.
+
 Query the deployed rights subgraph with real right, delegation, and Attendance
 UIDs using `packages/subgraphs/rights/queries/smoke.graphql`, and compare the
 returned holders, metadata, relations, announcement identity, and revocation
@@ -265,6 +355,8 @@ never depends on `.dev.vars` being present or on what it contains.
 
 ## 13. Rate-limit state
 
-The D1 `rate_limits` table remains available as a generic fixed-window
-primitive, but no current product route applies it. Announcement discovery is a
-browser-to-Graph query and does not pass through the API.
+`POST /ens/gateway` is the only currently budgeted product route. It uses a
+fixed hourly D1 budget of 120 requests per IP. Announcement discovery is a
+browser-to-Graph query and does not pass through the API. The gate routes
+(`/verify`, `/challenge`, `/verify-signed`) and the admin routes (`/issue`,
+`/revoke`, `/members`) are never budgeted.

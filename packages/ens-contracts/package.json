@@ -1,0 +1,26 @@
+{
+  "name": "@fuda/ens-contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./artifacts/*": "./artifacts/*"
+  },
+  "scripts": {
+    "build": "hardhat build",
+    "ens:parent:commit": "tsx scripts/ens-parent-commit.ts",
+    "ens:parent:reveal": "tsx scripts/ens-parent-reveal.ts",
+    "ens:preflight": "tsx scripts/ens-preflight.ts",
+    "ens:topology:deploy": "hardhat build && tsx scripts/ens-topology-deploy.ts",
+    "ens:verify": "tsx scripts/ens-verify.ts",
+    "test": "hardhat build && vp test && hardhat test solidity"
+  },
+  "dependencies": {
+    "viem": "^2.37.0"
+  },
+  "devDependencies": {
+    "hardhat": "3.15.0",
+    "vitest": "4.1.11"
+  }
+}

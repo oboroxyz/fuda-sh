@@ -2,8 +2,8 @@
 
 Cloudflare Worker (Hono) implementing the fuda endpoints: `GET /health`,
 `POST /issue`, `GET /verify/:uid`, `POST /verify`, `POST /revoke`,
-`GET /members`, `POST /challenge`, `POST /verify-signed`, and the passes
-(`GET /pass/:uid` plus the Google Wallet and Apple Wallet
+`GET /members`, `POST /challenge`, `POST /verify-signed`, `POST /ens/gateway`,
+and the passes (`GET /pass/:uid` plus the Google Wallet and Apple Wallet
 endpoints).
 
 ## Run locally
@@ -234,6 +234,7 @@ Graph deployment; see [the Graph demo](../../docs/graph-demo.md).
 | GET | `/pass/:uid` | none | browser-based pass page; `404 not_found` if fuda never issued that uid, or if the row is +Private |
 | GET | `/pass/:uid/google` | none | `{ saveUrl }`, a signed Google Wallet save link; `501 google_not_configured` unless all four `GOOGLE_*` secrets are set; `404 not_found` first for an unknown uid or a +Private row |
 | GET | `/pass/:uid/apple.pkpass` | none | the `.pkpass` bundle; `501 apple_not_configured` unless all five `APPLE_*` secrets are set; `404 not_found` first for an unknown uid or a +Private row |
+| POST | `/ens/gateway` | none, per-IP budget (120/h) | EIP-3668 `{ sender, data }`; disabled with 503 until all four `ENS_*` bindings are configured; success `{ data }`, errors `{ message }`, always `Cache-Control: no-store` |
 
 ## Error codes
 

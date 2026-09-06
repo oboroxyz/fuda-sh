@@ -26,6 +26,12 @@ export interface Bindings {
   APPLE_CERT_PEM?: string
   APPLE_KEY_PEM?: string
   APPLE_WWDR_PEM?: string
+  // ENS transport is disabled unless all four names are configured. The two
+  // keys are Worker secrets; parent and resolver allowlist are plain bindings.
+  ENS_GATEWAY_SECRET?: string
+  ENS_GATEWAY_SIGNER_KEY?: string
+  ENS_PARENT_NAME?: string
+  ENS_RESOLVER_ADDRESSES?: string
 }
 
 export interface Variables {
