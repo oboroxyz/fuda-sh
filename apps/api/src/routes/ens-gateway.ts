@@ -70,6 +70,14 @@ const dataResponse = (c: Context<AppEnv>, data: Hex): Response => {
 
 export const ensGatewayRoutes = new Hono<AppEnv>()
 
+const gatewayError = (error: Error, c: Context<AppEnv>): Response => {
+  // oxlint-disable-next-line no-console -- unexpected gateway failures must remain visible in wrangler tail
+  console.error(error)
+  return messageResponse(c, 'Internal gateway error.', 500)
+}
+
+ensGatewayRoutes.onError(gatewayError)
+
 ensGatewayRoutes.post(
   '/ens/gateway',
   rateLimit({ budget: DEFAULT_BUDGET, response: 'eip3668' }),

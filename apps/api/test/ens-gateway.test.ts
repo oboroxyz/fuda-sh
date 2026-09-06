@@ -4,7 +4,7 @@ import { encodeFunctionData, namehash, parseAbi, toHex } from 'viem'
 import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { packetToBytes } from 'viem/ens'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getDb } from '../src/db/client.ts'
 import { rateLimits } from '../src/db/schema.ts'
@@ -34,13 +34,33 @@ const requestData = (name: string): Hex =>
     functionName: 'resolve',
   })
 
-const configured = (): Bindings => ({
-  ...testEnv({ ADMIN_TOKEN: 'admin-token' }),
-  ENS_GATEWAY_SECRET: GATEWAY_SECRET,
-  ENS_GATEWAY_SIGNER_KEY: SIGNER_KEY,
-  ENS_PARENT_NAME: 'fuda.eth',
-  ENS_RESOLVER_ADDRESSES: `${OTHER_RESOLVER}, ${RESOLVER}`,
+const configured = (overrides: Partial<Bindings> = {}): Bindings =>
+  testEnv({
+    ADMIN_TOKEN: 'admin-token',
+    ENS_GATEWAY_SECRET: GATEWAY_SECRET,
+    ENS_GATEWAY_SIGNER_KEY: SIGNER_KEY,
+    ENS_PARENT_NAME: 'fuda.eth',
+    ENS_RESOLVER_ADDRESSES: `${OTHER_RESOLVER}, ${RESOLVER}`,
+    ...overrides,
+  })
+
+const failQueriesContaining = (needle: string): D1Database => ({
+  batch: async <T = unknown>(statements: D1PreparedStatement[]) => await env.DB.batch<T>(statements),
+  dump: async () => await env.DB.dump(),
+  exec: async (query: string) => await env.DB.exec(query),
+  prepare: (query: string) => {
+    if (query.includes(needle)) {
+      throw new Error(`injected D1 failure for ${needle}`)
+    }
+    return env.DB.prepare(query)
+  },
+  withSession: (constraint) => env.DB.withSession(constraint),
 })
+
+const expectMessageResponse = async (res: Response, message: string): Promise<void> => {
+  expect(res.headers.get('cache-control')).toBe('no-store')
+  await expect(res.json()).resolves.toStrictEqual({ message })
+}
 
 const post = async (body: string, bindings = configured(), ip = IP): Promise<Response> =>
   await appWith({ chain: fakeChain(), now: () => 100 }).request(
@@ -90,7 +110,7 @@ describe('POST /ens/gateway', () => {
     const res = await post(JSON.stringify({ data: requestData('coffee.fuda.eth'), sender: OWNER }))
 
     expect(res.status).toBe(404)
-    await expect(res.json()).resolves.toStrictEqual({ message: 'Gateway address not supported.' })
+    await expectMessageResponse(res, 'Gateway address not supported.')
   })
 
   it.each([
@@ -101,25 +121,33 @@ describe('POST /ens/gateway', () => {
     const res = await post(body)
 
     expect(res.status).toBe(400)
-    await expect(res.json()).resolves.toStrictEqual({ message })
+    await expectMessageResponse(res, message)
   })
 
   it('404s when the canonical name has no active record', async () => {
     const res = await post(JSON.stringify({ data: requestData('unknown.fuda.eth'), sender: RESOLVER }))
 
     expect(res.status).toBe(404)
-    await expect(res.json()).resolves.toStrictEqual({ message: 'ENS name or record not found.' })
+    await expectMessageResponse(res, 'ENS name or record not found.')
   })
 
-  it('503s before resolution when required gateway configuration is absent', async () => {
-    const bindings = { ...configured(), ENS_PARENT_NAME: undefined }
+  it.each([
+    ['allocation secret', { ENS_GATEWAY_SECRET: undefined }],
+    ['signer key', { ENS_GATEWAY_SIGNER_KEY: undefined }],
+    ['parent name', { ENS_PARENT_NAME: undefined }],
+    ['resolver allowlist', { ENS_RESOLVER_ADDRESSES: undefined }],
+    ['malformed parent', { ENS_PARENT_NAME: 'not..eth' }],
+    ['malformed resolver allowlist', { ENS_RESOLVER_ADDRESSES: 'not-an-address' }],
+    ['invalid allocation secret', { ENS_GATEWAY_SECRET: '0x1234' }],
+    ['invalid signer key', { ENS_GATEWAY_SIGNER_KEY: '0x1234' }],
+  ])('503s before resolution when %s is not configured', async (_case, overrides) => {
     const res = await post(
       JSON.stringify({ data: requestData('coffee.fuda.eth'), sender: RESOLVER }),
-      bindings,
+      configured(overrides),
     )
 
     expect(res.status).toBe(503)
-    await expect(res.json()).resolves.toStrictEqual({ message: 'Gateway is not configured.' })
+    await expectMessageResponse(res, 'Gateway is not configured.')
   })
 
   it('returns an EIP-3668 error body when the hourly IP budget is exhausted', async () => {
@@ -128,6 +156,32 @@ describe('POST /ens/gateway', () => {
     const res = await post(JSON.stringify({ data: requestData('coffee.fuda.eth'), sender: RESOLVER }))
 
     expect(res.status).toBe(429)
-    await expect(res.json()).resolves.toStrictEqual({ message: 'Rate limit exceeded.' })
+    await expectMessageResponse(res, 'Rate limit exceeded.')
+  })
+
+  it('400s without a client IP using the gateway error envelope', async () => {
+    const res = await post(
+      JSON.stringify({ data: requestData('coffee.fuda.eth'), sender: RESOLVER }),
+      configured(),
+      '',
+    )
+
+    expect(res.status).toBe(400)
+    await expectMessageResponse(res, 'Client IP required.')
+  })
+
+  it.each([
+    ['rate limit persistence', 'rate_limits'],
+    ['ENS lookup', 'ens_names'],
+  ])('wraps unexpected %s failures in the gateway error envelope', async (_case, table) => {
+    const logged = vi.spyOn(console, 'error').mockReturnValue()
+    const res = await post(
+      JSON.stringify({ data: requestData('coffee.fuda.eth'), sender: RESOLVER }),
+      configured({ DB: failQueriesContaining(table) }),
+    )
+    logged.mockRestore()
+
+    expect(res.status).toBe(500)
+    await expectMessageResponse(res, 'Internal gateway error.')
   })
 })
