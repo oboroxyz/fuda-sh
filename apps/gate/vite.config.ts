@@ -1,9 +1,20 @@
 import tailwindcss from '@tailwindcss/vite'
 import { defineConfig } from 'vite-plus'
 
-// Pinned dev port (api CORS accepts any localhost port; 5173 is reserved for apps/app).
+import { portlessViteOverrides } from '../../tooling/portless/vite.ts'
+
+const portless = portlessViteOverrides('gate')
+
+// Non-Portless direct development uses 5174; 5173 is reserved for apps/app.
 export default defineConfig({
+  // oxlint-disable-next-line anti-slop/no-conditional-empty-object-spread -- Portless additions must be absent in direct development.
+  ...(portless === undefined ? {} : { define: portless.define }),
   plugins: [tailwindcss()],
-  server: { port: 5174, strictPort: true },
+  server: {
+    port: 5174,
+    // oxlint-disable-next-line anti-slop/no-conditional-empty-object-spread -- Portless proxying must be absent in direct development.
+    ...(portless === undefined ? {} : { proxy: portless.proxy }),
+    strictPort: true,
+  },
   test: { environment: 'node', include: ['src/**/*.test.ts'], unstubGlobals: true },
 })
