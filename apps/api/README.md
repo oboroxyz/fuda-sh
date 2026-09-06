@@ -339,8 +339,11 @@ non-zero on the first unexpected verdict:
 - **private** — issue to a stealth meta-address derived from a fixed PRF
   output, assert the response carries no `passUrls` and `/pass/:uid` answers
   `404`, page `/announcements` client-side until `matchAnnouncements` finds the
-  uid, check the QR path still answers `LEVEL_REQUIRED`, then admit by signing
-  the challenge with the recovered stealth private key.
+  uid, check the QR path still answers `LEVEL_REQUIRED`, admit by signing the
+  challenge with the recovered stealth private key, then revoke. The revoke is
+  not optional cleanup: the right is `MULTI_USE` and its stealth key is
+  derivable from the script's fixed PRF bytes, so leaving it live would leave a
+  usable door into a production gate.
 
 ```bash
 API_URL=https://api.fuda.sh ADMIN_TOKEN=… pnpm --filter api smoke:live
