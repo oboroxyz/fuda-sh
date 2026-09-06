@@ -106,7 +106,7 @@ export const OnChainStatusView = ({ copy, state }: OnChainStatusViewProps): JSX.
       <ul class="flex flex-col gap-2">
         {state.delegations.map((delegation): JSX.Element => (
           <li class="rounded-box border-base-300 border p-2" key={delegation.id}>
-            <div>{`${delegationState(copy, delegation)} ${delegation.name}`}</div>
+            <div class="dash-chain-name">{`${delegationState(copy, delegation)} ${delegation.name}`}</div>
             <div class="font-mono text-xs break-all">{delegation.id}</div>
           </li>
         ))}

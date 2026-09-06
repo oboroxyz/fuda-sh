@@ -1,5 +1,6 @@
 /** @jsxImportSource hono/jsx/dom */
 import { pick } from '@fuda/i18n'
+import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 import { describe, expect, it } from 'vitest'
 
 import { DASH_COPY } from './copy.ts'
@@ -7,7 +8,7 @@ import { completeMembersLoad } from './members-state.ts'
 import type { MembersState } from './members-state.ts'
 import type { MemberRowView } from './members-view.ts'
 import { OverviewPage } from './OverviewPage.tsx'
-import { viewText } from './test/test-view.ts'
+import { findViewNodes, viewText, walkView } from './test/test-view.ts'
 
 const UID = `0x${'ab'.repeat(32)}` as const
 const copy = pick(DASH_COPY, 'en').overview
@@ -68,6 +69,25 @@ describe(OverviewPage, () => {
     ).toContain('Total rights 0 Active rights 0 Revoked rights 0')
   })
 
+  it.each([
+    { kind: 'ready', rows: [] },
+    { kind: 'error', message: 'D1_OFFLINE', previousRows: null },
+  ] satisfies MembersState[])(
+    'shows the configured Graph URL without claiming connectivity when $kind',
+    (state) => {
+      const graphEndpoint = `https://graph.example/${'a'.repeat(80)}`
+      const view = OverviewPage({ apiBaseUrl: 'x', copy, graphEndpoint, state })
+      const graphCard = findViewNodes(view, 'div').find((node) =>
+        findViewNodes(node, 'dt').some((term) => viewText(term) === 'Graph index'),
+      )
+      const endpoint = findViewNodes(graphCard, 'dd').find((node) => viewText(node) === graphEndpoint)
+
+      expect(viewText(graphCard)).toContain(`Graph index Configured ${graphEndpoint}`)
+      expect(viewText(graphCard)).not.toContain('Connected')
+      expect(endpoint?.props.class).toContain('break-all')
+    },
+  )
+
   it('uses checking status and no numeric counts during the initial load', () => {
     const loading: MembersState = { kind: 'loading', previousRows: null }
     const text = viewText(OverviewPage({ apiBaseUrl: 'x', copy, graphEndpoint: '', state: loading }))
@@ -101,4 +121,45 @@ describe(OverviewPage, () => {
       'Showing last loaded values',
     )
   })
+
+  it.each([
+    [
+      'en',
+      'Could not load rights',
+      'Showing last loaded values',
+      'Total rights 3 Active rights 2 Revoked rights 1',
+    ],
+    [
+      'ja',
+      '権利を読み込めませんでした',
+      '最後に読み込んだ値を表示中',
+      '権利の合計 3 有効な権利 2 取り消した権利 1',
+    ],
+  ] as const)(
+    'explains initial and refresh load failures in %s while preserving the last counts',
+    (locale, errorPrefix, stale, counts) => {
+      const render = (previousRows: readonly MemberRowView[] | null): JSX.Element =>
+        OverviewPage({
+          apiBaseUrl: 'x',
+          copy: DASH_COPY[locale].overview,
+          graphEndpoint: '',
+          state: { kind: 'error', message: 'D1_UNAVAILABLE [42]', previousRows },
+        })
+      const initial = render(null)
+      const refreshed = render(rows)
+
+      for (const view of [initial, refreshed]) {
+        const alert = walkView(view).find((node) => node.props.role === 'alert')
+        expect(viewText(alert)).toBe(`${errorPrefix}: D1_UNAVAILABLE [42]`)
+      }
+      expect(
+        findViewNodes(initial, 'div')
+          .filter((node) => node.props.class === 'stat-value')
+          .map(viewText),
+      ).toStrictEqual(['—', '—', '—'])
+      expect(viewText(initial)).not.toContain(stale)
+      expect(viewText(refreshed)).toContain(stale)
+      expect(viewText(refreshed)).toContain(counts)
+    },
+  )
 })

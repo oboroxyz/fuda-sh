@@ -1,4 +1,5 @@
 /** @jsxImportSource hono/jsx/dom */
+import { useEffect, useRef } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import type { DashCopy } from './copy.ts'
@@ -89,19 +90,21 @@ export const DashboardShell = ({
   onNavigate,
   route,
 }: DashboardShellProps): JSX.Element => {
-  let dialog: HTMLDialogElement | null = null
-  let opener: HTMLButtonElement | null = null
+  const dialog = useRef<HTMLDialogElement | null>(null)
+  const opener = useRef<HTMLButtonElement | null>(null)
 
   const closeDrawer = (): void => {
-    dialog?.close()
-    opener?.focus()
+    dialog.current?.close()
+    opener.current?.focus()
   }
 
-  const closeOpenDrawerForDesktop = (): void => {
-    if (dialog?.open === true) {
+  const closeOpenDrawer = (): void => {
+    if (dialog.current?.open === true) {
       closeDrawer()
     }
   }
+
+  useEffect(closeOpenDrawer, [route])
 
   return (
     <div class="dash-app">
@@ -125,10 +128,10 @@ export const DashboardShell = ({
               aria-label={copy.chrome.openMenu}
               class="dash-menu-button btn btn-ghost btn-square"
               onClick={() => {
-                dialog?.showModal()
+                dialog.current?.showModal()
               }}
               ref={(element: HTMLButtonElement | null): void => {
-                opener = element
+                opener.current = element
               }}
               type="button"
             >
@@ -152,12 +155,12 @@ export const DashboardShell = ({
           }
         }}
         ref={(element: HTMLDialogElement | null): (() => void) | undefined => {
-          dialog = element
+          dialog.current = element
           const breakpoint = desktopBreakpoint()
           if (element === null || breakpoint === null) {
             return
           }
-          return subscribeToDesktopEntry(breakpoint, closeOpenDrawerForDesktop)
+          return subscribeToDesktopEntry(breakpoint, closeOpenDrawer)
         }}
       >
         <div class="dash-drawer-panel">

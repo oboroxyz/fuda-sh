@@ -132,6 +132,23 @@ describe('revoke dialog', () => {
     expect(showModal).toHaveBeenCalledOnce()
   })
 
+  it.each([
+    ['en', 'Revoking'],
+    ['ja', '取り消し中'],
+  ] as const)('announces the revoke busy state in a localized live region in %s', (locale, message) => {
+    const view = RevokeDialog(props({ busy: true, copy: DASH_COPY[locale].revoke }))
+    const status = walkView(view).find((node) => node.props.role === 'status')
+
+    expect(viewText(status)).toBe(message)
+    expect(status?.props['aria-live']).toBe('polite')
+    expect(actionButtons(view).every((button) => button.props.disabled === true)).toBe(true)
+    expect(
+      walkView(RevokeDialog(props({ copy: DASH_COPY[locale].revoke }))).filter(
+        (node) => node.props.role === 'status' && viewText(node) !== '',
+      ),
+    ).toHaveLength(0)
+  })
+
   it('routes idle Cancel, Escape and backdrop to cancellation and disables revoked confirmation', () => {
     const onCancel = vi.fn<() => void>()
     const onConfirm = vi.fn<() => void>()

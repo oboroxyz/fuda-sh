@@ -103,6 +103,23 @@ describe(OnChainStatusView, () => {
     ])
   })
 
+  it('wraps an unbroken 80-character name on the populated delegation container', () => {
+    const name = 'a'.repeat(80)
+    const view = OnChainStatusView({
+      copy: DASH_COPY.en.chain,
+      state: {
+        attendances: { [RIGHT_UID]: [attendance] },
+        delegations: [{ ...delegation, name }],
+        kind: 'ready',
+        rights: [right],
+      },
+    })
+    const nameContainer = walkView(view).find((node) => node.props.children === `ACTIVE ${name}`)
+
+    expect(nameContainer?.props.class).toBe('dash-chain-name')
+    expect(viewText(view)).toContain('Entered at 55')
+  })
+
   it('renders chain rights, delegations, and attendance without a D1 member row', () => {
     const text = viewText(
       OnChainStatusView({

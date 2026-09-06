@@ -91,6 +91,9 @@ export const RevokeDialog = ({
         {error === null ? null : (
           <p role="alert" class="alert alert-error mt-4">{`${copy.errorPrefix}: ${error}`}</p>
         )}
+        <p role="status" aria-live="polite" class="sr-only">
+          {busy ? copy.revoking : ''}
+        </p>
         <div class="modal-action">
           <button ref={cancelRef} type="button" class="btn" disabled={busy} onClick={cancel}>
             {copy.cancel}

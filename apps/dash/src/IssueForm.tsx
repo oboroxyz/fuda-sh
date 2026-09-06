@@ -191,6 +191,9 @@ export const IssueFormView = ({
       <button class="btn btn-primary" type="submit" disabled={body === null || busy}>
         {busy ? copy.submitting : copy.submit}
       </button>
+      <p role="status" aria-live="polite" class="sr-only">
+        {busy ? copy.submitting : ''}
+      </p>
       {result === null ? null : outcome(copy, result)}
     </form>
   )

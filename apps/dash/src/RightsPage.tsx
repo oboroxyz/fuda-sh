@@ -212,12 +212,17 @@ export const RightsPage = ({ copy, graphEndpoint, members, onRevoke }: RightsPag
         </div>
         {members.kind === 'error' ? (
           <p role="alert" class="alert alert-error">
-            {members.message}
+            {`${copy.rights.errorPrefix}: ${members.message}`}
           </p>
         ) : null}
         {members.kind === 'loading' || members.kind === 'idle' ? (
           <p role="status" class="text-sm opacity-70">
             {copy.rights.refreshing}
+          </p>
+        ) : null}
+        {snapshot?.stale === true ? (
+          <p role="status" class="text-sm opacity-70">
+            {copy.rights.stale}
           </p>
         ) : null}
         {collection()}

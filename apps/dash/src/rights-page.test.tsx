@@ -104,9 +104,15 @@ const makeButton = () => {
 const render = (
   members: MembersState = ready,
   onRevoke: (uid: string) => Promise<Result<RevokeResponse>> = async () => await Promise.resolve(success),
+  locale: 'en' | 'ja' = 'en',
 ): JSX.Element => {
   hooks.index = 0
-  const view = RightsPage({ copy, graphEndpoint: 'https://index.example/rights', members, onRevoke })
+  const view = RightsPage({
+    copy: DASH_COPY[locale],
+    graphEndpoint: 'https://index.example/rights',
+    members,
+    onRevoke,
+  })
   const headingRef = viewProps(findViewNodes(view, 'h1')[0]).ref as
     | { current: HTMLHeadingElement | null }
     | undefined
@@ -210,6 +216,42 @@ describe('rights page', () => {
       separate: true,
     })
   })
+
+  it.each([
+    ['en', 'Could not load rights', 'Showing last loaded rights; their status may be out of date.'],
+    [
+      'ja',
+      '権利を読み込めませんでした',
+      '最後に読み込んだ権利を表示中です。ステータスは最新でない可能性があります。',
+    ],
+  ] as const)(
+    'explains initial and refresh load failures beside the retained rights in %s',
+    (locale, errorPrefix, stale) => {
+      const initial = render(
+        { kind: 'error', message: 'D1_UNAVAILABLE [42]', previousRows: null },
+        undefined,
+        locale,
+      )
+      const refreshed = render(
+        { kind: 'error', message: 'D1_UNAVAILABLE [42]', previousRows: [row] },
+        undefined,
+        locale,
+      )
+
+      for (const view of [initial, refreshed]) {
+        const alert = walkView(view).find((node) => node.props.role === 'alert')
+        expect(viewText(alert)).toBe(`${errorPrefix}: D1_UNAVAILABLE [42]`)
+      }
+      expect(findViewNodes(initial, RightsList)).toHaveLength(0)
+      expect(viewText(initial)).not.toContain(stale)
+      const collection = findViewNodes(refreshed, 'section').find(
+        (node) => findViewNodes(node, RightsList).length === 1,
+      )
+      expect(viewText(collection)).toContain(stale)
+      expect(listProps(refreshed).rows).toStrictEqual([row])
+      expect(viewText(render(ready, undefined, locale))).not.toContain(stale)
+    },
+  )
 
   it('connects confirmation to the UID, suppresses immediate duplicates, and closes on success', async () => {
     const pending = Promise.withResolvers<Result<RevokeResponse>>()

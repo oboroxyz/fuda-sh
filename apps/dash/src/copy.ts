@@ -34,6 +34,7 @@ export interface DashCopy {
     unavailable: string
     configured: string
     notConfigured: string
+    errorPrefix: string
     refreshing: string
     stale: string
   }
@@ -66,7 +67,9 @@ export interface DashCopy {
     empty: string
     noMatches: string
     clearFilters: string
+    errorPrefix: string
     refreshing: string
+    stale: string
     qrLabel: string
   }
   revoke: {
@@ -162,6 +165,7 @@ export const DASH_COPY = {
       unavailable: 'Unavailable',
       configured: 'Configured',
       notConfigured: 'Not configured',
+      errorPrefix: 'Could not load rights',
       refreshing: 'Refreshing rights',
       stale: 'Showing last loaded values',
     },
@@ -194,7 +198,9 @@ export const DASH_COPY = {
       empty: 'No rights have been issued.',
       noMatches: 'No rights match these filters.',
       clearFilters: 'Clear filters',
+      errorPrefix: 'Could not load rights',
       refreshing: 'Refreshing rights',
+      stale: 'Showing last loaded rights; their status may be out of date.',
       qrLabel: 'Right identifier QR',
     },
     revoke: {
@@ -287,6 +293,7 @@ export const DASH_COPY = {
       unavailable: '利用不可',
       configured: '設定済み',
       notConfigured: '未設定',
+      errorPrefix: '権利を読み込めませんでした',
       refreshing: '権利を更新中',
       stale: '最後に読み込んだ値を表示中',
     },
@@ -319,7 +326,9 @@ export const DASH_COPY = {
       empty: '発行済みの権利はありません。',
       noMatches: '条件に一致する権利はありません。',
       clearFilters: '絞り込みを解除',
+      errorPrefix: '権利を読み込めませんでした',
       refreshing: '権利を更新中',
+      stale: '最後に読み込んだ権利を表示中です。ステータスは最新でない可能性があります。',
       qrLabel: '権利識別子の QR',
     },
     revoke: {

@@ -58,6 +58,9 @@ export const OverviewPage = ({ apiBaseUrl, copy, graphEndpoint, state }: Overvie
       </header>
 
       <section class="flex flex-col gap-3" aria-label={copy.title}>
+        {state.kind === 'error' ? (
+          <p role="alert" class="alert alert-error">{`${copy.errorPrefix}: ${state.message}`}</p>
+        ) : null}
         {stateMessage === null ? null : <p class="text-sm opacity-70">{stateMessage}</p>}
         <div class="dash-overview-cards">
           <div class="dash-stat">
@@ -90,6 +93,9 @@ export const OverviewPage = ({ apiBaseUrl, copy, graphEndpoint, state }: Overvie
           <div>
             <dt class="font-medium">{copy.graph}</dt>
             <dd>{graphIsConfigured(graphEndpoint) ? copy.configured : copy.notConfigured}</dd>
+            {graphIsConfigured(graphEndpoint) ? (
+              <dd class="font-mono text-xs break-all opacity-70">{graphEndpoint}</dd>
+            ) : null}
           </div>
         </dl>
       </section>

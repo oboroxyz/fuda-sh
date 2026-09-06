@@ -182,7 +182,7 @@
   color: var(--fuda-text);
 }
 
-.dash-app :where(p, dd, td, code, .alert, .dash-chain-reference),
+.dash-app :where(p, dd, td, code, .alert, .dash-chain-reference, .dash-chain-name),
 .dash-auth :where(p, .alert) {
   overflow-wrap: anywhere;
 }

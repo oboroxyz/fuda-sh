@@ -128,11 +128,28 @@ describe('localized operation views', () => {
     expect(submitButton(view()).props.disabled).toBe(false)
   })
 
+  it.each([
+    ['en', 'Issuing'],
+    ['ja', '発行中'],
+  ] as const)('announces the issue busy state in a localized live region in %s', (locale, message) => {
+    const busy = view({ busy: true, copy: DASH_COPY[locale].issue })
+    const status = walkView(busy).find((node) => node.props.role === 'status')
+
+    expect(viewText(status)).toBe(message)
+    expect(status?.props['aria-live']).toBe('polite')
+    expect(submitButton(busy).props.disabled).toBe(true)
+    expect(
+      walkView(view({ copy: DASH_COPY[locale].issue })).filter(
+        (node) => node.props.role === 'status' && viewText(node) !== '',
+      ),
+    ).toHaveLength(0)
+  })
+
   it.each(['bearer', 'signed'] as const)(
     'announces %s success and preserves holder, pass URL and QR payload',
     (level) => {
       const rendered = view({ result: { body: { ...publicBody, level }, ok: true } })
-      const status = walkView(rendered).find((node) => node.props.role === 'status')!
+      const status = walkView(rendered).find((node) => node.props.role === 'status' && viewText(node) !== '')!
       expect(status.props['aria-live']).toBe('polite')
       expect(viewText(status)).toContain(`発行しました ${level}`)
       expect(viewText(status)).toContain(holder)

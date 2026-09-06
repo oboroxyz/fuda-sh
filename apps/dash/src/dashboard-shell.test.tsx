@@ -1,7 +1,8 @@
 /** @jsxImportSource hono/jsx/dom */
 import { pick } from '@fuda/i18n'
+import type * as HonoDom from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DASH_COPY } from './copy.ts'
 import { DashboardShell } from './DashboardShell.tsx'
@@ -12,21 +13,67 @@ type ClickHandler = (event: MouseEvent) => void
 type DialogRef = (element: HTMLDialogElement | null) => (() => void) | undefined
 type ButtonRef = (element: HTMLButtonElement | null) => void
 
-const shell = (route: '/' | '/rights' | '/issue' = '/'): JSX.Element =>
-  DashboardShell({
+// Keep the mounted refs and route-effect scheduling while exercising the real shell.
+const hooks = vi.hoisted(() => ({
+  effects: [] as Parameters<typeof HonoDom.useEffect>[0][],
+  index: 0,
+  slots: new Map<number, unknown>(),
+}))
+vi.mock(import('hono/jsx/dom'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  useEffect: (
+    effect: Parameters<typeof HonoDom.useEffect>[0],
+    dependencies: readonly unknown[] = [],
+  ): void => {
+    const { index } = hooks
+    hooks.index += 1
+    const previous = hooks.slots.get(index) as unknown[] | undefined
+    if (
+      previous === undefined ||
+      dependencies.some((value, position) => !Object.is(value, previous[position]))
+    ) {
+      hooks.effects.push(effect)
+      hooks.slots.set(index, dependencies)
+    }
+  },
+  useRef: <T,>(initial: T): { current: T } => {
+    const { index } = hooks
+    hooks.index += 1
+    if (!hooks.slots.has(index)) {
+      hooks.slots.set(index, { current: initial })
+    }
+    return hooks.slots.get(index) as { current: T }
+  },
+}))
+
+const shell = (route: '/' | '/rights' | '/issue' = '/'): JSX.Element => {
+  hooks.index = 0
+  return DashboardShell({
     appearance: <div data-testid="appearance" />,
     children: <section>page</section>,
     copy: pick(DASH_COPY, 'en'),
     onNavigate: (): void => {},
     route,
   })
+}
 
 const linksIn = (node: unknown) => findViewNodes(node, 'a')
 
 const linkWithPath = (node: unknown, path: string) =>
   linksIn(node).find((link) => viewProps(link).href === path)
 
+const openDrawer = (view: JSX.Element): void => {
+  const openMenu = walkView(view).find((node) => node.props['aria-label'] === 'Open menu')!
+  ;(openMenu.props.onClick as () => void)()
+}
+
 describe('dashboard shell', () => {
+  beforeEach(() => {
+    hooks.index = 0
+    hooks.slots.clear()
+    hooks.effects.length = 0
+  })
+
   it('renders labelled desktop and drawer navigation with the selected route and appearance', () => {
     const view = shell()
     const navigation = findViewNodes(view, 'nav')
@@ -150,6 +197,45 @@ describe('dashboard shell', () => {
     } as unknown as MouseEvent)
     expect(calls).toStrictEqual(['close', '/rights', 'close', 'close', 'close'])
     expect(focusCalls).toBe(4)
+  })
+
+  it('closes the same open drawer on back and forward route updates without closing on unrelated renders', () => {
+    let focusCalls = 0
+    const drawer = {
+      close: (): void => {
+        drawer.open = false
+      },
+      open: false,
+      showModal: (): void => {
+        drawer.open = true
+      },
+    }
+    const opener = {
+      focus: (): void => {
+        focusCalls += 1
+      },
+    }
+    const mount = (route: '/' | '/rights' | '/issue'): JSX.Element => {
+      const view = shell(route)
+      const openMenu = walkView(view).find((node) => node.props['aria-label'] === 'Open menu')!
+      ;(openMenu.props.ref as ButtonRef)(opener as HTMLButtonElement)
+      ;(findViewNodes(view, 'dialog')[0].props.ref as DialogRef)(drawer as HTMLDialogElement)
+      for (const effect of hooks.effects.splice(0)) {
+        effect()
+      }
+      return view
+    }
+    openDrawer(mount('/issue'))
+    void mount('/issue')
+    expect({ focusCalls, open: drawer.open }).toStrictEqual({ focusCalls: 0, open: true })
+
+    const previous = mount('/rights')
+    expect({ focusCalls, open: drawer.open }).toStrictEqual({ focusCalls: 1, open: false })
+    openDrawer(previous)
+    void mount('/issue')
+    expect({ focusCalls, open: drawer.open }).toStrictEqual({ focusCalls: 2, open: false })
+    void mount('/')
+    expect(focusCalls).toBe(2)
   })
 
   it('closes an open mobile drawer when entering desktop and cleans up the breakpoint listener', () => {
