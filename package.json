@@ -20,7 +20,7 @@
     "format:check": "vp fmt --check",
     "check": "vp check",
     "typecheck": "vp check --no-fmt --no-lint",
-    "test": "vp run --filter './apps/*' --filter './packages/*' test && pnpm --filter api test:scripts && vp test vite.portless.test.ts"
+    "test": "vp run --filter './apps/*' --filter './packages/*' test && pnpm --filter api test:scripts && vp test config/vite.portless.test.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

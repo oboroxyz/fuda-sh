@@ -1,7 +1,7 @@
 import tailwindcss from '@tailwindcss/vite'
 import { defineConfig } from 'vite-plus'
 
-import { portlessViteConfig } from '../../vite.portless.ts'
+import { portlessViteConfig } from '../../config/vite.portless.ts'
 
 // Portless injects its dynamic Vite port; direct development keeps the member app on 5173.
 export default defineConfig({
