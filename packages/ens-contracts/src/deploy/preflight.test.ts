@@ -207,6 +207,9 @@ const fakeClient = (scenario: Scenario = {}, chain: Chain = ENS_HACKATHON_CHAIN)
             case 'owner': {
               return address(to === scenario.ownerMismatchAddress ? other : owner)
             }
+            default: {
+              throw new Error('unexpected preflight read')
+            }
           }
         },
       },

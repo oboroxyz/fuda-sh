@@ -27,6 +27,7 @@ if (token !== undefined) {
 }
 
 const readResponseJson = async <T>(response: Response): Promise<T> =>
+  // oxlint-disable-next-line promise/avoid-new -- bridge parsed smoke-response text into the caller-owned response contract
   await new Promise((resolve, reject) => {
     void response.text().then(JSON.parse).then(resolve, reject)
   })
@@ -43,6 +44,7 @@ const call = async <T>(
   return body
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters anti-slop/no-unsafe-dictionary-type -- smoke assertions inspect arbitrary external JSON fields
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null
 
