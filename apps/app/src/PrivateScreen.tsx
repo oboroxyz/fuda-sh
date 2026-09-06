@@ -1,6 +1,6 @@
 /** @jsxImportSource hono/jsx/dom */
 import type { Hex } from '@fuda/sdk'
-import type { DiscoveredPass, StealthKeys } from '@fuda/stealth'
+import type { DiscoveredPass, StealthKeys } from '@fuda/stealth-address'
 import { short } from '@fuda/ui'
 import { useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'

@@ -147,7 +147,7 @@ them is a protocol version bump.
 | Challenge string (what is signed, EIP-191 personal-sign) | `fuda-gate:<uid>:<nonce>`                                                                                                                              |
 | Challenge nonce                                          | `0x` + 32 hex (16 random bytes); TTL 300 s; one-time                                                                                                   |
 | Announcement metadata                                    | `0x` + viewTag (2 hex) + uid (64 hex)                                                                                                                  |
-| HKDF domain salt (`@fuda/stealth`)                       | `fuda.sh/stealth/v1` (UTF-8 bytes)                                                                                                                     |
+| HKDF domain salt (`@fuda/stealth-address`)                       | `fuda.sh/stealth/v1` (UTF-8 bytes)                                                                                                                     |
 | WebAuthn PRF eval input                                  | `prf: { eval: { first: utf8('fuda.sh/stealth/prf/v1') } }` — the PRF output is a function of this input; it must never change                          |
 | WebAuthn `rp.id`                                         | `fuda.sh` for every fuda passkey ceremony in production (`VITE_RP_ID`, baked into the member app at build time; local dev overrides it to `localhost`) |
 

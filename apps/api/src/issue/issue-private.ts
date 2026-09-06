@@ -1,5 +1,5 @@
 import type { IssueRequest, IssueResponse } from '@fuda/sdk'
-import { buildAnnouncementMetadata, generateStealthAddress } from '@fuda/stealth'
+import { buildAnnouncementMetadata, generateStealthAddress } from '@fuda/stealth-address'
 import type { Hex } from 'viem'
 
 import { ChainError } from '../chain/client.ts'

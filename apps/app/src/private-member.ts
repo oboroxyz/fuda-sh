@@ -1,6 +1,6 @@
 import type { Hex } from '@fuda/sdk'
-import { deriveMemberSecret, deriveStealthKeys, matchAnnouncements } from '@fuda/stealth'
-import type { DiscoveredPass, StealthKeys } from '@fuda/stealth'
+import { deriveMemberSecret, deriveStealthKeys, matchAnnouncements } from '@fuda/stealth-address'
+import type { DiscoveredPass, StealthKeys } from '@fuda/stealth-address'
 import { privateKeyToAccount } from 'viem/accounts'
 
 // One passkey + one eval input → one member secret → the same meta-address on

@@ -21,7 +21,7 @@ import type {
   VerifySignedResponse,
 } from '@fuda/sdk'
 import { toQr } from '@fuda/sdk'
-import { deriveMemberSecret, deriveStealthKeys, matchAnnouncements } from '@fuda/stealth'
+import { deriveMemberSecret, deriveStealthKeys, matchAnnouncements } from '@fuda/stealth-address'
 import { privateKeyToAccount } from 'viem/accounts'
 
 const api = process.env.API_URL ?? 'http://localhost:8787'

@@ -1,4 +1,4 @@
-import { deriveMemberSecret, deriveStealthKeys, matchAnnouncements } from '@fuda/stealth'
+import { deriveMemberSecret, deriveStealthKeys, matchAnnouncements } from '@fuda/stealth-address'
 import { env } from 'cloudflare:test'
 import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'

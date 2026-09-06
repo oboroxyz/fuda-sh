@@ -1,4 +1,4 @@
-import { PRF_EVAL_INPUT } from '@fuda/stealth'
+import { PRF_EVAL_INPUT } from '@fuda/stealth-address'
 
 export type PrfResult =
   | { ok: true; output: Uint8Array }

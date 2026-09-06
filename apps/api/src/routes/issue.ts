@@ -1,5 +1,5 @@
 import { asHex, deriveIssueKind, IssueBody } from '@fuda/sdk'
-import { asMetaAddress } from '@fuda/stealth'
+import { asMetaAddress } from '@fuda/stealth-address'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import * as v from 'valibot'

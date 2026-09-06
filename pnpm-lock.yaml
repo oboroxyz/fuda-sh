@@ -46,9 +46,9 @@ importers:
       '@fuda/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
-      '@fuda/stealth':
+      '@fuda/stealth-address':
         specifier: workspace:*
-        version: link:../../packages/stealth
+        version: link:../../packages/stealth-address
       drizzle-orm:
         specifier: ^0.44.0
         version: 0.44.7(@cloudflare/workers-types@4.20260702.1)
@@ -89,9 +89,9 @@ importers:
       '@fuda/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
-      '@fuda/stealth':
+      '@fuda/stealth-address':
         specifier: workspace:*
-        version: link:../../packages/stealth
+        version: link:../../packages/stealth-address
       '@fuda/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -203,7 +203,7 @@ importers:
         specifier: 4.1.11
         version: 4.1.11(@types/node@24.13.3)(@vitest/browser-preview@4.1.11)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0)
 
-  packages/stealth:
+  packages/stealth-address:
     dependencies:
       '@noble/curves':
         specifier: 1.9.1

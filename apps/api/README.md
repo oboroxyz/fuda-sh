@@ -83,8 +83,8 @@ Every REJECT and ADMIT on this path is logged with `path: 'signature'` (never
 +Private is an extension of Signed (never a separate "third level" or "mode"):
 the right still enters through `/verify-signed`, but its holder is a one-time
 stealth address the member derives from a passkey rather than a wallet, and it
-is never printed as a QR — there is no pass to hand over. `@fuda/stealth`
-(`packages/stealth`) implements the ERC-5564 scheme-1 math: derivation from a
+is never printed as a QR — there is no pass to hand over. `@fuda/stealth-address`
+(`packages/stealth-address`) implements the ERC-5564 scheme-1 math: derivation from a
 passkey PRF output, stealth-address generation, and announcement matching.
 Every shared secret hashes the **compressed** ECDH point
 (`keccak256(secp256k1.getSharedSecret(priv, pub, true))`) — an interop caveat
