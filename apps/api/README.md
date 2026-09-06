@@ -26,7 +26,9 @@ database, so `migrate:local` targets the same local database that `--env dev`
 then serves; `--env dev` reads `.dev.vars.dev` when present and falls back to
 `.dev.vars` otherwise. Setting either `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL`
 always wins over `USE_FAKE_CHAIN` — the fake chain is never constructed in
-production, only under this explicit local opt-in.
+production, only under this explicit local opt-in. Either binding also arms the
+admin lock: set `ADMIN_TOKEN` in `.dev.vars` alongside it, or `/issue`,
+`/revoke` and `/members` answer `401` with `x-auth-mode: locked`.
 
 ## Attendance
 
