@@ -159,7 +159,7 @@ describe(verifyUid, () => {
       await expect(decisionOf(seedRight({ expirationTime: BigInt(NOW) }))).resolves.toBe('ADMIT')
     })
 
-    it('checks EAS expirationTime before revocation and the usage-model check', async () => {
+    it('checks revocation before EAS expirationTime, and EAS expirationTime before the usage-model check', async () => {
       await expect(
         reasonOf(seedRight({ expirationTime: BigInt(NOW - 1), revocationTime: 5n })),
       ).resolves.toBe('REVOKED')
