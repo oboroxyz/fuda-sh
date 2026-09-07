@@ -112,46 +112,6 @@ canonical ERC-5564 announcer. fuda runs one deployment per chain and they never
 share state — Base Sepolia today, Base mainnet at the cutover; see
 [Environments](./docs/architecture.md#environments).
 
-## Development
-
-```sh
-pnpm install --frozen-lockfile
-pnpm check      # format + lint + type check (vp check)
-pnpm typecheck  # types only (vp check --no-fmt --no-lint)
-pnpm test       # every package's tests (workerd for the api)
-```
-
-`pnpm dev` starts the whole local stack on the fixed ports below. A single
-surface starts with `pnpm dev:api`, `pnpm dev:app`, `pnpm dev:gate`, or
-`pnpm dev:dash`; a frontend on its own still needs `pnpm dev:api` running in
-another terminal for live api calls.
-
-| Surface | Path | Dev |
-| --- | --- | --- |
-| api | `apps/api` | `pnpm --filter api dev` — http://localhost:8787 (`--env local`; set `USE_FAKE_CHAIN=1` in `apps/api/.dev.vars` to run without a signer) |
-| member app | `apps/app` | `pnpm --filter app dev` — http://localhost:5173 |
-| gate scanner | `apps/gate` | `pnpm --filter gate dev` — http://localhost:5174 |
-| dashboard | `apps/dash` | `pnpm --filter dash dev` — http://localhost:5175 |
-
-Vite bakes the following in at build time, so changing one means rebuilding
-that app.
-
-- **`VITE_API_BASE_URL`** (all three frontends) — the api origin, default
-  `http://localhost:8787`.
-- **`VITE_GRAPH_RIGHTS_ENDPOINT`** (`apps/app`, `apps/dash`) — the public Graph
-  endpoint the on-chain status views read. The member app also loads raw
-  announcements from it before matching them locally.
-- **`VITE_APP_ORIGIN`** (`apps/app`) — set it to `http://localhost:5173` in
-  local dev, or the `/signed` gate bounces to the production origin
-  (`https://app.fuda.sh`) instead of running locally. The apex and the app are
-  one Worker, and `/signed`, `/private`, and `/rights` render only on the app
-  origin, which is the only one the api's CORS list allows.
-- **`VITE_RP_ID`** (`apps/app`) — the relying-party id of every passkey
-  ceremony. Set it to `localhost` in local dev, or the browser refuses the
-  production default (`fuda.sh`), which is not a registrable suffix of the dev
-  host. In production it stays `fuda.sh` so the apex and `app.fuda.sh` share
-  one passkey.
-
 ## Documentation
 
 - **Architecture**
@@ -170,8 +130,8 @@ that app.
   - [Substreams packages](./docs/specs/substreams.md) — the optional push lane
     and its compatibility guarantees
 - **Operations**
-  - [Runbook](./docs/runbook.md) — one-time Cloudflare and Base setup,
-    secrets, deploy order
+  - [Runbook](./docs/runbook.md) — local development, one-time Cloudflare and
+    Base setup, secrets, deploy order
   - [Graph demo](./docs/graph-demo.md) — the executable Graph/Substreams demo
     and evidence checklist
 - **Records**

@@ -371,11 +371,49 @@ after a deploy and periodically thereafter (see
 
 ## 12. Local development
 
-See `apps/api/README.md` for local dev: `USE_FAKE_CHAIN=1` and
-`.dev.vars.example`, the deterministic `env.local` block in
-`apps/api/wrangler.jsonc`, and the four dev ports (api 8787, gate 5174, dash
-5175, app 5173). Local D1 state under `.wrangler/state` persists across
-`wrangler dev` restarts; wipe it if the fake chain's world (schemas,
+```sh
+pnpm install --frozen-lockfile
+pnpm check      # format + lint + type check (vp check)
+pnpm typecheck  # types only (vp check --no-fmt --no-lint)
+pnpm test       # every package's tests (workerd for the api)
+```
+
+`pnpm dev` starts the whole local stack on the fixed ports below. A single
+surface starts with `pnpm dev:api`, `pnpm dev:app`, `pnpm dev:gate`, or
+`pnpm dev:dash`; a frontend on its own still needs `pnpm dev:api` running in
+another terminal for live api calls.
+
+| Surface | Path | Dev |
+| --- | --- | --- |
+| api | `apps/api` | `pnpm --filter api dev` — http://localhost:8787 (`wrangler dev --env local`) |
+| member app | `apps/app` | `pnpm --filter app dev` — http://localhost:5173 |
+| gate scanner | `apps/gate` | `pnpm --filter gate dev` — http://localhost:5174 |
+| dashboard | `apps/dash` | `pnpm --filter dash dev` — http://localhost:5175 |
+
+The frontends read the same `VITE_*` names as step 6, with different local
+values. They are baked in at build time, so changing one means restarting the
+dev server.
+
+- **`VITE_API_BASE_URL`** (gate, dash, app) — defaults to
+  `http://localhost:8787`, so a local api needs no override.
+- **`VITE_GRAPH_RIGHTS_ENDPOINT`** (dash, app) — the public Graph endpoint the
+  on-chain status views read; the member app also loads raw announcements from
+  it before matching them locally. There is no local substitute; point it at a
+  deployed rights subgraph.
+- **`VITE_APP_ORIGIN`** (app) — set it to `http://localhost:5173`, or the
+  `/signed` gate bounces to the production origin (`https://app.fuda.sh`)
+  instead of running locally. The apex and the app are one Worker, and
+  `/signed`, `/private`, and `/rights` render only on the app origin, which is
+  the only one the api's CORS list allows.
+- **`VITE_RP_ID`** (app) — set it to `localhost`, or the browser refuses the
+  production default (`fuda.sh`), which is not a registrable suffix of the dev
+  host.
+
+See `apps/api/README.md` for the api side: `USE_FAKE_CHAIN=1` (set it in
+`apps/api/.dev.vars` to run without a signer), `.dev.vars.example`, and the
+deterministic `env.local` block in `apps/api/wrangler.jsonc`. Local D1 state
+under `.wrangler/state` persists across `wrangler dev` restarts; wipe it if the
+fake chain's world (schemas,
 delegation, seeded rows) changes shape. `.dev.vars` is read both by
 `wrangler dev` during local dev and by the workerd test pool during `vp
 test`; `apps/api/test/env.ts` strips it back out for every test, so `vp test`
