@@ -1,9 +1,10 @@
-const ISSUER_HANDLE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/u
-const PARENT_LABEL = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/u
-const RESERVED_ISSUER_HANDLES = new Set(['admin', 'api', 'app', 'dash', 'fuda', 'gate', 'www'])
+import { isIssuerHandle, isMemberNumber } from '@fuda/sdk'
 
-const MEMBER_NUMBER_ALPHABET = '23456789acdefghjkmnpqrtuvwxy'
-const MEMBER_NUMBER_LENGTH = 13
+// The Handle and member-number rules live in @fuda/sdk (docs/specs/ens-naming.md)
+// so the dashboard validates what the api enforces; re-exported for callers here.
+export { isIssuerHandle, isMemberNumber } from '@fuda/sdk'
+
+const PARENT_LABEL = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/u
 
 export type ParsedFudaEnsName =
   | { issuerHandle: string; kind: 'issuer' }
@@ -16,38 +17,6 @@ export const normalizeParentName = (raw: string): string => {
     throw new Error('invalid ENS parent name')
   }
   return normalized
-}
-
-export const isIssuerHandle = (raw: string): boolean =>
-  raw.length <= 63 && ISSUER_HANDLE.test(raw) && !RESERVED_ISSUER_HANDLES.has(raw)
-
-const memberCheckIndex = (payload: string): number => {
-  let factor = 2
-  let sum = 0
-  for (let index = payload.length - 1; index >= 0; index -= 1) {
-    const codePoint = payload[index]
-    if (codePoint === undefined) {
-      return -1
-    }
-    const value = MEMBER_NUMBER_ALPHABET.indexOf(codePoint)
-    if (value === -1) {
-      return -1
-    }
-    const product = value * factor
-    sum += Math.floor(product / MEMBER_NUMBER_ALPHABET.length) + (product % MEMBER_NUMBER_ALPHABET.length)
-    factor = factor === 2 ? 1 : 2
-  }
-  return (
-    (MEMBER_NUMBER_ALPHABET.length - (sum % MEMBER_NUMBER_ALPHABET.length)) % MEMBER_NUMBER_ALPHABET.length
-  )
-}
-
-export const isMemberNumber = (raw: string): boolean => {
-  if (raw.length !== MEMBER_NUMBER_LENGTH) {
-    return false
-  }
-  const payload = raw.slice(0, -1)
-  return MEMBER_NUMBER_ALPHABET[memberCheckIndex(payload)] === raw.at(-1)
 }
 
 export const issuerEnsName = (handle: string, parentName: string): string => {
