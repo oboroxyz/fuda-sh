@@ -65,6 +65,13 @@
     "DELEGATION_UID": "0x7bb324ad1ec399488f18178153a046d7bcca44bb9688e72e0ce9581a61a6e155",
     "API_BASE_URL": "https://api.fuda.sh",
     "PUBLIC_BASE_URL": "https://fuda.sh",
+    // The deployed FudaSubnameRegistrar on Ethereum Sepolia, and the gas policy
+    // the paymaster proxy injects. The claim routes stay off (503) until the
+    // policy id is filled and the three ENS_* secrets are set, so an empty
+    // string here is the deployment's own off switch, not a placeholder that
+    // fails at a worse moment (docs/specs/ens-naming.md).
+    "ENS_REGISTRAR_ADDRESS": "0x58AF04ff5e6DAB45ECD17bD38fC4f4BBa45778B9",
+    "ENS_GAS_POLICY_ID": "",
   },
   // `wrangler dev --env local` with USE_FAKE_CHAIN=1 (see .dev.vars.example): no
   // signer or RPC needed. ISSUER_ADDRESS/DELEGATION_UID/EAS_SCHEMAS below are
