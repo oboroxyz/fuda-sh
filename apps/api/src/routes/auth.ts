@@ -63,7 +63,10 @@ authRoutes.post('/auth/verify', async (c) => {
   }
   const issuer = await db.select().from(issuers).where(eq(issuers.operatorAddress, address)).get()
   const token = await createSession(db, { address, issuerId: issuer?.id ?? null, now })
-  return jsonResponse(c, { issuer: issuer === undefined ? null : issuerView(issuer), token })
+  return jsonResponse(c, {
+    issuer: issuer === undefined ? null : issuerView(issuer, c.env.API_BASE_URL),
+    token,
+  })
 })
 
 authRoutes.post('/auth/logout', operatorAuth(), async (c) => {

@@ -41,10 +41,15 @@ the store; D1 keeps only a reference.
    The Apple `icon.png` keeps today's synthetic mark; making the venue logo the
    icon is a later, additive change.
 4. **Objects are immutable and content-addressed by a per-upload prefix**
-   (`logos/<uuid>/<variant>.png`), served with a one-year immutable
-   `cache-control`. Replacing a logo writes a new prefix and repoints the
-   issuer, so a cached URL never shows the wrong mark and no object is ever
-   overwritten in place.
+   (`logos/<uuid>/<variant>.png`). Replacing a logo writes a new prefix and
+   repoints the issuer; no object is ever overwritten in place.
+
+   The public route is keyed by the handle, not the prefix, so that a printed
+   link survives a change — which means the URL alone cannot identify the
+   mark, and a one-year immutable answer would strand the old one in caches.
+   The api therefore hands out `?v=<prefix uuid>` and caches only a request
+   naming the current version forever; anything else gets sixty seconds.
+   Clients never assemble the URL, they use the `logoUrl` the api returns.
 5. **Upload is two-phase**, because the first logo is chosen before the venue
    exists. `POST /issuers/logo` (session) stores the objects and records a
    pending row with a 15-minute expiry; `POST /issuers` and the logo-replacing

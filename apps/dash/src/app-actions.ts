@@ -1,4 +1,4 @@
-import type { IssueResponse, IssuerCreateResponse, RevokeResponse } from '@fuda/sdk'
+import type { IssuerCreateResponse, IssuerView, IssueResponse, RevokeResponse } from '@fuda/sdk'
 
 import { commitLogo, createCard, createIssuer, uploadLogo } from './api.ts'
 import type { issueRight, listMembers, Result, revokeRight } from './api.ts'
@@ -81,20 +81,26 @@ export const stageLogo = async (io: DesignIo, token: string, logo: LogoSet | nul
 
 // A venue that already exists binds a new mark with the commit route; the
 // create body carries the id only when the venue is being created.
+// The commit answers the updated issuer, whose `logoUrl` carries the new
+// version. Handing it back lets the screen show the fresh mark without
+// guessing at a cache-busting value of its own.
 export const applyLogo = async (
   io: DesignIo,
   token: string,
   logo: LogoSet,
-): Promise<{ ok: true } | LogoFailure> => {
+): Promise<{ ok: true; issuer: IssuerView | null } | LogoFailure> => {
   const staged = await stageLogo(io, token, logo)
   if (!staged.ok) {
     return staged
   }
   if (staged.logoUploadId === null) {
-    return { ok: true }
+    return { issuer: null, ok: true }
   }
   const committed = await io.commitLogo(token, staged.logoUploadId)
-  return committed.ok ? { ok: true } : { ok: false, session: committed.status === 401 }
+  if (!committed.ok) {
+    return { ok: false, session: committed.status === 401 }
+  }
+  return { issuer: committed.body.issuer, ok: true }
 }
 
 export type CreateOutcome = { ok: true; body: IssuerCreateResponse } | { ok: false; failure: CreateFailure }

@@ -27,6 +27,22 @@ export const isLogoPrefix = (raw: string): boolean => PREFIX.test(raw)
 
 export const objectKey = (prefix: string, variant: LogoVariant): string => `${prefix}/${variant}.png`
 
+// The version a public logo URL carries. The route is keyed by handle so a
+// printed link keeps working, which means the URL alone cannot say which mark
+// it is; the version restores that, and it is what makes a one-year immutable
+// answer safe. Replacing a logo writes a new prefix, so the version changes.
+export const logoVersion = (prefix: string): string => prefix.slice('logos/'.length)
+
+export const logoUrlFor = (
+  baseUrl: string,
+  handle: string,
+  prefix: string | null,
+  variant: LogoVariant = 'master',
+): string | null =>
+  prefix === null
+    ? null
+    : `${baseUrl.replace(/\/$/u, '')}/assets/${handle}/logo/${variant}?v=${logoVersion(prefix)}`
+
 const SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
 
 export interface PngHeader {

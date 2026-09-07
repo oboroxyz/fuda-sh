@@ -5,7 +5,6 @@ import {
   EMPTY_LOGO,
   generateLogoSet,
   LOGO_SIDE,
-  logoAssetUrl,
   MAX_OBJECT_BYTES,
   MAX_SOURCE_BYTES,
   withLogoResult,
@@ -144,23 +143,5 @@ describe('the picked logo state', () => {
     const state = withLogoResult({ ok: false, reason: 'tooSmall' }, () => 'blob:preview')
     expect(state).toStrictEqual({ pick: null, rejection: 'tooSmall' })
     expect(EMPTY_LOGO).toStrictEqual({ pick: null, rejection: null })
-  })
-})
-
-describe('the public mark address', () => {
-  it('addresses the public master under the venue handle', () => {
-    expect(logoAssetUrl('http://localhost:8787', 'wassie-coffee', 7)).toBe(
-      'http://localhost:8787/assets/wassie-coffee/logo/master?v=7',
-    )
-    expect(logoAssetUrl('http://localhost:8787/', 'wassie-coffee', 7)).toBe(
-      'http://localhost:8787/assets/wassie-coffee/logo/master?v=7',
-    )
-  })
-
-  it('asks for a new version after a change, past the one-year immutable cache', () => {
-    expect(logoAssetUrl('https://api.fuda.sh', 'wassie-coffee', 2)).not.toBe(
-      logoAssetUrl('https://api.fuda.sh', 'wassie-coffee', 3),
-    )
-    expect(logoAssetUrl('https://api.fuda.sh', 'wassie-coffee', 3)).toContain('?v=3')
   })
 })

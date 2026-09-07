@@ -95,6 +95,7 @@ const issuer: IssuerView = {
   createdAt: 1_757_000_000,
   handle: 'wassie-coffee',
   id: 'issuer_1',
+  logoUrl: null,
   name: 'Wassie Coffee',
   operatorAddress: HOLDER,
   tagline: '',
@@ -189,7 +190,9 @@ describe('the designer submit', () => {
 describe('changing a live venue mark', () => {
   it('stages the blobs and commits the id it got back', async () => {
     const io = designIo()
-    await expect(applyLogo(io, 'secret', logo)).resolves.toStrictEqual({ ok: true })
+    // The commit hands back the updated issuer, whose versioned `logoUrl` is
+    // how the screen shows the new mark instead of a cached old one.
+    await expect(applyLogo(io, 'secret', logo)).resolves.toStrictEqual({ issuer, ok: true })
     expect(io.uploadLogo).toHaveBeenCalledExactlyOnceWith('secret', logo)
     expect(io.commitLogo).toHaveBeenCalledExactlyOnceWith('secret', 'up_1')
   })

@@ -107,6 +107,7 @@ describe('choosing a card on the venue page', () => {
       card({ category: 'ticket', id: 'b', slug: 'gig', title: 'Gig' }),
     ],
     handle: 'wassie-coffee',
+    logoUrl: null,
     name: 'Wassie Coffee',
     tagline: '',
   }

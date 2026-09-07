@@ -182,6 +182,7 @@ const issuer: IssuerView = {
   createdAt: 1_757_000_000,
   handle: 'wassie-coffee',
   id: 'issuer-1',
+  logoUrl: null,
   name: 'Wassie Coffee',
   operatorAddress: `0x${'ab'.repeat(20)}`,
   tagline: 'Omotesando · Coffee shop',

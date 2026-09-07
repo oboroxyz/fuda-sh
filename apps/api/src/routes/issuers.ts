@@ -67,7 +67,7 @@ issuersRoutes.get('/issuers/me', operatorAuth(), async (c) => {
   }
   return jsonResponse(c, {
     cards: found.cards.map((card) => cardView(card, c.get('now')())),
-    issuer: issuerView(found.issuer),
+    issuer: issuerView(found.issuer, c.env.API_BASE_URL),
     publicUrl: publicUrlFor(c.env.PUBLIC_BASE_URL, found.issuer.handle),
   })
 })
@@ -235,7 +235,7 @@ issuersRoutes.post('/issuers', operatorAuth(), async (c) => {
     c,
     {
       card: cardView(created, c.get('now')()),
-      issuer: issuerView(found.issuer),
+      issuer: issuerView(found.issuer, c.env.API_BASE_URL),
       publicUrl: publicUrlFor(c.env.PUBLIC_BASE_URL, found.issuer.handle),
     },
     201,
@@ -272,7 +272,7 @@ issuersRoutes.post('/issuers/cards', operatorAuth(), async (c) => {
     c,
     {
       card: cardView(card, c.get('now')()),
-      issuer: issuerView(issuer),
+      issuer: issuerView(issuer, c.env.API_BASE_URL),
       publicUrl: publicUrlFor(c.env.PUBLIC_BASE_URL, issuer.handle),
     },
     201,
@@ -289,7 +289,7 @@ issuersRoutes.get('/issuers/:handle', async (c) => {
   if (found === null) {
     return errorResponse(c, 'not_found', 404)
   }
-  return jsonResponse(c, publicVenue(found.issuer, found.cards, c.get('now')()))
+  return jsonResponse(c, publicVenue(found.issuer, found.cards, c.get('now')(), c.env.API_BASE_URL))
 })
 
 // A member number nobody holds at this venue yet. The scope is the issuer, not

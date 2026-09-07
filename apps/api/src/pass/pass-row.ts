@@ -7,6 +7,7 @@ import type { Db } from '../db/client.ts'
 import { cards, issuers, members } from '../db/schema.ts'
 import type { AppEnv } from '../env.ts'
 import { errorResponse } from '../json.ts'
+import { logoUrlFor } from '../media/logo.ts'
 import type { PassRow } from './pass-view.ts'
 
 export type PassRowResult = { ok: true; row: PassRow } | { ok: false; res: Response }
@@ -48,10 +49,9 @@ const brandingOf = async (
     brandColor: found.brandColor,
     cardTitle: found.title,
     issuerName: found.name,
-    // Absolute, because Google Wallet fetches it and a saved pass outlives the
-    // request that made it.
-    logoUrl:
-      found.logoPrefix === null ? null : `${baseUrl.replace(/\/$/u, '')}/assets/${found.handle}/logo/master`,
+    // Absolute and versioned, because Google Wallet fetches it and caches it,
+    // and a saved pass outlives the request that made it.
+    logoUrl: logoUrlFor(baseUrl, found.handle, found.logoPrefix),
     memberNumber: formatMemberNumber(memberId),
     venue,
   }

@@ -318,10 +318,20 @@ prefix, so a cached URL never shows the old mark.
 
 `GET /assets/:handle/logo/:variant` (public) serves an object, resolving the
 prefix from the issuer row against a fixed variant list so no caller-supplied
-path reaches R2. It answers an ETag, honours `if-none-match` with a `304`, and
-carries a one-year immutable `Cache-Control`. Without the `MEDIA_BUCKET`
-binding the upload route answers `501 media_not_configured` and every other
-surface works unbranded.
+path reaches R2. It answers an ETag and honours `if-none-match` with a `304`.
+
+The route is keyed by the handle rather than by the object's prefix, so that a
+link printed before a logo change still resolves — which means the address
+alone does not say which mark it is. The version restores that: the api hands
+out `…/logo/master?v=<prefix uuid>` and caches such a request for a year,
+while an unversioned or stale one is served with a sixty-second life so a
+replaced logo corrects itself. **A client must never assemble this URL.** The
+api returns it as `logoUrl` on the issuer, on the public venue, and inside a
+pass's branding, and replacing a logo changes it, which is what makes Google
+Wallet and every browser pick up the new mark.
+
+Without the `MEDIA_BUCKET` binding the upload route answers
+`501 media_not_configured` and every other surface works unbranded.
 
 **A card's two time windows.** They answer different questions and are set
 independently.

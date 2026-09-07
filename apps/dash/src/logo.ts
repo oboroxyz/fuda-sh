@@ -131,13 +131,6 @@ export const generateLogoSet = async <TImage extends ImageSize>(
   return { ok: true, variants: { logo1x, logo2x, logo3x, master } }
 }
 
-// The public mark. The route answers a one-year immutable `Cache-Control` and
-// its URL carries the handle rather than the object's prefix, so a browser that
-// has seen the old mark would keep showing it. `version` — the moment the screen
-// mounted, and the moment of each change — asks for the current one instead.
-export const logoAssetUrl = (base: string, handle: string, version: number): string =>
-  `${base.replace(/\/$/u, '')}/assets/${encodeURIComponent(handle)}/logo/master?v=${String(version)}`
-
 // The browser's own decoder and canvas. The node test run injects fakes and
 // never reaches this.
 export const browserLogoTools: LogoTools<ImageBitmap> = {

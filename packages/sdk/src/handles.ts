@@ -163,6 +163,10 @@ export interface IssuerView {
   brandColor: string
   operatorAddress: Hex
   createdAt: number
+  // Built by the api and carrying the stored version, so replacing a logo
+  // changes the URL. Null when the venue has no mark. Never assembled by a
+  // client: a handle-only URL would be served from cache after a change.
+  logoUrl: string | null
 }
 
 // GET /issuers/:handle — the venue page a member lands on. A venue with one
@@ -173,6 +177,7 @@ export interface PublicVenue {
   tagline: string
   brandColor: string
   cards: CardView[]
+  logoUrl: string | null
 }
 
 // One card of that venue, once the member (or the link) has chosen it.

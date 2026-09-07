@@ -7,7 +7,7 @@ import { issuers } from '../db/schema.ts'
 import type { AppEnv } from '../env.ts'
 import { issuerView } from '../issuers/views.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
-import { isLogoVariant, LOGO_VARIANTS, MAX_LOGO_SET_BYTES } from '../media/logo.ts'
+import { isLogoVariant, LOGO_VARIANTS, logoVersion, MAX_LOGO_SET_BYTES } from '../media/logo.ts'
 import { claimLogoUpload, readLogoObject, storeLogoSet } from '../media/store.ts'
 import { operatorAuth } from '../middleware/operator-auth.ts'
 
@@ -93,7 +93,9 @@ mediaRoutes.post('/issuers/logo/commit', operatorAuth(), async (c) => {
   }
   await db.update(issuers).set({ logoPrefix: prefix }).where(eq(issuers.id, issuerId))
   const row = await db.select().from(issuers).where(eq(issuers.id, issuerId)).get()
-  return row === undefined ? errorResponse(c, 'not_found', 404) : jsonResponse(c, { issuer: issuerView(row) })
+  return row === undefined
+    ? errorResponse(c, 'not_found', 404)
+    : jsonResponse(c, { issuer: issuerView(row, c.env.API_BASE_URL) })
 })
 
 // Public: the venue's mark. The key is resolved from the issuer row against a
@@ -118,16 +120,18 @@ mediaRoutes.get('/assets/:handle/logo/:variant', async (c) => {
   if (object === null) {
     return errorResponse(c, 'not_found', 404)
   }
-  // The object is immutable under its prefix, so a matching ETag can always
-  // be answered without a body.
+  // The route is keyed by handle, not by the object prefix, so the URL alone
+  // does not say which mark it is: a link printed before a change points at
+  // the same address as one printed after. Only a request that names the
+  // current version may be cached forever; anything else — an old link, or a
+  // client that built the URL itself — gets a short life so a replaced logo
+  // corrects itself instead of persisting for a year.
+  const versioned = c.req.query('v') === logoVersion(row.logoPrefix)
+  const cacheControl = versioned ? 'public, max-age=31536000, immutable' : 'public, max-age=60'
   if (c.req.header('if-none-match') === object.etag) {
-    return new Response(null, { headers: { etag: object.etag }, status: 304 })
+    return new Response(null, { headers: { 'cache-control': cacheControl, etag: object.etag }, status: 304 })
   }
   return new Response(object.body, {
-    headers: {
-      'cache-control': 'public, max-age=31536000, immutable',
-      'content-type': 'image/png',
-      etag: object.etag,
-    },
+    headers: { 'cache-control': cacheControl, 'content-type': 'image/png', etag: object.etag },
   })
 })

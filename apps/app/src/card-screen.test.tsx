@@ -3,7 +3,7 @@ import type { Hex, PublicCard, PublicVenue } from '@fuda/sdk'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 import { describe, expect, it } from 'vitest'
 
-import { CardScreenView, issueDateOf, logoUrl } from './CardScreen.tsx'
+import { CardScreenView, issueDateOf } from './CardScreen.tsx'
 import type { IssuedCard } from './CardScreen.tsx'
 
 interface ViewNode {
@@ -67,6 +67,7 @@ const card: PublicCard = {
     validityDays: null,
   },
   handle: 'wassie-coffee',
+  logoUrl: 'https://api.test/assets/wassie-coffee/logo/master?v=abc',
   name: 'Wassie Coffee',
   tagline: 'Slow coffee, fast wifi',
 }
@@ -90,6 +91,7 @@ const venue: PublicVenue = {
   brandColor: card.brandColor,
   cards: [card.card, gig],
   handle: card.handle,
+  logoUrl: card.logoUrl,
   name: card.name,
   tagline: card.tagline,
 }
@@ -263,15 +265,19 @@ describe('a card outside its claim window', () => {
   })
 })
 
-describe(logoUrl, () => {
-  it('points at the venue mark the api serves', () => {
-    expect(logoUrl('wassie-coffee')).toBe('http://localhost:8787/assets/wassie-coffee/logo/master')
-  })
-
-  it('renders the mark on the venue card', () => {
+describe('the venue mark', () => {
+  it('renders the url the api handed out', () => {
     const marks = viewNodes(render({ card, kind: 'landing' })).filter(
-      (node) => node.props.src === logoUrl(card.handle),
+      (node) => node.props.src === card.logoUrl,
     )
     expect(marks).toHaveLength(1)
+  })
+
+  it('renders no image for a venue without a mark', () => {
+    const bare = { ...card, logoUrl: null }
+    const marks = viewNodes(render({ card: bare, kind: 'landing' })).filter(
+      (node) => node.props.src !== undefined,
+    )
+    expect(marks).toStrictEqual([])
   })
 })

@@ -3,11 +3,12 @@ import type { CardView, IssuerView, PublicVenue } from '@fuda/sdk'
 import type { Hex } from 'viem'
 
 import type { cards, issuers } from '../db/schema.ts'
+import { logoUrlFor } from '../media/logo.ts'
 
 type IssuerRow = typeof issuers.$inferSelect
 type CardRow = typeof cards.$inferSelect
 
-export const issuerView = (row: IssuerRow): IssuerView => {
+export const issuerView = (row: IssuerRow, baseUrl: string): IssuerView => {
   // Annotated (not cast): written only from ADDRESS_RE-validated input.
   const operatorAddress: Hex = `0x${row.operatorAddress.slice(2)}`
   return {
@@ -15,6 +16,7 @@ export const issuerView = (row: IssuerRow): IssuerView => {
     createdAt: row.createdAt,
     handle: row.handle,
     id: row.id,
+    logoUrl: logoUrlFor(baseUrl, row.handle, row.logoPrefix),
     name: row.name,
     operatorAddress,
     tagline: row.tagline,
@@ -37,10 +39,16 @@ export const cardView = (row: CardRow, now: number): CardView => ({
   validityDays: row.validityDays,
 })
 
-export const publicVenue = (issuer: IssuerRow, cards: CardRow[], now: number): PublicVenue => ({
+export const publicVenue = (
+  issuer: IssuerRow,
+  cards: CardRow[],
+  now: number,
+  baseUrl: string,
+): PublicVenue => ({
   brandColor: issuer.brandColor,
   cards: cards.map((card) => cardView(card, now)),
   handle: issuer.handle,
+  logoUrl: logoUrlFor(baseUrl, issuer.handle, issuer.logoPrefix),
   name: issuer.name,
   tagline: issuer.tagline,
 })

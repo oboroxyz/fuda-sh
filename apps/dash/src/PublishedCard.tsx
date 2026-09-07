@@ -5,9 +5,8 @@ import { useEffect, useRef, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import { cardUrl, claimStateOf, displayUrl, formatInstant, validityStateOf } from './card-designer.ts'
-import { API_BASE_URL } from './config.ts'
 import type { DashCopy } from './copy.ts'
-import { browserLogoTools, EMPTY_LOGO, generateLogoSet, logoAssetUrl, withLogoResult } from './logo.ts'
+import { browserLogoTools, EMPTY_LOGO, generateLogoSet, withLogoResult } from './logo.ts'
 import type { LogoSet, LogoState } from './logo.ts'
 import { LogoField } from './LogoField.tsx'
 import { QrBlock } from './QrBlock.tsx'
@@ -201,10 +200,6 @@ export const PublishedCard = ({ onCommitLogo, ...props }: PublishedCardProps): J
   const [logo, setLogo] = useState<LogoState>(EMPTY_LOGO)
   const [logoBusy, setLogoBusy] = useState(false)
   const [logoFailed, setLogoFailed] = useState(false)
-  // The mark is served from a fixed address under a one-year immutable cache, so
-  // each mount — and each committed change — asks for a version the browser has
-  // not cached, rather than being shown last week's mark.
-  const [logoVersion, setLogoVersion] = useState(() => Date.now())
   // An <img> error is how a venue without a mark announces itself: the asset
   // route answers 404 and the name stands alone, as it does today.
   const [logoMissing, setLogoMissing] = useState(false)
@@ -245,7 +240,6 @@ export const PublishedCard = ({ onCommitLogo, ...props }: PublishedCardProps): J
         return
       }
       setLogoMissing(false)
-      setLogoVersion(Date.now())
       setLogo(EMPTY_LOGO)
       if (picked.pick !== null) {
         URL.revokeObjectURL(picked.pick.previewUrl)
@@ -261,7 +255,7 @@ export const PublishedCard = ({ onCommitLogo, ...props }: PublishedCardProps): J
       logo={logo}
       logoBusy={logoBusy}
       logoFailed={logoFailed}
-      logoSrc={logoMissing ? null : logoAssetUrl(API_BASE_URL, props.issuer.handle, logoVersion)}
+      logoSrc={logoMissing ? null : props.issuer.logoUrl}
       onLogoError={() => {
         setLogoMissing(true)
       }}

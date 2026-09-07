@@ -149,12 +149,14 @@ describe('serving a venue logo', () => {
     return { app, bindings }
   }
 
-  it('serves the master immutably with an ETag', async () => {
+  it('serves the master with an ETag and a short life for an unversioned link', async () => {
     const { app, bindings } = await branded()
     const res = await getJson(app, bindings, '/assets/wassie-coffee/logo/master')
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toBe('image/png')
-    expect(res.headers.get('cache-control')).toBe('public, max-age=31536000, immutable')
+    // Unversioned: a link printed before a logo change points here too, so it
+    // must not be cached for a year.
+    expect(res.headers.get('cache-control')).toBe('public, max-age=60')
     expect(res.headers.get('etag')).not.toBeNull()
   })
 
@@ -227,5 +229,64 @@ describe('a branded pass', () => {
     const page = await app.request(`/pass/${uid}`, {}, bindings)
     const html = await page.text()
     expect(html).not.toContain('/assets/wassie-coffee/logo/master')
+  })
+})
+
+describe('the versioned logo url', () => {
+  beforeEach(async () => {
+    const db = getDb({ DB: env.DB })
+    await db.delete(sessions)
+    await db.delete(challenges)
+    await db.delete(logoUploads)
+    await db.delete(cards)
+    await db.delete(issuers)
+  })
+
+  it('names the stored version, so a replacement is a different url', async () => {
+    const app = appWith({ chain: fakeChain(), now: () => NOW })
+    const bindings = mediaEnv()
+    const { token } = await signIn(app, bindings)
+    const firstRes = await upload(app, bindings, token, logoForm())
+    const first = await firstRes.json<{ logoUploadId: string }>()
+    const createdRes = await postJson(
+      app,
+      bindings,
+      '/issuers',
+      { ...CARD_INPUT, logoUploadId: first.logoUploadId },
+      token,
+    )
+    const created = await createdRes.json<{ issuer: { logoUrl: string } }>()
+    expect(created.issuer.logoUrl).toMatch(/\/assets\/wassie-coffee\/logo\/master\?v=[0-9a-f-]{36}$/u)
+    const secondRes = await upload(app, bindings, token, logoForm())
+    const second = await secondRes.json<{ logoUploadId: string }>()
+    const changedRes = await postJson(app, bindings, '/issuers/logo/commit', second, token)
+    const changed = await changedRes.json<{ issuer: { logoUrl: string } }>()
+    expect(changed.issuer.logoUrl).not.toBe(created.issuer.logoUrl)
+  })
+
+  it('caches forever only when the request names the current version', async () => {
+    const app = appWith({ chain: fakeChain(), now: () => NOW })
+    const bindings = mediaEnv()
+    const { token } = await signIn(app, bindings)
+    const stagedRes = await upload(app, bindings, token, logoForm())
+    const staged = await stagedRes.json<{ logoUploadId: string }>()
+    const createdRes = await postJson(
+      app,
+      bindings,
+      '/issuers',
+      { ...CARD_INPUT, logoUploadId: staged.logoUploadId },
+      token,
+    )
+    const created = await createdRes.json<{ issuer: { logoUrl: string } }>()
+    const versioned = await getJson(
+      app,
+      bindings,
+      new URL(created.issuer.logoUrl).pathname + new URL(created.issuer.logoUrl).search,
+    )
+    const bare = await getJson(app, bindings, '/assets/wassie-coffee/logo/master')
+    const stale = await getJson(app, bindings, '/assets/wassie-coffee/logo/master?v=old')
+    expect(versioned.headers.get('cache-control')).toBe('public, max-age=31536000, immutable')
+    expect(bare.headers.get('cache-control')).toBe('public, max-age=60')
+    expect(stale.headers.get('cache-control')).toBe('public, max-age=60')
   })
 })
