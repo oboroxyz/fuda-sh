@@ -1,10 +1,10 @@
 import type { IssueResponse, MembersResponse, RevokeResponse } from '@fuda/sdk'
-import { apiFetch } from '@fuda/ui'
-import type { Result } from '@fuda/ui'
+import { apiFetch } from '@fuda/sdk/http'
+import type { Result } from '@fuda/sdk/http'
 
 import { API_BASE_URL } from './config.ts'
 
-export type { Result } from '@fuda/ui'
+export type { Result } from '@fuda/sdk/http'
 
 // The admin token lives only in memory for the tab's lifetime (docs/specs/pass-types-and-flows.md#surfaces). It is
 // fuda's API authorization, not a user account: an api with ADMIN_TOKEN unset

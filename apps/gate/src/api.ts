@@ -1,6 +1,6 @@
 import type { VerifyResponse } from '@fuda/sdk'
-import { apiFetch } from '@fuda/ui'
-import type { Result } from '@fuda/ui'
+import { apiFetch } from '@fuda/sdk/http'
+import type { Result } from '@fuda/sdk/http'
 
 import { API_BASE_URL } from './config.ts'
 

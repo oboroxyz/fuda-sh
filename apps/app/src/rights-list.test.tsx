@@ -1,5 +1,5 @@
 import type { GraphRight, Hex, VerifyResponse } from '@fuda/sdk'
-import type { Result } from '@fuda/ui'
+import type { Result } from '@fuda/sdk/http'
 import { describe, expect, it, vi } from 'vitest'
 
 import {

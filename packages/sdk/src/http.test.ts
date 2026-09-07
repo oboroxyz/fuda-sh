@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { apiFetch } from './fetch.ts'
+import { apiFetch } from './http.ts'
 
 const stubFetch = (impl: (url: string, init?: RequestInit) => Response) => {
   const spy = vi.fn<(url: string, init?: RequestInit) => Response>(impl)
@@ -47,8 +47,6 @@ describe(apiFetch, () => {
     })
   })
 
-  // A bodyless GET with content-type is no longer a CORS-simple request, so the
-  // browser preflights it for a header nothing reads.
   it('sends content-type only when there is a body', async () => {
     const spy = stubFetch(() => json({}, 200))
     await apiFetch('http://api', '/x', { method: 'GET' })

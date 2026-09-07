@@ -1,8 +1,8 @@
 import { challengeMessage, fetchAnnouncements } from '@fuda/sdk'
 import type { ChallengeResponse, GraphAnnouncement, Hex } from '@fuda/sdk'
+import type { Result } from '@fuda/sdk/http'
 import { buildAnnouncementMetadata, generateStealthAddress } from '@fuda/stealth-address'
 import type { GeneratedStealthAddress } from '@fuda/stealth-address'
-import type { Result } from '@fuda/ui'
 import { verifyMessage } from 'viem'
 import { describe, expect, it, vi } from 'vitest'
 

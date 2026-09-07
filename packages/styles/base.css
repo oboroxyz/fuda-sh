@@ -1,5 +1,72 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
+@plugin "daisyui" {
+  themes: false;
+  exclude: button;
+}
+
+@theme {
+  --font-display: 'Quicksand', var(--font-sans);
+
+  --animate-wobble: wobble 1s both;
+
+  @keyframes wobble {
+    from,
+    to {
+      transform: translate3d(0, 0, 0);
+    }
+    15% {
+      transform: translate3d(-10%, 0, 0) rotate3d(0, 0, 1, -5deg);
+    }
+    30% {
+      transform: translate3d(7.5%, 0, 0) rotate3d(0, 0, 1, 3deg);
+    }
+    45% {
+      transform: translate3d(-5%, 0, 0) rotate3d(0, 0, 1, -3deg);
+    }
+    60% {
+      transform: translate3d(2.5%, 0, 0) rotate3d(0, 0, 1, 2deg);
+    }
+    75% {
+      transform: translate3d(-1.75%, 0, 0) rotate3d(0, 0, 1, -1deg);
+    }
+  }
+
+  --animate-swing: swing 1s both;
+
+  /* Pendulum variant of wobble for the hanging tag mark: rotation only, pivoting at the
+     cord top (y=28 in the 260 viewBox ≈ 11%). transform-origin rides in every keyframe so
+     the animation is self-contained — set on the element instead, it would interpolate
+     from the default center origin on frames that omit it. */
+  @keyframes swing {
+    from,
+    to {
+      transform: rotate(0deg);
+      transform-origin: 50% 11%;
+    }
+    15% {
+      transform: rotate(-8deg);
+      transform-origin: 50% 11%;
+    }
+    30% {
+      transform: rotate(6.5deg);
+      transform-origin: 50% 11%;
+    }
+    45% {
+      transform: rotate(-4.5deg);
+      transform-origin: 50% 11%;
+    }
+    60% {
+      transform: rotate(2.5deg);
+      transform-origin: 50% 11%;
+    }
+    75% {
+      transform: rotate(-1deg);
+      transform-origin: 50% 11%;
+    }
+  }
+}
+
 :root {
   color-scheme: light;
   font-family: ui-sans-serif, system-ui, sans-serif;
@@ -40,15 +107,80 @@
     outline: 3px solid var(--fuda-focus);
     outline-offset: 2px;
   }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-display;
+  }
+
+  .font-display {
+    @apply font-bold;
+  }
+
+  a,
+  button {
+    @apply hover:cursor-pointer;
+  }
 }
 
 @layer components {
+  .btn {
+    @apply cursor-pointer rounded-full bg-neutral-900 font-semibold text-white hover:bg-neutral-700 dark:bg-white dark:text-black dark:hover:bg-neutral-200;
+  }
+
+  .btn-outline {
+    @apply cursor-pointer rounded-full border border-neutral-900 bg-transparent font-semibold text-neutral-900 hover:bg-neutral-200/60 dark:border-neutral-500/50 dark:border-white dark:text-neutral-300 dark:hover:bg-neutral-800;
+  }
+
+  .text-moderate {
+    @apply text-neutral-600 dark:text-neutral-300;
+  }
+
+  .border-outline {
+    @apply border-neutral-900/50 dark:border-neutral-500/50;
+  }
+
   .fuda-icon-button {
-    align-items: center;
-    display: inline-flex;
-    justify-content: center;
-    min-block-size: 44px;
-    min-inline-size: 44px;
+    @apply inline-flex min-h-11 min-w-11 items-center justify-center;
+  }
+
+  .fuda-icon-button svg {
+    @apply size-6 fill-none stroke-current [stroke-width:1.6] [stroke-linecap:round] [stroke-linejoin:round];
+  }
+
+  .fuda-language-menu {
+    @apply relative;
+  }
+
+  .fuda-language-menu > summary {
+    @apply list-none;
+  }
+
+  .fuda-language-menu > summary::-webkit-details-marker,
+  .fuda-language-menu > summary::marker {
+    display: none;
+  }
+
+  .fuda-language-menu-panel {
+    @apply absolute bottom-[calc(100%+0.5rem)] left-0 z-30 w-36 overflow-hidden rounded-xl border border-[var(--fuda-border)] bg-[var(--fuda-surface)] py-1 shadow-[0_0.75rem_2rem_rgb(0_0_0/14%)];
+  }
+
+  .fuda-language-option {
+    @apply block w-full border-0 bg-transparent px-3 py-2.5 text-left text-[var(--fuda-muted)];
+  }
+
+  .fuda-language-option:hover,
+  .fuda-language-option[aria-current='true'] {
+    background: color-mix(in srgb, var(--fuda-text) 8%, var(--fuda-surface));
+    color: var(--fuda-text);
+  }
+
+  .fuda-language-option[aria-current='true'] {
+    @apply font-bold;
   }
 }
 

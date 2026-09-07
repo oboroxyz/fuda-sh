@@ -1,7 +1,7 @@
 import { isUid, parseQr, TIER_LABEL } from '@fuda/sdk'
 import type { Hex, VerifyResponse } from '@fuda/sdk'
+import type { Result } from '@fuda/sdk/http'
 import { short } from '@fuda/ui'
-import type { Result } from '@fuda/ui'
 
 export type InputKind = { kind: 'preview'; uid: Hex } | { kind: 'admit'; qr: string } | { kind: 'invalid' }
 

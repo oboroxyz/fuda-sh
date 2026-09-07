@@ -92,6 +92,9 @@ importers:
       '@fuda/stealth-address':
         specifier: workspace:*
         version: link:../../packages/stealth-address
+      '@fuda/styles':
+        specifier: workspace:*
+        version: link:../../packages/styles
       '@fuda/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -163,6 +166,9 @@ importers:
       '@fuda/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+      '@fuda/styles':
+        specifier: workspace:*
+        version: link:../../packages/styles
       '@fuda/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -254,6 +260,9 @@ importers:
 
   packages/ui:
     dependencies:
+      '@fuda/styles':
+        specifier: workspace:*
+        version: link:../styles
       hono:
         specifier: ^4.13.5
         version: 4.13.5

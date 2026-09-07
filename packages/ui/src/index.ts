@@ -1,7 +1,5 @@
 export { createQrDetector } from './barcode.ts'
 export type { BarcodeDetectorLike, DetectedBarcode } from './barcode.ts'
-export { apiFetch } from './fetch.ts'
-export type { ApiHeaders, ApiInit, Result } from './fetch.ts'
 export { Scanner } from './Scanner.tsx'
 export { short } from './short.ts'
 export { IconButton } from './IconButton.tsx'

@@ -1,6 +1,6 @@
 import { passUrls } from '@fuda/sdk'
 import type { GraphRight, Hex, PassUrls, VerifyResponse } from '@fuda/sdk'
-import type { Result } from '@fuda/ui'
+import type { Result } from '@fuda/sdk/http'
 
 import { API_BASE_URL } from './config.ts'
 import type { PassMemoryEntry } from './pass-memory.ts'

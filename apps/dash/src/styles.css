@@ -1,10 +1,5 @@
 @import 'tailwindcss';
 @import '@fuda/styles/base.css';
-@plugin "daisyui";
-
-@theme {
-  --font-display: 'Quicksand', var(--font-sans);
-}
 
 .dash-app,
 .dash-auth {
@@ -26,86 +21,37 @@
   --fuda-accent: oklch(97% 0 0);
 }
 
-@layer base {
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
-    @apply font-display;
-  }
-
-  .font-display {
-    @apply font-bold;
-  }
-}
-
 .dash-app {
-  display: grid;
-  min-height: 100svh;
-  background: var(--fuda-bg);
-  color: var(--fuda-text);
+  @apply grid min-h-svh bg-[var(--fuda-bg)] text-[var(--fuda-text)] lg:grid-cols-[248px_minmax(0,1fr)];
 }
 
 .dash-sidebar {
-  position: sticky;
-  top: 0;
-  display: none;
-  height: 100dvh;
-  flex-direction: column;
-  gap: 2rem;
-  overflow-y: auto;
-  padding: 2rem 1.25rem;
-  border-right: 1px solid var(--fuda-border);
-  background: var(--fuda-surface);
+  @apply sticky top-0 hidden h-dvh flex-col gap-8 overflow-y-auto border-r border-[var(--fuda-border)] bg-[var(--fuda-surface)] px-5 py-8 lg:flex;
 }
 
 .dash-workspace,
 .dash-main {
-  min-width: 0;
+  @apply min-w-0;
 }
 
 .dash-main {
-  width: 100%;
-  max-width: 72rem;
-  margin-inline: auto;
-  padding: 1rem;
+  @apply mx-auto w-full max-w-6xl p-4 sm:p-6 lg:p-8;
 }
 
 .dash-mobile-header {
-  position: sticky;
-  z-index: 20;
-  top: 0;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--fuda-border);
-  background: var(--fuda-surface);
+  @apply sticky top-0 z-20 flex items-center gap-4 border-b border-[var(--fuda-border)] bg-[var(--fuda-surface)] px-4 py-3 lg:hidden;
 }
 
 .dash-menu-button {
-  width: 44px;
-  height: 44px;
+  @apply size-11;
 }
 
 .dash-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
+  @apply flex flex-col gap-1.5;
 }
 
 .dash-nav a {
-  display: flex;
-  min-height: 44px;
-  align-items: center;
-  padding: 0.625rem 0.875rem;
-  border: 1px solid transparent;
-  border-radius: 0.625rem;
-  color: var(--fuda-muted);
-  font-weight: 500;
-  text-decoration: none;
+  @apply flex min-h-11 items-center rounded-[0.625rem] border border-transparent px-3.5 py-2.5 font-medium text-[var(--fuda-muted)] no-underline;
 }
 
 .dash-nav a:hover {
@@ -114,10 +60,9 @@
 }
 
 .dash-nav a[aria-current='page'] {
+  @apply font-bold text-[var(--fuda-accent)];
   border-color: color-mix(in srgb, var(--fuda-accent) 25%, var(--fuda-border));
   background: color-mix(in srgb, var(--fuda-accent) 12%, var(--fuda-surface));
-  color: var(--fuda-accent);
-  font-weight: 700;
 }
 
 .dash-app :focus-visible,
@@ -127,172 +72,52 @@
 }
 
 .dash-appearance {
-  position: relative;
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.fuda-language-menu {
-  position: relative;
-}
-
-.fuda-language-menu > summary {
-  list-style: none;
-}
-
-.fuda-language-menu > summary::-webkit-details-marker,
-.fuda-language-menu > summary::marker {
-  display: none;
-}
-
-.fuda-language-menu-panel {
-  position: absolute;
-  z-index: 30;
-  bottom: calc(100% + 0.5rem);
-  left: 0;
-  width: 9rem;
-  overflow: hidden;
-  padding-block: 0.25rem;
-  border: 1px solid var(--fuda-border);
-  border-radius: 0.75rem;
-  background: var(--fuda-surface);
-  box-shadow: 0 0.75rem 2rem rgb(0 0 0 / 14%);
-}
-
-.fuda-language-option {
-  display: block;
-  width: 100%;
-  padding: 0.625rem 0.75rem;
-  border: 0;
-  background: transparent;
-  color: var(--fuda-muted);
-  text-align: left;
-}
-
-.fuda-language-option:hover,
-.fuda-language-option[aria-current='true'] {
-  background: color-mix(in srgb, var(--fuda-text) 8%, var(--fuda-surface));
-  color: var(--fuda-text);
-}
-
-.fuda-language-option[aria-current='true'] {
-  font-weight: 700;
+  @apply relative flex min-w-0 flex-wrap items-center gap-2;
 }
 
 .dash-auth {
-  min-height: 100svh;
-  padding: 1rem;
+  @apply min-h-svh p-4 sm:p-6;
 }
 
 .dash-auth-logo-intro {
-  width: 4.5rem;
-  margin-inline: auto;
-  animation: dash-auth-logo-swing 1s 0.6s both;
+  @apply animate-swing mx-auto w-18;
+  animation-delay: 0.6s;
 }
 
 .dash-auth-logo {
-  display: block;
-  width: 100%;
-  height: auto;
+  @apply block h-auto w-full;
 }
 
 .dash-auth-logo:hover {
-  animation: dash-auth-logo-swing 1s both;
+  @apply animate-swing;
 }
 
 .dash-auth-title {
-  margin-block: 0.25rem 0.5rem;
-  font-size: clamp(2rem, 8vw, 3rem);
-  font-weight: 700;
-  line-height: 1.05;
-  text-align: center;
-}
-
-@keyframes dash-auth-logo-swing {
-  from,
-  to {
-    transform: rotate(0deg);
-    transform-origin: 50% 11%;
-  }
-  15% {
-    transform: rotate(-8deg);
-    transform-origin: 50% 11%;
-  }
-  30% {
-    transform: rotate(6.5deg);
-    transform-origin: 50% 11%;
-  }
-  45% {
-    transform: rotate(-4deg);
-    transform-origin: 50% 11%;
-  }
-  60% {
-    transform: rotate(2.5deg);
-    transform-origin: 50% 11%;
-  }
-  75% {
-    transform: rotate(-1deg);
-    transform-origin: 50% 11%;
-  }
+  @apply mt-1 mb-2 text-center text-[clamp(2rem,8vw,3rem)] leading-[1.05] font-bold;
 }
 
 .dash-auth .dash-appearance {
-  justify-content: flex-end;
-  max-width: 20rem;
+  @apply max-w-80 justify-end;
 }
 
 .dash-auth .fuda-language-menu-panel {
-  top: calc(100% + 0.5rem);
-  right: 0;
-  bottom: auto;
-  left: auto;
+  @apply top-[calc(100%+0.5rem)] right-0 bottom-auto left-auto;
 }
 
 .dash-app :where(.input, .select),
 .dash-auth :where(.input, .select),
 .dash-appearance select {
-  min-width: 0;
-  min-height: 44px;
-  max-width: 100%;
-  padding-inline: 0.75rem;
-  border: 1px solid var(--fuda-border);
-  border-radius: 0.5rem;
-  background-color: var(--fuda-surface);
-  color: var(--fuda-text);
-  font-size: 0.875rem;
+  @apply min-h-11 max-w-full min-w-0 rounded-lg border border-[var(--fuda-border)] bg-[var(--fuda-surface)] px-3 text-sm text-[var(--fuda-text)];
 }
 
 .dash-app :where(.btn, .fuda-icon-button),
 .dash-auth :where(.btn, .fuda-icon-button) {
-  min-width: 44px;
-  min-height: 44px;
-  height: auto;
-  border: 1px solid var(--fuda-border);
-  border-radius: 9999px;
-  background: var(--fuda-surface);
-  color: var(--fuda-text);
-  box-shadow: none;
-  white-space: normal;
+  @apply h-auto min-h-11 min-w-11 rounded-full border border-[var(--fuda-border)] bg-[var(--fuda-surface)] whitespace-normal text-[var(--fuda-text)] shadow-none;
 }
 
 .dash-app .fuda-icon-button,
 .dash-auth .fuda-icon-button {
-  width: 44px;
-  height: 44px;
-  padding: 0;
-}
-
-.fuda-icon-button svg {
-  width: 1.5rem;
-  height: 1.5rem;
-  fill: none;
-  stroke: currentcolor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.6;
+  @apply size-11 p-0;
 }
 
 .dash-app :where(.btn, .fuda-icon-button):hover:not(:disabled),
@@ -336,16 +161,12 @@
 
 .dash-app .btn:disabled,
 .dash-auth .btn:disabled {
-  opacity: 0.5;
+  @apply opacity-50;
 }
 
 .dash-app :where(.card, .modal-box),
 .dash-auth .card {
-  min-width: 0;
-  border: 1px solid var(--fuda-border);
-  border-radius: 0.875rem;
-  background: var(--fuda-surface);
-  color: var(--fuda-text);
+  @apply min-w-0 rounded-[0.875rem] border border-[var(--fuda-border)] bg-[var(--fuda-surface)] text-[var(--fuda-text)];
 }
 
 .dash-app :where(p, dd, td, code, .alert, .dash-chain-reference, .dash-chain-name),
@@ -358,92 +179,60 @@
 }
 
 .dash-app :where(.link, .dash-actions a) {
-  color: var(--fuda-accent);
-  text-underline-offset: 0.2em;
+  @apply text-[var(--fuda-accent)] underline-offset-[0.2em];
 }
 
 .dash-overview-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
-  gap: 1rem;
+  @apply grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-4;
 }
 
 .dash-stat {
-  min-width: 0;
-  padding: 1.5rem;
-  border: 1px solid var(--fuda-border);
-  border-radius: 0.875rem;
-  background: var(--fuda-surface);
+  @apply min-w-0 rounded-[0.875rem] border border-[var(--fuda-border)] bg-[var(--fuda-surface)] p-6;
 }
 
 .dash-stat .stat-title {
-  margin-bottom: 0.75rem;
-  color: var(--fuda-muted);
-  white-space: normal;
+  @apply mb-3 whitespace-normal text-[var(--fuda-muted)];
 }
 
 .dash-stat .stat-value {
-  color: var(--fuda-text);
-  font-variant-numeric: tabular-nums;
+  @apply text-[var(--fuda-text)] tabular-nums;
 }
 
 .dash-skeleton {
-  display: inline-block;
-  width: 4rem;
-  height: 2.5rem;
-  border-radius: 0.375rem;
-  background: var(--fuda-border);
-  color: transparent;
+  @apply inline-block h-10 w-16 rounded-md bg-[var(--fuda-border)] text-transparent;
 }
 
 .rights-table {
-  display: none;
-  border: 1px solid var(--fuda-border);
-  border-radius: 0.875rem;
-  background: var(--fuda-surface);
+  @apply hidden rounded-[0.875rem] border border-[var(--fuda-border)] bg-[var(--fuda-surface)] lg:block;
 }
 
 .rights-table table {
-  width: 100%;
-  font-size: 0.8125rem;
+  @apply w-full text-[0.8125rem];
 }
 
 .rights-table :where(th, td) {
-  max-width: 14rem;
-  border-color: var(--fuda-border);
+  @apply max-w-56 border-[var(--fuda-border)];
 }
 
 .rights-table th {
-  color: var(--fuda-muted);
-  font-weight: 500;
+  @apply font-medium text-[var(--fuda-muted)];
 }
 
 .rights-cards {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  @apply flex flex-col gap-3 lg:hidden;
 }
 
 .dash-actions,
 .dash-app .modal-action {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
+  @apply flex flex-wrap items-center gap-2;
 }
 
 .dash-actions a {
-  display: inline-flex;
-  min-height: 44px;
-  align-items: center;
+  @apply inline-flex min-h-11 items-center;
 }
 
 .dash-app .badge {
-  height: auto;
-  min-height: 1.5rem;
-  padding: 0.125rem 0.5rem;
-  border-color: var(--fuda-border);
-  white-space: normal;
+  @apply h-auto min-h-6 border-[var(--fuda-border)] px-2 py-0.5 whitespace-normal;
 }
 
 .dash-app :where(.badge-success, .alert-success) {
@@ -464,58 +253,16 @@
 }
 
 .dash-drawer {
-  width: min(22rem, calc(100vw - 2rem));
-  max-height: calc(100dvh - 2rem);
-  margin: 1rem;
-  padding: 0;
-  border: 1px solid var(--fuda-border);
-  border-radius: 0.875rem;
-  background: var(--fuda-surface);
-  color: var(--fuda-text);
+  @apply m-4 max-h-[calc(100dvh-2rem)] w-[min(22rem,calc(100vw-2rem))] rounded-[0.875rem] border border-[var(--fuda-border)] bg-[var(--fuda-surface)] p-0 text-[var(--fuda-text)] lg:hidden;
 }
 
 .dash-drawer-panel {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 1.5rem;
-  padding: 1.25rem;
-}
-
-@media (min-width: 40rem) {
-  .dash-main,
-  .dash-auth {
-    padding: 1.5rem;
-  }
+  @apply flex min-w-0 flex-col gap-6 p-5;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .dash-auth-logo,
   .dash-auth-logo-intro {
     animation: none;
-  }
-}
-
-@media (min-width: 64rem) {
-  .dash-app {
-    grid-template-columns: 248px minmax(0, 1fr);
-  }
-
-  .dash-sidebar {
-    display: flex;
-  }
-
-  .dash-mobile-header,
-  .dash-drawer,
-  .rights-cards {
-    display: none;
-  }
-
-  .dash-main {
-    padding: 2rem;
-  }
-
-  .rights-table {
-    display: block;
   }
 }

@@ -25,6 +25,19 @@ One config file, `vite.config.ts`, drives dev/build/test/lint/format through **V
 
 ## Agents
 
+### Frontend styling
+
+For `apps/app`, `apps/dash`, and `apps/gate`, import `tailwindcss` and then
+`@fuda/styles/base.css` from the app's `src/styles.css`. Keep variables, base
+rules, and reusable `.fuda-*` classes emitted by `packages/ui` in
+`packages/styles/base.css`; keep each product's visual design in its app.
+Prefer Tailwind utilities in TSX and `@apply` for reusable selector-driven
+rules. Use CSS declarations for custom properties, keyframes, pseudo-elements,
+compound state selectors, and expressions that Tailwind cannot represent
+clearly. Compose conditional or potentially conflicting class names with `cn`;
+keep static classes as string literals. Declare `cn` as a direct dependency of
+each app or package that imports it.
+
 ### Superpowers workflow and artifact policy
 
 The full policy lives in `.agents/rules/superpowers-policy.md` (`.claude/rules/` is a symlink to `.agents/rules/`). Agents that resolve `@`-imports load it via the line below; other agents must read that file directly.
