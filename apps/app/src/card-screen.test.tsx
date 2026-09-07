@@ -1,4 +1,5 @@
-import type { Hex, PublicCard } from '@fuda/sdk'
+import { soleCard } from '@fuda/sdk'
+import type { Hex, PublicCard, PublicVenue } from '@fuda/sdk'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 import { describe, expect, it } from 'vitest'
 
@@ -55,12 +56,31 @@ const card: PublicCard = {
     id: 'c1',
     perk: 'Free refill on every visit',
     reward: '10th coffee on the house',
+    slug: 'regular',
     title: 'Regular',
     validityDays: null,
   },
   handle: 'wassie-coffee',
   name: 'Wassie Coffee',
   tagline: 'Slow coffee, fast wifi',
+}
+
+const gig = {
+  category: 'ticket',
+  id: 'c2',
+  perk: '',
+  reward: '',
+  slug: 'gig',
+  title: 'Friday Gig',
+  validityDays: 1,
+} satisfies PublicVenue['cards'][number]
+
+const venue: PublicVenue = {
+  brandColor: card.brandColor,
+  cards: [card.card, gig],
+  handle: card.handle,
+  name: card.name,
+  tagline: card.tagline,
 }
 
 const issued: IssuedCard = {
@@ -141,7 +161,7 @@ describe(CardScreenView, () => {
       viewText(render({ card, failure, kind: 'error' }))
 
     expect(viewText(render({ kind: 'loading' }))).toContain('Loading card')
-    expect(viewText(render({ kind: 'not_found' }))).toContain('No card here')
+    expect(viewText(render({ kind: 'not_found', venue: null }))).toContain('No card here')
     expect(message('rate_limited')).toContain('try again later')
     expect(message('no_signer')).toContain('cannot issue cards right now')
     expect(message('chain_error')).toContain('cannot issue cards right now')
@@ -149,5 +169,58 @@ describe(CardScreenView, () => {
 
   it('formats the issue date in UTC regardless of the device locale', () => {
     expect(issueDateOf(Date.UTC(2026, 0, 31, 23, 59))).toBe('Jan 31, 2026')
+  })
+})
+
+// A venue publishing several cards cannot open one by itself, so /@<handle>
+// names the venue once and lists a row per card.
+describe('the card chooser', () => {
+  it('names the venue once and links a row per card with its type and perk', () => {
+    const view = render({ heldSlugs: [], kind: 'choose', venue })
+    const text = viewText(view)
+    const hrefs = viewNodes(view)
+      .map(({ props }) => props.href)
+      .filter((href) => href !== undefined)
+
+    expect(text).toContain('Wassie Coffee')
+    expect(text).toContain('Slow coffee, fast wifi')
+    expect(text).toMatch(/Regular.*Membership.*Free refill on every visit.*Friday Gig.*Ticket/su)
+    expect(hrefs).toStrictEqual(['/@wassie-coffee/regular', '/@wassie-coffee/gig'])
+  })
+
+  it('offers a held card back instead of inviting a second claim', () => {
+    const held = viewText(render({ heldSlugs: ['regular'], kind: 'choose', venue }))
+
+    expect(held).toContain('You have this card')
+    expect(held).toContain('Get this ticket')
+    expect(held).not.toContain('Get this membership card')
+  })
+
+  // A venue with one card never shows the chooser: the bare address is that
+  // card's landing, one tap from the poster.
+  it('goes straight to the landing when the venue publishes one card', () => {
+    const only = soleCard({ ...venue, cards: [card.card] })
+    const view = viewText(render({ card: only ?? card, kind: 'landing' }))
+
+    expect(only?.card.slug).toBe('regular')
+    expect(view).toContain('Get your free membership card')
+    expect(view).not.toContain('Pick a card')
+  })
+
+  it('says so plainly when the venue publishes nothing yet', () => {
+    const empty = viewText(render({ heldSlugs: [], kind: 'choose', venue: { ...venue, cards: [] } }))
+
+    expect(empty).toContain('has no cards to hand out right now')
+    expect(empty).not.toContain('Regular')
+  })
+
+  it('sends an unknown card address back to the venue, and says nothing when there is no venue', () => {
+    const unknown = render({ kind: 'not_found', venue })
+    const bare = render({ kind: 'not_found', venue: null })
+
+    expect(viewText(unknown)).toMatch(/Wassie Coffee\s+has no card at this address/u)
+    expect(viewNodes(unknown).map(({ props }) => props.href)).toContain('/@wassie-coffee')
+    expect(viewText(bare)).toContain('There is no card at this address')
+    expect(viewNodes(bare).map(({ props }) => props.href)).not.toContain('/@wassie-coffee')
   })
 })

@@ -30,7 +30,7 @@ export const App = (): JSX.Element => {
     return <Landing />
   }
   if ('card' in route) {
-    return <CardScreen handle={route.card} />
+    return <CardScreen handle={route.card} slug={route.slug} />
   }
   // The gate cannot work from the apex (the api would reject its origin), so
   // hand the browser to app.fuda.sh rather than render a screen that fails.

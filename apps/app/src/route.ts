@@ -1,8 +1,14 @@
-import { isIssuerHandle } from '@fuda/sdk'
+import { isCardSlug, isIssuerHandle } from '@fuda/sdk'
 
 import { APP_ORIGIN } from './config.ts'
 
-export type Route = 'landing' | 'signed' | 'private' | 'rights' | { card: string } | { redirect: string }
+export type Route =
+  | 'landing'
+  | 'signed'
+  | 'private'
+  | 'rights'
+  | { card: string; slug: string | null }
+  | { redirect: string }
 
 // The fuda.sh apex and app.fuda.sh are one Worker (docs/specs/pass-types-and-flows.md#surfaces), so the path alone
 // does not say which surface the browser is on. The Signed gate must run on the
@@ -26,14 +32,30 @@ const originOf = (value: string): string | null => {
 // to the same origin rule as /signed.
 const APP_ONLY = new Set(['/signed', '/private', '/rights'])
 
-// A venue's card lives at /@<handle>. The handle rule is the sdk's, so a path
-// that the api would answer 404 for (or a reserved word like /@www) is not a
-// card route at all and falls through to the landing.
-const CARD_PATH = /^\/@(?<handle>[^/]+)$/u
+// A venue lives at /@<handle> and each of its cards at /@<handle>/<slug>. The
+// handle and slug rules are the sdk's, so a path the api would answer 404 for
+// (a reserved word like /@www, or a reserved slug like /cards) is not a card
+// route at all and falls through to the landing.
+const CARD_PATH = /^\/@(?<handle>[^/]+)(?:\/(?<slug>[^/]+))?$/u
 
-const cardHandleOf = (path: string): string | null => {
-  const handle = CARD_PATH.exec(path)?.groups?.handle
-  return handle !== undefined && isIssuerHandle(handle) ? handle : null
+export interface CardRoute {
+  card: string
+  slug: string | null
+}
+
+const cardRouteOf = (path: string): CardRoute | null => {
+  const groups = CARD_PATH.exec(path)?.groups
+  if (groups === undefined) {
+    return null
+  }
+  const { handle, slug } = groups
+  if (handle === undefined || !isIssuerHandle(handle)) {
+    return null
+  }
+  if (slug === undefined) {
+    return { card: handle, slug: null }
+  }
+  return isCardSlug(slug) ? { card: handle, slug } : null
 }
 
 export const routeFor = (origin: string, pathname: string, appOrigin: string = APP_ORIGIN): Route => {
@@ -42,15 +64,15 @@ export const routeFor = (origin: string, pathname: string, appOrigin: string = A
   const pathInput = queryAt === -1 ? pathname : pathname.slice(0, queryAt)
   const path = pathInput.length > 1 ? pathInput.replace(/\/+$/u, '') : pathInput
   const app = originOf(appOrigin)
-  const handle = cardHandleOf(path)
-  if ((handle === null && !APP_ONLY.has(path)) || app === null) {
+  const card = cardRouteOf(path)
+  if ((card === null && !APP_ONLY.has(path)) || app === null) {
     return 'landing'
   }
   if (originOf(origin) !== app) {
     return { redirect: `${app}${path}${query}` }
   }
-  if (handle !== null) {
-    return { card: handle }
+  if (card !== null) {
+    return card
   }
   if (path === '/signed') {
     return 'signed'

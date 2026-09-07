@@ -1,7 +1,7 @@
 import type {
   ChallengeResponse,
   Hex,
-  PublicCard,
+  PublicVenue,
   SelfServeIssueResponse,
   VerifyResponse,
   VerifySignedResponse,
@@ -31,17 +31,20 @@ export const verifySigned = async (body: {
 export const verifyUid = async (uid: Hex): Promise<Result<VerifyResponse>> =>
   await apiFetch<VerifyResponse>(API_BASE_URL, `/verify/${uid}`, { method: 'GET' })
 
-// The venue's public card behind /@<handle>: what a member sees before asking
-// for one. A handle nobody owns answers 404 `not_found`.
-export const fetchCard = async (handle: string): Promise<Result<PublicCard>> =>
-  await apiFetch<PublicCard>(API_BASE_URL, `/issuers/${encodeURIComponent(handle)}`, { method: 'GET' })
+// The venue behind /@<handle> and every card it publishes: what a member sees
+// before asking for one. A handle nobody owns answers 404 `not_found`.
+export const fetchVenue = async (handle: string): Promise<Result<PublicVenue>> =>
+  await apiFetch<PublicVenue>(API_BASE_URL, `/issuers/${encodeURIComponent(handle)}`, { method: 'GET' })
 
-// Self-serve Bearer issuance: no body, no account. The api answers 429
-// `rate_limited`, 501 `no_signer`, 502 `chain_error` or 404 `not_found`.
-export const issueCard = async (handle: string): Promise<Result<SelfServeIssueResponse>> =>
-  await apiFetch<SelfServeIssueResponse>(API_BASE_URL, `/issuers/${encodeURIComponent(handle)}/issue`, {
-    method: 'POST',
-  })
+// Self-serve Bearer issuance of one card: no body, no account. The api answers
+// 429 `rate_limited`, 501 `no_signer`, 502 `chain_error` or 404 `not_found`
+// (for an unknown handle as well as an unknown slug).
+export const issueCard = async (handle: string, slug: string): Promise<Result<SelfServeIssueResponse>> =>
+  await apiFetch<SelfServeIssueResponse>(
+    API_BASE_URL,
+    `/issuers/${encodeURIComponent(handle)}/${encodeURIComponent(slug)}/issue`,
+    { method: 'POST' },
+  )
 
 export type CardFailure = 'chain_error' | 'network' | 'no_signer' | 'not_found' | 'rate_limited'
 

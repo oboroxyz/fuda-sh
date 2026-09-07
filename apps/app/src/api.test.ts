@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   cardFailureOf,
   challenge,
-  fetchCard,
+  fetchVenue,
   googleSaveUrl,
   issueCard,
   verifySigned,
@@ -83,18 +83,28 @@ describe(verifyUid, () => {
   })
 })
 
-describe(fetchCard, () => {
-  it('GETs the public card for a handle without a request body', async () => {
+describe(fetchVenue, () => {
+  it('GETs the venue and every card it publishes, without a request body', async () => {
     const body = {
       brandColor: '#1D4ED8',
-      card: { category: 'membership', id: 'c1', perk: '', reward: '', title: 'Regular', validityDays: null },
+      cards: [
+        {
+          category: 'membership',
+          id: 'c1',
+          perk: '',
+          reward: '',
+          slug: 'regular',
+          title: 'Regular',
+          validityDays: null,
+        },
+      ],
       handle: 'wassie-coffee',
       name: 'Wassie Coffee',
       tagline: '',
     }
     const spy = stubFetch(() => json(body, 200))
 
-    await expect(fetchCard('wassie-coffee')).resolves.toStrictEqual({ body, ok: true })
+    await expect(fetchVenue('wassie-coffee')).resolves.toStrictEqual({ body, ok: true })
     expect(spy).toHaveBeenCalledWith('http://localhost:8787/issuers/wassie-coffee', {
       headers: {},
       method: 'GET',
@@ -104,7 +114,7 @@ describe(fetchCard, () => {
   it('reports an unknown handle as not_found', async () => {
     stubFetch(() => json({ error: 'not_found' }, 404))
 
-    await expect(fetchCard('nobody')).resolves.toStrictEqual({
+    await expect(fetchVenue('nobody')).resolves.toStrictEqual({
       error: 'not_found',
       network: false,
       ok: false,
@@ -114,11 +124,14 @@ describe(fetchCard, () => {
 })
 
 describe(issueCard, () => {
-  it('POSTs the self-serve issue without a body', async () => {
+  it('POSTs the self-serve issue for one card slug, without a body', async () => {
     const spy = stubFetch(() => json({ uid: UID }, 200))
 
-    await expect(issueCard('wassie-coffee')).resolves.toStrictEqual({ body: { uid: UID }, ok: true })
-    expect(spy).toHaveBeenCalledWith('http://localhost:8787/issuers/wassie-coffee/issue', {
+    await expect(issueCard('wassie-coffee', 'regular')).resolves.toStrictEqual({
+      body: { uid: UID },
+      ok: true,
+    })
+    expect(spy).toHaveBeenCalledWith('http://localhost:8787/issuers/wassie-coffee/regular/issue', {
       headers: {},
       method: 'POST',
     })
@@ -127,7 +140,7 @@ describe(issueCard, () => {
   it('keeps the 429 rate_limited code from the api', async () => {
     stubFetch(() => json({ error: 'rate_limited' }, 429))
 
-    await expect(issueCard('wassie-coffee')).resolves.toStrictEqual({
+    await expect(issueCard('wassie-coffee', 'regular')).resolves.toStrictEqual({
       error: 'rate_limited',
       network: false,
       ok: false,

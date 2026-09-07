@@ -1,13 +1,20 @@
 /** @jsxImportSource hono/jsx/dom */
-import { formatMemberNumber, passUrls, qrSvg, toQr } from '@fuda/sdk'
-import type { PassUrls, PublicCard, SelfServeIssueResponse } from '@fuda/sdk'
+import { cardBySlug, formatMemberNumber, passUrls, qrSvg, soleCard, toQr } from '@fuda/sdk'
+import type {
+  CardCategory,
+  CardView,
+  PassUrls,
+  PublicCard,
+  PublicVenue,
+  SelfServeIssueResponse,
+} from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
 import { useCallback, useEffect, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
-import { cardFailureOf, fetchCard, googleSaveUrl, issueCard } from './api.ts'
+import { cardFailureOf, fetchVenue, googleSaveUrl, issueCard } from './api.ts'
 import type { CardFailure } from './api.ts'
-import { readCard, rememberCard } from './card-memory.ts'
+import { cardKey, readCard, readCardMemory, rememberCard } from './card-memory.ts'
 import type { CardMemoryEntry } from './card-memory.ts'
 import { API_BASE_URL } from './config.ts'
 import { rememberPass } from './pass-memory.ts'
@@ -20,18 +27,23 @@ export interface IssuedCard extends CardMemoryEntry {
   qr: string
 }
 
+// A venue publishing more than one card cannot open any of them by itself, so
+// `/@<handle>` lists them and the member picks. `heldSlugs` marks the cards
+// this device already holds so a row offers the card back instead of a second
+// claim.
 export type CardScreenState =
   | { kind: 'loading' }
-  | { kind: 'not_found' }
+  | { kind: 'not_found'; venue: PublicVenue | null }
+  | { kind: 'choose'; venue: PublicVenue; heldSlugs: readonly string[] }
   | { kind: 'landing'; card: PublicCard }
   | { kind: 'issuing'; card: PublicCard }
   | { kind: 'ready'; card: PublicCard; issued: IssuedCard; googleHref: string | null }
   | { kind: 'error'; card: PublicCard | null; failure: CardFailure }
 
 export interface CardScreenIo {
-  fetchCard: (handle: string) => Promise<Result<PublicCard>>
+  fetchVenue: (handle: string) => Promise<Result<PublicVenue>>
   googleSaveUrl: (url: string) => Promise<string | null>
-  issueCard: (handle: string) => Promise<Result<SelfServeIssueResponse>>
+  issueCard: (handle: string, slug: string) => Promise<Result<SelfServeIssueResponse>>
 }
 
 export interface CardScreenViewProps {
@@ -52,19 +64,37 @@ const FAILURE_MESSAGE = {
   rate_limited: 'Too many cards were requested from this device. Please try again later.',
 } satisfies Record<CardFailure, string>
 
-const nounOf = (card: PublicCard): string => (card.card.category === 'ticket' ? 'ticket' : 'membership card')
+const CATEGORY_LABEL = { membership: 'Membership', ticket: 'Ticket' } satisfies Record<CardCategory, string>
+
+const CATEGORY_NOUN = { membership: 'membership card', ticket: 'ticket' } satisfies Record<
+  CardCategory,
+  string
+>
+
+// The venue's own address, so a member who followed a card link can go back to
+// everything else the venue publishes.
+export const venueHref = (handle: string): string => `/@${handle}`
+
+export const cardHref = (handle: string, slug: string): string => `/@${handle}/${slug}`
+
+const nounOf = (card: PublicCard): string => CATEGORY_NOUN[card.card.category]
 
 const roleOf = (card: PublicCard): string => (card.card.category === 'ticket' ? 'TICKET' : 'MEMBER')
 
 const perksOf = (card: PublicCard): string[] =>
   [card.card.perk, card.card.reward].filter((text) => text !== '')
 
-const brandCard = (card: PublicCard, body: JSX.Element): JSX.Element => (
+interface VenueBrand {
+  brandColor: string
+  name: string
+}
+
+const brandCard = (venue: VenueBrand, body: JSX.Element): JSX.Element => (
   <div
     class="flex flex-col gap-4 rounded-2xl p-6 text-white shadow-lg"
-    style={{ background: card.brandColor }}
+    style={{ background: venue.brandColor }}
   >
-    <div class="text-xs font-semibold tracking-widest uppercase opacity-80">{card.name}</div>
+    <div class="text-xs font-semibold tracking-widest uppercase opacity-80">{venue.name}</div>
     {body}
   </div>
 )
@@ -105,6 +135,63 @@ const perkList = (card: PublicCard): JSX.Element | null => {
         </li>
       ))}
     </ul>
+  )
+}
+
+const chooserRow = (venue: PublicVenue, card: CardView, held: boolean): JSX.Element => (
+  <li key={card.slug}>
+    <a
+      class="rounded-box border-base-300 bg-base-100 hover:border-base-content/30 flex flex-col gap-1 border p-4 transition"
+      href={cardHref(venue.handle, card.slug)}
+    >
+      <div class="flex items-center justify-between gap-3">
+        <span class="font-bold">{card.title}</span>
+        <span class="badge badge-sm badge-ghost">{CATEGORY_LABEL[card.category]}</span>
+      </div>
+      {card.perk === '' ? null : <span class="text-sm opacity-70">{card.perk}</span>}
+      <span class="text-xs font-semibold opacity-80">
+        {held ? 'You have this card · Show it' : `Get this ${CATEGORY_NOUN[card.category]}`}
+      </span>
+    </a>
+  </li>
+)
+
+const chooser = (venue: PublicVenue, heldSlugs: readonly string[]): JSX.Element => (
+  <>
+    {brandCard(
+      venue,
+      <>
+        <h1 class="text-2xl font-bold">Pick a card</h1>
+        {venue.tagline === '' ? null : <p class="text-sm opacity-90">{venue.tagline}</p>}
+      </>,
+    )}
+    {venue.cards.length === 0 ? (
+      <p class="text-sm opacity-70">{venue.name} has no cards to hand out right now.</p>
+    ) : (
+      <ul class="flex flex-col gap-3">
+        {venue.cards.map((card): JSX.Element => chooserRow(venue, card, heldSlugs.includes(card.slug)))}
+      </ul>
+    )}
+  </>
+)
+
+const notFound = (venue: PublicVenue | null): JSX.Element => {
+  if (venue === null || venue.cards.length === 0) {
+    return (
+      <>
+        <h1 class="text-xl font-bold">No card here</h1>
+        <p class="text-sm opacity-70">There is no card at this address. Check the link you were given.</p>
+      </>
+    )
+  }
+  return (
+    <>
+      <h1 class="text-xl font-bold">No card here</h1>
+      <p class="text-sm opacity-70">{venue.name} has no card at this address.</p>
+      <a class="btn btn-primary" href={venueHref(venue.handle)}>
+        See all cards from {venue.name}
+      </a>
+    </>
   )
 }
 
@@ -149,12 +236,10 @@ export const CardScreenView = ({ onIssue, onReload, state }: CardScreenViewProps
     return shell(<p class="text-sm opacity-70">Loading card…</p>)
   }
   if (state.kind === 'not_found') {
-    return shell(
-      <>
-        <h1 class="text-xl font-bold">No card here</h1>
-        <p class="text-sm opacity-70">There is no venue at this address. Check the link you were given.</p>
-      </>,
-    )
+    return shell(notFound(state.venue))
+  }
+  if (state.kind === 'choose') {
+    return shell(chooser(state.venue, state.heldSlugs))
   }
   if (state.kind === 'error') {
     return shell(
@@ -194,7 +279,7 @@ export const CardScreenView = ({ onIssue, onReload, state }: CardScreenViewProps
   )
 }
 
-const defaultIo: CardScreenIo = { fetchCard, googleSaveUrl, issueCard }
+const defaultIo: CardScreenIo = { fetchVenue, googleSaveUrl, issueCard }
 
 const issuedFrom = (entry: CardMemoryEntry): IssuedCard => ({
   ...entry,
@@ -202,13 +287,21 @@ const issuedFrom = (entry: CardMemoryEntry): IssuedCard => ({
   qr: toQr(entry.uid),
 })
 
+const heldSlugsOf = (venue: PublicVenue, storage?: PassMemoryStorage): string[] => {
+  const memory = readCardMemory(storage)
+  return venue.cards
+    .filter((card) => Object.hasOwn(memory, cardKey(venue.handle, card.slug)))
+    .map((card) => card.slug)
+}
+
 export interface CardScreenProps {
   handle: string
+  slug: string | null
   io?: CardScreenIo
   storage?: PassMemoryStorage
 }
 
-export const CardScreen = ({ handle, io = defaultIo, storage }: CardScreenProps): JSX.Element => {
+export const CardScreen = ({ handle, slug, io = defaultIo, storage }: CardScreenProps): JSX.Element => {
   const [state, setState] = useState<CardScreenState>({ kind: 'loading' })
   const [generation, setGeneration] = useState(0)
 
@@ -233,37 +326,53 @@ export const CardScreen = ({ handle, io = defaultIo, storage }: CardScreenProps)
     let current = true
     setState({ kind: 'loading' })
     void (async () => {
-      const result = await io.fetchCard(handle)
+      const result = await io.fetchVenue(handle)
       if (!current) {
         return
       }
       if (!result.ok) {
         const failure = cardFailureOf(result)
-        setState(failure === 'not_found' ? { kind: 'not_found' } : { card: null, failure, kind: 'error' })
+        setState(
+          failure === 'not_found'
+            ? { kind: 'not_found', venue: null }
+            : { card: null, failure, kind: 'error' },
+        )
         return
       }
-      const remembered = readCard(handle, storage)
+      const venue = result.body
+      // A link that named a card opens that card; a bare venue address opens
+      // its only card, or asks the member to pick when there are several.
+      const picked = slug === null ? soleCard(venue) : cardBySlug(venue, slug)
+      if (picked === null) {
+        setState(
+          slug === null
+            ? { heldSlugs: heldSlugsOf(venue, storage), kind: 'choose', venue }
+            : { kind: 'not_found', venue },
+        )
+        return
+      }
+      const remembered = readCard(handle, picked.card.slug, storage)
       if (remembered === null) {
-        setState({ card: result.body, kind: 'landing' })
+        setState({ card: picked, kind: 'landing' })
         return
       }
-      await showReady(result.body, issuedFrom(remembered), () => current)
+      await showReady(picked, issuedFrom(remembered), () => current)
     })()
     return () => {
       current = false
     }
-  }, [generation, handle, io, showReady, storage])
+  }, [generation, handle, io, showReady, slug, storage])
 
   const issue = async (card: PublicCard): Promise<void> => {
     setState({ card, kind: 'issuing' })
-    const result = await io.issueCard(handle)
+    const result = await io.issueCard(handle, card.card.slug)
     if (!result.ok) {
       setState({ card, failure: cardFailureOf(result), kind: 'error' })
       return
     }
     const { holder, memberNumber, uid } = result.body
     const issuedAt = Date.now()
-    rememberCard(handle, { holder, memberNumber, uid }, storage, issuedAt)
+    rememberCard(handle, card.card.slug, { holder, memberNumber, uid }, storage, issuedAt)
     rememberPass({ holder, uid }, storage, issuedAt)
     await showReady(
       card,
