@@ -45,6 +45,10 @@ depends on.
    Idempotence is the operator's: run this once per deployment; a second run
    mints a second, equally valid delegation.
 
+   `PUBLIC_BASE_URL` (top-level `vars`) is the member-facing origin the
+   dashboard's published card links to, `https://fuda.sh`; the `env.dev` value
+   is the app dev port. It never needs regenerating.
+
 4. Look up the `Announcer` contract's deployment block on the Base Sepolia
    explorer and set the top-level `vars.ANNOUNCER_FROM_BLOCK` to it. The
    checked-in placeholder is `"0"`. This value is the start block used when

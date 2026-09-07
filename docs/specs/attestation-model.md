@@ -208,6 +208,7 @@ Attested with `recipient = holder` and `refUID = rightUID`.
 | `ANNOUNCER_ADDRESS`                                                                        | `wrangler.jsonc` `vars` | The ERC-5564 Announcer `/issue` writes +Private announcements to                                                                                                                                                                                                                                                       |
 | `ANNOUNCER_FROM_BLOCK`                                                                     | `wrangler.jsonc` `vars` | Graph-manifest generation source for both rights-subgraph data-source start blocks; it is not read by the API                                                                                                                                                                                                          |
 | `FACTORY_ADDRESS`                                                                          | `wrangler.jsonc` `vars` | Coinbase Smart Wallet factory used to derive Bearer holder addresses                                                                                                                                                                                                                                                   |
+| `PUBLIC_BASE_URL`                                                                          | `wrangler.jsonc` `vars` | The member-facing origin a published card links to (`https://fuda.sh`; the apex redirects `/@*` to `app.fuda.sh`). `POST /issuers` and `GET /issuers/me` build `publicUrl` from it, never from the request URL |
 | `API_BASE_URL`                                                                             | `wrangler.jsonc` `vars` | Absolute base for the `passUrls` in `/issue` responses; its origin is the api entry in the Google Wallet `origins` claim, which also lists `https://dash.fuda.sh` and `https://app.fuda.sh`                                                                                                                            |
 | Signer key (`SIGNER_PRIVATE_KEY`)                                                          | Worker secret           | Signs Entitlement, IssuerDelegation, and Attendance transactions; endpoints answer `501 no_signer` without                                                                                                                                                                                                             |
 | `ADMIN_TOKEN`                                                                              | Worker secret           | Bearer token for `/issue`, `/revoke`, `/members`. Required whenever a chain binding is configured: with `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL` set and no token the admin routes answer `401 unauthorized` and every response carries `x-auth-mode: locked`; with no token and neither binding (local dev) they are open and responses carry `x-auth-mode: open` |
@@ -285,7 +286,13 @@ decision: it fails closed as `502 chain_error` and is never written to
 | `bad_qr`                                         | 400    | QR payload is not `fuda:v1:<uid>`                                                                                                                                                                                                                          |
 | `bad_meta_address`                               | 400    | +Private meta-address is malformed or off-curve                                                                                                                                                                                                            |
 | `client_ip_required`                             | 400    | budgeted route called without `CF-Connecting-IP`                                                                                                                                                                                                           |
-| `unauthorized`                                   | 401    | admin bearer missing or wrong, or admin routes locked                                                                                                                                                                                                      |
+| `unauthorized`                                   | 401    | admin bearer missing or wrong, or admin routes locked; on `/auth/logout` and `/issuers/*` operator routes, no live session token                                                                                                                             |
+| `bad_address`                                    | 400    | `POST /auth/challenge` address is not 20-byte hex                                                                                                                                                                                                          |
+| `bad_challenge`                                  | 401    | `POST /auth/verify` nonce unknown, expired, spent, or minted for another address                                                                                                                                                                             |
+| `bad_signature`                                  | 401    | `POST /auth/verify` signature does not verify for the address; the nonce is burned                                                                                                                                                                          |
+| `bad_handle`                                     | 400    | `POST /issuers` handle fails the Handle rule or is reserved                                                                                                                                                                                                 |
+| `handle_taken`                                   | 409    | `POST /issuers` handle already belongs to an issuer                                                                                                                                                                                                         |
+| `issuer_exists`                                  | 409    | `POST /issuers` from an operator address that already owns an issuer                                                                                                                                                                                        |
 | `not_found`                                      | 404    | no `members` row for the uid (also a +Private row on the pass routes)                                                                                                                                                                                      |
 | `rate_limited`                                   | 429    | per-IP hourly budget exceeded                                                                                                                                                                                                                              |
 | `internal`                                       | 500    | unclassified defect; logged                                                                                                                                                                                                                                |
@@ -332,6 +339,14 @@ answers:
     },
 }
 ```
+
+**`POST /issuers/:handle/issue`** is the self-serve Bearer path behind
+`fuda.sh/@<handle>` (docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route).
+It takes no body: the card fixes `tier` (0), `usageModel` (`SINGLE_USE` for a
+`ticket`, `MULTI_USE` otherwise) and `validUntil` (issued time plus
+`validity_days`, or 0). The api generates the member number, derives the
+holder exactly as the admin Bearer path does (nonce preimage = the member
+number), attests, and answers the Bearer `/issue` shape plus `memberNumber`.
 
 All three `passUrls` are absolute against `API_BASE_URL` and always present,
 even where a wallet platform is unconfigured (that route answers `501`). A
@@ -401,7 +416,8 @@ the safety. Re-test this behaviour on every viem major bump.
 
 ### D1 tables that mirror or extend attestations
 
-The schema is `apps/api/migrations/0000_init.sql` in full:
+The schema is `apps/api/migrations/0000_init.sql` in full, followed by the
+issuer-onboarding migration `0004_issuers.sql`:
 
 ```sql
 CREATE TABLE members (
@@ -458,9 +474,23 @@ Durable Objects are used in the MVP.
 `challenges` rows are one-time and short-lived: `POST /verify-signed` consumes a
 nonce with a conditional `UPDATE … WHERE used_at IS NULL AND created_at > now −
 300`, and `POST /challenge` opportunistically deletes rows older than the 300 s
-TTL on every mint, so the table holds only live nonces. `rate_limits` remains a
-generic per-IP fixed hourly-window primitive for future public routes; current
-product routes do not apply it.
+TTL on every mint, so the table holds only live nonces. `rate_limits` is the
+generic per-IP fixed hourly-window primitive; `POST /issuers/:handle/issue`
+applies it with a budget of 20 per hour, `POST /ens/gateway` with 120.
+
+Issuer onboarding adds four things (`0004_issuers.sql`): `issuers` (one row per
+operator address: `handle` UNIQUE, `name`, `tagline`, `brand_color`,
+`operator_address` UNIQUE, `created_at`), `cards` (`issuer_id`, `title`,
+`category` in `membership|ticket`, `perk`, `reward`, `validity_days` NULL = no
+expiry, `lock_screen`, `venue_lat`, `venue_lng`), `sessions` (`token_hash` PK —
+only the SHA-256 of the bearer token is stored — `address`, `issuer_id`,
+`created_at`, `expires_at` = created + 30 days), and `members.card_id` NULL
+with a partial unique index on `(card_id, member_id) WHERE card_id IS NOT NULL`,
+so a generated member number is unique per card. Sign-in nonces reuse the
+`challenges` table under an `operator:<address>` subject, with the gate's TTL
+and sweep. An issuer is a product and branding entity only: every attestation
+is still made by the fuda signer under `DELEGATION_UID`, and no per-issuer
+IssuerDelegation exists.
 
 ### Announcement discovery
 

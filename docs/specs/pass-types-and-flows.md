@@ -8,8 +8,11 @@ verification rules applied by the gate.
 ## Choose by use case
 
 Templates and the self-serve handle route are the product model. The api
-derives a right's level from the keys present in the request and issues only
-through the admin `POST /issue`; the `fuda.sh` apex serves the landing page.
+derives a right's level from the keys present in the request on the admin
+`POST /issue`; the self-serve route `POST /issuers/:handle/issue` issues only
+`standard` (Bearer) rights under the issuer's card (see [Issuer onboarding and
+the handle route](#issuer-onboarding-and-the-handle-route)); the `fuda.sh`
+apex serves the landing page and redirects `/@*` to `app.fuda.sh`.
 
 **The template is the issuer's choice, made at issuance time.** The issuer
 configures which templates are available and sets the default. An authorized
@@ -260,6 +263,48 @@ and resists replay; the wire shape of a Proved gate exchange; whether a Proved
 right has a pass; the receipt format and where the daily root is timestamped;
 name resolution for a U4 right.
 
+## Issuer onboarding and the handle route
+
+The U1 first-pass flow is self-serve. An operator creates an issuer and its
+card in the dashboard; a member gets a card from the handle route with no
+account and no wallet.
+
+**Operator sign-in.** The dashboard signs the operator in with a passkey
+wallet (Base Account): `POST /auth/challenge { address }` answers
+`{ nonce, message }` where `message` is
+`fuda.sh dashboard sign-in\nnonce: <nonce>`; the wallet personal-signs it and
+`POST /auth/verify { address, nonce, signature }` answers
+`{ token, issuer | null }`. The signature is checked through the chain client
+(EOA, ERC-1271, ERC-6492), so an undeployed Base Account signs in. The session
+token is presented as `Authorization: Bearer` on the operator routes, lives 30
+days, and is stored hashed; `POST /auth/logout` ends it. A nonce is one-time,
+bound to the address, and expires with the gate's 300 s TTL; a wrong signature
+burns it. The admin token is not an operator identity and is not accepted on
+operator routes.
+
+**Issuer and card.** `POST /issuers` (session) creates the issuer and its
+first card in one batch and binds the session to it; body
+`{ handle, name, tagline, brandColor, card: { title, category, perk, reward,
+validityDays, lockScreen, venue? } }`, answer `201 { issuer, card, publicUrl }`
+with `publicUrl` = `<PUBLIC_BASE_URL>/@<handle>`. One issuer per operator
+address. `GET /issuers/me` (session) returns the same shape or all-null
+fields; `GET /issuers/check?handle=` (session, so the handle space cannot be
+enumerated anonymously) answers `{ handle, valid, available }`. The Handle
+rule is the ENS issuer-label rule from [ENS naming](./ens-naming.md) plus the
+api's own route prefixes as reserved names, shared with the dashboard through
+`@fuda/sdk`. A logo is not part of the card yet.
+
+**Member.** `GET /issuers/:handle` (public, `no-store`) returns
+`{ handle, name, tagline, brandColor, card: { id, title, category, perk,
+reward, validityDays } }` and never the operator address. `POST
+/issuers/:handle/issue` (public, no body, 20 per IP per hour) issues a Bearer
+right with a generated member number and answers the Bearer `/issue` shape
+plus `memberNumber` (see the [attestation
+model](./attestation-model.md#api-payloads-that-touch-attestations)). The
+member app remembers the issued right on the device and shows the same card
+on a revisit instead of issuing again. Signed and +Private are not reachable
+from the handle route.
+
 ## Gate protocol
 
 ### Bearer entry (`POST /verify`)
@@ -345,6 +390,14 @@ response (`passUrls.web`, `.google`, `.apple`) and from the dashboard. A
 member can recover, its `/issue` response carries no `passUrls`, and all three
 pass routes answer `404 not_found` for it. Every pass response — the `404`s and
 `501`s included — carries `Cache-Control: no-store`.
+
+A right issued under an issuer's card (`members.card_id` set) renders branded:
+the venue name, card title, brand colour with readable text, and the member
+number in `4-4-5` display form appear on the web pass, as the Google generic
+object's `cardTitle`, `header`, `subheader` and `hexBackgroundColor`, and as
+the Apple storeCard's `organizationName`, `description`, colours and primary
+field; a card with lock-screen relevance and a venue position adds Apple
+`locations`. Admin-issued rights keep the plain fuda look described below.
 
 | Route                         | Answer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -434,8 +487,8 @@ current challenge for the Entitlement holder?
 | ---------------- | ----------- | -------- | ------------------------------------------------------------------------------------------------- |
 | `api.fuda.sh`    | `apps/api`  | 8787     | the api                                                                                           |
 | `gate.fuda.sh`   | `apps/gate` | 5174     | scanner: uid preview, QR admission, verdict                                                       |
-| `dash.fuda.sh`   | `apps/dash` | 5175     | operator dashboard: `/` overview from D1 member rows and client configuration, `/rights` D1 search/filter/revoke/pass links plus separate on-chain lookup, and `/issue` issuance |
-| `app.fuda.sh`    | `apps/app`  | 5173     | member app: `/signed` challenge-response, `/private` enrolment and discovery, `/rights` member pass list |
+| `dash.fuda.sh`   | `apps/dash` | 5175     | operator dashboard: passkey or admin-token sign-in; with the admin token `/` overview from D1 member rows and client configuration, `/rights` D1 search/filter/revoke/pass links plus separate on-chain lookup, and `/issue` issuance; with a passkey session `/new` card designer and `/published` QR and link |
+| `app.fuda.sh`    | `apps/app`  | 5173     | member app: `/@<handle>` card landing and one-tap issuance, `/signed` challenge-response, `/private` enrolment and discovery, `/rights` member pass list |
 | `fuda.sh` (apex) | Cloudflare zone | —     | `/@*` redirect to the same path on `app.fuda.sh`; other apex paths are outside this repository    |
 
 Root `pnpm dev` starts all four services on their fixed development ports. The

@@ -113,8 +113,12 @@ identifier the self-serve issuance path generates for a right. The admin path
 non-empty string the operator chooses—and stores it as-is in
 `members.member_id`; it is neither validated against nor converted to the
 member-number format. The two coexist: an admin-issued right has whatever id
-the operator typed, a self-serve right has a generated member number. No route
-in the API generates member numbers.
+the operator typed, a self-serve right has a generated member number.
+`POST /issuers/:handle/issue` is the route that generates them: the generator
+and validator are `generateMemberNumber` / `isMemberNumber` in `@fuda/sdk`,
+and `formatMemberNumber` renders the `4-4-5` display form on passes. The
+number is stored in `members.member_id` and is unique per card (partial unique
+index on `(card_id, member_id)`).
 
 ## Hybrid resolution
 
