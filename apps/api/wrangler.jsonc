@@ -20,6 +20,10 @@
   // Venue logos. Create it with `wrangler r2 bucket create fuda-media` before
   // deploying; without the binding the upload route answers
   // 501 media_not_configured and every other surface works unbranded.
+  // The name is purpose-based rather than stage-based on purpose: an R2 bucket
+  // cannot be renamed, and nothing outside this file ever sees the name — the
+  // public URL is `/assets/:handle/logo/:variant` and D1 stores only the
+  // relative `logos/<uuid>` prefix — so this one carries through to production.
   "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "fuda-media" }],
   // Secrets (`wrangler secret put`, never `vars`): SIGNER_PRIVATE_KEY,
   // ENS_GATEWAY_SIGNER_KEY, ENS_GATEWAY_SECRET,
@@ -67,7 +71,10 @@
           "migrations_dir": "migrations",
         },
       ],
-      "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "fuda-media" }],
+      // A separate bucket, so a `--remote` session or a deploy of this env can
+      // never read or overwrite a production venue's logo. `wrangler dev`
+      // simulates R2 locally, so the bucket only needs to exist for those two.
+      "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "fuda-media-dev" }],
       "vars": {
         "EAS_ADDRESS": "0x4200000000000000000000000000000000000021",
         "SCHEMA_REGISTRY_ADDRESS": "0x4200000000000000000000000000000000000020",

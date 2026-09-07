@@ -53,7 +53,12 @@ depends on.
 
    Its `MEDIA_BUCKET` binding is already in `wrangler.jsonc`. Until the bucket
    exists, logo upload answers `501 media_not_configured` and every other
-   surface works unbranded.
+   surface works unbranded. The name is deliberately purpose-based rather than
+   stage-based: an R2 bucket cannot be renamed, and nothing outside
+   `wrangler.jsonc` ever sees the name, so it carries through to production
+   unchanged. `env.dev` points at a separate `fuda-media-dev`; create that one
+   only if you run `wrangler dev --remote` or deploy that environment, since a
+   plain `wrangler dev` simulates R2 locally.
 
    `PUBLIC_BASE_URL` (top-level `vars`) is the member-facing origin the
    dashboard's published card links to, `https://fuda.sh`; the `env.dev` value
