@@ -1,4 +1,5 @@
 /** @jsxImportSource hono/jsx/dom */
+import { cn } from 'cn'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import type { DashCopy } from './copy.ts'
@@ -34,7 +35,7 @@ const displayValue = (value: string): JSX.Element | string =>
   value === '' ? <span class="opacity-50">—</span> : value
 
 const statusBadge = (copy: DashCopy['rights'], row: MemberRowView): JSX.Element => (
-  <span class={`badge ${row.status === 'active' ? 'badge-success' : 'badge-error'}`}>
+  <span class={cn('badge', row.status === 'active' ? 'badge-success' : 'badge-error')}>
     {row.status === 'active' ? copy.active : copy.revoked}
   </span>
 )
