@@ -5,11 +5,11 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "dev": "pnpm --parallel --filter api --filter app --filter gate --filter dash exec portless run",
-    "dev:api": "pnpm --filter api exec portless run",
-    "dev:app": "pnpm --filter app exec portless run",
-    "dev:gate": "pnpm --filter gate exec portless run",
-    "dev:dash": "pnpm --filter dash exec portless run",
+    "dev": "pnpm --parallel --filter api --filter app --filter gate --filter dash run dev",
+    "dev:api": "pnpm --filter api run dev",
+    "dev:app": "pnpm --filter app run dev",
+    "dev:gate": "pnpm --filter gate run dev",
+    "dev:dash": "pnpm --filter dash run dev",
     "graph:build": "pnpm --ignore-workspace --dir packages/subgraphs/rights run build",
     "graph:codegen": "pnpm --ignore-workspace --dir packages/subgraphs/rights run codegen",
     "graph:prepare": "pnpm --ignore-workspace --dir packages/subgraphs/rights run graph:prepare",
@@ -20,17 +20,15 @@
     "format:check": "vp fmt --check",
     "check": "vp check",
     "typecheck": "vp check --no-fmt --no-lint",
-    "test": "vp run --filter './apps/*' --filter './packages/*' test && pnpm --filter api test:scripts && vp test config/vite.portless.test.ts"
+    "test": "vp run --filter './apps/*' --filter './packages/*' test && pnpm --filter api test:scripts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
     "esbuild": "^0.28.2",
-    "portless": "0.15.6",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2",
     "ultracite": "^7.10.7",
     "vite-plus": "^0.3.0",
-    "vitest": "4.1.11",
     "wrangler": "^4.129.0"
   },
   "devEngines": {

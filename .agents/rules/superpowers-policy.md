@@ -38,21 +38,37 @@ If an active Superpowers artifact conflicts with `docs/specs/`, explicitly deter
 
 If implementation or tests conflict with `docs/specs/`, do not silently choose one. Identify the discrepancy and update the canonical documentation as part of the change when appropriate.
 
-## Workspace order
+## Workflow selection and workspace order
 
-Create the isolated workspace **first**, then write the artifacts inside it:
+Choose the workflow before choosing the workspace:
 
-1. Invoke `using-git-worktrees` at the start of feature work (before brainstorming), not only at execution time. Consent is pre-granted: feature work in this repository is worktree-first, so do not ask.
-2. Write the design spec and the implementation plan inside that worktree and commit them there.
-3. Implement, verify, update canonical docs and delete the artifacts on the same branch.
+1. Inspect and triage the current checkout read-only. Determine whether the
+   task is routine direct work or has unresolved requirements, product
+   semantics, interfaces, architecture, or other design decisions.
+2. Keep fully specified, local, reversible work in the current checkout. Make
+   the edit directly, preserve unrelated changes, and run a proportionate
+   targeted check. Do not invoke Superpowers, create a worktree, or evaluate
+   orchestration merely because files will change.
+3. When unresolved complexity exists, invoke the smallest applicable
+   Superpowers workflow. If brainstorming establishes that a persistent design
+   spec or implementation plan is needed, decide whether isolation is useful
+   **before** writing that artifact. A need for a spec or plan prompts the
+   worktree decision; it does not decide it automatically. Explicit user
+   preference wins.
+4. If isolation is selected, invoke `using-git-worktrees`, then write the
+   artifacts and perform implementation in that workspace. If isolation is not
+   selected, continue in the current checkout with the same artifact lifecycle.
 
-This keeps every temporary artifact, and its deletion, on the feature branch. The base branch never carries a spec or plan commit, and the branch history is the archive the lifecycle below relies on. Merge feature branches with a merge commit or rebase, not squash, so that history survives.
+When a feature branch is used, keep every temporary artifact and its deletion
+on that branch. Merge it with a merge commit or rebase, not squash, so that Git
+history remains the archive for the lifecycle below.
 
 ### Herdr controller/worker worktrees
 
-When `orchestrating-herdr-worktrees` is installed, evaluate it before the
-ordinary `using-git-worktrees` creation step. Existing linked-worktree
-isolation still wins and never creates a nested worktree.
+Evaluate `orchestrating-herdr-worktrees` only after both worktree isolation and
+Herdr delegation have been selected. Installation or availability alone does
+not trigger it, and it is never part of initial triage. Existing
+linked-worktree isolation still wins and never creates a nested worktree.
 
 - If `command -v herdr` reports that `herdr` is absent from `PATH`, use the
   ordinary Superpowers flow.
@@ -138,7 +154,14 @@ Do not create an ADR for routine implementation choices that can be understood d
 
 ## Small and bounded changes
 
-Do not create persistent design or plan files for changes that the applicable Superpowers workflow classifies as bounded and handles with an in-chat design.
+Handle fully specified, local, reversible changes directly without invoking a
+Superpowers workflow or seeking a design approval. Examples include exact
+configuration changes, typo corrections, and mechanical edits with clear
+acceptance criteria.
+
+When brainstorming legitimately applies but classifies the remaining design
+question as bounded, handle it with an in-chat design and do not create
+persistent design or plan files.
 
 Prefer the smallest amount of documentation necessary for the scope of the change.
 

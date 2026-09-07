@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --env dev --port \"${PORT:-8787}\" --ip \"${HOST:-127.0.0.1}\" --var \"API_BASE_URL:${PORTLESS_URL:-http://localhost:8787}\"",
+    "dev": "wrangler dev --env dev",
     "deploy": "wrangler deploy",
     "test": "vp test",
     "test:scripts": "vp test --config vite.scripts.config.ts",
