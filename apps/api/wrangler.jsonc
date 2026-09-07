@@ -12,19 +12,30 @@
   "d1_databases": [
     {
       "binding": "DB",
+      // This top-level block is the Base Sepolia deployment that is live
+      // today. At the mainnet cutover it keeps the Sepolia chain and becomes
+      // the internal `develop` environment (branch `develop`); production
+      // moves into `env.production` below and takes the apex hostnames.
+      //
+      // D1 has no rename, and `database_id` is what actually binds, so this
+      // database keeps its `fuda-beta` name and simply becomes develop's.
+      // Production creates its own `fuda` database at cutover — nothing is
+      // migrated, because Sepolia attestations mean nothing on mainnet.
       "database_name": "fuda-beta",
       "database_id": "d4cd9c4d-8986-4bbc-a14d-15c453b6d620",
       "migrations_dir": "migrations",
     },
   ],
-  // Venue logos. Create it with `wrangler r2 bucket create fuda-media` before
-  // deploying; without the binding the upload route answers
-  // 501 media_not_configured and every other surface works unbranded.
-  // The name is purpose-based rather than stage-based on purpose: an R2 bucket
-  // cannot be renamed, and nothing outside this file ever sees the name — the
-  // public URL is `/assets/:handle/logo/:variant` and D1 stores only the
-  // relative `logos/<uuid>` prefix — so this one carries through to production.
-  "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "fuda-media" }],
+  // Venue logos for this Sepolia deployment. Each environment owns its own
+  // bucket: an R2 bucket cannot be renamed, and develop must never read or
+  // overwrite a production venue's mark. Nothing outside this file ever sees
+  // the name — the public URL is `/assets/:handle/logo/:variant` and D1 stores
+  // only the relative `logos/<uuid>` prefix — so a bucket can be swapped later
+  // by copying objects and editing one line.
+  // Create it with `wrangler r2 bucket create fuda-media-develop`; until it
+  // exists the upload route answers 501 media_not_configured and every other
+  // surface works unbranded.
+  "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "fuda-media-develop" }],
   // Secrets (`wrangler secret put`, never `vars`): SIGNER_PRIVATE_KEY,
   // ENS_GATEWAY_SIGNER_KEY, ENS_GATEWAY_SECRET,
   // ADMIN_TOKEN, BASE_RPC_URL and the wallet-platform names —
@@ -61,6 +72,44 @@
   // Named environments don't inherit top-level `vars` or `d1_databases`, so
   // both are repeated here in full.
   "env": {
+    // Base mainnet. Deployed only at the release cutover, and deliberately
+    // without `routes`: adding a custom domain here before the Sepolia
+    // deployment has moved to `*.dev.fuda.sh` would take a live hostname off
+    // it. The cutover order is in docs/runbook.md.
+    //
+    // Its own D1 and R2, created fresh: production starts empty because a
+    // Sepolia Entitlement is meaningless on mainnet, so there is nothing to
+    // migrate. Named environments inherit neither `vars` nor bindings, so
+    // everything is repeated here in full.
+    //
+    // Every chain-specific value below is a deploy-time fill and fails closed
+    // until it is replaced: zero ISSUER_ADDRESS or DELEGATION_UID, or empty
+    // EAS_SCHEMAS, makes issuance answer 502 chain_error rather than attesting
+    // under the wrong configuration.
+    "production": {
+      "routes": [],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "fuda",
+          "database_id": "PLACEHOLDER-RUN-WRANGLER-D1-CREATE-FUDA",
+          "migrations_dir": "migrations",
+        },
+      ],
+      "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "fuda-media" }],
+      "vars": {
+        "EAS_ADDRESS": "0x4200000000000000000000000000000000000021",
+        "SCHEMA_REGISTRY_ADDRESS": "0x4200000000000000000000000000000000000020",
+        "ANNOUNCER_ADDRESS": "0x55649E01B5Df198D18D95b5cc5051630cfD45564",
+        "ANNOUNCER_FROM_BLOCK": "0",
+        "FACTORY_ADDRESS": "0x0BA5ED0c6AA8c49038F819E587E2633c4A9F428a",
+        "EAS_SCHEMAS": "{\"attendance\":[],\"entitlement\":[],\"issuerDelegation\":[]}",
+        "ISSUER_ADDRESS": "0x0000000000000000000000000000000000000000",
+        "DELEGATION_UID": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "API_BASE_URL": "https://api.fuda.sh",
+        "PUBLIC_BASE_URL": "https://fuda.sh",
+      },
+    },
     "dev": {
       "routes": [],
       "d1_databases": [
@@ -71,10 +120,10 @@
           "migrations_dir": "migrations",
         },
       ],
-      // A separate bucket, so a `--remote` session or a deploy of this env can
-      // never read or overwrite a production venue's logo. `wrangler dev`
-      // simulates R2 locally, so the bucket only needs to exist for those two.
-      "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "fuda-media-dev" }],
+      // A separate bucket again, so a `--remote` session can never touch a
+      // deployed venue's logo. `wrangler dev` simulates R2 locally, so this one
+      // only needs to exist for `--remote`.
+      "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "fuda-media-local" }],
       "vars": {
         "EAS_ADDRESS": "0x4200000000000000000000000000000000000021",
         "SCHEMA_REGISTRY_ADDRESS": "0x4200000000000000000000000000000000000020",

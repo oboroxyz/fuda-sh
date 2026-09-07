@@ -48,17 +48,20 @@ depends on.
    Create the media bucket before the first deploy:
 
    ```bash
-   wrangler r2 bucket create fuda-media
+   wrangler r2 bucket create fuda-media-develop
    ```
 
    Its `MEDIA_BUCKET` binding is already in `wrangler.jsonc`. Until the bucket
    exists, logo upload answers `501 media_not_configured` and every other
-   surface works unbranded. The name is deliberately purpose-based rather than
-   stage-based: an R2 bucket cannot be renamed, and nothing outside
-   `wrangler.jsonc` ever sees the name, so it carries through to production
-   unchanged. `env.dev` points at a separate `fuda-media-dev`; create that one
-   only if you run `wrangler dev --remote` or deploy that environment, since a
-   plain `wrangler dev` simulates R2 locally.
+   surface works unbranded. Every environment owns its own bucket, because an
+   R2 bucket cannot be renamed and develop must never read or overwrite a
+   production venue's mark: `fuda-media-develop` here, `fuda-media` for
+   mainnet, `fuda-media-local` for `wrangler dev --remote` only (a plain
+   `wrangler dev` simulates R2 locally, so that one rarely needs creating).
+   Nothing outside `wrangler.jsonc` sees a bucket name — the public URL is
+   `/assets/:handle/logo/:variant` and D1 stores only the relative
+   `logos/<uuid>` prefix — so a bucket can be swapped later by copying objects
+   and editing one line.
 
    `PUBLIC_BASE_URL` (top-level `vars`) is the member-facing origin the
    dashboard's published card links to, `https://fuda.sh`; the `env.dev` value
@@ -385,3 +388,41 @@ fixed hourly D1 budget of 120 requests per IP. Announcement discovery is a
 browser-to-Graph query and does not pass through the API. The gate routes
 (`/verify`, `/challenge`, `/verify-signed`) and the admin routes (`/issue`,
 `/revoke`, `/members`) are never budgeted.
+
+## Mainnet cutover
+
+Today's top-level `wrangler.jsonc` is the Base Sepolia deployment that owns
+`api.fuda.sh` and its sibling hostnames. At release it keeps the Sepolia chain
+and becomes the internal **develop** environment (branch `develop`), while
+`env.production` takes mainnet and the apex hostnames.
+
+Nothing is migrated. A Sepolia Entitlement is meaningless on mainnet, so
+production starts with an empty database and an empty bucket, and every member
+re-claims. That is why each environment owns its own resources rather than
+sharing them:
+
+| Resource | Develop (Sepolia) | Production (mainnet) |
+| --- | --- | --- |
+| D1 | `fuda-beta` — the existing database, kept under its name because D1 has no rename and `database_id` is what binds | `fuda`, created at cutover |
+| R2 | `fuda-media-develop` | `fuda-media` |
+| Worker | `fuda-api` | `fuda-api-production`, or rename in the env block |
+| Hostnames | `*.dev.fuda.sh` after the cutover | `*.fuda.sh` |
+
+`env.production` deliberately carries `routes: []`. Adding a custom domain
+there before the Sepolia deployment has moved off it would take a live
+hostname away from the running beta, so the order matters:
+
+1. Register the mainnet EAS schemas and attest the root delegation, then fill
+   `env.production`'s `EAS_SCHEMAS`, `ISSUER_ADDRESS`, `DELEGATION_UID` and
+   `ANNOUNCER_FROM_BLOCK`. Until then issuance answers `502 chain_error`
+   rather than attesting under the wrong configuration.
+2. `wrangler d1 create fuda` and paste the id; `wrangler r2 bucket create fuda-media`.
+3. Set every secret again for the environment (`wrangler secret put … --env production`).
+   The mainnet root must be a Safe with a hot issuer, not the Sepolia EOA.
+4. Apply migrations against the new database and deploy `--env production`
+   with no routes; smoke it on its `workers.dev` hostname.
+5. Move the Sepolia deployment to `*.dev.fuda.sh`, then add the apex custom
+   domains to `env.production` and redeploy both.
+6. Rebuild the three frontends with the production `VITE_*` values; their
+   `VITE_API_BASE_URL` decides which api a bundle talks to, so a develop build
+   must point at the develop api.
