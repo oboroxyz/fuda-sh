@@ -8,6 +8,7 @@ export const members = sqliteTable(
     cardId: text('card_id'),
     createdAt: integer('created_at').notNull(),
     holder: text('holder'),
+    issuerId: text('issuer_id'),
     level: text('level', { enum: ['bearer', 'signed', 'private'] }).notNull(),
     memberId: text('member_id').notNull().default(''),
     status: text('status', { enum: ['active', 'revoked'] })
@@ -18,7 +19,10 @@ export const members = sqliteTable(
   (t) => [
     index('members_holder').on(t.holder),
     index('members_member_id').on(t.memberId),
-    uniqueIndex('members_card_member').on(t.cardId, t.memberId).where(isNotNull(t.cardId)),
+    index('members_card_id').on(t.cardId),
+    // Per issuer, not per card: the member number is an ENS label under the
+    // issuer (docs/specs/ens-naming.md#member-number).
+    uniqueIndex('members_issuer_member').on(t.issuerId, t.memberId).where(isNotNull(t.issuerId)),
   ],
 )
 
@@ -44,12 +48,13 @@ export const cards = sqliteTable(
     lockScreen: integer('lock_screen').notNull().default(0),
     perk: text('perk').notNull().default(''),
     reward: text('reward').notNull().default(''),
+    slug: text('slug').notNull().default(''),
     title: text('title').notNull(),
     validityDays: integer('validity_days'),
     venueLat: real('venue_lat'),
     venueLng: real('venue_lng'),
   },
-  (t) => [index('cards_issuer_id').on(t.issuerId)],
+  (t) => [index('cards_issuer_id').on(t.issuerId), uniqueIndex('cards_issuer_slug').on(t.issuerId, t.slug)],
 )
 
 export const sessions = sqliteTable('sessions', {

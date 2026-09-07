@@ -9,7 +9,7 @@ import { decodeEntitlementV1 } from '../src/eas/codecs.ts'
 import type { Bindings } from '../src/env.ts'
 import { appWith, fakeChain, testEnv } from './env.ts'
 import { configuredEnv, NOW, other, ROOT, seedRoot } from './fixtures.ts'
-import { CARD_INPUT, getJson, postJson, signIn } from './operator.ts'
+import { CARD_INPUT, getJson, postJson, SECOND_CARD, signIn } from './operator.ts'
 
 interface Created {
   issuer: { id: string; handle: string; brandColor: string; operatorAddress: string }
@@ -35,7 +35,7 @@ const issue = async (
   ip = '203.0.113.7',
 ): Promise<Response> =>
   await app.request(
-    '/issuers/wassie-coffee/issue',
+    '/issuers/wassie-coffee/stamp/issue',
     { headers: { 'CF-Connecting-IP': ip }, method: 'POST' },
     bindings,
   )
@@ -59,7 +59,11 @@ describe('issuer onboarding', () => {
     expect(body.issuer.brandColor).toBe('#6F4320')
     expect(body.publicUrl).toBe('https://fuda.test/@wassie-coffee')
     const me = await getJson(app, publicEnv(), '/issuers/me', token)
-    await expect(me.json()).resolves.toStrictEqual(body)
+    await expect(me.json()).resolves.toStrictEqual({
+      cards: [body.card],
+      issuer: body.issuer,
+      publicUrl: body.publicUrl,
+    })
   })
 
   it('finds the issuer again on the next sign-in', async () => {
@@ -69,7 +73,7 @@ describe('issuer onboarding', () => {
     const second = await signIn(app, publicEnv())
     expect(second.issuer).toMatchObject({ handle: 'wassie-coffee' })
     const me = await getJson(app, publicEnv(), '/issuers/me', second.token)
-    await expect(me.json()).resolves.toMatchObject({ card: { title: 'Membership Card' } })
+    await expect(me.json()).resolves.toMatchObject({ cards: [{ title: 'Membership Card' }] })
   })
 
   it('rejects a bad handle, a taken handle and a second issuer', async () => {
@@ -111,8 +115,9 @@ describe('issuer onboarding', () => {
     const res = await getJson(app, publicEnv(), '/issuers/wassie-coffee')
     expect(res.status).toBe(200)
     expect(res.headers.get('cache-control')).toBe('no-store')
-    const body = await res.json<{ brandColor: string; handle: string; name: string }>()
+    const body = await res.json<{ brandColor: string; cards: { slug: string }[]; handle: string }>()
     expect(body).toMatchObject({ brandColor: '#6F4320', handle: 'wassie-coffee', name: 'Wassie Coffee' })
+    expect(body.cards.map((card) => card.slug)).toStrictEqual(['stamp'])
     expect(JSON.stringify(body)).not.toContain('operatorAddress')
     const missing = await getJson(app, publicEnv(), '/issuers/nobody')
     expect(missing.status).toBe(404)
@@ -177,12 +182,12 @@ describe('POST /issuers/:handle/issue', () => {
   it('answers 404 for an unknown handle, 400 without a client ip and 429 past the budget', async () => {
     const { app, bindings } = await setup()
     const unknown = await app.request(
-      '/issuers/nobody/issue',
+      '/issuers/nobody/stamp/issue',
       { headers: { 'CF-Connecting-IP': '203.0.113.9' }, method: 'POST' },
       bindings,
     )
     expect(unknown.status).toBe(404)
-    const noIp = await app.request('/issuers/wassie-coffee/issue', { method: 'POST' }, bindings)
+    const noIp = await app.request('/issuers/wassie-coffee/stamp/issue', { method: 'POST' }, bindings)
     expect(noIp.status).toBe(400)
     const statuses: number[] = []
     for (let n = 0; n < 21; n += 1) {
@@ -244,5 +249,117 @@ describe('branded passes for a self-serve right', () => {
     const html = await page.text()
     expect(html).not.toContain('Wassie Coffee')
     expect(html).toContain('fuda pass')
+  })
+})
+
+describe('a venue with several cards', () => {
+  beforeEach(async () => {
+    const db = getDb({ DB: env.DB })
+    await db.delete(members)
+    await db.delete(sessions)
+    await db.delete(challenges)
+    await db.delete(cards)
+    await db.delete(issuers)
+  })
+
+  it('adds a second card to the same venue and lists both for the operator', async () => {
+    const app = appWith({ chain: fakeChain(), now: () => NOW })
+    const { token } = await signIn(app, publicEnv())
+    await postJson(app, publicEnv(), '/issuers', CARD_INPUT, token)
+    const added = await postJson(app, publicEnv(), '/issuers/cards', SECOND_CARD, token)
+    expect(added.status).toBe(201)
+    const me = await getJson(app, publicEnv(), '/issuers/me', token)
+    const body = await me.json<{ cards: { slug: string }[]; publicUrl: string }>()
+    expect(body.cards.map((card) => card.slug)).toStrictEqual(['stamp', 'gig'])
+    expect(body.publicUrl).toBe('https://fuda.test/@wassie-coffee')
+  })
+
+  it('refuses a duplicate slug and an invalid one', async () => {
+    const app = appWith({ chain: fakeChain(), now: () => NOW })
+    const { token } = await signIn(app, publicEnv())
+    await postJson(app, publicEnv(), '/issuers', CARD_INPUT, token)
+    const duplicate = await postJson(
+      app,
+      publicEnv(),
+      '/issuers/cards',
+      { ...SECOND_CARD, slug: 'stamp' },
+      token,
+    )
+    expect(duplicate.status).toBe(409)
+    await expect(duplicate.json()).resolves.toStrictEqual({ error: 'slug_taken' })
+    const reserved = await postJson(
+      app,
+      publicEnv(),
+      '/issuers/cards',
+      { ...SECOND_CARD, slug: 'cards' },
+      token,
+    )
+    await expect(reserved.json()).resolves.toStrictEqual({ error: 'bad_slug' })
+  })
+
+  it('serves both cards on the venue page', async () => {
+    const app = appWith({ chain: fakeChain(), now: () => NOW })
+    const { token } = await signIn(app, publicEnv())
+    await postJson(app, publicEnv(), '/issuers', CARD_INPUT, token)
+    await postJson(app, publicEnv(), '/issuers/cards', SECOND_CARD, token)
+    const res = await getJson(app, publicEnv(), '/issuers/wassie-coffee')
+    const venue = await res.json<{ cards: { slug: string; title: string }[] }>()
+    expect(venue.cards.map((card) => card.slug)).toStrictEqual(['stamp', 'gig'])
+    expect(venue.cards[1]?.title).toBe('Gig Ticket')
+  })
+
+  it('checks a slug against the venue that would own it', async () => {
+    const app = appWith({ chain: fakeChain(), now: () => NOW })
+    const { token } = await signIn(app, publicEnv())
+    await postJson(app, publicEnv(), '/issuers', CARD_INPUT, token)
+    const taken = await getJson(app, publicEnv(), '/issuers/cards/check?slug=stamp', token)
+    await expect(taken.json()).resolves.toStrictEqual({ available: false, slug: 'stamp', valid: true })
+    const free = await getJson(app, publicEnv(), '/issuers/cards/check?slug=gig', token)
+    await expect(free.json()).resolves.toStrictEqual({ available: true, slug: 'gig', valid: true })
+  })
+
+  it('issues each card under its own slug with numbers unique across the venue', async () => {
+    const chain = fakeChain({ signer: ROOT })
+    const del = seedRoot(chain)
+    const app = appWith({ chain, now: () => NOW })
+    const bindings = configuredEnv(del, {
+      API_BASE_URL: 'https://api.test',
+      PUBLIC_BASE_URL: 'https://fuda.test',
+    })
+    const { token } = await signIn(app, bindings)
+    await postJson(app, bindings, '/issuers', CARD_INPUT, token)
+    await postJson(app, bindings, '/issuers/cards', SECOND_CARD, token)
+    const first = await app.request(
+      '/issuers/wassie-coffee/stamp/issue',
+      { headers: { 'CF-Connecting-IP': '203.0.113.30' }, method: 'POST' },
+      bindings,
+    )
+    const second = await app.request(
+      '/issuers/wassie-coffee/gig/issue',
+      { headers: { 'CF-Connecting-IP': '203.0.113.30' }, method: 'POST' },
+      bindings,
+    )
+    const a = await first.json<SelfServeIssued>()
+    const b = await second.json<SelfServeIssued>()
+    expect(a.memberNumber).not.toBe(b.memberNumber)
+    expect(a.uid).not.toBe(b.uid)
+    const rows = await getDb({ DB: env.DB }).select().from(members)
+    expect(new Set(rows.map((row) => row.issuerId)).size).toBe(1)
+    expect(new Set(rows.map((row) => row.cardId)).size).toBe(2)
+  })
+
+  it('answers 404 for a slug the venue does not publish', async () => {
+    const chain = fakeChain({ signer: ROOT })
+    const del = seedRoot(chain)
+    const app = appWith({ chain, now: () => NOW })
+    const bindings = configuredEnv(del, { PUBLIC_BASE_URL: 'https://fuda.test' })
+    const { token } = await signIn(app, bindings)
+    await postJson(app, bindings, '/issuers', CARD_INPUT, token)
+    const res = await app.request(
+      '/issuers/wassie-coffee/gig/issue',
+      { headers: { 'CF-Connecting-IP': '203.0.113.31' }, method: 'POST' },
+      bindings,
+    )
+    expect(res.status).toBe(404)
   })
 })

@@ -89,12 +89,27 @@ export interface HandleCheckResponse {
 export interface IssuerCreateResponse {
   issuer: IssuerView
   card: CardView
+  // the venue page; a card's own link is `${publicUrl}/${card.slug}`
   publicUrl: string
 }
-export type IssuerMeResponse = IssuerCreateResponse | { issuer: null; card: null; publicUrl: null }
+// The operator's own venue. `cards` is a list because an issuer owns 1..N
+// cards; only the first is created and shown today, but the shape does not
+// change when a venue publishes a second one.
+export interface IssuerCardsResponse {
+  issuer: IssuerView
+  cards: CardView[]
+  publicUrl: string
+}
+export type IssuerMeResponse = IssuerCardsResponse | { issuer: null; cards: []; publicUrl: null }
 
 // The self-serve Bearer issuance behind /@<handle>: the admin shape plus the
 // generated member number the pass shows.
+export interface CardCheckResponse {
+  slug: string
+  valid: boolean
+  available: boolean
+}
+
 export interface SelfServeIssueResponse {
   uid: Hex
   level: 'bearer'

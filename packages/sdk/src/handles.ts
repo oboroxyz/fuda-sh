@@ -49,6 +49,40 @@ const BRAND_COLOR = /^#[0-9a-fA-F]{6}$/u
 export const normalizeBrandColor = (raw: string): string | null =>
   BRAND_COLOR.test(raw) ? raw.toUpperCase() : null
 
+// A card's slug is the path segment under the venue: `fuda.sh/@<handle>/<slug>`.
+// It uses the Handle's character rule so one poster URL reads the same way
+// throughout, but it is NOT an ENS label: the ENS hierarchy stays
+// `<member-no>.<issuer>.fuda.eth` and never carries a card
+// (docs/specs/ens-naming.md).
+export const CARD_SLUG_MAX_LENGTH = 63
+
+// Reserved so a card can never shadow a future page under the venue.
+export const RESERVED_CARD_SLUGS: ReadonlySet<string> = new Set(['card', 'cards', 'issue', 'settings'])
+
+export const isCardSlug = (raw: string): boolean =>
+  raw.length <= CARD_SLUG_MAX_LENGTH && ISSUER_HANDLE.test(raw) && !RESERVED_CARD_SLUGS.has(raw)
+
+export const cardSlugProblem = (raw: string): 'empty' | 'format' | 'reserved' | null => {
+  if (raw === '') {
+    return 'empty'
+  }
+  if (raw.length > CARD_SLUG_MAX_LENGTH || !ISSUER_HANDLE.test(raw)) {
+    return 'format'
+  }
+  return RESERVED_CARD_SLUGS.has(raw) ? 'reserved' : null
+}
+
+// The slug a card title suggests, so an operator rarely types one by hand.
+// An empty result means the title carried nothing usable and the operator
+// must choose the slug themselves.
+export const slugFromTitle = (title: string): string =>
+  title
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/gu, '-')
+    .replaceAll(/^-+|-+$/gu, '')
+    .slice(0, CARD_SLUG_MAX_LENGTH)
+    .replaceAll(/-+$/gu, '')
+
 export type CardCategory = 'membership' | 'ticket'
 export const CARD_CATEGORIES: readonly CardCategory[] = ['membership', 'ticket']
 export const isCardCategory = (raw: string): raw is CardCategory =>
@@ -56,6 +90,7 @@ export const isCardCategory = (raw: string): raw is CardCategory =>
 
 export interface CardView {
   id: string
+  slug: string
   title: string
   category: CardCategory
   perk: string
@@ -73,11 +108,27 @@ export interface IssuerView {
   createdAt: number
 }
 
-// GET /issuers/:handle — what a member sees before asking for a card.
-export interface PublicCard {
+// GET /issuers/:handle — the venue page a member lands on. A venue with one
+// card goes straight to it; with several, the member picks one.
+export interface PublicVenue {
   handle: string
   name: string
   tagline: string
   brandColor: string
+  cards: CardView[]
+}
+
+// One card of that venue, once the member (or the link) has chosen it.
+export interface PublicCard extends Omit<PublicVenue, 'cards'> {
   card: CardView
 }
+
+export const cardBySlug = (venue: PublicVenue, slug: string): PublicCard | null => {
+  const card = venue.cards.find((entry) => entry.slug === slug)
+  return card === undefined ? null : { ...venue, card }
+}
+
+// The card a bare `/@<handle>` opens: the only one, or none when the member
+// must choose.
+export const soleCard = (venue: PublicVenue): PublicCard | null =>
+  venue.cards.length === 1 ? cardBySlug(venue, venue.cards[0]?.slug ?? '') : null

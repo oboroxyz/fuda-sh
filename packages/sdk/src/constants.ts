@@ -99,5 +99,7 @@ export const ERROR_CODES = [
   'bad_handle',
   'handle_taken',
   'issuer_exists',
+  'bad_slug',
+  'slug_taken',
 ] as const
 export type ErrorCode = (typeof ERROR_CODES)[number]

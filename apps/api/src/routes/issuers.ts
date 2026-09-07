@@ -1,5 +1,12 @@
-import { generateMemberNumber, isIssuerHandle, IssuerCreateBody, USAGE_MODEL } from '@fuda/sdk'
-import type { IssueRequest, IssuerCreateRequest, SelfServeIssueResponse } from '@fuda/sdk'
+import {
+  CardBody,
+  generateMemberNumber,
+  isCardSlug,
+  isIssuerHandle,
+  IssuerCreateBody,
+  USAGE_MODEL,
+} from '@fuda/sdk'
+import type { CardRequest, IssueRequest, IssuerCreateRequest, SelfServeIssueResponse } from '@fuda/sdk'
 import { and, eq, inArray } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
@@ -12,7 +19,7 @@ import { cards, issuers, members } from '../db/schema.ts'
 import type { AppEnv } from '../env.ts'
 import { issueBearer, IssueConfigError } from '../issue/issue-bearer.ts'
 import { issueContext } from '../issue/issue-context.ts'
-import { cardView, issuerView, publicCard, publicUrlFor } from '../issuers/views.ts'
+import { cardView, issuerView, publicUrlFor, publicVenue } from '../issuers/views.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { operatorAuth } from '../middleware/operator-auth.ts'
 import { rateLimit } from '../middleware/rate-limit.ts'
@@ -25,37 +32,39 @@ const MEMBER_NUMBER_DRAWS = 3
 
 export const issuersRoutes = new Hono<AppEnv>()
 
-const issuerWithCard = async (db: Db, handle: string) => {
+// The venue behind a handle with every card it has published, oldest first.
+const venueOf = async (db: Db, handle: string) => {
   const issuer = await db.select().from(issuers).where(eq(issuers.handle, handle)).get()
   if (issuer === undefined) {
     return null
   }
-  const card = await db
-    .select()
-    .from(cards)
-    .where(eq(cards.issuerId, issuer.id))
-    .orderBy(cards.createdAt)
-    .get()
-  return card === undefined ? null : { card, issuer }
+  const owned = await db.select().from(cards).where(eq(cards.issuerId, issuer.id)).orderBy(cards.createdAt)
+  return owned.length === 0 ? null : { cards: owned, issuer }
 }
 
+// Every card the venue has published, oldest first. The member-facing reads
+// take one card; the operator sees the whole list.
 const mine = async (c: Context<AppEnv>) => {
   const { issuerId } = c.get('operator')
   if (issuerId === null) {
     return null
   }
-  const issuer = await c.get('db').select().from(issuers).where(eq(issuers.id, issuerId)).get()
-  return issuer === undefined ? null : await issuerWithCard(c.get('db'), issuer.handle)
+  const db = c.get('db')
+  const issuer = await db.select().from(issuers).where(eq(issuers.id, issuerId)).get()
+  if (issuer === undefined) {
+    return null
+  }
+  return await venueOf(db, issuer.handle)
 }
 
 issuersRoutes.get('/issuers/me', operatorAuth(), async (c) => {
   c.header('cache-control', 'no-store')
   const found = await mine(c)
   if (found === null) {
-    return jsonResponse(c, { card: null, issuer: null, publicUrl: null })
+    return jsonResponse(c, { cards: [], issuer: null, publicUrl: null })
   }
   return jsonResponse(c, {
-    card: cardView(found.card),
+    cards: found.cards.map(cardView),
     issuer: issuerView(found.issuer),
     publicUrl: publicUrlFor(c.env.PUBLIC_BASE_URL, found.issuer.handle),
   })
@@ -72,6 +81,54 @@ issuersRoutes.get('/issuers/check', operatorAuth(), async (c) => {
     : false
   return jsonResponse(c, { available: valid && !taken, handle, valid })
 })
+
+// Whether the operator's venue can still take this card slug.
+issuersRoutes.get('/issuers/cards/check', operatorAuth(), async (c) => {
+  c.header('cache-control', 'no-store')
+  const slug = c.req.query('slug') ?? ''
+  const { issuerId } = c.get('operator')
+  const valid = isCardSlug(slug)
+  const taken =
+    valid && issuerId !== null
+      ? (await c
+          .get('db')
+          .select({ id: cards.id })
+          .from(cards)
+          .where(and(eq(cards.issuerId, issuerId), eq(cards.slug, slug)))
+          .get()) !== undefined
+      : false
+  return jsonResponse(c, { available: valid && !taken, slug, valid })
+})
+
+// One card row. Returns null when the venue already publishes that slug; the
+// unique index is the arbiter, so a race loses here rather than half-writing.
+const insertCard = async (
+  c: Context<AppEnv>,
+  issuerId: string,
+  input: CardRequest,
+): Promise<typeof cards.$inferSelect | null> => {
+  const db = c.get('db')
+  const id = crypto.randomUUID()
+  try {
+    await db.insert(cards).values({
+      category: input.category,
+      createdAt: c.get('now')(),
+      id,
+      issuerId,
+      lockScreen: input.lockScreen ? 1 : 0,
+      perk: input.perk,
+      reward: input.reward,
+      slug: input.slug,
+      title: input.title,
+      validityDays: input.validityDays,
+      venueLat: input.venue?.lat ?? null,
+      venueLng: input.venue?.lng ?? null,
+    })
+  } catch {
+    return null
+  }
+  return (await db.select().from(cards).where(eq(cards.id, id)).get()) ?? null
+}
 
 const insertIssuerAndCard = async (
   c: Context<AppEnv>,
@@ -100,6 +157,7 @@ const insertIssuerAndCard = async (
       lockScreen: input.card.lockScreen ? 1 : 0,
       perk: input.card.perk,
       reward: input.card.reward,
+      slug: input.card.slug,
       title: input.card.title,
       validityDays: input.card.validityDays,
       venueLat: input.card.venue?.lat ?? null,
@@ -150,14 +208,15 @@ issuersRoutes.post('/issuers', operatorAuth(), async (c) => {
     // The unique indexes are the last word when two requests race the checks above.
     return errorResponse(c, 'handle_taken', 409)
   }
-  const found = await issuerWithCard(db, parsed.output.handle)
-  if (found === null) {
+  const found = await venueOf(db, parsed.output.handle)
+  const created = found?.cards[0]
+  if (found === undefined || found === null || created === undefined) {
     return errorResponse(c, 'internal', 500)
   }
   return jsonResponse(
     c,
     {
-      card: cardView(found.card),
+      card: cardView(created),
       issuer: issuerView(found.issuer),
       publicUrl: publicUrlFor(c.env.PUBLIC_BASE_URL, found.issuer.handle),
     },
@@ -165,36 +224,81 @@ issuersRoutes.post('/issuers', operatorAuth(), async (c) => {
   )
 })
 
-// Public: what the member sees at /@<handle> before asking for a card.
+// Adds a card to the operator's existing venue. The venue itself, its handle
+// and its brand colour are unchanged; only the card is new.
+issuersRoutes.post('/issuers/cards', operatorAuth(), async (c) => {
+  const body: unknown = await c.req.json().catch(() => null)
+  const parsed = v.safeParse(CardBody, body)
+  if (!parsed.success) {
+    const slugOnly = v.safeParse(v.object({ slug: v.string() }), body)
+    return errorResponse(
+      c,
+      slugOnly.success && !isCardSlug(slugOnly.output.slug) ? 'bad_slug' : 'bad_input',
+      400,
+    )
+  }
+  const { issuerId } = c.get('operator')
+  if (issuerId === null) {
+    return errorResponse(c, 'not_found', 404)
+  }
+  const db = c.get('db')
+  const issuer = await db.select().from(issuers).where(eq(issuers.id, issuerId)).get()
+  if (issuer === undefined) {
+    return errorResponse(c, 'not_found', 404)
+  }
+  const card = await insertCard(c, issuerId, parsed.output)
+  if (card === null) {
+    return errorResponse(c, 'slug_taken', 409)
+  }
+  return jsonResponse(
+    c,
+    {
+      card: cardView(card),
+      issuer: issuerView(issuer),
+      publicUrl: publicUrlFor(c.env.PUBLIC_BASE_URL, issuer.handle),
+    },
+    201,
+  )
+})
+
+// Public: the venue page at /@<handle>, with every card it publishes. A member
+// app opens the only card directly and asks the member to choose when there
+// are several. The operator address is never part of this answer.
 issuersRoutes.get('/issuers/:handle', async (c) => {
   c.header('cache-control', 'no-store')
   const handle = c.req.param('handle')
-  const found = isIssuerHandle(handle) ? await issuerWithCard(c.get('db'), handle) : null
+  const found = isIssuerHandle(handle) ? await venueOf(c.get('db'), handle) : null
   if (found === null) {
     return errorResponse(c, 'not_found', 404)
   }
-  return jsonResponse(c, publicCard(found.issuer, found.card))
+  return jsonResponse(c, publicVenue(found.issuer, found.cards))
 })
 
-// A member number nobody holds under this card yet. Collisions are a 28^-12
-// event; the re-draw only guards the unique index from ever turning a
-// successful attest into an orphan.
-const freshMemberNumber = async (db: Db, cardId: string): Promise<string | null> => {
+// A member number nobody holds at this venue yet. The scope is the issuer, not
+// the card, because the number is an ENS label under the issuer
+// (docs/specs/ens-naming.md#member-number). Collisions are a 28^-12 event; the
+// re-draw only guards the unique index from ever turning a successful attest
+// into an orphan.
+const freshMemberNumber = async (db: Db, issuerId: string): Promise<string | null> => {
   const candidates = Array.from({ length: MEMBER_NUMBER_DRAWS }, () => generateMemberNumber())
   const taken = await db
     .select({ memberId: members.memberId })
     .from(members)
-    .where(and(eq(members.cardId, cardId), inArray(members.memberId, candidates)))
+    .where(and(eq(members.issuerId, issuerId), inArray(members.memberId, candidates)))
   const used = new Set(taken.map((row) => row.memberId))
   return candidates.find((candidate) => !used.has(candidate)) ?? null
 }
 
 // Self-serve Bearer issuance (docs/specs/pass-types-and-flows.md#u1-standard-issuance-and-optional-activation):
 // no body, no account. The card fixes tier, usage model and validity.
-issuersRoutes.post('/issuers/:handle/issue', rateLimit({ budget: SELF_SERVE_BUDGET }), async (c) => {
+issuersRoutes.post('/issuers/:handle/:slug/issue', rateLimit({ budget: SELF_SERVE_BUDGET }), async (c) => {
   c.header('cache-control', 'no-store')
   const handle = c.req.param('handle')
-  const found = isIssuerHandle(handle) ? await issuerWithCard(c.get('db'), handle) : null
+  const slug = c.req.param('slug')
+  const venue = isIssuerHandle(handle) && isCardSlug(slug) ? await venueOf(c.get('db'), handle) : null
+  const card = venue?.cards.find((entry) => entry.slug === slug)
+  const found =
+    venue === null || venue === undefined || card === undefined ? null : { card, issuer: venue.issuer }
   if (found === null) {
     return errorResponse(c, 'not_found', 404)
   }
@@ -205,7 +309,7 @@ issuersRoutes.post('/issuers/:handle/issue', rateLimit({ budget: SELF_SERVE_BUDG
   if (ctx === null) {
     return errorResponse(c, 'chain_error', 502)
   }
-  const memberNumber = await freshMemberNumber(ctx.db, found.card.id)
+  const memberNumber = await freshMemberNumber(ctx.db, found.issuer.id)
   if (memberNumber === null) {
     return errorResponse(c, 'internal', 500)
   }
@@ -219,7 +323,7 @@ issuersRoutes.post('/issuers/:handle/issue', rateLimit({ budget: SELF_SERVE_BUDG
     validUntil: validityDays === null ? 0 : ctx.now + validityDays * DAY,
   }
   try {
-    const issued = await issueBearer(ctx, body, found.card.id)
+    const issued = await issueBearer(ctx, body, { cardId: found.card.id, issuerId: found.issuer.id })
     if (issued.level === 'private') {
       return errorResponse(c, 'internal', 500)
     }

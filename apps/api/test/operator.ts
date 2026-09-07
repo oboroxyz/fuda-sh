@@ -1,4 +1,4 @@
-import type { IssuerCreateInput } from '@fuda/sdk'
+import type { CardInput, IssuerCreateInput } from '@fuda/sdk'
 import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
@@ -58,6 +58,16 @@ export const signIn = async (
   return await verified.json<{ token: string; issuer: unknown }>()
 }
 
+export const SECOND_CARD: CardInput = {
+  category: 'ticket',
+  lockScreen: false,
+  perk: 'One entry',
+  reward: '',
+  slug: 'gig',
+  title: 'Gig Ticket',
+  validityDays: 30,
+}
+
 export const CARD_INPUT: IssuerCreateInput = {
   brandColor: '#6f4320',
   card: {
@@ -65,6 +75,7 @@ export const CARD_INPUT: IssuerCreateInput = {
     lockScreen: false,
     perk: 'Stamp card · 10 stamps',
     reward: 'Free drink of your choice',
+    slug: 'stamp',
     title: 'Membership Card',
     validityDays: null,
   },

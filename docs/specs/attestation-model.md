@@ -293,6 +293,8 @@ decision: it fails closed as `502 chain_error` and is never written to
 | `bad_handle`                                     | 400    | `POST /issuers` handle fails the Handle rule or is reserved                                                                                                                                                                                                 |
 | `handle_taken`                                   | 409    | `POST /issuers` handle already belongs to an issuer                                                                                                                                                                                                         |
 | `issuer_exists`                                  | 409    | `POST /issuers` from an operator address that already owns an issuer                                                                                                                                                                                        |
+| `bad_slug`                                       | 400    | `POST /issuers/cards` slug fails the card-slug rule or is reserved                                                                                                                                                                                          |
+| `slug_taken`                                     | 409    | `POST /issuers/cards` slug already used by another card of the same venue                                                                                                                                                                                   |
 | `not_found`                                      | 404    | no `members` row for the uid (also a +Private row on the pass routes)                                                                                                                                                                                      |
 | `rate_limited`                                   | 429    | per-IP hourly budget exceeded                                                                                                                                                                                                                              |
 | `internal`                                       | 500    | unclassified defect; logged                                                                                                                                                                                                                                |
@@ -340,8 +342,8 @@ answers:
 }
 ```
 
-**`POST /issuers/:handle/issue`** is the self-serve Bearer path behind
-`fuda.sh/@<handle>` (docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route).
+**`POST /issuers/:handle/:slug/issue`** is the self-serve Bearer path behind
+`fuda.sh/@<handle>/<slug>` (docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route).
 It takes no body: the card fixes `tier` (0), `usageModel` (`SINGLE_USE` for a
 `ticket`, `MULTI_USE` otherwise) and `validUntil` (issued time plus
 `validity_days`, or 0). The api generates the member number, derives the
@@ -478,15 +480,20 @@ TTL on every mint, so the table holds only live nonces. `rate_limits` is the
 generic per-IP fixed hourly-window primitive; `POST /issuers/:handle/issue`
 applies it with a budget of 20 per hour, `POST /ens/gateway` with 120.
 
-Issuer onboarding adds four things (`0004_issuers.sql`): `issuers` (one row per
-operator address: `handle` UNIQUE, `name`, `tagline`, `brand_color`,
-`operator_address` UNIQUE, `created_at`), `cards` (`issuer_id`, `title`,
-`category` in `membership|ticket`, `perk`, `reward`, `validity_days` NULL = no
-expiry, `lock_screen`, `venue_lat`, `venue_lng`), `sessions` (`token_hash` PK —
-only the SHA-256 of the bearer token is stored — `address`, `issuer_id`,
-`created_at`, `expires_at` = created + 30 days), and `members.card_id` NULL
-with a partial unique index on `(card_id, member_id) WHERE card_id IS NOT NULL`,
-so a generated member number is unique per card. Sign-in nonces reuse the
+Issuer onboarding adds four things (`0004_issuers.sql`, extended by
+`0005_member_number_per_issuer.sql` and `0006_card_slug.sql`): `issuers` (one
+row per operator address: `handle` UNIQUE, `name`, `tagline`, `brand_color`,
+`operator_address` UNIQUE, `created_at`), `cards` (`issuer_id`, `slug` with
+`(issuer_id, slug)` UNIQUE, `title`, `category` in `membership|ticket`,
+`perk`, `reward`, `validity_days` NULL = no expiry, `lock_screen`, `venue_lat`,
+`venue_lng`), `sessions` (`token_hash` PK — only the SHA-256 of the bearer
+token is stored — `address`, `issuer_id`, `created_at`, `expires_at` = created
++ 30 days), and on `members` the nullable `card_id` and `issuer_id` of a
+self-serve right. A generated member number is unique per **issuer**: a partial
+unique index on `(issuer_id, member_id) WHERE issuer_id IS NOT NULL`, because
+the number is an ENS label under the issuer
+([ENS naming](./ens-naming.md#member-number)). Admin-issued rows leave both
+columns NULL and keep their free-text `member_id`. Sign-in nonces reuse the
 `challenges` table under an `operator:<address>` subject, with the gate's TTL
 and sweep. An issuer is a product and branding entity only: every attestation
 is still made by the fuda signer under `DELEGATION_UID`, and no per-issuer

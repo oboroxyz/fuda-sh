@@ -265,8 +265,8 @@ name resolution for a U4 right.
 
 ## Issuer onboarding and the handle route
 
-The U1 first-pass flow is self-serve. An operator creates an issuer and its
-card in the dashboard; a member gets a card from the handle route with no
+The U1 first-pass flow is self-serve. An operator creates a venue and its
+cards in the dashboard; a member gets a card from the handle route with no
 account and no wallet.
 
 **Operator sign-in.** The dashboard signs the operator in with a passkey
@@ -282,28 +282,59 @@ bound to the address, and expires with the gate's 300 s TTL; a wrong signature
 burns it. The admin token is not an operator identity and is not accepted on
 operator routes.
 
-**Issuer and card.** `POST /issuers` (session) creates the issuer and its
-first card in one batch and binds the session to it; body
-`{ handle, name, tagline, brandColor, card: { title, category, perk, reward,
-validityDays, lockScreen, venue? } }`, answer `201 { issuer, card, publicUrl }`
-with `publicUrl` = `<PUBLIC_BASE_URL>/@<handle>`. One issuer per operator
-address. `GET /issuers/me` (session) returns the same shape or all-null
-fields; `GET /issuers/check?handle=` (session, so the handle space cannot be
-enumerated anonymously) answers `{ handle, valid, available }`. The Handle
-rule is the ENS issuer-label rule from [ENS naming](./ens-naming.md) plus the
-api's own route prefixes as reserved names, shared with the dashboard through
-`@fuda/sdk`. A logo is not part of the card yet.
+**Venue and cards.** One issuer per operator address; an issuer owns one or
+more cards. `POST /issuers` (session) creates the issuer and its first card in
+one batch and binds the session to it; body
+`{ handle, name, tagline, brandColor, card: <card> }`, answer
+`201 { issuer, card, publicUrl }` with `publicUrl` = `<PUBLIC_BASE_URL>/@<handle>`.
+`POST /issuers/cards` (session) adds a further card to that same venue and
+answers the same shape. A card is
+`{ slug, title, category, perk, reward, validityDays, lockScreen, venue? }`.
+`GET /issuers/me` (session) returns `{ issuer, cards, publicUrl }`, or those
+three fields as `null`/`[]` before the venue exists.
+`GET /issuers/check?handle=` and `GET /issuers/cards/check?slug=` (both
+session-gated, so neither namespace can be enumerated anonymously) answer
+`{ …, valid, available }`. A logo is not part of a card yet.
 
-**Member.** `GET /issuers/:handle` (public, `no-store`) returns
-`{ handle, name, tagline, brandColor, card: { id, title, category, perk,
-reward, validityDays } }` and never the operator address. `POST
-/issuers/:handle/issue` (public, no body, 20 per IP per hour) issues a Bearer
-right with a generated member number and answers the Bearer `/issue` shape
-plus `memberNumber` (see the [attestation
-model](./attestation-model.md#api-payloads-that-touch-attestations)). The
-member app remembers the issued right on the device and shows the same card
-on a revisit instead of issuing again. Signed and +Private are not reachable
-from the handle route.
+**Names.** The Handle is the ENS issuer-label rule from
+[ENS naming](./ens-naming.md) plus the api's own route prefixes as reserved
+names. A card's **slug** is the path segment under the venue and uses the same
+character rule, unique within the issuer. The slug is a product path only: the
+ENS hierarchy stays `<member-no>.<issuer>.fuda.eth` and never carries a card.
+Both rules are shared with the dashboard through `@fuda/sdk`, so the form
+rejects what the api would reject.
+
+**Member.** `GET /issuers/:handle` (public, `no-store`) returns the venue and
+every card it publishes:
+`{ handle, name, tagline, brandColor, cards: [{ id, slug, title, category,
+perk, reward, validityDays }] }`, and never the operator address. A venue with
+one card opens that card directly at `fuda.sh/@<handle>`; a venue with several
+shows the member a list, and each card also has its own link
+`fuda.sh/@<handle>/<slug>` that a poster or a message can point at.
+`POST /issuers/:handle/:slug/issue` (public, no body, 20 per IP per hour)
+issues a Bearer right under that card with a generated member number and
+answers the Bearer `/issue` shape plus `memberNumber` (see the [attestation
+model](./attestation-model.md#api-payloads-that-touch-attestations)). An
+unknown handle or slug answers `404 not_found`. Signed and +Private are not
+reachable from the handle route.
+
+**One member, several cards.** A member who claims two cards of one venue
+holds two rights: two attestations, two member numbers, two passes. The
+numbers are unique per issuer, so the two never collide as ENS labels, and
+they are unrelated to each other, so neither the chain nor a name links them
+to one person.
+
+**A U1 card cannot be limited to one per person.** U1's defining property is
+that the member has no identity at claim time: no account, no contact detail,
+no key. The member app remembers a claimed card on the device and shows it
+again instead of issuing a second one, and the per-IP budget bounds automated
+abuse, but neither is identity: a cleared browser, a private window, or a
+second device yields another card. Enforcing one-per-person needs a stable
+member key, which is what U2 and U3 already have — a `private` member gives
+the issuer a meta-address, and a `private + loyalty` member additionally has a
+stable persistent-value holder — so the constraint belongs to those templates,
+or to a card that deliberately requires a passkey before it is claimed and so
+gives up U1's one-tap sign-up.
 
 ## Gate protocol
 
@@ -487,8 +518,8 @@ current challenge for the Entitlement holder?
 | ---------------- | ----------- | -------- | ------------------------------------------------------------------------------------------------- |
 | `api.fuda.sh`    | `apps/api`  | 8787     | the api                                                                                           |
 | `gate.fuda.sh`   | `apps/gate` | 5174     | scanner: uid preview, QR admission, verdict                                                       |
-| `dash.fuda.sh`   | `apps/dash` | 5175     | operator dashboard: passkey or admin-token sign-in; with the admin token `/` overview from D1 member rows and client configuration, `/rights` D1 search/filter/revoke/pass links plus separate on-chain lookup, and `/issue` issuance; with a passkey session `/new` card designer and `/published` QR and link |
-| `app.fuda.sh`    | `apps/app`  | 5173     | member app: `/@<handle>` card landing and one-tap issuance, `/signed` challenge-response, `/private` enrolment and discovery, `/rights` member pass list |
+| `dash.fuda.sh`   | `apps/dash` | 5175     | operator dashboard: passkey or admin-token sign-in; with the admin token `/` overview from D1 member rows and client configuration, `/rights` D1 search/filter/revoke/pass links plus separate on-chain lookup, and `/issue` issuance; with a passkey session `/new` card designer and `/published` the venue's cards with their links and QR codes |
+| `app.fuda.sh`    | `apps/app`  | 5173     | member app: `/@<handle>` venue page and `/@<handle>/<slug>` card landing with one-tap issuance, `/signed` challenge-response, `/private` enrolment and discovery, `/rights` member pass list |
 | `fuda.sh` (apex) | Cloudflare zone | —     | `/@*` redirect to the same path on `app.fuda.sh`; other apex paths are outside this repository    |
 
 Root `pnpm dev` starts all four services on their fixed development ports. The

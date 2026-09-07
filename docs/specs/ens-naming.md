@@ -117,8 +117,15 @@ the operator typed, a self-serve right has a generated member number.
 `POST /issuers/:handle/issue` is the route that generates them: the generator
 and validator are `generateMemberNumber` / `isMemberNumber` in `@fuda/sdk`,
 and `formatMemberNumber` renders the `4-4-5` display form on passes. The
-number is stored in `members.member_id` and is unique per card (partial unique
-index on `(card_id, member_id)`).
+number is stored in `members.member_id`. Uniqueness is scoped to the **issuer**
+— a partial unique index on `(issuer_id, member_id)`, with `members.issuer_id`
+denormalized from the card because SQLite cannot constrain across the join —
+because the number is a label under the issuer. Two cards of one venue
+therefore never mint the same number, and a member who claims both holds two
+unrelated numbers, exactly as a `private + loyalty` member does.
+
+A card's slug (`fuda.sh/@<handle>/<slug>`) is a product path and never an ENS
+label: the hierarchy stays `<member-no>.<issuer>.fuda.eth` with no card level.
 
 ## Hybrid resolution
 
