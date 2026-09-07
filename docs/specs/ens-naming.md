@@ -27,11 +27,21 @@ The repository ships the B1-independent naming implementation:
 - parent commit/reveal tooling, resumable topology deployment, and standalone
   read-only topology verification.
 
-These contracts and tools are prepared and tested, but no repository task has
-used them to mutate Sepolia. B1 voucher issuance, onboarding and naming-mirror
-writes, revoke lifecycle integration, live `.eth` verification, and the
-`fuda.sh` DNS change remain external gates. No Gate or Entry path calls ENS or
-the gateway.
+`fuda.eth` is registered and the topology is deployed and verified on Ethereum
+Sepolia:
+
+| Contract | Address |
+| --- | --- |
+| User Registry | `0xBf987666C8e4e78d3226aA86A9A7FE141F63C99D` |
+| `FudaResolver` | `0x133e6eeb3eAf0F804FbB9c1536AcA090B36A93AB` |
+| `FudaSubnameRegistrar` | `0x58AF04ff5e6DAB45ECD17bD38fC4f4BBa45778B9` |
+| parent owner and registry root | `0x5A89D95Ad9f964C75F4Adc2122ADb70Cc6607Cd4` |
+| voucher signer | `0x5c5DE7F78d90701066f5C52e8100B5e2c73845F9` |
+| gateway signer | `0xf0D345D00fA513D92ACCbc10Db721792577FcF9f` |
+
+B1 voucher issuance, onboarding and naming-mirror writes, revoke lifecycle
+integration, live `.eth` verification, and the `fuda.sh` DNS change remain
+external gates. No Gate or Entry path calls ENS or the gateway.
 
 ## Deployment namespace
 
@@ -293,8 +303,12 @@ chainId           = 11155111
 verifyingContract = deployed registrar address
 ```
 
-For both actions, the issuer must submit its own transaction
-(`msg.sender == issuer`). The registrar requires the signed label hash to
+For both actions the sender is unconstrained: the voucher signature is the
+whole authorization. A venue owner holds no gas on Ethereum Sepolia, so the
+claim is submitted by the owner's own wallet under a sponsored transaction, or
+relayed by fuda; whoever sends it, the name lands on the signed `issuer` and
+the nonce it spends is that issuer's, so front-running a voucher gains
+nothing. The registrar requires the signed label hash to
 match the canonical label, the per-issuer nonce to equal the next stored
 nonce, `block.timestamp <= deadline`, `block.timestamp < expiry`, and a
 canonical 65-byte low-s ECDSA signature from the current voucher signer. It

@@ -86,4 +86,8 @@ export const FUDA_REGISTRAR_ABI = parseAbi([
   'function resolver() view returns (address)',
   'function parentNode() view returns (bytes32)',
   'function nonces(address issuer) view returns (uint256)',
+  'function claim(string label,address issuer,uint64 expiry,uint256 nonce,uint64 deadline,bytes signature) returns (uint256 tokenId)',
+  'function renew(string label,address issuer,uint64 expiry,uint256 nonce,uint64 deadline,bytes signature)',
+  'event IssuerClaimed(bytes32 indexed labelHash,address indexed issuer,uint256 indexed tokenId,uint64 expiry,uint256 nonce)',
+  'event IssuerRenewed(bytes32 indexed labelHash,address indexed issuer,uint64 expiry,uint256 nonce)',
 ])

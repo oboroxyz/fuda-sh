@@ -7,6 +7,7 @@ import { ChainError, NoSignerError, ZERO_UID } from '../chain/client.ts'
 import { members } from '../db/schema.ts'
 import { findVersion, parseSchemaSets } from '../eas/schemas.ts'
 import type { AcceptedVersion } from '../eas/schemas.ts'
+import { darkenMemberName } from '../ens/mirror.ts'
 import type { AppEnv } from '../env.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { adminAuth } from '../middleware/admin-auth.ts'
@@ -65,5 +66,8 @@ revokeRoutes.post('/revoke', adminAuth(), async (c) => {
     throw error
   }
   await c.get('db').update(members).set({ status: 'revoked' }).where(eq(members.attestationUid, uid))
+  // A name that still resolved after its right was revoked would outlive the
+  // thing it names, so it goes dark on the same request.
+  await darkenMemberName(c.get('db'), { now: c.get('now')(), rightUid: uid })
   return jsonResponse(c, { revoked: true, uid })
 })

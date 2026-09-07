@@ -40,6 +40,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@fuda/ens-contracts':
+        specifier: workspace:*
+        version: link:../../packages/ens-contracts
       '@fuda/pass':
         specifier: workspace:*
         version: link:../../packages/pass

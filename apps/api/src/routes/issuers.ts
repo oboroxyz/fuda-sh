@@ -18,6 +18,7 @@ import { attachIssuer } from '../auth/session.ts'
 import { ChainError, NoSignerError } from '../chain/client.ts'
 import type { Db } from '../db/client.ts'
 import { cards, issuers, members } from '../db/schema.ts'
+import { mirrorMemberName } from '../ens/mirror.ts'
 import type { AppEnv } from '../env.ts'
 import { issueBearer, IssueConfigError } from '../issue/issue-bearer.ts'
 import { issueContext } from '../issue/issue-context.ts'
@@ -343,6 +344,20 @@ issuersRoutes.post('/issuers/:handle/:slug/issue', rateLimit({ budget: SELF_SERV
     const issued = await issueBearer(ctx, body, { cardId: found.card.id, issuerId: found.issuer.id })
     if (issued.level === 'private') {
       return errorResponse(c, 'internal', 500)
+    }
+    // The member's own name under the venue. Best-effort by design: a name that
+    // failed to mirror costs a resolution, not a card (apps/api/src/ens/mirror.ts).
+    if (c.env.ENS_PARENT_NAME !== undefined) {
+      await mirrorMemberName(ctx.db, {
+        holder: issued.holder,
+        issuerHandle: found.issuer.handle,
+        level: 'bearer',
+        memberNumber,
+        now: ctx.now,
+        parentName: c.env.ENS_PARENT_NAME,
+        rightUid: issued.uid,
+        stealthMetaAddress: null,
+      })
     }
     const response: SelfServeIssueResponse = { ...issued, level: 'bearer', memberNumber }
     return jsonResponse(c, response)
