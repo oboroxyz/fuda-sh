@@ -63,6 +63,37 @@ When a feature branch is used, keep every temporary artifact and its deletion
 on that branch. Merge it with a merge commit or rebase, not squash, so that Git
 history remains the archive for the lifecycle below.
 
+## Verification cadence
+
+Treat verification as fresh until the checked content changes, rather than
+rerunning the same commands at every workflow boundary. This repository policy
+overrides generic workflow steps that would repeat a full suite solely because
+work moved from implementation to review, completion, or integration.
+
+- During implementation, run the narrowest test, type check, lint, or build
+  that exercises the changed behavior. Repeat targeted checks as the code
+  changes.
+- Before declaring a substantive change complete, run `pnpm check` and
+  `pnpm test` once against the final content. Record which commands ran and
+  their results in the handoff.
+- Reuse that final verification for review, commit, and pre-merge gates while
+  no tracked or untracked content has changed. A commit, rebase, or workflow
+  transition alone does not invalidate results when it preserves the checked
+  content.
+- After a local merge, reuse the result when the merged tree is identical to
+  the verified tree. If conflict resolution, upstream changes, generated
+  output, or any other content changes the tree, rerun checks proportionate to
+  the difference; use the full suite when the resulting interaction risk is
+  broad or unclear.
+- For documentation, ignore rules, and metadata-only changes, inspect the
+  exact diff and run only a narrow structural check such as
+  `git diff --check`. Run broader checks only when those files affect generated
+  output, executable configuration, or runtime behavior.
+
+A failed or stale result is never reusable. Review feedback or integration
+work that changes content starts a new targeted cycle and requires a new final
+verification before completion is claimed.
+
 ### Herdr controller/worker worktrees
 
 Evaluate `orchestrating-herdr-worktrees` only after both worktree isolation and

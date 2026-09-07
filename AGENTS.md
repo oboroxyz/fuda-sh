@@ -2,28 +2,39 @@
 
 Guidance for AI coding agents working in this repository. `CLAUDE.md` imports this file via `@AGENTS.md`.
 
-## What this repo is
+## Repository layout
 
-**fuda** — a pnpm workspace monorepo.
-`apps/*` are deployable surfaces (Cloudflare Workers via wrangler), while `packages/*` contains shared libraries and reusable packages. Direct children with a `package.json` join the pnpm workspace automatically. `packages/substreams/` is an organizational directory for independently built Rust/Substreams packages, not a pnpm workspace package.
+**fuda** is a pnpm workspace monorepo. `apps/*` contains deployable Cloudflare
+Workers, and direct children of `packages/*` with a `package.json` are shared
+workspace packages. Nested projects under `packages/subgraphs/` and
+`packages/substreams/` are built independently and do not join the pnpm
+workspace.
 
-Everything here is written from scratch inside the build window. Do not copy code, specs or designs in from other repositories, even sibling projects on this machine.
+Author code, specifications, and designs from scratch within this repository's
+build window. Treat other repositories, including sibling projects on this
+machine, as out of scope for copying.
 
 ## Toolchain
 
-One config file, `vite.config.ts`, drives dev/build/test/lint/format through **Vite+** (`vp`). Read its header comment before touching lint rules — it records which exclusions are structural and why.
+Vite+ (`vp`) drives development, builds, tests, linting, and formatting through
+`vite.config.ts`. Before changing lint rules, read that file's header and the
+comments beside the relevant configuration; they record the structural
+exceptions and dependency constraints.
 
-- `pnpm lint` / `pnpm format` / `pnpm check` are the entry points (see `package.json` scripts). Plain `vp lint` runs the built-in; `vpr lint` runs the npm script.
-- Lint is near-full-strict (Ultracite core + anti-slop + vitest presets). Suppress a rule only inline, with a reason:
-  `// oxlint-disable-next-line <rule> -- <why>`. Keep these rare.
-- An `overrides` entry in `vite.config.ts`'s `lint` config only inherits the top-level (non-test) `plugins` list; it does not inherit any preset's plugin list. To set rules from a preset's plugin (e.g. `vitest/*`) inside an override, that override must repeat the plugin in its own `plugins: [...]` array, or those rule keys are silently dropped — see the vitest override in `vite.config.ts` for the working pattern.
-- `oxlint` / `oxfmt` are pinned in `pnpm-workspace.yaml` `overrides` to the versions vite-plus bundles. Two copies of oxlint installed at once break the preset types in `vite.config.ts`; keep the overrides in step when bumping vite-plus. A third override there, `vite@*` → `@voidzero-dev/vite-plus-core@<version>`, redirects any third-party Vite plugin's `vite` peer (e.g. `@tailwindcss/vite`) to the same vite-plus-core release the workspace uses, so its `Plugin`/`UserConfig` types stay unified with `vite-plus`'s instead of splitting into two nominally distinct types — see the override's comment in `pnpm-workspace.yaml` for the full rationale. Bump this override's version together with vite-plus too.
-- Node `24.18.0` is provisioned by pnpm itself (`devEngines.runtime` in `package.json`, `onFail: download`); no version manager needed. `engineStrict` / `autoInstallPeers` live in `pnpm-workspace.yaml` because pnpm 11 ignores `.npmrc` for them. Install with `pnpm install --frozen-lockfile`.
-- Wrangler local state (`.wrangler/`) and secrets (`.dev.vars*`) are gitignored per app.
-- D1 caps bound parameters at 100 per statement, so a multi-row `INSERT` built
-  from a variable-length list must be sliced into batches under that cap.
+- Use the root `package.json` scripts as entry points, including `pnpm lint`,
+  `pnpm format`, and `pnpm check`. Install with
+  `pnpm install --frozen-lockfile`; pnpm provisions the repository's Node
+  version. These commands are entry points, not a requirement to run every
+  command at every workflow checkpoint; follow the verification cadence in
+  `.agents/rules/superpowers-policy.md`.
+- Keep lint strict. Suppress a rule only at the narrowest applicable line and
+  include the reason:
+  `// oxlint-disable-next-line <rule> -- <why>`.
+- When upgrading Vite+, update the linked `oxlint`, `oxfmt`, and
+  `vite-plus-core` overrides in `pnpm-workspace.yaml` together. The comments in
+  that file explain why their versions must remain aligned.
 
-## Agents
+## Conditional instructions
 
 ### Frontend styling
 
@@ -38,8 +49,16 @@ clearly. Compose conditional or potentially conflicting class names with `cn`;
 keep static classes as string literals. Declare `cn` as a direct dependency of
 each app or package that imports it.
 
+### D1 writes
+
+When building a variable-length, multi-row D1 statement, batch it below D1's
+limit of 100 bound parameters per statement.
+
 ### Superpowers workflow and artifact policy
 
-The full policy lives in `.agents/rules/superpowers-policy.md` (`.claude/rules/` is a symlink to `.agents/rules/`). Agents that resolve `@`-imports load it via the line below; other agents must read that file directly.
+The full policy lives in `.agents/rules/superpowers-policy.md`
+(`.claude/rules/` is a symlink to `.agents/rules/`). Agents that resolve
+`@`-imports load it via the line below; other agents must read that file
+directly.
 
 @.agents/rules/superpowers-policy.md
