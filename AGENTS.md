@@ -2,6 +2,13 @@
 
 Guidance for AI coding agents working in this repository. `CLAUDE.md` imports this file via `@AGENTS.md`.
 
+## Start of task
+
+Read `.agents/rules/start-of-task.md` before the first edit of any task. Agents
+that resolve `@`-imports load it via the line below.
+
+@.agents/rules/start-of-task.md
+
 ## Repository layout
 
 **fuda** is a pnpm workspace monorepo. `apps/*` contains deployable Cloudflare

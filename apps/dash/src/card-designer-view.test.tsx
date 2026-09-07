@@ -132,21 +132,31 @@ const issuer: IssuerView = {
 
 const membership: CardView = {
   category: 'membership',
+  claimFrom: null,
+  claimUntil: null,
+  claimable: true,
   id: 'card-1',
   perk: '',
   reward: '',
   slug: 'membership-card',
   title: 'Membership Card',
+  validFrom: null,
+  validUntil: null,
   validityDays: null,
 }
 
 const summer: CardView = {
   category: 'ticket',
+  claimFrom: null,
+  claimUntil: null,
+  claimable: true,
   id: 'card-2',
   perk: '',
   reward: '',
   slug: 'summer',
   title: 'Summer Pass',
+  validFrom: null,
+  validUntil: null,
   validityDays: 30,
 }
 

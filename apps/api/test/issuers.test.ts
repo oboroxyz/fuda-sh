@@ -366,3 +366,100 @@ describe('a venue with several cards', () => {
     expect(res.status).toBe(404)
   })
 })
+
+const venueWith = async (card: Partial<typeof SECOND_CARD>) => {
+  const chain = fakeChain({ signer: ROOT })
+  const del = seedRoot(chain)
+  const app = appWith({ chain, now: () => NOW })
+  const bindings = configuredEnv(del, { PUBLIC_BASE_URL: 'https://fuda.test' })
+  const { token } = await signIn(app, bindings)
+  await postJson(app, bindings, '/issuers', CARD_INPUT, token)
+  await postJson(app, bindings, '/issuers/cards', { ...SECOND_CARD, ...card }, token)
+  return { app, bindings, chain }
+}
+
+const claimGig = async (app: ReturnType<typeof appWith>, bindings: Bindings, ip: string) =>
+  await app.request(
+    '/issuers/wassie-coffee/gig/issue',
+    { headers: { 'CF-Connecting-IP': ip }, method: 'POST' },
+    bindings,
+  )
+
+describe('the card windows', () => {
+  beforeEach(async () => {
+    const db = getDb({ DB: env.DB })
+    await db.delete(members)
+    await db.delete(sessions)
+    await db.delete(challenges)
+    await db.delete(cards)
+    await db.delete(issuers)
+  })
+
+  it('refuses a claim before the window opens and after it closes', async () => {
+    const early = await venueWith({ claimFrom: NOW + 60, claimUntil: null, validityDays: null })
+    const closed = await claimGig(early.app, early.bindings, '203.0.113.50')
+    expect(closed.status).toBe(409)
+    await expect(closed.json()).resolves.toStrictEqual({ error: 'card_closed' })
+    const late = await venueWith({ claimFrom: null, claimUntil: NOW - 1, validityDays: null })
+    const shut = await claimGig(late.app, late.bindings, '203.0.113.51')
+    expect(shut.status).toBe(409)
+  })
+
+  it('allows a claim inside the window and marks the card claimable', async () => {
+    const open = await venueWith({ claimFrom: NOW - 60, claimUntil: NOW + 60, validityDays: null })
+    const issued = await claimGig(open.app, open.bindings, '203.0.113.52')
+    expect(issued.status).toBe(200)
+    const page = await getJson(open.app, open.bindings, '/issuers/wassie-coffee')
+    const venue = await page.json<{ cards: { claimable: boolean; slug: string }[] }>()
+    expect(venue.cards.find((entry) => entry.slug === 'gig')?.claimable).toBe(true)
+  })
+
+  it('reports a closed card on the venue page instead of hiding it', async () => {
+    const past = await venueWith({ claimUntil: NOW - 1, validityDays: null })
+    const page = await getJson(past.app, past.bindings, '/issuers/wassie-coffee')
+    const venue = await page.json<{ cards: { claimable: boolean; slug: string }[] }>()
+    expect(venue.cards.map((entry) => entry.slug)).toStrictEqual(['stamp', 'gig'])
+    expect(venue.cards.find((entry) => entry.slug === 'gig')?.claimable).toBe(false)
+    expect(venue.cards.find((entry) => entry.slug === 'stamp')?.claimable).toBe(true)
+  })
+
+  it('gives everyone the same absolute validity however early they claimed', async () => {
+    const fixed = await venueWith({ validFrom: NOW + 1000, validUntil: NOW + 2000, validityDays: null })
+    const first = await claimGig(fixed.app, fixed.bindings, '203.0.113.53')
+    const body = await first.json<SelfServeIssued>()
+    const raw = await fixed.chain.readAttestation(body.uid)
+    expect(decodeEntitlementV1(raw.data)).toMatchObject({
+      validFrom: BigInt(NOW + 1000),
+      validUntil: BigInt(NOW + 2000),
+    })
+  })
+
+  it('counts a relative validity from the claim, not from a fixed date', async () => {
+    const relative = await venueWith({ validityDays: 90 })
+    const issued = await claimGig(relative.app, relative.bindings, '203.0.113.54')
+    const body = await issued.json<SelfServeIssued>()
+    const raw = await relative.chain.readAttestation(body.uid)
+    expect(decodeEntitlementV1(raw.data)).toMatchObject({
+      validFrom: 0n,
+      validUntil: BigInt(NOW + 90 * 86_400),
+    })
+  })
+
+  it('refuses a card that sets both validity shapes at once', async () => {
+    const chain = fakeChain({ signer: ROOT })
+    const del = seedRoot(chain)
+    const app = appWith({ chain, now: () => NOW })
+    const bindings = configuredEnv(del, { PUBLIC_BASE_URL: 'https://fuda.test' })
+    const { token } = await signIn(app, bindings)
+    await postJson(app, bindings, '/issuers', CARD_INPUT, token)
+    const both = await postJson(
+      app,
+      bindings,
+      '/issuers/cards',
+      { ...SECOND_CARD, validFrom: NOW, validUntil: NOW + 10, validityDays: 30 },
+      token,
+    )
+    expect(both.status).toBe(400)
+    await expect(both.json()).resolves.toStrictEqual({ error: 'bad_input' })
+  })
+})

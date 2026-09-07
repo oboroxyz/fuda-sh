@@ -28,11 +28,16 @@ const issuer = {
 
 const card = {
   category: 'membership',
+  claimFrom: null,
+  claimUntil: null,
+  claimable: true,
   id: 'card-1',
   perk: '',
   reward: '',
   slug: 'membership-card',
   title: 'Membership Card',
+  validFrom: null,
+  validUntil: null,
   validityDays: null,
 } as const
 

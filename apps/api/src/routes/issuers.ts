@@ -1,6 +1,8 @@
 import {
   CardBody,
+  entitlementWindow,
   generateMemberNumber,
+  isClaimable,
   isCardSlug,
   isIssuerHandle,
   IssuerCreateBody,
@@ -27,7 +29,6 @@ import { rateLimit } from '../middleware/rate-limit.ts'
 // Self-serve issuances per IP per hour: a venue's whole queue is a handful of
 // phones, each of which needs one card.
 export const SELF_SERVE_BUDGET = 20
-const DAY = 86_400
 const MEMBER_NUMBER_DRAWS = 3
 
 export const issuersRoutes = new Hono<AppEnv>()
@@ -64,7 +65,7 @@ issuersRoutes.get('/issuers/me', operatorAuth(), async (c) => {
     return jsonResponse(c, { cards: [], issuer: null, publicUrl: null })
   }
   return jsonResponse(c, {
-    cards: found.cards.map(cardView),
+    cards: found.cards.map((card) => cardView(card, c.get('now')())),
     issuer: issuerView(found.issuer),
     publicUrl: publicUrlFor(c.env.PUBLIC_BASE_URL, found.issuer.handle),
   })
@@ -112,6 +113,8 @@ const insertCard = async (
   try {
     await db.insert(cards).values({
       category: input.category,
+      claimFrom: input.claimFrom,
+      claimUntil: input.claimUntil,
       createdAt: c.get('now')(),
       id,
       issuerId,
@@ -120,6 +123,8 @@ const insertCard = async (
       reward: input.reward,
       slug: input.slug,
       title: input.title,
+      validFrom: input.validFrom,
+      validUntil: input.validUntil,
       validityDays: input.validityDays,
       venueLat: input.venue?.lat ?? null,
       venueLng: input.venue?.lng ?? null,
@@ -151,6 +156,8 @@ const insertIssuerAndCard = async (
     }),
     db.insert(cards).values({
       category: input.card.category,
+      claimFrom: input.card.claimFrom,
+      claimUntil: input.card.claimUntil,
       createdAt: now,
       id: cardId,
       issuerId,
@@ -159,6 +166,8 @@ const insertIssuerAndCard = async (
       reward: input.card.reward,
       slug: input.card.slug,
       title: input.card.title,
+      validFrom: input.card.validFrom,
+      validUntil: input.card.validUntil,
       validityDays: input.card.validityDays,
       venueLat: input.card.venue?.lat ?? null,
       venueLng: input.card.venue?.lng ?? null,
@@ -216,7 +225,7 @@ issuersRoutes.post('/issuers', operatorAuth(), async (c) => {
   return jsonResponse(
     c,
     {
-      card: cardView(created),
+      card: cardView(created, c.get('now')()),
       issuer: issuerView(found.issuer),
       publicUrl: publicUrlFor(c.env.PUBLIC_BASE_URL, found.issuer.handle),
     },
@@ -253,7 +262,7 @@ issuersRoutes.post('/issuers/cards', operatorAuth(), async (c) => {
   return jsonResponse(
     c,
     {
-      card: cardView(card),
+      card: cardView(card, c.get('now')()),
       issuer: issuerView(issuer),
       publicUrl: publicUrlFor(c.env.PUBLIC_BASE_URL, issuer.handle),
     },
@@ -271,7 +280,7 @@ issuersRoutes.get('/issuers/:handle', async (c) => {
   if (found === null) {
     return errorResponse(c, 'not_found', 404)
   }
-  return jsonResponse(c, publicVenue(found.issuer, found.cards))
+  return jsonResponse(c, publicVenue(found.issuer, found.cards, c.get('now')()))
 })
 
 // A member number nobody holds at this venue yet. The scope is the issuer, not
@@ -302,6 +311,11 @@ issuersRoutes.post('/issuers/:handle/:slug/issue', rateLimit({ budget: SELF_SERV
   if (found === null) {
     return errorResponse(c, 'not_found', 404)
   }
+  // Outside its claim window a card exists but is not being handed out. Saying
+  // so beats minting a right the gate would only ever reject, at the signer's expense.
+  if (!isClaimable(found.card, c.get('now')())) {
+    return errorResponse(c, 'card_closed', 409)
+  }
   if (c.get('chain').signerAddress() === null) {
     return errorResponse(c, 'no_signer', 501)
   }
@@ -313,14 +327,14 @@ issuersRoutes.post('/issuers/:handle/:slug/issue', rateLimit({ budget: SELF_SERV
   if (memberNumber === null) {
     return errorResponse(c, 'internal', 500)
   }
-  const { validityDays } = found.card
+  const window = entitlementWindow(found.card, ctx.now)
   const body: IssueRequest & { memberId: string } = {
     memberId: memberNumber,
     metaURI: '',
     tier: 0,
     usageModel: found.card.category === 'ticket' ? USAGE_MODEL.SINGLE_USE : USAGE_MODEL.MULTI_USE,
-    validFrom: 0,
-    validUntil: validityDays === null ? 0 : ctx.now + validityDays * DAY,
+    validFrom: window.validFrom,
+    validUntil: window.validUntil,
   }
   try {
     const issued = await issueBearer(ctx, body, { cardId: found.card.id, issuerId: found.issuer.id })

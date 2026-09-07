@@ -295,6 +295,7 @@ decision: it fails closed as `502 chain_error` and is never written to
 | `issuer_exists`                                  | 409    | `POST /issuers` from an operator address that already owns an issuer                                                                                                                                                                                        |
 | `bad_slug`                                       | 400    | `POST /issuers/cards` slug fails the card-slug rule or is reserved                                                                                                                                                                                          |
 | `slug_taken`                                     | 409    | `POST /issuers/cards` slug already used by another card of the same venue                                                                                                                                                                                   |
+| `card_closed`                                    | 409    | self-serve claim outside the card's claim window                                                                                                                                                                                                            |
 | `not_found`                                      | 404    | no `members` row for the uid (also a +Private row on the pass routes)                                                                                                                                                                                      |
 | `rate_limited`                                   | 429    | per-IP hourly budget exceeded                                                                                                                                                                                                                              |
 | `internal`                                       | 500    | unclassified defect; logged                                                                                                                                                                                                                                |
@@ -345,8 +346,11 @@ answers:
 **`POST /issuers/:handle/:slug/issue`** is the self-serve Bearer path behind
 `fuda.sh/@<handle>/<slug>` (docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route).
 It takes no body: the card fixes `tier` (0), `usageModel` (`SINGLE_USE` for a
-`ticket`, `MULTI_USE` otherwise) and `validUntil` (issued time plus
-`validity_days`, or 0). The api generates the member number, derives the
+`ticket`, `MULTI_USE` otherwise) and the validity window — `validUntil` =
+claim time plus `validity_days` for a relative card, the card's own
+`valid_from`/`valid_until` for an absolute one, and 0 for a card that never
+expires. A claim outside the card's claim window answers `409 card_closed`
+before anything is attested. The api generates the member number, derives the
 holder exactly as the admin Bearer path does (nonce preimage = the member
 number), attests, and answers the Bearer `/issue` shape plus `memberNumber`.
 
@@ -485,8 +489,9 @@ Issuer onboarding adds four things (`0004_issuers.sql`, extended by
 row per operator address: `handle` UNIQUE, `name`, `tagline`, `brand_color`,
 `operator_address` UNIQUE, `created_at`), `cards` (`issuer_id`, `slug` with
 `(issuer_id, slug)` UNIQUE, `title`, `category` in `membership|ticket`,
-`perk`, `reward`, `validity_days` NULL = no expiry, `lock_screen`, `venue_lat`,
-`venue_lng`), `sessions` (`token_hash` PK — only the SHA-256 of the bearer
+`perk`, `reward`, `lock_screen`, `venue_lat`, `venue_lng`, the claim window
+`claim_from`/`claim_until`, and one validity rule — either `validity_days`
+(relative to the claim) or `valid_from`/`valid_until` (absolute), never both), `sessions` (`token_hash` PK — only the SHA-256 of the bearer
 token is stored — `address`, `issuer_id`, `created_at`, `expires_at` = created
 + 30 days), and on `members` the nullable `card_id` and `issuer_id` of a
 self-serve right. A generated member number is unique per **issuer**: a partial

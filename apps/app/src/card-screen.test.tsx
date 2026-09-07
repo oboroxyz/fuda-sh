@@ -53,11 +53,16 @@ const card: PublicCard = {
   brandColor: '#1D4ED8',
   card: {
     category: 'membership',
+    claimFrom: null,
+    claimUntil: null,
+    claimable: true,
     id: 'c1',
     perk: 'Free refill on every visit',
     reward: '10th coffee on the house',
     slug: 'regular',
     title: 'Regular',
+    validFrom: null,
+    validUntil: null,
     validityDays: null,
   },
   handle: 'wassie-coffee',
@@ -67,11 +72,16 @@ const card: PublicCard = {
 
 const gig = {
   category: 'ticket',
+  claimFrom: null,
+  claimUntil: null,
+  claimable: true,
   id: 'c2',
   perk: '',
   reward: '',
   slug: 'gig',
   title: 'Friday Gig',
+  validFrom: null,
+  validUntil: null,
   validityDays: 1,
 } satisfies PublicVenue['cards'][number]
 

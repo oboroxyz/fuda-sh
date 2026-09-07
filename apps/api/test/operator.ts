@@ -60,6 +60,8 @@ export const signIn = async (
 
 export const SECOND_CARD: CardInput = {
   category: 'ticket',
+  claimFrom: null,
+  claimUntil: null,
   lockScreen: false,
   perk: 'One entry',
   reward: '',

@@ -289,12 +289,44 @@ one batch and binds the session to it; body
 `201 { issuer, card, publicUrl }` with `publicUrl` = `<PUBLIC_BASE_URL>/@<handle>`.
 `POST /issuers/cards` (session) adds a further card to that same venue and
 answers the same shape. A card is
-`{ slug, title, category, perk, reward, validityDays, lockScreen, venue? }`.
+`{ slug, title, category, perk, reward, lockScreen, venue?, claimFrom,
+claimUntil, validityDays, validFrom, validUntil }`.
 `GET /issuers/me` (session) returns `{ issuer, cards, publicUrl }`, or those
 three fields as `null`/`[]` before the venue exists.
 `GET /issuers/check?handle=` and `GET /issuers/cards/check?slug=` (both
 session-gated, so neither namespace can be enumerated anonymously) answer
 `{ …, valid, available }`. A logo is not part of a card yet.
+
+**A card's two time windows.** They answer different questions and are set
+independently.
+
+The **claim window** (`claimFrom`, `claimUntil`, both optional unix seconds)
+says when the card is handed out at all. A stamp card leaves both unset and
+stays open; a concert's card closes when its doors do. Outside the window
+`POST /issuers/:handle/:slug/issue` answers `409 card_closed` rather than
+minting a right the gate would only ever reject, which the signer pays for. A
+closed card still appears on the venue page, marked `claimable: false`, so a
+printed link explains itself instead of answering `404`.
+
+The **validity window** says how long the issued right lasts, in exactly one
+of two shapes, and becomes the Entitlement's `validFrom`/`validUntil`:
+
+| Shape | Fields | Means | Fits |
+| --- | --- | --- | --- |
+| Relative | `validityDays` | N days counted from the moment this member claimed it, so two members who claimed a month apart expire a month apart | a trial membership, a coupon |
+| Absolute | `validFrom`, `validUntil` | fixed instants, the same for everyone however early they claimed | one evening's concert, a flight, a season pass |
+| None | all three unset | the right does not expire | a stamp card |
+
+Setting a relative and an absolute rule at once is `400 bad_input`: a card
+expires one way or the other. Only the absolute shape can express "valid on
+the day of the event", because a relative window moves with each claim. The
+gate already enforces both ends, answering `NOT_YET_VALID` before the start
+and `EXPIRED` after the end.
+
+The dashboard defaults these by category — a `membership` card opens forever
+and does not expire, a `ticket` closes at its event and carries an absolute
+window — but the api accepts any valid combination, so an operator is never
+boxed in by the default.
 
 **Names.** The Handle is the ENS issuer-label rule from
 [ENS naming](./ens-naming.md) plus the api's own route prefixes as reserved

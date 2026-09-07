@@ -101,5 +101,6 @@ export const ERROR_CODES = [
   'issuer_exists',
   'bad_slug',
   'slug_taken',
+  'card_closed',
 ] as const
 export type ErrorCode = (typeof ERROR_CODES)[number]

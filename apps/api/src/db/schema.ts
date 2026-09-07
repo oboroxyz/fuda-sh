@@ -40,6 +40,8 @@ export const cards = sqliteTable(
   'cards',
   {
     category: text('category', { enum: ['membership', 'ticket'] }).notNull(),
+    claimFrom: integer('claim_from'),
+    claimUntil: integer('claim_until'),
     createdAt: integer('created_at').notNull(),
     id: text('id').primaryKey(),
     issuerId: text('issuer_id')
@@ -50,6 +52,8 @@ export const cards = sqliteTable(
     reward: text('reward').notNull().default(''),
     slug: text('slug').notNull().default(''),
     title: text('title').notNull(),
+    validFrom: integer('valid_from'),
+    validUntil: integer('valid_until'),
     validityDays: integer('validity_days'),
     venueLat: real('venue_lat'),
     venueLng: real('venue_lng'),

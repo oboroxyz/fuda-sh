@@ -1,3 +1,4 @@
+import { isClaimable } from '@fuda/sdk'
 import type { CardView, IssuerView, PublicVenue } from '@fuda/sdk'
 import type { Hex } from 'viem'
 
@@ -20,19 +21,25 @@ export const issuerView = (row: IssuerRow): IssuerView => {
   }
 }
 
-export const cardView = (row: CardRow): CardView => ({
+// `claimable` is decided against the api's clock, not the caller's.
+export const cardView = (row: CardRow, now: number): CardView => ({
   category: row.category,
+  claimFrom: row.claimFrom,
+  claimUntil: row.claimUntil,
+  claimable: isClaimable(row, now),
   id: row.id,
   perk: row.perk,
   reward: row.reward,
   slug: row.slug,
   title: row.title,
+  validFrom: row.validFrom,
+  validUntil: row.validUntil,
   validityDays: row.validityDays,
 })
 
-export const publicVenue = (issuer: IssuerRow, cards: CardRow[]): PublicVenue => ({
+export const publicVenue = (issuer: IssuerRow, cards: CardRow[], now: number): PublicVenue => ({
   brandColor: issuer.brandColor,
-  cards: cards.map(cardView),
+  cards: cards.map((card) => cardView(card, now)),
   handle: issuer.handle,
   name: issuer.name,
   tagline: issuer.tagline,

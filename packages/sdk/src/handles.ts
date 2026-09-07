@@ -94,14 +94,65 @@ export const CARD_CATEGORIES: readonly CardCategory[] = ['membership', 'ticket']
 export const isCardCategory = (raw: string): raw is CardCategory =>
   CARD_CATEGORIES.some((category) => category === raw)
 
-export interface CardView {
+export const DAY_SECONDS = 86_400
+
+// When a card can be claimed from the handle route. Both ends are optional:
+// a stamp card is open forever, a concert's card closes when the doors do.
+// This is not the same as how long the issued right lasts.
+export interface ClaimWindow {
+  claimFrom: number | null
+  claimUntil: number | null
+}
+
+// How long an issued right stays valid, in one of two shapes.
+// Relative (`validityDays`): N days from the moment this member got it — a
+// three-month trial, a coupon. Absolute (`validFrom`/`validUntil`): fixed unix
+// seconds regardless of when it was claimed — a concert on one evening, a
+// flight, a season pass. The two are mutually exclusive; both unset means the
+// right never expires.
+export interface CardValidity {
+  validityDays: number | null
+  validFrom: number | null
+  validUntil: number | null
+}
+
+export interface CardView extends ClaimWindow, CardValidity {
   id: string
   slug: string
   title: string
   category: CardCategory
   perk: string
   reward: string
-  validityDays: number | null
+  // computed by the api against its own clock, because a member's device clock
+  // is not authoritative for whether a card is being handed out
+  claimable: boolean
+}
+
+// A card expires by days from issuance, or between two dates, or never — one
+// rule at a time, never two.
+export const hasSingleValidityRule = (card: CardValidity): boolean =>
+  card.validityDays === null || (card.validFrom === null && card.validUntil === null)
+
+// An absolute window must not end before it starts; a relative one has no ends
+// to compare. The same rule applies to a claim window.
+export const isOrderedWindow = (from: number | null, until: number | null): boolean =>
+  from === null || until === null || from <= until
+
+export const isClaimable = (card: ClaimWindow, now: number): boolean =>
+  (card.claimFrom === null || now >= card.claimFrom) && (card.claimUntil === null || now <= card.claimUntil)
+
+// The Entitlement's window, in unix seconds with 0 meaning "unbounded"
+// (docs/specs/attestation-model.md).
+export interface EntitlementWindow {
+  validFrom: number
+  validUntil: number
+}
+
+export const entitlementWindow = (card: CardValidity, now: number): EntitlementWindow => {
+  if (card.validityDays !== null) {
+    return { validFrom: 0, validUntil: now + card.validityDays * DAY_SECONDS }
+  }
+  return { validFrom: card.validFrom ?? 0, validUntil: card.validUntil ?? 0 }
 }
 
 export interface IssuerView {
