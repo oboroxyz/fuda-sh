@@ -439,17 +439,15 @@ export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Eleme
     // The commit answers the updated issuer, whose `logoUrl` names the new
     // version; storing it is what makes the screen show the new mark.
     const { issuer } = outcome
-    if (issuer !== null) {
-      setSession((state) => {
-        // Only a venue that already exists can have its logo replaced, so the
-        // non-null arm of the operator union is the only one to update.
-        const current = state.operator
-        if (current === null || current.issuer === null) {
-          return state
-        }
-        return { ...state, operator: { ...current, issuer } }
-      })
-    }
+    setSession((state) => {
+      // Only a venue that already exists can have its logo replaced, so the
+      // non-null arm of the operator union is the only one to update.
+      const current = state.operator
+      if (current === null || current.issuer === null) {
+        return state
+      }
+      return { ...state, operator: { ...current, issuer } }
+    })
     return true
   }
 

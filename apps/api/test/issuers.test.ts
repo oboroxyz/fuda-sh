@@ -81,6 +81,10 @@ describe('issuer onboarding', () => {
     const { token } = await signIn(app, publicEnv())
     const bad = await postJson(app, publicEnv(), '/issuers', { ...CARD_INPUT, handle: 'Auth' }, token)
     await expect(bad.json()).resolves.toStrictEqual({ error: 'bad_handle' })
+    // Only a handle that broke the Handle rule is bad_handle; one that is
+    // missing outright never reached that rule and stays bad_input.
+    const missing = await postJson(app, publicEnv(), '/issuers', { ...CARD_INPUT, handle: undefined }, token)
+    await expect(missing.json()).resolves.toStrictEqual({ error: 'bad_input' })
     await postJson(app, publicEnv(), '/issuers', CARD_INPUT, token)
     const again = await postJson(app, publicEnv(), '/issuers', { ...CARD_INPUT, handle: 'second' }, token)
     await expect(again.json()).resolves.toStrictEqual({ error: 'issuer_exists' })

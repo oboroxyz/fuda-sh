@@ -1,28 +1,20 @@
+import { LOGO_SIDE, MAX_LOGO_OBJECT_BYTES, MAX_LOGO_SET_BYTES } from '@fuda/sdk'
+import type { LogoVariant } from '@fuda/sdk'
+
 // The venue's logo, drawn here rather than in the api: Workers have no image
 // decoder, so the browser produces the four square PNGs and the api verifies
 // them (docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route).
 // The canvas and the decoder are injected, so the whole pipeline runs in the
 // node test run against fakes.
 
-export const LOGO_VARIANTS = ['master', 'logo1x', 'logo2x', 'logo3x'] as const
-
-export type LogoVariant = (typeof LOGO_VARIANTS)[number]
-
-// Each object must be a PNG of exactly its variant's side. `master` serves
-// every web surface; the three small ones are embedded in the `.pkpass`.
-export const LOGO_SIDE = {
-  logo1x: 50,
-  logo2x: 100,
-  logo3x: 150,
-  master: 1024,
-} satisfies Record<LogoVariant, number>
+// The variant names, sides and caps are the api's contract, not this form's:
+// they come from @fuda/sdk so a doomed upload is explained in the form instead
+// of coming back as a bare 400.
+export { LOGO_SIDE, LOGO_VARIANTS, MAX_LOGO_OBJECT_BYTES, MAX_LOGO_SET_BYTES } from '@fuda/sdk'
+export type { LogoVariant } from '@fuda/sdk'
 
 const BYTES_PER_MIB = 1024 * 1024
 
-// The api's own caps, applied here so a doomed upload is explained in the form
-// instead of coming back as a bare 400.
-export const MAX_OBJECT_BYTES = BYTES_PER_MIB
-export const MAX_SET_BYTES = 2 * BYTES_PER_MIB
 export const MAX_SOURCE_BYTES = 10 * BYTES_PER_MIB
 
 // Below this the 1024 master would be upscaled, and an upscaled mark looks poor
@@ -83,8 +75,8 @@ const sourceRejection = (file: File): LogoRejection | null => {
 }
 
 const withinCaps = (blobs: Blob[]): boolean =>
-  blobs.every((blob) => blob.size <= MAX_OBJECT_BYTES) &&
-  blobs.reduce((sum, blob) => sum + blob.size, 0) <= MAX_SET_BYTES
+  blobs.every((blob) => blob.size <= MAX_LOGO_OBJECT_BYTES) &&
+  blobs.reduce((sum, blob) => sum + blob.size, 0) <= MAX_LOGO_SET_BYTES
 
 const exportSide = async <TImage extends ImageSize>(
   tools: LogoTools<TImage>,

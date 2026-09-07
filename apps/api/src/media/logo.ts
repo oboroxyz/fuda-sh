@@ -1,24 +1,17 @@
-// The variant set a venue logo is stored as. `master` serves Google Wallet and
-// every web surface; the three small ones are embedded in the .pkpass, sized
-// for Apple's logo area at a square aspect. Workers have no image decoder, so
-// the dashboard draws these and the api verifies them
-// (.superpowers/specs/2026-09-07-venue-logo-r2-design.md).
-export const LOGO_VARIANTS = ['master', 'logo1x', 'logo2x', 'logo3x'] as const
-export type LogoVariant = (typeof LOGO_VARIANTS)[number]
+import { LOGO_SIDE, LOGO_VARIANTS, MAX_LOGO_OBJECT_BYTES, MAX_LOGO_SET_BYTES } from '@fuda/sdk'
+import type { LogoVariant } from '@fuda/sdk'
 
-export const LOGO_SIDE = {
-  logo1x: 50,
-  logo2x: 100,
-  logo3x: 150,
-  master: 1024,
-} satisfies Record<LogoVariant, number>
+// The variant set, its sides and its caps are the wire contract the dashboard
+// draws against, so they live in @fuda/sdk; re-exported here because this
+// module is where the api's logo rules otherwise live.
+export { isLogoVariant, LOGO_SIDE, LOGO_VARIANTS, MAX_LOGO_OBJECT_BYTES, MAX_LOGO_SET_BYTES } from '@fuda/sdk'
+export type { LogoVariant } from '@fuda/sdk'
 
-export const MAX_LOGO_OBJECT_BYTES = 1024 * 1024
-export const MAX_LOGO_SET_BYTES = 2 * 1024 * 1024
 export const LOGO_UPLOAD_TTL_SECONDS = 15 * 60
 
-export const isLogoVariant = (raw: string): raw is LogoVariant =>
-  LOGO_VARIANTS.some((variant) => variant === raw)
+// A logo object never changes under its key, so both the stored metadata and a
+// versioned response may be cached for a year.
+export const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable'
 
 // A prefix this api wrote, and nothing else: the public route resolves it from
 // the issuer row, but the shape is checked again before it reaches R2.

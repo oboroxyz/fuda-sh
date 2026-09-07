@@ -4,16 +4,10 @@ import type { Hex } from 'viem'
 
 import type { Db } from '../db/client.ts'
 import { challenges } from '../db/schema.ts'
+import { toHex } from '../hex.ts'
 
 // Annotated (not cast): a byte array renders as an even-length lowercase hex string.
-export const randomNonce = (): Hex => {
-  const bytes = crypto.getRandomValues(new Uint8Array(16))
-  let hex = ''
-  for (const b of bytes) {
-    hex += b.toString(16).padStart(2, '0')
-  }
-  return `0x${hex}`
-}
+export const randomNonce = (): Hex => `0x${toHex(crypto.getRandomValues(new Uint8Array(16)))}`
 
 // docs/specs/pass-types-and-flows.md#gate-protocol: no chain lookup — a challenge for a nonexistent or revoked uid is minted
 // anyway and /verify-signed step 1 rejects it later.

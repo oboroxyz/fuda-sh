@@ -49,7 +49,9 @@ export const issuePrivate = async (
     throw error instanceof ChainError ? error : new ChainError(`announce failed for attestation ${uid}`)
   }
   await insertMemberRow(ctx, {
+    cardId: null,
     holder: null,
+    issuerId: null,
     level: 'private',
     memberId: body.memberId ?? '',
     tier: body.tier,

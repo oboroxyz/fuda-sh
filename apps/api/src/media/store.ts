@@ -2,10 +2,14 @@ import { and, eq, lt } from 'drizzle-orm'
 
 import type { Db } from '../db/client.ts'
 import { logoUploads } from '../db/schema.ts'
-import { isLogoPrefix, LOGO_UPLOAD_TTL_SECONDS, objectKey, validateLogoSet } from './logo.ts'
+import {
+  IMMUTABLE_CACHE_CONTROL,
+  isLogoPrefix,
+  LOGO_UPLOAD_TTL_SECONDS,
+  objectKey,
+  validateLogoSet,
+} from './logo.ts'
 import type { LogoRejection, LogoVariant } from './logo.ts'
-
-const IMMUTABLE = 'public, max-age=31536000, immutable'
 
 export type StoredUpload = { ok: true; id: string; expiresAt: number } | { ok: false; reason: LogoRejection }
 
@@ -28,7 +32,7 @@ export const storeLogoSet = async (
       const key = objectKey(prefix, object.variant)
       // oxlint-disable-next-line no-await-in-loop -- a rollback needs to know exactly which objects landed
       await bucket.put(key, object.bytes, {
-        httpMetadata: { cacheControl: IMMUTABLE, contentType: 'image/png' },
+        httpMetadata: { cacheControl: IMMUTABLE_CACHE_CONTROL, contentType: 'image/png' },
       })
       written.push(key)
     }

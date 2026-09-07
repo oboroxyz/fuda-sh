@@ -2,11 +2,13 @@ import * as v from 'valibot'
 
 import { ADDRESS_RE, META_ADDRESS_RE, NONCE_RE, QR_RE, SIGNATURE_RE, UID_RE } from './constants.ts'
 import {
+  BRAND_COLOR_RE,
   CARD_CATEGORIES,
   hasSingleValidityRule,
   isCardSlug,
   isIssuerHandle,
   isOrderedWindow,
+  normalizeBrandColor,
 } from './handles.ts'
 
 const uid = v.pipe(v.string(), v.regex(UID_RE))
@@ -108,7 +110,13 @@ export const CardBody = v.pipe(
 // dashboard and the api. `handle` is checked by the shared rule; the api adds
 // availability on top.
 export const IssuerCreateBody = v.object({
-  brandColor: v.pipe(v.string(), v.regex(/^#[0-9a-fA-F]{6}$/u)),
+  // Canonicalized here rather than at each writer, so D1 never holds two
+  // spellings of one colour.
+  brandColor: v.pipe(
+    v.string(),
+    v.regex(BRAND_COLOR_RE),
+    v.transform((raw) => normalizeBrandColor(raw) ?? raw),
+  ),
   card: CardBody,
   handle: v.pipe(v.string(), v.check(isIssuerHandle)),
   // a staged logo from POST /issuers/logo, committed with the venue

@@ -3,6 +3,7 @@ import type { Hex } from 'viem'
 
 import type { Db } from '../db/client.ts'
 import { sessions } from '../db/schema.ts'
+import { toHex } from '../hex.ts'
 
 export const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
 
@@ -10,14 +11,6 @@ export interface OperatorSession {
   address: Hex
   issuerId: string | null
   tokenHash: string
-}
-
-const toHex = (bytes: Uint8Array): string => {
-  let hex = ''
-  for (const b of bytes) {
-    hex += b.toString(16).padStart(2, '0')
-  }
-  return hex
 }
 
 export const hashToken = async (token: string): Promise<string> =>
@@ -59,6 +52,7 @@ export const deleteSession = async (db: Db, tokenHash: string): Promise<void> =>
   await db.delete(sessions).where(eq(sessions.tokenHash, tokenHash))
 }
 
-export const attachIssuer = async (db: Db, tokenHash: string, issuerId: string): Promise<void> => {
-  await db.update(sessions).set({ issuerId }).where(eq(sessions.tokenHash, tokenHash))
-}
+// The statement rather than its result, so the venue-create path can batch it
+// with the issuer and card inserts instead of paying a second round trip.
+export const attachIssuer = (db: Db, tokenHash: string, issuerId: string) =>
+  db.update(sessions).set({ issuerId }).where(eq(sessions.tokenHash, tokenHash))

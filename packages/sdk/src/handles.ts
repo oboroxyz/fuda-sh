@@ -36,24 +36,30 @@ export const RESERVED_ISSUER_HANDLES: ReadonlySet<string> = new Set([
   'www',
 ])
 
-export const isIssuerHandle = (raw: string): boolean =>
-  raw.length <= ISSUER_HANDLE_MAX_LENGTH && ISSUER_HANDLE.test(raw) && !RESERVED_ISSUER_HANDLES.has(raw)
+// Why a name was rejected, for a form to explain; null when it is usable.
+// Handles and card slugs share one character rule and differ only in which
+// names are reserved, so both are decided here.
+export type NameProblem = 'empty' | 'format' | 'reserved'
 
-// Why a handle was rejected, for a form to explain; null when it is usable.
-export const issuerHandleProblem = (raw: string): 'empty' | 'format' | 'reserved' | null => {
+const nameProblem = (raw: string, maxLength: number, reserved: ReadonlySet<string>): NameProblem | null => {
   if (raw === '') {
     return 'empty'
   }
-  if (raw.length > ISSUER_HANDLE_MAX_LENGTH || !ISSUER_HANDLE.test(raw)) {
+  if (raw.length > maxLength || !ISSUER_HANDLE.test(raw)) {
     return 'format'
   }
-  return RESERVED_ISSUER_HANDLES.has(raw) ? 'reserved' : null
+  return reserved.has(raw) ? 'reserved' : null
 }
 
+export const issuerHandleProblem = (raw: string): NameProblem | null =>
+  nameProblem(raw, ISSUER_HANDLE_MAX_LENGTH, RESERVED_ISSUER_HANDLES)
+
+export const isIssuerHandle = (raw: string): boolean => issuerHandleProblem(raw) === null
+
 // `#RRGGBB`, upper-cased so two spellings of one colour compare equal.
-const BRAND_COLOR = /^#[0-9a-fA-F]{6}$/u
+export const BRAND_COLOR_RE = /^#[0-9a-fA-F]{6}$/u
 export const normalizeBrandColor = (raw: string): string | null =>
-  BRAND_COLOR.test(raw) ? raw.toUpperCase() : null
+  BRAND_COLOR_RE.test(raw) ? raw.toUpperCase() : null
 
 // A card's slug is the path segment under the venue: `fuda.sh/@<handle>/<slug>`.
 // It uses the Handle's character rule so one poster URL reads the same way
@@ -65,18 +71,10 @@ export const CARD_SLUG_MAX_LENGTH = 63
 // Reserved so a card can never shadow a future page under the venue.
 export const RESERVED_CARD_SLUGS: ReadonlySet<string> = new Set(['card', 'cards', 'issue', 'settings'])
 
-export const isCardSlug = (raw: string): boolean =>
-  raw.length <= CARD_SLUG_MAX_LENGTH && ISSUER_HANDLE.test(raw) && !RESERVED_CARD_SLUGS.has(raw)
+export const cardSlugProblem = (raw: string): NameProblem | null =>
+  nameProblem(raw, CARD_SLUG_MAX_LENGTH, RESERVED_CARD_SLUGS)
 
-export const cardSlugProblem = (raw: string): 'empty' | 'format' | 'reserved' | null => {
-  if (raw === '') {
-    return 'empty'
-  }
-  if (raw.length > CARD_SLUG_MAX_LENGTH || !ISSUER_HANDLE.test(raw)) {
-    return 'format'
-  }
-  return RESERVED_CARD_SLUGS.has(raw) ? 'reserved' : null
-}
+export const isCardSlug = (raw: string): boolean => cardSlugProblem(raw) === null
 
 // The slug a card title suggests, so an operator rarely types one by hand.
 // An empty result means the title carried nothing usable and the operator

@@ -5,7 +5,7 @@ import {
   EMPTY_LOGO,
   generateLogoSet,
   LOGO_SIDE,
-  MAX_OBJECT_BYTES,
+  MAX_LOGO_OBJECT_BYTES,
   MAX_SOURCE_BYTES,
   withLogoResult,
 } from './logo.ts'
@@ -119,7 +119,7 @@ describe('the logo pipeline', () => {
   })
 
   it('refuses a set the api would reject for weight', async () => {
-    const { tools } = fakeTools({ height: 1024, width: 1024 }, () => pngOf(MAX_OBJECT_BYTES + 1))
+    const { tools } = fakeTools({ height: 1024, width: 1024 }, () => pngOf(MAX_LOGO_OBJECT_BYTES + 1))
     await expect(generateLogoSet(sourceOf(), tools)).resolves.toStrictEqual({ ok: false, reason: 'tooHeavy' })
   })
 

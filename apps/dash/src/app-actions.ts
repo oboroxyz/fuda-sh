@@ -88,15 +88,12 @@ export const applyLogo = async (
   io: DesignIo,
   token: string,
   logo: LogoSet,
-): Promise<{ ok: true; issuer: IssuerView | null } | LogoFailure> => {
-  const staged = await stageLogo(io, token, logo)
+): Promise<{ ok: true; issuer: IssuerView } | LogoFailure> => {
+  const staged = await io.uploadLogo(token, logo)
   if (!staged.ok) {
-    return staged
+    return { ok: false, session: staged.status === 401 }
   }
-  if (staged.logoUploadId === null) {
-    return { issuer: null, ok: true }
-  }
-  const committed = await io.commitLogo(token, staged.logoUploadId)
+  const committed = await io.commitLogo(token, staged.body.logoUploadId)
   if (!committed.ok) {
     return { ok: false, session: committed.status === 401 }
   }

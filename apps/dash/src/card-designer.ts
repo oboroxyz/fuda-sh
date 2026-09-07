@@ -105,24 +105,15 @@ type CategoryWindows = Pick<
   'claimFrom' | 'claimUntil' | 'validFrom' | 'validUntil' | 'validityDays' | 'validityMode'
 >
 
-const CATEGORY_WINDOWS = {
-  membership: {
-    claimFrom: '',
-    claimUntil: '',
-    validFrom: '',
-    validUntil: '',
-    validityDays: null,
-    validityMode: 'none',
-  },
-  ticket: {
-    claimFrom: '',
-    claimUntil: '',
-    validFrom: '',
-    validUntil: '',
-    validityDays: null,
-    validityMode: 'fixed',
-  },
-} satisfies Record<CardCategory, CategoryWindows>
+// Only the validity mode differs: both types start with every window empty.
+const categoryWindows = (category: CardCategory): CategoryWindows => ({
+  claimFrom: '',
+  claimUntil: '',
+  validFrom: '',
+  validUntil: '',
+  validityDays: null,
+  validityMode: category === 'ticket' ? 'fixed' : 'none',
+})
 
 export const EMPTY_FORM: DesignerForm = {
   brandColor: '#6F4320',
@@ -150,7 +141,7 @@ export const EMPTY_FORM: DesignerForm = {
 // Switching the card type carries its defaults in, until the operator has set
 // a window by hand; after that the type never overwrites the operator.
 export const withCategory = (form: DesignerForm, category: CardCategory): DesignerForm =>
-  form.windowEdited ? { ...form, category } : { ...form, ...CATEGORY_WINDOWS[category], category }
+  form.windowEdited ? { ...form, category } : { ...form, ...categoryWindows(category), category }
 
 // The three modes are exclusive, so choosing one clears the other's fields and
 // the submitted body can never carry two rules.

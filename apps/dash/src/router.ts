@@ -7,11 +7,10 @@ export type DashRoute = (typeof DASH_ROUTES)[number]
 // venue's own card. Each kind is sent back to its own home on the other's route.
 export type DashSurface = 'admin' | 'operator'
 
-const ADMIN_ROUTES: readonly DashRoute[] = ['/', '/rights', '/issue']
-const OPERATOR_ROUTES: readonly DashRoute[] = ['/new', '/published']
+const OPERATOR_ROUTES: ReadonlySet<DashRoute> = new Set(['/new', '/published'])
 
 export const surfaceOf = (route: DashRoute): DashSurface =>
-  OPERATOR_ROUTES.includes(route) ? 'operator' : 'admin'
+  OPERATOR_ROUTES.has(route) ? 'operator' : 'admin'
 
 // Where a session belongs when it lands somewhere it cannot be: an operator
 // with a venue goes to its cards, one without to the designer.
@@ -30,8 +29,6 @@ export const redirectFor = (route: DashRoute, surface: DashSurface, hasIssuer: b
   // `/new` stays open with a venue: it is how a second card is added.
   return surface === 'operator' && route === '/published' && !hasIssuer ? '/new' : null
 }
-
-export { ADMIN_ROUTES, OPERATOR_ROUTES }
 
 export interface PushHistory {
   pushState: (data: null, unused: string, url: string) => void

@@ -56,6 +56,3 @@ export const publicVenue = (
 // The venue page. A card's own link is this plus `/<slug>`.
 export const publicUrlFor = (baseUrl: string, handle: string): string =>
   `${baseUrl.replace(/\/$/u, '')}/@${handle}`
-
-export const cardUrlFor = (baseUrl: string, handle: string, slug: string): string =>
-  `${publicUrlFor(baseUrl, handle)}/${slug}`

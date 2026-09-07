@@ -7,7 +7,13 @@ import { issuers } from '../db/schema.ts'
 import type { AppEnv } from '../env.ts'
 import { issuerView } from '../issuers/views.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
-import { isLogoVariant, LOGO_VARIANTS, logoVersion, MAX_LOGO_SET_BYTES } from '../media/logo.ts'
+import {
+  IMMUTABLE_CACHE_CONTROL,
+  isLogoVariant,
+  LOGO_VARIANTS,
+  logoVersion,
+  MAX_LOGO_SET_BYTES,
+} from '../media/logo.ts'
 import { claimLogoUpload, readLogoObject, storeLogoSet } from '../media/store.ts'
 import { operatorAuth } from '../middleware/operator-auth.ts'
 
@@ -127,7 +133,7 @@ mediaRoutes.get('/assets/:handle/logo/:variant', async (c) => {
   // client that built the URL itself — gets a short life so a replaced logo
   // corrects itself instead of persisting for a year.
   const versioned = c.req.query('v') === logoVersion(row.logoPrefix)
-  const cacheControl = versioned ? 'public, max-age=31536000, immutable' : 'public, max-age=60'
+  const cacheControl = versioned ? IMMUTABLE_CACHE_CONTROL : 'public, max-age=60'
   if (c.req.header('if-none-match') === object.etag) {
     return new Response(null, { headers: { 'cache-control': cacheControl, etag: object.etag }, status: 304 })
   }

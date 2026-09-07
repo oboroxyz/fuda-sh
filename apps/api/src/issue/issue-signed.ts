@@ -11,5 +11,12 @@ export const issueSigned = async (
   body: IssueRequest & { holder: string },
 ): Promise<IssueResponse> => {
   const holder = getAddress(body.holder)
-  return await attestRight(ctx, { body, holder, level: 'signed', memberId: holder })
+  return await attestRight(ctx, {
+    body,
+    cardId: null,
+    holder,
+    issuerId: null,
+    level: 'signed',
+    memberId: holder,
+  })
 }

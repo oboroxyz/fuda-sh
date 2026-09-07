@@ -1,6 +1,7 @@
 export * from './constants.ts'
 export * from './graph.ts'
 export * from './handles.ts'
+export * from './logo-set.ts'
 export * from './member-number.ts'
 export * from './pass-urls.ts'
 export * from './qr-svg.ts'

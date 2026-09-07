@@ -66,12 +66,12 @@ const FAILURE_MESSAGE = {
   rate_limited: 'Too many cards were requested from this device. Please try again later.',
 } satisfies Record<CardFailure, string>
 
-const CATEGORY_LABEL = { membership: 'Membership', ticket: 'Ticket' } satisfies Record<CardCategory, string>
-
-const CATEGORY_NOUN = { membership: 'membership card', ticket: 'ticket' } satisfies Record<
-  CardCategory,
-  string
->
+// One table per card type: the heading, the sentence noun, and the role the
+// card face carries.
+const CATEGORY = {
+  membership: { label: 'Membership', noun: 'membership card', role: 'MEMBER' },
+  ticket: { label: 'Ticket', noun: 'ticket', role: 'TICKET' },
+} satisfies Record<CardCategory, { label: string; noun: string; role: string }>
 
 // The venue's own address, so a member who followed a card link can go back to
 // everything else the venue publishes.
@@ -79,9 +79,9 @@ export const venueHref = (handle: string): string => `/@${handle}`
 
 export const cardHref = (handle: string, slug: string): string => `/@${handle}/${slug}`
 
-const nounOf = (card: PublicCard): string => CATEGORY_NOUN[card.card.category]
+const nounOf = (card: PublicCard): string => CATEGORY[card.card.category].noun
 
-const roleOf = (card: PublicCard): string => (card.card.category === 'ticket' ? 'TICKET' : 'MEMBER')
+const roleOf = (card: PublicCard): string => CATEGORY[card.card.category].role
 
 const perksOf = (card: PublicCard): string[] =>
   [card.card.perk, card.card.reward].filter((text) => text !== '')
@@ -160,7 +160,7 @@ const rowInvitation = (card: CardView, held: boolean): string => {
   if (held) {
     return 'You have this card · Show it'
   }
-  return card.claimable ? `Get this ${CATEGORY_NOUN[card.category]}` : 'Not being handed out right now'
+  return card.claimable ? `Get this ${CATEGORY[card.category].noun}` : 'Not being handed out right now'
 }
 
 const chooserRow = (venue: PublicVenue, card: CardView, held: boolean): JSX.Element => (
@@ -175,7 +175,7 @@ const chooserRow = (venue: PublicVenue, card: CardView, held: boolean): JSX.Elem
     >
       <div class="flex items-center justify-between gap-3">
         <span class="font-bold">{card.title}</span>
-        <span class="badge badge-sm badge-ghost">{CATEGORY_LABEL[card.category]}</span>
+        <span class="badge badge-sm badge-ghost">{CATEGORY[card.category].label}</span>
       </div>
       {card.perk === '' ? null : <span class="text-sm opacity-70">{card.perk}</span>}
       <span class="text-xs font-semibold opacity-80">{rowInvitation(card, held)}</span>
@@ -302,7 +302,7 @@ export const CardScreenView = ({ onIssue, onReload, state }: CardScreenViewProps
         <p role="status" class="text-center text-sm opacity-70">
           {state.card.name} is not handing out this {nounOf(state.card)} right now.
         </p>
-        <a class="btn" href={`/@${state.card.handle}`}>
+        <a class="btn" href={venueHref(state.card.handle)}>
           See all cards from {state.card.name}
         </a>
       </>,

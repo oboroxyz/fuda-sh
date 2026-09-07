@@ -35,13 +35,14 @@ const MEMBER_NUMBER_DRAWS = 3
 export const issuersRoutes = new Hono<AppEnv>()
 
 // The venue behind a handle with every card it has published, oldest first.
-const venueOf = async (db: Db, handle: string) => {
-  const issuer = await db.select().from(issuers).where(eq(issuers.handle, handle)).get()
-  if (issuer === undefined) {
-    return null
-  }
+const cardsOf = async (db: Db, issuer: typeof issuers.$inferSelect) => {
   const owned = await db.select().from(cards).where(eq(cards.issuerId, issuer.id)).orderBy(cards.createdAt)
   return owned.length === 0 ? null : { cards: owned, issuer }
+}
+
+const venueOf = async (db: Db, handle: string) => {
+  const issuer = await db.select().from(issuers).where(eq(issuers.handle, handle)).get()
+  return issuer === undefined ? null : await cardsOf(db, issuer)
 }
 
 // Every card the venue has published, oldest first. The member-facing reads
@@ -56,7 +57,7 @@ const mine = async (c: Context<AppEnv>) => {
   if (issuer === undefined) {
     return null
   }
-  return await venueOf(db, issuer.handle)
+  return await cardsOf(db, issuer)
 }
 
 issuersRoutes.get('/issuers/me', operatorAuth(), async (c) => {
@@ -102,8 +103,48 @@ issuersRoutes.get('/issuers/cards/check', operatorAuth(), async (c) => {
   return jsonResponse(c, { available: valid && !taken, slug, valid })
 })
 
+// Which field a failed parse should be reported as. The valibot issues already
+// name the failing key, so the body is never re-parsed against a shadow schema
+// to find out. Only the name rule's own `check` earns the field's code
+// (docs/specs/attestation-model.md): a missing or non-string field fails the
+// string schema first and stays bad_input, as it did before.
+const fieldErrorFor = (
+  issues: readonly v.BaseIssue<unknown>[],
+  field: string,
+  code: 'bad_handle' | 'bad_slug',
+): 'bad_handle' | 'bad_slug' | 'bad_input' =>
+  issues.some(
+    (issue) => issue.type === 'check' && issue.path?.some((segment) => segment.key === field) === true,
+  )
+    ? code
+    : 'bad_input'
+
 // One card row. Returns null when the venue already publishes that slug; the
 // unique index is the arbiter, so a race loses here rather than half-writing.
+// The card columns, in one place: both create paths write the same 16 fields
+// and only the identity around them differs.
+const cardValues = (
+  input: CardRequest,
+  row: { createdAt: number; id: string; issuerId: string },
+): typeof cards.$inferInsert => ({
+  category: input.category,
+  claimFrom: input.claimFrom,
+  claimUntil: input.claimUntil,
+  createdAt: row.createdAt,
+  id: row.id,
+  issuerId: row.issuerId,
+  lockScreen: input.lockScreen ? 1 : 0,
+  perk: input.perk,
+  reward: input.reward,
+  slug: input.slug,
+  title: input.title,
+  validFrom: input.validFrom,
+  validUntil: input.validUntil,
+  validityDays: input.validityDays,
+  venueLat: input.venue?.lat ?? null,
+  venueLng: input.venue?.lng ?? null,
+})
+
 const insertCard = async (
   c: Context<AppEnv>,
   issuerId: string,
@@ -112,28 +153,14 @@ const insertCard = async (
   const db = c.get('db')
   const id = crypto.randomUUID()
   try {
-    await db.insert(cards).values({
-      category: input.category,
-      claimFrom: input.claimFrom,
-      claimUntil: input.claimUntil,
-      createdAt: c.get('now')(),
-      id,
-      issuerId,
-      lockScreen: input.lockScreen ? 1 : 0,
-      perk: input.perk,
-      reward: input.reward,
-      slug: input.slug,
-      title: input.title,
-      validFrom: input.validFrom,
-      validUntil: input.validUntil,
-      validityDays: input.validityDays,
-      venueLat: input.venue?.lat ?? null,
-      venueLng: input.venue?.lng ?? null,
-    })
+    const [created] = await db
+      .insert(cards)
+      .values(cardValues(input, { createdAt: c.get('now')(), id, issuerId }))
+      .returning()
+    return created ?? null
   } catch {
     return null
   }
-  return (await db.select().from(cards).where(eq(cards.id, id)).get()) ?? null
 }
 
 const insertIssuerAndCard = async (
@@ -154,7 +181,7 @@ const insertIssuerAndCard = async (
       : await claimLogoUpload(db, { id: input.logoUploadId, now, sessionTokenHash: operator.tokenHash })
   await db.batch([
     db.insert(issuers).values({
-      brandColor: input.brandColor.toUpperCase(),
+      brandColor: input.brandColor,
       createdAt: now,
       handle: input.handle,
       id: issuerId,
@@ -163,26 +190,9 @@ const insertIssuerAndCard = async (
       operatorAddress: operator.address,
       tagline: input.tagline,
     }),
-    db.insert(cards).values({
-      category: input.card.category,
-      claimFrom: input.card.claimFrom,
-      claimUntil: input.card.claimUntil,
-      createdAt: now,
-      id: cardId,
-      issuerId,
-      lockScreen: input.card.lockScreen ? 1 : 0,
-      perk: input.card.perk,
-      reward: input.card.reward,
-      slug: input.card.slug,
-      title: input.card.title,
-      validFrom: input.card.validFrom,
-      validUntil: input.card.validUntil,
-      validityDays: input.card.validityDays,
-      venueLat: input.card.venue?.lat ?? null,
-      venueLng: input.card.venue?.lng ?? null,
-    }),
+    db.insert(cards).values(cardValues(input.card, { createdAt: now, id: cardId, issuerId })),
+    attachIssuer(db, operator.tokenHash, issuerId),
   ])
-  await attachIssuer(db, operator.tokenHash, issuerId)
   return { cardId, issuerId }
 }
 
@@ -192,31 +202,20 @@ issuersRoutes.post('/issuers', operatorAuth(), async (c) => {
   const body: unknown = await c.req.json().catch(() => null)
   const parsed = v.safeParse(IssuerCreateBody, body)
   if (!parsed.success) {
-    const handleOnly = v.safeParse(v.object({ handle: v.string() }), body)
-    return errorResponse(
-      c,
-      handleOnly.success && !isIssuerHandle(handleOnly.output.handle) ? 'bad_handle' : 'bad_input',
-      400,
-    )
+    return errorResponse(c, fieldErrorFor(parsed.issues, 'handle', 'bad_handle'), 400)
   }
   const db = c.get('db')
   const operator = c.get('operator')
   if (operator.issuerId !== null) {
     return errorResponse(c, 'issuer_exists', 409)
   }
-  const owned = await db
-    .select({ id: issuers.id })
-    .from(issuers)
-    .where(eq(issuers.operatorAddress, operator.address))
-    .get()
+  const [owned, taken] = await Promise.all([
+    db.select({ id: issuers.id }).from(issuers).where(eq(issuers.operatorAddress, operator.address)).get(),
+    db.select({ id: issuers.id }).from(issuers).where(eq(issuers.handle, parsed.output.handle)).get(),
+  ])
   if (owned !== undefined) {
     return errorResponse(c, 'issuer_exists', 409)
   }
-  const taken = await db
-    .select({ id: issuers.id })
-    .from(issuers)
-    .where(eq(issuers.handle, parsed.output.handle))
-    .get()
   if (taken !== undefined) {
     return errorResponse(c, 'handle_taken', 409)
   }
@@ -228,7 +227,7 @@ issuersRoutes.post('/issuers', operatorAuth(), async (c) => {
   }
   const found = await venueOf(db, parsed.output.handle)
   const created = found?.cards[0]
-  if (found === undefined || found === null || created === undefined) {
+  if (found === null || created === undefined) {
     return errorResponse(c, 'internal', 500)
   }
   return jsonResponse(
@@ -248,12 +247,7 @@ issuersRoutes.post('/issuers/cards', operatorAuth(), async (c) => {
   const body: unknown = await c.req.json().catch(() => null)
   const parsed = v.safeParse(CardBody, body)
   if (!parsed.success) {
-    const slugOnly = v.safeParse(v.object({ slug: v.string() }), body)
-    return errorResponse(
-      c,
-      slugOnly.success && !isCardSlug(slugOnly.output.slug) ? 'bad_slug' : 'bad_input',
-      400,
-    )
+    return errorResponse(c, fieldErrorFor(parsed.issues, 'slug', 'bad_slug'), 400)
   }
   const { issuerId } = c.get('operator')
   if (issuerId === null) {
