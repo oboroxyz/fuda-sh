@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { canonicalPath, navigateTo, routeFromPath, subscribeToRoute } from './router.ts'
+import {
+  canonicalPath,
+  navigateTo,
+  redirectFor,
+  routeFromPath,
+  subscribeToRoute,
+  surfaceOf,
+} from './router.ts'
 import type { DashRoute, PushHistory, RouteEvents } from './router.ts'
 
 describe('Dash router', () => {
@@ -32,5 +39,30 @@ describe('Dash router', () => {
     listener?.()
     expect(onRoute).toHaveBeenCalledWith('/issue')
     unsubscribe()
+  })
+})
+
+describe(redirectFor, () => {
+  it('keeps each session on its own surface', () => {
+    expect(redirectFor('/', 'admin', false)).toBeNull()
+    expect(redirectFor('/new', 'admin', false)).toBe('/')
+    expect(redirectFor('/rights', 'operator', false)).toBe('/new')
+    expect(redirectFor('/rights', 'operator', true)).toBe('/published')
+  })
+
+  it('sends an operator to the designer or the published card as the issuer requires', () => {
+    expect(redirectFor('/new', 'operator', false)).toBeNull()
+    expect(redirectFor('/new', 'operator', true)).toBe('/published')
+    expect(redirectFor('/published', 'operator', false)).toBe('/new')
+    expect(redirectFor('/published', 'operator', true)).toBeNull()
+  })
+})
+
+describe(surfaceOf, () => {
+  it('separates the console routes from the venue card routes', () => {
+    expect(surfaceOf('/')).toBe('admin')
+    expect(surfaceOf('/issue')).toBe('admin')
+    expect(surfaceOf('/new')).toBe('operator')
+    expect(surfaceOf('/published')).toBe('operator')
   })
 })

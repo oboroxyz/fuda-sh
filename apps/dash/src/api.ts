@@ -1,4 +1,15 @@
-import type { IssueResponse, MembersResponse, RevokeResponse } from '@fuda/sdk'
+import type {
+  HandleCheckResponse,
+  Hex,
+  IssuerCreateRequest,
+  IssuerCreateResponse,
+  IssuerMeResponse,
+  IssueResponse,
+  MembersResponse,
+  RevokeResponse,
+  SignInChallengeResponse,
+  SignInResponse,
+} from '@fuda/sdk'
 import { apiFetch } from '@fuda/sdk/http'
 import type { Result } from '@fuda/sdk/http'
 
@@ -25,6 +36,46 @@ export const issueRight = async (
 export const revokeRight = async (token: string, uid: string): Promise<Result<RevokeResponse>> =>
   await apiFetch<RevokeResponse>(API_BASE_URL, '/revoke', {
     body: JSON.stringify({ uid }),
+    method: 'POST',
+    token,
+  })
+
+// Operator sign-in (docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route):
+// the passkey wallet signs the api's message and receives a session token. The
+// admin token above is a deployment credential; a session token is an identity.
+export const signInChallenge = async (address: Hex): Promise<Result<SignInChallengeResponse>> =>
+  await apiFetch<SignInChallengeResponse>(API_BASE_URL, '/auth/challenge', {
+    body: JSON.stringify({ address }),
+    method: 'POST',
+  })
+
+export const signInVerify = async (body: {
+  address: Hex
+  nonce: Hex
+  signature: Hex
+}): Promise<Result<SignInResponse>> =>
+  await apiFetch<SignInResponse>(API_BASE_URL, '/auth/verify', {
+    body: JSON.stringify(body),
+    method: 'POST',
+  })
+
+export const signOut = async (token: string): Promise<Result<{ loggedOut: true }>> =>
+  await apiFetch<{ loggedOut: true }>(API_BASE_URL, '/auth/logout', { body: '{}', method: 'POST', token })
+
+export const issuerMe = async (token: string): Promise<Result<IssuerMeResponse>> =>
+  await apiFetch<IssuerMeResponse>(API_BASE_URL, '/issuers/me', { token })
+
+export const checkHandle = async (token: string, handle: string): Promise<Result<HandleCheckResponse>> =>
+  await apiFetch<HandleCheckResponse>(API_BASE_URL, `/issuers/check?handle=${encodeURIComponent(handle)}`, {
+    token,
+  })
+
+export const createIssuer = async (
+  token: string,
+  body: IssuerCreateRequest,
+): Promise<Result<IssuerCreateResponse>> =>
+  await apiFetch<IssuerCreateResponse>(API_BASE_URL, '/issuers', {
+    body: JSON.stringify(body),
     method: 'POST',
     token,
   })

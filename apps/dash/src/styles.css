@@ -266,3 +266,45 @@
     animation: none;
   }
 }
+
+.dash-card-preview {
+  @apply flex min-w-0 flex-col gap-1 rounded-[0.875rem] p-5 text-white shadow-md;
+}
+
+.dash-card-preview-top {
+  @apply flex items-center justify-between text-[0.6875rem] tracking-[0.08em] uppercase opacity-85;
+}
+
+.dash-card-preview strong {
+  @apply text-lg font-bold;
+}
+
+.dash-swatch {
+  @apply size-8 rounded-full border border-[var(--fuda-border)];
+}
+
+.dash-swatch-selected {
+  outline: 2px solid var(--fuda-accent);
+  outline-offset: 2px;
+}
+
+.dash-auth-admin summary {
+  @apply cursor-pointer text-sm opacity-70;
+}
+
+/* The published card prints as a poster: only the QR and its link. */
+@media print {
+  .dash-sidebar,
+  .dash-mobile-header,
+  .dash-no-print {
+    display: none !important;
+  }
+
+  .dash-main {
+    @apply p-0;
+  }
+
+  .dash-print-target {
+    @apply mx-auto mt-16;
+  }
+}

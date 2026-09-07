@@ -52,8 +52,11 @@ const shell = (route: '/' | '/rights' | '/issue' = '/'): JSX.Element => {
     appearance: <div data-testid="appearance" />,
     children: <section>page</section>,
     copy: pick(DASH_COPY, 'en'),
+    hasIssuer: false,
     onNavigate: (): void => {},
+    onSignOut: null,
     route,
+    surface: 'admin' as const,
   })
 }
 
@@ -114,8 +117,11 @@ describe('dashboard shell', () => {
       appearance: <div />,
       children: <section>page</section>,
       copy: pick(DASH_COPY, 'en'),
+      hasIssuer: false,
       onNavigate,
+      onSignOut: null,
       route: '/',
+      surface: 'admin' as const,
     })
     const rights = linkWithPath(findViewNodes(view, 'aside')[0], '/rights')
     const handler = viewProps(rights!).onClick as ClickHandler
@@ -148,10 +154,13 @@ describe('dashboard shell', () => {
       appearance: <div />,
       children: <section>page</section>,
       copy: pick(DASH_COPY, 'en'),
+      hasIssuer: false,
       onNavigate: (route) => {
         calls.push(route)
       },
+      onSignOut: null,
       route: '/',
+      surface: 'admin' as const,
     })
     const [dialog] = findViewNodes(view, 'dialog')
     const openMenu = walkView(view).find((node) => viewProps(node)['aria-label'] === 'Open menu')

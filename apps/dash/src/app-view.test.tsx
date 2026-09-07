@@ -11,8 +11,8 @@ import type { MembersState } from './members-state.ts'
 import { OnChainStatus } from './OnChainStatus.tsx'
 import { OverviewPage } from './OverviewPage.tsx'
 import { RightsPage } from './RightsPage.tsx'
+import { SignIn } from './SignIn.tsx'
 import { findViewNodes, viewProps } from './test/test-view.ts'
-import { TokenGate } from './TokenGate.tsx'
 
 const members: MembersState = {
   kind: 'ready',
@@ -30,26 +30,41 @@ const members: MembersState = {
     },
   ],
 }
+const adminSession: AppViewProps['session'] = {
+  authError: null,
+  members,
+  operator: null,
+  token: 'secret',
+}
+
 const props: AppViewProps = {
   appearance: <div>Appearance controls</div>,
   authError: null,
   copy: DASH_COPY.en,
+  createFailure: null,
+  creating: false,
   graphEndpoint: 'https://index.example/rights',
   members,
+  onCheckHandle: vi.fn<AppViewProps['onCheckHandle']>(),
+  onCreate: vi.fn<AppViewProps['onCreate']>(),
   onIssue: vi.fn<AppViewProps['onIssue']>(),
   onNavigate: vi.fn<AppViewProps['onNavigate']>(),
+  onPasskey: vi.fn<AppViewProps['onPasskey']>(),
   onRevoke: vi.fn<AppViewProps['onRevoke']>(),
+  onSignOut: vi.fn<AppViewProps['onSignOut']>(),
   onToken: vi.fn<AppViewProps['onToken']>(),
   route: '/',
-  token: 'secret',
+  session: adminSession,
+  signInError: null,
+  signingIn: false,
 }
 
 describe(AppView, () => {
   it('gates protected pages while retaining the requested route and appearance', () => {
-    const requested: AppViewProps = { ...props, route: '/issue', token: null }
+    const requested: AppViewProps = { ...props, route: '/issue', session: { ...adminSession, token: null } }
     const view = AppView(requested)
-    expect(findViewNodes(view, TokenGate)).toHaveLength(1)
-    expect(viewProps(findViewNodes(view, TokenGate)[0])).toMatchObject({
+    expect(findViewNodes(view, SignIn)).toHaveLength(1)
+    expect(viewProps(findViewNodes(view, SignIn)[0])).toMatchObject({
       appearance: props.appearance,
       copy: DASH_COPY.en.auth,
       error: null,
@@ -61,12 +76,15 @@ describe(AppView, () => {
   })
 
   it('translates the unauthorized error using the selected copy', () => {
-    const session = { authError: 'unauthorized', token: null } as const
-    const english = AppView({ ...props, ...session })
-    const japanese = AppView({ ...props, ...session, copy: DASH_COPY.ja })
-    expect(viewProps(findViewNodes(english, TokenGate)[0]).error).toBe(DASH_COPY.en.auth.unauthorized)
-    expect(viewProps(findViewNodes(japanese, TokenGate)[0]).error).toBe(DASH_COPY.ja.auth.unauthorized)
-    expect(session).toStrictEqual({ authError: 'unauthorized', token: null })
+    const signedOut = {
+      authError: 'unauthorized',
+      session: { ...adminSession, token: null },
+    } as const
+    const english = AppView({ ...props, ...signedOut })
+    const japanese = AppView({ ...props, ...signedOut, copy: DASH_COPY.ja })
+    expect(viewProps(findViewNodes(english, SignIn)[0]).error).toBe(DASH_COPY.en.auth.unauthorized)
+    expect(viewProps(findViewNodes(japanese, SignIn)[0]).error).toBe(DASH_COPY.ja.auth.unauthorized)
+    expect(signedOut.session.token).toBeNull()
   })
 
   it('composes overview only at the root with resource and connection inputs', () => {

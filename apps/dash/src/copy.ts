@@ -12,7 +12,7 @@ export interface DashCopy {
     japanese: string
     theme: { control: string; light: string; dark: string; system: string }
   }
-  nav: { overview: string; rights: string; issue: string }
+  nav: { overview: string; rights: string; issue: string; newCard: string; card: string }
   auth: {
     title: string
     description: string
@@ -20,6 +20,61 @@ export interface DashCopy {
     tokenPlaceholder: string
     continue: string
     unauthorized: string
+    passkey: string
+    passkeyHint: string
+    adminSection: string
+    signingIn: string
+    signOut: string
+    failures: { network: string; rejected: string; unavailable: string; wallet: string }
+  }
+  designer: {
+    title: string
+    description: string
+    preview: string
+    handleLabel: string
+    handlePrefix: string
+    handlePlaceholder: string
+    nameLabel: string
+    namePlaceholder: string
+    titleLabel: string
+    taglineLabel: string
+    taglinePlaceholder: string
+    colorLabel: string
+    colorHexLabel: string
+    categoryLabel: string
+    membership: string
+    ticket: string
+    perkLabel: string
+    perkPlaceholder: string
+    rewardLabel: string
+    rewardPlaceholder: string
+    expiryLabel: string
+    expiryNone: string
+    expiryDays: string
+    lockScreenLabel: string
+    lockScreenHint: string
+    locationUnavailable: string
+    submit: string
+    submitting: string
+    handleStatus: {
+      available: string
+      checking: string
+      format: string
+      reserved: string
+      taken: string
+      unknown: string
+    }
+    failures: { input: string; network: string; session: string; taken: string }
+  }
+  published: {
+    title: string
+    description: string
+    qrLabel: string
+    print: string
+    share: string
+    copy: string
+    copied: string
+    hint: string
   }
   overview: {
     title: string
@@ -142,7 +197,7 @@ export const DASH_COPY = {
       japanese: '日本語',
       theme: { control: 'Theme', light: 'Light', dark: 'Dark', system: 'System' },
     },
-    nav: { overview: 'Overview', rights: 'Rights', issue: 'Issue' },
+    nav: { overview: 'Overview', rights: 'Rights', issue: 'Issue', newCard: 'New card', card: 'Your card' },
     auth: {
       title: 'fuda. dashboard',
       description:
@@ -151,6 +206,71 @@ export const DASH_COPY = {
       tokenPlaceholder: 'ADMIN_TOKEN',
       continue: 'Continue',
       unauthorized: 'Unauthorized. Check the admin token.',
+      passkey: 'Continue with a passkey',
+      passkeyHint: 'No email, no password. Your passkey is the whole account.',
+      adminSection: 'Sign in with an admin token instead',
+      signingIn: 'Waiting for your passkey…',
+      signOut: 'Sign out',
+      failures: {
+        network: 'Could not reach fuda. Check your connection and try again.',
+        rejected: 'That signature was not accepted. Please try again.',
+        unavailable: 'Sign-in is unavailable right now. Please try again later.',
+        wallet: 'The passkey step was cancelled.',
+      },
+    },
+    designer: {
+      title: 'Design the card',
+      description: 'Your members see this card. You can run the whole programme from one link.',
+      preview: 'Live preview',
+      handleLabel: 'Link',
+      handlePrefix: 'fuda.sh/@',
+      handlePlaceholder: 'wassie-coffee',
+      nameLabel: 'Venue name',
+      namePlaceholder: 'Wassie Coffee',
+      titleLabel: 'Card title',
+      taglineLabel: 'Tagline',
+      taglinePlaceholder: 'Omotesando · Coffee shop',
+      colorLabel: 'Brand colour',
+      colorHexLabel: 'Brand colour hex',
+      categoryLabel: 'Card type',
+      membership: 'Membership',
+      ticket: 'Ticket',
+      perkLabel: 'Perk',
+      perkPlaceholder: 'Stamp card · 10 stamps',
+      rewardLabel: 'Reward',
+      rewardPlaceholder: 'Free drink of your choice',
+      expiryLabel: 'Expiry',
+      expiryNone: 'None',
+      expiryDays: '{days} days',
+      lockScreenLabel: 'Lock screen',
+      lockScreenHint: 'Show the card near the venue.',
+      locationUnavailable: 'Location unavailable.',
+      submit: 'Create card',
+      submitting: 'Creating…',
+      handleStatus: {
+        available: 'Available',
+        checking: 'Checking…',
+        format: 'Use lowercase letters, digits and hyphens.',
+        reserved: 'This name is reserved.',
+        taken: 'Already taken',
+        unknown: 'Could not check this link.',
+      },
+      failures: {
+        input: 'Some fields need a change before this card can be created.',
+        network: 'Could not reach fuda. Check your connection and try again.',
+        session: 'Your sign-in expired. Please sign in again.',
+        taken: 'That link is already taken. Pick another one.',
+      },
+    },
+    published: {
+      title: 'Your card is live',
+      description: 'One link is the whole sign-up. Print it, mail it, or post it.',
+      qrLabel: 'QR code for your card link',
+      print: 'Print QR poster',
+      share: 'Share link',
+      copy: 'Copy link',
+      copied: 'Copied',
+      hint: 'Anyone who scans gets a card — no app on their side either.',
     },
     overview: {
       title: 'Overview',
@@ -270,7 +390,7 @@ export const DASH_COPY = {
       japanese: '日本語',
       theme: { control: 'テーマ', light: 'ライト', dark: 'ダーク', system: 'システム' },
     },
-    nav: { overview: '概要', rights: '権利', issue: '発行' },
+    nav: { overview: '概要', rights: '権利', issue: '発行', newCard: 'カードを作る', card: 'カード' },
     auth: {
       title: 'fuda. dashboard',
       description:
@@ -279,6 +399,71 @@ export const DASH_COPY = {
       tokenPlaceholder: 'ADMIN_TOKEN',
       continue: '続ける',
       unauthorized: '認証できませんでした。管理トークンを確認してください。',
+      passkey: 'パスキーで続ける',
+      passkeyHint: 'メールアドレスもパスワードも不要です。パスキーがそのままアカウントになります。',
+      adminSection: '管理トークンでサインインする',
+      signingIn: 'パスキーの操作を待っています…',
+      signOut: 'サインアウト',
+      failures: {
+        network: 'fuda に接続できませんでした。通信環境を確認して、もう一度お試しください。',
+        rejected: '署名が受け付けられませんでした。もう一度お試しください。',
+        unavailable: '現在サインインできません。しばらくしてからお試しください。',
+        wallet: 'パスキーの操作が取り消されました。',
+      },
+    },
+    designer: {
+      title: 'カードをデザイン',
+      description: 'メンバーにはこのカードが表示されます。リンク 1 本で運用できます。',
+      preview: 'プレビュー',
+      handleLabel: 'リンク',
+      handlePrefix: 'fuda.sh/@',
+      handlePlaceholder: 'wassie-coffee',
+      nameLabel: '店舗名',
+      namePlaceholder: 'Wassie Coffee',
+      titleLabel: 'カード名',
+      taglineLabel: '説明',
+      taglinePlaceholder: '表参道 · コーヒーショップ',
+      colorLabel: 'ブランドカラー',
+      colorHexLabel: 'ブランドカラーの16進数',
+      categoryLabel: 'カードの種類',
+      membership: '会員カード',
+      ticket: 'チケット',
+      perkLabel: '特典',
+      perkPlaceholder: 'スタンプカード · 10 個',
+      rewardLabel: 'リワード',
+      rewardPlaceholder: 'お好きなドリンク 1 杯無料',
+      expiryLabel: '有効期限',
+      expiryNone: 'なし',
+      expiryDays: '{days} 日',
+      lockScreenLabel: 'ロック画面',
+      lockScreenHint: '店舗の近くでカードを表示します。',
+      locationUnavailable: '位置情報を取得できませんでした。',
+      submit: 'カードを作成',
+      submitting: '作成中…',
+      handleStatus: {
+        available: '使えます',
+        checking: '確認中…',
+        format: '小文字の英字、数字、ハイフンが使えます。',
+        reserved: 'この名前は予約されています。',
+        taken: 'すでに使われています',
+        unknown: 'リンクを確認できませんでした。',
+      },
+      failures: {
+        input: '入力内容を確認してください。このままではカードを作成できません。',
+        network: 'fuda に接続できませんでした。通信環境を確認して、もう一度お試しください。',
+        session: 'サインインの有効期限が切れました。もう一度サインインしてください。',
+        taken: 'このリンクはすでに使われています。別の名前を選んでください。',
+      },
+    },
+    published: {
+      title: 'カードを公開しました',
+      description: 'このリンク 1 本が入会導線になります。印刷しても、送っても、投稿してもかまいません。',
+      qrLabel: 'カードのリンクの QR コード',
+      print: 'QR ポスターを印刷',
+      share: 'リンクを共有',
+      copy: 'リンクをコピー',
+      copied: 'コピーしました',
+      hint: 'スキャンした人は誰でもカードを受け取れます。相手にもアプリは要りません。',
     },
     overview: {
       title: '概要',
