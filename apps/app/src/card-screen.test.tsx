@@ -234,3 +234,30 @@ describe('the card chooser', () => {
     expect(viewNodes(bare).map(({ props }) => props.href)).not.toContain('/@wassie-coffee')
   })
 })
+
+describe('a card outside its claim window', () => {
+  const closed: PublicCard = { ...card, card: { ...card.card, claimable: false } }
+
+  it('explains itself instead of offering a claim', () => {
+    const text = viewText(render({ card: closed, kind: 'landing' }))
+    expect(text).toContain('is not handing out this')
+    expect(text).not.toContain('Get your free')
+    expect(text).not.toContain('No sign-up')
+  })
+
+  it('offers the way back to the venue page', () => {
+    const back = viewNodes(render({ card: closed, kind: 'landing' })).find(
+      (node) => node.props.href === `/@${closed.handle}`,
+    )
+    expect(back).toBeDefined()
+  })
+
+  it('marks the row as closed on the venue page and keeps a held card openable', () => {
+    const mixed: PublicVenue = { ...card, cards: [closed.card, { ...card.card, slug: 'other' }] }
+    expect(viewText(render({ heldSlugs: [], kind: 'choose', venue: mixed }))).toContain(
+      'Not being handed out right now',
+    )
+    const held = render({ heldSlugs: [closed.card.slug], kind: 'choose', venue: mixed })
+    expect(viewText(held)).toContain('You have this card · Show it')
+  })
+})

@@ -57,6 +57,8 @@ const ISSUE_DATE = new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeZone
 export const issueDateOf = (issuedAt: number): string => ISSUE_DATE.format(new Date(issuedAt))
 
 const FAILURE_MESSAGE = {
+  // The card closed between loading the page and tapping the button.
+  card_closed: 'This card is no longer being handed out.',
   chain_error: 'This venue cannot issue cards right now. Please try again later.',
   network: 'Could not reach fuda. Check your connection and try again.',
   no_signer: 'This venue cannot issue cards right now. Please try again later.',
@@ -138,10 +140,23 @@ const perkList = (card: PublicCard): JSX.Element | null => {
   )
 }
 
+// A card the member already holds is worth opening; one outside its claim
+// window is not, so it reads as closed rather than inviting a dead-end tap.
+const rowInvitation = (card: CardView, held: boolean): string => {
+  if (held) {
+    return 'You have this card · Show it'
+  }
+  return card.claimable ? `Get this ${CATEGORY_NOUN[card.category]}` : 'Not being handed out right now'
+}
+
 const chooserRow = (venue: PublicVenue, card: CardView, held: boolean): JSX.Element => (
   <li key={card.slug}>
     <a
-      class="rounded-box border-base-300 bg-base-100 hover:border-base-content/30 flex flex-col gap-1 border p-4 transition"
+      class={
+        card.claimable || held
+          ? 'rounded-box border-base-300 bg-base-100 hover:border-base-content/30 flex flex-col gap-1 border p-4 transition'
+          : 'rounded-box border-base-300 bg-base-100 flex flex-col gap-1 border p-4 opacity-60'
+      }
       href={cardHref(venue.handle, card.slug)}
     >
       <div class="flex items-center justify-between gap-3">
@@ -149,9 +164,7 @@ const chooserRow = (venue: PublicVenue, card: CardView, held: boolean): JSX.Elem
         <span class="badge badge-sm badge-ghost">{CATEGORY_LABEL[card.category]}</span>
       </div>
       {card.perk === '' ? null : <span class="text-sm opacity-70">{card.perk}</span>}
-      <span class="text-xs font-semibold opacity-80">
-        {held ? 'You have this card · Show it' : `Get this ${CATEGORY_NOUN[card.category]}`}
-      </span>
+      <span class="text-xs font-semibold opacity-80">{rowInvitation(card, held)}</span>
     </a>
   </li>
 )
@@ -265,6 +278,22 @@ export const CardScreenView = ({ onIssue, onReload, state }: CardScreenViewProps
     )
   }
   const busy = state.kind === 'issuing'
+  // A card outside its claim window would only earn a 409, so the screen says
+  // so instead of offering a button that cannot work.
+  if (!state.card.card.claimable) {
+    return shell(
+      <>
+        {landingCard(state.card)}
+        {perkList(state.card)}
+        <p role="status" class="text-center text-sm opacity-70">
+          {state.card.name} is not handing out this {nounOf(state.card)} right now.
+        </p>
+        <a class="btn" href={`/@${state.card.handle}`}>
+          See all cards from {state.card.name}
+        </a>
+      </>,
+    )
+  }
   return shell(
     <>
       {landingCard(state.card)}

@@ -46,7 +46,13 @@ export const issueCard = async (handle: string, slug: string): Promise<Result<Se
     { method: 'POST' },
   )
 
-export type CardFailure = 'chain_error' | 'network' | 'no_signer' | 'not_found' | 'rate_limited'
+export type CardFailure =
+  | 'card_closed'
+  | 'chain_error'
+  | 'network'
+  | 'no_signer'
+  | 'not_found'
+  | 'rate_limited'
 
 // `apiFetch` folds every 5xx into a network condition and keeps only the
 // status, so the card screen tells the api's 501 and 502 apart by status
@@ -55,6 +61,9 @@ export const cardFailureOf = (result: { status: number; error: string }): CardFa
   switch (result.status) {
     case 404: {
       return 'not_found'
+    }
+    case 409: {
+      return 'card_closed'
     }
     case 429: {
       return 'rate_limited'
