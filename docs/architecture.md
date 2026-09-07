@@ -184,6 +184,7 @@ them is a protocol version bump.
 - [ADR 0004 — member pass list derived from holder addresses](./adr/0004-member-pass-list-from-holder.md)
 - [ADR 0005 — one hybrid resolver for the claimed and offchain ENS tree](./adr/0005-hybrid-ensv2-resolver.md)
 - [ADR 0006 — one deployment per chain, nothing migrated at the cutover](./adr/0006-per-chain-environments.md)
+- [ADR 0007 — fuda keeps root custody of the issuer registry](./adr/0007-root-custody-of-the-issuer-registry.md)
 - [api README](../apps/api/README.md) — running the api locally, endpoints,
   error codes
 - [Glossary](./CONTEXT.md)

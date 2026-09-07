@@ -4,6 +4,11 @@ fuda issues membership rights as on-chain attestations and verifies them at a
 physical gate. This glossary fixes the words used across the specs, code, and
 UI so that one concept has one name.
 
+It records the vocabulary of the product design, independently of what is
+built: a term stays here while the concept it names is part of the design, and
+leaves only when that concept is dropped. Absence of an implementation is
+never on its own a reason to remove an entry.
+
 ## Language
 
 ### The right
@@ -222,11 +227,6 @@ the event, on the roster, paid) — read from a Qualification source before
 issuance is triggered.
 _Avoid_: Eligibility, entitlement (that is the Right), registration (one kind
 of Qualification)
-
-**Sentinel**:
-The agent that watches the live subgraph for abuse patterns (a leaked Bearer
-QR) and drafts the countermeasure — a revoke the operator confirms.
-_Avoid_: Monitor, bot, watchdog, guard
 
 **Attendance**:
 The on-chain `Attendance` attestation written after an Entry — the public,
