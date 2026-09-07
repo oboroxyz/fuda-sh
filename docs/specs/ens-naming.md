@@ -29,9 +29,9 @@ The repository ships the B1-independent naming implementation:
 
 These contracts and tools are prepared and tested, but no repository task has
 used them to mutate Sepolia. B1 voucher issuance, onboarding and naming-mirror
-writes, lifecycle/unregister integration, c1 sentinel wiring, live `.eth`
-verification, and the `fuda.sh` DNS change remain external gates. No Gate or
-Entry path calls ENS or the gateway.
+writes, revoke lifecycle integration, live `.eth` verification, and the
+`fuda.sh` DNS change remain external gates. No Gate or Entry path calls ENS or
+the gateway.
 
 ## Deployment namespace
 
@@ -315,9 +315,34 @@ reduce expiry. An expired or unregistered label is re-registered with a fresh
 claim voucher instead of renewed. Signer rotation is owner-only, and the
 registrar exposes no unregister operation or role-granting surface.
 
-The registrar receives only root `REGISTRAR | RENEW`. `UNREGISTER` remains a
-separate role for a future B1 lifecycle principal or c1 sentinel. Claim power
-therefore does not imply revocation power.
+The registrar receives only root `REGISTRAR | RENEW`. It holds no
+`UNREGISTER` role and exposes no operation that would use one, so claim power
+does not imply revocation power.
+
+### Root role custody
+
+`UNREGISTER` is not unowned. The User Registry is initialized with the parent
+owner as its root principal, and that principal holds:
+
+| Power | Form | Meaning |
+| --- | --- | --- |
+| `SET_PARENT` | held directly | `setParent(address,string)` — repoint the registry's parent |
+| `UPGRADE` | held directly, and its admin bit | the registry proxy's upgrade role |
+| `REGISTRAR`, `RENEW`, `UNREGISTER` | admin bit only | `grantRootRoles` may assign them to any address |
+
+The parent owner therefore does not itself unregister an issuer entry. It can
+give itself that power: `grantRootRoles` assigns `UNREGISTER` to any account,
+its own included. What the repository verifies stops there — the pinned
+minimal ABI surface has no unregister call, and the matching
+`ensdomains/contracts-v2` source is unpublished, so the steps after the grant
+are the deployment's, not this repository's. The guarantee is the separation
+of roles, not an absence of custody. fuda holds the root of its own issuer
+namespace, and
+[ADR 0007](../adr/0007-root-custody-of-the-issuer-registry.md) records why.
+
+The exact root bitmap is asserted at deployment and re-checked by the
+standalone verifier, so a drift in root custody fails topology verification
+rather than passing silently.
 
 ## Remaining lifecycle integration
 
@@ -331,9 +356,17 @@ revoked or expired evidence             -> mirror/lifecycle update -> dark name
 
 B1 must supply authenticated voucher issuance from a real active
 `IssuerDelegation`, issuer onboarding and confirmed member mirror writes, and
-revoke/unregister lifecycle integration. c1 must supply the sentinel principal
-and its wiring. Until those exist, normal application flows do not populate
-the gateway mirror or mutate claimed issuer state.
+revoke lifecycle integration for the mirror. Until those exist, normal
+application flows do not populate the gateway mirror or mutate claimed issuer
+state.
+
+Revoking an issuer's delegation does not take its claimed name dark. The name
+keeps resolving to the issuer's wallet, and its member descendants keep
+resolving, until the registry expiry passes. This is deliberate and is not a
+missing B1 seam: a name is a destination, the delegation check is a separate
+fact every surface performs, and tying revocation to an onchain unregister
+would require handing revocation power to a live principal. Member answers do
+go dark on revocation, because they come from the mirror.
 
 Bearer-to-Signed Activation changes the claimable account's owners, not its
 address, so the member name, right, and history remain unchanged.
@@ -343,6 +376,9 @@ address, so the member name, right, and history remain unchanged.
 - **Not authority.** A resolving name never makes an issuer legitimate or a
   right valid. Surfaces show the name and the delegation/right check as
   separate facts and fall back to the raw address when resolution fails.
+- **Revocation does not dark a claimed name.** A revoked delegation leaves the
+  issuer's claimed name resolving until expiry. The mirror-backed member
+  answers are the only ones a revocation can stop.
 - **Not in the Gate path.** Admission never waits on ENS. Member names are
   never shown at the Gate, written to Entry logs, or included in
   announcements.
