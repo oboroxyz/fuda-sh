@@ -53,6 +53,9 @@ export interface Bindings {
 }
 
 export interface Variables {
+  // The venue a request is acting for, or null for fuda's own admin token.
+  // Set by operatorOrAdmin() on the routes that serve both.
+  actingIssuer: string | null
   chain: ChainClient
   db: Db
   // unix seconds — injectable for tests

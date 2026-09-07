@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const UID = `0x${'aa'.repeat(32)}`
+const CARD_UID = `0x${'cc'.repeat(32)}`
 const NONCE = `0x${'bb'.repeat(32)}`
+const HANDLE_RE = /^\/issuers\/(?<handle>[^/]+)$/u
+const CLAIM_RE = /^\/issuers\/(?<handle>[^/]+)\/(?<slug>[^/]+)\/issue$/u
 
 // The script's only external boundary is HTTP. Track the remote active rights
 // so cleanup assertions exercise the effect of /revoke, including early exits.
@@ -12,6 +15,8 @@ const fakeApi = (failAt?: string) => {
   let scans = 0
   let signedScans = 0
   let level = 'bearer'
+  let publishedHandle = ''
+  let publishedSlug = ''
   const fetchSpy = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async (url, init) => {
     const { pathname } = new URL(url)
     if (pathname === '/issue') {
@@ -41,8 +46,9 @@ const fakeApi = (failAt?: string) => {
       if (failAt === 'preview') {
         throw new Error('preview unavailable')
       }
+      const uid = pathname.slice('/verify/'.length)
       return Response.json(
-        active.has(UID) ? { decision: 'ADMIT' } : { decision: 'REJECT', reason: 'REVOKED' },
+        active.has(uid) ? { decision: 'ADMIT' } : { decision: 'REJECT', reason: 'REVOKED' },
       )
     }
     if (pathname === '/verify') {
@@ -53,6 +59,47 @@ const fakeApi = (failAt?: string) => {
       return Response.json(
         scans === 1 ? { decision: 'ADMIT' } : { decision: 'REJECT', reason: 'ALREADY_USED' },
       )
+    }
+    // The card ladder's own boundary: sign-in, publish, the public page, and the
+    // member's tap. Everything it issues is tracked like any other right, so the
+    // cleanup assertions cover it too.
+    if (pathname === '/auth/challenge') {
+      return Response.json({ message: 'fuda.sh dashboard sign-in', nonce: NONCE })
+    }
+    if (pathname === '/auth/verify') {
+      return Response.json({ issuer: null, token: 'smoke-session' })
+    }
+    if (pathname === '/issuers') {
+      const body = await new Request(url, init).json<{ card: { slug: string }; handle: string }>()
+      publishedHandle = body.handle
+      publishedSlug = body.card.slug
+      return Response.json({
+        card: { claimable: true, slug: body.card.slug },
+        issuer: { handle: body.handle },
+        publicUrl: `https://fuda.sh/@${body.handle}`,
+      })
+    }
+    const claiming = CLAIM_RE.exec(pathname)
+    if (claiming !== null) {
+      // A claimed card is a bearer right, and the scanner starts fresh on it
+      // even when a signed ladder ran first.
+      level = 'bearer'
+      scans = 0
+      issued.push(CARD_UID)
+      active.add(CARD_UID)
+      return Response.json({
+        holder: `0x${'dd'.repeat(20)}`,
+        level: 'bearer',
+        memberNumber: 'qj2yxphepdrka',
+        qr: `fuda:${CARD_UID}`,
+        uid: CARD_UID,
+      })
+    }
+    if (HANDLE_RE.exec(pathname) !== null) {
+      return Response.json({
+        cards: [{ claimable: true, slug: publishedSlug }],
+        handle: publishedHandle,
+      })
     }
     if (pathname === '/challenge') {
       return Response.json({ challenge: 'smoke challenge', nonce: NONCE, uid: UID })
@@ -124,7 +171,7 @@ describe('live smoke cleanup', () => {
 
     await runScript()
 
-    expect(api.issued).toHaveLength(2)
+    expect(api.issued).toHaveLength(3)
     expect(api.revoked).toStrictEqual(api.issued)
     expect([...api.active]).toStrictEqual([])
   })
