@@ -71,8 +71,10 @@ fuda.sh  ──alias──►  fuda.eth         planned DNS alias; the zone is n
 
 - An **issuer label** is the issuer's public Handle (`/@<handle>`), restricted
   to lowercase ASCII `[a-z0-9-]`, 1–63 bytes, without a leading or trailing
-  hyphen. A claimed label is an ENSv2 User Registry entry owned onchain by the
-  issuer wallet.
+  hyphen. A reserved set is refused on top of that rule: fuda's own hostnames,
+  the api's route prefixes, and the static segments under `/issuers/` (`me`,
+  `check`, `cards`), which a venue name would otherwise shadow. A claimed label
+  is an ENSv2 User Registry entry owned onchain by the issuer wallet.
 - A **member label** is the right's member number, exactly as printed on the
   pass after display formatting is removed. Member labels never become User
   Registry entries and members hold no ENS-side key; all member records remain

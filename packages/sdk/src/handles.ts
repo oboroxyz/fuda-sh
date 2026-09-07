@@ -5,14 +5,19 @@ import type { Hex } from './constants.ts'
 const ISSUER_HANDLE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/u
 export const ISSUER_HANDLE_MAX_LENGTH = 63
 
-// Names a handle must never take: fuda's own hosts and the api route prefixes,
-// so `/@auth` can never shadow `/auth` on any surface.
+// Names a handle must never take: fuda's own hosts, the api route prefixes so
+// `/@auth` can never shadow `/auth` on any surface, and the static segments
+// that sit under `/issuers/` — a venue called `me` or `check` would be
+// unreachable behind `GET /issuers/me` and `GET /issuers/check`.
 export const RESERVED_ISSUER_HANDLES: ReadonlySet<string> = new Set([
   'admin',
   'api',
   'app',
   'auth',
+  'card',
+  'cards',
   'challenge',
+  'check',
   'dash',
   'ens',
   'fuda',
@@ -20,6 +25,7 @@ export const RESERVED_ISSUER_HANDLES: ReadonlySet<string> = new Set([
   'health',
   'issue',
   'issuers',
+  'me',
   'members',
   'pass',
   'private',

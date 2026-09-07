@@ -27,6 +27,12 @@ describe('issuer handles', () => {
     expect(isIssuerHandle('auth')).toBe(false)
   })
 
+  it('reserves the static segments under /issuers so a venue stays reachable', () => {
+    expect(isIssuerHandle('me')).toBe(false)
+    expect(isIssuerHandle('check')).toBe(false)
+    expect(isIssuerHandle('cards')).toBe(false)
+  })
+
   it('names the problem for a form', () => {
     expect(issuerHandleProblem('')).toBe('empty')
     expect(issuerHandleProblem('Wassie')).toBe('format')
@@ -75,8 +81,24 @@ describe('choosing a card on the venue page', () => {
   const venue = {
     brandColor: '#6F4320',
     cards: [
-      { category: 'membership' as const, id: 'a', perk: '', reward: '', slug: 'stamp', title: 'Stamp', validityDays: null },
-      { category: 'ticket' as const, id: 'b', perk: '', reward: '', slug: 'gig', title: 'Gig', validityDays: null },
+      {
+        category: 'membership' as const,
+        id: 'a',
+        perk: '',
+        reward: '',
+        slug: 'stamp',
+        title: 'Stamp',
+        validityDays: null,
+      },
+      {
+        category: 'ticket' as const,
+        id: 'b',
+        perk: '',
+        reward: '',
+        slug: 'gig',
+        title: 'Gig',
+        validityDays: null,
+      },
     ],
     handle: 'wassie-coffee',
     name: 'Wassie Coffee',
