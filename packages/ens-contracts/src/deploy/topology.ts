@@ -225,7 +225,7 @@ const deployRegistry = async (context: TopologyContext, progress: (event: Progre
   )
   const initializer = encodeFunctionData({
     abi: USER_REGISTRY_ABI,
-    args: [context.config.parentAddress, USER_REGISTRY_ROOT_ROLES],
+    args: [[{ account: context.config.parentAddress, roleBitmap: USER_REGISTRY_ROOT_ROLES }]],
     functionName: 'initialize',
   })
   let address: Address | undefined

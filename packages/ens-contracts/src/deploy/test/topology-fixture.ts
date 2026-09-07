@@ -93,8 +93,10 @@ const eventAbi = parseAbi([
   'event ProxyDeployed(address indexed sender,address indexed proxyAddress,uint256 salt,address implementation)',
   'event ParentUpdated(address indexed parent,string label,address indexed sender)',
   'event RegistrarSet(address registrar)',
-  'event SubregistryUpdated(uint256 indexed tokenId,address subregistry,address indexed sender)',
-  'event ResolverUpdated(uint256 indexed tokenId,address resolver,address indexed sender)',
+  // Indexed exactly as the deployed PermissionedRegistry emits them; a fixture that
+  // disagrees with the chain makes these tests pass while the deployment fails.
+  'event SubregistryUpdated(uint256 indexed tokenId,address indexed subregistry,address indexed sender)',
+  'event ResolverUpdated(uint256 indexed tokenId,address indexed resolver,address indexed sender)',
   'event EACRolesChanged(uint256 indexed resource,address indexed account,uint256 oldRoleBitmap,uint256 newRoleBitmap)',
 ])
 
@@ -306,7 +308,11 @@ export const topologyFixture = (scenario: Scenario = {}) => {
       args: [
         contracts.UserRegistryImpl,
         salt,
-        encodeFunctionData({ abi: USER_REGISTRY_ABI, args: [owner, setupRoles], functionName: 'initialize' }),
+        encodeFunctionData({
+          abi: USER_REGISTRY_ABI,
+          args: [[{ account: owner, roleBitmap: setupRoles }]],
+          functionName: 'initialize',
+        }),
       ],
     },
     grantRootRoles: {
@@ -395,7 +401,14 @@ export const topologyFixture = (scenario: Scenario = {}) => {
       logs[0].address = other
     }
     if (bad && scenario.fail === 'malformed' && logs[0] !== undefined) {
-      logs[0].data = '0x'
+      // An event whose fields are all indexed carries no data, so emptying `data`
+      // would corrupt nothing and the assertion under test would never run. Corrupt
+      // the last topic instead, which is the equivalent damage for that shape.
+      if (logs[0].data === '0x') {
+        logs[0].topics[logs[0].topics.length - 1] = zeroHash
+      } else {
+        logs[0].data = '0x'
+      }
     }
     const direct = active === 'deploy-resolver' || active === 'deploy-registrar'
     let contractAddress: Address | null = null
