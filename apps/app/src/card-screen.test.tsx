@@ -3,7 +3,7 @@ import type { Hex, PublicCard, PublicVenue } from '@fuda/sdk'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 import { describe, expect, it } from 'vitest'
 
-import { CardScreenView, issueDateOf } from './CardScreen.tsx'
+import { CardScreenView, issueDateOf, logoUrl } from './CardScreen.tsx'
 import type { IssuedCard } from './CardScreen.tsx'
 
 interface ViewNode {
@@ -14,6 +14,7 @@ interface ViewNode {
     disabled?: unknown
     href?: unknown
     role?: unknown
+    src?: unknown
     style?: unknown
   }
 }
@@ -259,5 +260,18 @@ describe('a card outside its claim window', () => {
     )
     const held = render({ heldSlugs: [closed.card.slug], kind: 'choose', venue: mixed })
     expect(viewText(held)).toContain('You have this card · Show it')
+  })
+})
+
+describe(logoUrl, () => {
+  it('points at the venue mark the api serves', () => {
+    expect(logoUrl('wassie-coffee')).toBe('http://localhost:8787/assets/wassie-coffee/logo/master')
+  })
+
+  it('renders the mark on the venue card', () => {
+    const marks = viewNodes(render({ card, kind: 'landing' })).filter(
+      (node) => node.props.src === logoUrl(card.handle),
+    )
+    expect(marks).toHaveLength(1)
   })
 })

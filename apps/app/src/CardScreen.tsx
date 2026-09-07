@@ -88,15 +88,30 @@ const perksOf = (card: PublicCard): string[] =>
 
 interface VenueBrand {
   brandColor: string
+  handle: string
   name: string
 }
+
+// The venue's mark, served by the api from an immutable prefix. A venue
+// without one 404s, and the browser simply shows nothing, so no probe is
+// needed before rendering the tag.
+export const logoUrl = (handle: string): string =>
+  `${API_BASE_URL.replace(/\/$/u, '')}/assets/${handle}/logo/master`
 
 const brandCard = (venue: VenueBrand, body: JSX.Element): JSX.Element => (
   <div
     class="flex flex-col gap-4 rounded-2xl p-6 text-white shadow-lg"
     style={{ background: venue.brandColor }}
   >
-    <div class="text-xs font-semibold tracking-widest uppercase opacity-80">{venue.name}</div>
+    <div class="flex items-center gap-3">
+      <img
+        alt=""
+        class="size-10 flex-none rounded-xl bg-white/10 object-cover"
+        loading="lazy"
+        src={logoUrl(venue.handle)}
+      />
+      <div class="text-xs font-semibold tracking-widest uppercase opacity-80">{venue.name}</div>
+    </div>
     {body}
   </div>
 )
