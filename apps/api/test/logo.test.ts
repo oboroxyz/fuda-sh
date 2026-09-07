@@ -37,7 +37,7 @@ const logoForm = (over: Partial<Record<string, number>> = {}): FormData => {
 
 const upload = async (app: App, bindings: Bindings, token: string, form: FormData): Promise<Response> =>
   await app.request(
-    '/issuers/logo',
+    '/v1/issuers/logo',
     { body: form, headers: { authorization: `Bearer ${token}` }, method: 'POST' },
     bindings,
   )
@@ -83,7 +83,7 @@ describe('venue logo upload', () => {
     const unconfigured = await upload(app, mediaEnv({ MEDIA_BUCKET: undefined }), token, logoForm())
     expect(unconfigured.status).toBe(501)
     await expect(unconfigured.json()).resolves.toStrictEqual({ error: 'media_not_configured' })
-    const anonymous = await app.request('/issuers/logo', { body: logoForm(), method: 'POST' }, mediaEnv())
+    const anonymous = await app.request('/v1/issuers/logo', { body: logoForm(), method: 'POST' }, mediaEnv())
     expect(anonymous.status).toBe(401)
   })
 
@@ -95,7 +95,7 @@ describe('venue logo upload', () => {
     const created = await postJson(
       app,
       mediaEnv(),
-      '/issuers',
+      '/v1/issuers',
       { ...CARD_INPUT, logoUploadId: staged.logoUploadId },
       token,
     )
@@ -109,8 +109,14 @@ describe('venue logo upload', () => {
     const { token } = await signIn(app, mediaEnv())
     const stagedRes = await upload(app, mediaEnv(), token, logoForm())
     const staged = await stagedRes.json<{ logoUploadId: string }>()
-    await postJson(app, mediaEnv(), '/issuers', { ...CARD_INPUT, logoUploadId: staged.logoUploadId }, token)
-    const replay = await postJson(app, mediaEnv(), '/issuers/logo/commit', staged, token)
+    await postJson(
+      app,
+      mediaEnv(),
+      '/v1/issuers',
+      { ...CARD_INPUT, logoUploadId: staged.logoUploadId },
+      token,
+    )
+    const replay = await postJson(app, mediaEnv(), '/v1/issuers/logo/commit', staged, token)
     expect(replay.status).toBe(400)
     await expect(replay.json()).resolves.toStrictEqual({ error: 'upload_not_found' })
   })
@@ -118,10 +124,10 @@ describe('venue logo upload', () => {
   it('replaces the logo of an existing venue with a fresh prefix', async () => {
     const app = appWith({ chain: fakeChain(), now: () => NOW })
     const { token } = await signIn(app, mediaEnv())
-    await postJson(app, mediaEnv(), '/issuers', CARD_INPUT, token)
+    await postJson(app, mediaEnv(), '/v1/issuers', CARD_INPUT, token)
     const stagedRes = await upload(app, mediaEnv(), token, logoForm())
     const staged = await stagedRes.json<{ logoUploadId: string }>()
-    const committed = await postJson(app, mediaEnv(), '/issuers/logo/commit', staged, token)
+    const committed = await postJson(app, mediaEnv(), '/v1/issuers/logo/commit', staged, token)
     expect(committed.status).toBe(200)
     const db = getDb({ DB: env.DB })
     const row = await db.select().from(issuers).where(eq(issuers.handle, 'wassie-coffee')).get()
@@ -145,7 +151,7 @@ describe('serving a venue logo', () => {
     const { token } = await signIn(app, bindings)
     const stagedRes = await upload(app, bindings, token, logoForm())
     const staged = await stagedRes.json<{ logoUploadId: string }>()
-    await postJson(app, bindings, '/issuers', { ...CARD_INPUT, logoUploadId: staged.logoUploadId }, token)
+    await postJson(app, bindings, '/v1/issuers', { ...CARD_INPUT, logoUploadId: staged.logoUploadId }, token)
     return { app, bindings }
   }
 
@@ -206,9 +212,9 @@ describe('a branded pass', () => {
     const { token } = await signIn(app, bindings)
     const stagedRes = await upload(app, bindings, token, logoForm())
     const staged = await stagedRes.json<{ logoUploadId: string }>()
-    await postJson(app, bindings, '/issuers', { ...CARD_INPUT, logoUploadId: staged.logoUploadId }, token)
+    await postJson(app, bindings, '/v1/issuers', { ...CARD_INPUT, logoUploadId: staged.logoUploadId }, token)
     const issued = await app.request(
-      '/issuers/wassie-coffee/stamp/issue',
+      '/v1/issuers/wassie-coffee/stamp/issue',
       { headers: { 'CF-Connecting-IP': '203.0.113.70' }, method: 'POST' },
       bindings,
     )
@@ -251,7 +257,7 @@ describe('the versioned logo url', () => {
     const createdRes = await postJson(
       app,
       bindings,
-      '/issuers',
+      '/v1/issuers',
       { ...CARD_INPUT, logoUploadId: first.logoUploadId },
       token,
     )
@@ -259,7 +265,7 @@ describe('the versioned logo url', () => {
     expect(created.issuer.logoUrl).toMatch(/\/assets\/wassie-coffee\/logo\/master\?v=[0-9a-f-]{36}$/u)
     const secondRes = await upload(app, bindings, token, logoForm())
     const second = await secondRes.json<{ logoUploadId: string }>()
-    const changedRes = await postJson(app, bindings, '/issuers/logo/commit', second, token)
+    const changedRes = await postJson(app, bindings, '/v1/issuers/logo/commit', second, token)
     const changed = await changedRes.json<{ issuer: { logoUrl: string } }>()
     expect(changed.issuer.logoUrl).not.toBe(created.issuer.logoUrl)
   })
@@ -273,7 +279,7 @@ describe('the versioned logo url', () => {
     const createdRes = await postJson(
       app,
       bindings,
-      '/issuers',
+      '/v1/issuers',
       { ...CARD_INPUT, logoUploadId: staged.logoUploadId },
       token,
     )

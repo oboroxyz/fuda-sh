@@ -54,7 +54,7 @@ wallet:
 | Step | Route | What it does |
 | --- | --- | --- |
 | 1 | `POST /issuers/me/ens/claim-voucher` | reads the registrar nonce, signs a `ClaimVoucher` for the operator's address, and records the name as `voucher_issued` |
-| 2 | — | the operator's wallet switches to Ethereum Sepolia and calls `claim`, sponsored through `POST /ens/paymaster` |
+| 2 | — | the operator's wallet switches to Ethereum Sepolia and calls `claim`, sponsored through `POST /v1/ens/paymaster` |
 | 3 | `POST /issuers/me/ens/claimed` | verifies the receipt carries the registrar's own `IssuerClaimed` for that exact label and issuer, then records `claimed` |
 
 A voucher that is signed and never used costs nothing: the nonce is unspent, so
@@ -63,7 +63,7 @@ only when the chain agrees; anything else leaves the name pending, which is
 recoverable, rather than recording a claim that did not happen. Every one of
 these routes answers `503` until all five claim bindings are configured.
 
-`POST /ens/paymaster` is fuda's own ERC-7677 endpoint, and it exists because no
+`POST /v1/ens/paymaster` is fuda's own ERC-7677 endpoint, and it exists because no
 paymaster vendor can restrict sponsorship by destination contract — their
 allowlists are by sender, and a venue's account does not exist until it claims.
 It decodes the user operation's call data and pays only for `claim` and `renew`

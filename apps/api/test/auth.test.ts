@@ -18,7 +18,7 @@ describe('operator sign-in', () => {
 
   it('mints a challenge whose message carries the nonce', async () => {
     const app = appWith({ chain: fakeChain(), now: () => NOW })
-    const res = await postJson(app, testEnv(), '/auth/challenge', { address: operator.address })
+    const res = await postJson(app, testEnv(), '/v1/auth/challenge', { address: operator.address })
     expect(res.status).toBe(200)
     expect(res.headers.get('cache-control')).toBe('no-store')
     const body = await res.json<{ message: string; nonce: Hex }>()
@@ -27,7 +27,7 @@ describe('operator sign-in', () => {
 
   it('rejects a malformed address', async () => {
     const app = appWith({ chain: fakeChain(), now: () => NOW })
-    const res = await postJson(app, testEnv(), '/auth/challenge', { address: 'operator' })
+    const res = await postJson(app, testEnv(), '/v1/auth/challenge', { address: 'operator' })
     expect(res.status).toBe(400)
     await expect(res.json()).resolves.toStrictEqual({ error: 'bad_address' })
   })
@@ -37,17 +37,17 @@ describe('operator sign-in', () => {
     const session = await signIn(app, testEnv())
     expect(session.token).toMatch(/^[0-9a-f]{64}$/u)
     expect(session.issuer).toBeNull()
-    const me = await getJson(app, testEnv(), '/issuers/me', session.token)
+    const me = await getJson(app, testEnv(), '/v1/issuers/me', session.token)
     expect(me.status).toBe(200)
     await expect(me.json()).resolves.toStrictEqual({ cards: [], ens: null, issuer: null, publicUrl: null })
   })
 
   it('rejects a signature from another key and burns the nonce', async () => {
     const app = appWith({ chain: fakeChain(), now: () => NOW })
-    const challenge = await postJson(app, testEnv(), '/auth/challenge', { address: operator.address })
+    const challenge = await postJson(app, testEnv(), '/v1/auth/challenge', { address: operator.address })
     const { message, nonce } = await challenge.json<{ message: string; nonce: Hex }>()
     const signature = await other.signMessage({ message })
-    const bad = await postJson(app, testEnv(), '/auth/verify', {
+    const bad = await postJson(app, testEnv(), '/v1/auth/verify', {
       address: operator.address,
       nonce,
       signature,
@@ -55,7 +55,7 @@ describe('operator sign-in', () => {
     expect(bad.status).toBe(401)
     await expect(bad.json()).resolves.toStrictEqual({ error: 'bad_signature' })
     const good = await operator.signMessage({ message })
-    const replay = await postJson(app, testEnv(), '/auth/verify', {
+    const replay = await postJson(app, testEnv(), '/v1/auth/verify', {
       address: operator.address,
       nonce,
       signature: good,
@@ -67,11 +67,11 @@ describe('operator sign-in', () => {
   it('expires a challenge after the TTL', async () => {
     let now = NOW
     const app = appWith({ chain: fakeChain(), now: () => now })
-    const challenge = await postJson(app, testEnv(), '/auth/challenge', { address: operator.address })
+    const challenge = await postJson(app, testEnv(), '/v1/auth/challenge', { address: operator.address })
     const { message, nonce } = await challenge.json<{ message: string; nonce: Hex }>()
     const signature = await operator.signMessage({ message })
     now = NOW + 301
-    const late = await postJson(app, testEnv(), '/auth/verify', {
+    const late = await postJson(app, testEnv(), '/v1/auth/verify', {
       address: operator.address,
       nonce,
       signature,
@@ -86,19 +86,19 @@ describe('operator sign-in', () => {
     const { token } = await signIn(app, testEnv())
     const rows = await getDb({ DB: env.DB }).select().from(sessions)
     expect(rows.map((row) => row.tokenHash)).not.toContain(token)
-    const out = await postJson(app, testEnv(), '/auth/logout', {}, token)
+    const out = await postJson(app, testEnv(), '/v1/auth/logout', {}, token)
     await expect(out.json()).resolves.toStrictEqual({ loggedOut: true })
-    const afterLogout = await getJson(app, testEnv(), '/issuers/me', token)
+    const afterLogout = await getJson(app, testEnv(), '/v1/issuers/me', token)
     expect(afterLogout.status).toBe(401)
     const { token: second } = await signIn(app, testEnv())
     now = NOW + 31 * 86_400
-    const expired = await getJson(app, testEnv(), '/issuers/me', second)
+    const expired = await getJson(app, testEnv(), '/v1/issuers/me', second)
     expect(expired.status).toBe(401)
   })
 
   it('does not accept the admin token on operator routes', async () => {
     const app = appWith({ chain: fakeChain(), now: () => NOW })
-    const res = await getJson(app, testEnv({ ADMIN_TOKEN: 'secret' }), '/issuers/me', 'secret')
+    const res = await getJson(app, testEnv({ ADMIN_TOKEN: 'secret' }), '/v1/issuers/me', 'secret')
     expect(res.status).toBe(401)
   })
 })

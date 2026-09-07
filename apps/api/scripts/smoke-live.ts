@@ -24,6 +24,7 @@ import type {
   VerifyResponse,
   VerifySignedResponse,
 } from '@fuda/sdk'
+import { API_VERSION_PREFIX } from '@fuda/sdk/http'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 
 const api = process.env.API_URL ?? 'http://localhost:8787'
@@ -44,7 +45,9 @@ const call = async <T>(
   init?: RequestInit,
   describe: (body: T) => string = (body) => JSON.stringify(body),
 ): Promise<T> => {
-  const res = await fetch(`${api}${path}`, init)
+  // Paths are written as the routes see them; the version prefix is added here,
+  // the same way the sdk's client does it.
+  const res = await fetch(`${api}${API_VERSION_PREFIX}${path}`, init)
   const body = await readResponseJson<T>(res)
   // oxlint-disable-next-line no-console -- smoke script progress output, not app logging
   console.log(`${init?.method ?? 'GET'} ${path} → ${res.status}`, describe(body))

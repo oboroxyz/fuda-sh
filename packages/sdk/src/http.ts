@@ -1,3 +1,12 @@
+// Every route a program calls fuda for is served under this prefix, so a
+// breaking change can ship as /v2 while /v1 keeps answering. Four families sit
+// outside it deliberately, because their URLs are held by someone fuda cannot
+// reach to update: `/pass/*` is saved into Apple and Google Wallet, `/assets/*`
+// is printed on pages, `/ens/gateway` is written into the deployed ENS resolver
+// on chain, and `/health` is in somebody's monitoring. Those are built by
+// `passUrls` and by the api itself, never through `apiFetch`.
+export const API_VERSION_PREFIX = '/v1'
+
 export type Result<T> = { ok: true; body: T } | { ok: false; error: string; status: number; network: boolean }
 
 // The request headers as this client models them: a plain record, because the
@@ -43,7 +52,9 @@ const headersFor = (
 export const apiFetch = async <T>(base: string, path: string, init: ApiInit = {}): Promise<Result<T>> => {
   const { headers, token, ...rest } = init
   try {
-    const res = await fetch(`${base.replace(/\/$/u, '')}${path}`, {
+    // `path` is written as the route sees it (`/verify`), and the prefix is
+    // added here so no call site has to remember it.
+    const res = await fetch(`${base.replace(/\/$/u, '')}${API_VERSION_PREFIX}${path}`, {
       ...rest,
       headers: headersFor(headers, token, rest.body !== undefined && rest.body !== null),
     })

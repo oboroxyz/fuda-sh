@@ -11,7 +11,7 @@ describe('GET /verify/:uid', () => {
   it('400 bad_uid on a malformed uid', async () => {
     const chain = fakeChain()
     const res = await appWith({ chain, now: () => NOW }).request(
-      '/verify/0x123',
+      '/v1/verify/0x123',
       {},
       configuredEnv(seedRoot(chain)),
     )
@@ -23,7 +23,7 @@ describe('GET /verify/:uid', () => {
     const chain = fakeChain()
     const del = seedRoot(chain)
     const uid = seedRight(chain, del)
-    const res = await appWith({ chain, now: () => NOW }).request(`/verify/${uid}`, {}, configuredEnv(del))
+    const res = await appWith({ chain, now: () => NOW }).request(`/v1/verify/${uid}`, {}, configuredEnv(del))
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toStrictEqual({
       decision: 'ADMIT',
@@ -48,7 +48,7 @@ describe('GET /verify/:uid', () => {
     const chain = fakeChain()
     const del = seedRoot(chain)
     const uid = seedRight(chain, del)
-    const res = await appWith({ chain, now: () => NOW }).request(`/verify/${uid}`, {}, configuredEnv(del))
+    const res = await appWith({ chain, now: () => NOW }).request(`/v1/verify/${uid}`, {}, configuredEnv(del))
     expect(res.headers.get('cache-control')).toBe('no-store')
   })
 
@@ -57,7 +57,11 @@ describe('GET /verify/:uid', () => {
     const del = seedRoot(chain)
     const uid = seedRight(chain, del)
     const upper = `0x${uid.slice(2).toUpperCase()}`
-    const res = await appWith({ chain, now: () => NOW }).request(`/verify/${upper}`, {}, configuredEnv(del))
+    const res = await appWith({ chain, now: () => NOW }).request(
+      `/v1/verify/${upper}`,
+      {},
+      configuredEnv(del),
+    )
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toMatchObject({ decision: 'ADMIT', reason: 'OK' })
   })
@@ -66,7 +70,7 @@ describe('GET /verify/:uid', () => {
     const chain = fakeChain()
     const del = seedRoot(chain)
     const uid = seedRight(chain, del, { level: 1 })
-    const res = await appWith({ chain, now: () => NOW }).request(`/verify/${uid}`, {}, configuredEnv(del))
+    const res = await appWith({ chain, now: () => NOW }).request(`/v1/verify/${uid}`, {}, configuredEnv(del))
     const body = await res.json()
     expect(body).toMatchObject({ decision: 'ADMIT', entitlement: { level: 1 } })
   })
@@ -77,7 +81,7 @@ describe('GET /verify/:uid', () => {
     const uid = seedRight(chain, del)
     chain.revokeAt(uid, 5n)
     const app = appWith({ chain, now: () => NOW })
-    const res = await app.request(`/verify/${uid}`, {}, configuredEnv(del))
+    const res = await app.request(`/v1/verify/${uid}`, {}, configuredEnv(del))
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toMatchObject({ decision: 'REJECT', reason: 'REVOKED' })
   })
@@ -86,7 +90,7 @@ describe('GET /verify/:uid', () => {
     const chain = fakeChain()
     const del = seedRoot(chain)
     const app = appWith({ chain, now: () => NOW })
-    const res = await app.request(`/verify/0x${'ee'.repeat(32)}`, {}, configuredEnv(del))
+    const res = await app.request(`/v1/verify/0x${'ee'.repeat(32)}`, {}, configuredEnv(del))
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toMatchObject({ decision: 'REJECT', reason: 'NOT_FOUND' })
   })
@@ -96,7 +100,7 @@ describe('GET /verify/:uid', () => {
     const del = seedRoot(chain)
     const uid = seedRight(chain, del)
     chain.failReads = true
-    const res = await appWith({ chain, now: () => NOW }).request(`/verify/${uid}`, {}, configuredEnv(del))
+    const res = await appWith({ chain, now: () => NOW }).request(`/v1/verify/${uid}`, {}, configuredEnv(del))
     expect(res.status).toBe(502)
     await expect(res.json()).resolves.toStrictEqual({ error: 'chain_error' })
   })
@@ -106,7 +110,7 @@ describe('GET /verify/:uid', () => {
     const del = seedRoot(chain)
     const uid = seedRight(chain, del)
     const badEnv = configuredEnv(del, { EAS_SCHEMAS: 'not json' })
-    const res = await appWith({ chain, now: () => NOW }).request(`/verify/${uid}`, {}, badEnv)
+    const res = await appWith({ chain, now: () => NOW }).request(`/v1/verify/${uid}`, {}, badEnv)
     expect(res.status).toBe(502)
     await expect(res.json()).resolves.toStrictEqual({ error: 'chain_error' })
   })

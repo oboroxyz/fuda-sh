@@ -29,7 +29,7 @@ describe(challenge, () => {
     const spy = stubFetch(() => json(body, 200))
     const result = await challenge(UID)
     expect(result).toStrictEqual({ body, ok: true })
-    expect(spy).toHaveBeenCalledWith('http://localhost:8787/challenge', {
+    expect(spy).toHaveBeenCalledWith('http://localhost:8787/v1/challenge', {
       body: JSON.stringify({ uid: UID }),
       headers: { 'content-type': 'application/json' },
       method: 'POST',
@@ -51,7 +51,7 @@ describe(verifySigned, () => {
     const spy = stubFetch(() => json(verdict, 200))
     const result = await verifySigned(body)
     expect(result).toStrictEqual({ body: verdict, ok: true })
-    expect(spy).toHaveBeenCalledWith('http://localhost:8787/verify-signed', {
+    expect(spy).toHaveBeenCalledWith('http://localhost:8787/v1/verify-signed', {
       body: JSON.stringify(body),
       headers: { 'content-type': 'application/json' },
       method: 'POST',
@@ -79,7 +79,7 @@ describe(verifyUid, () => {
     const spy = stubFetch(() => json(body, 200))
 
     await expect(verifyUid(UID)).resolves.toStrictEqual({ body, ok: true })
-    expect(spy).toHaveBeenCalledWith(`http://localhost:8787/verify/${UID}`, { headers: {}, method: 'GET' })
+    expect(spy).toHaveBeenCalledWith(`http://localhost:8787/v1/verify/${UID}`, { headers: {}, method: 'GET' })
   })
 })
 
@@ -105,7 +105,7 @@ describe(fetchVenue, () => {
     const spy = stubFetch(() => json(body, 200))
 
     await expect(fetchVenue('wassie-coffee')).resolves.toStrictEqual({ body, ok: true })
-    expect(spy).toHaveBeenCalledWith('http://localhost:8787/issuers/wassie-coffee', {
+    expect(spy).toHaveBeenCalledWith('http://localhost:8787/v1/issuers/wassie-coffee', {
       headers: {},
       method: 'GET',
     })
@@ -131,7 +131,7 @@ describe(issueCard, () => {
       body: { uid: UID },
       ok: true,
     })
-    expect(spy).toHaveBeenCalledWith('http://localhost:8787/issuers/wassie-coffee/regular/issue', {
+    expect(spy).toHaveBeenCalledWith('http://localhost:8787/v1/issuers/wassie-coffee/regular/issue', {
       headers: {},
       method: 'POST',
     })

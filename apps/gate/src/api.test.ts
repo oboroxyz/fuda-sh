@@ -21,7 +21,7 @@ describe(previewUid, () => {
     const result = await previewUid(UID)
     expect(result).toStrictEqual({ body: ADMIT, ok: true })
     // No body, so no content-type: the GET stays CORS-simple and is not preflighted.
-    expect(spy).toHaveBeenCalledWith(`http://localhost:8787/verify/${UID}`, {
+    expect(spy).toHaveBeenCalledWith(`http://localhost:8787/v1/verify/${UID}`, {
       headers: {},
       method: 'GET',
     })
@@ -39,7 +39,7 @@ describe(admitQr, () => {
     const spy = stubFetch(() => json(ADMIT, 200))
     const result = await admitQr(`fuda:v1:${UID}`)
     expect(result).toStrictEqual({ body: ADMIT, ok: true })
-    expect(spy).toHaveBeenCalledWith('http://localhost:8787/verify', {
+    expect(spy).toHaveBeenCalledWith('http://localhost:8787/v1/verify', {
       body: JSON.stringify({ qr: `fuda:v1:${UID}` }),
       headers: { 'content-type': 'application/json' },
       method: 'POST',

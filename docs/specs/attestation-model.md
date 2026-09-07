@@ -316,6 +316,28 @@ decision: it fails closed as `502 chain_error` and is never written to
 
 The `ErrorCode` union in `packages/sdk` is this list.
 
+### API versioning
+
+Every route a program calls fuda for is served under `/v1`, so a breaking change
+can ship as `/v2` while `/v1` keeps answering. Paths in this document are
+written as the routes see them; the version prefix sits in front of each one.
+
+Four families are deliberately outside it, because each URL is held by someone
+fuda cannot reach to update:
+
+| Path | Held by |
+| --- | --- |
+| `/pass/:uid`, `/pass/:uid/google`, `/pass/:uid/apple.pkpass` | the member's Apple or Google Wallet, and their home screen |
+| `/assets/:handle/logo/:variant` | pages and passes that already carry the mark |
+| `/ens/gateway` | the deployed `FudaResolver`, which stores the URL on chain |
+| `/health` | whatever monitors the deployment |
+
+A version prefix on a URL that can never be reissued would only guarantee that
+`/v1` must live forever, which is the thing versioning exists to avoid. The
+client adds the prefix in one place (`apiFetch` in `@fuda/sdk/http`); the four
+families above are built by `passUrls` and by the api itself and never pass
+through it.
+
 ### API payloads that touch attestations
 
 **`POST /issue`** derives the level from the keys present:

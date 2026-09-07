@@ -31,7 +31,7 @@ const post = async (
   )
 
 const mint = async (app: App, bindings: Bindings, uid: Hex): Promise<{ challenge: string; nonce: Hex }> => {
-  const res = await post(app, bindings, '/challenge', { uid })
+  const res = await post(app, bindings, '/v1/challenge', { uid })
   return await res.json()
 }
 
@@ -39,7 +39,7 @@ const mint = async (app: App, bindings: Bindings, uid: Hex): Promise<{ challenge
 const enter = async (app: App, bindings: Bindings, uid: Hex, key = signer): Promise<Response> => {
   const { challenge, nonce } = await mint(app, bindings, uid)
   const signature = await key.signMessage({ message: challenge })
-  return await post(app, bindings, '/verify-signed', { nonce, signature, uid })
+  return await post(app, bindings, '/v1/verify-signed', { nonce, signature, uid })
 }
 
 // An app whose ADMIT hook is the real Attendance hook, with a real
@@ -121,8 +121,8 @@ describe('POST /verify-signed', () => {
     const { app, bindings, uid } = setup()
     const { challenge, nonce } = await mint(app, bindings, uid)
     const signature = await signer.signMessage({ message: challenge })
-    await post(app, bindings, '/verify-signed', { nonce, signature, uid })
-    const replay = await post(app, bindings, '/verify-signed', { nonce, signature, uid })
+    await post(app, bindings, '/v1/verify-signed', { nonce, signature, uid })
+    const replay = await post(app, bindings, '/v1/verify-signed', { nonce, signature, uid })
     await expect(replay.json()).resolves.toStrictEqual({
       decision: 'REJECT',
       holder: getAddress(signer.address),
@@ -140,7 +140,7 @@ describe('POST /verify-signed', () => {
     const { challenge, nonce } = await mint(appWith({ chain, now: () => NOW }), bindings, uid)
     const signature = await signer.signMessage({ message: challenge })
     const later = appWith({ chain, now: () => NOW + 300 })
-    const res = await post(later, bindings, '/verify-signed', { nonce, signature, uid })
+    const res = await post(later, bindings, '/v1/verify-signed', { nonce, signature, uid })
     await expect(res.json()).resolves.toMatchObject({ reason: 'BAD_CHALLENGE', stage: 'challenge' })
   })
 
@@ -149,7 +149,7 @@ describe('POST /verify-signed', () => {
     chain.revokeAt(uid, 5n)
     const { challenge, nonce } = await mint(app, bindings, uid)
     const signature = await signer.signMessage({ message: challenge })
-    const res = await post(app, bindings, '/verify-signed', { nonce, signature, uid })
+    const res = await post(app, bindings, '/v1/verify-signed', { nonce, signature, uid })
     await expect(res.json()).resolves.toStrictEqual({
       decision: 'REJECT',
       holder: getAddress(signer.address),
@@ -168,7 +168,7 @@ describe('POST /verify-signed', () => {
     const unknown = `0x${'99'.repeat(32)}` as const
     const { nonce } = await mint(app, bindings, unknown)
     const signature = await signer.signMessage({ message: challengeMessage(unknown, nonce) })
-    const res = await post(app, bindings, '/verify-signed', { nonce, signature, uid: unknown })
+    const res = await post(app, bindings, '/v1/verify-signed', { nonce, signature, uid: unknown })
     await expect(res.json()).resolves.toStrictEqual({
       decision: 'REJECT',
       path: 'signature',
@@ -202,8 +202,8 @@ describe('POST /verify-signed', () => {
   it('answers 400 bad_uid / bad_input for malformed fields and logs nothing', async () => {
     const { app, bindings } = setup()
     const nonce = `0x${'cd'.repeat(16)}`
-    const bad = await post(app, bindings, '/verify-signed', { nonce, signature: '0x00', uid: '0x12' })
-    const badNonce = await post(app, bindings, '/verify-signed', {
+    const bad = await post(app, bindings, '/v1/verify-signed', { nonce, signature: '0x00', uid: '0x12' })
+    const badNonce = await post(app, bindings, '/v1/verify-signed', {
       nonce: '0x12',
       signature: '0x00',
       uid: `0x${'ab'.repeat(32)}`,
@@ -217,7 +217,7 @@ describe('POST /verify-signed', () => {
   it('answers 502 chain_error when the chain is unreachable and logs nothing', async () => {
     const { app, bindings, chain, uid } = setup()
     chain.failReads = true
-    const res = await post(app, bindings, '/verify-signed', {
+    const res = await post(app, bindings, '/v1/verify-signed', {
       nonce: `0x${'cd'.repeat(16)}`,
       signature: '0x00',
       uid,
@@ -234,7 +234,7 @@ describe('POST /verify-signed', () => {
     const { challenge, nonce } = await mint(app, bindings, uid)
     const signature = await signer.signMessage({ message: challenge })
     vi.spyOn(chain, 'verifyMessage').mockRejectedValue(new ChainError('rpc down'))
-    const res = await post(app, bindings, '/verify-signed', { nonce, signature, uid })
+    const res = await post(app, bindings, '/v1/verify-signed', { nonce, signature, uid })
     expect(res.status).toBe(502)
     await expect(db().select().from(entryLog)).resolves.toHaveLength(0)
     // The challenge is spent regardless: step 2 precedes step 3 for replay protection.
@@ -249,7 +249,7 @@ describe('POST /verify-signed', () => {
     const { challenge, nonce } = await mint(app, bindings, uid)
     const signature = await signer.signMessage({ message: challengeMessage(uid, nonce) })
     expect(challenge).toBe(challengeMessage(uid, nonce))
-    await post(app, bindings, '/verify-signed', { nonce, signature, uid }, ctx)
+    await post(app, bindings, '/v1/verify-signed', { nonce, signature, uid }, ctx)
     await Promise.all(kept)
     const log = await db().select().from(entryLog)
     expect(log[0]?.attendanceUid).toMatch(/^0x[0-9a-f]{64}$/u)
@@ -263,7 +263,7 @@ describe('POST /verify-signed', () => {
     const { app, ctx } = attendanceApp(chain, bindings, kept)
     const { nonce } = await mint(app, bindings, uid)
     const signature = await signer.signMessage({ message: challengeMessage(uid, nonce) })
-    const res = await post(app, bindings, '/verify-signed', { nonce, signature, uid }, ctx)
+    const res = await post(app, bindings, '/v1/verify-signed', { nonce, signature, uid }, ctx)
     await expect(res.json()).resolves.toMatchObject({ decision: 'ADMIT', path: 'signature' })
     // The hook always schedules through waitUntil, so an empty list is proof it never ran.
     expect(kept).toHaveLength(0)

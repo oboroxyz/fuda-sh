@@ -106,7 +106,13 @@ mediaRoutes.post('/issuers/logo/commit', operatorAuth(), async (c) => {
 
 // Public: the venue's mark. The key is resolved from the issuer row against a
 // fixed variant list, so no caller-supplied path ever reaches R2.
-mediaRoutes.get('/assets/:handle/logo/:variant', async (c) => {
+//
+// A separate router because this one is mounted outside the version prefix: the
+// URL is printed on passes and pages that fuda cannot recall, so it must outlive
+// any version of the api that serves it.
+export const assetRoutes = new Hono<AppEnv>()
+
+assetRoutes.get('/assets/:handle/logo/:variant', async (c) => {
   const handle = c.req.param('handle')
   const variant = c.req.param('variant')
   const bucket = c.env.MEDIA_BUCKET

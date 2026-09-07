@@ -105,7 +105,7 @@ const stubChain = (options: { logs?: unknown[]; upstream?: unknown } = {}) => {
 const withVenue = async (bindings: Bindings) => {
   const created = appWith({ chain: fakeChain() })
   const { token } = await signIn(created, bindings)
-  await postJson(created, bindings, '/issuers', CARD_INPUT, token)
+  await postJson(created, bindings, '/v1/issuers', CARD_INPUT, token)
   return { app: created, token }
 }
 
@@ -129,9 +129,9 @@ describe('issuer ENS claim', () => {
     it('refuses without a session and while ENS is unconfigured', async () => {
       stubChain()
       const bindings = testEnv()
-      const anonymous = await postJson(app(), bindings, '/issuers/me/ens/claim-voucher', {})
+      const anonymous = await postJson(app(), bindings, '/v1/issuers/me/ens/claim-voucher', {})
       const { app: venue, token } = await withVenue(bindings)
-      const unconfigured = await postJson(venue, bindings, '/issuers/me/ens/claim-voucher', {}, token)
+      const unconfigured = await postJson(venue, bindings, '/v1/issuers/me/ens/claim-voucher', {}, token)
 
       expect(anonymous.status).toBe(401)
       expect(unconfigured.status).toBe(503)
@@ -143,7 +143,7 @@ describe('issuer ENS claim', () => {
       const created = app()
       const { token } = await signIn(created, bindings)
 
-      const response = await postJson(created, bindings, '/issuers/me/ens/claim-voucher', {}, token)
+      const response = await postJson(created, bindings, '/v1/issuers/me/ens/claim-voucher', {}, token)
 
       expect(response.status).toBe(404)
     })
@@ -153,7 +153,7 @@ describe('issuer ENS claim', () => {
       const bindings = configured()
       const { app: venue, token } = await withVenue(bindings)
 
-      const response = await postJson(venue, bindings, '/issuers/me/ens/claim-voucher', {}, token)
+      const response = await postJson(venue, bindings, '/v1/issuers/me/ens/claim-voucher', {}, token)
       const body = await response.json<{ name: string; voucher: { label: string; signature: string } }>()
 
       expect(body.name).toBe(`${HANDLE}.fuda.eth`)
@@ -165,10 +165,10 @@ describe('issuer ENS claim', () => {
       stubChain()
       const bindings = configured()
       const { app: venue, token } = await withVenue(bindings)
-      await postJson(venue, bindings, '/issuers/me/ens/claim-voucher', {}, token)
-      await postJson(venue, bindings, '/issuers/me/ens/claimed', { txHash: TX_HASH }, token)
+      await postJson(venue, bindings, '/v1/issuers/me/ens/claim-voucher', {}, token)
+      await postJson(venue, bindings, '/v1/issuers/me/ens/claimed', { txHash: TX_HASH }, token)
 
-      const again = await postJson(venue, bindings, '/issuers/me/ens/claim-voucher', {}, token)
+      const again = await postJson(venue, bindings, '/v1/issuers/me/ens/claim-voucher', {}, token)
 
       expect(again.status).toBe(409)
     })
@@ -179,9 +179,15 @@ describe('issuer ENS claim', () => {
       stubChain()
       const bindings = configured()
       const { app: venue, token } = await withVenue(bindings)
-      await postJson(venue, bindings, '/issuers/me/ens/claim-voucher', {}, token)
+      await postJson(venue, bindings, '/v1/issuers/me/ens/claim-voucher', {}, token)
 
-      const response = await postJson(venue, bindings, '/issuers/me/ens/claimed', { txHash: TX_HASH }, token)
+      const response = await postJson(
+        venue,
+        bindings,
+        '/v1/issuers/me/ens/claimed',
+        { txHash: TX_HASH },
+        token,
+      )
 
       expect(response.status).toBe(200)
       await expect(rowFor(`${HANDLE}.fuda.eth`)).resolves.toMatchObject({
@@ -195,9 +201,15 @@ describe('issuer ENS claim', () => {
       stubChain({ logs: [claimLog('someone-else')] })
       const bindings = configured()
       const { app: venue, token } = await withVenue(bindings)
-      await postJson(venue, bindings, '/issuers/me/ens/claim-voucher', {}, token)
+      await postJson(venue, bindings, '/v1/issuers/me/ens/claim-voucher', {}, token)
 
-      const response = await postJson(venue, bindings, '/issuers/me/ens/claimed', { txHash: TX_HASH }, token)
+      const response = await postJson(
+        venue,
+        bindings,
+        '/v1/issuers/me/ens/claimed',
+        { txHash: TX_HASH },
+        token,
+      )
 
       expect(response.status).toBe(409)
       await expect(rowFor(`${HANDLE}.fuda.eth`)).resolves.toMatchObject({ status: 'voucher_issued' })
@@ -208,7 +220,13 @@ describe('issuer ENS claim', () => {
       const bindings = configured()
       const { app: venue, token } = await withVenue(bindings)
 
-      const response = await postJson(venue, bindings, '/issuers/me/ens/claimed', { txHash: '0x00' }, token)
+      const response = await postJson(
+        venue,
+        bindings,
+        '/v1/issuers/me/ens/claimed',
+        { txHash: '0x00' },
+        token,
+      )
 
       expect(response.status).toBe(400)
     })
@@ -242,7 +260,7 @@ describe('issuer ENS claim', () => {
 
     const send = async (bindings: Bindings, body: unknown) =>
       await app().request(
-        '/ens/paymaster',
+        '/v1/ens/paymaster',
         {
           body: JSON.stringify(body),
           headers: { 'CF-Connecting-IP': IP, 'content-type': 'application/json' },

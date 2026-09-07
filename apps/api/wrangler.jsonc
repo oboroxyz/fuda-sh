@@ -77,7 +77,7 @@
     "ENS_PARENT_NAME": "fuda.eth",
     "ENS_RESOLVER_ADDRESSES": "0x133e6eeb3eAf0F804FbB9c1536AcA090B36A93AB",
     "ENS_REGISTRAR_ADDRESS": "0x58AF04ff5e6DAB45ECD17bD38fC4f4BBa45778B9",
-    "ENS_GAS_POLICY_ID": "",
+    "ENS_GAS_POLICY_ID": "cb3c4395-b6bd-47c5-abbb-316f0968d065",
   },
   // `wrangler dev --env local` with USE_FAKE_CHAIN=1 (see .dev.vars.example): no
   // signer or RPC needed. ISSUER_ADDRESS/DELEGATION_UID/EAS_SCHEMAS below are

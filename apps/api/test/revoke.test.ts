@@ -19,7 +19,7 @@ const post = async (app: App, bindings: Bindings, path: string, body: unknown): 
   )
 
 const revoke = async (app: App, bindings: Bindings, uid: unknown): Promise<Response> =>
-  await post(app, bindings, '/revoke', { uid })
+  await post(app, bindings, '/v1/revoke', { uid })
 
 describe('POST /revoke', () => {
   // Storage is shared across the tests in this file and FakeChain's uid counter
@@ -33,7 +33,7 @@ describe('POST /revoke', () => {
     const del = seedRoot(chain)
     const app = appWith({ chain, now: () => NOW })
     const bindings = configuredEnv(del)
-    const issueRes = await post(app, bindings, '/issue', { memberId: 'alice' })
+    const issueRes = await post(app, bindings, '/v1/issue', { memberId: 'alice' })
     const issued: { uid: `0x${string}` } = await issueRes.json()
     const res = await revoke(app, bindings, issued.uid)
     expect(res.status).toBe(200)
@@ -42,7 +42,7 @@ describe('POST /revoke', () => {
     expect(attestation.revocationTime).not.toBe(0n)
     const rows = await db().select().from(members)
     expect(rows[0]?.status).toBe('revoked')
-    const verifyRes = await post(app, bindings, '/verify', { qr: `fuda:v1:${issued.uid}` })
+    const verifyRes = await post(app, bindings, '/v1/verify', { qr: `fuda:v1:${issued.uid}` })
     await expect(verifyRes.json()).resolves.toMatchObject({ decision: 'REJECT', reason: 'REVOKED' })
   })
 
@@ -53,7 +53,7 @@ describe('POST /revoke', () => {
     const del = seedRoot(chain)
     const app = appWith({ chain, now: () => NOW })
     const bindings = configuredEnv(del)
-    const issueRes = await post(app, bindings, '/issue', { memberId: 'alice' })
+    const issueRes = await post(app, bindings, '/v1/issue', { memberId: 'alice' })
     const issued: { uid: string } = await issueRes.json()
     const res = await revoke(app, bindings, `0x${issued.uid.slice(2).toUpperCase()}`)
     expect(res.status).toBe(200)
@@ -131,7 +131,7 @@ describe('POST /revoke', () => {
     const del = seedRoot(chain)
     const app = appWith({ chain, now: () => NOW })
     const bindings = configuredEnv(del)
-    const issueRes = await post(app, bindings, '/issue', { memberId: 'alice' })
+    const issueRes = await post(app, bindings, '/v1/issue', { memberId: 'alice' })
     const issued: { uid: string } = await issueRes.json()
     await revoke(app, bindings, issued.uid)
     const res = await revoke(app, bindings, issued.uid)

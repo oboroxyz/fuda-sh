@@ -1,3 +1,4 @@
+import { API_VERSION_PREFIX } from '@fuda/sdk/http'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 
@@ -13,7 +14,7 @@ import { ensGatewayRoutes } from './routes/ens-gateway.ts'
 import { health } from './routes/health.ts'
 import { issueRoutes } from './routes/issue.ts'
 import { issuersRoutes } from './routes/issuers.ts'
-import { mediaRoutes } from './routes/media.ts'
+import { assetRoutes, mediaRoutes } from './routes/media.ts'
 import { membersRoutes } from './routes/members.ts'
 import { passRoutes } from './routes/pass.ts'
 import { revokeRoutes } from './routes/revoke.ts'
@@ -48,19 +49,30 @@ export const createApp = (deps: AppDeps): Hono<AppEnv> => {
   })
   app.use('*', corsPolicy())
   app.use('*', authModeHeader())
+  // Everything a program calls fuda for lives under a version prefix, so a
+  // breaking change can ship as /v2 while /v1 keeps answering.
+  const v1 = new Hono<AppEnv>()
+  v1.route('/', authRoutes)
+  v1.route('/', issuersRoutes)
+  v1.route('/', mediaRoutes)
+  v1.route('/', challengeRoutes)
+  v1.route('/', ensClaimRoutes)
+  v1.route('/', verifyRoutes)
+  v1.route('/', verifySignedRoutes)
+  v1.route('/', issueRoutes)
+  v1.route('/', revokeRoutes)
+  v1.route('/', membersRoutes)
+  app.route(API_VERSION_PREFIX, v1)
+
+  // Outside the prefix on purpose. Each of these URLs is held by someone fuda
+  // cannot reach to update — a pass saved in Apple or Google Wallet, a mark
+  // printed on a page, the gateway address written into the deployed ENS
+  // resolver, a health check in someone's monitoring. Versioning a URL that can
+  // never be reissued would only guarantee that /v1 must live forever.
   app.route('/', health)
-  app.route('/', authRoutes)
-  app.route('/', issuersRoutes)
-  app.route('/', mediaRoutes)
-  app.route('/', challengeRoutes)
-  app.route('/', ensClaimRoutes)
-  app.route('/', ensGatewayRoutes)
-  app.route('/', verifyRoutes)
-  app.route('/', verifySignedRoutes)
-  app.route('/', issueRoutes)
-  app.route('/', revokeRoutes)
-  app.route('/', membersRoutes)
   app.route('/', passRoutes)
+  app.route('/', assetRoutes)
+  app.route('/', ensGatewayRoutes)
   app.onError(unclassifiedError)
   return app
 }

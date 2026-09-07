@@ -14,7 +14,7 @@ import type {
   SignInChallengeResponse,
   SignInResponse,
 } from '@fuda/sdk'
-import { apiFetch } from '@fuda/sdk/http'
+import { API_VERSION_PREFIX, apiFetch } from '@fuda/sdk/http'
 import type { Result } from '@fuda/sdk/http'
 import * as v from 'valibot'
 
@@ -151,7 +151,9 @@ export const uploadLogo = async (token: string, variants: LogoSet): Promise<Resu
     form.append(variant, variants[variant], `${variant}.png`)
   }
   try {
-    const res = await fetch(`${API_BASE_URL.replace(/\/$/u, '')}/issuers/logo`, {
+    // Multipart, so it goes out by hand rather than through `apiFetch` — the
+    // version prefix has to be added here too.
+    const res = await fetch(`${API_BASE_URL.replace(/\/$/u, '')}${API_VERSION_PREFIX}/issuers/logo`, {
       body: form,
       headers: { authorization: `Bearer ${token}` },
       method: 'POST',

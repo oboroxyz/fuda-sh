@@ -31,8 +31,8 @@ const venue = async (
 ): Promise<{ token: string; uid: string; memberNumber: string }> => {
   const account = privateKeyToAccount(generatePrivateKey())
   const { token } = await signIn(app, bindings(), account)
-  await postJson(app, bindings(), '/issuers', input, token)
-  const claimed = await claim(app, `/issuers/${input.handle}/${input.card.slug}/issue`)
+  await postJson(app, bindings(), '/v1/issuers', input, token)
+  const claimed = await claim(app, `/v1/issuers/${input.handle}/${input.card.slug}/issue`)
   const body = await claimed.json<{ memberNumber: string; uid: string }>()
   return { memberNumber: body.memberNumber, token, uid: body.uid }
 }
@@ -53,7 +53,7 @@ describe('operator-scoped members and revoke', () => {
     const mine = await venue(app, CARD_INPUT)
     const theirs = await venue(app, OTHER_VENUE)
 
-    const listed = await getJson(app, bindings(), '/members', mine.token)
+    const listed = await getJson(app, bindings(), '/v1/members', mine.token)
     const { members } = await listed.json<MembersResponse>()
 
     expect(members.map((row) => row.uid)).toStrictEqual([mine.uid])
@@ -65,7 +65,7 @@ describe('operator-scoped members and revoke', () => {
     const mine = await venue(app, CARD_INPUT)
     const theirs = await venue(app, OTHER_VENUE)
 
-    const listed = await getJson(app, bindings(), '/members', ADMIN)
+    const listed = await getJson(app, bindings(), '/v1/members', ADMIN)
     const { members } = await listed.json<MembersResponse>()
 
     expect(members.map((row) => row.uid).toSorted()).toStrictEqual([mine.uid, theirs.uid].toSorted())
@@ -75,7 +75,7 @@ describe('operator-scoped members and revoke', () => {
     const app = appWith({ chain: fakeChain() })
     const mine = await venue(app, CARD_INPUT)
 
-    const revoked = await postJson(app, bindings(), '/revoke', { uid: mine.uid }, mine.token)
+    const revoked = await postJson(app, bindings(), '/v1/revoke', { uid: mine.uid }, mine.token)
 
     expect(revoked.status).toBe(200)
     await expect(revoked.json()).resolves.toStrictEqual({ revoked: true, uid: mine.uid })
@@ -86,10 +86,10 @@ describe('operator-scoped members and revoke', () => {
     const mine = await venue(app, CARD_INPUT)
     const theirs = await venue(app, OTHER_VENUE)
 
-    const refused = await postJson(app, bindings(), '/revoke', { uid: theirs.uid }, mine.token)
+    const refused = await postJson(app, bindings(), '/v1/revoke', { uid: theirs.uid }, mine.token)
 
     expect(refused.status).toBe(404)
-    const stillListed = await getJson(app, bindings(), '/members', theirs.token)
+    const stillListed = await getJson(app, bindings(), '/v1/members', theirs.token)
     await expect(stillListed.json<MembersResponse>()).resolves.toMatchObject({
       members: [{ status: 'active' }],
     })
@@ -99,7 +99,7 @@ describe('operator-scoped members and revoke', () => {
     const app = appWith({ chain: fakeChain() })
     await venue(app, CARD_INPUT)
 
-    const listed = await getJson(app, bindings(), '/members', 'not-a-token')
+    const listed = await getJson(app, bindings(), '/v1/members', 'not-a-token')
 
     expect(listed.status).toBe(401)
   })
@@ -111,11 +111,11 @@ describe('a venue with a second card', () => {
   it('keeps both cards’ members in one list', async () => {
     const app = appWith({ chain: fakeChain() })
     const mine = await venue(app, CARD_INPUT)
-    await postJson(app, bindings(), '/issuers/cards', SECOND_CARD, mine.token)
-    const second = await claim(app, `/issuers/${CARD_INPUT.handle}/${SECOND_CARD.slug}/issue`)
+    await postJson(app, bindings(), '/v1/issuers/cards', SECOND_CARD, mine.token)
+    const second = await claim(app, `/v1/issuers/${CARD_INPUT.handle}/${SECOND_CARD.slug}/issue`)
     const { uid } = await second.json<{ uid: string }>()
 
-    const listed = await getJson(app, bindings(), '/members', mine.token)
+    const listed = await getJson(app, bindings(), '/v1/members', mine.token)
     const { members } = await listed.json<MembersResponse>()
 
     expect(members.map((row) => row.uid).toSorted()).toStrictEqual([mine.uid, uid].toSorted())

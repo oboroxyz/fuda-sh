@@ -38,7 +38,7 @@ describe('POST /issue (signed)', () => {
     const chain = fakeChain({ signer: ROOT })
     const del = seedRoot(chain)
     const lower = signer.address.toLowerCase()
-    const res = await post(appWith({ chain, now: () => NOW }), configuredEnv(del), '/issue', {
+    const res = await post(appWith({ chain, now: () => NOW }), configuredEnv(del), '/v1/issue', {
       holder: lower,
       tier: 1,
     })
@@ -61,7 +61,7 @@ describe('POST /issue (signed)', () => {
   it('encodes level 1 and attests to the wallet as recipient', async () => {
     const chain = fakeChain({ signer: ROOT })
     const del = seedRoot(chain)
-    const res = await post(appWith({ chain, now: () => NOW }), configuredEnv(del), '/issue', {
+    const res = await post(appWith({ chain, now: () => NOW }), configuredEnv(del), '/v1/issue', {
       holder: signer.address,
     })
     const body: Issued = await res.json()
@@ -76,7 +76,7 @@ describe('POST /issue (signed)', () => {
     const res = await post(
       appWith({ chain, now: () => NOW }),
       configuredEnv(del, { API_BASE_URL: 'https://api.test' }),
-      '/issue',
+      '/v1/issue',
       { holder: signer.address },
     )
     const body: Issued = await res.json()
@@ -90,9 +90,9 @@ describe('POST /issue (signed)', () => {
     const del = seedRoot(chain)
     const app = appWith({ chain, now: () => NOW })
     const bindings = configuredEnv(del)
-    const issueRes = await post(app, bindings, '/issue', { holder: signer.address, usageModel: 0 })
+    const issueRes = await post(app, bindings, '/v1/issue', { holder: signer.address, usageModel: 0 })
     const issued: Issued = await issueRes.json()
-    const scan = await post(app, bindings, '/verify', { qr: issued.qr })
+    const scan = await post(app, bindings, '/v1/verify', { qr: issued.qr })
     await expect(scan.json()).resolves.toMatchObject({ decision: 'REJECT', reason: 'LEVEL_REQUIRED' })
     await expect(db().select().from(slots)).resolves.toHaveLength(0)
   })
@@ -102,9 +102,9 @@ describe('POST /issue (signed)', () => {
     const del = seedRoot(chain)
     const app = appWith({ chain, now: () => NOW })
     const bindings = configuredEnv(del)
-    const issueRes = await post(app, bindings, '/issue', { holder: signer.address })
+    const issueRes = await post(app, bindings, '/v1/issue', { holder: signer.address })
     const issued: Issued = await issueRes.json()
-    const res = await app.request(`/verify/${issued.uid}`, {}, bindings)
+    const res = await app.request(`/v1/verify/${issued.uid}`, {}, bindings)
     expect(res.status).toBe(200)
     const verdict: { decision: string; entitlement: { level: number } } = await res.json()
     expect(verdict.decision).toBe('ADMIT')
@@ -114,7 +114,7 @@ describe('POST /issue (signed)', () => {
   it('still answers 400 bad_input for holder + memberId together', async () => {
     const chain = fakeChain({ signer: ROOT })
     const del = seedRoot(chain)
-    const res = await post(appWith({ chain, now: () => NOW }), configuredEnv(del), '/issue', {
+    const res = await post(appWith({ chain, now: () => NOW }), configuredEnv(del), '/v1/issue', {
       holder: signer.address,
       memberId: 'x',
     })

@@ -23,7 +23,7 @@ describe(listMembers, () => {
     const spy = stubFetch(() => json({ members: [] }, 200))
     const result = await listMembers(TOKEN)
     expect(result).toStrictEqual({ body: { members: [] }, ok: true })
-    expect(spy).toHaveBeenCalledWith('http://localhost:8787/members', { headers: GET_HEADERS })
+    expect(spy).toHaveBeenCalledWith('http://localhost:8787/v1/members', { headers: GET_HEADERS })
   })
 
   it('maps a 401 to a failure carrying the status, so the dash can ask for the token again', async () => {
@@ -52,7 +52,7 @@ describe(issueRight, () => {
     const body = { memberId: 'alice', tier: 1, usageModel: 1 }
     const spy = stubFetch(() => json({ uid: UID }, 200))
     await issueRight(TOKEN, body)
-    expect(spy).toHaveBeenCalledWith('http://localhost:8787/issue', {
+    expect(spy).toHaveBeenCalledWith('http://localhost:8787/v1/issue', {
       body: JSON.stringify(body),
       headers: HEADERS,
       method: 'POST',
@@ -71,7 +71,7 @@ describe(revokeRight, () => {
     const spy = stubFetch(() => json({ revoked: true, uid: UID }, 200))
     const result = await revokeRight(TOKEN, UID)
     expect(result).toStrictEqual({ body: { revoked: true, uid: UID }, ok: true })
-    expect(spy).toHaveBeenCalledWith('http://localhost:8787/revoke', {
+    expect(spy).toHaveBeenCalledWith('http://localhost:8787/v1/revoke', {
       body: JSON.stringify({ uid: UID }),
       headers: HEADERS,
       method: 'POST',
@@ -121,7 +121,7 @@ describe('committing a logo', () => {
     const spy = stubFetch(() => json({ issuer: { handle: 'wassie-coffee' } }, 200))
     const result = await commitLogo(TOKEN, 'up_1')
     expect(result.ok).toBe(true)
-    expect(spy).toHaveBeenCalledWith('http://localhost:8787/issuers/logo/commit', {
+    expect(spy).toHaveBeenCalledWith('http://localhost:8787/v1/issuers/logo/commit', {
       body: JSON.stringify({ logoUploadId: 'up_1' }),
       headers: HEADERS,
       method: 'POST',

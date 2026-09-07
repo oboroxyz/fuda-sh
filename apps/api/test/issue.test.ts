@@ -22,7 +22,7 @@ type App = ReturnType<typeof appWith>
 
 const post = async (app: App, bindings: Bindings, body: unknown): Promise<Response> =>
   await app.request(
-    '/issue',
+    '/v1/issue',
     { body: JSON.stringify(body), headers: { 'content-type': 'application/json' }, method: 'POST' },
     bindings,
   )
@@ -110,7 +110,7 @@ describe('POST /issue (bearer)', () => {
     const app = appWith({ chain, now: () => NOW })
     const bindings = configuredEnv(del)
     const body = await issued(await post(app, bindings, { memberId: 'alice' }))
-    const res = await app.request(`/verify/${body.uid}`, {}, bindings)
+    const res = await app.request(`/v1/verify/${body.uid}`, {}, bindings)
     expect(res.status).toBe(200)
     const verdict: { decision: string; entitlement: { level: number } } = await res.json()
     expect(verdict.decision).toBe('ADMIT')
@@ -217,7 +217,7 @@ describe('POST /issue (bearer)', () => {
     const bindings = configuredEnv(del, { ADMIN_TOKEN: 'secret' })
     const missing = await post(app, bindings, { memberId: 'a' })
     const wrong = await app.request(
-      '/issue',
+      '/v1/issue',
       {
         body: JSON.stringify({ memberId: 'a' }),
         headers: { authorization: 'Bearer nope', 'content-type': 'application/json' },

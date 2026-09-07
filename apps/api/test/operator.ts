@@ -47,10 +47,10 @@ export const signIn = async (
   bindings: Bindings,
   account: { address: Hex; signMessage: (p: { message: string }) => Promise<Hex> } = operator,
 ): Promise<{ token: string; issuer: unknown }> => {
-  const challenge = await postJson(app, bindings, '/auth/challenge', { address: account.address })
+  const challenge = await postJson(app, bindings, '/v1/auth/challenge', { address: account.address })
   const { message, nonce } = await challenge.json<{ message: string; nonce: Hex }>()
   const signature = await account.signMessage({ message })
-  const verified = await postJson(app, bindings, '/auth/verify', {
+  const verified = await postJson(app, bindings, '/v1/auth/verify', {
     address: account.address,
     nonce,
     signature,

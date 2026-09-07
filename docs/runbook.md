@@ -253,7 +253,7 @@ lists what it reads; the production values are:
 ```bash
 VITE_API_BASE_URL=https://api.fuda.sh   # gate, dash, app
 VITE_GRAPH_RIGHTS_ENDPOINT=https://gateway.thegraph.com/api/<PUBLIC_KEY>/subgraphs/id/<SUBGRAPH_ID> # dash, app
-VITE_ENS_PAYMASTER_URL=https://api.fuda.sh/ens/paymaster  # dash only
+VITE_ENS_PAYMASTER_URL=https://api.fuda.sh/v1/ens/paymaster  # dash only, and the one VITE_* that carries the version prefix: the wallet fetches this URL as given
 VITE_APP_ORIGIN=https://app.fuda.sh     # app only
 VITE_RP_ID=fuda.sh                      # app only
 ```
