@@ -221,6 +221,35 @@ describe('localized operation views', () => {
     },
   )
 
+  it('renders the brand mark before the centered dashboard title', () => {
+    const rendered = TokenGateView({
+      appearance: <aside />,
+      copy: DASH_COPY.en.auth,
+      error: null,
+      onToken: (): void => {},
+      onValue: (): void => {},
+      value: '',
+    })
+    const authForm = walkView(rendered).find((node) => 'onSubmit' in node.props)!
+    const authNodes = walkView(authForm)
+    const logoIndex = authNodes.findIndex(
+      (node) => node.tag === 'svg' && node.props['aria-label'] === 'fuda.',
+    )
+    const titleIndex = authNodes.findIndex(
+      (node) => node.tag === 'h1' && viewText(node) === 'fuda. dashboard',
+    )
+
+    expect({
+      logoBeforeTitle: logoIndex > 0 && titleIndex > logoIndex,
+      logoClass: authNodes[logoIndex]?.props.class,
+      titleClass: authNodes[titleIndex]?.props.class,
+    }).toStrictEqual({
+      logoBeforeTitle: true,
+      logoClass: 'dash-auth-logo',
+      titleClass: 'dash-auth-title',
+    })
+  })
+
   it('submits once before rerender, clears busy after an API error, and allows retry', async () => {
     const pending = Promise.withResolvers<Result<IssueResponse>>()
     const onIssue = vi

@@ -33,7 +33,32 @@ export const TokenGateView = ({
         onToken(value.trim())
       }}
     >
-      <h1 class="text-xl font-bold">{copy.title}</h1>
+      <div class="dash-auth-logo-intro">
+        <svg aria-label="fuda." class="dash-auth-logo" fill="none" role="img" viewBox="0 0 260 260">
+          <path
+            d="m130 54 63 50v128h-126v-128z"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="15"
+          />
+          <path
+            d="m119 98a11 11 0 1 0 22 0 11 11 0 1 0-22 0"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="15"
+          />
+          <path
+            d="m130 28v20"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="15"
+          />
+        </svg>
+      </div>
+      <h1 class="dash-auth-title">{copy.title}</h1>
       <p class="text-sm opacity-70">{copy.description}</p>
       {error === null ? null : (
         <p role="alert" class="alert alert-error">

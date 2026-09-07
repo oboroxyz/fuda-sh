@@ -144,7 +144,7 @@ export const DASH_COPY = {
     },
     nav: { overview: 'Overview', rights: 'Rights', issue: 'Issue' },
     auth: {
-      title: 'Open the operator console',
+      title: 'fuda. dashboard',
       description:
         "Enter the admin token. It stays in this tab's memory only. Leave it empty only for a local API without ADMIN_TOKEN.",
       tokenLabel: 'Admin token',
@@ -272,7 +272,7 @@ export const DASH_COPY = {
     },
     nav: { overview: '概要', rights: '権利', issue: '発行' },
     auth: {
-      title: '運営コンソールを開く',
+      title: 'fuda. dashboard',
       description:
         '管理トークンを入力してください。トークンはこのタブのメモリにのみ保持されます。ADMIN_TOKEN を設定していないローカル API でのみ空欄にできます。',
       tokenLabel: '管理トークン',

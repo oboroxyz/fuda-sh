@@ -167,6 +167,58 @@
   padding: 1rem;
 }
 
+.dash-auth-logo-intro {
+  width: 4.5rem;
+  margin-inline: auto;
+  animation: dash-auth-logo-swing 1s 0.6s both;
+}
+
+.dash-auth-logo {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.dash-auth-logo:hover {
+  animation: dash-auth-logo-swing 1s both;
+}
+
+.dash-auth-title {
+  margin-block: 0.25rem 0.5rem;
+  font-size: clamp(2rem, 8vw, 3rem);
+  font-weight: 700;
+  line-height: 1.05;
+  text-align: center;
+}
+
+@keyframes dash-auth-logo-swing {
+  from,
+  to {
+    transform: rotate(0deg);
+    transform-origin: 50% 11%;
+  }
+  15% {
+    transform: rotate(-8deg);
+    transform-origin: 50% 11%;
+  }
+  30% {
+    transform: rotate(6.5deg);
+    transform-origin: 50% 11%;
+  }
+  45% {
+    transform: rotate(-4deg);
+    transform-origin: 50% 11%;
+  }
+  60% {
+    transform: rotate(2.5deg);
+    transform-origin: 50% 11%;
+  }
+  75% {
+    transform: rotate(-1deg);
+    transform-origin: 50% 11%;
+  }
+}
+
 .dash-auth .dash-appearance {
   justify-content: flex-end;
   max-width: 20rem;
@@ -402,6 +454,13 @@
   .dash-main,
   .dash-auth {
     padding: 1.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-auth-logo,
+  .dash-auth-logo-intro {
+    animation: none;
   }
 }
 
