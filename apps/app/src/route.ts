@@ -1,6 +1,8 @@
+import { isIssuerHandle } from '@fuda/sdk'
+
 import { APP_ORIGIN } from './config.ts'
 
-export type Route = 'landing' | 'signed' | 'private' | 'rights' | { redirect: string }
+export type Route = 'landing' | 'signed' | 'private' | 'rights' | { card: string } | { redirect: string }
 
 // The fuda.sh apex and app.fuda.sh are one Worker (docs/specs/pass-types-and-flows.md#surfaces), so the path alone
 // does not say which surface the browser is on. The Signed gate must run on the
@@ -24,17 +26,31 @@ const originOf = (value: string): string | null => {
 // to the same origin rule as /signed.
 const APP_ONLY = new Set(['/signed', '/private', '/rights'])
 
+// A venue's card lives at /@<handle>. The handle rule is the sdk's, so a path
+// that the api would answer 404 for (or a reserved word like /@www) is not a
+// card route at all and falls through to the landing.
+const CARD_PATH = /^\/@(?<handle>[^/]+)$/u
+
+const cardHandleOf = (path: string): string | null => {
+  const handle = CARD_PATH.exec(path)?.groups?.handle
+  return handle !== undefined && isIssuerHandle(handle) ? handle : null
+}
+
 export const routeFor = (origin: string, pathname: string, appOrigin: string = APP_ORIGIN): Route => {
   const queryAt = pathname.indexOf('?')
   const query = queryAt === -1 ? '' : pathname.slice(queryAt)
   const pathInput = queryAt === -1 ? pathname : pathname.slice(0, queryAt)
   const path = pathInput.length > 1 ? pathInput.replace(/\/+$/u, '') : pathInput
   const app = originOf(appOrigin)
-  if (!APP_ONLY.has(path) || app === null) {
+  const handle = cardHandleOf(path)
+  if ((handle === null && !APP_ONLY.has(path)) || app === null) {
     return 'landing'
   }
   if (originOf(origin) !== app) {
     return { redirect: `${app}${path}${query}` }
+  }
+  if (handle !== null) {
+    return { card: handle }
   }
   if (path === '/signed') {
     return 'signed'

@@ -1,6 +1,7 @@
 /** @jsxImportSource hono/jsx/dom */
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
+import { CardScreen } from './CardScreen.tsx'
 import { Landing } from './Landing.tsx'
 import { PrivateScreen } from './PrivateScreen.tsx'
 import { RightsList } from './RightsList.tsx'
@@ -25,11 +26,14 @@ export const App = (): JSX.Element => {
   if (route === 'rights') {
     return <RightsList />
   }
-  if (route !== 'landing') {
-    // The gate cannot work from the apex (the api would reject its origin), so
-    // hand the browser to app.fuda.sh rather than render a screen that fails.
-    globalThis.location.replace(route.redirect)
-    return <div class="p-6">Taking you to the gate…</div>
+  if (route === 'landing') {
+    return <Landing />
   }
-  return <Landing />
+  if ('card' in route) {
+    return <CardScreen handle={route.card} />
+  }
+  // The gate cannot work from the apex (the api would reject its origin), so
+  // hand the browser to app.fuda.sh rather than render a screen that fails.
+  globalThis.location.replace(route.redirect)
+  return <div class="p-6">Taking you to the gate…</div>
 }

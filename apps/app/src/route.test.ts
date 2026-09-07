@@ -71,4 +71,28 @@ describe(routeFor, () => {
     const dev = 'http://localhost:5173'
     expect(routeFor(dev, '/signed', dev)).toBe('signed')
   })
+
+  // The card screen calls the api from the browser, so like /signed it may only
+  // render on the app origin; the apex hands it over with the query intact.
+  it('renders a venue card on the app origin and redirects it from the apex', () => {
+    expect(routeFor(APP, '/@wassie-coffee', APP)).toStrictEqual({ card: 'wassie-coffee' })
+    expect(routeFor(APP, '/@wassie-coffee/', APP)).toStrictEqual({ card: 'wassie-coffee' })
+    expect(routeFor(APEX, '/@wassie-coffee', APP)).toStrictEqual({
+      redirect: 'https://app.fuda.sh/@wassie-coffee',
+    })
+  })
+
+  it('carries a query string across the card redirect', () => {
+    expect(routeFor(APEX, '/@wassie-coffee?ref=poster', APP)).toStrictEqual({
+      redirect: 'https://app.fuda.sh/@wassie-coffee?ref=poster',
+    })
+    expect(routeFor(APP, '/@wassie-coffee?ref=poster', APP)).toStrictEqual({ card: 'wassie-coffee' })
+  })
+
+  it('sends an invalid or reserved handle to the landing rather than into a redirect', () => {
+    expect(routeFor(APP, '/@Wassie Coffee', APP)).toBe('landing')
+    expect(routeFor(APEX, '/@www', APP)).toBe('landing')
+    expect(routeFor(APP, '/@', APP)).toBe('landing')
+    expect(routeFor(APP, '/@wassie-coffee/extra', APP)).toBe('landing')
+  })
 })

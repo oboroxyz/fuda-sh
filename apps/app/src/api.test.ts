@@ -1,7 +1,15 @@
 import type { Hex, VerifyResponse } from '@fuda/sdk'
 import { describe, expect, it, vi } from 'vitest'
 
-import { challenge, verifySigned, verifyUid } from './api.ts'
+import {
+  cardFailureOf,
+  challenge,
+  fetchCard,
+  googleSaveUrl,
+  issueCard,
+  verifySigned,
+  verifyUid,
+} from './api.ts'
 
 const UID: Hex = `0x${'ab'.repeat(32)}`
 const NONCE: Hex = `0x${'cd'.repeat(16)}`
@@ -72,5 +80,80 @@ describe(verifyUid, () => {
 
     await expect(verifyUid(UID)).resolves.toStrictEqual({ body, ok: true })
     expect(spy).toHaveBeenCalledWith(`http://localhost:8787/verify/${UID}`, { headers: {}, method: 'GET' })
+  })
+})
+
+describe(fetchCard, () => {
+  it('GETs the public card for a handle without a request body', async () => {
+    const body = {
+      brandColor: '#1D4ED8',
+      card: { category: 'membership', id: 'c1', perk: '', reward: '', title: 'Regular', validityDays: null },
+      handle: 'wassie-coffee',
+      name: 'Wassie Coffee',
+      tagline: '',
+    }
+    const spy = stubFetch(() => json(body, 200))
+
+    await expect(fetchCard('wassie-coffee')).resolves.toStrictEqual({ body, ok: true })
+    expect(spy).toHaveBeenCalledWith('http://localhost:8787/issuers/wassie-coffee', {
+      headers: {},
+      method: 'GET',
+    })
+  })
+
+  it('reports an unknown handle as not_found', async () => {
+    stubFetch(() => json({ error: 'not_found' }, 404))
+
+    await expect(fetchCard('nobody')).resolves.toStrictEqual({
+      error: 'not_found',
+      network: false,
+      ok: false,
+      status: 404,
+    })
+  })
+})
+
+describe(issueCard, () => {
+  it('POSTs the self-serve issue without a body', async () => {
+    const spy = stubFetch(() => json({ uid: UID }, 200))
+
+    await expect(issueCard('wassie-coffee')).resolves.toStrictEqual({ body: { uid: UID }, ok: true })
+    expect(spy).toHaveBeenCalledWith('http://localhost:8787/issuers/wassie-coffee/issue', {
+      headers: {},
+      method: 'POST',
+    })
+  })
+
+  it('keeps the 429 rate_limited code from the api', async () => {
+    stubFetch(() => json({ error: 'rate_limited' }, 429))
+
+    await expect(issueCard('wassie-coffee')).resolves.toStrictEqual({
+      error: 'rate_limited',
+      network: false,
+      ok: false,
+      status: 429,
+    })
+  })
+})
+
+describe(cardFailureOf, () => {
+  it('maps the api status to the card failure, telling 501 and 502 apart', () => {
+    expect(cardFailureOf({ error: 'not_found', status: 404 })).toBe('not_found')
+    expect(cardFailureOf({ error: 'rate_limited', status: 429 })).toBe('rate_limited')
+    expect(cardFailureOf({ error: 'api 501', status: 501 })).toBe('no_signer')
+    expect(cardFailureOf({ error: 'api 502', status: 502 })).toBe('chain_error')
+    expect(cardFailureOf({ error: 'fetch failed', status: 0 })).toBe('network')
+  })
+})
+
+describe(googleSaveUrl, () => {
+  it('returns the save link on 200 and null on 501 google_not_configured', async () => {
+    stubFetch(() => json({ saveUrl: 'https://pay.google.com/gp/v/save' }, 200))
+    await expect(googleSaveUrl('http://localhost:8787/pass/x/google')).resolves.toBe(
+      'https://pay.google.com/gp/v/save',
+    )
+
+    stubFetch(() => json({ error: 'google_not_configured' }, 501))
+    await expect(googleSaveUrl('http://localhost:8787/pass/x/google')).resolves.toBeNull()
   })
 })
