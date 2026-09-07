@@ -33,6 +33,7 @@ export const submitClaim = async (voucher: ClaimVoucher): Promise<Hex> => {
     chainId: ENS_CHAIN_ID,
     data: claimCallData(voucher),
     from,
+    paymasterUrl: ENS_PAYMASTER_URL,
     to: voucher.registrar,
   })
 }

@@ -120,25 +120,32 @@ const waitForCall = async (p: Eip1193Provider, id: string): Promise<Hex> => {
 // EIP-5792. The wallet bundles the call, the paymaster pays for it, and the
 // receipt comes back through `wallet_getCallsStatus`; `eth_sendTransaction`
 // would work too but would not wait for the bundle to settle.
+//
+// The capability is attached here rather than left to `paymasterUrls`: the SDK
+// injects it on the path it builds itself, and this request goes to the
+// provider directly. Sending it twice is harmless; not sending it at all means
+// the wallet asks a venue owner for gas they do not have. The envelope matches
+// the SDK's own shape (`version: '1.0'`, `atomicRequired`) rather than guessing
+// what the popup accepts.
 export const sendSponsoredCall = async (
   p: Eip1193Provider,
-  input: { chainId: number; data: Hex; from: Hex; to: Hex },
+  input: { chainId: number; data: Hex; from: Hex; paymasterUrl: string; to: Hex },
 ): Promise<Hex> => {
   await p.request({
     method: 'wallet_switchEthereumChain',
     params: [{ chainId: toChainIdHex(input.chainId) }],
   })
-  const id = await p.request({
-    method: 'wallet_sendCalls',
-    params: [
-      {
-        atomicRequired: true,
-        calls: [{ data: input.data, to: input.to, value: '0x0' }],
-        chainId: toChainIdHex(input.chainId),
-        from: input.from,
-        version: '2.0.0',
-      },
-    ],
-  })
+  const call = {
+    atomicRequired: true,
+    calls: [{ data: input.data, to: input.to, value: '0x0' }],
+    chainId: toChainIdHex(input.chainId),
+    from: input.from,
+    version: '1.0',
+  }
+  const params =
+    input.paymasterUrl === ''
+      ? [call]
+      : [{ ...call, capabilities: { paymasterService: { url: input.paymasterUrl } } }]
+  const id = await p.request({ method: 'wallet_sendCalls', params })
   return await waitForCall(p, callBundleId(id))
 }

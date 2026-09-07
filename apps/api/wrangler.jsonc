@@ -70,6 +70,8 @@
     // policy id is filled and the three ENS_* secrets are set, so an empty
     // string here is the deployment's own off switch, not a placeholder that
     // fails at a worse moment (docs/specs/ens-naming.md).
+    "ENS_PARENT_NAME": "fuda.eth",
+    "ENS_RESOLVER_ADDRESSES": "0x133e6eeb3eAf0F804FbB9c1536AcA090B36A93AB",
     "ENS_REGISTRAR_ADDRESS": "0x58AF04ff5e6DAB45ECD17bD38fC4f4BBa45778B9",
     "ENS_GAS_POLICY_ID": "",
   },

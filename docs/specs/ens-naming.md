@@ -76,13 +76,20 @@ The `ens_names` mirror is written in exactly three places:
 | When | Row |
 | --- | --- |
 | a claim voucher is signed, and again when the claim is confirmed | the issuer's own name, `voucher_issued` then `claimed` |
-| a right is issued under a venue | `<member-no>.<issuer>.fuda.eth`, `offchain`, holding the holder's address or — for a +Private right — the stealth meta-address the gateway derives from |
+| a right is issued under a venue | `<member-no>.<issuer>.fuda.eth`, `offchain`, holding the holder's address |
 | a right is revoked | that member name moves to `unregistered`, and lookup stops answering on the same request |
 
 Only a generated member number becomes a label. The admin path accepts free text
 for `memberId`, and that text never reaches the ENS namespace. A mirror write
 never fails the operation that triggered it: a name is a convenience attached to
 a right, and the right is the product.
+
+A +Private right has no name yet. The mirror stores a stealth meta-address in
+place of a holder — that column is what the gateway's one-time derivation reads
+— but the only path that issues a level-2 right is the admin one, which belongs
+to no venue and so has no issuer label to hang a member name under. Giving a
++Private right a name means issuing it under a venue with a generated member
+number; nothing does that today.
 
 ## Deployment namespace
 

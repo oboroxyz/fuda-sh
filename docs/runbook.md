@@ -328,6 +328,11 @@ are 401ing everything; `open` means no token and neither binding is set, so the
 admin routes are unauthenticated. Both are fail states in production, not
 acceptable resting states (see `apps/api/src/middleware/admin-auth.ts`).
 
+`locked` stops the admin token, not a venue: `/members` and `/revoke` resolve a
+passkey session first, so a signed-in operator still reaches their own members
+either way. That is the point of the scoping — a venue's access does not depend
+on fuda's deployment secret.
+
 ```bash
 API_URL=https://api.fuda.sh ADMIN_TOKEN=… \
   pnpm --filter api smoke:live --ladder bearer,signed,card

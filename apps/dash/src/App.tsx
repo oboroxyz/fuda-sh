@@ -26,7 +26,7 @@ import { hasIssuer, signedOutSession, unauthorizedSession } from './app-state.ts
 import type { SessionState } from './app-state.ts'
 import type { CreateFailure, DesignerForm, DesignerMode } from './card-designer.ts'
 import { CardDesigner } from './CardDesigner.tsx'
-import { API_BASE_URL, GRAPH_RIGHTS_ENDPOINT } from './config.ts'
+import { API_BASE_URL, ENS_PAYMASTER_URL, GRAPH_RIGHTS_ENDPOINT } from './config.ts'
 import { DASH_COPY } from './copy.ts'
 import type { DashCopy } from './copy.ts'
 import { DashboardShell } from './DashboardShell.tsx'
@@ -381,7 +381,7 @@ export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Eleme
         challenge: signInChallenge,
         issuerMe,
         personalSign,
-        provider: baseAccountProvider,
+        provider: async () => await baseAccountProvider(ENS_PAYMASTER_URL),
         requestAccount,
         verify: signInVerify,
       })
