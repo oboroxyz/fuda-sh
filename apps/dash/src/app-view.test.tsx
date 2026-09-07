@@ -78,6 +78,7 @@ const props: AppViewProps = {
   copy: DASH_COPY.en,
   createFailure: null,
   creating: false,
+  ens: null,
   graphEndpoint: 'https://index.example/rights',
   members,
   onCheckHandle: vi.fn<AppViewProps['onCheckHandle']>(),

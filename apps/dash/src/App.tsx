@@ -10,6 +10,8 @@ import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 import {
   checkCardSlug,
   checkHandle,
+  claimVoucher,
+  confirmEnsClaim,
   issueRight,
   issuerMe,
   listMembers,
@@ -28,6 +30,10 @@ import { API_BASE_URL, GRAPH_RIGHTS_ENDPOINT } from './config.ts'
 import { DASH_COPY } from './copy.ts'
 import type { DashCopy } from './copy.ts'
 import { DashboardShell } from './DashboardShell.tsx'
+import { runClaim } from './ens-claim.ts'
+import type { ClaimState } from './ens-claim.ts'
+import { submitClaim } from './ens-submit.ts'
+import { EnsClaim } from './EnsClaim.tsx'
 import { IssueForm } from './IssueForm.tsx'
 import type { IssueFormProps } from './IssueForm.tsx'
 import type { LogoSet } from './logo.ts'
@@ -55,6 +61,9 @@ export interface AppProps {
 export interface AppViewProps {
   appearance: JSX.Element
   authError: 'unauthorized' | null
+  // The venue's ENS section, already rendered; null while this deployment has no
+  // ENS parent configured, in which case the dashboard says nothing about names.
+  ens: JSX.Element | null
   copy: DashCopy
   createFailure: CreateFailure | null
   creating: boolean
@@ -78,6 +87,7 @@ export interface AppViewProps {
 
 export const AppView = ({
   appearance,
+  ens,
   authError,
   copy,
   createFailure,
@@ -131,6 +141,7 @@ export const AppView = ({
           <PublishedCard
             cards={operator.cards}
             copy={copy.published}
+            ens={ens}
             issuer={operator.issuer}
             logoCopy={copy.logo}
             onAddCard={() => {
@@ -202,6 +213,7 @@ export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Eleme
   const [locale, updateLocale] = useState(getLocale)
   const [theme, setTheme] = useState(initialTheme)
   const [session, setSession] = useState<SessionState>(signedOutSession)
+  const [claimState, setClaimState] = useState<ClaimState>({ kind: 'unclaimed' })
   const [signingIn, setSigningIn] = useState(false)
   const [signInError, setSignInError] = useState<SignInFailure | null>(null)
   const [creating, setCreating] = useState(false)
@@ -333,6 +345,33 @@ export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Eleme
       />
     </div>
   )
+
+  // The venue's ENS claim. `ens` is null until /issuers/me says this deployment
+  // has a parent name, and the section is left out entirely in that case rather
+  // than offering a button that could only fail.
+  const ensName = session.operator?.ens?.name ?? null
+  const ensSection =
+    ensName === null || session.token === null ? null : (
+      <EnsClaim
+        copy={copy.ens}
+        name={ensName}
+        onClaim={() => {
+          const { token: sessionToken } = session
+          if (sessionToken === null) {
+            return
+          }
+          void runClaim(
+            {
+              confirmClaim: async (txHash) => await confirmEnsClaim(sessionToken, txHash),
+              requestVoucher: async () => await claimVoucher(sessionToken),
+              submitClaim,
+            },
+            setClaimState,
+          )
+        }}
+        state={claimState}
+      />
+    )
 
   const onPasskey = (): void => {
     setSignInError(null)
@@ -481,6 +520,7 @@ export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Eleme
           setRoute(nextRoute)
         }
       }}
+      ens={ensSection}
       onPasskey={onPasskey}
       onRevoke={async (uid) =>
         context === null
