@@ -212,15 +212,34 @@ contract FudaSubnameRegistrarTest {
     }
 
     // Break: a relayer can spend an issuer's voucher without their transaction.
-    function testRejectsNonIssuerCaller() public {
+    // Break: requiring the issuer to be the sender would force a venue owner to hold
+    // this chain's gas. The voucher signature is the whole authorization, so a relayed
+    // submission must land the name on the signed issuer and nowhere else.
+    function testRelayedClaimAndRenewLandOnTheSignedIssuer() public {
+        address relayer = VM.addr(0xfeed);
         bytes memory signature = _signature(CLAIM_TYPE, "coffee", 3_000, 0, 2_000, SIGNER_KEY);
-        (bool ok,) = address(registrar).call(abi.encodeCall(FudaSubnameRegistrar.claim, ("coffee", issuer, 3_000, 0, 2_000, signature)));
-        require(!ok, "third party claimed");
-        _claim("coffee", 3_000, 0);
+        VM.prank(relayer);
+        registrar.claim("coffee", issuer, 3_000, 0, 2_000, signature);
+        _assertEntry("coffee", issuer, 3_000);
+        require(registrar.nonces(issuer) == 1, "relayed claim did not consume the issuer nonce");
+        require(registrar.nonces(relayer) == 0, "relayed claim consumed the relayer nonce");
+
         signature = _signature(RENEW_TYPE, "coffee", 4_000, 1, 2_000, SIGNER_KEY);
-        (ok,) = address(registrar).call(abi.encodeCall(FudaSubnameRegistrar.renew, ("coffee", issuer, 4_000, 1, 2_000, signature)));
-        require(!ok, "third party renewed");
-        require(registrar.nonces(issuer) == 1, "unauthorized request spent nonce");
+        VM.prank(relayer);
+        registrar.renew("coffee", issuer, 4_000, 1, 2_000, signature);
+        _assertEntry("coffee", issuer, 4_000);
+    }
+
+    // Break: dropping the sender check must not weaken the renewal ownership rule —
+    // a relayer must not be able to renew a label the signed issuer no longer owns.
+    function testRelayedRenewStillRequiresTheSignedIssuerToOwnTheLabel() public {
+        _claim("coffee", 3_000, 0);
+        registry.replaceOwner(uint256(keccak256("coffee")), VM.addr(0xdead));
+        bytes memory signature = _signature(RENEW_TYPE, "coffee", 4_000, 1, 2_000, SIGNER_KEY);
+        VM.prank(VM.addr(0xfeed));
+        (bool ok,) = address(registrar).call(abi.encodeCall(FudaSubnameRegistrar.renew, ("coffee", issuer, 4_000, 1, 2_000, signature)));
+        require(!ok, "relayer renewed a label the issuer no longer owns");
+        require(registrar.nonces(issuer) == 1, "rejected renewal spent the nonce");
     }
 
     // Break: accepting noncanonical labels creates ambiguous or unresolvable names.

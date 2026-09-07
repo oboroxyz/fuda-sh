@@ -123,7 +123,11 @@ contract FudaSubnameRegistrar {
         uint64 deadline,
         bytes calldata signature
     ) private view {
-        if (msg.sender != issuer) revert Unauthorized();
+        // The sender is deliberately unconstrained. A venue owner holds no gas on this
+        // chain, so the transaction is sponsored or relayed; the voucher signature is
+        // the whole authorization and already binds label, issuer, expiry, nonce and
+        // deadline. Whoever submits it, the name lands on `issuer` and the nonce it
+        // spends is that issuer's, so a third party gains nothing by front-running one.
         if (nonce != nonces[issuer]) revert InvalidNonce();
         if (block.timestamp > deadline) revert VoucherExpired();
         if (block.timestamp >= expiry) revert InvalidExpiry();
