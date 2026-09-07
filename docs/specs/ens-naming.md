@@ -326,14 +326,18 @@ owner as its root principal, and that principal holds:
 
 | Power | Form | Meaning |
 | --- | --- | --- |
-| `SET_PARENT` | held directly | repoint the registry's parent |
-| `UPGRADE` | held directly, and its admin bit | replace the registry implementation |
-| `REGISTRAR`, `RENEW`, `UNREGISTER` | admin bit only | grant or revoke these roles for any address |
+| `SET_PARENT` | held directly | `setParent(address,string)` — repoint the registry's parent |
+| `UPGRADE` | held directly, and its admin bit | the registry proxy's upgrade role |
+| `REGISTRAR`, `RENEW`, `UNREGISTER` | admin bit only | `grantRootRoles` may assign them to any address |
 
-The parent owner therefore does not itself unregister an issuer entry, but it
-is one transaction away from being able to: it may grant `UNREGISTER` to any
-address, including itself. The guarantee is the separation of roles, not an
-absence of custody. fuda holds the root of its own issuer namespace, and
+The parent owner therefore does not itself unregister an issuer entry. It can
+give itself that power: `grantRootRoles` assigns `UNREGISTER` to any account,
+its own included. What the repository verifies stops there — the pinned
+minimal ABI surface has no unregister call, and the matching
+`ensdomains/contracts-v2` source is unpublished, so the steps after the grant
+are the deployment's, not this repository's. The guarantee is the separation
+of roles, not an absence of custody. fuda holds the root of its own issuer
+namespace, and
 [ADR 0007](../adr/0007-root-custody-of-the-issuer-registry.md) records why.
 
 The exact root bitmap is asserted at deployment and re-checked by the
@@ -373,8 +377,8 @@ address, so the member name, right, and history remain unchanged.
   right valid. Surfaces show the name and the delegation/right check as
   separate facts and fall back to the raw address when resolution fails.
 - **Revocation does not dark a claimed name.** A revoked delegation leaves the
-  issuer's claimed name resolving until expiry. Only the mirror-backed member
-  answers stop.
+  issuer's claimed name resolving until expiry. The mirror-backed member
+  answers are the only ones a revocation can stop.
 - **Not in the Gate path.** Admission never waits on ENS. Member names are
   never shown at the Gate, written to Entry logs, or included in
   announcements.

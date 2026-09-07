@@ -52,9 +52,11 @@ is not pre-granted to any operational key.
 
 ## Consequences
 
-- fuda can take any claimed issuer name dark: one transaction grants
-  `UNREGISTER`, a second unregisters. Venue names are not censorship-resistant
-  against fuda, and nothing in the system claims they are.
+- fuda can take any claimed issuer name dark. `grantRootRoles` assigns
+  `UNREGISTER` to any account, its own included; the unregister call itself is
+  outside the repository's pinned ABI surface, so the remaining steps belong
+  to the deployment. Venue names are not censorship-resistant against fuda,
+  and nothing in the system claims they are.
 - The separation that does hold is between roles, not between fuda and the
   registry. `FudaSubnameRegistrar` cannot revoke, so a compromised voucher
   signer cannot take names down.
