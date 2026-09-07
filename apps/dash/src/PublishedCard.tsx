@@ -4,7 +4,7 @@ import { cn } from 'cn'
 import { useEffect, useRef, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
-import { cardUrl, displayUrl } from './card-designer.ts'
+import { cardUrl, claimStateOf, displayUrl, formatInstant, validityStateOf } from './card-designer.ts'
 import type { DashCopy } from './copy.ts'
 import { QrBlock } from './QrBlock.tsx'
 
@@ -18,13 +18,34 @@ export interface PublishedCardViewProps {
   onCopy: (slug: string) => void
   onPrint: (slug: string) => void
   onShare: ((slug: string) => void) | null
+  // Unix seconds, only to word a closed card as "not open yet" or "closed";
+  // whether it is open at all is the api's `claimable`.
+  now: number
   // Non-null while one card's poster is printing; the other posters step aside.
   printSlug: string | null
   publicUrl: string
 }
 
+const instantOrEmpty = (seconds: number | null): string => (seconds === null ? '' : formatInstant(seconds))
+
+// One card's claim state and its validity, in plain words with the instants
+// filled in.
+const claimText = (copy: DashCopy['published'], card: CardView, now: number): string => {
+  const state = claimStateOf(card, now)
+  const key = state === 'closed' && card.claimUntil !== null ? 'closedSince' : state
+  return copy.claimStates[key]
+    .replace('{from}', instantOrEmpty(card.claimFrom))
+    .replace('{until}', instantOrEmpty(card.claimUntil))
+}
+
+const validityText = (copy: DashCopy['published'], card: CardView): string =>
+  copy.validityStates[validityStateOf(card)]
+    .replace('{days}', String(card.validityDays))
+    .replace('{from}', instantOrEmpty(card.validFrom))
+    .replace('{until}', instantOrEmpty(card.validUntil))
+
 const cardEntry = (props: PublishedCardViewProps, card: CardView): JSX.Element => {
-  const { copiedSlug, copy, issuer, onCopy, onPrint, onShare, printSlug } = props
+  const { copiedSlug, copy, issuer, now, onCopy, onPrint, onShare, printSlug } = props
   const url = cardUrl(props.publicUrl, card.slug)
   const asideForPrint = printSlug !== null && printSlug !== card.slug
   return (
@@ -35,6 +56,13 @@ const cardEntry = (props: PublishedCardViewProps, card: CardView): JSX.Element =
           <span>{card.category === 'ticket' ? 'TICKET' : 'MEMBER'}</span>
         </div>
         <strong>{card.title}</strong>
+      </div>
+
+      <div class="dash-no-print flex flex-wrap items-center gap-2 text-sm">
+        <span class={cn('badge', card.claimable ? 'badge-success' : 'badge-neutral')}>
+          {claimText(copy, card, now)}
+        </span>
+        <span class="badge badge-ghost">{validityText(copy, card)}</span>
       </div>
 
       <div class={cn('dash-print-target', asideForPrint && 'dash-no-print')}>
@@ -108,9 +136,10 @@ export const PublishedCardView = (props: PublishedCardViewProps): JSX.Element =>
 }
 
 const COPIED_MS = 2000
+const MS_PER_SECOND = 1000
 
 export const PublishedCard = (
-  props: Omit<PublishedCardViewProps, 'copiedSlug' | 'onCopy' | 'onPrint' | 'onShare' | 'printSlug'>,
+  props: Omit<PublishedCardViewProps, 'copiedSlug' | 'now' | 'onCopy' | 'onPrint' | 'onShare' | 'printSlug'>,
 ): JSX.Element => {
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null)
   const [printSlug, setPrintSlug] = useState<string | null>(null)
@@ -136,6 +165,7 @@ export const PublishedCard = (
     <PublishedCardView
       {...props}
       copiedSlug={copiedSlug}
+      now={Math.floor(Date.now() / MS_PER_SECOND)}
       onCopy={(slug) => {
         const run = async (): Promise<void> => {
           try {

@@ -50,9 +50,25 @@ export interface DashCopy {
     perkPlaceholder: string
     rewardLabel: string
     rewardPlaceholder: string
-    expiryLabel: string
-    expiryNone: string
     expiryDays: string
+    claimLabel: string
+    claimHint: string
+    claimFromLabel: string
+    claimUntilLabel: string
+    validityLabel: string
+    validityHint: string
+    validityModeLabel: string
+    validityNone: string
+    validityDaysMode: string
+    validityFixed: string
+    validityDaysLabel: string
+    validFromLabel: string
+    validUntilLabel: string
+    windowProblems: {
+      bothRules: string
+      claimOrder: string
+      validOrder: string
+    }
     lockScreenLabel: string
     lockScreenHint: string
     locationUnavailable: string
@@ -96,6 +112,20 @@ export interface DashCopy {
     copy: string
     copied: string
     hint: string
+    claimStates: {
+      closed: string
+      closedSince: string
+      notYet: string
+      open: string
+      openUntil: string
+    }
+    validityStates: {
+      days: string
+      fixed: string
+      from: string
+      never: string
+      until: string
+    }
   }
   overview: {
     title: string
@@ -262,9 +292,25 @@ export const DASH_COPY = {
       perkPlaceholder: 'Stamp card · 10 stamps',
       rewardLabel: 'Reward',
       rewardPlaceholder: 'Free drink of your choice',
-      expiryLabel: 'Expiry',
-      expiryNone: 'None',
       expiryDays: '{days} days',
+      claimLabel: 'Claim window',
+      claimHint: 'When the card is handed out. Leave both empty to keep it open.',
+      claimFromLabel: 'Opens',
+      claimUntilLabel: 'Closes',
+      validityLabel: 'Validity',
+      validityHint: 'How long the card stays valid once someone has it.',
+      validityModeLabel: 'Expires',
+      validityNone: 'Never',
+      validityDaysMode: 'Days after claiming',
+      validityFixed: 'On set dates',
+      validityDaysLabel: 'Valid for',
+      validFromLabel: 'Valid from',
+      validUntilLabel: 'Valid until',
+      windowProblems: {
+        bothRules: 'Pick one: days after claiming, or set dates. Not both.',
+        claimOrder: 'The claim window cannot close before it opens.',
+        validOrder: 'The validity cannot end before it starts.',
+      },
       lockScreenLabel: 'Lock screen',
       lockScreenHint: 'Show the card near the venue.',
       locationUnavailable: 'Location unavailable.',
@@ -308,6 +354,20 @@ export const DASH_COPY = {
       copy: 'Copy link',
       copied: 'Copied',
       hint: 'Anyone who scans gets a card — no app on their side either.',
+      claimStates: {
+        closed: 'Closed',
+        closedSince: 'Closed since {until}',
+        notYet: 'Opens {from}',
+        open: 'Open',
+        openUntil: 'Open until {until}',
+      },
+      validityStates: {
+        days: 'Valid {days} days after claiming',
+        fixed: 'Valid {from} – {until}',
+        from: 'Valid from {from}',
+        never: 'Does not expire',
+        until: 'Valid until {until}',
+      },
     },
     overview: {
       title: 'Overview',
@@ -471,9 +531,25 @@ export const DASH_COPY = {
       perkPlaceholder: 'スタンプカード · 10 個',
       rewardLabel: 'リワード',
       rewardPlaceholder: 'お好きなドリンク 1 杯無料',
-      expiryLabel: '有効期限',
-      expiryNone: 'なし',
       expiryDays: '{days} 日',
+      claimLabel: '受付期間',
+      claimHint: 'カードを受け取れる期間です。両方とも空欄なら、いつでも受け取れます。',
+      claimFromLabel: '受付開始',
+      claimUntilLabel: '受付締切',
+      validityLabel: '有効期間',
+      validityHint: '受け取ったカードが使える期間です。',
+      validityModeLabel: '期限の決め方',
+      validityNone: '期限なし',
+      validityDaysMode: '受け取ってから◯日',
+      validityFixed: '日時を指定',
+      validityDaysLabel: '有効な日数',
+      validFromLabel: '開始日時',
+      validUntilLabel: '終了日時',
+      windowProblems: {
+        bothRules: '日数か日時のどちらか一方で決めてください。',
+        claimOrder: '受付締切は受付開始より後にしてください。',
+        validOrder: '終了日時は開始日時より後にしてください。',
+      },
       lockScreenLabel: 'ロック画面',
       lockScreenHint: '店舗の近くでカードを表示します。',
       locationUnavailable: '位置情報を取得できませんでした。',
@@ -517,6 +593,20 @@ export const DASH_COPY = {
       copy: 'リンクをコピー',
       copied: 'コピーしました',
       hint: 'スキャンした人は誰でもカードを受け取れます。相手にもアプリは要りません。',
+      claimStates: {
+        closed: '受付終了',
+        closedSince: '{until} に受付終了',
+        notYet: '{from} から受付',
+        open: '受付中',
+        openUntil: '{until} まで受付',
+      },
+      validityStates: {
+        days: '受け取ってから {days} 日間有効',
+        fixed: '{from} 〜 {until} に有効',
+        from: '{from} から有効',
+        never: '期限なし',
+        until: '{until} まで有効',
+      },
     },
     overview: {
       title: '概要',

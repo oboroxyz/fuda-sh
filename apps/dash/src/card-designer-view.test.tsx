@@ -2,7 +2,7 @@
 import type { CardView, IssuerView } from '@fuda/sdk'
 import { describe, expect, it, vi } from 'vitest'
 
-import { EMPTY_FORM } from './card-designer.ts'
+import { EMPTY_FORM, formatInstant, withCategory } from './card-designer.ts'
 import type { DesignerForm } from './card-designer.ts'
 import { CardDesignerView } from './CardDesigner.tsx'
 import type { CardDesignerViewProps } from './CardDesigner.tsx'
@@ -26,11 +26,15 @@ const designer = (overrides: Partial<CardDesignerViewProps> = {}): CardDesignerV
   form: filled,
   locationDenied: false,
   mode: 'venue',
+  onCategory: vi.fn<CardDesignerViewProps['onCategory']>(),
   onField: vi.fn<CardDesignerViewProps['onField']>(),
   onLockScreen: vi.fn<CardDesignerViewProps['onLockScreen']>(),
   onSlug: vi.fn<CardDesignerViewProps['onSlug']>(),
   onSubmit: vi.fn<CardDesignerViewProps['onSubmit']>(),
   onTitle: vi.fn<CardDesignerViewProps['onTitle']>(),
+  onValidityDays: vi.fn<CardDesignerViewProps['onValidityDays']>(),
+  onValidityMode: vi.fn<CardDesignerViewProps['onValidityMode']>(),
+  onWindow: vi.fn<CardDesignerViewProps['onWindow']>(),
   status: { handle: 'available', slug: 'available' },
   ...overrides,
 })
@@ -106,6 +110,37 @@ describe(CardDesignerView, () => {
     expect(submitOf(designer({ ...card, form: { ...EMPTY_FORM, handle: '', slug: '' } }))).toBe(true)
   })
 
+  it('asks for both ends of the claim window as optional instants', () => {
+    const view = designer()
+    expect(viewText(CardDesignerView(view))).toContain('Claim window')
+    expect(viewText(CardDesignerView(view))).toContain('Leave both empty')
+    expect(inputWithId(view, 'claim-from')).toBe(true)
+    expect(inputWithId(view, 'claim-until')).toBe(true)
+  })
+
+  it('shows only the chosen validity rule and hides the other', () => {
+    const none = designer()
+    const days = designer({ form: { ...filled, validityDays: 30, validityMode: 'days' } })
+    const fixed = designer({ form: withCategory(filled, 'ticket') })
+    expect(inputWithId(none, 'validity-days')).toBe(false)
+    expect(inputWithId(days, 'validity-days')).toBe(true)
+    expect(inputWithId(days, 'valid-until')).toBe(false)
+    expect(inputWithId(fixed, 'valid-from')).toBe(true)
+    expect(inputWithId(fixed, 'valid-until')).toBe(true)
+  })
+
+  it('refuses an inverted window or two validity rules and says why', () => {
+    const inverted = designer({
+      form: { ...filled, claimFrom: '2026-09-04T22:00', claimUntil: '2026-09-04T19:00' },
+    })
+    const both = designer({ form: { ...filled, validUntil: '2026-09-04T22:00', validityDays: 30 } })
+    expect(submitOf(inverted)).toBe(true)
+    expect(viewText(CardDesignerView(inverted))).toContain('cannot close before it opens')
+    expect(submitOf(both)).toBe(true)
+    expect(viewText(CardDesignerView(both))).toContain('Pick one')
+    expect(viewText(CardDesignerView(designer()))).not.toContain('Pick one')
+  })
+
   it('reports a denied location, a taken link and a taken card link', () => {
     expect(viewText(CardDesignerView(designer({ locationDenied: true })))).toContain('Location unavailable.')
     expect(viewText(CardDesignerView(designer({ failure: 'taken' })))).toContain(
@@ -165,6 +200,7 @@ const published = (overrides: Partial<PublishedCardViewProps> = {}): PublishedCa
   copiedSlug: null,
   copy: DASH_COPY.en.published,
   issuer,
+  now: 1_757_000_000,
   onAddCard: vi.fn<() => void>(),
   onCopy: vi.fn<PublishedCardViewProps['onCopy']>(),
   onPrint: vi.fn<PublishedCardViewProps['onPrint']>(),
@@ -222,6 +258,24 @@ describe(PublishedCardView, () => {
     expect(text).toContain('Copied')
     expect(text).toContain('Copy link')
     expect(viewText(PublishedCardView(published()))).not.toContain('Copied')
+  })
+
+  it('marks a card that is no longer handed out and says when it closed', () => {
+    const closed: CardView = { ...summer, claimUntil: 1_757_000_000, claimable: false }
+    const text = viewText(PublishedCardView(published({ cards: [closed] })))
+    expect(text).toContain('Closed since')
+    expect(text).toContain(formatInstant(1_757_000_000))
+    expect(text).toContain('Valid 30 days after claiming')
+    expect(viewText(PublishedCardView(published()))).not.toContain('Closed')
+  })
+
+  it('says when a card opens later, closes later, and how long it stays valid', () => {
+    const later: CardView = { ...membership, claimFrom: 1_800_000_000, claimable: false }
+    expect(viewText(PublishedCardView(published({ cards: [later] })))).toContain(
+      `Opens ${formatInstant(1_800_000_000)}`,
+    )
+    expect(viewText(PublishedCardView(published({ cards: [summer] })))).toContain('Valid 30 days')
+    expect(viewText(PublishedCardView(published()))).toContain('Does not expire')
   })
 
   it('narrows the poster to one card while that card is printing', () => {

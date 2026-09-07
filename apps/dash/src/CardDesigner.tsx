@@ -8,11 +8,16 @@ import {
   BRAND_SWATCHES,
   canSubmit,
   EMPTY_FORM,
-  EXPIRY_CHOICES,
+  EXPIRY_DAY_CHOICES,
   handleStatusOf,
   slugStatusOf,
+  windowProblemOf,
+  withCategory,
   withSlug,
   withTitle,
+  withValidityDays,
+  withValidityMode,
+  withWindow,
 } from './card-designer.ts'
 import type {
   CreateFailure,
@@ -21,6 +26,8 @@ import type {
   DesignerStatus,
   ExpiryChoice,
   FieldStatus,
+  ValidityMode,
+  WindowField,
 } from './card-designer.ts'
 import type { DashCopy } from './copy.ts'
 
@@ -33,21 +40,161 @@ export interface CardDesignerViewProps {
   // 'card' adds one more card to a venue that already exists, so its fields
   // are not asked for again.
   mode: DesignerMode
+  onCategory: (category: CardCategory) => void
   onField: <K extends keyof DesignerForm>(key: K, value: DesignerForm[K]) => void
   onLockScreen: (on: boolean) => void
   onSlug: (slug: string) => void
   onSubmit: () => void
   onTitle: (title: string) => void
+  onValidityDays: (days: ExpiryChoice) => void
+  onValidityMode: (mode: ValidityMode) => void
+  onWindow: (field: WindowField, value: string) => void
   status: DesignerStatus
 }
 
-const expiryLabel = (copy: DashCopy['designer'], days: ExpiryChoice): string =>
-  days === null ? copy.expiryNone : copy.expiryDays.replace('{days}', String(days))
+const expiryLabel = (copy: DashCopy['designer'], days: number): string =>
+  copy.expiryDays.replace('{days}', String(days))
 
 // The select's values are the choices themselves, so an unexpected one — a
-// stale DOM, a translated build — means "no expiry" rather than a bad number.
+// stale DOM, a translated build — falls back to the shortest choice rather
+// than putting a bad number in the body.
 const expiryFromValue = (raw: string): ExpiryChoice =>
-  EXPIRY_CHOICES.find((choice) => choice !== null && String(choice) === raw) ?? null
+  EXPIRY_DAY_CHOICES.find((choice) => String(choice) === raw) ?? EXPIRY_DAY_CHOICES[0]
+
+const VALIDITY_MODES: readonly ValidityMode[] = ['none', 'days', 'fixed']
+
+const isValidityMode = (raw: string): raw is ValidityMode => VALIDITY_MODES.some((mode) => mode === raw)
+
+const validityModeLabel = (copy: DashCopy['designer'], mode: ValidityMode): string => {
+  if (mode === 'days') {
+    return copy.validityDaysMode
+  }
+  return mode === 'fixed' ? copy.validityFixed : copy.validityNone
+}
+
+// One optional instant. `datetime-local` shows the operator's own wall clock
+// and carries no timezone; `card-designer.ts` converts it through the local
+// `Date`, so an empty field means the end is unbounded.
+const datetimeField = (
+  id: string,
+  label: string,
+  value: string,
+  onValue: (next: string) => void,
+): JSX.Element => (
+  <div class="flex flex-col gap-1">
+    <label for={id}>{label}</label>
+    <input
+      class="input w-full"
+      id={id}
+      onInput={(e) => {
+        if (e.currentTarget instanceof HTMLInputElement) {
+          onValue(e.currentTarget.value)
+        }
+      }}
+      type="datetime-local"
+      value={value}
+    />
+  </div>
+)
+
+// The same two rules the schema checks, said in the operator's words; the
+// submit stays disabled while one of them holds.
+const windowAlert = (copy: DashCopy['designer'], form: DesignerForm): JSX.Element | null => {
+  const problem = windowProblemOf(form)
+  return problem === null ? null : (
+    <p class="text-error text-sm" role="alert">
+      {copy.windowProblems[problem]}
+    </p>
+  )
+}
+
+const claimSection = (
+  copy: DashCopy['designer'],
+  form: DesignerForm,
+  onWindow: CardDesignerViewProps['onWindow'],
+): JSX.Element => (
+  <fieldset class="fieldset border-base-300 rounded-box border p-4">
+    <legend class="fieldset-legend px-1 font-semibold">{copy.claimLabel}</legend>
+    <div class="grid gap-3 sm:grid-cols-2">
+      {datetimeField('claim-from', copy.claimFromLabel, form.claimFrom, (next) => {
+        onWindow('claimFrom', next)
+      })}
+      {datetimeField('claim-until', copy.claimUntilLabel, form.claimUntil, (next) => {
+        onWindow('claimUntil', next)
+      })}
+    </div>
+    <p class="mt-2 text-sm opacity-70">{copy.claimHint}</p>
+  </fieldset>
+)
+
+const validityDaysField = (
+  copy: DashCopy['designer'],
+  form: DesignerForm,
+  onValidityDays: CardDesignerViewProps['onValidityDays'],
+): JSX.Element => (
+  <div class="flex flex-col gap-1">
+    <label for="validity-days">{copy.validityDaysLabel}</label>
+    <select
+      class="select w-full"
+      id="validity-days"
+      onChange={(e) => {
+        if (e.currentTarget instanceof HTMLSelectElement) {
+          onValidityDays(expiryFromValue(e.currentTarget.value))
+        }
+      }}
+      value={form.validityDays === null ? '' : String(form.validityDays)}
+    >
+      {EXPIRY_DAY_CHOICES.map((days): JSX.Element => (
+        <option key={String(days)} value={String(days)}>
+          {expiryLabel(copy, days)}
+        </option>
+      ))}
+    </select>
+  </div>
+)
+
+const validitySection = (
+  copy: DashCopy['designer'],
+  form: DesignerForm,
+  onValidityDays: CardDesignerViewProps['onValidityDays'],
+  onValidityMode: CardDesignerViewProps['onValidityMode'],
+  onWindow: CardDesignerViewProps['onWindow'],
+): JSX.Element => (
+  <fieldset class="fieldset border-base-300 rounded-box border p-4">
+    <legend class="fieldset-legend px-1 font-semibold">{copy.validityLabel}</legend>
+    <div class="flex flex-col gap-1">
+      <label for="validity-mode">{copy.validityModeLabel}</label>
+      <select
+        class="select w-full"
+        id="validity-mode"
+        onChange={(e) => {
+          if (e.currentTarget instanceof HTMLSelectElement && isValidityMode(e.currentTarget.value)) {
+            onValidityMode(e.currentTarget.value)
+          }
+        }}
+        value={form.validityMode}
+      >
+        {VALIDITY_MODES.map((mode): JSX.Element => (
+          <option key={mode} value={mode}>
+            {validityModeLabel(copy, mode)}
+          </option>
+        ))}
+      </select>
+    </div>
+    {form.validityMode === 'days' ? validityDaysField(copy, form, onValidityDays) : null}
+    {form.validityMode === 'fixed' ? (
+      <div class="mt-3 grid gap-3 sm:grid-cols-2">
+        {datetimeField('valid-from', copy.validFromLabel, form.validFrom, (next) => {
+          onWindow('validFrom', next)
+        })}
+        {datetimeField('valid-until', copy.validUntilLabel, form.validUntil, (next) => {
+          onWindow('validUntil', next)
+        })}
+      </div>
+    ) : null}
+    <p class="mt-2 text-sm opacity-70">{copy.validityHint}</p>
+  </fieldset>
+)
 
 const statusLabel = (labels: DashCopy['designer']['handleStatus'], status: FieldStatus): string | null =>
   status === 'idle' ? null : labels[status]
@@ -190,11 +337,15 @@ export const CardDesignerView = ({
   form,
   locationDenied,
   mode,
+  onCategory,
   onField,
   onLockScreen,
   onSlug,
   onSubmit,
   onTitle,
+  onValidityDays,
+  onValidityMode,
+  onWindow,
   status,
 }: CardDesignerViewProps): JSX.Element => (
   <section class="flex max-w-2xl flex-col gap-5">
@@ -241,8 +392,7 @@ export const CardDesignerView = ({
           id="category"
           onChange={(e) => {
             if (e.currentTarget instanceof HTMLSelectElement) {
-              const next: CardCategory = e.currentTarget.value === 'ticket' ? 'ticket' : 'membership'
-              onField('category', next)
+              onCategory(e.currentTarget.value === 'ticket' ? 'ticket' : 'membership')
             }
           }}
           value={form.category}
@@ -259,25 +409,10 @@ export const CardDesignerView = ({
         onField('reward', next)
       })}
 
-      <div class="flex flex-col gap-1">
-        <label for="expiry">{copy.expiryLabel}</label>
-        <select
-          class="select w-full"
-          id="expiry"
-          onChange={(e) => {
-            if (e.currentTarget instanceof HTMLSelectElement) {
-              onField('validityDays', expiryFromValue(e.currentTarget.value))
-            }
-          }}
-          value={form.validityDays === null ? '' : String(form.validityDays)}
-        >
-          {EXPIRY_CHOICES.map((days): JSX.Element => (
-            <option key={String(days)} value={days === null ? '' : String(days)}>
-              {expiryLabel(copy, days)}
-            </option>
-          ))}
-        </select>
-      </div>
+      {claimSection(copy, form, onWindow)}
+      {validitySection(copy, form, onValidityDays, onValidityMode, onWindow)}
+
+      {windowAlert(copy, form)}
 
       <div class="flex flex-col gap-1">
         <label class="flex items-center gap-2" for="lock-screen">
@@ -420,6 +555,9 @@ export const CardDesigner = ({
       locationDenied={locationDenied}
       mode={mode}
       onField={onField}
+      onCategory={(next) => {
+        setForm((current) => withCategory(current, next))
+      }}
       onLockScreen={onLockScreen}
       onSlug={(next) => {
         setForm((current) => withSlug(current, next))
@@ -429,6 +567,15 @@ export const CardDesigner = ({
       }}
       onTitle={(next) => {
         setForm((current) => withTitle(current, next))
+      }}
+      onValidityDays={(next) => {
+        setForm((current) => withValidityDays(current, next))
+      }}
+      onValidityMode={(next) => {
+        setForm((current) => withValidityMode(current, next))
+      }}
+      onWindow={(field, next) => {
+        setForm((current) => withWindow(current, field, next))
       }}
       status={{ handle: handleStatus, slug: slugStatus }}
     />
