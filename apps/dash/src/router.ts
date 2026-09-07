@@ -14,7 +14,7 @@ export const surfaceOf = (route: DashRoute): DashSurface =>
   OPERATOR_ROUTES.includes(route) ? 'operator' : 'admin'
 
 // Where a session belongs when it lands somewhere it cannot be: an operator
-// who already published goes to the card, one who has not to the designer.
+// with a venue goes to its cards, one without to the designer.
 export const homeFor = (surface: DashSurface, hasIssuer: boolean): DashRoute => {
   if (surface === 'admin') {
     return '/'
@@ -27,9 +27,7 @@ export const redirectFor = (route: DashRoute, surface: DashSurface, hasIssuer: b
   if (surfaceOf(route) !== surface) {
     return homeFor(surface, hasIssuer)
   }
-  if (surface === 'operator' && route === '/new' && hasIssuer) {
-    return '/published'
-  }
+  // `/new` stays open with a venue: it is how a second card is added.
   return surface === 'operator' && route === '/published' && !hasIssuer ? '/new' : null
 }
 

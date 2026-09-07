@@ -8,7 +8,7 @@ export interface SessionState {
   // The bearer credential for every api call: the admin token when `operator`
   // is null, otherwise the passkey session token from POST /auth/verify.
   token: string | null
-  // Non-null only for a passkey session; it carries the venue's own card.
+  // Non-null only for a passkey session; it carries the venue and its cards.
   operator: IssuerMeResponse | null
 }
 

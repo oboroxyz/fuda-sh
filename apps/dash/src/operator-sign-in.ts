@@ -66,6 +66,6 @@ export const signInWithPasskey = async (io: SignInIo): Promise<SignInOutcome> =>
   const me = await io.issuerMe(token)
   // The session is valid even when the follow-up read fails; the operator
   // simply starts on the designer, and /issuers rejects a duplicate anyway.
-  const issuer: IssuerMeResponse = me.ok ? me.body : { card: null, issuer: null, publicUrl: null }
+  const issuer: IssuerMeResponse = me.ok ? me.body : { cards: [], issuer: null, publicUrl: null }
   return { issuer, ok: true, token }
 }

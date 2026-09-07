@@ -50,9 +50,9 @@ describe(redirectFor, () => {
     expect(redirectFor('/rights', 'operator', true)).toBe('/published')
   })
 
-  it('sends an operator to the designer or the published card as the issuer requires', () => {
+  it('keeps the designer open for a second card and needs a venue for the card list', () => {
     expect(redirectFor('/new', 'operator', false)).toBeNull()
-    expect(redirectFor('/new', 'operator', true)).toBe('/published')
+    expect(redirectFor('/new', 'operator', true)).toBeNull()
     expect(redirectFor('/published', 'operator', false)).toBe('/new')
     expect(redirectFor('/published', 'operator', true)).toBeNull()
   })

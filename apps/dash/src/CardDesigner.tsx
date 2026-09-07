@@ -1,11 +1,27 @@
 /** @jsxImportSource hono/jsx/dom */
-import type { CardCategory } from '@fuda/sdk'
+import type { CardCategory, IssuerView } from '@fuda/sdk'
 import { cn } from 'cn'
 import { useCallback, useEffect, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
-import { BRAND_SWATCHES, canSubmit, EMPTY_FORM, EXPIRY_CHOICES, handleStatusOf } from './card-designer.ts'
-import type { CreateFailure, DesignerForm, ExpiryChoice, HandleStatus } from './card-designer.ts'
+import {
+  BRAND_SWATCHES,
+  canSubmit,
+  EMPTY_FORM,
+  EXPIRY_CHOICES,
+  handleStatusOf,
+  slugStatusOf,
+  withSlug,
+  withTitle,
+} from './card-designer.ts'
+import type {
+  CreateFailure,
+  DesignerForm,
+  DesignerMode,
+  DesignerStatus,
+  ExpiryChoice,
+  FieldStatus,
+} from './card-designer.ts'
 import type { DashCopy } from './copy.ts'
 
 export interface CardDesignerViewProps {
@@ -14,10 +30,15 @@ export interface CardDesignerViewProps {
   failure: CreateFailure | null
   form: DesignerForm
   locationDenied: boolean
+  // 'card' adds one more card to a venue that already exists, so its fields
+  // are not asked for again.
+  mode: DesignerMode
   onField: <K extends keyof DesignerForm>(key: K, value: DesignerForm[K]) => void
   onLockScreen: (on: boolean) => void
+  onSlug: (slug: string) => void
   onSubmit: () => void
-  status: HandleStatus
+  onTitle: (title: string) => void
+  status: DesignerStatus
 }
 
 const expiryLabel = (copy: DashCopy['designer'], days: ExpiryChoice): string =>
@@ -28,8 +49,8 @@ const expiryLabel = (copy: DashCopy['designer'], days: ExpiryChoice): string =>
 const expiryFromValue = (raw: string): ExpiryChoice =>
   EXPIRY_CHOICES.find((choice) => choice !== null && String(choice) === raw) ?? null
 
-const statusLabel = (copy: DashCopy['designer'], status: HandleStatus): string | null =>
-  status === 'idle' ? null : copy.handleStatus[status]
+const statusLabel = (labels: DashCopy['designer']['handleStatus'], status: FieldStatus): string | null =>
+  status === 'idle' ? null : labels[status]
 
 const preview = (copy: DashCopy['designer'], form: DesignerForm): JSX.Element => (
   <div class="dash-card-preview" style={{ background: form.brandColor }}>
@@ -63,6 +84,37 @@ const textField = (
       type="text"
       value={value}
     />
+  </div>
+)
+
+// A name typed under a fixed prefix, with the rule's verdict under it.
+const prefixedField = (
+  id: string,
+  label: string,
+  prefix: string,
+  value: string,
+  placeholder: string,
+  hint: string | null,
+  onValue: (next: string) => void,
+): JSX.Element => (
+  <div class="flex flex-col gap-1">
+    <label for={id}>{label}</label>
+    <div class="flex items-center gap-2">
+      <span class="opacity-70">{prefix}</span>
+      <input
+        class="input min-w-0 flex-1"
+        id={id}
+        onInput={(e) => {
+          if (e.currentTarget instanceof HTMLInputElement) {
+            onValue(e.currentTarget.value)
+          }
+        }}
+        placeholder={placeholder}
+        type="text"
+        value={value}
+      />
+    </div>
+    {hint === null ? null : <span class="text-sm opacity-70">{hint}</span>}
   </div>
 )
 
@@ -102,15 +154,47 @@ const swatches = (
   </div>
 )
 
+// The venue's own fields, asked for only while the venue does not exist yet.
+const venueFields = (
+  copy: DashCopy['designer'],
+  form: DesignerForm,
+  status: FieldStatus,
+  onField: CardDesignerViewProps['onField'],
+): JSX.Element => (
+  <div class="flex flex-col gap-4">
+    {prefixedField(
+      'handle',
+      copy.handleLabel,
+      copy.handlePrefix,
+      form.handle,
+      copy.handlePlaceholder,
+      statusLabel(copy.handleStatus, status),
+      (next) => {
+        onField('handle', next)
+      },
+    )}
+    {textField('venue-name', copy.nameLabel, form.name, copy.namePlaceholder, (next) => {
+      onField('name', next)
+    })}
+    {textField('tagline', copy.taglineLabel, form.tagline, copy.taglinePlaceholder, (next) => {
+      onField('tagline', next)
+    })}
+    {swatches(copy, form, onField)}
+  </div>
+)
+
 export const CardDesignerView = ({
   busy,
   copy,
   failure,
   form,
   locationDenied,
+  mode,
   onField,
   onLockScreen,
+  onSlug,
   onSubmit,
+  onTitle,
   status,
 }: CardDesignerViewProps): JSX.Element => (
   <section class="flex max-w-2xl flex-col gap-5">
@@ -137,39 +221,18 @@ export const CardDesignerView = ({
         onSubmit()
       }}
     >
-      <div class="flex flex-col gap-1">
-        <label for="handle">{copy.handleLabel}</label>
-        <div class="flex items-center gap-2">
-          <span class="opacity-70">{copy.handlePrefix}</span>
-          <input
-            class="input min-w-0 flex-1"
-            id="handle"
-            onInput={(e) => {
-              if (e.currentTarget instanceof HTMLInputElement) {
-                onField('handle', e.currentTarget.value)
-              }
-            }}
-            placeholder={copy.handlePlaceholder}
-            type="text"
-            value={form.handle}
-          />
-        </div>
-        {statusLabel(copy, status) === null ? null : (
-          <span class="text-sm opacity-70">{statusLabel(copy, status)}</span>
-        )}
-      </div>
+      {mode === 'venue' ? venueFields(copy, form, status.handle, onField) : null}
 
-      {textField('venue-name', copy.nameLabel, form.name, copy.namePlaceholder, (next) => {
-        onField('name', next)
-      })}
-      {textField('card-title', copy.titleLabel, form.title, '', (next) => {
-        onField('title', next)
-      })}
-      {textField('tagline', copy.taglineLabel, form.tagline, copy.taglinePlaceholder, (next) => {
-        onField('tagline', next)
-      })}
-
-      {swatches(copy, form, onField)}
+      {textField('card-title', copy.titleLabel, form.title, '', onTitle)}
+      {prefixedField(
+        'card-slug',
+        copy.slugLabel,
+        `${copy.handlePrefix}${form.handle}/`,
+        form.slug,
+        copy.slugPlaceholder,
+        statusLabel(copy.slugStatus, status.slug),
+        onSlug,
+      )}
 
       <div class="flex flex-col gap-1">
         <label for="category">{copy.categoryLabel}</label>
@@ -235,58 +298,96 @@ export const CardDesignerView = ({
         </span>
       </div>
 
-      <button class="btn btn-primary" disabled={!canSubmit(form, status, busy)} type="submit">
+      <button class="btn btn-primary" disabled={!canSubmit(mode, form, status, busy)} type="submit">
         {busy ? copy.submitting : copy.submit}
       </button>
     </form>
   </section>
 )
 
+export type NameCheck = (value: string) => Promise<'available' | 'taken' | 'unknown'>
+
 export interface CardDesignerProps {
   busy: boolean
   copy: DashCopy['designer']
   failure: CreateFailure | null
-  onCheckHandle: (handle: string) => Promise<'available' | 'taken' | 'unknown'>
-  onSubmit: (form: DesignerForm) => void
+  // The venue this operator already runs, when there is one.
+  issuer: IssuerView | null
+  onCheckHandle: NameCheck
+  onCheckSlug: NameCheck
+  onSubmit: (mode: DesignerMode, form: DesignerForm) => void
 }
 
 const GEOLOCATION_OPTIONS = { enableHighAccuracy: false, timeout: 8000 }
+const CHECK_DELAY_MS = 300
+
+type StatusSetter = (update: (current: FieldStatus) => FieldStatus) => void
+
+// The local rule decides first; only a well-formed, unreserved name is worth an
+// api round trip, and that one is debounced.
+const scheduleCheck = (
+  setStatus: StatusSetter,
+  local: FieldStatus,
+  value: string,
+  check: NameCheck,
+): (() => void) | undefined => {
+  setStatus(() => local)
+  if (local !== 'checking') {
+    return
+  }
+  const timer = setTimeout((): void => {
+    const run = async (): Promise<void> => {
+      const result = await check(value)
+      setStatus((current) => (current === 'checking' ? result : current))
+    }
+    void run()
+  }, CHECK_DELAY_MS)
+  return () => {
+    clearTimeout(timer)
+  }
+}
+
+const initialForm = (issuer: IssuerView | null): DesignerForm =>
+  issuer === null
+    ? EMPTY_FORM
+    : {
+        ...EMPTY_FORM,
+        brandColor: issuer.brandColor,
+        handle: issuer.handle,
+        name: issuer.name,
+        tagline: issuer.tagline,
+      }
 
 export const CardDesigner = ({
   busy,
   copy,
   failure,
+  issuer,
   onCheckHandle,
+  onCheckSlug,
   onSubmit,
 }: CardDesignerProps): JSX.Element => {
-  const [form, setForm] = useState<DesignerForm>(EMPTY_FORM)
-  const [status, setStatus] = useState<HandleStatus>('idle')
+  const mode: DesignerMode = issuer === null ? 'venue' : 'card'
+  const [form, setForm] = useState<DesignerForm>(() => initialForm(issuer))
+  const [handleStatus, setHandleStatus] = useState<FieldStatus>('idle')
+  const [slugStatus, setSlugStatus] = useState<FieldStatus>('idle')
   const [locationDenied, setLocationDenied] = useState(false)
 
   const onField = useCallback(<K extends keyof DesignerForm>(key: K, value: DesignerForm[K]): void => {
     setForm((current) => ({ ...current, [key]: value }))
   }, [])
 
-  // The local rule decides first; only a well-formed, unreserved handle is
-  // worth an api round trip, and that one is debounced.
-  const { handle } = form
+  const { handle, slug } = form
   useEffect(() => {
-    const local = handleStatusOf(handle)
-    setStatus(local)
-    if (local !== 'checking') {
+    // An existing venue's handle is settled; only a new one is checked.
+    if (mode === 'card') {
+      setHandleStatus('available')
       return
     }
-    const timer = setTimeout((): void => {
-      const check = async (): Promise<void> => {
-        const result = await onCheckHandle(handle)
-        setStatus((current) => (current === 'checking' ? result : current))
-      }
-      void check()
-    }, 300)
-    return () => {
-      clearTimeout(timer)
-    }
-  }, [handle, onCheckHandle])
+    return scheduleCheck(setHandleStatus, handleStatusOf(handle), handle, onCheckHandle)
+  }, [handle, mode, onCheckHandle])
+
+  useEffect(() => scheduleCheck(setSlugStatus, slugStatusOf(slug), slug, onCheckSlug), [onCheckSlug, slug])
 
   const onLockScreen = (on: boolean): void => {
     if (!on) {
@@ -317,12 +418,19 @@ export const CardDesigner = ({
       failure={failure}
       form={form}
       locationDenied={locationDenied}
+      mode={mode}
       onField={onField}
       onLockScreen={onLockScreen}
-      onSubmit={() => {
-        onSubmit(form)
+      onSlug={(next) => {
+        setForm((current) => withSlug(current, next))
       }}
-      status={status}
+      onSubmit={() => {
+        onSubmit(mode, form)
+      }}
+      onTitle={(next) => {
+        setForm((current) => withTitle(current, next))
+      }}
+      status={{ handle: handleStatus, slug: slugStatus }}
     />
   )
 }

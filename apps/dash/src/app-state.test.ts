@@ -3,12 +3,12 @@ import { describe, expect, it } from 'vitest'
 import { hasIssuer, signedOutSession, unauthorizedSession } from './app-state.ts'
 
 describe(unauthorizedSession, () => {
-  it('clears the token, the operator card and protected rows on 401', () => {
+  it('clears the token, the operator venue and protected rows on 401', () => {
     expect(
       unauthorizedSession({
         authError: null,
         members: { kind: 'ready', rows: [] },
-        operator: { card: null, issuer: null, publicUrl: null },
+        operator: { cards: [], issuer: null, publicUrl: null },
         token: 'secret',
       }),
     ).toStrictEqual({
@@ -21,10 +21,10 @@ describe(unauthorizedSession, () => {
 })
 
 describe(hasIssuer, () => {
-  it('is true only for an operator session that already published a card', () => {
+  it('is true only for an operator session that already has a venue', () => {
     expect(hasIssuer(signedOutSession())).toBe(false)
-    expect(
-      hasIssuer({ ...signedOutSession(), operator: { card: null, issuer: null, publicUrl: null } }),
-    ).toBe(false)
+    expect(hasIssuer({ ...signedOutSession(), operator: { cards: [], issuer: null, publicUrl: null } })).toBe(
+      false,
+    )
   })
 })

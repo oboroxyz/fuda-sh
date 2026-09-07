@@ -34,6 +34,8 @@ export interface DashCopy {
     handleLabel: string
     handlePrefix: string
     handlePlaceholder: string
+    slugLabel: string
+    slugPlaceholder: string
     nameLabel: string
     namePlaceholder: string
     titleLabel: string
@@ -64,11 +66,30 @@ export interface DashCopy {
       taken: string
       unknown: string
     }
-    failures: { input: string; network: string; session: string; taken: string }
+    slugStatus: {
+      available: string
+      checking: string
+      format: string
+      reserved: string
+      taken: string
+      unknown: string
+    }
+    failures: {
+      input: string
+      network: string
+      session: string
+      slugInvalid: string
+      slugTaken: string
+      taken: string
+    }
   }
   published: {
     title: string
+    titleMany: string
     description: string
+    descriptionMany: string
+    venueLabel: string
+    addCard: string
     qrLabel: string
     print: string
     share: string
@@ -197,7 +218,7 @@ export const DASH_COPY = {
       japanese: '日本語',
       theme: { control: 'Theme', light: 'Light', dark: 'Dark', system: 'System' },
     },
-    nav: { overview: 'Overview', rights: 'Rights', issue: 'Issue', newCard: 'New card', card: 'Your card' },
+    nav: { overview: 'Overview', rights: 'Rights', issue: 'Issue', newCard: 'New card', card: 'Your cards' },
     auth: {
       title: 'fuda. dashboard',
       description:
@@ -225,6 +246,8 @@ export const DASH_COPY = {
       handleLabel: 'Link',
       handlePrefix: 'fuda.sh/@',
       handlePlaceholder: 'wassie-coffee',
+      slugLabel: 'Card link',
+      slugPlaceholder: 'membership-card',
       nameLabel: 'Venue name',
       namePlaceholder: 'Wassie Coffee',
       titleLabel: 'Card title',
@@ -255,16 +278,30 @@ export const DASH_COPY = {
         taken: 'Already taken',
         unknown: 'Could not check this link.',
       },
+      slugStatus: {
+        available: 'Available',
+        checking: 'Checking…',
+        format: 'Use lowercase letters, digits and hyphens.',
+        reserved: 'This name is reserved.',
+        taken: 'Already used',
+        unknown: 'Could not check this link.',
+      },
       failures: {
         input: 'Some fields need a change before this card can be created.',
         network: 'Could not reach fuda. Check your connection and try again.',
         session: 'Your sign-in expired. Please sign in again.',
+        slugInvalid: 'That card link cannot be used. Pick another one.',
+        slugTaken: 'That card link is already used. Pick another one.',
         taken: 'That link is already taken. Pick another one.',
       },
     },
     published: {
       title: 'Your card is live',
+      titleMany: 'Your cards are live',
       description: 'One link is the whole sign-up. Print it, mail it, or post it.',
+      descriptionMany: 'Every card has its own link. Print it, mail it, or post it.',
+      venueLabel: 'Venue page',
+      addCard: 'Add another card',
       qrLabel: 'QR code for your card link',
       print: 'Print QR poster',
       share: 'Share link',
@@ -418,6 +455,8 @@ export const DASH_COPY = {
       handleLabel: 'リンク',
       handlePrefix: 'fuda.sh/@',
       handlePlaceholder: 'wassie-coffee',
+      slugLabel: 'カードのリンク',
+      slugPlaceholder: 'membership-card',
       nameLabel: '店舗名',
       namePlaceholder: 'Wassie Coffee',
       titleLabel: 'カード名',
@@ -448,16 +487,30 @@ export const DASH_COPY = {
         taken: 'すでに使われています',
         unknown: 'リンクを確認できませんでした。',
       },
+      slugStatus: {
+        available: '使えます',
+        checking: '確認中…',
+        format: '小文字の英字、数字、ハイフンが使えます。',
+        reserved: 'この名前は予約されています。',
+        taken: 'すでに使われています',
+        unknown: 'リンクを確認できませんでした。',
+      },
       failures: {
         input: '入力内容を確認してください。このままではカードを作成できません。',
         network: 'fuda に接続できませんでした。通信環境を確認して、もう一度お試しください。',
         session: 'サインインの有効期限が切れました。もう一度サインインしてください。',
+        slugInvalid: 'このカードのリンクは使えません。別の名前を選んでください。',
+        slugTaken: 'このカードのリンクはすでに使われています。別の名前を選んでください。',
         taken: 'このリンクはすでに使われています。別の名前を選んでください。',
       },
     },
     published: {
       title: 'カードを公開しました',
+      titleMany: '公開中のカード',
       description: 'このリンク 1 本が入会導線になります。印刷しても、送っても、投稿してもかまいません。',
+      descriptionMany: 'カードごとにリンクがあります。印刷しても、送っても、投稿してもかまいません。',
+      venueLabel: '店舗ページ',
+      addCard: 'カードを追加',
       qrLabel: 'カードのリンクの QR コード',
       print: 'QR ポスターを印刷',
       share: 'リンクを共有',

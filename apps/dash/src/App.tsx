@@ -1,13 +1,16 @@
 /** @jsxImportSource hono/jsx/dom */
 import { isLocale, pick } from '@fuda/i18n'
 import { getLocale, setLocale } from '@fuda/i18n/browser'
+import type { IssuerCreateResponse, IssuerMeResponse } from '@fuda/sdk'
 import { LanguageSwitcher, saveThemeMode, ThemeToggle, watchThemeMode } from '@fuda/ui'
 import type { ThemeMode } from '@fuda/ui'
 import { useCallback, useEffect, useRef, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import {
+  checkCardSlug,
   checkHandle,
+  createCard,
   createIssuer,
   issueRight,
   issuerMe,
@@ -17,12 +20,13 @@ import {
   signInVerify,
   signOut,
 } from './api.ts'
+import type { Result } from './api.ts'
 import { issueAndReload, revokeAndReload } from './app-actions.ts'
 import type { ActionContext, DashIo } from './app-actions.ts'
 import { hasIssuer, signedOutSession, unauthorizedSession } from './app-state.ts'
 import type { SessionState } from './app-state.ts'
-import { createBodyFrom, createFailureOf } from './card-designer.ts'
-import type { CreateFailure, DesignerForm } from './card-designer.ts'
+import { cardBodyFrom, createBodyFrom, createFailureOf } from './card-designer.ts'
+import type { CreateFailure, DesignerForm, DesignerMode } from './card-designer.ts'
 import { CardDesigner } from './CardDesigner.tsx'
 import { API_BASE_URL, GRAPH_RIGHTS_ENDPOINT } from './config.ts'
 import { DASH_COPY } from './copy.ts'
@@ -60,7 +64,8 @@ export interface AppViewProps {
   graphEndpoint: string
   members: MembersState
   onCheckHandle: (handle: string) => Promise<'available' | 'taken' | 'unknown'>
-  onCreate: (form: DesignerForm) => void
+  onCheckSlug: (slug: string) => Promise<'available' | 'taken' | 'unknown'>
+  onCreate: (mode: DesignerMode, form: DesignerForm) => void
   onIssue: IssueFormProps['onIssue']
   onNavigate: (route: DashRoute) => void
   onPasskey: () => void
@@ -82,6 +87,7 @@ export const AppView = ({
   graphEndpoint,
   members,
   onCheckHandle,
+  onCheckSlug,
   onCreate,
   onIssue,
   onNavigate,
@@ -116,17 +122,20 @@ export const AppView = ({
 
   const { operator } = session
   const surface = operator === null ? 'admin' : 'operator'
-  const published =
-    operator !== null && operator.issuer !== null && operator.card !== null && operator.publicUrl !== null
+  const published = operator !== null && operator.issuer !== null
 
   const page = (): JSX.Element => {
     if (operator !== null) {
-      if (operator.issuer !== null && operator.card !== null && operator.publicUrl !== null) {
+      // `/new` stays open once the venue exists: it is how a second card is added.
+      if (operator.issuer !== null && route !== '/new') {
         return (
           <PublishedCard
-            card={operator.card}
+            cards={operator.cards}
             copy={copy.published}
             issuer={operator.issuer}
+            onAddCard={() => {
+              onNavigate('/new')
+            }}
             publicUrl={operator.publicUrl}
           />
         )
@@ -136,7 +145,9 @@ export const AppView = ({
           busy={creating}
           copy={copy.designer}
           failure={createFailure}
+          issuer={operator.issuer}
           onCheckHandle={onCheckHandle}
+          onCheckSlug={onCheckSlug}
           onSubmit={onCreate}
         />
       )
@@ -170,6 +181,27 @@ export const AppView = ({
       {page()}
     </DashboardShell>
   )
+}
+
+// The venue after a create: the first card, or one more alongside the rest.
+const operatorWith = (current: IssuerMeResponse | null, created: IssuerCreateResponse): IssuerMeResponse => {
+  const existing = current !== null && current.issuer !== null ? current.cards : []
+  return { cards: [...existing, created.card], issuer: created.issuer, publicUrl: created.publicUrl }
+}
+
+// Which route the designer submits to; null when the form is not a valid body,
+// which the disabled submit already prevents.
+const submitDesign = async (
+  token: string,
+  mode: DesignerMode,
+  form: DesignerForm,
+): Promise<Result<IssuerCreateResponse> | null> => {
+  if (mode === 'card') {
+    const body = cardBodyFrom(form)
+    return body === null ? null : await createCard(token, body)
+  }
+  const body = createBodyFrom(form)
+  return body === null ? null : await createIssuer(token, body)
 }
 
 export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Element => {
@@ -366,17 +398,34 @@ export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Eleme
     [token],
   )
 
-  const onCreate = (form: DesignerForm): void => {
-    const body = createBodyFrom(form)
-    if (token === null || body === null) {
+  const onCheckSlug = useCallback(
+    async (slug: string): Promise<'available' | 'taken' | 'unknown'> => {
+      if (token === null) {
+        return 'unknown'
+      }
+      const result = await checkCardSlug(token, slug)
+      if (!result.ok) {
+        return 'unknown'
+      }
+      return result.body.available ? 'available' : 'taken'
+    },
+    [token],
+  )
+
+  const onCreate = (mode: DesignerMode, form: DesignerForm): void => {
+    if (token === null) {
       setCreateFailure('input')
       return
     }
     setCreateFailure(null)
     setCreating(true)
     const run = async (): Promise<void> => {
-      const result = await createIssuer(token, body)
+      const result = await submitDesign(token, mode, form)
       setCreating(false)
+      if (result === null) {
+        setCreateFailure('input')
+        return
+      }
       if (!result.ok) {
         const failure = createFailureOf(result.status, result.network, result.error)
         setCreateFailure(failure)
@@ -385,7 +434,7 @@ export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Eleme
         }
         return
       }
-      setSession((state) => ({ ...state, operator: result.body }))
+      setSession((state) => ({ ...state, operator: operatorWith(state.operator, result.body) }))
       navigateTo(history, '/published')
       setRoute('/published')
     }
@@ -402,6 +451,7 @@ export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Eleme
       graphEndpoint={GRAPH_RIGHTS_ENDPOINT}
       members={session.members}
       onCheckHandle={onCheckHandle}
+      onCheckSlug={onCheckSlug}
       onCreate={onCreate}
       onIssue={async (body) =>
         context === null

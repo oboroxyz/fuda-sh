@@ -72,7 +72,10 @@ const navigationItems = (copy: DashCopy, surface: DashSurface, hasIssuer: boolea
     ]
   }
   return hasIssuer
-    ? [{ label: copy.nav.card, route: '/published' }]
+    ? [
+        { label: copy.nav.card, route: '/published' },
+        { label: copy.nav.newCard, route: '/new' },
+      ]
     : [{ label: copy.nav.newCard, route: '/new' }]
 }
 

@@ -1,4 +1,6 @@
 import type {
+  CardCheckResponse,
+  CardRequest,
   HandleCheckResponse,
   Hex,
   IssuerCreateRequest,
@@ -70,11 +72,24 @@ export const checkHandle = async (token: string, handle: string): Promise<Result
     token,
   })
 
+export const checkCardSlug = async (token: string, slug: string): Promise<Result<CardCheckResponse>> =>
+  await apiFetch<CardCheckResponse>(API_BASE_URL, `/issuers/cards/check?slug=${encodeURIComponent(slug)}`, {
+    token,
+  })
+
 export const createIssuer = async (
   token: string,
   body: IssuerCreateRequest,
 ): Promise<Result<IssuerCreateResponse>> =>
   await apiFetch<IssuerCreateResponse>(API_BASE_URL, '/issuers', {
+    body: JSON.stringify(body),
+    method: 'POST',
+    token,
+  })
+
+// One more card for the venue this session already owns.
+export const createCard = async (token: string, body: CardRequest): Promise<Result<IssuerCreateResponse>> =>
+  await apiFetch<IssuerCreateResponse>(API_BASE_URL, '/issuers/cards', {
     body: JSON.stringify(body),
     method: 'POST',
     token,

@@ -62,8 +62,25 @@ const shell = (route: '/' | '/rights' | '/issue' = '/'): JSX.Element => {
 
 const linksIn = (node: unknown) => findViewNodes(node, 'a')
 
+const operatorShell = (hasIssuer: boolean): JSX.Element => {
+  hooks.index = 0
+  return DashboardShell({
+    appearance: <div />,
+    children: <section>page</section>,
+    copy: pick(DASH_COPY, 'en'),
+    hasIssuer,
+    onNavigate: (): void => {},
+    onSignOut: null,
+    route: '/published',
+    surface: 'operator' as const,
+  })
+}
+
 const linkWithPath = (node: unknown, path: string) =>
   linksIn(node).find((link) => viewProps(link).href === path)
+
+const navPaths = (view: JSX.Element): string[] =>
+  linksIn(findViewNodes(view, 'aside')[0]).map((link) => String(viewProps(link).href))
 
 const openDrawer = (view: JSX.Element): void => {
   const openMenu = walkView(view).find((node) => node.props['aria-label'] === 'Open menu')!
@@ -96,6 +113,11 @@ describe('dashboard shell', () => {
     ).toStrictEqual(['Overview', 'Overview'])
     expect(walkView(view).some((node) => viewProps(node)['aria-label'] === 'Open menu')).toBe(true)
     expect(walkView(view).some((node) => viewProps(node)['data-testid'] === 'appearance')).toBe(true)
+  })
+
+  it('offers the venue its cards and a second card once it has one', () => {
+    expect(navPaths(operatorShell(true))).toStrictEqual(['/published', '/new'])
+    expect(navPaths(operatorShell(false))).toStrictEqual(['/new'])
   })
 
   it('marks Rights as the current route', () => {

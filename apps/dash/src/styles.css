@@ -292,7 +292,17 @@
   @apply cursor-pointer text-sm opacity-70;
 }
 
-/* The published card prints as a poster: only the QR and its link. */
+.dash-published-card {
+  @apply flex min-w-0 flex-col gap-4 rounded-[0.875rem] border border-[var(--fuda-border)] bg-[var(--fuda-surface)] p-5;
+}
+
+.dash-print-target {
+  @apply flex flex-col items-center gap-3;
+}
+
+/* A published card prints as a poster: only the QR and its link. A venue with
+   several cards prints one poster per card, and a card's own Print button
+   narrows that to its poster alone. */
 @media print {
   .dash-sidebar,
   .dash-mobile-header,
@@ -304,7 +314,24 @@
     @apply p-0;
   }
 
+  /* Forced breaks are unreliable inside flex and grid containers, so the
+     printed page is a plain block flow. */
+  .dash-app,
+  .dash-published {
+    display: block;
+  }
+
+  .dash-published-card {
+    @apply gap-0 border-0 bg-transparent p-0;
+    display: block;
+  }
+
   .dash-print-target {
     @apply mx-auto mt-16;
+    break-inside: avoid;
+  }
+
+  .dash-published:not(.dash-print-one) .dash-published-card + .dash-published-card {
+    break-before: page;
   }
 }

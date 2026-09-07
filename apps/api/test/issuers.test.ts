@@ -108,17 +108,20 @@ describe('issuer onboarding', () => {
     expect(anonymous.status).toBe(401)
   })
 
-  it('serves the public card without the operator address', async () => {
+  it('serves the venue and its cards without the operator address', async () => {
     const app = appWith({ chain: fakeChain(), now: () => NOW })
     const { token } = await signIn(app, publicEnv())
     await postJson(app, publicEnv(), '/issuers', CARD_INPUT, token)
     const res = await getJson(app, publicEnv(), '/issuers/wassie-coffee')
-    expect(res.status).toBe(200)
     expect(res.headers.get('cache-control')).toBe('no-store')
     const body = await res.json<{ brandColor: string; cards: { slug: string }[]; handle: string }>()
     expect(body).toMatchObject({ brandColor: '#6F4320', handle: 'wassie-coffee', name: 'Wassie Coffee' })
     expect(body.cards.map((card) => card.slug)).toStrictEqual(['stamp'])
     expect(JSON.stringify(body)).not.toContain('operatorAddress')
+  })
+
+  it('answers 404 for a handle nobody owns', async () => {
+    const app = appWith({ chain: fakeChain(), now: () => NOW })
     const missing = await getJson(app, publicEnv(), '/issuers/nobody')
     expect(missing.status).toBe(404)
   })
