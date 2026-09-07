@@ -7,12 +7,30 @@ import type { DesignerForm } from './card-designer.ts'
 import { CardDesignerView } from './CardDesigner.tsx'
 import type { CardDesignerViewProps } from './CardDesigner.tsx'
 import { DASH_COPY } from './copy.ts'
+import { EMPTY_LOGO } from './logo.ts'
+import { LogoField } from './LogoField.tsx'
+import type { LogoFieldProps } from './LogoField.tsx'
 import { PublishedCardView } from './PublishedCard.tsx'
 import type { PublishedCardViewProps } from './PublishedCard.tsx'
 import { QrBlock } from './QrBlock.tsx'
 import { findViewNodes, viewProps, viewText, walkView } from './test/test-view.ts'
 
 const filled: DesignerForm = { ...EMPTY_FORM, handle: 'wassie-coffee', name: 'Wassie Coffee' }
+
+const pngOf = (bytes: number): Blob => new Blob([new Uint8Array(bytes)], { type: 'image/png' })
+
+const LOGO_BLOBS = { logo1x: pngOf(1), logo2x: pngOf(2), logo3x: pngOf(3), master: pngOf(4) }
+
+const logoField = (overrides: Partial<LogoFieldProps> = {}): LogoFieldProps => ({
+  busy: false,
+  copy: DASH_COPY.en.logo,
+  id: 'venue-logo',
+  label: DASH_COPY.en.logo.label,
+  onClear: vi.fn<() => void>(),
+  onPick: vi.fn<LogoFieldProps['onPick']>(),
+  state: EMPTY_LOGO,
+  ...overrides,
+})
 
 const submitOf = (props: CardDesignerViewProps): boolean =>
   walkView(CardDesignerView(props)).some(
@@ -25,10 +43,14 @@ const designer = (overrides: Partial<CardDesignerViewProps> = {}): CardDesignerV
   failure: null,
   form: filled,
   locationDenied: false,
+  logo: EMPTY_LOGO,
+  logoCopy: DASH_COPY.en.logo,
   mode: 'venue',
   onCategory: vi.fn<CardDesignerViewProps['onCategory']>(),
   onField: vi.fn<CardDesignerViewProps['onField']>(),
   onLockScreen: vi.fn<CardDesignerViewProps['onLockScreen']>(),
+  onLogoClear: vi.fn<CardDesignerViewProps['onLogoClear']>(),
+  onLogoPick: vi.fn<CardDesignerViewProps['onLogoPick']>(),
   onSlug: vi.fn<CardDesignerViewProps['onSlug']>(),
   onSubmit: vi.fn<CardDesignerViewProps['onSubmit']>(),
   onTitle: vi.fn<CardDesignerViewProps['onTitle']>(),
@@ -200,9 +222,16 @@ const published = (overrides: Partial<PublishedCardViewProps> = {}): PublishedCa
   copiedSlug: null,
   copy: DASH_COPY.en.published,
   issuer,
+  logo: EMPTY_LOGO,
+  logoBusy: false,
+  logoCopy: DASH_COPY.en.logo,
+  logoFailed: false,
+  logoSrc: 'http://localhost:8787/assets/wassie-coffee/logo/master?v=7',
   now: 1_757_000_000,
   onAddCard: vi.fn<() => void>(),
   onCopy: vi.fn<PublishedCardViewProps['onCopy']>(),
+  onLogoError: vi.fn<PublishedCardViewProps['onLogoError']>(),
+  onLogoPick: vi.fn<PublishedCardViewProps['onLogoPick']>(),
   onPrint: vi.fn<PublishedCardViewProps['onPrint']>(),
   onShare: null,
   printSlug: null,
@@ -285,5 +314,67 @@ describe(PublishedCardView, () => {
       'dash-print-target dash-no-print',
       'dash-print-target',
     ])
+  })
+})
+
+describe('the logo field', () => {
+  it('offers the picker with the minimum source size and nothing held yet', () => {
+    const view = LogoField(logoField())
+    const input = walkView(view).find((node) => node.props.type === 'file')
+    expect(viewProps(input!).accept).toBe('image/png,image/jpeg,image/webp')
+    expect(viewText(view)).toContain('at least 660×660')
+    expect(findViewNodes(view, 'img')).toHaveLength(0)
+  })
+
+  it('is the designer own field, named Logo and holding nothing to start with', () => {
+    const [field] = findViewNodes(CardDesignerView(designer()), LogoField)
+    expect(field?.props.label).toBe('Logo')
+    expect(field?.props.state).toStrictEqual(EMPTY_LOGO)
+  })
+
+  it('previews the generated master and offers to remove it once a file is held', () => {
+    const pick = { previewUrl: 'blob:master', variants: LOGO_BLOBS }
+    const view = LogoField(logoField({ state: { pick, rejection: null } }))
+    const [image] = findViewNodes(view, 'img')
+    expect(image?.props.src).toBe('blob:master')
+    expect(viewText(view)).toContain('Remove')
+  })
+
+  it('explains why the pipeline refused a file, and holds nothing after it', () => {
+    const view = LogoField(logoField({ state: { pick: null, rejection: 'tooSmall' } }))
+    expect(viewText(view)).toContain('That image is too small')
+    expect(findViewNodes(view, 'img')).toHaveLength(0)
+  })
+
+  it('hides the remove action where the mark is already live', () => {
+    const pick = { previewUrl: 'blob:master', variants: LOGO_BLOBS }
+    const view = LogoField(logoField({ onClear: null, state: { pick, rejection: null } }))
+    expect(viewText(view)).not.toContain('Remove')
+  })
+
+  it('says a failed upload left the card alone', () => {
+    expect(viewText(CardDesignerView(designer({ failure: 'logo' })))).toContain('Could not upload the logo')
+  })
+})
+
+describe('the published venue mark', () => {
+  it('shows the mark beside the venue name and offers to change it', () => {
+    const view = PublishedCardView(published())
+    const [image] = findViewNodes(view, 'img')
+    const [field] = findViewNodes(view, LogoField)
+    expect(image?.props.src).toBe('http://localhost:8787/assets/wassie-coffee/logo/master?v=7')
+    expect(field?.props.label).toBe('Change logo')
+  })
+
+  it('shows the name alone for a venue whose mark the api does not serve', () => {
+    const view = PublishedCardView(published({ logoSrc: null }))
+    expect(findViewNodes(view, 'img')).toHaveLength(0)
+    expect(viewText(view)).toContain('Wassie Coffee')
+  })
+
+  it('reports a change that could not be applied', () => {
+    expect(viewText(PublishedCardView(published({ logoFailed: true })))).toContain(
+      'Could not update the logo',
+    )
   })
 })

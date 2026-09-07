@@ -264,8 +264,12 @@ export const cardBodyFrom = (form: DesignerForm): CardRequest | null => {
 }
 
 // The venue-and-first-card body. The api validates the same schema, so a
-// disabled submit and a 400 agree.
-export const createBodyFrom = (form: DesignerForm): IssuerCreateRequest | null => {
+// disabled submit and a 400 agree. `logoUploadId` is the upload staged moments
+// earlier by the submit; a venue is created already wearing its mark.
+export const createBodyFrom = (
+  form: DesignerForm,
+  logoUploadId: string | null = null,
+): IssuerCreateRequest | null => {
   const brandColor = normalizeBrandColor(form.brandColor)
   const card = cardBodyFrom(form)
   if (brandColor === null || card === null) {
@@ -275,6 +279,7 @@ export const createBodyFrom = (form: DesignerForm): IssuerCreateRequest | null =
     brandColor,
     card,
     handle: form.handle,
+    logoUploadId,
     name: form.name,
     tagline: form.tagline,
   })
@@ -303,7 +308,7 @@ export const canSubmit = (
 }
 
 // Why a create failed, in the terms the form explains it.
-export type CreateFailure = 'input' | 'network' | 'session' | 'slugInvalid' | 'slugTaken' | 'taken'
+export type CreateFailure = 'input' | 'logo' | 'network' | 'session' | 'slugInvalid' | 'slugTaken' | 'taken'
 
 export const createFailureOf = (status: number, network: boolean, error: string): CreateFailure => {
   if (network) {

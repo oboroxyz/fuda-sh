@@ -27,6 +27,24 @@ export interface DashCopy {
     signOut: string
     failures: { network: string; rejected: string; unavailable: string; wallet: string }
   }
+  logo: {
+    label: string
+    change: string
+    choose: string
+    hint: string
+    remove: string
+    previewAlt: string
+    updating: string
+    updateFailed: string
+    rejections: {
+      decode: string
+      encode: string
+      tooHeavy: string
+      tooLarge: string
+      tooSmall: string
+      type: string
+    }
+  }
   designer: {
     title: string
     description: string
@@ -92,6 +110,7 @@ export interface DashCopy {
     }
     failures: {
       input: string
+      logo: string
       network: string
       session: string
       slugInvalid: string
@@ -269,6 +288,24 @@ export const DASH_COPY = {
         wallet: 'The passkey step was cancelled.',
       },
     },
+    logo: {
+      label: 'Logo',
+      change: 'Change logo',
+      choose: 'Choose image',
+      hint: 'PNG, JPEG or WebP, at least 660×660. A square image works best.',
+      remove: 'Remove',
+      previewAlt: 'Logo preview',
+      updating: 'Updating…',
+      updateFailed: 'Could not update the logo. Try again.',
+      rejections: {
+        decode: 'That image could not be read. Try another file.',
+        encode: 'Your browser could not prepare that image. Try another file.',
+        tooHeavy: 'That image is too detailed for a logo. Try a simpler one.',
+        tooLarge: 'That file is over 10 MB. Try a smaller one.',
+        tooSmall: 'That image is too small. Use one at least 660×660.',
+        type: 'Use a PNG, JPEG or WebP image.',
+      },
+    },
     designer: {
       title: 'Design the card',
       description: 'Your members see this card. You can run the whole programme from one link.',
@@ -334,6 +371,7 @@ export const DASH_COPY = {
       },
       failures: {
         input: 'Some fields need a change before this card can be created.',
+        logo: 'Could not upload the logo. Your card is still here — try again.',
         network: 'Could not reach fuda. Check your connection and try again.',
         session: 'Your sign-in expired. Please sign in again.',
         slugInvalid: 'That card link cannot be used. Pick another one.',
@@ -508,6 +546,24 @@ export const DASH_COPY = {
         wallet: 'パスキーの操作が取り消されました。',
       },
     },
+    logo: {
+      label: 'ロゴ',
+      change: 'ロゴを変更',
+      choose: '画像を選ぶ',
+      hint: 'PNG・JPEG・WebP に対応しています。660px 以上の正方形に近い画像がきれいに表示されます。',
+      remove: '削除',
+      previewAlt: 'ロゴのプレビュー',
+      updating: '更新中…',
+      updateFailed: 'ロゴを更新できませんでした。もう一度お試しください。',
+      rejections: {
+        decode: 'この画像を読み込めませんでした。別の画像を選んでください。',
+        encode: 'ブラウザで画像を変換できませんでした。別の画像を選んでください。',
+        tooHeavy: '画像が複雑すぎてロゴに使えません。もっとシンプルな画像を選んでください。',
+        tooLarge: 'ファイルが 10MB を超えています。もっと小さい画像を選んでください。',
+        tooSmall: '画像が小さすぎます。660px 以上の画像を選んでください。',
+        type: 'PNG・JPEG・WebP の画像を選んでください。',
+      },
+    },
     designer: {
       title: 'カードをデザイン',
       description: 'メンバーにはこのカードが表示されます。リンク 1 本で運用できます。',
@@ -573,6 +629,7 @@ export const DASH_COPY = {
       },
       failures: {
         input: '入力内容を確認してください。このままではカードを作成できません。',
+        logo: 'ロゴをアップロードできませんでした。入力内容はそのままです。もう一度お試しください。',
         network: 'fuda に接続できませんでした。通信環境を確認して、もう一度お試しください。',
         session: 'サインインの有効期限が切れました。もう一度サインインしてください。',
         slugInvalid: 'このカードのリンクは使えません。別の名前を選んでください。',

@@ -5,7 +5,11 @@ import { useEffect, useRef, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import { cardUrl, claimStateOf, displayUrl, formatInstant, validityStateOf } from './card-designer.ts'
+import { API_BASE_URL } from './config.ts'
 import type { DashCopy } from './copy.ts'
+import { browserLogoTools, EMPTY_LOGO, generateLogoSet, logoAssetUrl, withLogoResult } from './logo.ts'
+import type { LogoSet, LogoState } from './logo.ts'
+import { LogoField } from './LogoField.tsx'
 import { QrBlock } from './QrBlock.tsx'
 
 export interface PublishedCardViewProps {
@@ -14,8 +18,18 @@ export interface PublishedCardViewProps {
   copiedSlug: string | null
   copy: DashCopy['published']
   issuer: IssuerView
+  // The venue's own mark, refused by the api until there is one.
+  logo: LogoState
+  logoBusy: boolean
+  logoCopy: DashCopy['logo']
+  logoFailed: boolean
+  // null once the mark has proved to be missing, which is the venue's normal
+  // unbranded state, not an error.
+  logoSrc: string | null
   onAddCard: () => void
   onCopy: (slug: string) => void
+  onLogoError: () => void
+  onLogoPick: (file: File) => void
   onPrint: (slug: string) => void
   onShare: ((slug: string) => void) | null
   // Unix seconds, only to word a closed card as "not open yet" or "closed";
@@ -106,7 +120,7 @@ const cardEntry = (props: PublishedCardViewProps, card: CardView): JSX.Element =
 }
 
 export const PublishedCardView = (props: PublishedCardViewProps): JSX.Element => {
-  const { cards, copy, issuer, onAddCard, printSlug, publicUrl } = props
+  const { cards, copy, issuer, logoCopy, logoSrc, onAddCard, onLogoError, printSlug, publicUrl } = props
   const sole = cards.length === 1
   return (
     <section
@@ -115,7 +129,15 @@ export const PublishedCardView = (props: PublishedCardViewProps): JSX.Element =>
       <div class="dash-no-print flex flex-col gap-1">
         <h1 class="text-2xl font-bold">{sole ? copy.title : copy.titleMany}</h1>
         <p class="opacity-70">{sole ? copy.description : copy.descriptionMany}</p>
-        <p class="flex flex-wrap items-baseline gap-2 text-sm">
+        <p class="flex flex-wrap items-center gap-2 text-sm">
+          {logoSrc === null ? null : (
+            <img
+              alt={logoCopy.previewAlt}
+              class="border-base-300 rounded-box size-8 border object-cover"
+              onError={onLogoError}
+              src={logoSrc}
+            />
+          )}
           <span class="font-semibold">{issuer.name}</span>
           <span class="opacity-70">{copy.venueLabel}</span>
           <code>{displayUrl(publicUrl)}</code>
@@ -123,6 +145,23 @@ export const PublishedCardView = (props: PublishedCardViewProps): JSX.Element =>
       </div>
 
       {cards.map((card): JSX.Element => cardEntry(props, card))}
+
+      <div class="dash-no-print">
+        <LogoField
+          busy={props.logoBusy}
+          copy={logoCopy}
+          id="change-logo"
+          label={logoCopy.change}
+          onClear={null}
+          onPick={props.onLogoPick}
+          state={props.logo}
+        />
+        {props.logoFailed ? (
+          <p class="text-error mt-2 text-sm" role="alert">
+            {logoCopy.updateFailed}
+          </p>
+        ) : null}
+      </div>
 
       <div class="dash-actions dash-no-print">
         <button class="btn" onClick={onAddCard} type="button">
@@ -138,10 +177,37 @@ export const PublishedCardView = (props: PublishedCardViewProps): JSX.Element =>
 const COPIED_MS = 2000
 const MS_PER_SECOND = 1000
 
-export const PublishedCard = (
-  props: Omit<PublishedCardViewProps, 'copiedSlug' | 'now' | 'onCopy' | 'onPrint' | 'onShare' | 'printSlug'>,
-): JSX.Element => {
+export interface PublishedCardProps extends Omit<
+  PublishedCardViewProps,
+  | 'copiedSlug'
+  | 'logo'
+  | 'logoBusy'
+  | 'logoFailed'
+  | 'logoSrc'
+  | 'now'
+  | 'onCopy'
+  | 'onLogoError'
+  | 'onLogoPick'
+  | 'onPrint'
+  | 'onShare'
+  | 'printSlug'
+> {
+  // Stages and commits the picked mark; false when it could not be applied.
+  onCommitLogo: (variants: LogoSet) => Promise<boolean>
+}
+
+export const PublishedCard = ({ onCommitLogo, ...props }: PublishedCardProps): JSX.Element => {
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null)
+  const [logo, setLogo] = useState<LogoState>(EMPTY_LOGO)
+  const [logoBusy, setLogoBusy] = useState(false)
+  const [logoFailed, setLogoFailed] = useState(false)
+  // The mark is served from a fixed address under a one-year immutable cache, so
+  // each mount — and each committed change — asks for a version the browser has
+  // not cached, rather than being shown last week's mark.
+  const [logoVersion, setLogoVersion] = useState(() => Date.now())
+  // An <img> error is how a venue without a mark announces itself: the asset
+  // route answers 404 and the name stands alone, as it does today.
+  const [logoMissing, setLogoMissing] = useState(false)
   const [printSlug, setPrintSlug] = useState<string | null>(null)
   // One timer for the whole list: copying a second card must reset the first
   // card's countdown, not let it clear the second card's confirmation early.
@@ -161,10 +227,45 @@ export const PublishedCard = (
     setPrintSlug(null)
   }, [printSlug])
 
+  const onLogoPick = (file: File): void => {
+    const run = async (): Promise<void> => {
+      const result = await generateLogoSet(file, browserLogoTools)
+      // The preview stands in while the upload runs; the live mark replaces it.
+      const picked = withLogoResult(result, (blob) => URL.createObjectURL(blob))
+      setLogo(picked)
+      if (!result.ok) {
+        return
+      }
+      setLogoFailed(false)
+      setLogoBusy(true)
+      const applied = await onCommitLogo(result.variants)
+      setLogoBusy(false)
+      setLogoFailed(!applied)
+      if (!applied) {
+        return
+      }
+      setLogoMissing(false)
+      setLogoVersion(Date.now())
+      setLogo(EMPTY_LOGO)
+      if (picked.pick !== null) {
+        URL.revokeObjectURL(picked.pick.previewUrl)
+      }
+    }
+    void run()
+  }
+
   return (
     <PublishedCardView
       {...props}
       copiedSlug={copiedSlug}
+      logo={logo}
+      logoBusy={logoBusy}
+      logoFailed={logoFailed}
+      logoSrc={logoMissing ? null : logoAssetUrl(API_BASE_URL, props.issuer.handle, logoVersion)}
+      onLogoError={() => {
+        setLogoMissing(true)
+      }}
+      onLogoPick={onLogoPick}
       now={Math.floor(Date.now() / MS_PER_SECOND)}
       onCopy={(slug) => {
         const run = async (): Promise<void> => {

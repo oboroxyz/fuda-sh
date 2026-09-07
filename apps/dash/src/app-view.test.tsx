@@ -81,6 +81,7 @@ const props: AppViewProps = {
   members,
   onCheckHandle: vi.fn<AppViewProps['onCheckHandle']>(),
   onCheckSlug: vi.fn<AppViewProps['onCheckSlug']>(),
+  onCommitLogo: vi.fn<AppViewProps['onCommitLogo']>().mockResolvedValue(true),
   onCreate: vi.fn<AppViewProps['onCreate']>(),
   onIssue: vi.fn<AppViewProps['onIssue']>(),
   onNavigate: vi.fn<AppViewProps['onNavigate']>(),

@@ -30,6 +30,9 @@ import type {
   WindowField,
 } from './card-designer.ts'
 import type { DashCopy } from './copy.ts'
+import { browserLogoTools, EMPTY_LOGO, generateLogoSet, withLogoResult } from './logo.ts'
+import type { LogoSet, LogoState } from './logo.ts'
+import { LogoField } from './LogoField.tsx'
 
 export interface CardDesignerViewProps {
   busy: boolean
@@ -37,12 +40,16 @@ export interface CardDesignerViewProps {
   failure: CreateFailure | null
   form: DesignerForm
   locationDenied: boolean
+  logo: LogoState
+  logoCopy: DashCopy['logo']
   // 'card' adds one more card to a venue that already exists, so its fields
   // are not asked for again.
   mode: DesignerMode
   onCategory: (category: CardCategory) => void
   onField: <K extends keyof DesignerForm>(key: K, value: DesignerForm[K]) => void
   onLockScreen: (on: boolean) => void
+  onLogoClear: () => void
+  onLogoPick: (file: File) => void
   onSlug: (slug: string) => void
   onSubmit: () => void
   onTitle: (title: string) => void
@@ -336,10 +343,14 @@ export const CardDesignerView = ({
   failure,
   form,
   locationDenied,
+  logo,
+  logoCopy,
   mode,
   onCategory,
   onField,
   onLockScreen,
+  onLogoClear,
+  onLogoPick,
   onSlug,
   onSubmit,
   onTitle,
@@ -373,6 +384,16 @@ export const CardDesignerView = ({
       }}
     >
       {mode === 'venue' ? venueFields(copy, form, status.handle, onField) : null}
+
+      <LogoField
+        busy={busy}
+        copy={logoCopy}
+        id="venue-logo"
+        label={logoCopy.label}
+        onClear={onLogoClear}
+        onPick={onLogoPick}
+        state={logo}
+      />
 
       {textField('card-title', copy.titleLabel, form.title, '', onTitle)}
       {prefixedField(
@@ -446,11 +467,12 @@ export interface CardDesignerProps {
   busy: boolean
   copy: DashCopy['designer']
   failure: CreateFailure | null
+  logoCopy: DashCopy['logo']
   // The venue this operator already runs, when there is one.
   issuer: IssuerView | null
   onCheckHandle: NameCheck
   onCheckSlug: NameCheck
-  onSubmit: (mode: DesignerMode, form: DesignerForm) => void
+  onSubmit: (mode: DesignerMode, form: DesignerForm, logo: LogoSet | null) => void
 }
 
 const GEOLOCATION_OPTIONS = { enableHighAccuracy: false, timeout: 8000 }
@@ -498,6 +520,7 @@ export const CardDesigner = ({
   copy,
   failure,
   issuer,
+  logoCopy,
   onCheckHandle,
   onCheckSlug,
   onSubmit,
@@ -507,6 +530,29 @@ export const CardDesigner = ({
   const [handleStatus, setHandleStatus] = useState<FieldStatus>('idle')
   const [slugStatus, setSlugStatus] = useState<FieldStatus>('idle')
   const [locationDenied, setLocationDenied] = useState(false)
+  // The picked logo waits here until submit: uploading on pick would stage an
+  // upload that expires, or is never spent, every time the operator changes
+  // their mind.
+  const [logo, setLogo] = useState<LogoState>(EMPTY_LOGO)
+
+  // The preview is an object URL, so each one is released when it is replaced
+  // and when the designer goes away.
+  useEffect(() => {
+    const url = logo.pick?.previewUrl ?? null
+    return () => {
+      if (url !== null) {
+        URL.revokeObjectURL(url)
+      }
+    }
+  }, [logo])
+
+  const onLogoPick = (file: File): void => {
+    const run = async (): Promise<void> => {
+      const result = await generateLogoSet(file, browserLogoTools)
+      setLogo(withLogoResult(result, (blob) => URL.createObjectURL(blob)))
+    }
+    void run()
+  }
 
   const onField = useCallback(<K extends keyof DesignerForm>(key: K, value: DesignerForm[K]): void => {
     setForm((current) => ({ ...current, [key]: value }))
@@ -553,17 +599,23 @@ export const CardDesigner = ({
       failure={failure}
       form={form}
       locationDenied={locationDenied}
+      logo={logo}
+      logoCopy={logoCopy}
       mode={mode}
       onField={onField}
       onCategory={(next) => {
         setForm((current) => withCategory(current, next))
       }}
       onLockScreen={onLockScreen}
+      onLogoClear={() => {
+        setLogo(EMPTY_LOGO)
+      }}
+      onLogoPick={onLogoPick}
       onSlug={(next) => {
         setForm((current) => withSlug(current, next))
       }}
       onSubmit={() => {
-        onSubmit(mode, form)
+        onSubmit(mode, form, logo.pick?.variants ?? null)
       }}
       onTitle={(next) => {
         setForm((current) => withTitle(current, next))

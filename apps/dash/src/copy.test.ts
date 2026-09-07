@@ -85,4 +85,29 @@ describe('Dash copy', () => {
     expect(copy.designer.windowProblems.bothRules).toContain('どちらか一方')
     expect(copy.designer.windowProblems.validOrder).toContain('終了日時')
   })
+
+  it('names the logo field and every rejection in English', () => {
+    const copy = pick(DASH_COPY, 'en')
+    expect(copy.logo.label).toBe('Logo')
+    expect(copy.logo.change).toBe('Change logo')
+    expect(copy.logo.hint).toContain('660×660')
+    expect(copy.logo.rejections.tooLarge).toContain('10 MB')
+    expect(copy.designer.failures.logo).toContain('Could not upload the logo')
+  })
+
+  it('names the logo field and every rejection in Japanese', () => {
+    const copy = pick(DASH_COPY, 'ja')
+    expect(copy.logo.label).toBe('ロゴ')
+    expect(copy.logo.change).toBe('ロゴを変更')
+    expect(copy.logo.choose).toBe('画像を選ぶ')
+    expect(copy.logo.hint).toContain('660px 以上')
+    expect(copy.logo.rejections.tooSmall).toBe('画像が小さすぎます。660px 以上の画像を選んでください。')
+  })
+
+  it('explains a refused logo in Japanese without borrowing English words', () => {
+    const copy = pick(DASH_COPY, 'ja')
+    expect(copy.logo.rejections.type).toBe('PNG・JPEG・WebP の画像を選んでください。')
+    expect(copy.logo.updateFailed).toBe('ロゴを更新できませんでした。もう一度お試しください。')
+    expect(copy.designer.failures.logo).toContain('入力内容はそのままです')
+  })
 })

@@ -10,8 +10,6 @@ import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 import {
   checkCardSlug,
   checkHandle,
-  createCard,
-  createIssuer,
   issueRight,
   issuerMe,
   listMembers,
@@ -20,12 +18,10 @@ import {
   signInVerify,
   signOut,
 } from './api.ts'
-import type { Result } from './api.ts'
-import { issueAndReload, revokeAndReload } from './app-actions.ts'
+import { applyLogo, DEFAULT_DESIGN_IO, issueAndReload, revokeAndReload, submitDesign } from './app-actions.ts'
 import type { ActionContext, DashIo } from './app-actions.ts'
 import { hasIssuer, signedOutSession, unauthorizedSession } from './app-state.ts'
 import type { SessionState } from './app-state.ts'
-import { cardBodyFrom, createBodyFrom, createFailureOf } from './card-designer.ts'
 import type { CreateFailure, DesignerForm, DesignerMode } from './card-designer.ts'
 import { CardDesigner } from './CardDesigner.tsx'
 import { API_BASE_URL, GRAPH_RIGHTS_ENDPOINT } from './config.ts'
@@ -34,6 +30,7 @@ import type { DashCopy } from './copy.ts'
 import { DashboardShell } from './DashboardShell.tsx'
 import { IssueForm } from './IssueForm.tsx'
 import type { IssueFormProps } from './IssueForm.tsx'
+import type { LogoSet } from './logo.ts'
 import { beginMembersLoad, completeMembersLoad, failMembersLoad } from './members-state.ts'
 import type { MembersState } from './members-state.ts'
 import { memberRowView } from './members-view.ts'
@@ -65,7 +62,8 @@ export interface AppViewProps {
   members: MembersState
   onCheckHandle: (handle: string) => Promise<'available' | 'taken' | 'unknown'>
   onCheckSlug: (slug: string) => Promise<'available' | 'taken' | 'unknown'>
-  onCreate: (mode: DesignerMode, form: DesignerForm) => void
+  onCommitLogo: (variants: LogoSet) => Promise<boolean>
+  onCreate: (mode: DesignerMode, form: DesignerForm, logo: LogoSet | null) => void
   onIssue: IssueFormProps['onIssue']
   onNavigate: (route: DashRoute) => void
   onPasskey: () => void
@@ -88,6 +86,7 @@ export const AppView = ({
   members,
   onCheckHandle,
   onCheckSlug,
+  onCommitLogo,
   onCreate,
   onIssue,
   onNavigate,
@@ -133,9 +132,11 @@ export const AppView = ({
             cards={operator.cards}
             copy={copy.published}
             issuer={operator.issuer}
+            logoCopy={copy.logo}
             onAddCard={() => {
               onNavigate('/new')
             }}
+            onCommitLogo={onCommitLogo}
             publicUrl={operator.publicUrl}
           />
         )
@@ -146,6 +147,7 @@ export const AppView = ({
           copy={copy.designer}
           failure={createFailure}
           issuer={operator.issuer}
+          logoCopy={copy.logo}
           onCheckHandle={onCheckHandle}
           onCheckSlug={onCheckSlug}
           onSubmit={onCreate}
@@ -187,21 +189,6 @@ export const AppView = ({
 const operatorWith = (current: IssuerMeResponse | null, created: IssuerCreateResponse): IssuerMeResponse => {
   const existing = current !== null && current.issuer !== null ? current.cards : []
   return { cards: [...existing, created.card], issuer: created.issuer, publicUrl: created.publicUrl }
-}
-
-// Which route the designer submits to; null when the form is not a valid body,
-// which the disabled submit already prevents.
-const submitDesign = async (
-  token: string,
-  mode: DesignerMode,
-  form: DesignerForm,
-): Promise<Result<IssuerCreateResponse> | null> => {
-  if (mode === 'card') {
-    const body = cardBodyFrom(form)
-    return body === null ? null : await createCard(token, body)
-  }
-  const body = createBodyFrom(form)
-  return body === null ? null : await createIssuer(token, body)
 }
 
 export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Element => {
@@ -412,7 +399,7 @@ export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Eleme
     [token],
   )
 
-  const onCreate = (mode: DesignerMode, form: DesignerForm): void => {
+  const onCreate = (mode: DesignerMode, form: DesignerForm, logo: LogoSet | null): void => {
     if (token === null) {
       setCreateFailure('input')
       return
@@ -420,25 +407,33 @@ export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Eleme
     setCreateFailure(null)
     setCreating(true)
     const run = async (): Promise<void> => {
-      const result = await submitDesign(token, mode, form)
+      const outcome = await submitDesign(DEFAULT_DESIGN_IO, token, mode, form, logo)
       setCreating(false)
-      if (result === null) {
-        setCreateFailure('input')
-        return
-      }
-      if (!result.ok) {
-        const failure = createFailureOf(result.status, result.network, result.error)
-        setCreateFailure(failure)
-        if (failure === 'session') {
+      if (!outcome.ok) {
+        setCreateFailure(outcome.failure)
+        if (outcome.failure === 'session') {
           setSession(unauthorizedSession)
         }
         return
       }
-      setSession((state) => ({ ...state, operator: operatorWith(state.operator, result.body) }))
+      setSession((state) => ({ ...state, operator: operatorWith(state.operator, outcome.body) }))
       navigateTo(history, '/published')
       setRoute('/published')
     }
     void run()
+  }
+
+  // The published screen changes a live venue's mark, which is a staged upload
+  // spent by the commit route rather than by a create body.
+  const onCommitLogo = async (variants: LogoSet): Promise<boolean> => {
+    if (token === null) {
+      return false
+    }
+    const outcome = await applyLogo(DEFAULT_DESIGN_IO, token, variants)
+    if (!outcome.ok && outcome.session) {
+      setSession(unauthorizedSession)
+    }
+    return outcome.ok
   }
 
   return (
@@ -452,6 +447,7 @@ export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Eleme
       members={session.members}
       onCheckHandle={onCheckHandle}
       onCheckSlug={onCheckSlug}
+      onCommitLogo={onCommitLogo}
       onCreate={onCreate}
       onIssue={async (body) =>
         context === null

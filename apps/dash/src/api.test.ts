@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { issueRight, listMembers, revokeRight } from './api.ts'
+import { commitLogo, issueRight, listMembers, revokeRight, uploadLogo } from './api.ts'
 
 const UID = `0x${'ab'.repeat(32)}`
 const TOKEN = 's3cret'
@@ -73,6 +73,56 @@ describe(revokeRight, () => {
     expect(result).toStrictEqual({ body: { revoked: true, uid: UID }, ok: true })
     expect(spy).toHaveBeenCalledWith('http://localhost:8787/revoke', {
       body: JSON.stringify({ uid: UID }),
+      headers: HEADERS,
+      method: 'POST',
+    })
+  })
+})
+
+const pngOf = (bytes: number): Blob => new Blob([new Uint8Array(bytes)], { type: 'image/png' })
+
+const variants = { logo1x: pngOf(1), logo2x: pngOf(2), logo3x: pngOf(3), master: pngOf(4) }
+
+describe('staging a logo', () => {
+  it('POSTs the four variants as multipart, leaving the boundary to the browser', async () => {
+    const spy = stubFetch(() => json({ expiresAt: 1_757_000_900, logoUploadId: 'up_1' }, 201))
+    const result = await uploadLogo(TOKEN, variants)
+    expect(result).toStrictEqual({ body: { expiresAt: 1_757_000_900, logoUploadId: 'up_1' }, ok: true })
+    const init = spy.mock.calls[0]?.[1]
+    expect(init?.headers).toStrictEqual({ authorization: `Bearer ${TOKEN}` })
+    expect(init?.body).toBeInstanceOf(FormData)
+  })
+
+  it('sends every variant under its own field name', async () => {
+    const spy = stubFetch(() => json({ expiresAt: 1, logoUploadId: 'up_1' }, 201))
+    await uploadLogo(TOKEN, variants)
+    const body = spy.mock.calls[0]?.[1].body
+    const names = body instanceof FormData ? [...body.keys()] : []
+    expect(names).toStrictEqual(['master', 'logo1x', 'logo2x', 'logo3x'])
+  })
+
+  it('keeps the api error code, so an unconfigured bucket is not read as an outage', async () => {
+    stubFetch(() => json({ error: 'media_not_configured' }, 501))
+    const result = await uploadLogo(TOKEN, variants)
+    expect(result).toStrictEqual({ error: 'media_not_configured', network: false, ok: false, status: 501 })
+  })
+
+  it('reports a transport failure with status 0', async () => {
+    stubFetch(() => {
+      throw new Error('fetch failed')
+    })
+    const result = await uploadLogo(TOKEN, variants)
+    expect(result).toStrictEqual({ error: 'fetch failed', network: true, ok: false, status: 0 })
+  })
+})
+
+describe('committing a logo', () => {
+  it('POSTs the staged id as json', async () => {
+    const spy = stubFetch(() => json({ issuer: { handle: 'wassie-coffee' } }, 200))
+    const result = await commitLogo(TOKEN, 'up_1')
+    expect(result.ok).toBe(true)
+    expect(spy).toHaveBeenCalledWith('http://localhost:8787/issuers/logo/commit', {
+      body: JSON.stringify({ logoUploadId: 'up_1' }),
       headers: HEADERS,
       method: 'POST',
     })
