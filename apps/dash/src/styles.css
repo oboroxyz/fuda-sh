@@ -6,6 +6,26 @@
   --font-display: 'Quicksand', var(--font-sans);
 }
 
+.dash-app,
+.dash-auth {
+  --fuda-bg: oklch(98.6% 0.002 67.8);
+  --fuda-surface: oklch(100% 0 0);
+  --fuda-text: oklch(20.5% 0 0);
+  --fuda-muted: oklch(43.9% 0 0);
+  --fuda-border: oklch(20.5% 0 0 / 20%);
+  --fuda-accent: oklch(20.5% 0 0);
+}
+
+:root.dark .dash-app,
+:root.dark .dash-auth {
+  --fuda-bg: oklch(14.5% 0 0);
+  --fuda-surface: oklch(20.5% 0 0);
+  --fuda-text: oklch(97% 0 0);
+  --fuda-muted: oklch(87% 0 0);
+  --fuda-border: oklch(55.6% 0 0 / 20%);
+  --fuda-accent: oklch(97% 0 0);
+}
+
 @layer base {
   h1,
   h2,
@@ -282,14 +302,26 @@
 
 .dash-app .btn-primary,
 .dash-auth .btn-primary {
-  border-color: var(--fuda-text);
-  background: var(--fuda-text);
-  color: var(--fuda-surface);
+  border-color: oklch(20.5% 0 0);
+  background: oklch(20.5% 0 0);
+  color: oklch(100% 0 0);
 }
 
 .dash-app .btn-primary:hover:not(:disabled),
 .dash-auth .btn-primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--fuda-text) 82%, var(--fuda-surface));
+  background: oklch(37.1% 0 0);
+}
+
+:root.dark .dash-app .btn-primary,
+:root.dark .dash-auth .btn-primary {
+  border-color: oklch(100% 0 0);
+  background: oklch(100% 0 0);
+  color: oklch(0% 0 0);
+}
+
+:root.dark .dash-app .btn-primary:hover:not(:disabled),
+:root.dark .dash-auth .btn-primary:hover:not(:disabled) {
+  background: oklch(92.2% 0 0);
 }
 
 .dash-app .btn-error {
