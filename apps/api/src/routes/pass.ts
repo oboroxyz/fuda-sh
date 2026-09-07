@@ -41,7 +41,13 @@ passRoutes.get('/pass/:uid/google', async (c) => {
   try {
     const saveUrl = await buildGoogleSaveUrl(
       cfg,
-      { holderShort: view.holderShort, qr: view.qr, tierLabel: view.tier, uid: found.row.uid },
+      {
+        branding: view.branding,
+        holderShort: view.holderShort,
+        qr: view.qr,
+        tierLabel: view.tier,
+        uid: found.row.uid,
+      },
       [new URL(c.env.API_BASE_URL).origin, 'https://dash.fuda.sh', 'https://app.fuda.sh'],
       c.get('now')(),
     )
@@ -72,7 +78,13 @@ passRoutes.get('/pass/:uid/apple.pkpass', async (c) => {
   try {
     const pkpass = await buildPkpass(
       cfg,
-      { holderShort: view.holderShort, qr: view.qr, tierLabel: view.tier, uid: found.row.uid },
+      {
+        branding: view.branding,
+        holderShort: view.holderShort,
+        qr: view.qr,
+        tierLabel: view.tier,
+        uid: found.row.uid,
+      },
       c.get('now')(),
     )
     return new Response(pkpass, {

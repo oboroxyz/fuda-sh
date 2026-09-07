@@ -71,3 +71,41 @@ describe(passJson, () => {
     expect(json.description).toBe('fuda membership')
   })
 })
+
+const branded = () =>
+  passJson(
+    { certPem: '', keyPem: '', passTypeId: 'pass.sh.fuda', teamId: 'TEAM', wwdrPem: '' },
+    {
+      branding: {
+        brandColor: '#6F4320',
+        cardTitle: 'Membership Card',
+        issuerName: 'Wassie Coffee',
+        memberNumber: 'QJ2Y-XPHE-PDRKA',
+        venue: { lat: 35.665, lng: 139.712 },
+      },
+      holderShort: '0x1234…abcd',
+      qr: `fuda:v1:0x${'ab'.repeat(32)}`,
+      tierLabel: 'FREE',
+      uid: `0x${'ab'.repeat(32)}`,
+    },
+  )
+
+describe('branded pass.json', () => {
+  it('names the venue and card and paints the brand colour with readable text', () => {
+    const json = branded()
+    expect(json.organizationName).toBe('Wassie Coffee')
+    expect(json.description).toBe('Membership Card')
+    expect(json.backgroundColor).toBe('rgb(111,67,32)')
+    expect(json.foregroundColor).toBe('rgb(255,255,255)')
+  })
+
+  it('puts the member number up front and the venue in locations', () => {
+    const json = branded()
+    expect(json.storeCard.primaryFields).toStrictEqual([
+      { key: 'member', label: 'MEMBER NO.', value: 'QJ2Y-XPHE-PDRKA' },
+    ])
+    expect(json.locations).toStrictEqual([
+      { latitude: 35.665, longitude: 139.712, relevantText: 'Wassie Coffee' },
+    ])
+  })
+})

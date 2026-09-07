@@ -1,3 +1,4 @@
+import type { PassBranding } from '@fuda/pass'
 import { TIER_LABEL, toQr } from '@fuda/sdk'
 import type { Level, Reason } from '@fuda/sdk'
 import type { Hex } from 'viem'
@@ -7,6 +8,8 @@ export interface PassRow {
   holder: Hex | null
   level: Level
   tier: number
+  // the venue card a self-serve right was issued under; null for admin issuance
+  branding: PassBranding | null
 }
 
 // null = the chain could not be read at render time.
@@ -19,6 +22,7 @@ export interface PassView {
   level: Level
   holderShort: string
   status: 'VALID' | 'UNKNOWN' | Reason
+  branding: PassBranding | null
 }
 
 export const shortAddress = (a: Hex): string => `${a.slice(0, 6)}…${a.slice(-4)}`
@@ -32,6 +36,7 @@ const statusOf = (outcome: PassOutcome): PassView['status'] => {
 
 // Pure: everything the page renders, decided here so the markup holds no logic.
 export const passView = (row: PassRow, outcome: PassOutcome): PassView => ({
+  branding: row.branding,
   holderShort: row.holder === null ? '—' : shortAddress(row.holder),
   level: row.level,
   qr: toQr(row.uid),

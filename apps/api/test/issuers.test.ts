@@ -1,3 +1,4 @@
+import { formatMemberNumber } from '@fuda/sdk'
 import { env } from 'cloudflare:test'
 import type { Hex } from 'viem'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -203,5 +204,45 @@ describe('POST /issuers/:handle/issue', () => {
     const signing = appWith({ chain: fakeChain({ signer: ROOT }), now: () => NOW })
     const unconfigured = await issue(signing, publicEnv({ DELEGATION_UID: '' }))
     expect(unconfigured.status).toBe(502)
+  })
+})
+describe('branded passes for a self-serve right', () => {
+  beforeEach(async () => {
+    const db = getDb({ DB: env.DB })
+    await db.delete(members)
+    await db.delete(sessions)
+    await db.delete(challenges)
+    await db.delete(cards)
+    await db.delete(issuers)
+  })
+
+  it('renders the venue, card title, member number and brand colour on the web pass', async () => {
+    const { app, bindings } = await setup()
+    const res = await issue(app, bindings)
+    const body = await res.json<SelfServeIssued>()
+    const page = await app.request(`/pass/${body.uid}`, {}, bindings)
+    const html = await page.text()
+    expect(html).toContain('Wassie Coffee')
+    expect(html).toContain('Membership Card')
+    expect(html).toContain('--brand:#6F4320')
+    expect(html).toContain(formatMemberNumber(body.memberNumber))
+  })
+
+  it('keeps the plain look for an admin-issued right', async () => {
+    const { app, bindings } = await setup()
+    const admin = await app.request(
+      '/issue',
+      {
+        body: JSON.stringify({ memberId: 'alice' }),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      },
+      bindings,
+    )
+    const { uid } = await admin.json<{ uid: Hex }>()
+    const page = await app.request(`/pass/${uid}`, {}, bindings)
+    const html = await page.text()
+    expect(html).not.toContain('Wassie Coffee')
+    expect(html).toContain('fuda pass')
   })
 })

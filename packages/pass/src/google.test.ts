@@ -158,3 +158,33 @@ describe(base64urlBytes, () => {
     expect(parts.join('')).not.toContain('=')
   })
 })
+
+describe('branded generic object', () => {
+  it('shows the venue, card title, member number and brand colour', () => {
+    const obj = buildGenericObject(
+      { classId: 'c', issuerId: 'i', saEmail: 'sa@example.com', saKeyPem: '' },
+      {
+        branding: {
+          brandColor: '#6F4320',
+          cardTitle: 'Membership Card',
+          issuerName: 'Wassie Coffee',
+          memberNumber: 'QJ2Y-XPHE-PDRKA',
+          venue: null,
+        },
+        holderShort: '0x1234…abcd',
+        qr: `fuda:v1:0x${'ab'.repeat(32)}`,
+        tierLabel: 'FREE',
+        uid: `0x${'ab'.repeat(32)}`,
+      },
+    )
+    expect(obj.cardTitle.defaultValue.value).toBe('Wassie Coffee')
+    expect(obj.header.defaultValue.value).toBe('Membership Card')
+    expect(obj.subheader?.defaultValue.value).toBe('QJ2Y-XPHE-PDRKA')
+    expect(obj.hexBackgroundColor).toBe('#6F4320')
+    expect(obj.textModulesData[0]).toStrictEqual({
+      body: 'QJ2Y-XPHE-PDRKA',
+      header: 'Member number',
+      id: 'member',
+    })
+  })
+})

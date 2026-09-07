@@ -1,5 +1,8 @@
 import type { Hex } from '@fuda/sdk'
 
+import { hexToRgb, rgbCss, textOn } from '../branding.ts'
+import type { PassBranding } from '../branding.ts'
+
 export interface AppleConfig {
   passTypeId: string
   teamId: string
@@ -38,6 +41,8 @@ export interface ApplePassInput {
   holderShort: string
   // the QR payload: `fuda:v1:<uid>`
   qr: string
+  // the venue's card, when the right was issued under one
+  branding?: PassBranding | null
 }
 
 interface PassField {
@@ -57,6 +62,7 @@ export interface PassJson {
   backgroundColor: string
   labelColor: string
   barcodes: { format: string; message: string; messageEncoding: string }[]
+  locations?: { latitude: number; longitude: number; relevantText: string }[]
   storeCard: {
     primaryFields: PassField[]
     secondaryFields: PassField[]
@@ -67,22 +73,63 @@ export interface PassJson {
 // docs/specs/pass-types-and-flows.md#passes. A storeCard, not a coupon or event ticket: membership has no date
 // and no venue. The barcode carries the same `fuda:v1:<uid>` payload the
 // browser pass and the Google object do, so one scanner reads all three.
-export const passJson = (cfg: AppleConfig, input: ApplePassInput): PassJson => ({
-  backgroundColor: 'rgb(20,20,20)',
-  // iso-8859-1 is the only encoding Wallet's QR reader accepts, and the payload
-  // is ASCII, so nothing is lost.
-  barcodes: [{ format: 'PKBarcodeFormatQR', message: input.qr, messageEncoding: 'iso-8859-1' }],
-  description: 'fuda membership',
-  foregroundColor: 'rgb(255,255,255)',
-  formatVersion: 1,
-  labelColor: 'rgb(170,170,170)',
-  organizationName: 'fuda',
-  passTypeIdentifier: cfg.passTypeId,
-  serialNumber: input.uid,
-  storeCard: {
-    backFields: [{ key: 'uid', label: 'Attestation', value: input.uid }],
-    primaryFields: [{ key: 'tier', label: 'TIER', value: input.tierLabel }],
-    secondaryFields: [{ key: 'member', label: 'MEMBER', value: input.holderShort }],
-  },
-  teamIdentifier: cfg.teamId,
-})
+export const passJson = (cfg: AppleConfig, input: ApplePassInput): PassJson => {
+  const branding = input.branding ?? null
+  const base = {
+    // iso-8859-1 is the only encoding Wallet's QR reader accepts, and the payload
+    // is ASCII, so nothing is lost.
+    barcodes: [{ format: 'PKBarcodeFormatQR', message: input.qr, messageEncoding: 'iso-8859-1' }],
+    formatVersion: 1,
+    passTypeIdentifier: cfg.passTypeId,
+    serialNumber: input.uid,
+    teamIdentifier: cfg.teamId,
+  }
+  if (branding === null) {
+    return {
+      ...base,
+      backgroundColor: 'rgb(20,20,20)',
+      description: 'fuda membership',
+      foregroundColor: 'rgb(255,255,255)',
+      labelColor: 'rgb(170,170,170)',
+      organizationName: 'fuda',
+      storeCard: {
+        backFields: [{ key: 'uid', label: 'Attestation', value: input.uid }],
+        primaryFields: [{ key: 'tier', label: 'TIER', value: input.tierLabel }],
+        secondaryFields: [{ key: 'member', label: 'MEMBER', value: input.holderShort }],
+      },
+    }
+  }
+  // A venue card: brand colour with readable text, the member number up front,
+  // and — when the card asks for it — the venue location so Wallet surfaces
+  // the pass on the lock screen nearby.
+  const { label, text } = textOn(branding.brandColor)
+  const locations =
+    branding.venue === null
+      ? {}
+      : {
+          locations: [
+            {
+              latitude: branding.venue.lat,
+              longitude: branding.venue.lng,
+              relevantText: branding.issuerName,
+            },
+          ],
+        }
+  return {
+    ...base,
+    ...locations,
+    backgroundColor: rgbCss(hexToRgb(branding.brandColor)),
+    description: branding.cardTitle,
+    foregroundColor: rgbCss(text),
+    labelColor: rgbCss(label),
+    organizationName: branding.issuerName,
+    storeCard: {
+      backFields: [
+        { key: 'holder', label: 'Holder', value: input.holderShort },
+        { key: 'uid', label: 'Attestation', value: input.uid },
+      ],
+      primaryFields: [{ key: 'member', label: 'MEMBER NO.', value: branding.memberNumber }],
+      secondaryFields: [{ key: 'tier', label: 'TIER', value: input.tierLabel }],
+    },
+  }
+}
