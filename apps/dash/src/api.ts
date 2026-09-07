@@ -1,8 +1,25 @@
-import type { IssueResponse, MembersResponse, RevokeResponse } from '@fuda/sdk'
+import type {
+  CardCheckResponse,
+  CardRequest,
+  HandleCheckResponse,
+  Hex,
+  IssuerCreateRequest,
+  IssuerCreateResponse,
+  IssuerMeResponse,
+  IssuerView,
+  IssueResponse,
+  MembersResponse,
+  RevokeResponse,
+  SignInChallengeResponse,
+  SignInResponse,
+} from '@fuda/sdk'
 import { apiFetch } from '@fuda/sdk/http'
 import type { Result } from '@fuda/sdk/http'
+import * as v from 'valibot'
 
 import { API_BASE_URL } from './config.ts'
+import { LOGO_VARIANTS } from './logo.ts'
+import type { LogoSet } from './logo.ts'
 
 export type { Result } from '@fuda/sdk/http'
 
@@ -25,6 +42,136 @@ export const issueRight = async (
 export const revokeRight = async (token: string, uid: string): Promise<Result<RevokeResponse>> =>
   await apiFetch<RevokeResponse>(API_BASE_URL, '/revoke', {
     body: JSON.stringify({ uid }),
+    method: 'POST',
+    token,
+  })
+
+// Operator sign-in (docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route):
+// the passkey wallet signs the api's message and receives a session token. The
+// admin token above is a deployment credential; a session token is an identity.
+export const signInChallenge = async (address: Hex): Promise<Result<SignInChallengeResponse>> =>
+  await apiFetch<SignInChallengeResponse>(API_BASE_URL, '/auth/challenge', {
+    body: JSON.stringify({ address }),
+    method: 'POST',
+  })
+
+export const signInVerify = async (body: {
+  address: Hex
+  nonce: Hex
+  signature: Hex
+}): Promise<Result<SignInResponse>> =>
+  await apiFetch<SignInResponse>(API_BASE_URL, '/auth/verify', {
+    body: JSON.stringify(body),
+    method: 'POST',
+  })
+
+export const signOut = async (token: string): Promise<Result<{ loggedOut: true }>> =>
+  await apiFetch<{ loggedOut: true }>(API_BASE_URL, '/auth/logout', { body: '{}', method: 'POST', token })
+
+export const issuerMe = async (token: string): Promise<Result<IssuerMeResponse>> =>
+  await apiFetch<IssuerMeResponse>(API_BASE_URL, '/issuers/me', { token })
+
+export const checkHandle = async (token: string, handle: string): Promise<Result<HandleCheckResponse>> =>
+  await apiFetch<HandleCheckResponse>(API_BASE_URL, `/issuers/check?handle=${encodeURIComponent(handle)}`, {
+    token,
+  })
+
+export const checkCardSlug = async (token: string, slug: string): Promise<Result<CardCheckResponse>> =>
+  await apiFetch<CardCheckResponse>(API_BASE_URL, `/issuers/cards/check?slug=${encodeURIComponent(slug)}`, {
+    token,
+  })
+
+export const createIssuer = async (
+  token: string,
+  body: IssuerCreateRequest,
+): Promise<Result<IssuerCreateResponse>> =>
+  await apiFetch<IssuerCreateResponse>(API_BASE_URL, '/issuers', {
+    body: JSON.stringify(body),
+    method: 'POST',
+    token,
+  })
+
+// One more card for the venue this session already owns.
+export const createCard = async (token: string, body: CardRequest): Promise<Result<IssuerCreateResponse>> =>
+  await apiFetch<IssuerCreateResponse>(API_BASE_URL, '/issuers/cards', {
+    body: JSON.stringify(body),
+    method: 'POST',
+    token,
+  })
+
+// The venue's logo. `POST /issuers/logo` stages the four PNGs for 15 minutes
+// and the id is spent once, either by `POST /issuers` with the venue or by the
+// commit route below.
+export interface LogoUploadResponse {
+  expiresAt: number
+  logoUploadId: string
+}
+
+const UploadBody = v.object({
+  expiresAt: v.number(),
+  logoUploadId: v.pipe(v.string(), v.minLength(1)),
+})
+
+const ErrorBody = v.object({ error: v.string() })
+
+// The mapping `apiFetch` applies, for the one call that cannot use it. The one
+// departure is 501: the upload route answers it when the api has no media
+// bucket, which is a deployment state to explain, not an outage to retry.
+const MEDIA_NOT_CONFIGURED = 501
+
+const resultOf = async <T>(schema: v.GenericSchema<unknown, T>, res: Response): Promise<Result<T>> => {
+  if (res.status >= 500 && res.status !== MEDIA_NOT_CONFIGURED) {
+    return { error: `api ${res.status}`, network: true, ok: false, status: res.status }
+  }
+  const json: unknown = await res.json().catch(() => null)
+  if (res.ok) {
+    const parsed = v.safeParse(schema, json)
+    return parsed.success
+      ? { body: parsed.output, ok: true }
+      : { error: 'bad_response', network: false, ok: false, status: res.status }
+  }
+  const failed = v.safeParse(ErrorBody, json)
+  return {
+    error: failed.success ? failed.output.error : `api ${res.status}`,
+    network: false,
+    ok: false,
+    status: res.status,
+  }
+}
+
+// `apiFetch` sets `content-type: application/json` for every body it sends, and
+// that header wins over the caller's. A multipart body must carry the boundary
+// the browser chose, so this one call goes through `fetch` directly and maps the
+// response exactly as `apiFetch` would.
+export const uploadLogo = async (token: string, variants: LogoSet): Promise<Result<LogoUploadResponse>> => {
+  const form = new FormData()
+  for (const variant of LOGO_VARIANTS) {
+    form.append(variant, variants[variant], `${variant}.png`)
+  }
+  try {
+    const res = await fetch(`${API_BASE_URL.replace(/\/$/u, '')}/issuers/logo`, {
+      body: form,
+      headers: { authorization: `Bearer ${token}` },
+      method: 'POST',
+    })
+    return await resultOf(UploadBody, res)
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : 'network error',
+      network: true,
+      ok: false,
+      status: 0,
+    }
+  }
+}
+
+// Points the venue this session already owns at a staged upload.
+export const commitLogo = async (
+  token: string,
+  logoUploadId: string,
+): Promise<Result<{ issuer: IssuerView }>> =>
+  await apiFetch<{ issuer: IssuerView }>(API_BASE_URL, '/issuers/logo/commit', {
+    body: JSON.stringify({ logoUploadId }),
     method: 'POST',
     token,
   })

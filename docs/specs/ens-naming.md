@@ -71,8 +71,10 @@ fuda.sh  ──alias──►  fuda.eth         planned DNS alias; the zone is n
 
 - An **issuer label** is the issuer's public Handle (`/@<handle>`), restricted
   to lowercase ASCII `[a-z0-9-]`, 1–63 bytes, without a leading or trailing
-  hyphen. A claimed label is an ENSv2 User Registry entry owned onchain by the
-  issuer wallet.
+  hyphen. A reserved set is refused on top of that rule: fuda's own hostnames,
+  the api's route prefixes, and the static segments under `/issuers/` (`me`,
+  `check`, `cards`), which a venue name would otherwise shadow. A claimed label
+  is an ENSv2 User Registry entry owned onchain by the issuer wallet.
 - A **member label** is the right's member number, exactly as printed on the
   pass after display formatting is removed. Member labels never become User
   Registry entries and members hold no ENS-side key; all member records remain
@@ -113,8 +115,19 @@ identifier the self-serve issuance path generates for a right. The admin path
 non-empty string the operator chooses—and stores it as-is in
 `members.member_id`; it is neither validated against nor converted to the
 member-number format. The two coexist: an admin-issued right has whatever id
-the operator typed, a self-serve right has a generated member number. No route
-in the API generates member numbers.
+the operator typed, a self-serve right has a generated member number.
+`POST /issuers/:handle/issue` is the route that generates them: the generator
+and validator are `generateMemberNumber` / `isMemberNumber` in `@fuda/sdk`,
+and `formatMemberNumber` renders the `4-4-5` display form on passes. The
+number is stored in `members.member_id`. Uniqueness is scoped to the **issuer**
+— a partial unique index on `(issuer_id, member_id)`, with `members.issuer_id`
+denormalized from the card because SQLite cannot constrain across the join —
+because the number is a label under the issuer. Two cards of one venue
+therefore never mint the same number, and a member who claims both holds two
+unrelated numbers, exactly as a `private + loyalty` member does.
+
+A card's slug (`fuda.sh/@<handle>/<slug>`) is a product path and never an ENS
+label: the hierarchy stays `<member-no>.<issuer>.fuda.eth` with no card level.
 
 ## Hybrid resolution
 

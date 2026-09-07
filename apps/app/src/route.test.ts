@@ -71,4 +71,54 @@ describe(routeFor, () => {
     const dev = 'http://localhost:5173'
     expect(routeFor(dev, '/signed', dev)).toBe('signed')
   })
+
+  // The card screen calls the api from the browser, so like /signed it may only
+  // render on the app origin; the apex hands it over with the query intact.
+  it('renders a venue on the app origin and redirects it from the apex', () => {
+    expect(routeFor(APP, '/@wassie-coffee', APP)).toStrictEqual({ card: 'wassie-coffee', slug: null })
+    expect(routeFor(APP, '/@wassie-coffee/', APP)).toStrictEqual({ card: 'wassie-coffee', slug: null })
+    expect(routeFor(APEX, '/@wassie-coffee', APP)).toStrictEqual({
+      redirect: 'https://app.fuda.sh/@wassie-coffee',
+    })
+  })
+
+  // A venue that publishes several cards links each one at /@<handle>/<slug>.
+  it('routes one card of a venue by its slug', () => {
+    expect(routeFor(APP, '/@wassie-coffee/regular', APP)).toStrictEqual({
+      card: 'wassie-coffee',
+      slug: 'regular',
+    })
+    expect(routeFor(APP, '/@wassie-coffee/regular/', APP)).toStrictEqual({
+      card: 'wassie-coffee',
+      slug: 'regular',
+    })
+  })
+
+  it('carries a query string across the venue and card redirects', () => {
+    expect(routeFor(APEX, '/@wassie-coffee?ref=poster', APP)).toStrictEqual({
+      redirect: 'https://app.fuda.sh/@wassie-coffee?ref=poster',
+    })
+    expect(routeFor(APEX, '/@wassie-coffee/regular?ref=poster', APP)).toStrictEqual({
+      redirect: 'https://app.fuda.sh/@wassie-coffee/regular?ref=poster',
+    })
+    expect(routeFor(APP, '/@wassie-coffee?ref=poster', APP)).toStrictEqual({
+      card: 'wassie-coffee',
+      slug: null,
+    })
+  })
+
+  it('sends an invalid or reserved handle to the landing rather than into a redirect', () => {
+    expect(routeFor(APP, '/@Wassie Coffee', APP)).toBe('landing')
+    expect(routeFor(APEX, '/@www', APP)).toBe('landing')
+    expect(routeFor(APP, '/@', APP)).toBe('landing')
+  })
+
+  // A slug the sdk would refuse is not a card address, so it falls through to
+  // the landing exactly as a bad handle does.
+  it('sends an invalid, reserved or over-deep card slug to the landing', () => {
+    expect(routeFor(APP, '/@wassie-coffee/Regular Card', APP)).toBe('landing')
+    expect(routeFor(APP, '/@wassie-coffee/cards', APP)).toBe('landing')
+    expect(routeFor(APEX, '/@wassie-coffee/cards', APP)).toBe('landing')
+    expect(routeFor(APP, '/@wassie-coffee/regular/extra', APP)).toBe('landing')
+  })
 })

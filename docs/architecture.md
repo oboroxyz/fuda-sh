@@ -107,6 +107,32 @@ the UX layer temporarily holds authority, and the decentralized exit
 - [ENS naming](./specs/ens-naming.md) — ENS hierarchy, the member number, what a name
   resolves to (rotating stealth addresses for +Private), name lifecycle
 
+## Environments
+
+fuda runs one deployment per chain, and they never share state. Each owns its
+own D1 database, its own R2 bucket, its own Worker secrets and its own EAS
+schema and delegation UIDs, because a schema UID is per chain and an
+attestation on one chain means nothing on another.
+
+| | Chain | D1 | R2 | Hostnames | Branch |
+| --- | --- | --- | --- | --- | --- |
+| local | in-memory fake (`USE_FAKE_CHAIN`) | the local simulated database | simulated; `fuda-media-local` only under `wrangler dev --remote` | none | any |
+| develop | Base Sepolia | `fuda-beta` | `fuda-media-dev` | `*.fuda.sh` today, `*.dev.fuda.sh` after the mainnet cutover | `develop` |
+| production | Base mainnet | `fuda` | `fuda-media` | `*.fuda.sh` from the cutover | `main` |
+
+The Sepolia deployment is live on the apex hostnames today and keeps them
+until the cutover; `env.production` therefore carries no `routes`, so deploying
+it early cannot take a hostname from the running one. The local environment is
+named `local`, not `dev`, so it is never confused with the deployed develop
+one. Nothing is migrated at the cutover — see
+[ADR 0006](./adr/0006-per-chain-environments.md) — so production begins with an
+empty database and bucket.
+
+Because a frontend bakes `VITE_API_BASE_URL` in at build time, a bundle belongs
+to exactly one environment: a develop build must be built against the develop
+api. The deploy order and the one-time chain setup per environment are in the
+[runbook](./runbook.md).
+
 ## Configuration
 
 The deployment's configured values, and what fails when one is missing, are
@@ -157,6 +183,7 @@ them is a protocol version bump.
 - [ADR 0003 — separate Graph push and query lanes](./adr/0003-graph-push-query-lanes.md)
 - [ADR 0004 — member pass list derived from holder addresses](./adr/0004-member-pass-list-from-holder.md)
 - [ADR 0005 — one hybrid resolver for the claimed and offchain ENS tree](./adr/0005-hybrid-ensv2-resolver.md)
+- [ADR 0006 — one deployment per chain, nothing migrated at the cutover](./adr/0006-per-chain-environments.md)
 - [api README](../apps/api/README.md) — running the api locally, endpoints,
   error codes
 - [Glossary](./CONTEXT.md)

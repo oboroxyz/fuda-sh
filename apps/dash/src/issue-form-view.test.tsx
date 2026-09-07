@@ -13,8 +13,8 @@ import { graphOnChainStatusIo } from './on-chain-status.ts'
 import { OnChainStatus, OnChainStatusView } from './OnChainStatus.tsx'
 import type { OnChainStatusViewProps } from './OnChainStatus.tsx'
 import { QrBlock } from './QrBlock.tsx'
+import { SignInView } from './SignIn.tsx'
 import { findViewNodes, viewProps, viewText, walkView } from './test/test-view.ts'
-import { TokenGateView } from './TokenGate.tsx'
 
 // Control hook scheduling only; form validation, callbacks and SingleFlight remain real.
 const hooks = vi.hoisted(() => ({ index: 0, slots: new Map<number, unknown>() }))
@@ -193,12 +193,14 @@ describe('localized operation views', () => {
     'labels the token, exposes appearance and error, and accepts trimmed value %j',
     (value) => {
       const onToken = vi.fn<(token: string) => void>()
-      const rendered = TokenGateView({
+      const rendered = SignInView({
         appearance: <aside>appearance controls</aside>,
         copy: DASH_COPY.ja.auth,
         error: '権限がありません: UNAUTHORIZED',
+        onPasskey: (): void => {},
         onToken,
         onValue: (): void => {},
+        pending: false,
         value,
       })
       const password = walkView(rendered).find((node) => node.props.type === 'password')!
@@ -222,16 +224,17 @@ describe('localized operation views', () => {
   )
 
   it('renders the brand mark before the centered dashboard title', () => {
-    const rendered = TokenGateView({
+    const rendered = SignInView({
       appearance: <aside />,
       copy: DASH_COPY.en.auth,
       error: null,
+      onPasskey: (): void => {},
       onToken: (): void => {},
       onValue: (): void => {},
+      pending: false,
       value: '',
     })
-    const authForm = walkView(rendered).find((node) => 'onSubmit' in node.props)!
-    const authNodes = walkView(authForm)
+    const authNodes = walkView(rendered)
     const logoIndex = authNodes.findIndex(
       (node) => node.tag === 'svg' && node.props['aria-label'] === 'fuda.',
     )

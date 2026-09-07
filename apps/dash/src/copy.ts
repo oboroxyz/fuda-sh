@@ -12,7 +12,7 @@ export interface DashCopy {
     japanese: string
     theme: { control: string; light: string; dark: string; system: string }
   }
-  nav: { overview: string; rights: string; issue: string }
+  nav: { overview: string; rights: string; issue: string; newCard: string; card: string }
   auth: {
     title: string
     description: string
@@ -20,6 +20,131 @@ export interface DashCopy {
     tokenPlaceholder: string
     continue: string
     unauthorized: string
+    passkey: string
+    passkeyHint: string
+    adminSection: string
+    signingIn: string
+    signOut: string
+    failures: { network: string; rejected: string; unavailable: string; wallet: string }
+  }
+  logo: {
+    label: string
+    change: string
+    choose: string
+    hint: string
+    remove: string
+    previewAlt: string
+    updating: string
+    updateFailed: string
+    rejections: {
+      decode: string
+      encode: string
+      tooHeavy: string
+      tooLarge: string
+      tooSmall: string
+      type: string
+    }
+  }
+  designer: {
+    title: string
+    description: string
+    preview: string
+    handleLabel: string
+    handlePrefix: string
+    handlePlaceholder: string
+    slugLabel: string
+    slugPlaceholder: string
+    nameLabel: string
+    namePlaceholder: string
+    titleLabel: string
+    taglineLabel: string
+    taglinePlaceholder: string
+    colorLabel: string
+    colorHexLabel: string
+    categoryLabel: string
+    membership: string
+    ticket: string
+    perkLabel: string
+    perkPlaceholder: string
+    rewardLabel: string
+    rewardPlaceholder: string
+    expiryDays: string
+    claimLabel: string
+    claimHint: string
+    claimFromLabel: string
+    claimUntilLabel: string
+    validityLabel: string
+    validityHint: string
+    validityModeLabel: string
+    validityNone: string
+    validityDaysMode: string
+    validityFixed: string
+    validityDaysLabel: string
+    validFromLabel: string
+    validUntilLabel: string
+    windowProblems: {
+      bothRules: string
+      claimOrder: string
+      validOrder: string
+    }
+    lockScreenLabel: string
+    lockScreenHint: string
+    locationUnavailable: string
+    submit: string
+    submitting: string
+    handleStatus: {
+      available: string
+      checking: string
+      format: string
+      reserved: string
+      taken: string
+      unknown: string
+    }
+    slugStatus: {
+      available: string
+      checking: string
+      format: string
+      reserved: string
+      taken: string
+      unknown: string
+    }
+    failures: {
+      input: string
+      logo: string
+      network: string
+      session: string
+      slugInvalid: string
+      slugTaken: string
+      taken: string
+    }
+  }
+  published: {
+    title: string
+    titleMany: string
+    description: string
+    descriptionMany: string
+    venueLabel: string
+    addCard: string
+    qrLabel: string
+    print: string
+    share: string
+    copy: string
+    copied: string
+    hint: string
+    claimStates: {
+      closed: string
+      closedSince: string
+      notYet: string
+      open: string
+      openUntil: string
+    }
+    validityStates: {
+      days: string
+      fixed: string
+      from: string
+      never: string
+      until: string
+    }
   }
   overview: {
     title: string
@@ -142,7 +267,7 @@ export const DASH_COPY = {
       japanese: '日本語',
       theme: { control: 'Theme', light: 'Light', dark: 'Dark', system: 'System' },
     },
-    nav: { overview: 'Overview', rights: 'Rights', issue: 'Issue' },
+    nav: { overview: 'Overview', rights: 'Rights', issue: 'Issue', newCard: 'New card', card: 'Your cards' },
     auth: {
       title: 'fuda. dashboard',
       description:
@@ -151,6 +276,136 @@ export const DASH_COPY = {
       tokenPlaceholder: 'ADMIN_TOKEN',
       continue: 'Continue',
       unauthorized: 'Unauthorized. Check the admin token.',
+      passkey: 'Continue with a passkey',
+      passkeyHint: 'No email, no password. Your passkey is the whole account.',
+      adminSection: 'Sign in with an admin token instead',
+      signingIn: 'Waiting for your passkey…',
+      signOut: 'Sign out',
+      failures: {
+        network: 'Could not reach fuda. Check your connection and try again.',
+        rejected: 'That signature was not accepted. Please try again.',
+        unavailable: 'Sign-in is unavailable right now. Please try again later.',
+        wallet: 'The passkey step was cancelled.',
+      },
+    },
+    logo: {
+      label: 'Logo',
+      change: 'Change logo',
+      choose: 'Choose image',
+      hint: 'PNG, JPEG or WebP, at least 660×660. A square image works best.',
+      remove: 'Remove',
+      previewAlt: 'Logo preview',
+      updating: 'Updating…',
+      updateFailed: 'Could not update the logo. Try again.',
+      rejections: {
+        decode: 'That image could not be read. Try another file.',
+        encode: 'Your browser could not prepare that image. Try another file.',
+        tooHeavy: 'That image is too detailed for a logo. Try a simpler one.',
+        tooLarge: 'That file is over 10 MB. Try a smaller one.',
+        tooSmall: 'That image is too small. Use one at least 660×660.',
+        type: 'Use a PNG, JPEG or WebP image.',
+      },
+    },
+    designer: {
+      title: 'Design the card',
+      description: 'Your members see this card. You can run the whole programme from one link.',
+      preview: 'Live preview',
+      handleLabel: 'Link',
+      handlePrefix: 'fuda.sh/@',
+      handlePlaceholder: 'wassie-coffee',
+      slugLabel: 'Card link',
+      slugPlaceholder: 'membership-card',
+      nameLabel: 'Venue name',
+      namePlaceholder: 'Wassie Coffee',
+      titleLabel: 'Card title',
+      taglineLabel: 'Tagline',
+      taglinePlaceholder: 'Omotesando · Coffee shop',
+      colorLabel: 'Brand colour',
+      colorHexLabel: 'Brand colour hex',
+      categoryLabel: 'Card type',
+      membership: 'Membership',
+      ticket: 'Ticket',
+      perkLabel: 'Perk',
+      perkPlaceholder: 'Stamp card · 10 stamps',
+      rewardLabel: 'Reward',
+      rewardPlaceholder: 'Free drink of your choice',
+      expiryDays: '{days} days',
+      claimLabel: 'Claim window',
+      claimHint: 'When the card is handed out. Leave both empty to keep it open.',
+      claimFromLabel: 'Opens',
+      claimUntilLabel: 'Closes',
+      validityLabel: 'Validity',
+      validityHint: 'How long the card stays valid once someone has it.',
+      validityModeLabel: 'Expires',
+      validityNone: 'Never',
+      validityDaysMode: 'Days after claiming',
+      validityFixed: 'On set dates',
+      validityDaysLabel: 'Valid for',
+      validFromLabel: 'Valid from',
+      validUntilLabel: 'Valid until',
+      windowProblems: {
+        bothRules: 'Pick one: days after claiming, or set dates. Not both.',
+        claimOrder: 'The claim window cannot close before it opens.',
+        validOrder: 'The validity cannot end before it starts.',
+      },
+      lockScreenLabel: 'Lock screen',
+      lockScreenHint: 'Show the card near the venue.',
+      locationUnavailable: 'Location unavailable.',
+      submit: 'Create card',
+      submitting: 'Creating…',
+      handleStatus: {
+        available: 'Available',
+        checking: 'Checking…',
+        format: 'Use lowercase letters, digits and hyphens.',
+        reserved: 'This name is reserved.',
+        taken: 'Already taken',
+        unknown: 'Could not check this link.',
+      },
+      slugStatus: {
+        available: 'Available',
+        checking: 'Checking…',
+        format: 'Use lowercase letters, digits and hyphens.',
+        reserved: 'This name is reserved.',
+        taken: 'Already used',
+        unknown: 'Could not check this link.',
+      },
+      failures: {
+        input: 'Some fields need a change before this card can be created.',
+        logo: 'Could not upload the logo. Your card is still here — try again.',
+        network: 'Could not reach fuda. Check your connection and try again.',
+        session: 'Your sign-in expired. Please sign in again.',
+        slugInvalid: 'That card link cannot be used. Pick another one.',
+        slugTaken: 'That card link is already used. Pick another one.',
+        taken: 'That link is already taken. Pick another one.',
+      },
+    },
+    published: {
+      title: 'Your card is live',
+      titleMany: 'Your cards are live',
+      description: 'One link is the whole sign-up. Print it, mail it, or post it.',
+      descriptionMany: 'Every card has its own link. Print it, mail it, or post it.',
+      venueLabel: 'Venue page',
+      addCard: 'Add another card',
+      qrLabel: 'QR code for your card link',
+      print: 'Print QR poster',
+      share: 'Share link',
+      copy: 'Copy link',
+      copied: 'Copied',
+      hint: 'Anyone who scans gets a card — no app on their side either.',
+      claimStates: {
+        closed: 'Closed',
+        closedSince: 'Closed since {until}',
+        notYet: 'Opens {from}',
+        open: 'Open',
+        openUntil: 'Open until {until}',
+      },
+      validityStates: {
+        days: 'Valid {days} days after claiming',
+        fixed: 'Valid {from} – {until}',
+        from: 'Valid from {from}',
+        never: 'Does not expire',
+        until: 'Valid until {until}',
+      },
     },
     overview: {
       title: 'Overview',
@@ -270,7 +525,7 @@ export const DASH_COPY = {
       japanese: '日本語',
       theme: { control: 'テーマ', light: 'ライト', dark: 'ダーク', system: 'システム' },
     },
-    nav: { overview: '概要', rights: '権利', issue: '発行' },
+    nav: { overview: '概要', rights: '権利', issue: '発行', newCard: 'カードを作る', card: 'カード' },
     auth: {
       title: 'fuda. dashboard',
       description:
@@ -279,6 +534,136 @@ export const DASH_COPY = {
       tokenPlaceholder: 'ADMIN_TOKEN',
       continue: '続ける',
       unauthorized: '認証できませんでした。管理トークンを確認してください。',
+      passkey: 'パスキーで続ける',
+      passkeyHint: 'メールアドレスもパスワードも不要です。パスキーがそのままアカウントになります。',
+      adminSection: '管理トークンでサインインする',
+      signingIn: 'パスキーの操作を待っています…',
+      signOut: 'サインアウト',
+      failures: {
+        network: 'fuda に接続できませんでした。通信環境を確認して、もう一度お試しください。',
+        rejected: '署名が受け付けられませんでした。もう一度お試しください。',
+        unavailable: '現在サインインできません。しばらくしてからお試しください。',
+        wallet: 'パスキーの操作が取り消されました。',
+      },
+    },
+    logo: {
+      label: 'ロゴ',
+      change: 'ロゴを変更',
+      choose: '画像を選ぶ',
+      hint: 'PNG・JPEG・WebP に対応しています。660px 以上の正方形に近い画像がきれいに表示されます。',
+      remove: '削除',
+      previewAlt: 'ロゴのプレビュー',
+      updating: '更新中…',
+      updateFailed: 'ロゴを更新できませんでした。もう一度お試しください。',
+      rejections: {
+        decode: 'この画像を読み込めませんでした。別の画像を選んでください。',
+        encode: 'ブラウザで画像を変換できませんでした。別の画像を選んでください。',
+        tooHeavy: '画像が複雑すぎてロゴに使えません。もっとシンプルな画像を選んでください。',
+        tooLarge: 'ファイルが 10MB を超えています。もっと小さい画像を選んでください。',
+        tooSmall: '画像が小さすぎます。660px 以上の画像を選んでください。',
+        type: 'PNG・JPEG・WebP の画像を選んでください。',
+      },
+    },
+    designer: {
+      title: 'カードをデザイン',
+      description: 'メンバーにはこのカードが表示されます。リンク 1 本で運用できます。',
+      preview: 'プレビュー',
+      handleLabel: 'リンク',
+      handlePrefix: 'fuda.sh/@',
+      handlePlaceholder: 'wassie-coffee',
+      slugLabel: 'カードのリンク',
+      slugPlaceholder: 'membership-card',
+      nameLabel: '店舗名',
+      namePlaceholder: 'Wassie Coffee',
+      titleLabel: 'カード名',
+      taglineLabel: '説明',
+      taglinePlaceholder: '表参道 · コーヒーショップ',
+      colorLabel: 'ブランドカラー',
+      colorHexLabel: 'ブランドカラーの16進数',
+      categoryLabel: 'カードの種類',
+      membership: '会員カード',
+      ticket: 'チケット',
+      perkLabel: '特典',
+      perkPlaceholder: 'スタンプカード · 10 個',
+      rewardLabel: 'リワード',
+      rewardPlaceholder: 'お好きなドリンク 1 杯無料',
+      expiryDays: '{days} 日',
+      claimLabel: '受付期間',
+      claimHint: 'カードを受け取れる期間です。両方とも空欄なら、いつでも受け取れます。',
+      claimFromLabel: '受付開始',
+      claimUntilLabel: '受付締切',
+      validityLabel: '有効期間',
+      validityHint: '受け取ったカードが使える期間です。',
+      validityModeLabel: '期限の決め方',
+      validityNone: '期限なし',
+      validityDaysMode: '受け取ってから◯日',
+      validityFixed: '日時を指定',
+      validityDaysLabel: '有効な日数',
+      validFromLabel: '開始日時',
+      validUntilLabel: '終了日時',
+      windowProblems: {
+        bothRules: '日数か日時のどちらか一方で決めてください。',
+        claimOrder: '受付締切は受付開始より後にしてください。',
+        validOrder: '終了日時は開始日時より後にしてください。',
+      },
+      lockScreenLabel: 'ロック画面',
+      lockScreenHint: '店舗の近くでカードを表示します。',
+      locationUnavailable: '位置情報を取得できませんでした。',
+      submit: 'カードを作成',
+      submitting: '作成中…',
+      handleStatus: {
+        available: '使えます',
+        checking: '確認中…',
+        format: '小文字の英字、数字、ハイフンが使えます。',
+        reserved: 'この名前は予約されています。',
+        taken: 'すでに使われています',
+        unknown: 'リンクを確認できませんでした。',
+      },
+      slugStatus: {
+        available: '使えます',
+        checking: '確認中…',
+        format: '小文字の英字、数字、ハイフンが使えます。',
+        reserved: 'この名前は予約されています。',
+        taken: 'すでに使われています',
+        unknown: 'リンクを確認できませんでした。',
+      },
+      failures: {
+        input: '入力内容を確認してください。このままではカードを作成できません。',
+        logo: 'ロゴをアップロードできませんでした。入力内容はそのままです。もう一度お試しください。',
+        network: 'fuda に接続できませんでした。通信環境を確認して、もう一度お試しください。',
+        session: 'サインインの有効期限が切れました。もう一度サインインしてください。',
+        slugInvalid: 'このカードのリンクは使えません。別の名前を選んでください。',
+        slugTaken: 'このカードのリンクはすでに使われています。別の名前を選んでください。',
+        taken: 'このリンクはすでに使われています。別の名前を選んでください。',
+      },
+    },
+    published: {
+      title: 'カードを公開しました',
+      titleMany: '公開中のカード',
+      description: 'このリンク 1 本が入会導線になります。印刷しても、送っても、投稿してもかまいません。',
+      descriptionMany: 'カードごとにリンクがあります。印刷しても、送っても、投稿してもかまいません。',
+      venueLabel: '店舗ページ',
+      addCard: 'カードを追加',
+      qrLabel: 'カードのリンクの QR コード',
+      print: 'QR ポスターを印刷',
+      share: 'リンクを共有',
+      copy: 'リンクをコピー',
+      copied: 'コピーしました',
+      hint: 'スキャンした人は誰でもカードを受け取れます。相手にもアプリは要りません。',
+      claimStates: {
+        closed: '受付終了',
+        closedSince: '{until} に受付終了',
+        notYet: '{from} から受付',
+        open: '受付中',
+        openUntil: '{until} まで受付',
+      },
+      validityStates: {
+        days: '受け取ってから {days} 日間有効',
+        fixed: '{from} 〜 {until} に有効',
+        from: '{from} から有効',
+        never: '期限なし',
+        until: '{until} まで有効',
+      },
     },
     overview: {
       title: '概要',

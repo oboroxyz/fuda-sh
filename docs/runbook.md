@@ -45,6 +45,28 @@ depends on.
    Idempotence is the operator's: run this once per deployment; a second run
    mints a second, equally valid delegation.
 
+   Create the media bucket before the first deploy:
+
+   ```bash
+   wrangler r2 bucket create fuda-media-dev
+   ```
+
+   Its `MEDIA_BUCKET` binding is already in `wrangler.jsonc`. Until the bucket
+   exists, logo upload answers `501 media_not_configured` and every other
+   surface works unbranded. Every environment owns its own bucket, because an
+   R2 bucket cannot be renamed and develop must never read or overwrite a
+   production venue's mark: `fuda-media-dev` here, `fuda-media` for
+   mainnet, `fuda-media-local` for `wrangler dev --remote` only (a plain
+   `wrangler dev` simulates R2 locally, so that one rarely needs creating).
+   Nothing outside `wrangler.jsonc` sees a bucket name — the public URL is
+   `/assets/:handle/logo/:variant` and D1 stores only the relative
+   `logos/<uuid>` prefix — so a bucket can be swapped later by copying objects
+   and editing one line.
+
+   `PUBLIC_BASE_URL` (top-level `vars`) is the member-facing origin the
+   dashboard's published card links to, `https://fuda.sh`; the `env.local` value
+   is the app dev port. It never needs regenerating.
+
 4. Look up the `Announcer` contract's deployment block on the Base Sepolia
    explorer and set the top-level `vars.ANNOUNCER_FROM_BLOCK` to it. The
    checked-in placeholder is `"0"`. This value is the start block used when
@@ -53,7 +75,7 @@ depends on.
    and malformed values.
 5. Create the D1 database and paste its id into both `database_id`
    placeholders in `apps/api/wrangler.jsonc` (the top-level `d1_databases`
-   entry and the one repeated under `env.dev`):
+   entry and the one repeated under `env.local`):
 
    ```bash
    wrangler d1 create fuda-beta
@@ -350,7 +372,7 @@ after a deploy and periodically thereafter (see
 ## 12. Local development
 
 See `apps/api/README.md` for local dev: `USE_FAKE_CHAIN=1` and
-`.dev.vars.example`, the deterministic `env.dev` block in
+`.dev.vars.example`, the deterministic `env.local` block in
 `apps/api/wrangler.jsonc`, and the four dev ports (api 8787, gate 5174, dash
 5175, app 5173). Local D1 state under `.wrangler/state` persists across
 `wrangler dev` restarts; wipe it if the fake chain's world (schemas,
@@ -366,3 +388,84 @@ fixed hourly D1 budget of 120 requests per IP. Announcement discovery is a
 browser-to-Graph query and does not pass through the API. The gate routes
 (`/verify`, `/challenge`, `/verify-signed`) and the admin routes (`/issue`,
 `/revoke`, `/members`) are never budgeted.
+
+## Mainnet cutover
+
+Today's top-level `wrangler.jsonc` is the Base Sepolia deployment that owns
+`api.fuda.sh` and its sibling hostnames. At release it keeps the Sepolia chain
+and becomes the internal **develop** environment (branch `develop`), while
+`env.production` takes mainnet and the apex hostnames.
+
+Nothing is migrated. A Sepolia Entitlement is meaningless on mainnet, so
+production starts with an empty database and an empty bucket, and every member
+re-claims. That is why each environment owns its own resources rather than
+sharing them:
+
+| Resource | Develop (Sepolia) | Production (mainnet) |
+| --- | --- | --- |
+| D1 | `fuda-beta` — the existing database, kept under its name because D1 has no rename and `database_id` is what binds | `fuda`, created at cutover |
+| R2 | `fuda-media-dev` | `fuda-media` |
+| Worker | `fuda-api` | `fuda-api-production`, or rename in the env block |
+| Hostnames | `*.dev.fuda.sh` after the cutover | `*.fuda.sh` |
+| Chain id | `84532` | `8453` |
+
+EAS and the SchemaRegistry are OP-stack predeploys at the same addresses on
+both networks, so those two `vars` do not change. The ERC-5564 Announcer is a
+separate deployment: confirm the mainnet address before reusing the Sepolia
+one rather than assuming the singleton is at the same place.
+
+`env.production` deliberately carries `routes: []`. Adding a custom domain
+there before the Sepolia deployment has moved off it would take a live
+hostname away from the running beta, so the order matters:
+
+1. Register the mainnet EAS schemas and attest the root delegation, then fill
+   `env.production`'s `EAS_SCHEMAS`, `ISSUER_ADDRESS`, `DELEGATION_UID` and
+   `ANNOUNCER_FROM_BLOCK`. Until then issuance answers `502 chain_error`
+   rather than attesting under the wrong configuration.
+2. `wrangler d1 create fuda` and paste the id; `wrangler r2 bucket create fuda-media`.
+3. Set every secret again for the environment (`wrangler secret put … --env production`).
+   The mainnet root must be a Safe with a hot issuer, not the Sepolia EOA.
+4. Apply migrations against the new database and deploy `--env production`
+   with no routes; smoke it on its `workers.dev` hostname.
+5. Move the Sepolia deployment to `*.dev.fuda.sh`, then add the apex custom
+   domains to `env.production` and redeploy both.
+6. Rebuild the three frontends with the production `VITE_*` values; their
+   `VITE_API_BASE_URL` decides which api a bundle talks to, so a develop build
+   must point at the develop api.
+7. Change the passkey wallet's chain id. `apps/app/src/base-account.ts` and
+   `apps/dash/src/wallet.ts` construct the Base Account SDK with
+   `appChainIds: [84_532]`; a mainnet build must pass `8453` or the operator
+   signs against the wrong network. This is source, not a `VITE_*` value, so a
+   rebuild alone does not fix it.
+
+## Rolling back
+
+Each surface is its own Worker, so a bad deploy is undone per surface with
+`wrangler rollback` from that app's directory; it restores the previous
+deployment of that Worker and touches nothing else. Roll the api back first
+when a release changed both the api and a frontend, because a frontend bundle
+is built against an api contract and the older bundle is the one that matches
+the older api.
+
+Three kinds of state do not roll back with the code, and each needs its own
+treatment.
+
+**D1 migrations are forward-only.** A shipped migration is never edited: the
+migrations table records it as applied, so an edit changes what a fresh
+database gets while leaving every existing one untouched, and the two diverge
+silently. Fix by adding a migration. Keep a migration additive where the
+release it belongs to might be rolled back — an added column is invisible to
+the older code, whereas a dropped or renamed one takes the older code down
+with it.
+
+**Chain state is append-only.** Schemas and attestations cannot be deleted. A
+root delegation attested by mistake is revoked, not removed, and revocation is
+what the gate reads: an Entitlement under a revoked delegation stops admitting
+without anything being rewritten. Because `EAS_SCHEMAS` accepts a set of
+versions, a schema registered in error is retired by removing it from that set
+rather than by touching the chain.
+
+**R2 objects are immutable under their prefix.** Rolling the api back does not
+un-write a logo, and it does not need to: the issuer row names the prefix, so
+restoring the previous row restores the previous mark, and the version in the
+public URL keeps caches honest either way.

@@ -25,7 +25,7 @@ const createDevChain = (): FakeChain => {
   const uid = chain.seedRootDelegation(schemaUid(SCHEMA_STRINGS.issuerDelegation), DEV_DELEGATION_UID)
   // oxlint-disable-next-line no-console -- one-time dev bootstrap hint, printed once per isolate
   console.warn(
-    `[fuda-api] USE_FAKE_CHAIN=1: seeded root delegation. Set ISSUER_ADDRESS=${chain.signerAddress() ?? ''} and DELEGATION_UID=${uid} in wrangler.jsonc env.dev.vars.`,
+    `[fuda-api] USE_FAKE_CHAIN=1: seeded root delegation. Set ISSUER_ADDRESS=${chain.signerAddress() ?? ''} and DELEGATION_UID=${uid} in wrangler.jsonc env.local.vars.`,
   )
   return chain
 }

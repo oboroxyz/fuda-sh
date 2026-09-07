@@ -45,10 +45,11 @@ Choose the workflow before choosing the workspace:
 1. Inspect and triage the current checkout read-only. Determine whether the
    task is routine direct work or has unresolved requirements, product
    semantics, interfaces, architecture, or other design decisions.
-2. Keep fully specified, local, reversible work in the current checkout. Make
-   the edit directly, preserve unrelated changes, and run a proportionate
-   targeted check. Do not invoke Superpowers, create a worktree, or evaluate
-   orchestration merely because files will change.
+2. Read the `using-superpowers` skill and follow its applicability rules. Only
+   fully specified, local, reversible work skips it: make the edit directly in
+   the current checkout, preserve unrelated changes, and run a proportionate
+   targeted check. A file changing is not by itself a reason to create a
+   worktree or evaluate orchestration.
 3. When unresolved complexity exists, invoke the smallest applicable
    Superpowers workflow. If brainstorming establishes that a persistent design
    spec or implementation plan is needed, decide whether isolation is useful

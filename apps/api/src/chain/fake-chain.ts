@@ -15,7 +15,7 @@ import type {
 const DEFAULT_SIGNER: Hex = `0x${'f0'.repeat(20)}`
 
 // The fixed uid `createDevChain` (in `../index.ts`) seeds the fake root
-// IssuerDelegation at. Must match `wrangler.jsonc` `env.dev.vars.DELEGATION_UID`
+// IssuerDelegation at. Must match `wrangler.jsonc` `env.local.vars.DELEGATION_UID`
 // exactly: `FakeChain`'s uid counter (below) starts at a random per-instance
 // offset, so without an explicit uid every `wrangler dev` start would mint a
 // different delegation uid than the one pinned in the dev vars, and

@@ -1,0 +1,61 @@
+import { isClaimable } from '@fuda/sdk'
+import type { CardView, IssuerView, PublicVenue } from '@fuda/sdk'
+import type { Hex } from 'viem'
+
+import type { cards, issuers } from '../db/schema.ts'
+import { logoUrlFor } from '../media/logo.ts'
+
+type IssuerRow = typeof issuers.$inferSelect
+type CardRow = typeof cards.$inferSelect
+
+export const issuerView = (row: IssuerRow, baseUrl: string): IssuerView => {
+  // Annotated (not cast): written only from ADDRESS_RE-validated input.
+  const operatorAddress: Hex = `0x${row.operatorAddress.slice(2)}`
+  return {
+    brandColor: row.brandColor,
+    createdAt: row.createdAt,
+    handle: row.handle,
+    id: row.id,
+    logoUrl: logoUrlFor(baseUrl, row.handle, row.logoPrefix),
+    name: row.name,
+    operatorAddress,
+    tagline: row.tagline,
+  }
+}
+
+// `claimable` is decided against the api's clock, not the caller's.
+export const cardView = (row: CardRow, now: number): CardView => ({
+  category: row.category,
+  claimFrom: row.claimFrom,
+  claimUntil: row.claimUntil,
+  claimable: isClaimable(row, now),
+  id: row.id,
+  perk: row.perk,
+  reward: row.reward,
+  slug: row.slug,
+  title: row.title,
+  validFrom: row.validFrom,
+  validUntil: row.validUntil,
+  validityDays: row.validityDays,
+})
+
+export const publicVenue = (
+  issuer: IssuerRow,
+  cards: CardRow[],
+  now: number,
+  baseUrl: string,
+): PublicVenue => ({
+  brandColor: issuer.brandColor,
+  cards: cards.map((card) => cardView(card, now)),
+  handle: issuer.handle,
+  logoUrl: logoUrlFor(baseUrl, issuer.handle, issuer.logoPrefix),
+  name: issuer.name,
+  tagline: issuer.tagline,
+})
+
+// The venue page. A card's own link is this plus `/<slug>`.
+export const publicUrlFor = (baseUrl: string, handle: string): string =>
+  `${baseUrl.replace(/\/$/u, '')}/@${handle}`
+
+export const cardUrlFor = (baseUrl: string, handle: string, slug: string): string =>
+  `${publicUrlFor(baseUrl, handle)}/${slug}`

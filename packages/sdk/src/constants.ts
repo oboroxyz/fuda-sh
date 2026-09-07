@@ -93,5 +93,17 @@ export const ERROR_CODES = [
   'internal',
   'apple_not_configured',
   'google_not_configured',
+  'bad_address',
+  'bad_challenge',
+  'bad_signature',
+  'bad_handle',
+  'handle_taken',
+  'issuer_exists',
+  'bad_slug',
+  'slug_taken',
+  'card_closed',
+  'media_not_configured',
+  'bad_upload',
+  'upload_not_found',
 ] as const
 export type ErrorCode = (typeof ERROR_CODES)[number]

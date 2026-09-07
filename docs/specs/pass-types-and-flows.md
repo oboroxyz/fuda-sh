@@ -8,8 +8,11 @@ verification rules applied by the gate.
 ## Choose by use case
 
 Templates and the self-serve handle route are the product model. The api
-derives a right's level from the keys present in the request and issues only
-through the admin `POST /issue`; the `fuda.sh` apex serves the landing page.
+derives a right's level from the keys present in the request on the admin
+`POST /issue`; the self-serve route `POST /issuers/:handle/issue` issues only
+`standard` (Bearer) rights under the issuer's card (see [Issuer onboarding and
+the handle route](#issuer-onboarding-and-the-handle-route)); the `fuda.sh`
+apex serves the landing page and redirects `/@*` to `app.fuda.sh`.
 
 **The template is the issuer's choice, made at issuance time.** The issuer
 configures which templates are available and sets the default. An authorized
@@ -260,6 +263,147 @@ and resists replay; the wire shape of a Proved gate exchange; whether a Proved
 right has a pass; the receipt format and where the daily root is timestamped;
 name resolution for a U4 right.
 
+## Issuer onboarding and the handle route
+
+The U1 first-pass flow is self-serve. An operator creates a venue and its
+cards in the dashboard; a member gets a card from the handle route with no
+account and no wallet.
+
+**Operator sign-in.** The dashboard signs the operator in with a passkey
+wallet (Base Account): `POST /auth/challenge { address }` answers
+`{ nonce, message }` where `message` is
+`fuda.sh dashboard sign-in\nnonce: <nonce>`; the wallet personal-signs it and
+`POST /auth/verify { address, nonce, signature }` answers
+`{ token, issuer | null }`. The signature is checked through the chain client
+(EOA, ERC-1271, ERC-6492), so an undeployed Base Account signs in. The session
+token is presented as `Authorization: Bearer` on the operator routes, lives 30
+days, and is stored hashed; `POST /auth/logout` ends it. A nonce is one-time,
+bound to the address, and expires with the gate's 300 s TTL; a wrong signature
+burns it. The admin token is not an operator identity and is not accepted on
+operator routes.
+
+**Venue and cards.** One issuer per operator address; an issuer owns one or
+more cards. `POST /issuers` (session) creates the issuer and its first card in
+one batch and binds the session to it; body
+`{ handle, name, tagline, brandColor, card: <card> }`, answer
+`201 { issuer, card, publicUrl }` with `publicUrl` = `<PUBLIC_BASE_URL>/@<handle>`.
+`POST /issuers/cards` (session) adds a further card to that same venue and
+answers the same shape. A card is
+`{ slug, title, category, perk, reward, lockScreen, venue?, claimFrom,
+claimUntil, validityDays, validFrom, validUntil }`.
+`GET /issuers/me` (session) returns `{ issuer, cards, publicUrl }`, or those
+three fields as `null`/`[]` before the venue exists.
+`GET /issuers/check?handle=` and `GET /issuers/cards/check?slug=` (both
+session-gated, so neither namespace can be enumerated anonymously) answer
+`{ …, valid, available }`.
+
+**The venue's logo.** It belongs to the issuer, not the card, and lives in R2
+with only its prefix in D1. Because Workers have no image decoder, the
+dashboard draws the variants and the api verifies them: `master` 1024×1024
+serves Google Wallet and every web surface, while `logo1x` 50×50, `logo2x`
+100×100 and `logo3x` 150×150 are embedded in the `.pkpass` — linking would not
+work there, and embedding the master would add about a megabyte to every pass.
+Each object must be a PNG of exactly its variant's side, within 1 MiB, and the
+set within 2 MiB; the api reads the PNG signature and IHDR directly rather than
+trusting what the browser sent.
+
+Uploading is two-phase, because the first logo is chosen in the same form that
+creates the venue. `POST /issuers/logo` (session, multipart) writes the objects
+under a fresh immutable prefix and stages them for 15 minutes, answering
+`201 { logoUploadId, expiresAt }`; `POST /issuers` accepts that id, and
+`POST /issuers/logo/commit` binds one to a venue that already exists. An
+upload is spendable once and only by the session that made it. Stale rows are
+swept on the next upload, so no cron is involved. Replacing a logo writes a new
+prefix, so a cached URL never shows the old mark.
+
+`GET /assets/:handle/logo/:variant` (public) serves an object, resolving the
+prefix from the issuer row against a fixed variant list so no caller-supplied
+path reaches R2. It answers an ETag and honours `if-none-match` with a `304`.
+
+The route is keyed by the handle rather than by the object's prefix, so that a
+link printed before a logo change still resolves — which means the address
+alone does not say which mark it is. The version restores that: the api hands
+out `…/logo/master?v=<prefix uuid>` and caches such a request for a year,
+while an unversioned or stale one is served with a sixty-second life so a
+replaced logo corrects itself. **A client must never assemble this URL.** The
+api returns it as `logoUrl` on the issuer, on the public venue, and inside a
+pass's branding, and replacing a logo changes it, which is what makes Google
+Wallet and every browser pick up the new mark.
+
+Without the `MEDIA_BUCKET` binding the upload route answers
+`501 media_not_configured` and every other surface works unbranded.
+
+**A card's two time windows.** They answer different questions and are set
+independently.
+
+The **claim window** (`claimFrom`, `claimUntil`, both optional unix seconds)
+says when the card is handed out at all. A stamp card leaves both unset and
+stays open; a concert's card closes when its doors do. Outside the window
+`POST /issuers/:handle/:slug/issue` answers `409 card_closed` rather than
+minting a right the gate would only ever reject, which the signer pays for. A
+closed card still appears on the venue page, marked `claimable: false`, so a
+printed link explains itself instead of answering `404`.
+
+The **validity window** says how long the issued right lasts, in exactly one
+of two shapes, and becomes the Entitlement's `validFrom`/`validUntil`:
+
+| Shape | Fields | Means | Fits |
+| --- | --- | --- | --- |
+| Relative | `validityDays` | N days counted from the moment this member claimed it, so two members who claimed a month apart expire a month apart | a trial membership, a coupon |
+| Absolute | `validFrom`, `validUntil` | fixed instants, the same for everyone however early they claimed | one evening's concert, a flight, a season pass |
+| None | all three unset | the right does not expire | a stamp card |
+
+Setting a relative and an absolute rule at once is `400 bad_input`: a card
+expires one way or the other. Only the absolute shape can express "valid on
+the day of the event", because a relative window moves with each claim. The
+gate already enforces both ends, answering `NOT_YET_VALID` before the start
+and `EXPIRED` after the end.
+
+The dashboard defaults these by category — a `membership` card opens forever
+and does not expire, a `ticket` closes at its event and carries an absolute
+window — but the api accepts any valid combination, so an operator is never
+boxed in by the default.
+
+**Names.** The Handle is the ENS issuer-label rule from
+[ENS naming](./ens-naming.md) plus the api's own route prefixes as reserved
+names. A card's **slug** is the path segment under the venue and uses the same
+character rule, unique within the issuer. The slug is a product path only: the
+ENS hierarchy stays `<member-no>.<issuer>.fuda.eth` and never carries a card.
+Both rules are shared with the dashboard through `@fuda/sdk`, so the form
+rejects what the api would reject.
+
+**Member.** `GET /issuers/:handle` (public, `no-store`) returns the venue and
+every card it publishes:
+`{ handle, name, tagline, brandColor, cards: [{ id, slug, title, category,
+perk, reward, validityDays }] }`, and never the operator address. A venue with
+one card opens that card directly at `fuda.sh/@<handle>`; a venue with several
+shows the member a list, and each card also has its own link
+`fuda.sh/@<handle>/<slug>` that a poster or a message can point at.
+`POST /issuers/:handle/:slug/issue` (public, no body, 20 per IP per hour)
+issues a Bearer right under that card with a generated member number and
+answers the Bearer `/issue` shape plus `memberNumber` (see the [attestation
+model](./attestation-model.md#api-payloads-that-touch-attestations)). An
+unknown handle or slug answers `404 not_found`. Signed and +Private are not
+reachable from the handle route.
+
+**One member, several cards.** A member who claims two cards of one venue
+holds two rights: two attestations, two member numbers, two passes. The
+numbers are unique per issuer, so the two never collide as ENS labels, and
+they are unrelated to each other, so neither the chain nor a name links them
+to one person.
+
+**A U1 card cannot be limited to one per person.** U1's defining property is
+that the member has no identity at claim time: no account, no contact detail,
+no key. The member app remembers a claimed card on the device and shows it
+again instead of issuing a second one, and the per-IP budget bounds automated
+abuse, but neither is identity: a cleared browser, a private window, or a
+second device yields another card. Enforcing one-per-person needs a stable
+member key, which is what U2 and U3 already have — a `private` member gives
+the issuer a meta-address, and a `private + loyalty` member additionally has a
+stable persistent-value holder — so the constraint belongs to those templates,
+or to a card that deliberately requires a passkey before it is claimed and so
+gives up U1's one-tap sign-up.
+
 ## Gate protocol
 
 ### Bearer entry (`POST /verify`)
@@ -345,6 +489,14 @@ response (`passUrls.web`, `.google`, `.apple`) and from the dashboard. A
 member can recover, its `/issue` response carries no `passUrls`, and all three
 pass routes answer `404 not_found` for it. Every pass response — the `404`s and
 `501`s included — carries `Cache-Control: no-store`.
+
+A right issued under an issuer's card (`members.card_id` set) renders branded:
+the venue name, card title, brand colour with readable text, and the member
+number in `4-4-5` display form appear on the web pass, as the Google generic
+object's `cardTitle`, `header`, `subheader` and `hexBackgroundColor`, and as
+the Apple storeCard's `organizationName`, `description`, colours and primary
+field; a card with lock-screen relevance and a venue position adds Apple
+`locations`. Admin-issued rights keep the plain fuda look described below.
 
 | Route                         | Answer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -434,8 +586,8 @@ current challenge for the Entitlement holder?
 | ---------------- | ----------- | -------- | ------------------------------------------------------------------------------------------------- |
 | `api.fuda.sh`    | `apps/api`  | 8787     | the api                                                                                           |
 | `gate.fuda.sh`   | `apps/gate` | 5174     | scanner: uid preview, QR admission, verdict                                                       |
-| `dash.fuda.sh`   | `apps/dash` | 5175     | operator dashboard: `/` overview from D1 member rows and client configuration, `/rights` D1 search/filter/revoke/pass links plus separate on-chain lookup, and `/issue` issuance |
-| `app.fuda.sh`    | `apps/app`  | 5173     | member app: `/signed` challenge-response, `/private` enrolment and discovery, `/rights` member pass list |
+| `dash.fuda.sh`   | `apps/dash` | 5175     | operator dashboard: passkey or admin-token sign-in; with the admin token `/` overview from D1 member rows and client configuration, `/rights` D1 search/filter/revoke/pass links plus separate on-chain lookup, and `/issue` issuance; with a passkey session `/new` card designer and `/published` the venue's cards with their links and QR codes |
+| `app.fuda.sh`    | `apps/app`  | 5173     | member app: `/@<handle>` venue page and `/@<handle>/<slug>` card landing with one-tap issuance, `/signed` challenge-response, `/private` enrolment and discovery, `/rights` member pass list |
 | `fuda.sh` (apex) | Cloudflare zone | —     | `/@*` redirect to the same path on `app.fuda.sh`; other apex paths are outside this repository    |
 
 Root `pnpm dev` starts all four services on their fixed development ports. The

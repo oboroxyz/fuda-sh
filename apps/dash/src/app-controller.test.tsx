@@ -209,7 +209,12 @@ describe(App, () => {
     browser.storage.set('fuda:locale', 'ja')
     const io = fixture()
     const view = render(io, 'dark')
-    expect({ copy: view.copy, members: view.members, route: view.route, token: view.token }).toStrictEqual({
+    expect({
+      copy: view.copy,
+      members: view.members,
+      route: view.route,
+      token: view.session.token,
+    }).toStrictEqual({
       copy: DASH_COPY.ja,
       members: { kind: 'idle' },
       route: '/rights',
@@ -232,7 +237,7 @@ describe(App, () => {
     language(loaded).onChange('ja')
     theme(loaded).onChange('dark')
     const changed = render(io)
-    expect({ copy: changed.copy, route: changed.route, token: changed.token }).toStrictEqual({
+    expect({ copy: changed.copy, route: changed.route, token: changed.session.token }).toStrictEqual({
       copy: DASH_COPY.ja,
       route: '/issue',
       token: 'secret',
@@ -305,7 +310,7 @@ describe(App, () => {
       message: 'offline',
       previousRows: [{ memberId: 'alice', uid: UID }],
     })
-    expect(render(io).token).toBe('secret')
+    expect(render(io).session.token).toBe('secret')
     expect(io.listMembers).toHaveBeenCalledTimes(2)
   })
 
@@ -315,7 +320,7 @@ describe(App, () => {
     io.revokeRight.mockResolvedValueOnce({ error: 'bad_uid', network: false, ok: false, status: 400 })
     await loaded.onRevoke(UID)
     expect(render(io).members).toBe(loaded.members)
-    expect(render(io).token).toBe('secret')
+    expect(render(io).session.token).toBe('secret')
     expect(io.listMembers).toHaveBeenCalledOnce()
   })
 
@@ -342,7 +347,7 @@ describe(App, () => {
       expect({
         authError: rejected.authError,
         members: rejected.members,
-        token: rejected.token,
+        token: rejected.session.token,
       }).toStrictEqual({
         authError: 'unauthorized',
         members: { kind: 'idle' },
@@ -366,7 +371,7 @@ describe(App, () => {
     pending.resolve(listSuccess)
     await setTimeout(0)
     const rejected = render(io)
-    expect({ members: rejected.members, token: rejected.token }).toStrictEqual({
+    expect({ members: rejected.members, token: rejected.session.token }).toStrictEqual({
       members: { kind: 'idle' },
       token: null,
     })
@@ -409,13 +414,15 @@ describe(App, () => {
     initial.resolve(unauthorized)
     await setTimeout(0)
     const rejected = render(io)
-    expect({ authError: rejected.authError, members: rejected.members, token: rejected.token }).toStrictEqual(
-      {
-        authError: 'unauthorized',
-        members: { kind: 'idle' },
-        token: null,
-      },
-    )
+    expect({
+      authError: rejected.authError,
+      members: rejected.members,
+      token: rejected.session.token,
+    }).toStrictEqual({
+      authError: 'unauthorized',
+      members: { kind: 'idle' },
+      token: null,
+    })
   })
 
   it('ignores an earlier token load returning 401 after the replacement token has loaded', async () => {
@@ -431,7 +438,7 @@ describe(App, () => {
     initial.resolve(unauthorized)
     await setTimeout(0)
     expect(render(io).members).toBe(replaced.members)
-    expect(render(io).token).toBe('replacement')
+    expect(render(io).session.token).toBe('replacement')
   })
 
   it('keeps the replacement token load current when an earlier token issue succeeds after 401', async () => {
@@ -447,7 +454,7 @@ describe(App, () => {
 
     initial.resolve(unauthorized)
     await setTimeout(0)
-    expect(render(io).token).toBeNull()
+    expect(render(io).session.token).toBeNull()
     render(io).onToken('replacement')
     render(io)
 
@@ -466,7 +473,7 @@ describe(App, () => {
     await setTimeout(0)
 
     const loaded = render(io)
-    expect(loaded.token).toBe('replacement')
+    expect(loaded.session.token).toBe('replacement')
     expect(loaded.members).toMatchObject({ kind: 'ready', rows: [{ memberId: 'alice', uid: UID }] })
     expect(io.listMembers.mock.calls).toStrictEqual([['secret'], ['replacement']])
   })

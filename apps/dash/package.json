@@ -11,12 +11,15 @@
     "test": "vp test"
   },
   "dependencies": {
+    "@base-org/account": "2.5.10",
     "@fuda/i18n": "workspace:*",
     "@fuda/sdk": "workspace:*",
     "@fuda/styles": "workspace:*",
     "@fuda/ui": "workspace:*",
     "cn": "0.2.6",
-    "hono": "^4.13.5"
+    "hono": "^4.13.5",
+    "valibot": "^1.1.0",
+    "viem": "^2.56.3"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.3.3",

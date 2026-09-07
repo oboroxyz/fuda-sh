@@ -1,13 +1,39 @@
 import { buildGoogleSaveUrl, googleConfigFrom } from '@fuda/pass'
+import type { AppleLogo } from '@fuda/pass/apple'
 import { Hono } from 'hono'
+import type { Context } from 'hono'
 
 import type { AppEnv } from '../env.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
+import { readLogoObject } from '../media/store.ts'
 import { loadPassRow } from '../pass/pass-row.ts'
 import { passView } from '../pass/pass-view.ts'
 import type { PassOutcome } from '../pass/pass-view.ts'
 import { PassPage } from '../pass/PassPage.tsx'
 import { resolveVerdict } from './verify.ts'
+
+// A .pkpass embeds its images, so the three small variants are read out of R2
+// here rather than linked. A venue with no logo, or a bucket that is not
+// configured, simply yields a pass without one.
+const appleLogo = async (c: Context<AppEnv>, logoPrefix: string | null): Promise<AppleLogo | null> => {
+  const bucket = c.env.MEDIA_BUCKET
+  if (bucket === undefined || logoPrefix === null) {
+    return null
+  }
+  const [logo1x, logo2x, logo3x] = await Promise.all([
+    readLogoObject(bucket, logoPrefix, 'logo1x'),
+    readLogoObject(bucket, logoPrefix, 'logo2x'),
+    readLogoObject(bucket, logoPrefix, 'logo3x'),
+  ])
+  if (logo1x === null || logo2x === null || logo3x === null) {
+    return null
+  }
+  return {
+    logo1x: new Uint8Array(logo1x.body),
+    logo2x: new Uint8Array(logo2x.body),
+    logo3x: new Uint8Array(logo3x.body),
+  }
+}
 
 export const passRoutes = new Hono<AppEnv>()
 
@@ -41,7 +67,13 @@ passRoutes.get('/pass/:uid/google', async (c) => {
   try {
     const saveUrl = await buildGoogleSaveUrl(
       cfg,
-      { holderShort: view.holderShort, qr: view.qr, tierLabel: view.tier, uid: found.row.uid },
+      {
+        branding: view.branding,
+        holderShort: view.holderShort,
+        qr: view.qr,
+        tierLabel: view.tier,
+        uid: found.row.uid,
+      },
       [new URL(c.env.API_BASE_URL).origin, 'https://dash.fuda.sh', 'https://app.fuda.sh'],
       c.get('now')(),
     )
@@ -72,8 +104,15 @@ passRoutes.get('/pass/:uid/apple.pkpass', async (c) => {
   try {
     const pkpass = await buildPkpass(
       cfg,
-      { holderShort: view.holderShort, qr: view.qr, tierLabel: view.tier, uid: found.row.uid },
+      {
+        branding: view.branding,
+        holderShort: view.holderShort,
+        qr: view.qr,
+        tierLabel: view.tier,
+        uid: found.row.uid,
+      },
       c.get('now')(),
+      await appleLogo(c, found.row.logoPrefix),
     )
     return new Response(pkpass, {
       headers: {

@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --env dev",
+    "dev": "wrangler dev --env local",
     "deploy": "wrangler deploy",
     "test": "vp test",
     "test:scripts": "vp test --config vite.scripts.config.ts",

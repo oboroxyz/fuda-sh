@@ -1,4 +1,4 @@
-// VITE_API_BASE_URL is baked in at build time; local dev talks to `wrangler dev --env dev`.
+// VITE_API_BASE_URL is baked in at build time; local dev talks to `wrangler dev --env local`.
 export const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8787'
 
 // Public Graph gateway or a same-origin proxy URL. Never put a Studio deploy key in a VITE_* binding.

@@ -1,6 +1,7 @@
 import type { Hex } from '@fuda/sdk'
 
 import { base64urlBytes, base64urlText } from './base64url.ts'
+import type { PassBranding } from './branding.ts'
 import { pemToDer } from './pem.ts'
 
 export interface GoogleConfig {
@@ -36,6 +37,8 @@ export interface GooglePassInput {
   holderShort: string
   // the QR payload: `fuda:v1:<uid>`
   qr: string
+  // the venue's card, when the right was issued under one
+  branding?: PassBranding | null
 }
 
 interface LocalizedString {
@@ -48,13 +51,20 @@ interface TextModule {
   id: string
 }
 
+interface WalletImage {
+  sourceUri: { uri: string }
+}
+
 export interface GoogleGenericObject {
   barcode: { alternateText: string; type: string; value: string }
   cardTitle: LocalizedString
   classId: string
   header: LocalizedString
+  hexBackgroundColor?: string
   id: string
+  logo?: WalletImage
   state: string
+  subheader?: LocalizedString
   textModulesData: TextModule[]
 }
 
@@ -62,18 +72,42 @@ const localized = (value: string): LocalizedString => ({ defaultValue: { languag
 
 // docs/specs/pass-types-and-flows.md#passes. The object id is issuer-scoped and must be unique per pass, so the
 // attestation uid (without its 0x) is the suffix.
-export const buildGenericObject = (cfg: GoogleConfig, input: GooglePassInput): GoogleGenericObject => ({
-  barcode: { alternateText: input.uid.slice(0, 10), type: 'QR_CODE', value: input.qr },
-  cardTitle: localized('fuda membership'),
-  classId: cfg.classId,
-  header: localized(input.tierLabel),
-  id: `${cfg.issuerId}.${input.uid.slice(2)}`,
-  state: 'ACTIVE',
-  textModulesData: [
-    { body: input.tierLabel, header: 'Tier', id: 'tier' },
-    { body: input.holderShort, header: 'Member', id: 'member' },
-  ],
-})
+export const buildGenericObject = (cfg: GoogleConfig, input: GooglePassInput): GoogleGenericObject => {
+  const base = {
+    barcode: { alternateText: input.uid.slice(0, 10), type: 'QR_CODE', value: input.qr },
+    classId: cfg.classId,
+    id: `${cfg.issuerId}.${input.uid.slice(2)}`,
+    state: 'ACTIVE',
+  }
+  const branding = input.branding ?? null
+  if (branding === null) {
+    return {
+      ...base,
+      cardTitle: localized('fuda membership'),
+      header: localized(input.tierLabel),
+      textModulesData: [
+        { body: input.tierLabel, header: 'Tier', id: 'tier' },
+        { body: input.holderShort, header: 'Member', id: 'member' },
+      ],
+    }
+  }
+  // A venue card: the venue is the title, the card title the header, the
+  // member number the subheader, and the brand colour the card. The logo is a
+  // URL Google fetches, so it is omitted rather than empty when unset.
+  const logo = branding.logoUrl === null ? {} : { logo: { sourceUri: { uri: branding.logoUrl } } }
+  return {
+    ...base,
+    ...logo,
+    cardTitle: localized(branding.issuerName),
+    header: localized(branding.cardTitle),
+    hexBackgroundColor: branding.brandColor,
+    subheader: localized(branding.memberNumber),
+    textModulesData: [
+      { body: branding.memberNumber, header: 'Member number', id: 'member' },
+      { body: input.tierLabel, header: 'Tier', id: 'tier' },
+    ],
+  }
+}
 
 export interface GoogleJwtClaims {
   aud: string

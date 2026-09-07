@@ -1,4 +1,5 @@
 import type { ErrorCode, Hex, Level, Reason } from './constants.ts'
+import type { CardView, IssuerView } from './handles.ts'
 
 export interface ErrorResponse {
   error: ErrorCode
@@ -68,4 +69,52 @@ export interface MembersResponse {
 export interface RevokeResponse {
   revoked: true
   uid: Hex
+}
+
+// Operator sign-in (docs/specs/pass-types-and-flows.md#surfaces): a passkey
+// wallet signs the api's message and receives a session token.
+export interface SignInChallengeResponse {
+  nonce: Hex
+  message: string
+}
+export interface SignInResponse {
+  token: string
+  issuer: IssuerView | null
+}
+export interface HandleCheckResponse {
+  handle: string
+  valid: boolean
+  available: boolean
+}
+export interface IssuerCreateResponse {
+  issuer: IssuerView
+  card: CardView
+  // the venue page; a card's own link is `${publicUrl}/${card.slug}`
+  publicUrl: string
+}
+// The operator's own venue. `cards` is a list because an issuer owns 1..N
+// cards; only the first is created and shown today, but the shape does not
+// change when a venue publishes a second one.
+export interface IssuerCardsResponse {
+  issuer: IssuerView
+  cards: CardView[]
+  publicUrl: string
+}
+export type IssuerMeResponse = IssuerCardsResponse | { issuer: null; cards: []; publicUrl: null }
+
+// The self-serve Bearer issuance behind /@<handle>: the admin shape plus the
+// generated member number the pass shows.
+export interface CardCheckResponse {
+  slug: string
+  valid: boolean
+  available: boolean
+}
+
+export interface SelfServeIssueResponse {
+  uid: Hex
+  level: 'bearer'
+  holder: Hex
+  qr: string
+  passUrls: PassUrls
+  memberNumber: string
 }

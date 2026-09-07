@@ -162,6 +162,14 @@ so their UIDs are deterministic:
 Registration is an idempotent script (`apps/api/scripts/register-schemas.ts`)
 that prints the UIDs for configuration.
 
+Determinism makes the UID a function of the schema string, not of the chain, so
+registering the same three schemas on another network yields the same three
+UIDs. Registration itself is still per network: a schema that exists on Base
+Sepolia does not exist on mainnet until it is registered there. The root
+`IssuerDelegation` is the opposite case — it is an attestation, not a schema, so
+each network gets its own with its own UID, and `DELEGATION_UID` differs per
+environment even though `EAS_SCHEMAS` does not.
+
 **Entitlement**
 
 ```
@@ -208,6 +216,7 @@ Attested with `recipient = holder` and `refUID = rightUID`.
 | `ANNOUNCER_ADDRESS`                                                                        | `wrangler.jsonc` `vars` | The ERC-5564 Announcer `/issue` writes +Private announcements to                                                                                                                                                                                                                                                       |
 | `ANNOUNCER_FROM_BLOCK`                                                                     | `wrangler.jsonc` `vars` | Graph-manifest generation source for both rights-subgraph data-source start blocks; it is not read by the API                                                                                                                                                                                                          |
 | `FACTORY_ADDRESS`                                                                          | `wrangler.jsonc` `vars` | Coinbase Smart Wallet factory used to derive Bearer holder addresses                                                                                                                                                                                                                                                   |
+| `PUBLIC_BASE_URL`                                                                          | `wrangler.jsonc` `vars` | The member-facing origin a published card links to (`https://fuda.sh`; the apex redirects `/@*` to `app.fuda.sh`). `POST /issuers` and `GET /issuers/me` build `publicUrl` from it, never from the request URL |
 | `API_BASE_URL`                                                                             | `wrangler.jsonc` `vars` | Absolute base for the `passUrls` in `/issue` responses; its origin is the api entry in the Google Wallet `origins` claim, which also lists `https://dash.fuda.sh` and `https://app.fuda.sh`                                                                                                                            |
 | Signer key (`SIGNER_PRIVATE_KEY`)                                                          | Worker secret           | Signs Entitlement, IssuerDelegation, and Attendance transactions; endpoints answer `501 no_signer` without                                                                                                                                                                                                             |
 | `ADMIN_TOKEN`                                                                              | Worker secret           | Bearer token for `/issue`, `/revoke`, `/members`. Required whenever a chain binding is configured: with `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL` set and no token the admin routes answer `401 unauthorized` and every response carries `x-auth-mode: locked`; with no token and neither binding (local dev) they are open and responses carry `x-auth-mode: open` |
@@ -225,7 +234,7 @@ are deliberately not in the MVP.
 `USE_FAKE_CHAIN=1` is a local-development opt-in only (`apps/api/.dev.vars`): it
 swaps in an in-memory chain and is ignored whenever a signer or an RPC binding is
 present. It is never set in a deployed environment. Wrangler named environments
-do not inherit top-level `vars` or `d1_databases`, so the `env.dev` block in
+do not inherit top-level `vars` or `d1_databases`, so the `env.local` block in
 `apps/api/wrangler.jsonc` repeats them in full with deterministic fake-chain
 values.
 
@@ -285,7 +294,19 @@ decision: it fails closed as `502 chain_error` and is never written to
 | `bad_qr`                                         | 400    | QR payload is not `fuda:v1:<uid>`                                                                                                                                                                                                                          |
 | `bad_meta_address`                               | 400    | +Private meta-address is malformed or off-curve                                                                                                                                                                                                            |
 | `client_ip_required`                             | 400    | budgeted route called without `CF-Connecting-IP`                                                                                                                                                                                                           |
-| `unauthorized`                                   | 401    | admin bearer missing or wrong, or admin routes locked                                                                                                                                                                                                      |
+| `unauthorized`                                   | 401    | admin bearer missing or wrong, or admin routes locked; on `/auth/logout` and `/issuers/*` operator routes, no live session token                                                                                                                             |
+| `bad_address`                                    | 400    | `POST /auth/challenge` address is not 20-byte hex                                                                                                                                                                                                          |
+| `bad_challenge`                                  | 401    | `POST /auth/verify` nonce unknown, expired, spent, or minted for another address                                                                                                                                                                             |
+| `bad_signature`                                  | 401    | `POST /auth/verify` signature does not verify for the address; the nonce is burned                                                                                                                                                                          |
+| `bad_handle`                                     | 400    | `POST /issuers` handle fails the Handle rule or is reserved                                                                                                                                                                                                 |
+| `handle_taken`                                   | 409    | `POST /issuers` handle already belongs to an issuer                                                                                                                                                                                                         |
+| `issuer_exists`                                  | 409    | `POST /issuers` from an operator address that already owns an issuer                                                                                                                                                                                        |
+| `bad_slug`                                       | 400    | `POST /issuers/cards` slug fails the card-slug rule or is reserved                                                                                                                                                                                          |
+| `slug_taken`                                     | 409    | `POST /issuers/cards` slug already used by another card of the same venue                                                                                                                                                                                   |
+| `card_closed`                                    | 409    | self-serve claim outside the card's claim window                                                                                                                                                                                                            |
+| `media_not_configured`                           | 501    | logo upload without the `MEDIA_BUCKET` binding                                                                                                                                                                                                              |
+| `bad_upload`                                     | 400    | logo multipart malformed, or a variant failing its signature, dimension or size check                                                                                                                                                                       |
+| `upload_not_found`                               | 400    | staged logo id unknown, expired, already spent, or another session's                                                                                                                                                                                        |
 | `not_found`                                      | 404    | no `members` row for the uid (also a +Private row on the pass routes)                                                                                                                                                                                      |
 | `rate_limited`                                   | 429    | per-IP hourly budget exceeded                                                                                                                                                                                                                              |
 | `internal`                                       | 500    | unclassified defect; logged                                                                                                                                                                                                                                |
@@ -332,6 +353,17 @@ answers:
     },
 }
 ```
+
+**`POST /issuers/:handle/:slug/issue`** is the self-serve Bearer path behind
+`fuda.sh/@<handle>/<slug>` (docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route).
+It takes no body: the card fixes `tier` (0), `usageModel` (`SINGLE_USE` for a
+`ticket`, `MULTI_USE` otherwise) and the validity window — `validUntil` =
+claim time plus `validity_days` for a relative card, the card's own
+`valid_from`/`valid_until` for an absolute one, and 0 for a card that never
+expires. A claim outside the card's claim window answers `409 card_closed`
+before anything is attested. The api generates the member number, derives the
+holder exactly as the admin Bearer path does (nonce preimage = the member
+number), attests, and answers the Bearer `/issue` shape plus `memberNumber`.
 
 All three `passUrls` are absolute against `API_BASE_URL` and always present,
 even where a wallet platform is unconfigured (that route answers `501`). A
@@ -401,7 +433,8 @@ the safety. Re-test this behaviour on every viem major bump.
 
 ### D1 tables that mirror or extend attestations
 
-The schema is `apps/api/migrations/0000_init.sql` in full:
+The schema is `apps/api/migrations/0000_init.sql` in full, followed by the
+issuer-onboarding migration `0004_issuers.sql`:
 
 ```sql
 CREATE TABLE members (
@@ -458,9 +491,29 @@ Durable Objects are used in the MVP.
 `challenges` rows are one-time and short-lived: `POST /verify-signed` consumes a
 nonce with a conditional `UPDATE … WHERE used_at IS NULL AND created_at > now −
 300`, and `POST /challenge` opportunistically deletes rows older than the 300 s
-TTL on every mint, so the table holds only live nonces. `rate_limits` remains a
-generic per-IP fixed hourly-window primitive for future public routes; current
-product routes do not apply it.
+TTL on every mint, so the table holds only live nonces. `rate_limits` is the
+generic per-IP fixed hourly-window primitive; `POST /issuers/:handle/issue`
+applies it with a budget of 20 per hour, `POST /ens/gateway` with 120.
+
+Issuer onboarding adds four things (`0004_issuers.sql`, extended by
+`0005_member_number_per_issuer.sql` and `0006_card_slug.sql`): `issuers` (one
+row per operator address: `handle` UNIQUE, `name`, `tagline`, `brand_color`,
+`operator_address` UNIQUE, `created_at`), `cards` (`issuer_id`, `slug` with
+`(issuer_id, slug)` UNIQUE, `title`, `category` in `membership|ticket`,
+`perk`, `reward`, `lock_screen`, `venue_lat`, `venue_lng`, the claim window
+`claim_from`/`claim_until`, and one validity rule — either `validity_days`
+(relative to the claim) or `valid_from`/`valid_until` (absolute), never both), `sessions` (`token_hash` PK — only the SHA-256 of the bearer
+token is stored — `address`, `issuer_id`, `created_at`, `expires_at` = created
++ 30 days), and on `members` the nullable `card_id` and `issuer_id` of a
+self-serve right. A generated member number is unique per **issuer**: a partial
+unique index on `(issuer_id, member_id) WHERE issuer_id IS NOT NULL`, because
+the number is an ENS label under the issuer
+([ENS naming](./ens-naming.md#member-number)). Admin-issued rows leave both
+columns NULL and keep their free-text `member_id`. Sign-in nonces reuse the
+`challenges` table under an `operator:<address>` subject, with the gate's TTL
+and sweep. An issuer is a product and branding entity only: every attestation
+is still made by the fuda signer under `DELEGATION_UID`, and no per-issuer
+IssuerDelegation exists.
 
 ### Announcement discovery
 

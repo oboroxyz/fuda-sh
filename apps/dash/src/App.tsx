@@ -1,31 +1,49 @@
 /** @jsxImportSource hono/jsx/dom */
 import { isLocale, pick } from '@fuda/i18n'
 import { getLocale, setLocale } from '@fuda/i18n/browser'
+import type { IssuerCreateResponse, IssuerMeResponse } from '@fuda/sdk'
 import { LanguageSwitcher, saveThemeMode, ThemeToggle, watchThemeMode } from '@fuda/ui'
 import type { ThemeMode } from '@fuda/ui'
 import { useCallback, useEffect, useRef, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
-import { issueRight, listMembers, revokeRight } from './api.ts'
-import { issueAndReload, revokeAndReload } from './app-actions.ts'
+import {
+  checkCardSlug,
+  checkHandle,
+  issueRight,
+  issuerMe,
+  listMembers,
+  revokeRight,
+  signInChallenge,
+  signInVerify,
+  signOut,
+} from './api.ts'
+import { applyLogo, DEFAULT_DESIGN_IO, issueAndReload, revokeAndReload, submitDesign } from './app-actions.ts'
 import type { ActionContext, DashIo } from './app-actions.ts'
-import { unauthorizedSession } from './app-state.ts'
+import { hasIssuer, signedOutSession, unauthorizedSession } from './app-state.ts'
 import type { SessionState } from './app-state.ts'
+import type { CreateFailure, DesignerForm, DesignerMode } from './card-designer.ts'
+import { CardDesigner } from './CardDesigner.tsx'
 import { API_BASE_URL, GRAPH_RIGHTS_ENDPOINT } from './config.ts'
 import { DASH_COPY } from './copy.ts'
 import type { DashCopy } from './copy.ts'
 import { DashboardShell } from './DashboardShell.tsx'
 import { IssueForm } from './IssueForm.tsx'
 import type { IssueFormProps } from './IssueForm.tsx'
+import type { LogoSet } from './logo.ts'
 import { beginMembersLoad, completeMembersLoad, failMembersLoad } from './members-state.ts'
 import type { MembersState } from './members-state.ts'
 import { memberRowView } from './members-view.ts'
+import { signInWithPasskey } from './operator-sign-in.ts'
+import type { SignInFailure } from './operator-sign-in.ts'
 import { OverviewPage } from './OverviewPage.tsx'
+import { PublishedCard } from './PublishedCard.tsx'
 import { RightsPage } from './RightsPage.tsx'
 import type { RightsPageProps } from './RightsPage.tsx'
-import { canonicalPath, navigateTo, routeFromPath, subscribeToRoute } from './router.ts'
+import { canonicalPath, homeFor, navigateTo, redirectFor, routeFromPath, subscribeToRoute } from './router.ts'
 import type { DashRoute } from './router.ts'
-import { TokenGate } from './TokenGate.tsx'
+import { SignIn, signInErrorOf } from './SignIn.tsx'
+import { baseAccountProvider, personalSign, requestAccount } from './wallet.ts'
 
 const DEFAULT_DASH_IO: DashIo = { issueRight, listMembers, revokeRight }
 
@@ -38,41 +56,104 @@ export interface AppViewProps {
   appearance: JSX.Element
   authError: 'unauthorized' | null
   copy: DashCopy
+  createFailure: CreateFailure | null
+  creating: boolean
   graphEndpoint: string
   members: MembersState
+  onCheckHandle: (handle: string) => Promise<'available' | 'taken' | 'unknown'>
+  onCheckSlug: (slug: string) => Promise<'available' | 'taken' | 'unknown'>
+  onCommitLogo: (variants: LogoSet) => Promise<boolean>
+  onCreate: (mode: DesignerMode, form: DesignerForm, logo: LogoSet | null) => void
   onIssue: IssueFormProps['onIssue']
   onNavigate: (route: DashRoute) => void
+  onPasskey: () => void
   onRevoke: RightsPageProps['onRevoke']
+  onSignOut: () => void
   onToken: (token: string) => void
   route: DashRoute
-  token: string | null
+  session: SessionState
+  signInError: SignInFailure | null
+  signingIn: boolean
 }
 
 export const AppView = ({
   appearance,
   authError,
   copy,
+  createFailure,
+  creating,
   graphEndpoint,
   members,
+  onCheckHandle,
+  onCheckSlug,
+  onCommitLogo,
+  onCreate,
   onIssue,
   onNavigate,
+  onPasskey,
   onRevoke,
+  onSignOut,
   onToken,
   route,
-  token,
+  session,
+  signInError,
+  signingIn,
 }: AppViewProps): JSX.Element => {
-  if (token === null) {
+  const signInMessage = (): string | null => {
+    if (signInError !== null) {
+      return signInErrorOf(copy.auth, signInError)
+    }
+    return authError === 'unauthorized' ? copy.auth.unauthorized : null
+  }
+
+  if (session.token === null) {
     return (
-      <TokenGate
+      <SignIn
         appearance={appearance}
         copy={copy.auth}
-        error={authError === 'unauthorized' ? copy.auth.unauthorized : null}
+        error={signInMessage()}
+        onPasskey={onPasskey}
         onToken={onToken}
+        pending={signingIn}
       />
     )
   }
 
+  const { operator } = session
+  const surface = operator === null ? 'admin' : 'operator'
+  const published = operator !== null && operator.issuer !== null
+
   const page = (): JSX.Element => {
+    if (operator !== null) {
+      // `/new` stays open once the venue exists: it is how a second card is added.
+      if (operator.issuer !== null && route !== '/new') {
+        return (
+          <PublishedCard
+            cards={operator.cards}
+            copy={copy.published}
+            issuer={operator.issuer}
+            logoCopy={copy.logo}
+            onAddCard={() => {
+              onNavigate('/new')
+            }}
+            onCommitLogo={onCommitLogo}
+            publicUrl={operator.publicUrl}
+          />
+        )
+      }
+      return (
+        <CardDesigner
+          busy={creating}
+          copy={copy.designer}
+          failure={createFailure}
+          issuer={operator.issuer}
+          logoCopy={copy.logo}
+          onCheckHandle={onCheckHandle}
+          onCheckSlug={onCheckSlug}
+          onSubmit={onCreate}
+        />
+      )
+    }
     if (route === '/rights') {
       return <RightsPage copy={copy} graphEndpoint={graphEndpoint} members={members} onRevoke={onRevoke} />
     }
@@ -90,21 +171,35 @@ export const AppView = ({
   }
 
   return (
-    <DashboardShell appearance={appearance} copy={copy} onNavigate={onNavigate} route={route}>
+    <DashboardShell
+      appearance={appearance}
+      copy={copy}
+      hasIssuer={published}
+      onNavigate={onNavigate}
+      onSignOut={operator === null ? null : onSignOut}
+      route={route}
+      surface={surface}
+    >
       {page()}
     </DashboardShell>
   )
+}
+
+// The venue after a create: the first card, or one more alongside the rest.
+const operatorWith = (current: IssuerMeResponse | null, created: IssuerCreateResponse): IssuerMeResponse => {
+  const existing = current !== null && current.issuer !== null ? current.cards : []
+  return { cards: [...existing, created.card], issuer: created.issuer, publicUrl: created.publicUrl }
 }
 
 export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Element => {
   const [route, setRoute] = useState<DashRoute>(() => routeFromPath(location.pathname))
   const [locale, updateLocale] = useState(getLocale)
   const [theme, setTheme] = useState(initialTheme)
-  const [session, setSession] = useState<SessionState>({
-    authError: null,
-    members: { kind: 'idle' },
-    token: null,
-  })
+  const [session, setSession] = useState<SessionState>(signedOutSession)
+  const [signingIn, setSigningIn] = useState(false)
+  const [signInError, setSignInError] = useState<SignInFailure | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [createFailure, setCreateFailure] = useState<CreateFailure | null>(null)
   const latestMembersLoad = useRef(0)
   const { token } = session
   const activeToken = useRef(token)
@@ -171,11 +266,28 @@ export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Eleme
     [io],
   )
 
+  // Only the console reads the D1 member list; a passkey session has no
+  // admin authorization and must not ask for it.
   useEffect(() => {
-    if (token !== null) {
+    if (token !== null && session.operator === null) {
       void reload(token)
     }
-  }, [token, reload])
+  }, [token, reload, session.operator])
+
+  // Each surface owns its own routes; landing on the other's is a redirect,
+  // not a blank page.
+  const published = hasIssuer(session)
+  useEffect(() => {
+    if (token === null) {
+      return
+    }
+    const surface = session.operator === null ? 'admin' : 'operator'
+    const target = redirectFor(route, surface, published)
+    if (target !== null) {
+      navigateTo(history, target)
+      setRoute(target)
+    }
+  }, [published, route, session.operator, token])
 
   const context: ActionContext | null =
     token === null
@@ -216,13 +328,144 @@ export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Eleme
     </div>
   )
 
+  const onPasskey = (): void => {
+    setSignInError(null)
+    setSigningIn(true)
+    const run = async (): Promise<void> => {
+      const outcome = await signInWithPasskey({
+        challenge: signInChallenge,
+        issuerMe,
+        personalSign,
+        provider: baseAccountProvider,
+        requestAccount,
+        verify: signInVerify,
+      })
+      setSigningIn(false)
+      if (!outcome.ok) {
+        setSignInError(outcome.failure)
+        return
+      }
+      setSession({
+        authError: null,
+        members: { kind: 'idle' },
+        operator: outcome.issuer,
+        token: outcome.token,
+      })
+      const target = homeFor('operator', outcome.issuer.issuer !== null)
+      navigateTo(history, target)
+      setRoute(target)
+    }
+    void run()
+  }
+
+  const onSignOut = (): void => {
+    const run = async (): Promise<void> => {
+      if (token !== null && session.operator !== null) {
+        await signOut(token)
+      }
+      setSession(signedOutSession())
+      setSignInError(null)
+      navigateTo(history, '/')
+      setRoute('/')
+    }
+    void run()
+  }
+
+  const onCheckHandle = useCallback(
+    async (handle: string): Promise<'available' | 'taken' | 'unknown'> => {
+      if (token === null) {
+        return 'unknown'
+      }
+      const result = await checkHandle(token, handle)
+      if (!result.ok) {
+        return 'unknown'
+      }
+      return result.body.available ? 'available' : 'taken'
+    },
+    [token],
+  )
+
+  const onCheckSlug = useCallback(
+    async (slug: string): Promise<'available' | 'taken' | 'unknown'> => {
+      if (token === null) {
+        return 'unknown'
+      }
+      const result = await checkCardSlug(token, slug)
+      if (!result.ok) {
+        return 'unknown'
+      }
+      return result.body.available ? 'available' : 'taken'
+    },
+    [token],
+  )
+
+  const onCreate = (mode: DesignerMode, form: DesignerForm, logo: LogoSet | null): void => {
+    if (token === null) {
+      setCreateFailure('input')
+      return
+    }
+    setCreateFailure(null)
+    setCreating(true)
+    const run = async (): Promise<void> => {
+      const outcome = await submitDesign(DEFAULT_DESIGN_IO, token, mode, form, logo)
+      setCreating(false)
+      if (!outcome.ok) {
+        setCreateFailure(outcome.failure)
+        if (outcome.failure === 'session') {
+          setSession(unauthorizedSession)
+        }
+        return
+      }
+      setSession((state) => ({ ...state, operator: operatorWith(state.operator, outcome.body) }))
+      navigateTo(history, '/published')
+      setRoute('/published')
+    }
+    void run()
+  }
+
+  // The published screen changes a live venue's mark, which is a staged upload
+  // spent by the commit route rather than by a create body.
+  const onCommitLogo = async (variants: LogoSet): Promise<boolean> => {
+    if (token === null) {
+      return false
+    }
+    const outcome = await applyLogo(DEFAULT_DESIGN_IO, token, variants)
+    if (!outcome.ok) {
+      if (outcome.session) {
+        setSession(unauthorizedSession)
+      }
+      return false
+    }
+    // The commit answers the updated issuer, whose `logoUrl` names the new
+    // version; storing it is what makes the screen show the new mark.
+    const { issuer } = outcome
+    if (issuer !== null) {
+      setSession((state) => {
+        // Only a venue that already exists can have its logo replaced, so the
+        // non-null arm of the operator union is the only one to update.
+        const current = state.operator
+        if (current === null || current.issuer === null) {
+          return state
+        }
+        return { ...state, operator: { ...current, issuer } }
+      })
+    }
+    return true
+  }
+
   return (
     <AppView
       appearance={appearance}
       authError={session.authError}
       copy={copy}
+      createFailure={createFailure}
+      creating={creating}
       graphEndpoint={GRAPH_RIGHTS_ENDPOINT}
       members={session.members}
+      onCheckHandle={onCheckHandle}
+      onCheckSlug={onCheckSlug}
+      onCommitLogo={onCommitLogo}
+      onCreate={onCreate}
       onIssue={async (body) =>
         context === null
           ? { error: 'unauthorized', network: false, ok: false, status: 401 }
@@ -234,16 +477,20 @@ export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Eleme
           setRoute(nextRoute)
         }
       }}
+      onPasskey={onPasskey}
       onRevoke={async (uid) =>
         context === null
           ? { error: 'unauthorized', network: false, ok: false, status: 401 }
           : await revokeAndReload(context, uid)
       }
+      onSignOut={onSignOut}
       onToken={(nextToken) => {
-        setSession({ authError: null, members: { kind: 'idle' }, token: nextToken })
+        setSession({ authError: null, members: { kind: 'idle' }, operator: null, token: nextToken })
       }}
       route={route}
-      token={token}
+      session={session}
+      signInError={signInError}
+      signingIn={signingIn}
     />
   )
 }

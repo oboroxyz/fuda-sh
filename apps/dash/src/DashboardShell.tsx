@@ -3,21 +3,26 @@ import { useEffect, useRef } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import type { DashCopy } from './copy.ts'
-import type { DashRoute } from './router.ts'
+import type { DashRoute, DashSurface } from './router.ts'
 
 export interface DashboardShellProps {
   appearance: JSX.Element
   children: JSX.Element
   copy: DashCopy
+  hasIssuer: boolean
   onNavigate: (route: DashRoute) => void
+  onSignOut: (() => void) | null
   route: DashRoute
+  surface: DashSurface
 }
 
 interface NavigationProps {
   copy: DashCopy
+  hasIssuer: boolean
   onNavigate: (route: DashRoute) => void
   onSelection?: () => void
   route: DashRoute
+  surface: DashSurface
 }
 
 interface NavItem {
@@ -56,15 +61,34 @@ const desktopBreakpoint = (): DesktopBreakpoint | null =>
 const isPrimaryNavigation = (event: MouseEvent): boolean =>
   event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey
 
-const navigationItems = (copy: DashCopy): readonly NavItem[] => [
-  { label: copy.nav.overview, route: '/' },
-  { label: copy.nav.rights, route: '/rights' },
-  { label: copy.nav.issue, route: '/issue' },
-]
+// The two surfaces never share a menu: an admin token runs the console, a
+// passkey session runs one venue's card.
+const navigationItems = (copy: DashCopy, surface: DashSurface, hasIssuer: boolean): readonly NavItem[] => {
+  if (surface === 'admin') {
+    return [
+      { label: copy.nav.overview, route: '/' },
+      { label: copy.nav.rights, route: '/rights' },
+      { label: copy.nav.issue, route: '/issue' },
+    ]
+  }
+  return hasIssuer
+    ? [
+        { label: copy.nav.card, route: '/published' },
+        { label: copy.nav.newCard, route: '/new' },
+      ]
+    : [{ label: copy.nav.newCard, route: '/new' }]
+}
 
-const Navigation = ({ copy, onNavigate, onSelection, route }: NavigationProps): JSX.Element => (
+const Navigation = ({
+  copy,
+  hasIssuer,
+  onNavigate,
+  onSelection,
+  route,
+  surface,
+}: NavigationProps): JSX.Element => (
   <nav aria-label={copy.chrome.navigation} class="dash-nav">
-    {navigationItems(copy).map((item): JSX.Element => (
+    {navigationItems(copy, surface, hasIssuer).map((item): JSX.Element => (
       <a
         aria-current={route === item.route ? 'page' : undefined}
         href={item.route}
@@ -83,12 +107,22 @@ const Navigation = ({ copy, onNavigate, onSelection, route }: NavigationProps): 
   </nav>
 )
 
+const SignOutButton = (label: string, onSignOut: (() => void) | null): JSX.Element | null =>
+  onSignOut === null ? null : (
+    <button class="btn btn-ghost btn-sm self-start" onClick={onSignOut} type="button">
+      {label}
+    </button>
+  )
+
 export const DashboardShell = ({
   appearance,
   children,
   copy,
+  hasIssuer,
   onNavigate,
+  onSignOut,
   route,
+  surface,
 }: DashboardShellProps): JSX.Element => {
   const dialog = useRef<HTMLDialogElement | null>(null)
   const opener = useRef<HTMLButtonElement | null>(null)
@@ -113,8 +147,11 @@ export const DashboardShell = ({
           <p class="text-xl font-bold">{copy.chrome.brand}</p>
           <p class="text-sm opacity-70">{copy.chrome.subtitle}</p>
         </div>
-        {Navigation({ copy, onNavigate, route })}
-        <div class="mt-auto">{appearance}</div>
+        {Navigation({ copy, hasIssuer, onNavigate, route, surface })}
+        <div class="mt-auto flex flex-col gap-3">
+          {SignOutButton(copy.auth.signOut, onSignOut)}
+          {appearance}
+        </div>
       </aside>
 
       <div class="dash-workspace">
@@ -178,8 +215,11 @@ export const DashboardShell = ({
               <span aria-hidden="true">×</span>
             </button>
           </div>
-          {Navigation({ copy, onNavigate, onSelection: closeDrawer, route })}
-          <div>{appearance}</div>
+          {Navigation({ copy, hasIssuer, onNavigate, onSelection: closeDrawer, route, surface })}
+          <div class="flex flex-col gap-3">
+            {SignOutButton(copy.auth.signOut, onSignOut)}
+            {appearance}
+          </div>
         </div>
       </dialog>
     </div>
