@@ -65,6 +65,8 @@ export interface MemberRowParams {
   level: Level
   memberId: string
   tier: number
+  // the card a self-serve right was issued under; admin issuance leaves it null
+  cardId?: string | null
 }
 
 // The members insert after a successful attest. The attestation is already on
@@ -77,6 +79,7 @@ export const insertMemberRow = async (ctx: IssueContext, row: MemberRowParams): 
   try {
     await ctx.db.insert(members).values({
       attestationUid: row.uid,
+      cardId: row.cardId ?? null,
       createdAt: ctx.now,
       holder: row.holder,
       level: row.level,
@@ -96,6 +99,7 @@ export interface RightParams {
   level: 'bearer' | 'signed'
   memberId: string
   body: IssueRequest
+  cardId?: string | null
 }
 
 // The shared write path for the two public-holder levels: attest, then (only
@@ -103,6 +107,7 @@ export interface RightParams {
 export const attestRight = async (ctx: IssueContext, p: RightParams): Promise<IssueResponse> => {
   const { uid } = await attestEntitlement(ctx, { body: p.body, holder: p.holder, level: p.level })
   await insertMemberRow(ctx, {
+    cardId: p.cardId ?? null,
     holder: p.holder,
     level: p.level,
     memberId: p.memberId,

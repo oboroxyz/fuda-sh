@@ -1,3 +1,4 @@
+import type { OperatorSession } from './auth/session.ts'
 import type { ChainClient } from './chain/client.ts'
 import type { Db } from './db/client.ts'
 import type { AdmitHook } from './verify/admit.ts'
@@ -15,6 +16,9 @@ export interface Bindings {
   ISSUER_ADDRESS: string
   DELEGATION_UID: string
   API_BASE_URL: string
+  // The member-facing origin a published card links to: `https://fuda.sh` in
+  // production (the apex redirects /@* to app.fuda.sh), the app dev port locally.
+  PUBLIC_BASE_URL: string
   // Wallet-platform secrets. Each platform is configured only when every one
   // of its names is set and non-empty; otherwise that pass endpoint answers 501.
   GOOGLE_ISSUER_ID?: string
@@ -41,6 +45,8 @@ export interface Variables {
   now: () => number
   // called once per admission; a no-op unless the deployment wires Attendance
   onAdmit: AdmitHook
+  // set by operatorAuth(): the signed-in operator behind a session token
+  operator: OperatorSession
 }
 
 export interface AppEnv {

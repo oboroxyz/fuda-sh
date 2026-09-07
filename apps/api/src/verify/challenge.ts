@@ -6,7 +6,7 @@ import type { Db } from '../db/client.ts'
 import { challenges } from '../db/schema.ts'
 
 // Annotated (not cast): a byte array renders as an even-length lowercase hex string.
-const randomNonce = (): Hex => {
+export const randomNonce = (): Hex => {
   const bytes = crypto.getRandomValues(new Uint8Array(16))
   let hex = ''
   for (const b of bytes) {
