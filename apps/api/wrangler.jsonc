@@ -32,10 +32,12 @@
   // the name — the public URL is `/assets/:handle/logo/:variant` and D1 stores
   // only the relative `logos/<uuid>` prefix — so a bucket can be swapped later
   // by copying objects and editing one line.
-  // Create it with `wrangler r2 bucket create fuda-media-develop`; until it
-  // exists the upload route answers 501 media_not_configured and every other
-  // surface works unbranded.
-  "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "fuda-media-develop" }],
+  // `-dev` is this deployment (the internal environment on branch `develop`),
+  // `fuda-media` is mainnet, and `fuda-media-local` is the local `--remote`
+  // one; the local wrangler environment is named `local` precisely so those
+  // two never read as the same thing. Until the bucket exists the upload route
+  // answers 501 media_not_configured and every other surface works unbranded.
+  "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "fuda-media-dev" }],
   // Secrets (`wrangler secret put`, never `vars`): SIGNER_PRIVATE_KEY,
   // ENS_GATEWAY_SIGNER_KEY, ENS_GATEWAY_SECRET,
   // ADMIN_TOKEN, BASE_RPC_URL and the wallet-platform names —

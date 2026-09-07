@@ -48,14 +48,14 @@ depends on.
    Create the media bucket before the first deploy:
 
    ```bash
-   wrangler r2 bucket create fuda-media-develop
+   wrangler r2 bucket create fuda-media-dev
    ```
 
    Its `MEDIA_BUCKET` binding is already in `wrangler.jsonc`. Until the bucket
    exists, logo upload answers `501 media_not_configured` and every other
    surface works unbranded. Every environment owns its own bucket, because an
    R2 bucket cannot be renamed and develop must never read or overwrite a
-   production venue's mark: `fuda-media-develop` here, `fuda-media` for
+   production venue's mark: `fuda-media-dev` here, `fuda-media` for
    mainnet, `fuda-media-local` for `wrangler dev --remote` only (a plain
    `wrangler dev` simulates R2 locally, so that one rarely needs creating).
    Nothing outside `wrangler.jsonc` sees a bucket name — the public URL is
@@ -404,7 +404,7 @@ sharing them:
 | Resource | Develop (Sepolia) | Production (mainnet) |
 | --- | --- | --- |
 | D1 | `fuda-beta` — the existing database, kept under its name because D1 has no rename and `database_id` is what binds | `fuda`, created at cutover |
-| R2 | `fuda-media-develop` | `fuda-media` |
+| R2 | `fuda-media-dev` | `fuda-media` |
 | Worker | `fuda-api` | `fuda-api-production`, or rename in the env block |
 | Hostnames | `*.dev.fuda.sh` after the cutover | `*.fuda.sh` |
 
