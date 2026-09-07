@@ -168,6 +168,7 @@ describe('branded generic object', () => {
           brandColor: '#6F4320',
           cardTitle: 'Membership Card',
           issuerName: 'Wassie Coffee',
+          logoUrl: null,
           memberNumber: 'QJ2Y-XPHE-PDRKA',
           venue: null,
         },

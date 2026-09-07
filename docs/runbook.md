@@ -45,6 +45,16 @@ depends on.
    Idempotence is the operator's: run this once per deployment; a second run
    mints a second, equally valid delegation.
 
+   Create the media bucket before the first deploy:
+
+   ```bash
+   wrangler r2 bucket create fuda-media
+   ```
+
+   Its `MEDIA_BUCKET` binding is already in `wrangler.jsonc`. Until the bucket
+   exists, logo upload answers `501 media_not_configured` and every other
+   surface works unbranded.
+
    `PUBLIC_BASE_URL` (top-level `vars`) is the member-facing origin the
    dashboard's published card links to, `https://fuda.sh`; the `env.dev` value
    is the app dev port. It never needs regenerating.

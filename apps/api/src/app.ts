@@ -12,6 +12,7 @@ import { ensGatewayRoutes } from './routes/ens-gateway.ts'
 import { health } from './routes/health.ts'
 import { issueRoutes } from './routes/issue.ts'
 import { issuersRoutes } from './routes/issuers.ts'
+import { mediaRoutes } from './routes/media.ts'
 import { membersRoutes } from './routes/members.ts'
 import { passRoutes } from './routes/pass.ts'
 import { revokeRoutes } from './routes/revoke.ts'
@@ -49,6 +50,7 @@ export const createApp = (deps: AppDeps): Hono<AppEnv> => {
   app.route('/', health)
   app.route('/', authRoutes)
   app.route('/', issuersRoutes)
+  app.route('/', mediaRoutes)
   app.route('/', challengeRoutes)
   app.route('/', ensGatewayRoutes)
   app.route('/', verifyRoutes)

@@ -17,6 +17,10 @@
       "migrations_dir": "migrations",
     },
   ],
+  // Venue logos. Create it with `wrangler r2 bucket create fuda-media` before
+  // deploying; without the binding the upload route answers
+  // 501 media_not_configured and every other surface works unbranded.
+  "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "fuda-media" }],
   // Secrets (`wrangler secret put`, never `vars`): SIGNER_PRIVATE_KEY,
   // ENS_GATEWAY_SIGNER_KEY, ENS_GATEWAY_SECRET,
   // ADMIN_TOKEN, BASE_RPC_URL and the wallet-platform names —
@@ -63,6 +67,7 @@
           "migrations_dir": "migrations",
         },
       ],
+      "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "fuda-media" }],
       "vars": {
         "EAS_ADDRESS": "0x4200000000000000000000000000000000000021",
         "SCHEMA_REGISTRY_ADDRESS": "0x4200000000000000000000000000000000000020",

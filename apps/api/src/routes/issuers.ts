@@ -23,6 +23,7 @@ import { issueBearer, IssueConfigError } from '../issue/issue-bearer.ts'
 import { issueContext } from '../issue/issue-context.ts'
 import { cardView, issuerView, publicUrlFor, publicVenue } from '../issuers/views.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
+import { claimLogoUpload } from '../media/store.ts'
 import { operatorAuth } from '../middleware/operator-auth.ts'
 import { rateLimit } from '../middleware/rate-limit.ts'
 
@@ -144,12 +145,20 @@ const insertIssuerAndCard = async (
   const now = c.get('now')()
   const issuerId = crypto.randomUUID()
   const cardId = crypto.randomUUID()
+  // A logo staged before the venue existed is claimed here; an id that is
+  // unknown, spent or someone else's simply leaves the venue unbranded rather
+  // than failing a create the operator cannot retry.
+  const logoPrefix =
+    input.logoUploadId === null
+      ? null
+      : await claimLogoUpload(db, { id: input.logoUploadId, now, sessionTokenHash: operator.tokenHash })
   await db.batch([
     db.insert(issuers).values({
       brandColor: input.brandColor.toUpperCase(),
       createdAt: now,
       handle: input.handle,
       id: issuerId,
+      logoPrefix,
       name: input.name,
       operatorAddress: operator.address,
       tagline: input.tagline,

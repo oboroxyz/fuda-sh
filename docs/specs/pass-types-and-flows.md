@@ -295,7 +295,33 @@ claimUntil, validityDays, validFrom, validUntil }`.
 three fields as `null`/`[]` before the venue exists.
 `GET /issuers/check?handle=` and `GET /issuers/cards/check?slug=` (both
 session-gated, so neither namespace can be enumerated anonymously) answer
-`{ …, valid, available }`. A logo is not part of a card yet.
+`{ …, valid, available }`.
+
+**The venue's logo.** It belongs to the issuer, not the card, and lives in R2
+with only its prefix in D1. Because Workers have no image decoder, the
+dashboard draws the variants and the api verifies them: `master` 1024×1024
+serves Google Wallet and every web surface, while `logo1x` 50×50, `logo2x`
+100×100 and `logo3x` 150×150 are embedded in the `.pkpass` — linking would not
+work there, and embedding the master would add about a megabyte to every pass.
+Each object must be a PNG of exactly its variant's side, within 1 MiB, and the
+set within 2 MiB; the api reads the PNG signature and IHDR directly rather than
+trusting what the browser sent.
+
+Uploading is two-phase, because the first logo is chosen in the same form that
+creates the venue. `POST /issuers/logo` (session, multipart) writes the objects
+under a fresh immutable prefix and stages them for 15 minutes, answering
+`201 { logoUploadId, expiresAt }`; `POST /issuers` accepts that id, and
+`POST /issuers/logo/commit` binds one to a venue that already exists. An
+upload is spendable once and only by the session that made it. Stale rows are
+swept on the next upload, so no cron is involved. Replacing a logo writes a new
+prefix, so a cached URL never shows the old mark.
+
+`GET /assets/:handle/logo/:variant` (public) serves an object, resolving the
+prefix from the issuer row against a fixed variant list so no caller-supplied
+path reaches R2. It answers an ETag, honours `if-none-match` with a `304`, and
+carries a one-year immutable `Cache-Control`. Without the `MEDIA_BUCKET`
+binding the upload route answers `501 media_not_configured` and every other
+surface works unbranded.
 
 **A card's two time windows.** They answer different questions and are set
 independently.

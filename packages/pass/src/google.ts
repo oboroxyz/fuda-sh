@@ -51,6 +51,10 @@ interface TextModule {
   id: string
 }
 
+interface WalletImage {
+  sourceUri: { uri: string }
+}
+
 export interface GoogleGenericObject {
   barcode: { alternateText: string; type: string; value: string }
   cardTitle: LocalizedString
@@ -58,6 +62,7 @@ export interface GoogleGenericObject {
   header: LocalizedString
   hexBackgroundColor?: string
   id: string
+  logo?: WalletImage
   state: string
   subheader?: LocalizedString
   textModulesData: TextModule[]
@@ -87,9 +92,12 @@ export const buildGenericObject = (cfg: GoogleConfig, input: GooglePassInput): G
     }
   }
   // A venue card: the venue is the title, the card title the header, the
-  // member number the subheader, and the brand colour the card.
+  // member number the subheader, and the brand colour the card. The logo is a
+  // URL Google fetches, so it is omitted rather than empty when unset.
+  const logo = branding.logoUrl === null ? {} : { logo: { sourceUri: { uri: branding.logoUrl } } }
   return {
     ...base,
+    ...logo,
     cardTitle: localized(branding.issuerName),
     header: localized(branding.cardTitle),
     hexBackgroundColor: branding.brandColor,

@@ -11,6 +11,10 @@ export interface PassBranding {
   memberNumber: string
   // set when the card asks to surface near the venue (Apple `locations`)
   venue: { lat: number; lng: number } | null
+  // the venue's mark as a public URL, or null when it has none. Google and the
+  // web pass link to it; the Apple builder is handed the bytes separately,
+  // because a .pkpass embeds its images rather than fetching them.
+  logoUrl: string | null
 }
 
 export interface Rgb {

@@ -111,6 +111,8 @@ export const IssuerCreateBody = v.object({
   brandColor: v.pipe(v.string(), v.regex(/^#[0-9a-fA-F]{6}$/u)),
   card: CardBody,
   handle: v.pipe(v.string(), v.check(isIssuerHandle)),
+  // a staged logo from POST /issuers/logo, committed with the venue
+  logoUploadId: v.optional(v.nullable(v.pipe(v.string(), v.minLength(1))), null),
   name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(80)),
   tagline: shortText(120),
 })

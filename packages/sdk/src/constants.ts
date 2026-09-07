@@ -102,5 +102,8 @@ export const ERROR_CODES = [
   'bad_slug',
   'slug_taken',
   'card_closed',
+  'media_not_configured',
+  'bad_upload',
+  'upload_not_found',
 ] as const
 export type ErrorCode = (typeof ERROR_CODES)[number]

@@ -5,7 +5,7 @@ import { getDb } from '../src/db/client.ts'
 import { members, slots } from '../src/db/schema.ts'
 
 describe('D1 schema', () => {
-  it('has all ten retained application tables after migration', async () => {
+  it('has all eleven retained application tables after migration', async () => {
     const rows = await env.DB.prepare(
       "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'd1_%' AND name NOT LIKE '_cf_%'",
     ).all<{ name: string }>()
@@ -15,6 +15,7 @@ describe('D1 schema', () => {
       'ens_names',
       'entry_log',
       'issuers',
+      'logo_uploads',
       'members',
       'rate_limits',
       'sessions',

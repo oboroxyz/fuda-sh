@@ -5,6 +5,9 @@ import type { AdmitHook } from './verify/admit.ts'
 
 export interface Bindings {
   DB: D1Database
+  // Venue logos. Absent until the bucket exists; the upload route then answers
+  // 501 media_not_configured and nothing else changes.
+  MEDIA_BUCKET?: R2Bucket
   ADMIN_TOKEN?: string
   SIGNER_PRIVATE_KEY?: string
   BASE_RPC_URL?: string

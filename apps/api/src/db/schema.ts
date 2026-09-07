@@ -31,6 +31,7 @@ export const issuers = sqliteTable('issuers', {
   createdAt: integer('created_at').notNull(),
   handle: text('handle').notNull().unique(),
   id: text('id').primaryKey(),
+  logoPrefix: text('logo_prefix'),
   name: text('name').notNull(),
   operatorAddress: text('operator_address').notNull().unique(),
   tagline: text('tagline').notNull().default(''),
@@ -105,3 +106,18 @@ export const entryLog = sqliteTable('entry_log', {
   reason: text('reason').notNull(),
   uid: text('uid').notNull(),
 })
+
+export const logoUploads = sqliteTable(
+  'logo_uploads',
+  {
+    assetPrefix: text('asset_prefix').notNull(),
+    createdAt: integer('created_at').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+    id: text('id').primaryKey(),
+    sessionTokenHash: text('session_token_hash').notNull(),
+    status: text('status', { enum: ['pending', 'committed'] })
+      .notNull()
+      .default('pending'),
+  },
+  (t) => [index('logo_uploads_expires_at').on(t.expiresAt)],
+)

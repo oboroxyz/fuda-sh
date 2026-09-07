@@ -13,14 +13,21 @@ export type PassRowResult = { ok: true; row: PassRow } | { ok: false; res: Respo
 
 // The card behind a self-serve right, or null when the row was admin-issued
 // (or the card is gone): the pass then keeps the plain fuda look.
-const brandingOf = async (db: Db, cardId: string | null, memberId: string): Promise<PassBranding | null> => {
+const brandingOf = async (
+  db: Db,
+  cardId: string | null,
+  memberId: string,
+  baseUrl: string,
+): Promise<PassBranding | null> => {
   if (cardId === null) {
     return null
   }
   const found = await db
     .select({
       brandColor: issuers.brandColor,
+      handle: issuers.handle,
       lockScreen: cards.lockScreen,
+      logoPrefix: issuers.logoPrefix,
       name: issuers.name,
       title: cards.title,
       venueLat: cards.venueLat,
@@ -41,6 +48,10 @@ const brandingOf = async (db: Db, cardId: string | null, memberId: string): Prom
     brandColor: found.brandColor,
     cardTitle: found.title,
     issuerName: found.name,
+    // Absolute, because Google Wallet fetches it and a saved pass outlives the
+    // request that made it.
+    logoUrl:
+      found.logoPrefix === null ? null : `${baseUrl.replace(/\/$/u, '')}/assets/${found.handle}/logo/master`,
     memberNumber: formatMemberNumber(memberId),
     venue,
   }
@@ -51,6 +62,20 @@ const brandingOf = async (db: Db, cardId: string | null, memberId: string): Prom
 // for a one-time stealth holder) → only then the platform check the caller
 // makes. A private row therefore never reveals whether a wallet platform is
 // configured.
+// The issuer's asset prefix behind a self-serve right, for the Apple builder.
+const logoPrefixOf = async (db: Db, cardId: string | null): Promise<string | null> => {
+  if (cardId === null) {
+    return null
+  }
+  const found = await db
+    .select({ logoPrefix: issuers.logoPrefix })
+    .from(cards)
+    .innerJoin(issuers, eq(cards.issuerId, issuers.id))
+    .where(eq(cards.id, cardId))
+    .get()
+  return found?.logoPrefix ?? null
+}
+
 export const loadPassRow = async (c: Context<AppEnv>, rawUid: string): Promise<PassRowResult> => {
   // Every pass response carries the live status (or names a live secret), so
   // none of them may be cached — including the 404s and 501s.
@@ -74,9 +99,10 @@ export const loadPassRow = async (c: Context<AppEnv>, rawUid: string): Promise<P
     // Written only from checksummed addresses (bearerHolder / getAddress), so a
     // null here means a malformed row, which the pass treats as "no holder".
     row: {
-      branding: await brandingOf(c.get('db'), row.cardId, row.memberId),
+      branding: await brandingOf(c.get('db'), row.cardId, row.memberId, c.env.API_BASE_URL),
       holder: row.holder === null ? null : asHex(row.holder, 20),
       level: row.level,
+      logoPrefix: await logoPrefixOf(c.get('db'), row.cardId),
       tier: row.tier,
       uid,
     },

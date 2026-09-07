@@ -10,6 +10,8 @@ export interface PassRow {
   tier: number
   // the venue card a self-serve right was issued under; null for admin issuance
   branding: PassBranding | null
+  // where the venue's logo objects live, for the builders that embed bytes
+  logoPrefix: string | null
 }
 
 // null = the chain could not be read at render time.

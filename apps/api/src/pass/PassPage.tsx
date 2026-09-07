@@ -15,6 +15,7 @@ const STYLE = `
   .brand{color:var(--brand-text)}
   .brand .card{background:var(--brand)}
   .venue{font-size:13px;opacity:.85;letter-spacing:.08em;text-transform:uppercase}
+  .mark{width:56px;height:56px;border-radius:12px;display:block;margin:0 auto 10px;object-fit:cover}
   .title{font-size:20px;font-weight:700;margin:4px 0 12px}
   .number{font-size:18px;font-weight:700;letter-spacing:.06em;margin:8px 0 0;font-variant-numeric:tabular-nums}
   .qr{background:#fff;border-radius:12px;padding:12px;display:inline-block}
@@ -54,10 +55,21 @@ const brandStyle = (view: PassView): string => {
   return `--brand:${view.branding.brandColor};--brand-text:${rgbCss(text)}`
 }
 
+// The mark is served by the api from the issuer's immutable prefix, so it is
+// safe to link and cheap to cache; a venue without one simply has no image.
+const mark = (view: PassView): HtmlEscapedString | Promise<HtmlEscapedString> => {
+  const { branding } = view
+  if (branding === null || branding.logoUrl === null) {
+    return html``
+  }
+  return html`<img class="mark" src="${branding.logoUrl}" alt="${branding.issuerName}" />`
+}
+
 const heading = (view: PassView): HtmlEscapedString | Promise<HtmlEscapedString> =>
   view.branding === null
     ? html``
-    : html`<div class="venue">${view.branding.issuerName}</div>
+    : html`${mark(view)}
+        <div class="venue">${view.branding.issuerName}</div>
         <div class="title">${view.branding.cardTitle}</div>`
 
 const memberLine = (view: PassView): HtmlEscapedString | Promise<HtmlEscapedString> =>
