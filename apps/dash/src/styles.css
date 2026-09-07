@@ -107,21 +107,59 @@
 }
 
 .dash-appearance {
+  position: relative;
   display: flex;
   min-width: 0;
   flex-wrap: wrap;
-  align-items: end;
-  gap: 0.75rem;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.dash-appearance label {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 0.375rem;
+.fuda-language-menu {
+  position: relative;
+}
+
+.fuda-language-menu > summary {
+  list-style: none;
+}
+
+.fuda-language-menu > summary::-webkit-details-marker,
+.fuda-language-menu > summary::marker {
+  display: none;
+}
+
+.fuda-language-menu-panel {
+  position: absolute;
+  z-index: 30;
+  bottom: calc(100% + 0.5rem);
+  left: 0;
+  width: 9rem;
+  overflow: hidden;
+  padding-block: 0.25rem;
+  border: 1px solid var(--fuda-border);
+  border-radius: 0.75rem;
+  background: var(--fuda-surface);
+  box-shadow: 0 0.75rem 2rem rgb(0 0 0 / 14%);
+}
+
+.fuda-language-option {
+  display: block;
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border: 0;
+  background: transparent;
   color: var(--fuda-muted);
-  font-size: 0.75rem;
+  text-align: left;
+}
+
+.fuda-language-option:hover,
+.fuda-language-option[aria-current='true'] {
+  background: color-mix(in srgb, var(--fuda-text) 8%, var(--fuda-surface));
+  color: var(--fuda-text);
+}
+
+.fuda-language-option[aria-current='true'] {
+  font-weight: 700;
 }
 
 .dash-auth {
@@ -130,7 +168,15 @@
 }
 
 .dash-auth .dash-appearance {
+  justify-content: flex-end;
   max-width: 20rem;
+}
+
+.dash-auth .fuda-language-menu-panel {
+  top: calc(100% + 0.5rem);
+  right: 0;
+  bottom: auto;
+  left: auto;
 }
 
 .dash-app :where(.input, .select),
@@ -153,11 +199,28 @@
   min-height: 44px;
   height: auto;
   border: 1px solid var(--fuda-border);
-  border-radius: 0.5rem;
+  border-radius: 9999px;
   background: var(--fuda-surface);
   color: var(--fuda-text);
   box-shadow: none;
   white-space: normal;
+}
+
+.dash-app .fuda-icon-button,
+.dash-auth .fuda-icon-button {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+}
+
+.fuda-icon-button svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  fill: none;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
 }
 
 .dash-app :where(.btn, .fuda-icon-button):hover:not(:disabled),
@@ -167,14 +230,14 @@
 
 .dash-app .btn-primary,
 .dash-auth .btn-primary {
-  border-color: var(--fuda-accent);
-  background: var(--fuda-accent);
+  border-color: var(--fuda-text);
+  background: var(--fuda-text);
   color: var(--fuda-surface);
 }
 
 .dash-app .btn-primary:hover:not(:disabled),
 .dash-auth .btn-primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--fuda-accent) 85%, var(--fuda-text));
+  background: color-mix(in srgb, var(--fuda-text) 82%, var(--fuda-surface));
 }
 
 .dash-app .btn-error {
