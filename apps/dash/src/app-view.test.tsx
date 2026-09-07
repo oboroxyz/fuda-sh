@@ -45,7 +45,7 @@ const card = {
 const operatorSession: AppViewProps['session'] = {
   authError: null,
   members: { kind: 'idle' },
-  operator: { cards: [card], issuer, publicUrl: 'https://fuda.sh/@wassie-coffee' },
+  operator: { cards: [card], ens: null, issuer, publicUrl: 'https://fuda.sh/@wassie-coffee' },
   token: 'session',
 }
 
@@ -189,7 +189,7 @@ describe(AppView, () => {
   it('opens the designer in venue mode while the operator has no venue', () => {
     const empty: AppViewProps['session'] = {
       ...operatorSession,
-      operator: { cards: [], issuer: null, publicUrl: null },
+      operator: { cards: [], ens: null, issuer: null, publicUrl: null },
     }
     const view = AppView({ ...props, route: '/new', session: empty })
     expect(viewProps(findViewNodes(view, CardDesigner)[0]).issuer).toBeNull()

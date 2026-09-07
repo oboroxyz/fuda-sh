@@ -1,4 +1,5 @@
 import {
+  asHex,
   CardBody,
   entitlementWindow,
   generateMemberNumber,
@@ -8,7 +9,14 @@ import {
   IssuerCreateBody,
   USAGE_MODEL,
 } from '@fuda/sdk'
-import type { CardRequest, IssueRequest, IssuerCreateRequest, SelfServeIssueResponse } from '@fuda/sdk'
+import type {
+  CardRequest,
+  EnsClaimView,
+  IssueRequest,
+  IssuerCreateRequest,
+  IssuerMeResponse,
+  SelfServeIssueResponse,
+} from '@fuda/sdk'
 import { and, eq, inArray } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
@@ -19,6 +27,8 @@ import { ChainError, NoSignerError } from '../chain/client.ts'
 import type { Db } from '../db/client.ts'
 import { cards, issuers, members } from '../db/schema.ts'
 import { mirrorMemberName } from '../ens/mirror.ts'
+import { issuerEnsName } from '../ens/names.ts'
+import { ensNames } from '../ens/schema.ts'
 import type { AppEnv } from '../env.ts'
 import { issueBearer, IssueConfigError } from '../issue/issue-bearer.ts'
 import { issueContext } from '../issue/issue-context.ts'
@@ -61,17 +71,45 @@ const mine = async (c: Context<AppEnv>) => {
   return await cardsOf(db, issuer)
 }
 
+// The venue's ENS name as the dashboard needs it: what it is called, and whether
+// the chain has confirmed the claim. A signed-but-unused voucher reads as
+// unclaimed, because the operator's next step is the same either way.
+const ensView = async (c: Context<AppEnv>, handle: string): Promise<EnsClaimView | null> => {
+  const parentName = c.env.ENS_PARENT_NAME
+  if (parentName === undefined) {
+    return null
+  }
+  let name: string
+  try {
+    name = issuerEnsName(handle, parentName)
+  } catch {
+    return null
+  }
+  const row = await c.get('db').select().from(ensNames).where(eq(ensNames.name, name)).get()
+  const storedHash = row?.claimTxHash ?? null
+  const claimTxHash = storedHash === null ? null : asHex(storedHash, 32)
+  return {
+    claimTxHash: row?.status === 'claimed' ? claimTxHash : null,
+    expiry: row?.status === 'claimed' ? (row.expiry ?? null) : null,
+    name,
+    status: row?.status === 'claimed' ? 'claimed' : 'unclaimed',
+  }
+}
+
 issuersRoutes.get('/issuers/me', operatorAuth(), async (c) => {
   c.header('cache-control', 'no-store')
   const found = await mine(c)
   if (found === null) {
-    return jsonResponse(c, { cards: [], issuer: null, publicUrl: null })
+    const empty: IssuerMeResponse = { cards: [], ens: null, issuer: null, publicUrl: null }
+    return jsonResponse(c, empty)
   }
-  return jsonResponse(c, {
+  const body: IssuerMeResponse = {
     cards: found.cards.map((card) => cardView(card, c.get('now')())),
+    ens: await ensView(c, found.issuer.handle),
     issuer: issuerView(found.issuer, c.env.API_BASE_URL),
     publicUrl: publicUrlFor(c.env.PUBLIC_BASE_URL, found.issuer.handle),
-  })
+  }
+  return jsonResponse(c, body)
 })
 
 // Session-gated so the handle space cannot be enumerated anonymously.

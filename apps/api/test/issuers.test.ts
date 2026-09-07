@@ -61,6 +61,8 @@ describe('issuer onboarding', () => {
     const me = await getJson(app, publicEnv(), '/issuers/me', token)
     await expect(me.json()).resolves.toStrictEqual({
       cards: [body.card],
+      // No ENS parent is configured in this deployment, so the venue has no name.
+      ens: null,
       issuer: body.issuer,
       publicUrl: body.publicUrl,
     })

@@ -8,7 +8,7 @@ describe(unauthorizedSession, () => {
       unauthorizedSession({
         authError: null,
         members: { kind: 'ready', rows: [] },
-        operator: { cards: [], issuer: null, publicUrl: null },
+        operator: { cards: [], ens: null, issuer: null, publicUrl: null },
         token: 'secret',
       }),
     ).toStrictEqual({
@@ -23,8 +23,8 @@ describe(unauthorizedSession, () => {
 describe(hasIssuer, () => {
   it('is true only for an operator session that already has a venue', () => {
     expect(hasIssuer(signedOutSession())).toBe(false)
-    expect(hasIssuer({ ...signedOutSession(), operator: { cards: [], issuer: null, publicUrl: null } })).toBe(
-      false,
-    )
+    expect(
+      hasIssuer({ ...signedOutSession(), operator: { cards: [], ens: null, issuer: null, publicUrl: null } }),
+    ).toBe(false)
   })
 })

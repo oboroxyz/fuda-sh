@@ -9,7 +9,7 @@ const ADDRESS: Hex = `0x${'ab'.repeat(20)}`
 const NONCE: Hex = `0x${'cd'.repeat(16)}`
 const SIGNATURE: Hex = `0x${'ef'.repeat(65)}`
 const PROVIDER: Eip1193Provider = { request: async () => await Promise.resolve(null) }
-const ME: IssuerMeResponse = { cards: [], issuer: null, publicUrl: null }
+const ME: IssuerMeResponse = { cards: [], ens: null, issuer: null, publicUrl: null }
 
 const io = (overrides: Partial<SignInIo> = {}): SignInIo => ({
   challenge: vi.fn<SignInIo['challenge']>(
@@ -95,7 +95,7 @@ describe(signInWithPasskey, () => {
       io({ issuerMe: async () => await Promise.resolve(failed(0, true)) }),
     )
     expect(outcome).toStrictEqual({
-      issuer: { cards: [], issuer: null, publicUrl: null },
+      issuer: { cards: [], ens: null, issuer: null, publicUrl: null },
       ok: true,
       token: 'session-token',
     })

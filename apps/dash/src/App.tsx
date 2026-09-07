@@ -188,7 +188,13 @@ export const AppView = ({
 // The venue after a create: the first card, or one more alongside the rest.
 const operatorWith = (current: IssuerMeResponse | null, created: IssuerCreateResponse): IssuerMeResponse => {
   const existing = current !== null && current.issuer !== null ? current.cards : []
-  return { cards: [...existing, created.card], issuer: created.issuer, publicUrl: created.publicUrl }
+  return {
+    cards: [...existing, created.card],
+    // A create says nothing about the ENS name; the next /issuers/me read carries it.
+    ens: current?.ens ?? null,
+    issuer: created.issuer,
+    publicUrl: created.publicUrl,
+  }
 }
 
 export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Element => {
