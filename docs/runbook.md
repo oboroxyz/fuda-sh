@@ -407,6 +407,12 @@ sharing them:
 | R2 | `fuda-media-dev` | `fuda-media` |
 | Worker | `fuda-api` | `fuda-api-production`, or rename in the env block |
 | Hostnames | `*.dev.fuda.sh` after the cutover | `*.fuda.sh` |
+| Chain id | `84532` | `8453` |
+
+EAS and the SchemaRegistry are OP-stack predeploys at the same addresses on
+both networks, so those two `vars` do not change. The ERC-5564 Announcer is a
+separate deployment: confirm the mainnet address before reusing the Sepolia
+one rather than assuming the singleton is at the same place.
 
 `env.production` deliberately carries `routes: []`. Adding a custom domain
 there before the Sepolia deployment has moved off it would take a live
@@ -426,3 +432,40 @@ hostname away from the running beta, so the order matters:
 6. Rebuild the three frontends with the production `VITE_*` values; their
    `VITE_API_BASE_URL` decides which api a bundle talks to, so a develop build
    must point at the develop api.
+7. Change the passkey wallet's chain id. `apps/app/src/base-account.ts` and
+   `apps/dash/src/wallet.ts` construct the Base Account SDK with
+   `appChainIds: [84_532]`; a mainnet build must pass `8453` or the operator
+   signs against the wrong network. This is source, not a `VITE_*` value, so a
+   rebuild alone does not fix it.
+
+## Rolling back
+
+Each surface is its own Worker, so a bad deploy is undone per surface with
+`wrangler rollback` from that app's directory; it restores the previous
+deployment of that Worker and touches nothing else. Roll the api back first
+when a release changed both the api and a frontend, because a frontend bundle
+is built against an api contract and the older bundle is the one that matches
+the older api.
+
+Three kinds of state do not roll back with the code, and each needs its own
+treatment.
+
+**D1 migrations are forward-only.** A shipped migration is never edited: the
+migrations table records it as applied, so an edit changes what a fresh
+database gets while leaving every existing one untouched, and the two diverge
+silently. Fix by adding a migration. Keep a migration additive where the
+release it belongs to might be rolled back — an added column is invisible to
+the older code, whereas a dropped or renamed one takes the older code down
+with it.
+
+**Chain state is append-only.** Schemas and attestations cannot be deleted. A
+root delegation attested by mistake is revoked, not removed, and revocation is
+what the gate reads: an Entitlement under a revoked delegation stops admitting
+without anything being rewritten. Because `EAS_SCHEMAS` accepts a set of
+versions, a schema registered in error is retired by removing it from that set
+rather than by touching the chain.
+
+**R2 objects are immutable under their prefix.** Rolling the api back does not
+un-write a logo, and it does not need to: the issuer row names the prefix, so
+restoring the previous row restores the previous mark, and the version in the
+public URL keeps caches honest either way.

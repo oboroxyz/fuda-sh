@@ -4,7 +4,7 @@ Membership rights as on-chain attestations, verified at a physical gate.
 
 | Surface | Path | Dev |
 | --- | --- | --- |
-| api | `apps/api` | `pnpm --filter api dev` (http://localhost:8787, `--env dev`; set `USE_FAKE_CHAIN=1` in `apps/api/.dev.vars` to run without a signer) |
+| api | `apps/api` | `pnpm --filter api dev` (http://localhost:8787, `--env local`; set `USE_FAKE_CHAIN=1` in `apps/api/.dev.vars` to run without a signer) |
 | gate scanner | `apps/gate` | `pnpm --filter gate dev` (http://localhost:5174) |
 | dashboard | `apps/dash` | `pnpm --filter dash dev` (http://localhost:5175) |
 | member app | `apps/app` | `pnpm --filter app dev` (http://localhost:5173; apex landing plus the app-only `/signed`, `/private`, and `/rights` screens) |

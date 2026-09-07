@@ -162,6 +162,14 @@ so their UIDs are deterministic:
 Registration is an idempotent script (`apps/api/scripts/register-schemas.ts`)
 that prints the UIDs for configuration.
 
+Determinism makes the UID a function of the schema string, not of the chain, so
+registering the same three schemas on another network yields the same three
+UIDs. Registration itself is still per network: a schema that exists on Base
+Sepolia does not exist on mainnet until it is registered there. The root
+`IssuerDelegation` is the opposite case — it is an attestation, not a schema, so
+each network gets its own with its own UID, and `DELEGATION_UID` differs per
+environment even though `EAS_SCHEMAS` does not.
+
 **Entitlement**
 
 ```
