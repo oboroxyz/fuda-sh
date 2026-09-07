@@ -586,7 +586,15 @@ current challenge for the Entitlement holder?
 | ---------------- | ----------- | -------- | ------------------------------------------------------------------------------------------------- |
 | `api.fuda.sh`    | `apps/api`  | 8787     | the api                                                                                           |
 | `gate.fuda.sh`   | `apps/gate` | 5174     | scanner: uid preview, QR admission, verdict                                                       |
-| `dash.fuda.sh`   | `apps/dash` | 5175     | operator dashboard: passkey or admin-token sign-in; with the admin token `/` overview from D1 member rows and client configuration, `/rights` D1 search/filter/revoke/pass links plus separate on-chain lookup, and `/issue` issuance; with a passkey session `/new` card designer and `/published` the venue's cards with their links and QR codes |
+| `dash.fuda.sh`   | `apps/dash` | 5175     | operator dashboard: passkey or admin-token sign-in; `/` overview from D1 member rows and client configuration, `/rights` D1 search/filter/revoke/pass links plus separate on-chain lookup, and `/issue` issuance; with a passkey session `/new` card designer, `/published` the venue's cards with their links and QR codes, and the venue's ENS name |
+
+`GET /members` and `POST /revoke` accept either credential and answer according
+to which one they see. A passkey session is scoped to that operator's venue: it
+lists only members whose `issuer_id` is theirs — both cards of a two-card venue,
+since the scope is the issuer rather than the card — and may revoke only those
+rights. A uid belonging to another venue answers `404`, not `403`, so an
+operator cannot learn which uids exist outside their own. The admin token keeps
+the whole-deployment view on both routes.
 | `app.fuda.sh`    | `apps/app`  | 5173     | member app: `/@<handle>` venue page and `/@<handle>/<slug>` card landing with one-tap issuance, `/signed` challenge-response, `/private` enrolment and discovery, `/rights` member pass list |
 | `fuda.sh` (apex) | Cloudflare zone | —     | `/@*` redirect to the same path on `app.fuda.sh`; other apex paths are outside this repository    |
 

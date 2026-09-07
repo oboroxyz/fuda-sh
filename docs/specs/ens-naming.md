@@ -39,9 +39,50 @@ Sepolia:
 | voucher signer | `0x5c5DE7F78d90701066f5C52e8100B5e2c73845F9` |
 | gateway signer | `0xf0D345D00fA513D92ACCbc10Db721792577FcF9f` |
 
-B1 voucher issuance, onboarding and naming-mirror writes, revoke lifecycle
-integration, live `.eth` verification, and the `fuda.sh` DNS change remain
-external gates. No Gate or Entry path calls ENS or the gateway.
+Voucher issuance, the naming mirror and revoke lifecycle integration are
+implemented (see below). Live `.eth` verification through a third-party client
+and the `fuda.sh` DNS change remain external gates. No Gate or Entry path calls
+ENS or the gateway.
+
+## Claiming a name, and what writes the mirror
+
+An operator claims their venue's name from the dashboard in one press. fuda
+signs the voucher; the operator's own wallet submits it on Ethereum Sepolia,
+sponsored, so a venue owner needs neither that chain's native token nor a second
+wallet:
+
+| Step | Route | What it does |
+| --- | --- | --- |
+| 1 | `POST /issuers/me/ens/claim-voucher` | reads the registrar nonce, signs a `ClaimVoucher` for the operator's address, and records the name as `voucher_issued` |
+| 2 | — | the operator's wallet switches to Ethereum Sepolia and calls `claim`, sponsored through `POST /ens/paymaster` |
+| 3 | `POST /issuers/me/ens/claimed` | verifies the receipt carries the registrar's own `IssuerClaimed` for that exact label and issuer, then records `claimed` |
+
+A voucher that is signed and never used costs nothing: the nonce is unspent, so
+the next press signs a fresh voucher at the same nonce. Step 3 records a claim
+only when the chain agrees; anything else leaves the name pending, which is
+recoverable, rather than recording a claim that did not happen. Every one of
+these routes answers `503` until all five claim bindings are configured.
+
+`POST /ens/paymaster` is fuda's own ERC-7677 endpoint, and it exists because no
+paymaster vendor can restrict sponsorship by destination contract — their
+allowlists are by sender, and a venue's account does not exist until it claims.
+It decodes the user operation's call data and pays only for `claim` and `renew`
+on the configured registrar, refusing anything else before the vendor is
+contacted, since an operation that reverts still spends the sponsor's money. The
+vendor key stays a Worker secret and the gas policy id is injected server-side.
+
+The `ens_names` mirror is written in exactly three places:
+
+| When | Row |
+| --- | --- |
+| a claim voucher is signed, and again when the claim is confirmed | the issuer's own name, `voucher_issued` then `claimed` |
+| a right is issued under a venue | `<member-no>.<issuer>.fuda.eth`, `offchain`, holding the holder's address or — for a +Private right — the stealth meta-address the gateway derives from |
+| a right is revoked | that member name moves to `unregistered`, and lookup stops answering on the same request |
+
+Only a generated member number becomes a label. The admin path accepts free text
+for `memberId`, and that text never reaches the ENS namespace. A mirror write
+never fails the operation that triggered it: a name is a convenience attached to
+a right, and the right is the product.
 
 ## Deployment namespace
 
