@@ -6,8 +6,8 @@
   "compatibility_flags": ["nodejs_compat"],
   // api.fuda.sh is a custom domain of this Worker. `routes` is inheritable, so the
   // named `dev` environment below overrides it with an empty list: `wrangler dev
-  // --env dev` never deploys, and a stray `wrangler deploy --env dev` must not
-  // take the production hostname over.
+  // --env local` never deploys, and a stray `wrangler deploy --env local` must
+  // not take a live hostname over.
   "routes": [{ "pattern": "api.fuda.sh", "custom_domain": true }],
   "d1_databases": [
     {
@@ -64,7 +64,7 @@
     "API_BASE_URL": "https://api.fuda.sh",
     "PUBLIC_BASE_URL": "https://fuda.sh",
   },
-  // `wrangler dev --env dev` with USE_FAKE_CHAIN=1 (see .dev.vars.example): no
+  // `wrangler dev --env local` with USE_FAKE_CHAIN=1 (see .dev.vars.example): no
   // signer or RPC needed. ISSUER_ADDRESS/DELEGATION_UID/EAS_SCHEMAS below are
   // deterministic outputs of FakeChain's default signer and seedRootDelegation
   // (see src/index.ts) — the fake chain built on the first request re-derives
@@ -110,7 +110,10 @@
         "PUBLIC_BASE_URL": "https://fuda.sh",
       },
     },
-    "dev": {
+    // Local only, on the in-memory fake chain. Named `local` rather than `dev`
+    // so it can never be mistaken for the deployed `develop` environment; it
+    // carries no routes and must never be deployed.
+    "local": {
       "routes": [],
       "d1_databases": [
         {

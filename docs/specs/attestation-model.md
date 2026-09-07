@@ -226,7 +226,7 @@ are deliberately not in the MVP.
 `USE_FAKE_CHAIN=1` is a local-development opt-in only (`apps/api/.dev.vars`): it
 swaps in an in-memory chain and is ignored whenever a signer or an RPC binding is
 present. It is never set in a deployed environment. Wrangler named environments
-do not inherit top-level `vars` or `d1_databases`, so the `env.dev` block in
+do not inherit top-level `vars` or `d1_databases`, so the `env.local` block in
 `apps/api/wrangler.jsonc` repeats them in full with deterministic fake-chain
 values.
 

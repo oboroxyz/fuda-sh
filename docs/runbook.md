@@ -64,7 +64,7 @@ depends on.
    and editing one line.
 
    `PUBLIC_BASE_URL` (top-level `vars`) is the member-facing origin the
-   dashboard's published card links to, `https://fuda.sh`; the `env.dev` value
+   dashboard's published card links to, `https://fuda.sh`; the `env.local` value
    is the app dev port. It never needs regenerating.
 
 4. Look up the `Announcer` contract's deployment block on the Base Sepolia
@@ -75,7 +75,7 @@ depends on.
    and malformed values.
 5. Create the D1 database and paste its id into both `database_id`
    placeholders in `apps/api/wrangler.jsonc` (the top-level `d1_databases`
-   entry and the one repeated under `env.dev`):
+   entry and the one repeated under `env.local`):
 
    ```bash
    wrangler d1 create fuda-beta
@@ -372,7 +372,7 @@ after a deploy and periodically thereafter (see
 ## 12. Local development
 
 See `apps/api/README.md` for local dev: `USE_FAKE_CHAIN=1` and
-`.dev.vars.example`, the deterministic `env.dev` block in
+`.dev.vars.example`, the deterministic `env.local` block in
 `apps/api/wrangler.jsonc`, and the four dev ports (api 8787, gate 5174, dash
 5175, app 5173). Local D1 state under `.wrangler/state` persists across
 `wrangler dev` restarts; wipe it if the fake chain's world (schemas,
