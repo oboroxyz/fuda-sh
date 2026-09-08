@@ -841,6 +841,11 @@ describe(App, () => {
       const old = render(io)
       const operation = old.onIssue({ memberId: 'alice', tier: 1, usageModel: 1 })
       render(io).onToken('same-token')
+      render(io)
+      await setTimeout(0)
+      const replacementBefore = render(io)
+      const membersBefore = replacementBefore.members
+      const loadsBefore = io.listMembers.mock.calls.length
       pending.resolve(result)
       await expect(operation).resolves.toBe(result)
       await setTimeout(0)
@@ -856,6 +861,8 @@ describe(App, () => {
         route: '/rights',
         token: 'same-token',
       })
+      expect(replacement.members).toBe(membersBefore)
+      expect(io.listMembers).toHaveBeenCalledTimes(loadsBefore)
     },
   )
 
@@ -872,6 +879,11 @@ describe(App, () => {
       const old = render(io)
       const operation = old.onRevoke(UID)
       render(io).onToken('same-token')
+      render(io)
+      await setTimeout(0)
+      const replacementBefore = render(io)
+      const membersBefore = replacementBefore.members
+      const loadsBefore = io.listMembers.mock.calls.length
       pending.resolve(result)
       await expect(operation).resolves.toBe(result)
       await setTimeout(0)
@@ -887,6 +899,8 @@ describe(App, () => {
         route: '/rights',
         token: 'same-token',
       })
+      expect(replacement.members).toBe(membersBefore)
+      expect(io.listMembers).toHaveBeenCalledTimes(loadsBefore)
     },
   )
 
