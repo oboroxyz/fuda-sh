@@ -41,6 +41,31 @@ flowchart LR
 | Rights subgraph    | `packages/subgraphs/rights` | Indexes EAS and the Announcer directly for discovery, right cards, and dashboard on-chain-status queries                                                     |
 | Substreams         | `packages/substreams` | Provides optional raw event push packages for reuse and live demonstration; fuda has no resident sink or product-read dependency                           |
 
+## Browser query state
+
+`@fuda/libs` exposes shared library integrations through separate subpaths,
+with no root barrel. Browser and backend integrations may coexist, provided
+that runtime-specific dependencies stay behind their own entry points.
+
+The member app's public pass list and dashboard's issuer reads share
+`@fuda/libs/query`, a Hono JSX adapter over TanStack Query Core. Each mounted scope
+owns an independent in-memory client and clears it when disposed. Reads become
+stale after 30 seconds and refresh on focus or reconnect; the public pass list
+also refreshes every 30 seconds while visible. Transient read failures retry
+once, HTTP 4xx failures do not, and writes have no automatic retry.
+
+Public list keys identify API and graph deployments, holder addresses, and
+remembered public passes. Dashboard keys identify the API deployment and a
+session generation. Tokens remain in request closures, and session replacement
+clears protected cache entries. Restoring a saved token always requires a fresh
+server validation. Successful issuer mutations reconcile or invalidate cached
+reads, cancelling older reads so they cannot undo the update.
+
+This cache supports presentation, not authorization or admission decisions.
+It is not persisted, and it never holds PRF material, private signing keys, or
++Private discovery results. Domain filtering, signing, and API write workflows
+remain in the applications.
+
 ## Authority and trust boundaries
 
 - **Right validity is on-chain.** The API reads the Entitlement and its

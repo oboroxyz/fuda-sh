@@ -652,7 +652,26 @@ rows remain unavailable until the index recovers. Graph-only discovery on
 `/private` still reports that discovery is not configured and does not fall
 back to the API or D1.
 
-The dashboard keeps its admin token in the current tab's memory only and applies the gate to every Dash route. Replacing or signing out of a session immediately clears protected local state; asynchronous work started by the previous session cannot restore it or overwrite the replacement session. This ownership is local only: signing out does not cancel a remote HTTP request or an already submitted chain transaction. A passkey sign-in response initializes the ENS section from the issuer response, including an already claimed name. English is the first-visit language; an explicit English/Japanese choice and a light/dark/system theme mode persist in browser-local preferences. These presentation preferences do not enter API requests and changing them does not clear route or operational state. At widths below 64 rem, navigation uses a modal drawer and D1 rights use cards; at and above 64 rem, navigation is persistent and rights use a table. Revocation always requires confirmation and suppresses a duplicate submission while the selected UID is in flight.
+The member public pass list caches reads in memory for its mounted lifetime,
+with a separate identity for each API/graph deployment, holder set, and set of
+remembered passes. It refreshes live status every 30 seconds while visible and
+when returning to a stale page or reconnecting. Rows remain visible during a
+refresh; changing the holder set cannot display a late result for the previous
+set. A remembered pass remains as a status row when a rejection omits
+entitlement details; only confirmed public data enables wallet links or a
+holder query. Confirmed non-public passes are excluded. Query-UID recovery
+remembers a public pass once per mounted UID and cannot write device memory
+after unmount. The cache contains no signing keys or +Private discovery results.
+
+Dashboard issuer reads use an in-memory cache scoped to a session generation.
+Cached issuer data never authorizes a restored session: startup validation is
+always fresh. Background revalidation returning 401 ends the current session;
+other failures retain its displayed issuer information. Replacing a session
+clears the protected cache, including when the token text is reused. Successful
+card creation and logo updates replace cached issuer data; ENS confirmation
+updates the cached claim state before triggering a fresh read. Older reads cannot roll these changes back.
+
+The dashboard keeps its admin token in the current tab's memory only and applies the gate to every Dash route. Operator session tokens persist in browser-local storage scoped to the API deployment, so reloads and browser restarts retain sign-in within the server's 30-day session lifetime. At startup, the dashboard validates the saved token through `GET /issuers/me` and loads the current issuer, cards, and ENS state before showing protected pages or redirecting routes. A registered operator returns to their requested operator route; an operator without an issuer returns to the designer. Restoration shows a pending view instead of the sign-in screen. A 401 clears the saved token and requests sign-in; network and other server failures preserve it and offer retry or sign-out. Signing out or invalidating the current session removes its saved token immediately, without deleting a different token saved by another tab. Restoration results are discarded if the saved token changed while validation was pending. If browser storage is unavailable, sign-in still works for the current page lifetime. Replacing or signing out of a session immediately clears protected local state; asynchronous work started by the previous session cannot restore it or overwrite the replacement session. This ownership is local only: signing out does not cancel a remote HTTP request or an already submitted chain transaction. A passkey sign-in response initializes the ENS section from the issuer response, including an already claimed name. English is the first-visit language; an explicit English/Japanese choice and a light/dark/system theme mode persist in browser-local preferences. These presentation preferences do not enter API requests and changing them does not clear route or operational state. At widths below 64 rem, navigation uses a modal drawer and D1 rights use cards; at and above 64 rem, navigation is persistent and rights use a table. Revocation always requires confirmation and suppresses a duplicate submission while the selected UID is in flight.
 
 ## Related specs
 

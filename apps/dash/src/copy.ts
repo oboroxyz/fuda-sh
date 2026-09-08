@@ -24,6 +24,9 @@ export interface DashCopy {
     passkeyHint: string
     adminSection: string
     signingIn: string
+    restoring: string
+    restoreFailed: string
+    retry: string
     signOut: string
     failures: { network: string; rejected: string; unavailable: string; wallet: string }
   }
@@ -298,6 +301,9 @@ export const DASH_COPY = {
       passkeyHint: 'No email, no password. Your passkey is the whole account.',
       adminSection: 'Sign in with an admin token instead',
       signingIn: 'Waiting for your passkey…',
+      restoring: 'Restoring your session…',
+      restoreFailed: 'Could not restore your session. Please try again.',
+      retry: 'Try again',
       signOut: 'Sign out',
       failures: {
         network: 'Could not reach fuda. Check your connection and try again.',
@@ -575,6 +581,9 @@ export const DASH_COPY = {
       passkeyHint: 'メールアドレスもパスワードも不要です。パスキーがそのままアカウントになります。',
       adminSection: '管理トークンでサインインする',
       signingIn: 'パスキーの操作を待っています…',
+      restoring: 'ログイン状態を確認しています…',
+      restoreFailed: 'ログイン状態を確認できませんでした。もう一度お試しください。',
+      retry: '再試行',
       signOut: 'サインアウト',
       failures: {
         network: 'fuda に接続できませんでした。通信環境を確認して、もう一度お試しください。',

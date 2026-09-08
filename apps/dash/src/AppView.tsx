@@ -37,6 +37,8 @@ export interface AppViewProps {
   onIssue: IssueFormProps['onIssue']
   onNavigate: (route: DashRoute) => void
   onPasskey: () => void
+  onRestore: () => void
+  restoreState: 'loading' | 'failed' | null
   onRevoke: RightsPageProps['onRevoke']
   onSignOut: () => void
   onToken: (token: string) => void
@@ -62,6 +64,8 @@ export const AppView = ({
   onIssue,
   onNavigate,
   onPasskey,
+  onRestore,
+  restoreState,
   onRevoke,
   onSignOut,
   onToken,
@@ -75,6 +79,27 @@ export const AppView = ({
       return signInErrorOf(copy.auth, signInError)
     }
     return authError === 'unauthorized' ? copy.auth.unauthorized : null
+  }
+
+  if (restoreState !== null) {
+    return (
+      <main class="dash-auth">
+        <div class="flex justify-end">{appearance}</div>
+        <div class="card bg-base-200 mx-auto mt-16 flex max-w-md flex-col gap-4 p-6">
+          <p role={restoreState === 'loading' ? 'status' : 'alert'}>
+            {restoreState === 'loading' ? copy.auth.restoring : copy.auth.restoreFailed}
+          </p>
+          {restoreState === 'failed' ? (
+            <button class="btn btn-primary" onClick={onRestore} type="button">
+              {copy.auth.retry}
+            </button>
+          ) : null}
+          <button class="btn" onClick={onSignOut} type="button">
+            {copy.auth.signOut}
+          </button>
+        </div>
+      </main>
+    )
   }
 
   if (session.token === null) {

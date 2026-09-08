@@ -1,26 +1,22 @@
+import { useQuery, useQueryScope } from '@fuda/libs/query'
 /** @jsxImportSource hono/jsx/dom */
 import { asHex, fetchRightsByHolder, normalizeUid } from '@fuda/sdk'
 import type { GraphRight, Hex } from '@fuda/sdk'
 import { short } from '@fuda/ui'
-import { useEffect, useRef, useState } from 'hono/jsx/dom'
+import { useEffect, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import { verifyUid } from './api.ts'
-import { GRAPH_RIGHTS_ENDPOINT } from './config.ts'
+import { API_BASE_URL, GRAPH_RIGHTS_ENDPOINT } from './config.ts'
 import {
   applePassAvailable,
   connectMemberRail,
-  createPassListRefreshGate,
   googlePassHref,
-  loadMemberPassList,
   PrivatePassRecoveryError,
-  rememberQueryPass,
-  refreshCurrentPassStatuses,
-  scheduleVisibleRefresh,
-  visibleRefreshIoFrom,
   withConnectedAddress,
 } from './member-pass-list.ts'
 import type { MemberPassListIo, MemberPassListResult, MemberPassRow } from './member-pass-list.ts'
+import { memberPassListQueryOptions, memberPassRecoveryQueryOptions } from './member-pass-query.ts'
 import { readPassMemory, rememberPass } from './pass-memory.ts'
 import type { PassMemoryEntry } from './pass-memory.ts'
 import { injectedProvider, requestAccount } from './wallet.ts'
@@ -35,7 +31,17 @@ export type RightsListState =
 type MemberListState =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
-  | { kind: 'ready'; result: MemberPassListResult; generation: number }
+  | { kind: 'ready'; result: MemberPassListResult }
+
+const memberListState = (data: MemberPassListResult | undefined, error: Error | null): MemberListState => {
+  if (data !== undefined) {
+    return { kind: 'ready', result: data }
+  }
+  if (error !== null) {
+    return { kind: 'error', message: error.message }
+  }
+  return { kind: 'loading' }
+}
 
 const SAFE_META_PROTOCOLS = new Set(['http:', 'https:', 'ipfs:'])
 
@@ -223,83 +229,39 @@ export const RightsList = ({
   memory: givenMemory,
   queryUid,
 }: RightsListProps): JSX.Element => {
+  const queryClient = useQueryScope()
   const injected = givenInjected === undefined ? injectedProvider() : givenInjected
   const [addresses, setAddresses] = useState<Hex[]>([])
   const [memory, setMemory] = useState<PassMemoryEntry[]>(() => [...(givenMemory ?? readPassMemory())])
-  const [state, setState] = useState<MemberListState>({ kind: 'loading' })
   const [manual, setManual] = useState('')
   const [problem, setProblem] = useState<Error | null>(null)
   const uid = queryUid === undefined ? queryUidFromLocation() : queryUid
-  const refreshGate = useRef(createPassListRefreshGate())
+  const listQuery = useQuery(
+    queryClient,
+    memberPassListQueryOptions(
+      {
+        addresses,
+        apiEndpoint: API_BASE_URL,
+        graphEndpoint: GRAPH_RIGHTS_ENDPOINT,
+        memory,
+      },
+      io,
+    ),
+  )
+  const recoveryQuery = useQuery(queryClient, memberPassRecoveryQueryOptions(uid, API_BASE_URL, io))
+  const state = memberListState(listQuery.data, listQuery.error)
+  const recoveryProblem =
+    recoveryQuery.error === null || recoveryQuery.error instanceof PrivatePassRecoveryError
+      ? recoveryQuery.error
+      : new Error(`Could not recover this pass: ${recoveryQuery.error.message}`)
+  const queryProblem = recoveryProblem ?? (listQuery.data === undefined ? null : listQuery.error)
 
   useEffect(() => {
-    let current = true
-    const generation = refreshGate.current.beginListLoad()
-    void (async () => {
-      try {
-        const result = await loadMemberPassList(
-          { addresses, graphConfigured: GRAPH_RIGHTS_ENDPOINT !== '', memory },
-          io,
-        )
-        if (current && refreshGate.current.isListCurrent(generation)) {
-          setState({ generation, kind: 'ready', result })
-        }
-      } catch (error) {
-        if (current && refreshGate.current.isListCurrent(generation)) {
-          setState({ kind: 'error', message: error instanceof Error ? error.message : 'Pass list failed.' })
-        }
-      }
-    })()
-    return () => {
-      current = false
-    }
-  }, [addresses, io, memory])
-
-  useEffect(() => {
-    if (uid === null) {
+    if (recoveryQuery.data === undefined || recoveryQuery.data === null) {
       return
     }
-    void (async () => {
-      try {
-        await rememberQueryPass(uid, io.verify, (pass) => {
-          setMemory(rememberPass(pass))
-        })
-      } catch (error) {
-        setProblem(
-          error instanceof PrivatePassRecoveryError
-            ? error
-            : new Error(
-                `Could not recover this pass: ${error instanceof Error ? error.message : 'unknown error'}`,
-              ),
-        )
-      }
-    })()
-  }, [io, uid])
-
-  useEffect(
-    () =>
-      scheduleVisibleRefresh(() => {
-        if (state.kind !== 'ready') {
-          return
-        }
-        void (async () => {
-          try {
-            const rows = await refreshCurrentPassStatuses(
-              refreshGate.current,
-              state.generation,
-              state.result.rows,
-              io.verify,
-            )
-            if (rows !== null) {
-              setState({ generation: state.generation, kind: 'ready', result: { ...state.result, rows } })
-            }
-          } catch (error) {
-            setProblem(error instanceof Error ? error : new Error('Could not refresh pass status.'))
-          }
-        })()
-      }, visibleRefreshIoFrom(globalThis)),
-    [io.verify, state],
-  )
+    setMemory(rememberPass(recoveryQuery.data))
+  }, [recoveryQuery.data])
 
   const addAddress = (address: Hex): void => {
     setAddresses((stored) => withConnectedAddress(stored, address))
@@ -386,7 +348,7 @@ export const RightsList = ({
           </button>
         </form>
       </details>
-      {problemNotice(problem)}
+      {problemNotice(problem ?? queryProblem)}
       <RightsListView state={state} />
     </main>
   )

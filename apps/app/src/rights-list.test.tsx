@@ -5,15 +5,10 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   applePassAvailable,
   connectMemberRail,
-  createPassListRefreshGate,
   googlePassHref,
   loadMemberPassList,
   PrivatePassRecoveryError,
   rememberQueryPass,
-  refreshCurrentPassStatuses,
-  refreshPassStatuses,
-  scheduleVisibleRefresh,
-  visibleRefreshIoFrom,
   withConnectedAddress,
 } from './member-pass-list.ts'
 import type { MemberPassListIo, MemberPassRow } from './member-pass-list.ts'
@@ -267,6 +262,35 @@ describe(loadMemberPassList, () => {
     expect(appleAvailable).not.toHaveBeenCalled()
   })
 
+  it('keeps a rejected remembered public pass device-only without querying its unverified holder', async () => {
+    const fetchRights = vi.fn<MemberPassListIo['fetchRights']>(async () => await Promise.resolve([]))
+    const googleHref = vi.fn<MemberPassListIo['googleHref']>(async () => await Promise.resolve(null))
+    const appleAvailable = vi.fn<MemberPassListIo['appleAvailable']>(async () => await Promise.resolve(false))
+
+    const result = await loadMemberPassList(
+      { addresses: [], graphConfigured: true, memory: [{ addedAt: 1, holder: HOLDER_A, uid: RIGHT }] },
+      {
+        appleAvailable,
+        fetchRights,
+        googleHref,
+        verify: async () =>
+          await Promise.resolve({ body: { decision: 'REJECT', reason: 'REVOKED' }, ok: true }),
+      },
+    )
+
+    expect(result.rows).toMatchObject([
+      {
+        appleHref: null,
+        googleHref: null,
+        preview: { decision: 'REJECT', reason: 'REVOKED' },
+        uid: RIGHT,
+      },
+    ])
+    expect(fetchRights).not.toHaveBeenCalled()
+    expect(googleHref).not.toHaveBeenCalled()
+    expect(appleAvailable).not.toHaveBeenCalled()
+  })
+
   it('keeps a known non-public Graph UID out of a same-UID memory fallback after its preview fails', async () => {
     const googleHref = vi.fn<MemberPassListIo['googleHref']>(async () => await Promise.resolve(null))
     const appleAvailable = vi.fn<MemberPassListIo['appleAvailable']>(async () => await Promise.resolve(false))
@@ -354,180 +378,6 @@ describe('pass link availability', () => {
     )
     await expect(applePassAvailable('https://api.test/apple', request)).resolves.toBe(true)
     expect(request).toHaveBeenCalledWith('https://api.test/apple', { method: 'HEAD' })
-  })
-})
-
-describe(refreshPassStatuses, () => {
-  it('replaces stale status from verify without re-querying Graph', async () => {
-    const stale: MemberPassRow = {
-      appleHref: null,
-      googleHref: null,
-      graph: right(RIGHT, null),
-      memory: null,
-      passes: {
-        apple: `http://localhost:8787/pass/${RIGHT}/apple.pkpass`,
-        google: `http://localhost:8787/pass/${RIGHT}/google`,
-        web: `http://localhost:8787/pass/${RIGHT}`,
-      },
-      preview: { decision: 'ADMIT', reason: 'OK' },
-      uid: RIGHT,
-    }
-    const verify = vi.fn<MemberPassListIo['verify']>(
-      async () => await Promise.resolve({ body: { decision: 'REJECT', reason: 'REVOKED' }, ok: true }),
-    )
-
-    const refreshed = await refreshPassStatuses([stale], verify)
-
-    expect(refreshed[0]?.preview).toStrictEqual({ decision: 'REJECT', reason: 'REVOKED' })
-    expect(verify).toHaveBeenCalledOnce()
-  })
-
-  it('removes a row when a later status preview confirms a non-public entitlement', async () => {
-    const refreshed = await refreshPassStatuses(
-      [memberRow({ appleHref: 'https://apple.example/pass', googleHref: 'https://google.example/pass' })],
-      async () => await Promise.resolve(admittedAtLevel(HOLDER_A, 3)),
-    )
-
-    expect(refreshed).toStrictEqual([])
-  })
-})
-
-describe('status refresh lifecycle', () => {
-  it('drops a deferred refresh once an address reload begins', async () => {
-    const gate = createPassListRefreshGate()
-    gate.beginListLoad()
-    let release: ((value: Result<VerifyResponse>) => void) | undefined
-    // oxlint-disable-next-line promise/avoid-new -- the test controls an in-flight verify response to prove stale completion cannot commit
-    const pending = new Promise<Result<VerifyResponse>>((resolve) => {
-      release = resolve
-    })
-    const refresh = refreshCurrentPassStatuses(gate, 1, [memberRow({})], async () => await pending)
-
-    gate.beginListLoad()
-    release?.(admitted(HOLDER_A))
-
-    await expect(refresh).resolves.toBeNull()
-  })
-
-  it('keeps only the newest overlapping deferred refresh', async () => {
-    const gate = createPassListRefreshGate()
-    gate.beginListLoad()
-    let releaseFirst: ((value: Result<VerifyResponse>) => void) | undefined
-    let releaseSecond: ((value: Result<VerifyResponse>) => void) | undefined
-    // oxlint-disable-next-line promise/avoid-new -- the test needs independently ordered in-flight verify responses
-    const first = new Promise<Result<VerifyResponse>>((resolve) => {
-      releaseFirst = resolve
-    })
-    // oxlint-disable-next-line promise/avoid-new -- the test needs independently ordered in-flight verify responses
-    const second = new Promise<Result<VerifyResponse>>((resolve) => {
-      releaseSecond = resolve
-    })
-    const pending = [first, second]
-    const verify: MemberPassListIo['verify'] = async () => {
-      const result = pending.shift()
-      return await (result ?? Promise.reject(new Error('unexpected refresh')))
-    }
-
-    const older = refreshCurrentPassStatuses(gate, 1, [memberRow({})], verify)
-    const newer = refreshCurrentPassStatuses(gate, 1, [memberRow({})], verify)
-    releaseSecond?.({ body: { decision: 'REJECT', reason: 'REVOKED' }, ok: true })
-
-    await expect(newer).resolves.toMatchObject([{ preview: { decision: 'REJECT', reason: 'REVOKED' } }])
-    releaseFirst?.(admitted(HOLDER_A))
-    await expect(older).resolves.toBeNull()
-  })
-
-  it('does not let an old-row refresh started during a new load overwrite the committed new list', async () => {
-    const gate = createPassListRefreshGate()
-    const oldGeneration = gate.beginListLoad()
-    const newGeneration = gate.beginListLoad()
-    let release: ((value: Result<VerifyResponse>) => void) | undefined
-    // oxlint-disable-next-line promise/avoid-new -- the test controls the old row's in-flight verify response
-    const pending = new Promise<Result<VerifyResponse>>((resolve) => {
-      release = resolve
-    })
-    const oldRow = memberRow({ uid: RIGHT })
-    const newRow = memberRow({ uid: UID_C })
-    let renderedRows = [oldRow]
-    const oldRefresh = refreshCurrentPassStatuses(
-      gate,
-      oldGeneration,
-      renderedRows,
-      async () => await pending,
-    ).then((rows) => {
-      if (rows !== null) {
-        renderedRows = rows
-      }
-    })
-
-    if (gate.isListCurrent(newGeneration)) {
-      renderedRows = [newRow]
-    }
-    release?.(admitted(HOLDER_A))
-    await oldRefresh
-
-    expect(renderedRows).toStrictEqual([newRow])
-  })
-
-  it('skips hidden-document ticks and clears its interval on teardown', () => {
-    let tick: (() => void) | undefined
-    let visible = false
-    let cleared: number | undefined
-    let refreshes = 0
-    const stop = scheduleVisibleRefresh<number>(
-      () => {
-        refreshes += 1
-      },
-      {
-        clearInterval: (id) => {
-          cleared = id
-        },
-        // oxlint-disable-next-line promise/prefer-await-to-callbacks -- the injected timer callback is the behavior under test
-        setInterval: (callback) => {
-          tick = callback
-          return 42
-        },
-        visibilityState: () => (visible ? 'visible' : 'hidden'),
-      },
-    )
-
-    tick?.()
-    visible = true
-    tick?.()
-    stop()
-
-    expect(refreshes).toBe(1)
-    expect(cleared).toBe(42)
-  })
-
-  it('preserves a timer host receiver while scheduling and clearing refreshes', () => {
-    class ReceiverSensitiveTimerHost {
-      readonly document = { visibilityState: 'visible' as const }
-      cleared: number | undefined
-      tick: (() => void) | undefined
-
-      setInterval(callback: () => void, milliseconds: number): number {
-        expect(milliseconds).toBe(30_000)
-        this.tick = callback
-        return 73
-      }
-
-      clearInterval(interval: number): void {
-        this.cleared = interval
-      }
-    }
-
-    const host = new ReceiverSensitiveTimerHost()
-    let refreshes = 0
-    const stop = scheduleVisibleRefresh(() => {
-      refreshes += 1
-    }, visibleRefreshIoFrom(host))
-
-    host.tick?.()
-    stop()
-
-    expect(refreshes).toBe(1)
-    expect(host.cleared).toBe(73)
   })
 })
 
@@ -680,7 +530,6 @@ describe(RightsListView, () => {
   it('uses a live REVOKED preview over an active Graph row and tags memory-only rows', () => {
     const graphView = RightsListView({
       state: {
-        generation: 1,
         kind: 'ready',
         result: {
           indexUnavailable: false,
@@ -692,7 +541,6 @@ describe(RightsListView, () => {
     })
     const memoryView = RightsListView({
       state: {
-        generation: 1,
         kind: 'ready',
         result: {
           indexUnavailable: false,
@@ -711,7 +559,7 @@ describe(RightsListView, () => {
   it('does not render pass links for an unclassified memory-only row', () => {
     const row = memberRow({ memory: { addedAt: 1, holder: HOLDER_A, uid: RIGHT }, preview: null })
     const view = RightsListView({
-      state: { generation: 1, kind: 'ready', result: { indexUnavailable: true, rows: [row] } },
+      state: { kind: 'ready', result: { indexUnavailable: true, rows: [row] } },
     })
 
     expect(viewNodes(view).some(({ props }) => props.href === row.passes.web)).toBe(false)
@@ -719,7 +567,7 @@ describe(RightsListView, () => {
 
   it('renders the exact saved-pass banner when the public index is unavailable', () => {
     const view = RightsListView({
-      state: { generation: 1, kind: 'ready', result: { indexUnavailable: true, rows: [memberRow({})] } },
+      state: { kind: 'ready', result: { indexUnavailable: true, rows: [memberRow({})] } },
     })
 
     expect(viewText(view)).toContain('index unavailable; showing passes saved on this device')

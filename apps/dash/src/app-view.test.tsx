@@ -14,7 +14,7 @@ import { OverviewPage } from './OverviewPage.tsx'
 import { PublishedCard } from './PublishedCard.tsx'
 import { RightsPage } from './RightsPage.tsx'
 import { SignIn } from './SignIn.tsx'
-import { findViewNodes, viewProps } from './test/test-view.ts'
+import { findViewNodes, viewProps, walkView } from './test/test-view.ts'
 
 const issuer = {
   brandColor: '#6F4320',
@@ -88,9 +88,11 @@ const props: AppViewProps = {
   onIssue: vi.fn<AppViewProps['onIssue']>(),
   onNavigate: vi.fn<AppViewProps['onNavigate']>(),
   onPasskey: vi.fn<AppViewProps['onPasskey']>(),
+  onRestore: vi.fn<AppViewProps['onRestore']>(),
   onRevoke: vi.fn<AppViewProps['onRevoke']>(),
   onSignOut: vi.fn<AppViewProps['onSignOut']>(),
   onToken: vi.fn<AppViewProps['onToken']>(),
+  restoreState: null,
   route: '/',
   session: adminSession,
   signInError: null,
@@ -98,6 +100,20 @@ const props: AppViewProps = {
 }
 
 describe(AppView, () => {
+  it.each(['loading', 'failed'] as const)(
+    'keeps sign-in and protected pages hidden while restoration is %s',
+    (restoreState) => {
+      const view = AppView({ ...props, restoreState, session: { ...adminSession, token: null } })
+      expect(findViewNodes(view, SignIn)).toHaveLength(0)
+      expect(findViewNodes(view, DashboardShell)).toHaveLength(0)
+      const buttons = walkView(view)
+        .map((node) => viewProps(node))
+        .filter((node) => node.type === 'button')
+      expect(buttons.some((button) => button.onClick === props.onSignOut)).toBe(true)
+      expect(buttons.some((button) => button.onClick === props.onRestore)).toBe(restoreState === 'failed')
+    },
+  )
+
   it('gates protected pages while retaining the requested route and appearance', () => {
     const requested: AppViewProps = { ...props, route: '/issue', session: { ...adminSession, token: null } }
     const view = AppView(requested)

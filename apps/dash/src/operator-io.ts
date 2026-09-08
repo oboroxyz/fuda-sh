@@ -22,6 +22,7 @@ export interface OperatorIo {
   checkSlug: typeof checkCardSlug
   claim: (token: string) => ClaimIo
   design: DesignIo
+  issuerMe: typeof issuerMe
   signIn: () => Promise<SignInOutcome>
   signOut: typeof signOut
 }
@@ -35,6 +36,7 @@ export const DEFAULT_OPERATOR_IO: OperatorIo = {
     submitClaim,
   }),
   design: DEFAULT_DESIGN_IO,
+  issuerMe,
   signIn: async () =>
     await signInWithPasskey({
       challenge: signInChallenge,

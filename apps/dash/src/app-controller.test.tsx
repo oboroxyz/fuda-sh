@@ -20,6 +20,7 @@ import type { AppProps } from './App.tsx'
 import { AppView } from './AppView.tsx'
 import type { AppViewProps } from './AppView.tsx'
 import { EMPTY_FORM } from './card-designer.ts'
+import { API_BASE_URL } from './config.ts'
 import { DASH_COPY } from './copy.ts'
 import type { ClaimIo } from './ens-claim.ts'
 import { EnsClaim } from './EnsClaim.tsx'
@@ -188,6 +189,15 @@ const browser = {
   routeListeners: new Set<() => void>(),
   storage: new Map<string, string>(),
 }
+const sessionKey = `fuda:dash:operator:${API_BASE_URL}`
+const remount = (): void => {
+  for (const cleanup of hooks.cleanups.values()) {
+    cleanup()
+  }
+  hooks.cleanups.clear()
+  hooks.slots.clear()
+  hooks.effects.length = 0
+}
 const location = { pathname: '/rights/' }
 const root = {
   classList: { toggle: vi.fn<(name: string, force: boolean) => void>() },
@@ -266,6 +276,9 @@ describe(App, () => {
       },
       localStorage: {
         getItem: (key: string): string | null => browser.storage.get(key) ?? null,
+        removeItem: (key: string): void => {
+          browser.storage.delete(key)
+        },
         setItem: (key: string, value: string): void => {
           browser.storage.set(key, value)
         },
@@ -344,6 +357,205 @@ describe(App, () => {
       theme: 'dark',
     })
     expect(io.listMembers).toHaveBeenCalledExactlyOnceWith('secret')
+  })
+
+  it.each([
+    { issuer: operatorIssuer, name: 'registered venue', path: '/published' },
+    {
+      issuer: { cards: [], ens: null, issuer: null, publicUrl: null } as IssuerMeResponse,
+      name: 'new operator',
+      path: '/new',
+    },
+  ])('restores a $name after reload without a new passkey ceremony', async ({ issuer, path }) => {
+    const io = fixture()
+    const operatorIo = {
+      ...DEFAULT_OPERATOR_IO,
+      issuerMe: vi.fn<OperatorIo['issuerMe']>().mockResolvedValue({ body: issuer, ok: true }),
+      signIn: vi.fn<OperatorIo['signIn']>().mockResolvedValue({ issuer, ok: true, token: 'saved-token' }),
+    }
+    await authenticateOperator(io, operatorIo)
+    remount()
+    const pending = render(io, 'system', operatorIo)
+    expect(pending.restoreState).toBe('loading')
+    await setTimeout(0)
+    const restored = render(io, 'system', operatorIo)
+    expect({
+      operator: restored.session.operator,
+      restoring: restored.restoreState,
+      route: restored.route,
+      token: restored.session.token,
+    }).toStrictEqual({ operator: issuer, restoring: null, route: path, token: 'saved-token' })
+    expect(operatorIo.issuerMe).toHaveBeenCalledExactlyOnceWith('saved-token')
+    expect(operatorIo.signIn).toHaveBeenCalledOnce()
+    expect(io.listMembers).not.toHaveBeenCalled()
+  })
+
+  it('clears an expired saved session', async () => {
+    browser.storage.set(sessionKey, 'expired')
+    const io = fixture()
+    const operatorIo = {
+      ...DEFAULT_OPERATOR_IO,
+      issuerMe: vi.fn<OperatorIo['issuerMe']>().mockResolvedValue(unauthorized),
+    }
+    render(io, 'system', operatorIo)
+    await setTimeout(0)
+    const view = render(io, 'system', operatorIo)
+    expect(view.session).toMatchObject({ authError: 'unauthorized', token: null })
+    expect(view.restoreState).toBeNull()
+    expect(browser.storage.has(sessionKey)).toBe(false)
+  })
+
+  it.each(['network', 'server', 'throw'])(
+    'retains the saved session on %s failure and retries restoration',
+    async (failure) => {
+      browser.storage.set(sessionKey, 'saved-token')
+      const io = fixture()
+      const issuerMe = vi.fn<OperatorIo['issuerMe']>()
+      if (failure === 'throw') {
+        issuerMe.mockRejectedValueOnce(new Error('offline'))
+      } else {
+        issuerMe.mockResolvedValueOnce({
+          error: 'unavailable',
+          network: failure === 'network',
+          ok: false,
+          status: failure === 'network' ? 0 : 503,
+        })
+      }
+      issuerMe.mockResolvedValueOnce({ body: operatorIssuer, ok: true })
+      const operatorIo = { ...DEFAULT_OPERATOR_IO, issuerMe }
+      render(io, 'system', operatorIo)
+      await setTimeout(0)
+      const failed = render(io, 'system', operatorIo)
+      expect(failed.restoreState).toBe('failed')
+      expect(failed.session.token).toBeNull()
+      expect(browser.storage.get(sessionKey)).toBe('saved-token')
+      failed.onRestore()
+      await setTimeout(0)
+      expect(render(io, 'system', operatorIo).session.operator).toStrictEqual(operatorIssuer)
+    },
+  )
+
+  it.each(['sign-out', 'admin'])(
+    'ignores a late restoration after %s and removes the saved credential',
+    async (replacement) => {
+      browser.storage.set(sessionKey, 'saved-token')
+      const io = fixture()
+      const pending = Promise.withResolvers<Result<IssuerMeResponse>>()
+      const operatorIo = {
+        ...DEFAULT_OPERATOR_IO,
+        issuerMe: vi.fn<OperatorIo['issuerMe']>().mockReturnValue(pending.promise),
+        signOut: vi.fn<OperatorIo['signOut']>().mockResolvedValue({ body: { loggedOut: true }, ok: true }),
+      }
+      const view = render(io, 'system', operatorIo)
+      if (replacement === 'sign-out') {
+        view.onSignOut()
+      } else {
+        view.onToken('admin-token')
+      }
+      pending.resolve({ body: operatorIssuer, ok: true })
+      await setTimeout(0)
+      const next = render(io, 'system', operatorIo)
+      expect(next.session.token).toBe(replacement === 'admin' ? 'admin-token' : null)
+      expect(next.session.operator).toBeNull()
+      expect(browser.storage.has(sessionKey)).toBe(false)
+    },
+  )
+
+  it.each(['logout', 'unauthorized'])('does not restore a session ended by %s', async (reason) => {
+    const io = fixture()
+    const operatorIo: OperatorIo = {
+      ...DEFAULT_OPERATOR_IO,
+      checkHandle: vi.fn<OperatorIo['checkHandle']>().mockResolvedValue(unauthorized),
+      signIn: vi
+        .fn<OperatorIo['signIn']>()
+        .mockResolvedValue({ issuer: operatorIssuer, ok: true, token: 'saved-token' }),
+      signOut: vi.fn<OperatorIo['signOut']>().mockResolvedValue({ body: { loggedOut: true }, ok: true }),
+    }
+    const view = await authenticateOperator(io, operatorIo)
+    expect(browser.storage.get(sessionKey)).toBe('saved-token')
+    if (reason === 'logout') {
+      view.onSignOut()
+    } else {
+      await view.onCheckHandle('coffee')
+    }
+    remount()
+    const fresh = render(io, 'system', operatorIo)
+    expect({
+      restoring: fresh.restoreState,
+      stored: browser.storage.has(sessionKey),
+      token: fresh.session.token,
+    }).toStrictEqual({ restoring: null, stored: false, token: null })
+  })
+
+  it('still signs in and out when browser storage is blocked', async () => {
+    Object.defineProperty(window, 'localStorage', {
+      get: () => {
+        throw new Error('storage blocked')
+      },
+    })
+    const io = fixture()
+    const operatorIo: OperatorIo = {
+      ...DEFAULT_OPERATOR_IO,
+      signIn: vi
+        .fn<OperatorIo['signIn']>()
+        .mockResolvedValue({ issuer: operatorIssuer, ok: true, token: 'memory-token' }),
+      signOut: vi.fn<OperatorIo['signOut']>().mockResolvedValue({ body: { loggedOut: true }, ok: true }),
+    }
+    const view = await authenticateOperator(io, operatorIo)
+    expect(view.session.token).toBe('memory-token')
+    view.onSignOut()
+    expect(render(io, 'system', operatorIo).session.token).toBeNull()
+  })
+
+  it.each([
+    { next: 'new-tab-token', result: { body: operatorIssuer, ok: true } as Result<IssuerMeResponse> },
+    { next: null, result: { body: operatorIssuer, ok: true } as Result<IssuerMeResponse> },
+    { next: 'new-tab-token', result: unauthorized },
+  ])('ignores restoration when another tab changes the saved token ($next)', async ({ next, result }) => {
+    browser.storage.set(sessionKey, 'old-token')
+    const pending = Promise.withResolvers<Result<IssuerMeResponse>>()
+    const io = fixture()
+    const operatorIo = {
+      ...DEFAULT_OPERATOR_IO,
+      issuerMe: vi.fn<OperatorIo['issuerMe']>().mockReturnValue(pending.promise),
+    }
+    render(io, 'system', operatorIo)
+    if (next === null) {
+      browser.storage.delete(sessionKey)
+    } else {
+      browser.storage.set(sessionKey, next)
+    }
+    pending.resolve(result)
+    await setTimeout(0)
+    const view = render(io, 'system', operatorIo)
+    expect({ saved: browser.storage.get(sessionKey) ?? null, token: view.session.token }).toStrictEqual({
+      saved: next,
+      token: null,
+    })
+  })
+
+  it('does not erase another tab login when an older active session expires', async () => {
+    const io = fixture()
+    const operatorIo: OperatorIo = {
+      ...DEFAULT_OPERATOR_IO,
+      checkHandle: vi.fn<OperatorIo['checkHandle']>().mockResolvedValue(unauthorized),
+      signIn: vi
+        .fn<OperatorIo['signIn']>()
+        .mockResolvedValue({ issuer: operatorIssuer, ok: true, token: 'old-token' }),
+    }
+    const view = await authenticateOperator(io, operatorIo)
+    browser.storage.set(sessionKey, 'new-tab-token')
+    await view.onCheckHandle('coffee')
+    expect(browser.storage.get(sessionKey)).toBe('new-tab-token')
+    expect(render(io, 'system', operatorIo).session.token).toBeNull()
+  })
+
+  it('does not persist admin credentials across reload', async () => {
+    const io = fixture()
+    await authenticate(io)
+    remount()
+    expect(render(io).session.token).toBeNull()
+    expect(browser.storage.has(sessionKey)).toBe(false)
   })
 
   it('uses the operator sign-in dependency without loading admin members', async () => {
