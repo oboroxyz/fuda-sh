@@ -14,6 +14,7 @@ import { OverviewPage } from './OverviewPage.tsx'
 import { PublishedCard } from './PublishedCard.tsx'
 import { RightsPage } from './RightsPage.tsx'
 import { SignIn } from './SignIn.tsx'
+import { SignOutButton } from './SignOutButton.tsx'
 import { findViewNodes, viewProps, walkView } from './test/test-view.ts'
 
 const issuer = {
@@ -109,7 +110,7 @@ describe(AppView, () => {
       const buttons = walkView(view)
         .map((node) => viewProps(node))
         .filter((node) => node.type === 'button')
-      expect(buttons.some((button) => button.onClick === props.onSignOut)).toBe(true)
+      expect(viewProps(findViewNodes(view, SignOutButton)[0]).onSignOut).toBe(props.onSignOut)
       expect(buttons.some((button) => button.onClick === props.onRestore)).toBe(restoreState === 'failed')
     },
   )

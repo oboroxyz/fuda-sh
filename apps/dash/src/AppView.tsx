@@ -18,6 +18,7 @@ import type { RightsPageProps } from './RightsPage.tsx'
 import { RightsPage } from './RightsPage.tsx'
 import type { DashRoute } from './router.ts'
 import { SignIn, signInErrorOf } from './SignIn.tsx'
+import { SignOutButton } from './SignOutButton.tsx'
 
 export interface AppViewProps {
   appearance: JSX.Element
@@ -94,9 +95,7 @@ export const AppView = ({
               {copy.auth.retry}
             </button>
           ) : null}
-          <button class="btn" onClick={onSignOut} type="button">
-            {copy.auth.signOut}
-          </button>
+          <SignOutButton copy={copy.auth} onSignOut={onSignOut} />
         </div>
       </main>
     )

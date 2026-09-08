@@ -28,6 +28,9 @@ export interface DashCopy {
     restoreFailed: string
     retry: string
     signOut: string
+    signOutTitle: string
+    signOutDescription: string
+    cancelSignOut: string
     failures: { network: string; rejected: string; unavailable: string; wallet: string }
   }
   logo: {
@@ -305,6 +308,9 @@ export const DASH_COPY = {
       restoreFailed: 'Could not restore your session. Please try again.',
       retry: 'Try again',
       signOut: 'Sign out',
+      signOutTitle: 'Sign out of fuda?',
+      signOutDescription: 'You will need to sign in again to manage your venue.',
+      cancelSignOut: 'Cancel',
       failures: {
         network: 'Could not reach fuda. Check your connection and try again.',
         rejected: 'That signature was not accepted. Please try again.',
@@ -585,6 +591,9 @@ export const DASH_COPY = {
       restoreFailed: 'ログイン状態を確認できませんでした。もう一度お試しください。',
       retry: '再試行',
       signOut: 'サインアウト',
+      signOutTitle: 'サインアウトしますか？',
+      signOutDescription: 'Venueを管理するには、もう一度サインインする必要があります。',
+      cancelSignOut: 'キャンセル',
       failures: {
         network: 'fuda に接続できませんでした。通信環境を確認して、もう一度お試しください。',
         rejected: '署名が受け付けられませんでした。もう一度お試しください。',
