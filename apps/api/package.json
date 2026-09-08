@@ -15,6 +15,7 @@
     "smoke:live": "tsx scripts/smoke-live.ts"
   },
   "dependencies": {
+    "@fuda/ens-contracts": "workspace:*",
     "@fuda/pass": "workspace:*",
     "@fuda/sdk": "workspace:*",
     "@fuda/stealth-address": "workspace:*",

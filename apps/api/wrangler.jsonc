@@ -39,7 +39,10 @@
   // answers 501 media_not_configured and every other surface works unbranded.
   "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "fuda-media-dev" }],
   // Secrets (`wrangler secret put`, never `vars`): SIGNER_PRIVATE_KEY,
-  // ENS_GATEWAY_SIGNER_KEY, ENS_GATEWAY_SECRET,
+  // ENS_GATEWAY_SIGNER_KEY, ENS_GATEWAY_SECRET, ENS_VOUCHER_KEY,
+  // ENS_SEPOLIA_RPC_URL, ENS_PAYMASTER_UPSTREAM (the last two are secrets
+  // because an Alchemy endpoint carries its API key in the path and this file
+  // is checked in),
   // ADMIN_TOKEN, BASE_RPC_URL and the wallet-platform names —
   // GOOGLE_ISSUER_ID, GOOGLE_CLASS_ID, GOOGLE_SA_EMAIL, GOOGLE_SA_KEY_PEM
   // (all four, or GET /pass/:uid/google answers 501) and
@@ -51,9 +54,9 @@
   // EAS_SCHEMAS (empty sets → /issue answers 502 chain_error), ISSUER_ADDRESS and
   // DELEGATION_UID (zero → the same 502). ANNOUNCER_FROM_BLOCK is retained here
   // as the rights-subgraph manifest generation source; "0" makes graph:prepare
-  // fail until production configuration is populated. ENS_PARENT_NAME and
-  // ENS_RESOLVER_ADDRESSES stay absent until the matching resolver is deployed;
-  // POST /ens/gateway then answers 503 rather than signing for placeholders.
+  // fail until production configuration is populated. ENS_GAS_POLICY_ID is the
+  // last ENS fill: the claim routes and POST /ens/gateway answer 503 while it
+  // or any ENS secret is empty, rather than signing for placeholders.
   "vars": {
     "EAS_ADDRESS": "0x4200000000000000000000000000000000000021",
     "SCHEMA_REGISTRY_ADDRESS": "0x4200000000000000000000000000000000000020",
@@ -65,6 +68,16 @@
     "DELEGATION_UID": "0x7bb324ad1ec399488f18178153a046d7bcca44bb9688e72e0ce9581a61a6e155",
     "API_BASE_URL": "https://api.fuda.sh",
     "PUBLIC_BASE_URL": "https://fuda.sh",
+    // The deployed ENS topology on Ethereum Sepolia — all public values, all
+    // verifiable with `pnpm --filter @fuda/ens-contracts ens:verify`. The gas
+    // policy id is the one fill left: the claim routes stay off (503) until it
+    // and the ENS secrets are set, so the empty string is the deployment's own
+    // off switch rather than a placeholder that fails at a worse moment
+    // (docs/specs/ens-naming.md#claiming-a-name-and-what-writes-the-mirror).
+    "ENS_PARENT_NAME": "fuda.eth",
+    "ENS_RESOLVER_ADDRESSES": "0x133e6eeb3eAf0F804FbB9c1536AcA090B36A93AB",
+    "ENS_REGISTRAR_ADDRESS": "0x58AF04ff5e6DAB45ECD17bD38fC4f4BBa45778B9",
+    "ENS_GAS_POLICY_ID": "cb3c4395-b6bd-47c5-abbb-316f0968d065",
   },
   // `wrangler dev --env local` with USE_FAKE_CHAIN=1 (see .dev.vars.example): no
   // signer or RPC needed. ISSUER_ADDRESS/DELEGATION_UID/EAS_SCHEMAS below are

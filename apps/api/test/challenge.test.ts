@@ -14,7 +14,7 @@ const UID = `0x${'ab'.repeat(32)}` as const
 
 const mint = async (app: App, bindings: Bindings, uid: string): Promise<Response> =>
   await app.request(
-    '/challenge',
+    '/v1/challenge',
     { body: JSON.stringify({ uid }), headers: { 'content-type': 'application/json' }, method: 'POST' },
     bindings,
   )

@@ -222,6 +222,7 @@ const published = (overrides: Partial<PublishedCardViewProps> = {}): PublishedCa
   cards: [membership],
   copiedSlug: null,
   copy: DASH_COPY.en.published,
+  ens: null,
   issuer,
   logo: EMPTY_LOGO,
   logoBusy: false,

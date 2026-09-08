@@ -146,7 +146,7 @@ describe(CardScreenView, () => {
   })
 
   it('renders the ready card with the formatted member number, issue date and QR', () => {
-    const view = render({ card, googleHref: null, issued, kind: 'ready' })
+    const view = render({ appleHref: null, card, googleHref: null, issued, kind: 'ready' })
     const text = viewText(view)
     const qr = viewNodes(view).find(({ props }) => props.role === 'img')
 
@@ -157,15 +157,28 @@ describe(CardScreenView, () => {
     expect(qr?.props['aria-label']).toBe('Your membership card QR code for Wassie Coffee')
   })
 
-  it('links Apple and the browser pass, and hides Google until a save link exists', () => {
-    const hidden = render({ card, googleHref: null, issued, kind: 'ready' })
-    const shown = render({ card, googleHref: 'https://pay.google.com/gp/v/save', issued, kind: 'ready' })
+  it('links the browser pass always, and hides each wallet button until its pass exists', () => {
+    const hidden = render({ appleHref: null, card, googleHref: null, issued, kind: 'ready' })
     const hrefs = (view: unknown): unknown[] => viewNodes(view).map(({ props }) => props.href)
 
-    expect(hrefs(hidden)).toContain(issued.passUrls.apple)
     expect(hrefs(hidden)).toContain(issued.passUrls.web)
+    expect(hrefs(hidden)).not.toContain(issued.passUrls.apple)
+    expect(viewText(hidden)).not.toContain('Add to Apple Wallet')
     expect(viewText(hidden)).not.toContain('Add to Google Wallet')
-    expect(hrefs(shown)).toContain('https://pay.google.com/gp/v/save')
+  })
+
+  it('shows each wallet button once its pass is confirmed', () => {
+    const shown = render({
+      appleHref: issued.passUrls.apple,
+      card,
+      googleHref: 'https://pay.google.com/gp/v/save',
+      issued,
+      kind: 'ready',
+    })
+    const hrefs = viewNodes(shown).map(({ props }) => props.href)
+
+    expect(hrefs).toContain(issued.passUrls.apple)
+    expect(hrefs).toContain('https://pay.google.com/gp/v/save')
     expect(viewText(shown)).toContain('No name or contact details required')
   })
 

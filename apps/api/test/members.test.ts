@@ -50,7 +50,7 @@ describe('GET /members', () => {
         },
       ])
     const app = appWith({ chain, now: () => NOW })
-    const res = await app.request('/members', {}, configuredEnv(del))
+    const res = await app.request('/v1/members', {}, configuredEnv(del))
     expect(res.status).toBe(200)
     const body: { members: MemberRow[] } = await res.json()
     expect(body.members.map((m) => m.uid)).toStrictEqual([
@@ -88,7 +88,7 @@ describe('GET /members', () => {
         .values(rows.slice(i, i + 10))
     }
     const app = appWith({ chain, now: () => NOW })
-    const res = await app.request('/members', {}, configuredEnv(del))
+    const res = await app.request('/v1/members', {}, configuredEnv(del))
     const body: { members: unknown[] } = await res.json()
     expect(body.members).toHaveLength(200)
   })
@@ -97,7 +97,7 @@ describe('GET /members', () => {
     const chain = fakeChain({ signer: ROOT })
     const del = seedRoot(chain)
     const app = appWith({ chain, now: () => NOW })
-    const res = await app.request('/members', {}, configuredEnv(del, { ADMIN_TOKEN: 's' }))
+    const res = await app.request('/v1/members', {}, configuredEnv(del, { ADMIN_TOKEN: 's' }))
     expect(res.status).toBe(401)
   })
 })

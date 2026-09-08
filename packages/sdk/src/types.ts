@@ -99,8 +99,21 @@ export interface IssuerCardsResponse {
   issuer: IssuerView
   cards: CardView[]
   publicUrl: string
+  // The venue's ENS name and how far its claim has got, or null while this
+  // deployment has no ENS configured (docs/specs/ens-naming.md).
+  ens: EnsClaimView | null
 }
-export type IssuerMeResponse = IssuerCardsResponse | { issuer: null; cards: []; publicUrl: null }
+export type IssuerMeResponse = IssuerCardsResponse | { issuer: null; cards: []; publicUrl: null; ens: null }
+
+// `unclaimed` covers both "never asked" and a voucher that was signed and never
+// used; either way the next step is the same, so the dashboard needs no third
+// state for an abandoned prompt.
+export interface EnsClaimView {
+  name: string
+  status: 'unclaimed' | 'claimed'
+  claimTxHash: Hex | null
+  expiry: number | null
+}
 
 // The self-serve Bearer issuance behind /@<handle>: the admin shape plus the
 // generated member number the pass shows.

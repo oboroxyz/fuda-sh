@@ -40,6 +40,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@fuda/ens-contracts':
+        specifier: workspace:*
+        version: link:../../packages/ens-contracts
       '@fuda/pass':
         specifier: workspace:*
         version: link:../../packages/pass
@@ -129,6 +132,9 @@ importers:
       '@base-org/account':
         specifier: 2.5.10
         version: 2.5.10(typescript@7.0.2)(zod@4.5.4)
+      '@fuda/ens-contracts':
+        specifier: workspace:*
+        version: link:../../packages/ens-contracts
       '@fuda/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n

@@ -13,6 +13,9 @@ import { QrBlock } from './QrBlock.tsx'
 
 export interface PublishedCardViewProps {
   cards: CardView[]
+  // The venue's ENS section, or null while this deployment has no ENS parent.
+  // Passed in already rendered so the claim's own state stays out of this view.
+  ens: JSX.Element | null
   // The card whose link was just copied, so only its button confirms.
   copiedSlug: string | null
   copy: DashCopy['published']
@@ -161,6 +164,8 @@ export const PublishedCardView = (props: PublishedCardViewProps): JSX.Element =>
           </p>
         ) : null}
       </div>
+
+      {props.ens === null ? null : <div class="dash-no-print">{props.ens}</div>}
 
       <div class="dash-actions dash-no-print">
         <button class="btn" onClick={onAddCard} type="button">

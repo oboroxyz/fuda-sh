@@ -17,6 +17,7 @@ import type { CardFailure } from './api.ts'
 import { cardKey, readCard, readCardMemory, rememberCard } from './card-memory.ts'
 import type { CardMemoryEntry } from './card-memory.ts'
 import { API_BASE_URL } from './config.ts'
+import { applePassAvailable } from './member-pass-list.ts'
 import { rememberPass } from './pass-memory.ts'
 import type { PassMemoryStorage } from './pass-memory.ts'
 
@@ -37,10 +38,17 @@ export type CardScreenState =
   | { kind: 'choose'; venue: PublicVenue; heldSlugs: readonly string[] }
   | { kind: 'landing'; card: PublicCard }
   | { kind: 'issuing'; card: PublicCard }
-  | { kind: 'ready'; card: PublicCard; issued: IssuedCard; googleHref: string | null }
+  | {
+      kind: 'ready'
+      card: PublicCard
+      issued: IssuedCard
+      googleHref: string | null
+      appleHref: string | null
+    }
   | { kind: 'error'; card: PublicCard | null; failure: CardFailure }
 
 export interface CardScreenIo {
+  appleAvailable: (url: string) => Promise<boolean>
   fetchVenue: (handle: string) => Promise<Result<PublicVenue>>
   googleSaveUrl: (url: string) => Promise<string | null>
   issueCard: (handle: string, slug: string) => Promise<Result<SelfServeIssueResponse>>
@@ -222,11 +230,18 @@ const notFound = (venue: PublicVenue | null): JSX.Element => {
   )
 }
 
-const passActions = (card: PublicCard, issued: IssuedCard, googleHref: string | null): JSX.Element => (
+const passActions = (
+  card: PublicCard,
+  issued: IssuedCard,
+  googleHref: string | null,
+  appleHref: string | null,
+): JSX.Element => (
   <div class="flex flex-col gap-2">
-    <a class="btn btn-neutral" href={issued.passUrls.apple}>
-      Add to Apple Wallet
-    </a>
+    {appleHref === null ? null : (
+      <a class="btn btn-neutral" href={appleHref}>
+        Add to Apple Wallet
+      </a>
+    )}
     {googleHref === null ? null : (
       <a class="btn btn-neutral" href={googleHref} target="_blank" rel="noreferrer">
         Add to Google Wallet
@@ -287,7 +302,7 @@ export const CardScreenView = ({ onIssue, onReload, state }: CardScreenViewProps
         <h1 class="text-xl font-bold">Your card is ready</h1>
         {memberCard(state.card, state.issued)}
         {qrBlock(state.card, state.issued)}
-        {passActions(state.card, state.issued, state.googleHref)}
+        {passActions(state.card, state.issued, state.googleHref, state.appleHref)}
       </>,
     )
   }
@@ -322,7 +337,12 @@ export const CardScreenView = ({ onIssue, onReload, state }: CardScreenViewProps
   )
 }
 
-const defaultIo: CardScreenIo = { fetchVenue, googleSaveUrl, issueCard }
+const defaultIo: CardScreenIo = {
+  appleAvailable: applePassAvailable,
+  fetchVenue,
+  googleSaveUrl,
+  issueCard,
+}
 
 const issuedFrom = (entry: CardMemoryEntry): IssuedCard => ({
   ...entry,
@@ -348,16 +368,21 @@ export const CardScreen = ({ handle, slug, io = defaultIo, storage }: CardScreen
   const [state, setState] = useState<CardScreenState>({ kind: 'loading' })
   const [generation, setGeneration] = useState(0)
 
-  // The Google button is progressive: it appears only once the api confirms a
-  // save link, so a venue without Google credentials never shows a dead button.
+  // Both wallet buttons are progressive: each appears only once the api confirms
+  // that platform's pass, so a deployment without Apple or Google credentials
+  // shows the browser pass alone rather than a button that opens an error.
   const showReady = useCallback(
     async (card: PublicCard, issued: IssuedCard, isCurrent: () => boolean): Promise<void> => {
-      setState({ card, googleHref: null, issued, kind: 'ready' })
-      const googleHref = await io.googleSaveUrl(issued.passUrls.google)
-      if (googleHref !== null && isCurrent()) {
+      setState({ appleHref: null, card, googleHref: null, issued, kind: 'ready' })
+      const [googleHref, appleReady] = await Promise.all([
+        io.googleSaveUrl(issued.passUrls.google),
+        io.appleAvailable(issued.passUrls.apple),
+      ])
+      const appleHref = appleReady ? issued.passUrls.apple : null
+      if ((googleHref !== null || appleHref !== null) && isCurrent()) {
         setState((previous) =>
           previous.kind === 'ready' && previous.issued.uid === issued.uid
-            ? { ...previous, googleHref }
+            ? { ...previous, appleHref, googleHref }
             : previous,
         )
       }

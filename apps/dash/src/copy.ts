@@ -118,6 +118,24 @@ export interface DashCopy {
       taken: string
     }
   }
+  ens: {
+    title: string
+    description: string
+    claim: string
+    retry: string
+    signing: string
+    submitting: string
+    confirming: string
+    claimedLabel: string
+    explorer: string
+    failures: {
+      network: string
+      rejected: string
+      unconfigured: string
+      unsponsored: string
+      unconfirmed: string
+    }
+  }
   published: {
     title: string
     titleMany: string
@@ -379,6 +397,25 @@ export const DASH_COPY = {
         taken: 'That link is already taken. Pick another one.',
       },
     },
+    ens: {
+      title: 'Your venue name on ENS',
+      description:
+        'Claim {name} and the name is yours onchain. fuda covers the transaction fee — you never need a second wallet or any ETH.',
+      claim: 'Claim this name',
+      retry: 'Try again',
+      signing: 'Preparing the claim…',
+      submitting: 'Confirm in your wallet…',
+      confirming: 'Waiting for the chain…',
+      claimedLabel: 'Claimed',
+      explorer: 'View the transaction',
+      failures: {
+        network: 'Could not reach fuda. Check your connection and try again.',
+        rejected: 'The claim was not signed. Press the button to try again.',
+        unconfigured: 'ENS names are not switched on for this deployment yet.',
+        unsponsored: 'The transaction fee could not be covered. Please try again shortly.',
+        unconfirmed: 'The claim has not appeared on chain yet. Wait a moment and press the button again.',
+      },
+    },
     published: {
       title: 'Your card is live',
       titleMany: 'Your cards are live',
@@ -635,6 +672,25 @@ export const DASH_COPY = {
         slugInvalid: 'このカードのリンクは使えません。別の名前を選んでください。',
         slugTaken: 'このカードのリンクはすでに使われています。別の名前を選んでください。',
         taken: 'このリンクはすでに使われています。別の名前を選んでください。',
+      },
+    },
+    ens: {
+      title: 'ENS 上の店舗名',
+      description:
+        '{name} を取得すると、この名前がオンチェーンであなたのものになります。手数料は fuda が負担するので、別のウォレットも ETH も要りません。',
+      claim: 'この名前を取得する',
+      retry: 'もう一度試す',
+      signing: '取得の準備をしています…',
+      submitting: 'ウォレットで承認してください…',
+      confirming: 'チェーンの確認を待っています…',
+      claimedLabel: '取得済み',
+      explorer: 'トランザクションを見る',
+      failures: {
+        network: 'fuda に接続できませんでした。通信環境を確認してもう一度試してください。',
+        rejected: '署名されませんでした。ボタンを押すとやり直せます。',
+        unconfigured: 'この環境では ENS 名がまだ有効になっていません。',
+        unsponsored: '手数料を負担できませんでした。少し待ってからもう一度試してください。',
+        unconfirmed: 'チェーン上にまだ現れていません。少し待ってからボタンを押してください。',
       },
     },
     published: {

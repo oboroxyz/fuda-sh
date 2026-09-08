@@ -1,5 +1,6 @@
 import type {
   CardCheckResponse,
+  EnsClaimView,
   CardRequest,
   HandleCheckResponse,
   Hex,
@@ -13,11 +14,12 @@ import type {
   SignInChallengeResponse,
   SignInResponse,
 } from '@fuda/sdk'
-import { apiFetch } from '@fuda/sdk/http'
+import { API_VERSION_PREFIX, apiFetch } from '@fuda/sdk/http'
 import type { Result } from '@fuda/sdk/http'
 import * as v from 'valibot'
 
 import { API_BASE_URL } from './config.ts'
+import type { ClaimVoucherResponse } from './ens-claim.ts'
 import { LOGO_VARIANTS } from './logo.ts'
 import type { LogoSet } from './logo.ts'
 
@@ -149,7 +151,9 @@ export const uploadLogo = async (token: string, variants: LogoSet): Promise<Resu
     form.append(variant, variants[variant], `${variant}.png`)
   }
   try {
-    const res = await fetch(`${API_BASE_URL.replace(/\/$/u, '')}/issuers/logo`, {
+    // Multipart, so it goes out by hand rather than through `apiFetch` — the
+    // version prefix has to be added here too.
+    const res = await fetch(`${API_BASE_URL.replace(/\/$/u, '')}${API_VERSION_PREFIX}/issuers/logo`, {
       body: form,
       headers: { authorization: `Bearer ${token}` },
       method: 'POST',
@@ -172,6 +176,23 @@ export const commitLogo = async (
 ): Promise<Result<{ issuer: IssuerView }>> =>
   await apiFetch<{ issuer: IssuerView }>(API_BASE_URL, '/issuers/logo/commit', {
     body: JSON.stringify({ logoUploadId }),
+    method: 'POST',
+    token,
+  })
+
+// The venue's ENS name. Signing the voucher and recording the claim are two
+// calls because a wallet prompt and a chain confirmation sit between them
+// (docs/specs/ens-naming.md#issuer-claim-and-renewal).
+export const claimVoucher = async (token: string): Promise<Result<ClaimVoucherResponse>> =>
+  await apiFetch<ClaimVoucherResponse>(API_BASE_URL, '/issuers/me/ens/claim-voucher', {
+    body: '{}',
+    method: 'POST',
+    token,
+  })
+
+export const confirmEnsClaim = async (token: string, txHash: Hex): Promise<Result<EnsClaimView>> =>
+  await apiFetch<EnsClaimView>(API_BASE_URL, '/issuers/me/ens/claimed', {
+    body: JSON.stringify({ txHash }),
     method: 'POST',
     token,
   })

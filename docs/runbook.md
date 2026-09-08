@@ -145,17 +145,24 @@ ENS_RPC_URL=https://… ENS_PARENT_ADDRESS=0x… ENS_VOUCHER_SIGNER_ADDRESS=0x�
 ```
 
 Preflight and standalone verification are read-only. The parent commit,
-parent reveal, and topology deployment commands mutate Sepolia. All three
-mutation commands are prepared but were not executed as part of repository
-implementation; running them requires credentials and explicit operational
-authorization. Live `.eth` resolution checks also remain outstanding.
+parent reveal, and topology deployment commands mutate Sepolia.
 
-After topology verification, configure the API with
-`ENS_PARENT_NAME=fuda.eth` and the shared resolver in
-`ENS_RESOLVER_ADDRESSES`, plus independent `ENS_GATEWAY_SIGNER_KEY` and
-`ENS_GATEWAY_SECRET` secrets. B1 issuer onboarding, voucher issuance,
-naming-mirror writes, and lifecycle/unregister integration must land before
-normal product flows populate and maintain these names.
+**These steps have been run.** `fuda.eth` is registered and the topology is
+deployed and verified; the commands above are kept for a rebuild or a second
+environment. The addresses are in
+[`ens-naming.md`](./specs/ens-naming.md#shipped-implementation-boundary), and
+`ens:verify` re-checks them from public values alone. Live `.eth` resolution
+through a third-party client remains outstanding.
+
+Keep the parent key. It is the User Registry's root principal and the only way
+to rotate the voucher or gateway signer, so losing it is unrecoverable — a
+password manager, not just `packages/ens-contracts/.env`.
+
+After topology verification, configure the API with the five claim bindings in
+§3 alongside `ENS_PARENT_NAME=fuda.eth` and the shared resolver in
+`ENS_RESOLVER_ADDRESSES`. Every claim route answers `503 ens_not_configured`
+until all of them are present, and the dashboard leaves the section out
+entirely rather than offering a button that could only fail.
 
 The DNSSEC TXT value required to expose the `.eth` tree through `fuda.sh` is:
 
@@ -182,6 +189,15 @@ Set with `wrangler secret put <NAME>` from `apps/api`:
   gateway responses. Do not reuse `SIGNER_PRIVATE_KEY` or the ENS parent key.
 - `ENS_GATEWAY_SECRET` — separate 32-byte HMAC key used to derive deterministic
   one-time +Private destinations.
+- `ENS_VOUCHER_KEY` — dedicated 32-byte ECDSA private key that signs claim and
+  renew vouchers. It is the key the deployed registrar checks against, so it
+  must be the same one `ens:topology:deploy` was given, and it must not be the
+  gateway signer, the parent key, or `SIGNER_PRIVATE_KEY`.
+- `ENS_SEPOLIA_RPC_URL` — Ethereum Sepolia RPC. A secret rather than a var,
+  because an Alchemy endpoint carries its API key in the path.
+- `ENS_PAYMASTER_UPSTREAM` — the vendor's ERC-7677 paymaster endpoint. With
+  Alchemy this is the same URL as above; the bindings stay separate so the
+  paymaster vendor can change without touching the chain reads.
 - `GOOGLE_ISSUER_ID`, `GOOGLE_CLASS_ID`, `GOOGLE_SA_EMAIL`, `GOOGLE_SA_KEY_PEM`
   — see §4.
 - `APPLE_PASS_TYPE_ID`, `APPLE_TEAM_ID`, `APPLE_CERT_PEM`, `APPLE_KEY_PEM`,
@@ -237,6 +253,7 @@ lists what it reads; the production values are:
 ```bash
 VITE_API_BASE_URL=https://api.fuda.sh   # gate, dash, app
 VITE_GRAPH_RIGHTS_ENDPOINT=https://gateway.thegraph.com/api/<PUBLIC_KEY>/subgraphs/id/<SUBGRAPH_ID> # dash, app
+VITE_ENS_PAYMASTER_URL=https://api.fuda.sh/v1/ens/paymaster  # dash only, and the one VITE_* that carries the version prefix: the wallet fetches this URL as given
 VITE_APP_ORIGIN=https://app.fuda.sh     # app only
 VITE_RP_ID=fuda.sh                      # app only
 ```
@@ -311,14 +328,24 @@ are 401ing everything; `open` means no token and neither binding is set, so the
 admin routes are unauthenticated. Both are fail states in production, not
 acceptable resting states (see `apps/api/src/middleware/admin-auth.ts`).
 
+`locked` stops the admin token, not a venue: `/members` and `/revoke` resolve a
+passkey session first, so a signed-in operator still reaches their own members
+either way. That is the point of the scoping — a venue's access does not depend
+on fuda's deployment secret.
+
 ```bash
 API_URL=https://api.fuda.sh ADMIN_TOKEN=… \
-  pnpm --filter api smoke:live --ladder bearer,signed
+  pnpm --filter api smoke:live --ladder bearer,signed,card
 ```
 
-Runs the supported bearer and signed ladders end to end against the live API.
-Do not select the script's legacy `private` ladder: it still expects the removed
-API announcement route. Verify +Private discovery through the rights subgraph
+Runs the supported ladders end to end against the live API. The `card` ladder
+is the one that covers the venue's own front door — an operator signs in with
+their wallet, publishes a card, and a member claims it off the public page with
+no admin token — so it exercises what a phone in the queue does. It mints a
+fresh operator key and a fresh handle each run and leaves both behind in the
+database; that is deliberate, since one address may own only one venue.
+There is no `private` ladder: discovery is a browser-to-Graph query and the
+script would have nothing to drive. Verify +Private discovery through the rights subgraph
 and member app, then enter through the ordinary Signed challenge-response flow,
 as documented in [`graph-demo.md`](./graph-demo.md). The Attendance attestation
 for the Bearer/Signed ladder's ADMIT verdicts appears on the Base Sepolia

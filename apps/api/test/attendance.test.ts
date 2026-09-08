@@ -35,7 +35,7 @@ const scanWith = async (
     onAdmit: attendanceHook({ chain, db: db(), sets: parseSchemaSets(bindings.EAS_SCHEMAS) }),
   })
   return await app.request(
-    '/verify',
+    '/v1/verify',
     {
       body: JSON.stringify({ qr: `fuda:v1:${uid}` }),
       headers: { 'content-type': 'application/json' },

@@ -1,5 +1,5 @@
 import { normalizeUid, RevokeBody } from '@fuda/sdk'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import * as v from 'valibot'
 
@@ -7,9 +7,10 @@ import { ChainError, NoSignerError, ZERO_UID } from '../chain/client.ts'
 import { members } from '../db/schema.ts'
 import { findVersion, parseSchemaSets } from '../eas/schemas.ts'
 import type { AcceptedVersion } from '../eas/schemas.ts'
+import { darkenMemberName } from '../ens/mirror.ts'
 import type { AppEnv } from '../env.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
-import { adminAuth } from '../middleware/admin-auth.ts'
+import { operatorOrAdmin } from '../middleware/operator-or-admin.ts'
 
 // null means "this deployment's EAS_SCHEMAS binding is malformed" — a
 // deployment defect, not caller input, so it fails closed with the same
@@ -31,13 +32,28 @@ export const revokeRoutes = new Hono<AppEnv>()
 // not an accepted Entitlement, a malformed EAS_SCHEMAS binding and an
 // already-revoked uid all answer 502 chain_error with the row left untouched
 // (no idempotence in the MVP).
-revokeRoutes.post('/revoke', adminAuth(), async (c) => {
+revokeRoutes.post('/revoke', operatorOrAdmin(), async (c) => {
   const parsed = v.safeParse(RevokeBody, await c.req.json().catch(() => null))
   // Normalized at entry: the chain read below and the row update at the end must
   // agree on one spelling of the uid, and D1 holds it lower case.
   const uid = parsed.success ? normalizeUid(parsed.output.uid) : null
   if (uid === null) {
     return errorResponse(c, 'bad_uid', 400)
+  }
+  // A venue may revoke only what it issued. Answering 404 rather than 403 keeps
+  // the admin view's uid space out of a venue's reach: an operator learns
+  // nothing about a right that is not theirs.
+  const issuerId = c.get('actingIssuer')
+  if (issuerId !== null) {
+    const owned = await c
+      .get('db')
+      .select({ uid: members.attestationUid })
+      .from(members)
+      .where(and(eq(members.attestationUid, uid), eq(members.issuerId, issuerId)))
+      .get()
+    if (owned === undefined) {
+      return errorResponse(c, 'not_found', 404)
+    }
   }
   const chain = c.get('chain')
   if (chain.signerAddress() === null) {
@@ -65,5 +81,8 @@ revokeRoutes.post('/revoke', adminAuth(), async (c) => {
     throw error
   }
   await c.get('db').update(members).set({ status: 'revoked' }).where(eq(members.attestationUid, uid))
+  // A name that still resolved after its right was revoked would outlive the
+  // thing it names, so it goes dark on the same request.
+  await darkenMemberName(c.get('db'), { now: c.get('now')(), rightUid: uid })
   return jsonResponse(c, { revoked: true, uid })
 })

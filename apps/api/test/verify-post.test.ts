@@ -16,7 +16,7 @@ const db = () => getDb({ DB: env.DB })
 
 const scan = async (app: App, bindings: Bindings, qr: string): Promise<Response> =>
   await app.request(
-    '/verify',
+    '/v1/verify',
     { body: JSON.stringify({ qr }), headers: { 'content-type': 'application/json' }, method: 'POST' },
     bindings,
   )
@@ -232,7 +232,7 @@ describe('POST /verify', () => {
     const chain = fakeChain()
     const del = seedRoot(chain)
     const uid: Hex = seedRight(chain, del, { usageModel: 0 })
-    const res = await appWith({ chain, now: () => NOW }).request(`/verify/${uid}`, {}, configuredEnv(del))
+    const res = await appWith({ chain, now: () => NOW }).request(`/v1/verify/${uid}`, {}, configuredEnv(del))
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toMatchObject({ decision: 'ADMIT', reason: 'OK' })
     await expect(db().select().from(slots)).resolves.toHaveLength(0)

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { apiFetch } from './http.ts'
+import { API_VERSION_PREFIX, apiFetch } from './http.ts'
 
 const stubFetch = (impl: (url: string, init?: RequestInit) => Response) => {
   const spy = vi.fn<(url: string, init?: RequestInit) => Response>(impl)
@@ -73,6 +73,14 @@ describe(apiFetch, () => {
   it('joins a base with a trailing slash to the path without doubling it', async () => {
     const spy = stubFetch(() => json({}, 200))
     await apiFetch('http://api/', '/x')
-    expect(spy.mock.calls[0]?.[0]).toBe('http://api/x')
+    expect(spy.mock.calls[0]?.[0]).toBe('http://api/v1/x')
+  })
+
+  // Call sites write the path the route sees; forgetting the version would send
+  // every request to a 404 that looks like an outage.
+  it('sends every request under the version prefix', async () => {
+    const spy = stubFetch(() => json({}, 200))
+    await apiFetch('http://api', '/verify')
+    expect(spy.mock.calls[0]?.[0]).toBe(`http://api${API_VERSION_PREFIX}/verify`)
   })
 })

@@ -39,9 +39,23 @@ export interface Bindings {
   ENS_GATEWAY_SIGNER_KEY?: string
   ENS_PARENT_NAME?: string
   ENS_RESOLVER_ADDRESSES?: string
+  // Issuer subname claim. Every route that signs or confirms a claim answers 503
+  // unless all five are configured, matching the gateway's fail-closed rule.
+  // The two URLs are secrets because an Alchemy endpoint carries its API key in
+  // the path and `wrangler.jsonc` is checked in; the policy id is inert without
+  // them. ENS_VOUCHER_KEY signs claim and renew vouchers and is a separate role
+  // from every other key (docs/specs/ens-naming.md#issuer-claim-and-renewal).
+  ENS_REGISTRAR_ADDRESS?: string
+  ENS_GAS_POLICY_ID?: string
+  ENS_SEPOLIA_RPC_URL?: string
+  ENS_PAYMASTER_UPSTREAM?: string
+  ENS_VOUCHER_KEY?: string
 }
 
 export interface Variables {
+  // The venue a request is acting for, or null for fuda's own admin token.
+  // Set by operatorOrAdmin() on the routes that serve both.
+  actingIssuer: string | null
   chain: ChainClient
   db: Db
   // unix seconds — injectable for tests

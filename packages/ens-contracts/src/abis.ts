@@ -1,7 +1,12 @@
 import { parseAbi } from 'viem'
 
+// Verified against the deployed UserRegistry implementation
+// (0x47B442d0CF617c41CAbAFf5f02f44DD1e5f72546, Sourcify exact match). The
+// initializer takes a list of grants, not a single root account, and
+// `ExpiryUpdated.newExpiry` is indexed; both differed from this file's original
+// declarations and both failed only against the real chain.
 export const USER_REGISTRY_ABI = parseAbi([
-  'function initialize(address rootAccount,uint256 roleBitmap)',
+  'function initialize((address account,uint256 roleBitmap)[] grants)',
   'function register(string label,address owner,address registry,address resolver,uint256 roleBitmap,uint64 expiry) returns (uint256 tokenId)',
   'function renew(uint256 anyId,uint64 newExpiry)',
   'function getOwner(uint256 anyId) view returns (address)',
@@ -12,7 +17,7 @@ export const USER_REGISTRY_ABI = parseAbi([
   'function hasRootRoles(uint256 roleBitmap,address account) view returns (bool)',
   'function roles(uint256 anyId,address account) view returns (uint256)',
   'event LabelRegistered(uint256 indexed tokenId,bytes32 indexed labelHash,string label,address owner,uint64 expiry,address indexed sender)',
-  'event ExpiryUpdated(uint256 indexed tokenId,uint64 newExpiry,address indexed sender)',
+  'event ExpiryUpdated(uint256 indexed tokenId,uint64 indexed newExpiry,address indexed sender)',
   'event ParentUpdated(address indexed parent,string label,address indexed sender)',
   'event EACRolesChanged(uint256 indexed resource,address indexed account,uint256 oldRoleBitmap,uint256 newRoleBitmap)',
 ])
@@ -37,8 +42,12 @@ export const ETH_REGISTRY_ABI = parseAbi([
   'function getSubregistry(string label) view returns (address)',
   'function setResolver(uint256 anyId,address resolver)',
   'function setSubregistry(uint256 anyId,address registry)',
-  'event ResolverUpdated(uint256 indexed tokenId,address resolver,address indexed sender)',
-  'event SubregistryUpdated(uint256 indexed tokenId,address subregistry,address indexed sender)',
+  // `resolver` and `subregistry` are indexed on the deployed PermissionedRegistry
+  // (0x1d78834d97c1d7b1a38c1dedbd1a287cfed3971e, Sourcify exact match). Declaring
+  // them unindexed made strict log parsing reject a receipt whose transaction had
+  // in fact succeeded, so the deployment reported a failure it had not had.
+  'event ResolverUpdated(uint256 indexed tokenId,address indexed resolver,address indexed sender)',
+  'event SubregistryUpdated(uint256 indexed tokenId,address indexed subregistry,address indexed sender)',
 ])
 
 export const FACTORY_ABI = parseAbi([
@@ -77,4 +86,8 @@ export const FUDA_REGISTRAR_ABI = parseAbi([
   'function resolver() view returns (address)',
   'function parentNode() view returns (bytes32)',
   'function nonces(address issuer) view returns (uint256)',
+  'function claim(string label,address issuer,uint64 expiry,uint256 nonce,uint64 deadline,bytes signature) returns (uint256 tokenId)',
+  'function renew(string label,address issuer,uint64 expiry,uint256 nonce,uint64 deadline,bytes signature)',
+  'event IssuerClaimed(bytes32 indexed labelHash,address indexed issuer,uint256 indexed tokenId,uint64 expiry,uint256 nonce)',
+  'event IssuerRenewed(bytes32 indexed labelHash,address indexed issuer,uint64 expiry,uint256 nonce)',
 ])

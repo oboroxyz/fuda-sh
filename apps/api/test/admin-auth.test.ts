@@ -70,7 +70,7 @@ describe(adminAuth, () => {
 describe('the fail-closed guard on the real app', () => {
   it('answers 401 unauthorized with x-auth-mode: locked on POST /issue', async () => {
     const res = await appWith({ chain: fakeChain() }).request(
-      '/issue',
+      '/v1/issue',
       {
         body: JSON.stringify({ holder: `0x${'22'.repeat(20)}` }),
         headers: { 'content-type': 'application/json' },

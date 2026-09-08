@@ -1,5 +1,10 @@
 # Copy to .dev.vars (gitignored). Leave SIGNER_PRIVATE_KEY and BASE_RPC_URL
 # unset and set USE_FAKE_CHAIN=1 to run the api against an in-memory chain.
+#
+# This file is also the checklist for a deployment's secrets: everything
+# commented out below is a `wrangler secret put` name, kept in
+# `.dev.vars.production` (gitignored) as the source to push from. The runbook's
+# §3 says what each one gates.
 USE_FAKE_CHAIN=1
 #SIGNER_PRIVATE_KEY=0x…
 #BASE_RPC_URL=https://sepolia.base.org
@@ -8,10 +13,30 @@ USE_FAKE_CHAIN=1
 # ENS CCIP-Read stays disabled unless all four values are configured. The
 # signer key authenticates gateway answers; the separate gateway secret derives
 # deterministic +Private destinations. Never reuse either key elsewhere.
+# `ENS_PARENT_NAME` and `ENS_RESOLVER_ADDRESSES` are plain vars in
+# `wrangler.jsonc` for a deployment; they appear here only for local dev.
 #ENS_PARENT_NAME=fuda.eth
 #ENS_RESOLVER_ADDRESSES=0x…
 #ENS_GATEWAY_SIGNER_KEY=0x…
 #ENS_GATEWAY_SECRET=0x…
+
+# Issuer name claims. All five must be present or every claim route answers
+# 503 ens_not_configured and the dashboard hides the section
+# (docs/specs/ens-naming.md#claiming-a-name-and-what-writes-the-mirror).
+#
+# ENS_VOUCHER_KEY must be the key the deployed registrar was given: it is what
+# `voucherSigner()` returns on chain, and any other key makes the registrar
+# reject the claim with InvalidSignature. It lives in
+# `packages/ens-contracts/.env`, alongside the gateway signer.
+#
+# The two URLs are secrets rather than vars because an Alchemy endpoint carries
+# its API key in the path. With Alchemy they are the same URL: the `pm_*`
+# methods are served from the app's own RPC endpoint.
+#ENS_VOUCHER_KEY=0x…
+#ENS_SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/…
+#ENS_PAYMASTER_UPSTREAM=https://eth-sepolia.g.alchemy.com/v2/…
+#ENS_REGISTRAR_ADDRESS=0x…
+#ENS_GAS_POLICY_ID=…
 
 # Wallet passes: set all four GOOGLE_* (resp. all five APPLE_*) or that pass
 # endpoint answers 501. A PEM pasted straight out of a service-account JSON
