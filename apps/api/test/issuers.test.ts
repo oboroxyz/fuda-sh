@@ -129,6 +129,7 @@ describe('issuer onboarding', () => {
     const body = await res.json<{ brandColor: string; cards: { slug: string }[]; handle: string }>()
     expect(body).toMatchObject({ brandColor: '#6F4320', handle: 'wassie-coffee', name: 'Wassie Coffee' })
     expect(body.cards.map((card) => card.slug)).toStrictEqual(['stamp'])
+    expect(body).not.toHaveProperty('operatorAddress')
     expect(JSON.stringify(body)).not.toContain('operatorAddress')
   })
 
