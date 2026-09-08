@@ -1,8 +1,8 @@
 /** @jsxImportSource hono/jsx/dom */
 import { describe, expect, it, vi } from 'vitest'
 
-import { AppView } from './App.tsx'
-import type { AppViewProps } from './App.tsx'
+import { AppView } from './AppView.tsx'
+import type { AppViewProps } from './AppView.tsx'
 import { CardDesigner } from './CardDesigner.tsx'
 import { API_BASE_URL } from './config.ts'
 import { DASH_COPY } from './copy.ts'

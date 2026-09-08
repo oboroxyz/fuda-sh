@@ -7,193 +7,34 @@ import type { ThemeMode } from '@fuda/ui'
 import { useCallback, useEffect, useRef, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
-import {
-  checkCardSlug,
-  checkHandle,
-  claimVoucher,
-  confirmEnsClaim,
-  issueRight,
-  issuerMe,
-  listMembers,
-  revokeRight,
-  signInChallenge,
-  signInVerify,
-  signOut,
-} from './api.ts'
-import { applyLogo, DEFAULT_DESIGN_IO, issueAndReload, revokeAndReload, submitDesign } from './app-actions.ts'
+import { issueRight, listMembers, revokeRight } from './api.ts'
+import { applyLogo, issueAndReload, revokeAndReload, submitDesign } from './app-actions.ts'
 import type { ActionContext, DashIo } from './app-actions.ts'
 import { hasIssuer, signedOutSession, unauthorizedSession } from './app-state.ts'
 import type { SessionState } from './app-state.ts'
+import { AppView } from './AppView.tsx'
+import type { AppViewProps } from './AppView.tsx'
 import type { CreateFailure, DesignerForm, DesignerMode } from './card-designer.ts'
-import { CardDesigner } from './CardDesigner.tsx'
-import { API_BASE_URL, ENS_PAYMASTER_URL, GRAPH_RIGHTS_ENDPOINT } from './config.ts'
+import { API_BASE_URL, GRAPH_RIGHTS_ENDPOINT } from './config.ts'
 import { DASH_COPY } from './copy.ts'
-import type { DashCopy } from './copy.ts'
-import { DashboardShell } from './DashboardShell.tsx'
-import { runClaim } from './ens-claim.ts'
 import type { ClaimState } from './ens-claim.ts'
-import { submitClaim } from './ens-submit.ts'
+import { runClaim } from './ens-claim.ts'
 import { EnsClaim } from './EnsClaim.tsx'
-import { IssueForm } from './IssueForm.tsx'
-import type { IssueFormProps } from './IssueForm.tsx'
 import type { LogoSet } from './logo.ts'
 import { beginMembersLoad, completeMembersLoad, failMembersLoad } from './members-state.ts'
-import type { MembersState } from './members-state.ts'
 import { memberRowView } from './members-view.ts'
-import { signInWithPasskey } from './operator-sign-in.ts'
+import { DEFAULT_OPERATOR_IO } from './operator-io.ts'
+import type { OperatorIo } from './operator-io.ts'
 import type { SignInFailure } from './operator-sign-in.ts'
-import { OverviewPage } from './OverviewPage.tsx'
-import { PublishedCard } from './PublishedCard.tsx'
-import { RightsPage } from './RightsPage.tsx'
-import type { RightsPageProps } from './RightsPage.tsx'
 import { canonicalPath, homeFor, navigateTo, redirectFor, routeFromPath, subscribeToRoute } from './router.ts'
 import type { DashRoute } from './router.ts'
-import { SignIn, signInErrorOf } from './SignIn.tsx'
-import { baseAccountProvider, personalSign, requestAccount } from './wallet.ts'
 
 const DEFAULT_DASH_IO: DashIo = { issueRight, listMembers, revokeRight }
 
 export interface AppProps {
   initialTheme: ThemeMode
   io?: DashIo
-}
-
-export interface AppViewProps {
-  appearance: JSX.Element
-  authError: 'unauthorized' | null
-  // The venue's ENS section, already rendered; null while this deployment has no
-  // ENS parent configured, in which case the dashboard says nothing about names.
-  ens: JSX.Element | null
-  copy: DashCopy
-  createFailure: CreateFailure | null
-  creating: boolean
-  graphEndpoint: string
-  members: MembersState
-  onCheckHandle: (handle: string) => Promise<'available' | 'taken' | 'unknown'>
-  onCheckSlug: (slug: string) => Promise<'available' | 'taken' | 'unknown'>
-  onCommitLogo: (variants: LogoSet) => Promise<boolean>
-  onCreate: (mode: DesignerMode, form: DesignerForm, logo: LogoSet | null) => void
-  onIssue: IssueFormProps['onIssue']
-  onNavigate: (route: DashRoute) => void
-  onPasskey: () => void
-  onRevoke: RightsPageProps['onRevoke']
-  onSignOut: () => void
-  onToken: (token: string) => void
-  route: DashRoute
-  session: SessionState
-  signInError: SignInFailure | null
-  signingIn: boolean
-}
-
-export const AppView = ({
-  appearance,
-  ens,
-  authError,
-  copy,
-  createFailure,
-  creating,
-  graphEndpoint,
-  members,
-  onCheckHandle,
-  onCheckSlug,
-  onCommitLogo,
-  onCreate,
-  onIssue,
-  onNavigate,
-  onPasskey,
-  onRevoke,
-  onSignOut,
-  onToken,
-  route,
-  session,
-  signInError,
-  signingIn,
-}: AppViewProps): JSX.Element => {
-  const signInMessage = (): string | null => {
-    if (signInError !== null) {
-      return signInErrorOf(copy.auth, signInError)
-    }
-    return authError === 'unauthorized' ? copy.auth.unauthorized : null
-  }
-
-  if (session.token === null) {
-    return (
-      <SignIn
-        appearance={appearance}
-        copy={copy.auth}
-        error={signInMessage()}
-        onPasskey={onPasskey}
-        onToken={onToken}
-        pending={signingIn}
-      />
-    )
-  }
-
-  const { operator } = session
-  const surface = operator === null ? 'admin' : 'operator'
-  const published = operator !== null && operator.issuer !== null
-
-  const page = (): JSX.Element => {
-    if (operator !== null) {
-      // `/new` stays open once the venue exists: it is how a second card is added.
-      if (operator.issuer !== null && route !== '/new') {
-        return (
-          <PublishedCard
-            cards={operator.cards}
-            copy={copy.published}
-            ens={ens}
-            issuer={operator.issuer}
-            logoCopy={copy.logo}
-            onAddCard={() => {
-              onNavigate('/new')
-            }}
-            onCommitLogo={onCommitLogo}
-            publicUrl={operator.publicUrl}
-          />
-        )
-      }
-      return (
-        <CardDesigner
-          busy={creating}
-          copy={copy.designer}
-          failure={createFailure}
-          issuer={operator.issuer}
-          logoCopy={copy.logo}
-          onCheckHandle={onCheckHandle}
-          onCheckSlug={onCheckSlug}
-          onSubmit={onCreate}
-        />
-      )
-    }
-    if (route === '/rights') {
-      return <RightsPage copy={copy} graphEndpoint={graphEndpoint} members={members} onRevoke={onRevoke} />
-    }
-    if (route === '/issue') {
-      return <IssueForm copy={copy.issue} onIssue={onIssue} />
-    }
-    return (
-      <OverviewPage
-        apiBaseUrl={API_BASE_URL}
-        copy={copy.overview}
-        graphEndpoint={graphEndpoint}
-        state={members}
-      />
-    )
-  }
-
-  return (
-    <DashboardShell
-      appearance={appearance}
-      copy={copy}
-      hasIssuer={published}
-      onNavigate={onNavigate}
-      onSignOut={operator === null ? null : onSignOut}
-      route={route}
-      surface={surface}
-    >
-      {page()}
-    </DashboardShell>
-  )
+  operatorIo?: OperatorIo
 }
 
 // The venue after a create: the first card, or one more alongside the rest.
@@ -208,7 +49,11 @@ const operatorWith = (current: IssuerMeResponse | null, created: IssuerCreateRes
   }
 }
 
-export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Element => {
+export const App = ({
+  initialTheme,
+  io = DEFAULT_DASH_IO,
+  operatorIo = DEFAULT_OPERATOR_IO,
+}: AppProps): JSX.Element => {
   const [route, setRoute] = useState<DashRoute>(() => routeFromPath(location.pathname))
   const [locale, updateLocale] = useState(getLocale)
   const [theme, setTheme] = useState(initialTheme)
@@ -360,14 +205,7 @@ export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Eleme
           if (sessionToken === null) {
             return
           }
-          void runClaim(
-            {
-              confirmClaim: async (txHash) => await confirmEnsClaim(sessionToken, txHash),
-              requestVoucher: async () => await claimVoucher(sessionToken),
-              submitClaim,
-            },
-            setClaimState,
-          )
+          void runClaim(operatorIo.claim(sessionToken), setClaimState)
         }}
         state={claimState}
       />
@@ -377,14 +215,7 @@ export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Eleme
     setSignInError(null)
     setSigningIn(true)
     const run = async (): Promise<void> => {
-      const outcome = await signInWithPasskey({
-        challenge: signInChallenge,
-        issuerMe,
-        personalSign,
-        provider: async () => await baseAccountProvider(ENS_PAYMASTER_URL),
-        requestAccount,
-        verify: signInVerify,
-      })
+      const outcome = await operatorIo.signIn()
       setSigningIn(false)
       if (!outcome.ok) {
         setSignInError(outcome.failure)
@@ -406,7 +237,7 @@ export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Eleme
   const onSignOut = (): void => {
     const run = async (): Promise<void> => {
       if (token !== null && session.operator !== null) {
-        await signOut(token)
+        await operatorIo.signOut(token)
       }
       setSession(signedOutSession())
       setSignInError(null)
@@ -421,13 +252,13 @@ export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Eleme
       if (token === null) {
         return 'unknown'
       }
-      const result = await checkHandle(token, handle)
+      const result = await operatorIo.checkHandle(token, handle)
       if (!result.ok) {
         return 'unknown'
       }
       return result.body.available ? 'available' : 'taken'
     },
-    [token],
+    [operatorIo, token],
   )
 
   const onCheckSlug = useCallback(
@@ -435,13 +266,13 @@ export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Eleme
       if (token === null) {
         return 'unknown'
       }
-      const result = await checkCardSlug(token, slug)
+      const result = await operatorIo.checkSlug(token, slug)
       if (!result.ok) {
         return 'unknown'
       }
       return result.body.available ? 'available' : 'taken'
     },
-    [token],
+    [operatorIo, token],
   )
 
   const onCreate = (mode: DesignerMode, form: DesignerForm, logo: LogoSet | null): void => {
@@ -452,7 +283,7 @@ export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Eleme
     setCreateFailure(null)
     setCreating(true)
     const run = async (): Promise<void> => {
-      const outcome = await submitDesign(DEFAULT_DESIGN_IO, token, mode, form, logo)
+      const outcome = await submitDesign(operatorIo.design, token, mode, form, logo)
       setCreating(false)
       if (!outcome.ok) {
         setCreateFailure(outcome.failure)
@@ -474,7 +305,7 @@ export const App = ({ initialTheme, io = DEFAULT_DASH_IO }: AppProps): JSX.Eleme
     if (token === null) {
       return false
     }
-    const outcome = await applyLogo(DEFAULT_DESIGN_IO, token, variants)
+    const outcome = await applyLogo(operatorIo.design, token, variants)
     if (!outcome.ok) {
       if (outcome.session) {
         setSession(unauthorizedSession)

@@ -9,9 +9,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Result } from './api.ts'
 import type { DashIo } from './app-actions.ts'
-import { App, AppView } from './App.tsx'
-import type { AppProps, AppViewProps } from './App.tsx'
+import { App } from './App.tsx'
+import type { AppProps } from './App.tsx'
+import { AppView } from './AppView.tsx'
+import type { AppViewProps } from './AppView.tsx'
 import { DASH_COPY } from './copy.ts'
+import { DEFAULT_OPERATOR_IO } from './operator-io.ts'
+import type { OperatorIo } from './operator-io.ts'
 import { findViewNodes, viewProps } from './test/test-view.ts'
 
 // Control only hook scheduling; App, actions, router and browser preference helpers remain real.
@@ -132,9 +136,13 @@ const history = {
   }),
 }
 
-const render = (io: DashIo, initialTheme: AppProps['initialTheme'] = 'system'): AppViewProps => {
+const render = (
+  io: DashIo,
+  initialTheme: AppProps['initialTheme'] = 'system',
+  operatorIo?: OperatorIo,
+): AppViewProps => {
   hooks.index = 0
-  const view = App({ initialTheme, io })
+  const view = App({ initialTheme, io, operatorIo })
   for (const { effect, index } of hooks.effects.splice(0)) {
     hooks.cleanups.get(index)?.()
     hooks.cleanups.delete(index)
@@ -258,6 +266,25 @@ describe(App, () => {
       theme: 'dark',
     })
     expect(io.listMembers).toHaveBeenCalledExactlyOnceWith('secret')
+  })
+
+  it('uses the operator sign-in dependency without loading admin members', async () => {
+    const io = fixture()
+    const operatorIo: OperatorIo = {
+      ...DEFAULT_OPERATOR_IO,
+      signIn: vi.fn().mockResolvedValue({
+        issuer: { cards: [], ens: null, issuer: null, publicUrl: null },
+        ok: true,
+        token: 'operator-token',
+      }),
+    }
+    render(io, 'system', operatorIo).onPasskey()
+    await setTimeout(0)
+    const view = render(io, 'system', operatorIo)
+    expect(view.session.token).toBe('operator-token')
+    expect(view.route).toBe('/new')
+    expect(io.listMembers).not.toHaveBeenCalled()
+    expect(operatorIo.signIn).toHaveBeenCalledOnce()
   })
 
   it('subscribes to history without reloading and removes the subscription on unmount', async () => {
