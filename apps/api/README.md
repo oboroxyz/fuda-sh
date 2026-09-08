@@ -217,7 +217,7 @@ UID to retry `/revoke`. An interrupted process or an issue response lost after
 on-chain issuance still requires operational reconciliation.
 
 Use the rights-subgraph smoke query and member app for private discovery after
-Graph deployment; see [the Graph demo](../../docs/graph-demo.md).
+Graph deployment; see [The Graph in fuda](../../docs/integrations/thegraph.md).
 
 ## Endpoints
 

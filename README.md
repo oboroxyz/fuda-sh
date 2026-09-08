@@ -112,6 +112,25 @@ canonical ERC-5564 announcer. fuda runs one deployment per chain and they never
 share state — Base Sepolia today, Base mainnet at the cutover; see
 [Environments](./docs/architecture.md#environments).
 
+## The Graph
+
+Two Substreams packages composed into a new pipeline, plus a subgraph that is on
+the product's read path — when it landed, the API's own D1 announcement crawl was
+deleted, so there is no fuda-hosted fallback behind the member app's +Private
+discovery or the dashboard's on-chain status.
+
+`fuda_erc5564` extracts raw ERC-5564 `Announcement` events from the canonical
+singleton Announcer with no application policy in it, so any ERC-5564 consumer
+can import it. `erc5564_eas_pipeline` imports that package by `.spkg` and
+composes it with EAS `Attested`/`Revoked` into one `fuda_events` stream. Because
+both source contracts are singletons at the same address on every chain, moving
+the pipeline to another chain changes a network name and a start block, not the
+modules or the package checksum.
+
+**[The Graph in fuda](./docs/integrations/thegraph.md)** has the live
+identifiers — Studio endpoint, deployment, `.spkg` checksums — the captured
+evidence, and the source map.
+
 ## Documentation
 
 - **Architecture**
@@ -129,11 +148,13 @@ share state — Base Sepolia today, Base mainnet at the cutover; see
     number, what a name resolves to, name lifecycle
   - [Substreams packages](./docs/specs/substreams.md) — the optional push lane
     and its compatibility guarantees
+- **Integrations**
+  - [The Graph](./docs/integrations/thegraph.md) — the two composed Substreams
+    packages, the rights subgraph on the product's read path, live identifiers
+    and captured evidence
 - **Operations**
   - [Runbook](./docs/runbook.md) — local development, one-time Cloudflare and
     Base setup, secrets, deploy order
-  - [Graph demo](./docs/graph-demo.md) — the executable Graph/Substreams demo
-    and evidence checklist
 - **Records**
   - [Decision records](./docs/adr/) — why the architecture is shaped this way
   - [References](./docs/references.md) — the standards, prior art, and platform

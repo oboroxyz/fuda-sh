@@ -10,7 +10,7 @@ order.
   amount of Base Sepolia ETH before step 2.
 - A Graph Studio account for the rights subgraph. A Graph Market token and two
   compatible Firehose endpoints are additionally required only for the
-  Substreams evidence run in [`graph-demo.md`](./graph-demo.md).
+  Substreams verification in [`integrations/thegraph.md`](./integrations/thegraph.md).
 - `pnpm install --frozen-lockfile` from the repo root.
 
 ## 2. One-time chain setup
@@ -287,7 +287,8 @@ pnpm --ignore-workspace exec graph deploy --studio <SUBGRAPH_SLUG>
 Use the Studio query URL for the controlled event demo. Before building the
 browser clients, provision a public gateway endpoint (or same-origin proxy) and
 use it as `VITE_GRAPH_RIGHTS_ENDPOINT`. Deployment and receipt comparison are
-live gates; follow [`graph-demo.md`](./graph-demo.md) and retain its evidence.
+live gates; verify them with §9 below and
+[`integrations/thegraph.md`](./integrations/thegraph.md).
 
 ## 8. Deploy order
 
@@ -347,7 +348,8 @@ database; that is deliberate, since one address may own only one venue.
 There is no `private` ladder: discovery is a browser-to-Graph query and the
 script would have nothing to drive. Verify +Private discovery through the rights subgraph
 and member app, then enter through the ordinary Signed challenge-response flow,
-as documented in [`graph-demo.md`](./graph-demo.md). The Attendance attestation
+as documented in
+[`integrations/thegraph.md`](./integrations/thegraph.md). The Attendance attestation
 for the Bearer/Signed ladder's ADMIT verdicts appears on the Base Sepolia
 explorer within a few blocks.
 
@@ -358,10 +360,39 @@ infrastructure failures use `{"message":"…"}` and are also never cached. The
 gateway is public, so do not send `ADMIN_TOKEN`.
 
 Query the deployed rights subgraph with real right, delegation, and Attendance
-UIDs using `packages/subgraphs/rights/queries/smoke.graphql`, and compare the
-returned holders, metadata, relations, announcement identity, and revocation
-timestamps with their transaction receipts. The complete command and evidence
-template are in [`graph-demo.md`](./graph-demo.md).
+UIDs, and compare the returned holders, metadata, relations, announcement
+identity, and revocation timestamps with their transaction receipts. Export the
+identifiers from real receipts, never from fixture constants:
+
+```bash
+export GRAPH_RIGHTS_ENDPOINT="<STUDIO_OR_PUBLIC_QUERY_URL>"
+export RIGHT_UID="<0x_32_BYTE_RIGHT_UID>"
+export DELEGATION_UID="<0x_32_BYTE_DELEGATION_UID>"
+export ATTENDANCE_UID="<0x_32_BYTE_ATTENDANCE_UID>"
+
+jq -n \
+  --rawfile query packages/subgraphs/rights/queries/smoke.graphql \
+  --arg rightUID "$RIGHT_UID" \
+  --arg delegationUID "$DELEGATION_UID" \
+  --arg attendanceUID "$ATTENDANCE_UID" \
+  '{query: $query, variables: {
+    rightUID: $rightUID,
+    delegationUID: $delegationUID,
+    attendanceUID: $attendanceUID
+  }}' \
+  | curl --fail-with-body --silent --show-error \
+      -H 'content-type: application/json' --data-binary @- \
+      "$GRAPH_RIGHTS_ENDPOINT"
+```
+
+Every requested entity must be non-null, the holder and relations must agree
+with the receipts, the raw announcement bytes and transaction/log identity must
+match, and `right.revokedAt` must be `null` before a revoke and non-null after.
+
+Use separate live rights for separate flows: a +Private right proves private
+discovery and Signed entry, a Bearer right with a QR pass proves the green scan
+and the red scan after revoke. A +Private right is not a scannable Bearer pass —
+presenting its UID to the QR verification path returns `LEVEL_REQUIRED`.
 
 ## 10. Manual checks that no script covers
 
