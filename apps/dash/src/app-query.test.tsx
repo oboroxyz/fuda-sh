@@ -12,11 +12,13 @@ import type { DashIo } from './app-actions.ts'
 import { App } from './App.tsx'
 import type { AppViewProps } from './AppView.tsx'
 import { EMPTY_FORM } from './card-designer.ts'
+import { readPendingEnsClaim, writePendingEnsClaim } from './ens-pending.ts'
 import { EnsClaim } from './EnsClaim.tsx'
 import type { EnsClaimProps } from './EnsClaim.tsx'
 import { DEFAULT_OPERATOR_IO } from './operator-io.ts'
 import type { OperatorIo } from './operator-io.ts'
 import { findViewNodes, viewProps } from './test/test-view.ts'
+import { EMPTY_VENUE_FORM } from './venue.ts'
 
 const output = vi.hoisted(() => ({ current: null as AppViewProps | null }))
 vi.mock(import('./AppView.tsx'), () => ({
@@ -201,6 +203,128 @@ describe('dashboard query lifecycle', () => {
     pending.resolve({ body: issuer, ok: true })
     await setTimeout(25)
     expect(view().session.operator?.cards).toStrictEqual([card])
+  })
+
+  it('registers a venue with zero cards and stays on the venue route for ENS', async () => {
+    const operator = operatorIo()
+    const unregistered: IssuerMeResponse = { cards: [], ens: null, issuer: null, publicUrl: null }
+    const registered: IssuerMeResponse = {
+      ...issuer,
+      ens: { claimTxHash: null, expiry: null, name: 'coffee.fuda.eth', status: 'unclaimed' },
+    }
+    operator.signIn.mockResolvedValue({ issuer: unregistered, ok: true, token: 'session' })
+    operator.design = {
+      ...operator.design,
+      createIssuer: vi
+        .fn<OperatorIo['design']['createIssuer']>()
+        .mockResolvedValue({ body: registered, ok: true }),
+    }
+    await start(operator)
+    view().onCreateVenue({ ...EMPTY_VENUE_FORM, handle: 'coffee', name: 'Coffee' }, null)
+    await vi.waitFor(() => {
+      expect(view().session.operator).toStrictEqual(registered)
+      expect(view().route).toBe('/venue')
+    })
+  })
+
+  it.each([
+    {
+      ens: {
+        claimTxHash: `0x${'bb'.repeat(32)}`,
+        expiry: null,
+        name: 'coffee.fuda.eth',
+        status: 'claimed' as const,
+      },
+      label: 'already claimed',
+    },
+    {
+      ens: { claimTxHash: null, expiry: null, name: 'new-coffee.fuda.eth', status: 'unclaimed' as const },
+      label: 'a changed name',
+    },
+  ] satisfies { ens: IssuerMeResponse['ens']; label: string }[])(
+    'discards a stored receipt when the server reports $label',
+    async ({ ens }) => {
+      const pending = { name: 'coffee.fuda.eth', txHash: `0x${'aa'.repeat(32)}` as const }
+      writePendingEnsClaim(issuer.issuer.id, pending)
+      const operator = operatorIo()
+      operator.signIn.mockResolvedValue({ issuer: { ...issuer, ens }, ok: true, token: 'session' })
+      await start(operator)
+      expect(readPendingEnsClaim(issuer.issuer.id)).toBeNull()
+      expect((viewProps(findViewNodes(view().ens, EnsClaim)[0]) as unknown as EnsClaimProps).state.kind).toBe(
+        ens.status === 'claimed' ? 'claimed' : 'unclaimed',
+      )
+    },
+  )
+
+  it('resumes a stored receipt only when it matches the current unclaimed ENS name', async () => {
+    const pending = { name: 'coffee.fuda.eth', txHash: `0x${'aa'.repeat(32)}` as const }
+    writePendingEnsClaim(issuer.issuer.id, pending)
+    const operator = operatorIo()
+    operator.signIn.mockResolvedValue({
+      issuer: {
+        ...issuer,
+        ens: { claimTxHash: null, expiry: null, name: pending.name, status: 'unclaimed' },
+      },
+      ok: true,
+      token: 'session',
+    })
+    await start(operator)
+    expect(
+      (viewProps(findViewNodes(view().ens, EnsClaim)[0]) as unknown as EnsClaimProps).state,
+    ).toMatchObject({ kind: 'failed', ...pending })
+  })
+
+  it('keeps every card when cards are created one after another', async () => {
+    const operator = operatorIo()
+    const cards = ['membership', 'summer'].map((slug, index) => ({
+      category: 'membership' as const,
+      claimFrom: null,
+      claimUntil: null,
+      claimable: true,
+      id: `card-${index}`,
+      perk: '',
+      reward: '',
+      slug,
+      title: slug,
+      validFrom: null,
+      validUntil: null,
+      validityDays: null,
+    }))
+    operator.signIn.mockResolvedValue({
+      issuer: {
+        ...issuer,
+        ens: {
+          claimTxHash: `0x${'aa'.repeat(32)}`,
+          expiry: null,
+          name: 'coffee.fuda.eth',
+          status: 'claimed',
+        },
+      },
+      ok: true,
+      token: 'session',
+    })
+    operator.design = {
+      ...operator.design,
+      createCard: vi
+        .fn<OperatorIo['design']['createCard']>()
+        .mockResolvedValueOnce({
+          body: { card: cards[0], issuer: issuer.issuer, publicUrl: issuer.publicUrl },
+          ok: true,
+        })
+        .mockResolvedValueOnce({
+          body: { card: cards[1], issuer: issuer.issuer, publicUrl: issuer.publicUrl },
+          ok: true,
+        }),
+    }
+    await start(operator)
+    view().onCreate('card', { ...EMPTY_FORM, slug: cards[0].slug, title: cards[0].title }, null)
+    await vi.waitFor(() => {
+      expect(view().session.operator?.cards).toHaveLength(1)
+    })
+    view().onCreate('card', { ...EMPTY_FORM, slug: cards[1].slug, title: cards[1].title }, null)
+    await vi.waitFor(() => {
+      expect(view().session.operator?.cards).toStrictEqual(cards)
+    })
   })
 
   it('keeps a committed logo when an older issuer read finishes afterward', async () => {

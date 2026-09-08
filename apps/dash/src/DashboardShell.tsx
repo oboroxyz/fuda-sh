@@ -57,10 +57,11 @@ const navigationItems = (copy: DashCopy, surface: DashSurface, hasIssuer: boolea
   }
   return hasIssuer
     ? [
+        { label: copy.nav.venue, route: '/venue' },
         { label: copy.nav.card, route: '/published' },
         { label: copy.nav.newCard, route: '/new' },
       ]
-    : [{ label: copy.nav.newCard, route: '/new' }]
+    : [{ label: copy.nav.venue, route: '/venue' }]
 }
 
 const navigationIcon = (route: DashRoute): JSX.Element => {
@@ -70,6 +71,7 @@ const navigationIcon = (route: DashRoute): JSX.Element => {
     '/new': 'M4 5h16v14H4z M8 12h8 M12 8v8',
     '/published': 'M3 7h18v13H3z M6 4h12 M3 11h18',
     '/rights': 'M4 4h16v16H4z M8 8h8 M8 12h8 M8 16h5',
+    '/venue': 'M4 21V10l8-7 8 7v11 M9 21v-6h6v6',
   }
   return (
     <svg
@@ -269,7 +271,7 @@ export const DashboardShell = ({
               <p class="text-sm opacity-70">{copy.chrome.subtitle}</p>
             </div>
             <button
-              class="btn btn-ghost btn-square lg:hidden"
+              class="dash-drawer-close btn btn-ghost btn-square"
               aria-label={copy.chrome.closeMenu}
               type="button"
               onClick={closeDrawer}

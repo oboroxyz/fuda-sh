@@ -80,13 +80,17 @@ ensClaimRoutes.post('/issuers/me/ens/claim-voucher', operatorAuth(), async (c) =
   } catch {
     return errorResponse(c, 'chain_error', 502)
   }
-  await mirrorIssuerName(c.get('db'), {
-    handle: issuer.handle,
-    now: c.get('now')(),
-    owner,
-    parentName: config.parentName,
-    status: 'voucher_issued',
-  })
+  try {
+    await mirrorIssuerName(c.get('db'), {
+      handle: issuer.handle,
+      now: c.get('now')(),
+      owner,
+      parentName: config.parentName,
+      status: 'voucher_issued',
+    })
+  } catch {
+    return errorResponse(c, 'ens_persistence_failed', 503)
+  }
   return jsonResponse(c, {
     chainId: sepoliaClient(config).chain.id,
     name: issuerEnsName(issuer.handle, config.parentName),
@@ -113,10 +117,12 @@ ensClaimRoutes.post('/issuers/me/ens/claimed', operatorAuth(), async (c) => {
   }
   const owner = getAddress(c.get('operator').address)
   let event: ReturnType<typeof claimedEvent>
+  let receiptReverted = false
   try {
     const receipt = await sepoliaClient(config).getTransactionReceipt({
       hash: txHash,
     })
+    receiptReverted = receipt.status === 'reverted'
     event =
       receipt.status === 'success'
         ? claimedEvent(receipt.logs, { handle: issuer.handle, issuer: owner, registrar: config.registrar })
@@ -124,18 +130,25 @@ ensClaimRoutes.post('/issuers/me/ens/claimed', operatorAuth(), async (c) => {
   } catch {
     return errorResponse(c, 'chain_error', 502)
   }
+  if (receiptReverted) {
+    return errorResponse(c, 'claim_failed', 409)
+  }
   if (event === null) {
     return errorResponse(c, 'claim_unconfirmed', 409)
   }
-  await mirrorIssuerName(c.get('db'), {
-    claimTxHash: txHash,
-    expiry: event.expiry,
-    handle: issuer.handle,
-    now: c.get('now')(),
-    owner,
-    parentName: config.parentName,
-    status: 'claimed',
-  })
+  try {
+    await mirrorIssuerName(c.get('db'), {
+      claimTxHash: txHash,
+      expiry: event.expiry,
+      handle: issuer.handle,
+      now: c.get('now')(),
+      owner,
+      parentName: config.parentName,
+      status: 'claimed',
+    })
+  } catch {
+    return errorResponse(c, 'ens_persistence_failed', 503)
+  }
   return jsonResponse(c, {
     claimTxHash: txHash,
     expiry: event.expiry,

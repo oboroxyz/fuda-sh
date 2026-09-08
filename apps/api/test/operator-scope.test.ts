@@ -5,11 +5,11 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { Bindings } from '../src/env.ts'
 import { appWith, fakeChain, testEnv } from './env.ts'
-import { CARD_INPUT, getJson, postJson, SECOND_CARD, signIn } from './operator.ts'
+import { CARD_INPUT, getJson, postJson, registerVenueWithCard, SECOND_CARD, signIn } from './operator.ts'
 
 const ADMIN = 'admin-token'
 
-const bindings = (): Bindings => testEnv({ ADMIN_TOKEN: ADMIN })
+const bindings = (): Bindings => testEnv({ ADMIN_TOKEN: ADMIN, ENS_PARENT_NAME: 'fuda.eth' })
 
 // A second venue, so "sees only its own" has something to be wrong about.
 const OTHER_VENUE = { ...CARD_INPUT, handle: 'other-cafe', name: 'Other Cafe' }
@@ -31,7 +31,7 @@ const venue = async (
 ): Promise<{ token: string; uid: string; memberNumber: string }> => {
   const account = privateKeyToAccount(generatePrivateKey())
   const { token } = await signIn(app, bindings(), account)
-  await postJson(app, bindings(), '/v1/issuers', input, token)
+  await registerVenueWithCard(app, bindings(), input, token)
   const claimed = await claim(app, `/v1/issuers/${input.handle}/${input.card.slug}/issue`)
   const body = await claimed.json<{ memberNumber: string; uid: string }>()
   return { memberNumber: body.memberNumber, token, uid: body.uid }

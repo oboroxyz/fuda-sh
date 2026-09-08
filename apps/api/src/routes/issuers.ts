@@ -9,7 +9,7 @@ import { cards, issuers } from '../db/schema.ts'
 import { issuerEnsName } from '../ens/names.ts'
 import { ensNames } from '../ens/schema.ts'
 import type { AppEnv } from '../env.ts'
-import { insertCard, insertIssuerAndCard } from '../issuers/create.ts'
+import { insertCard, insertIssuer } from '../issuers/create.ts'
 import { ownedVenue, venueOf } from '../issuers/queries.ts'
 import { cardView, issuerView, publicUrlFor, publicVenue } from '../issuers/views.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
@@ -105,8 +105,8 @@ const fieldErrorFor = (
     ? code
     : 'bad_input'
 
-// Creates the issuer and its first card in one batch and binds the session to
-// it. One issuer per operator address in this slice.
+// Creates the issuer and binds the session to it in one batch. Cards are
+// published separately after ENS claim confirmation.
 issuersRoutes.post('/issuers', operatorAuth(), async (c) => {
   const body: unknown = await c.req.json().catch(() => null)
   const parsed = v.safeParse(IssuerCreateBody, body)
@@ -129,20 +129,20 @@ issuersRoutes.post('/issuers', operatorAuth(), async (c) => {
     return errorResponse(c, 'handle_taken', 409)
   }
   try {
-    await insertIssuerAndCard(db, operator, parsed.output, c.get('now')())
+    await insertIssuer(db, operator, parsed.output, c.get('now')())
   } catch {
     // The unique indexes are the last word when two requests race the checks above.
     return errorResponse(c, 'handle_taken', 409)
   }
   const found = await venueOf(db, parsed.output.handle)
-  const created = found?.cards[0]
-  if (found === null || created === undefined) {
+  if (found === null) {
     return errorResponse(c, 'internal', 500)
   }
   return jsonResponse(
     c,
     {
-      card: cardView(created, c.get('now')()),
+      cards: [],
+      ens: await ensView(c, found.issuer.handle),
       issuer: issuerView(found.issuer, c.env.API_BASE_URL),
       publicUrl: publicUrlFor(c.env.PUBLIC_BASE_URL, found.issuer.handle),
     },
@@ -166,6 +166,13 @@ issuersRoutes.post('/issuers/cards', operatorAuth(), async (c) => {
   const issuer = await db.select().from(issuers).where(eq(issuers.id, issuerId)).get()
   if (issuer === undefined) {
     return errorResponse(c, 'not_found', 404)
+  }
+  const ens = await ensView(c, issuer.handle)
+  if (ens === null) {
+    return errorResponse(c, 'ens_not_configured', 503)
+  }
+  if (ens.status !== 'claimed') {
+    return errorResponse(c, 'ens_required', 409)
   }
   const card = await insertCard(db, issuerId, parsed.output, c.get('now')())
   if (card === null) {

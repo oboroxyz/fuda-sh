@@ -1,5 +1,6 @@
 import type {
   CardCheckResponse,
+  CardCreateResponse,
   EnsClaimView,
   CardRequest,
   HandleCheckResponse,
@@ -94,8 +95,8 @@ export const createIssuer = async (
   })
 
 // One more card for the venue this session already owns.
-export const createCard = async (token: string, body: CardRequest): Promise<Result<IssuerCreateResponse>> =>
-  await apiFetch<IssuerCreateResponse>(API_BASE_URL, '/issuers/cards', {
+export const createCard = async (token: string, body: CardRequest): Promise<Result<CardCreateResponse>> =>
+  await apiFetch<CardCreateResponse>(API_BASE_URL, '/issuers/cards', {
     body: JSON.stringify(body),
     method: 'POST',
     token,

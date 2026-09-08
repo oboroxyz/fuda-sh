@@ -106,9 +106,9 @@ export const CardBody = v.pipe(
   ),
 )
 
-// POST /issuers — the card designer's form, validated identically in the
-// dashboard and the api. `handle` is checked by the shared rule; the api adds
-// availability on top.
+// POST /issuers — venue registration, validated identically in the dashboard
+// and the api. Cards are published separately after the venue claims its ENS
+// name. `handle` is checked by the shared rule; the api adds availability.
 export const IssuerCreateBody = v.object({
   // Canonicalized here rather than at each writer, so D1 never holds two
   // spellings of one colour.
@@ -117,7 +117,6 @@ export const IssuerCreateBody = v.object({
     v.regex(BRAND_COLOR_RE),
     v.transform((raw) => normalizeBrandColor(raw) ?? raw),
   ),
-  card: CardBody,
   handle: v.pipe(v.string(), v.check(isIssuerHandle)),
   // a staged logo from POST /issuers/logo, committed with the venue
   logoUploadId: v.optional(v.nullable(v.pipe(v.string(), v.minLength(1))), null),

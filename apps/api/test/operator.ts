@@ -1,7 +1,12 @@
 import type { CardInput, IssuerCreateInput } from '@fuda/sdk'
+import { env } from 'cloudflare:test'
+import { eq } from 'drizzle-orm'
 import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
+import { getDb } from '../src/db/client.ts'
+import { issuers } from '../src/db/schema.ts'
+import { mirrorIssuerName } from '../src/ens/mirror.ts'
 import type { Bindings } from '../src/env.ts'
 import type { appWith } from './env.ts'
 
@@ -70,7 +75,7 @@ export const SECOND_CARD: CardInput = {
   validityDays: 30,
 }
 
-export const CARD_INPUT: IssuerCreateInput = {
+export const CARD_INPUT: IssuerCreateInput & { card: CardInput } = {
   brandColor: '#6f4320',
   card: {
     category: 'membership',
@@ -84,4 +89,29 @@ export const CARD_INPUT: IssuerCreateInput = {
   handle: 'wassie-coffee',
   name: 'Wassie Coffee',
   tagline: 'Omotesando · Coffee shop',
+}
+
+export const registerVenueWithCard = async (
+  app: App,
+  bindings: Bindings,
+  input: IssuerCreateInput & { card: CardInput },
+  token: string,
+): Promise<void> => {
+  await postJson(app, bindings, '/v1/issuers', input, token)
+  const db = getDb({ DB: env.DB })
+  const issuer = await db.select().from(issuers).where(eq(issuers.handle, input.handle)).get()
+  if (issuer === undefined) {
+    throw new Error(`venue fixture was not created: ${input.handle}`)
+  }
+  const parentName = bindings.ENS_PARENT_NAME ?? 'fuda.eth'
+  await mirrorIssuerName(db, {
+    claimTxHash: `0x${'ab'.repeat(32)}`,
+    expiry: issuer.createdAt + 3600,
+    handle: issuer.handle,
+    now: issuer.createdAt,
+    owner: `0x${issuer.operatorAddress.slice(2)}`,
+    parentName,
+    status: 'claimed',
+  })
+  await postJson(app, { ...bindings, ENS_PARENT_NAME: parentName }, '/v1/issuers/cards', input.card, token)
 }

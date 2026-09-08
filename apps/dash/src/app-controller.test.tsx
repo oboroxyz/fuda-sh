@@ -19,7 +19,6 @@ import { App } from './App.tsx'
 import type { AppProps } from './App.tsx'
 import { AppView } from './AppView.tsx'
 import type { AppViewProps } from './AppView.tsx'
-import { EMPTY_FORM } from './card-designer.ts'
 import { API_BASE_URL } from './config.ts'
 import { DASH_COPY } from './copy.ts'
 import type { ClaimIo } from './ens-claim.ts'
@@ -154,7 +153,8 @@ const operatorIssuer: IssuerMeResponse = {
 }
 
 const createResponse: IssuerCreateResponse = {
-  card: operatorIssuer.cards[0],
+  cards: [],
+  ens: operatorIssuer.ens,
   issuer: operatorIssuer.issuer,
   publicUrl: operatorIssuer.publicUrl,
 }
@@ -364,7 +364,7 @@ describe(App, () => {
     {
       issuer: { cards: [], ens: null, issuer: null, publicUrl: null } as IssuerMeResponse,
       name: 'new operator',
-      path: '/new',
+      path: '/venue',
     },
   ])('restores a $name after reload without a new passkey ceremony', async ({ issuer, path }) => {
     const io = fixture()
@@ -572,7 +572,7 @@ describe(App, () => {
     await setTimeout(0)
     const view = render(io, 'system', operatorIo)
     expect(view.session.token).toBe('operator-token')
-    expect(view.route).toBe('/new')
+    expect(view.route).toBe('/venue')
     expect(io.listMembers).not.toHaveBeenCalled()
     expect(operatorIo.signIn).toHaveBeenCalledOnce()
   })
@@ -632,9 +632,8 @@ describe(App, () => {
         design: { ...DEFAULT_OPERATOR_IO.design, createIssuer: async () => await pending.promise },
       }
       render(io, 'system', operatorIo).onToken('old')
-      render(io, 'system', operatorIo).onCreate(
-        'venue',
-        { ...EMPTY_FORM, handle: 'old-venue', name: 'Old Venue' },
+      render(io, 'system', operatorIo).onCreateVenue(
+        { brandColor: '#6F4320', handle: 'old-venue', name: 'Old Venue', tagline: '' },
         null,
       )
       expect(render(io, 'system', operatorIo).creating).toBe(true)

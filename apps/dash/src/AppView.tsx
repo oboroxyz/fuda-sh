@@ -19,6 +19,8 @@ import { RightsPage } from './RightsPage.tsx'
 import type { DashRoute } from './router.ts'
 import { SignIn, signInErrorOf } from './SignIn.tsx'
 import { SignOutButton } from './SignOutButton.tsx'
+import type { VenueForm } from './venue.ts'
+import { VenuePage } from './VenuePage.tsx'
 
 export interface AppViewProps {
   appearance: JSX.Element
@@ -35,6 +37,7 @@ export interface AppViewProps {
   onCheckSlug: (slug: string) => Promise<'available' | 'taken' | 'unknown'>
   onCommitLogo: (variants: LogoSet) => Promise<boolean>
   onCreate: (mode: DesignerMode, form: DesignerForm, logo: LogoSet | null) => void
+  onCreateVenue: (form: VenueForm, logo: LogoSet | null) => void
   onIssue: IssueFormProps['onIssue']
   onNavigate: (route: DashRoute) => void
   onPasskey: () => void
@@ -62,6 +65,7 @@ export const AppView = ({
   onCheckSlug,
   onCommitLogo,
   onCreate,
+  onCreateVenue,
   onIssue,
   onNavigate,
   onPasskey,
@@ -120,24 +124,78 @@ export const AppView = ({
 
   const page = (): JSX.Element => {
     if (operator !== null) {
-      // `/new` stays open once the venue exists: it is how a second card is added.
-      if (operator.issuer !== null && route !== '/new') {
+      if (route === '/venue') {
         return (
-          <PublishedCard
-            cards={operator.cards}
-            copy={copy.published}
+          <VenuePage
+            busy={creating}
+            canCreateCard={operator.ens?.status === 'claimed'}
+            copy={copy}
             ens={ens}
+            failure={createFailure}
             issuer={operator.issuer}
-            logoCopy={copy.logo}
-            onAddCard={() => {
+            onCheckHandle={onCheckHandle}
+            onCommitLogo={onCommitLogo}
+            onCreate={onCreateVenue}
+            onNewCard={() => {
               onNavigate('/new')
             }}
-            onCommitLogo={onCommitLogo}
             publicUrl={operator.publicUrl}
           />
         )
       }
-      return (
+      if (route === '/new' && operator.ens?.status !== 'claimed') {
+        return (
+          <VenuePage
+            busy={creating}
+            canCreateCard={false}
+            copy={copy}
+            ens={ens}
+            failure={createFailure}
+            issuer={operator.issuer}
+            onCheckHandle={onCheckHandle}
+            onCommitLogo={onCommitLogo}
+            onCreate={onCreateVenue}
+            onNewCard={() => {
+              onNavigate('/new')
+            }}
+            publicUrl={operator.publicUrl}
+          />
+        )
+      }
+      if (operator.issuer !== null && route === '/published') {
+        return (
+          <PublishedCard
+            canAddCard={operator.ens?.status === 'claimed'}
+            cards={operator.cards}
+            copy={copy.published}
+            issuer={operator.issuer}
+            onAddCard={() => {
+              onNavigate('/new')
+            }}
+            onVenue={() => {
+              onNavigate('/venue')
+            }}
+            publicUrl={operator.publicUrl}
+          />
+        )
+      }
+      return operator.issuer === null ? (
+        <VenuePage
+          busy={creating}
+          canCreateCard={false}
+          copy={copy}
+          ens={ens}
+          failure={createFailure}
+          issuer={null}
+          onCheckHandle={onCheckHandle}
+          onCommitLogo={onCommitLogo}
+          onCreate={onCreateVenue}
+          onNewCard={() => {
+            onNavigate('/new')
+          }}
+          publicUrl={null}
+        />
+      ) : (
         <CardDesigner
           busy={creating}
           copy={copy.designer}

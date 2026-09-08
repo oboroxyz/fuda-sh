@@ -286,17 +286,25 @@ bound to the address, and expires with the gate's 300 s TTL; a wrong signature
 burns it. The admin token is not an operator identity and is not accepted on
 operator routes.
 
-**Venue and cards.** One issuer per operator address; an issuer owns one or
-more cards. `POST /issuers` (session) creates the issuer and its first card in
-one batch and binds the session to it; body
-`{ handle, name, tagline, brandColor, card: <card> }`, answer
-`201 { issuer, card, publicUrl }` with `publicUrl` = `<PUBLIC_BASE_URL>/@<handle>`.
-`POST /issuers/cards` (session) adds a further card to that same venue and
-answers the same shape. A card is
+**Venue and cards.** One issuer per operator address; an issuer owns zero or
+more cards. Registration precedes ENS acquisition, which precedes card creation.
+`POST /issuers` (session) creates only the issuer and binds the session to it
+in one batch; body `{ handle, name, tagline, brandColor, logoUploadId? }`, answer
+`201 { issuer, cards: [], ens, publicUrl }` with
+`publicUrl` = `<PUBLIC_BASE_URL>/@<handle>`. It does not create a placeholder card.
+The operator then acquires the issuer's ENS name from the venue screen.
+`POST /issuers/cards` (session) creates the first or any subsequent card and
+answers `201 { issuer, card, publicUrl }`. It requires a recorded chain-confirmed
+claim for that issuer's configured ENS name: an unclaimed name returns
+`409 ens_required`; an unavailable ENS name configuration returns
+`503 ens_not_configured`. Neither failure inserts a card. This is an acquisition
+prerequisite; it introduces no new expiry policy for existing cards or rights.
+A card is
 `{ slug, title, category, perk, reward, lockScreen, venue?, claimFrom,
 claimUntil, validityDays, validFrom, validUntil }`.
-`GET /issuers/me` (session) returns `{ issuer, cards, publicUrl }`, or those
-three fields as `null`/`[]` before the venue exists.
+`GET /issuers/me` (session) returns `{ issuer, cards, ens, publicUrl }`, or
+`{ issuer: null, cards: [], ens: null, publicUrl: null }` before registration.
+A registered issuer remains present even when its cards array is empty.
 `GET /issuers/check?handle=` and `GET /issuers/cards/check?slug=` (both
 session-gated, so neither namespace can be enumerated anonymously) answer
 `{ …, valid, available }`.
@@ -590,7 +598,7 @@ current challenge for the Entitlement holder?
 | ---------------- | ----------- | -------- | ------------------------------------------------------------------------------------------------- |
 | `api.fuda.sh`    | `apps/api`  | 8787     | the api                                                                                           |
 | `gate.fuda.sh`   | `apps/gate` | 5174     | scanner: uid preview, QR admission, verdict                                                       |
-| `dash.fuda.sh`   | `apps/dash` | 5175     | operator dashboard: passkey or admin-token sign-in; `/` overview from D1 member rows and client configuration, `/rights` D1 search/filter/revoke/pass links plus separate on-chain lookup, and `/issue` issuance; with a passkey session `/new` card designer, `/published` the venue's cards with their links and QR codes, and the venue's ENS name |
+| `dash.fuda.sh`   | `apps/dash` | 5175     | operator dashboard: passkey or admin-token sign-in; `/` overview from D1 member rows and client configuration, `/rights` D1 search/filter/revoke/pass links plus separate on-chain lookup, and `/issue` issuance; with a passkey session `/venue` venue registration, identity and ENS acquisition, `/new` card designer after ENS acquisition, and `/published` the venue's cards with their links and QR codes |
 | `app.fuda.sh`    | `apps/app`  | 5173     | member app: `/@<handle>` venue page and `/@<handle>/<slug>` card landing with one-tap issuance, `/signed` challenge-response, `/private` enrolment and discovery, `/rights` member pass list |
 | `fuda.sh` (apex) | Cloudflare zone | —     | `/@*` redirect to the same path on `app.fuda.sh`; other apex paths are outside this repository    |
 
@@ -671,7 +679,7 @@ clears the protected cache, including when the token text is reused. Successful
 card creation and logo updates replace cached issuer data; ENS confirmation
 updates the cached claim state before triggering a fresh read. Older reads cannot roll these changes back.
 
-The dashboard keeps its admin token in the current tab's memory only and applies the gate to every Dash route. Operator session tokens persist in browser-local storage scoped to the API deployment, so reloads and browser restarts retain sign-in within the server's 30-day session lifetime. At startup, the dashboard validates the saved token through `GET /issuers/me` and loads the current issuer, cards, and ENS state before showing protected pages or redirecting routes. A registered operator returns to their requested operator route; an operator without an issuer returns to the designer. Restoration shows a pending view instead of the sign-in screen. A 401 clears the saved token and requests sign-in; network and other server failures preserve it and offer retry or sign-out. A manual sign-out opens a confirmation modal; cancel, Escape, or backdrop dismissal preserves the session. Confirming sign-out or invalidating the current session removes its saved token immediately, without deleting a different token saved by another tab. Restoration results are discarded if the saved token changed while validation was pending. If browser storage is unavailable, sign-in still works for the current page lifetime. Replacing or signing out of a session immediately clears protected local state; asynchronous work started by the previous session cannot restore it or overwrite the replacement session. This ownership is local only: signing out does not cancel a remote HTTP request or an already submitted chain transaction. A passkey sign-in response initializes the ENS section from the issuer response, including an already claimed name. English is the first-visit language; an explicit English/Japanese choice and a light/dark/system theme mode persist in browser-local preferences. These presentation preferences do not enter API requests and changing them does not clear route or operational state. Navigation uses one responsive daisyUI Drawer with icons preceding its menu labels. Below 64 rem, it opens over the page, keeps keyboard focus inside, and closes on navigation or Escape; D1 rights use cards. At and above 64 rem, navigation is persistent and rights use a table. Sign-out confirmation uses a daisyUI Modal. Revocation always requires confirmation and suppresses a duplicate submission while the selected UID is in flight.
+The dashboard keeps its admin token in the current tab's memory only and applies the gate to every Dash route. Operator session tokens persist in browser-local storage scoped to the API deployment, so reloads and browser restarts retain sign-in within the server's 30-day session lifetime. At startup, the dashboard validates the saved token through `GET /issuers/me` and loads the current issuer, cards, and ENS state before showing protected pages or redirecting routes. An operator without an issuer returns to `/venue`; a registered issuer with no cards is still restored normally. `/venue` separates venue identity and ENS acquisition from card design. `/new` requires a registered issuer with a confirmed ENS claim and redirects to `/venue` until that prerequisite is met. `/published` lists all existing cards, including an empty state with the appropriate next step; existing cards remain readable when ENS is unavailable. Restoration shows a pending view instead of the sign-in screen. A 401 clears the saved token and requests sign-in; network and other server failures preserve it and offer retry or sign-out. A manual sign-out opens a confirmation modal; cancel, Escape, or backdrop dismissal preserves the session. Confirming sign-out or invalidating the current session removes its saved token immediately, without deleting a different token saved by another tab. Restoration results are discarded if the saved token changed while validation was pending. If browser storage is unavailable, sign-in still works for the current page lifetime. Replacing or signing out of a session immediately clears protected local state; asynchronous work started by the previous session cannot restore it or overwrite the replacement session. This ownership is local only: signing out does not cancel a remote HTTP request or an already submitted chain transaction. A passkey sign-in response initializes the ENS section from the issuer response, including an already claimed name. English is the first-visit language; an explicit English/Japanese choice and a light/dark/system theme mode persist in browser-local preferences. These presentation preferences do not enter API requests and changing them does not clear route or operational state. Navigation uses one responsive daisyUI Drawer with icons preceding its menu labels. Below 64 rem, it opens over the page, keeps keyboard focus inside, and closes on navigation or Escape; D1 rights use cards. At and above 64 rem, navigation is persistent and rights use a table. Sign-out confirmation uses a daisyUI Modal. Revocation always requires confirmation and suppresses a duplicate submission while the selected UID is in flight.
 
 ## Related specs
 

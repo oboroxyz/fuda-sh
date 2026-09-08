@@ -89,12 +89,23 @@
 
 .dash-app :where(.btn, .fuda-icon-button),
 .dash-auth :where(.btn, .fuda-icon-button) {
-  @apply h-auto min-h-11 min-w-11 rounded-full border border-[var(--fuda-border)] bg-[var(--fuda-surface)] whitespace-normal text-[var(--fuda-text)] shadow-none;
+  @apply inline-flex h-auto min-h-11 min-w-11 items-center justify-center rounded-full border border-[var(--fuda-border)] bg-[var(--fuda-surface)] px-4 py-2 whitespace-normal text-[var(--fuda-text)] shadow-none;
 }
 
 .dash-app .fuda-icon-button,
 .dash-auth .fuda-icon-button {
   @apply size-11 p-0;
+}
+
+.dash-app .btn-square,
+.dash-auth .btn-square {
+  @apply size-11 p-0;
+}
+
+@media (min-width: 64rem) {
+  .dash-drawer-close {
+    display: none !important;
+  }
 }
 
 .dash-app :where(.btn, .fuda-icon-button):hover:not(:disabled),

@@ -2,15 +2,15 @@
 import { isLocale, pick } from '@fuda/i18n'
 import { getLocale, setLocale } from '@fuda/i18n/browser'
 import { QueryError, readQueryResult, useQuery, useQueryScope } from '@fuda/libs/query'
-import type { IssuerCreateResponse, IssuerMeResponse } from '@fuda/sdk'
+import type { CardCreateResponse, IssuerCreateResponse, IssuerMeResponse } from '@fuda/sdk'
 import { LanguageSwitcher, saveThemeMode, ThemeToggle, watchThemeMode } from '@fuda/ui'
 import type { ThemeMode } from '@fuda/ui'
 import { useCallback, useEffect, useRef, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import { issueRight, listMembers, revokeRight } from './api.ts'
-import { applyLogo, issueAndReload, revokeAndReload, submitDesign } from './app-actions.ts'
-import type { ActionContext, DashIo } from './app-actions.ts'
+import { applyLogo, issueAndReload, revokeAndReload, submitCard, submitVenue } from './app-actions.ts'
+import type { ActionContext, CardCreateOutcome, DashIo, VenueCreateOutcome } from './app-actions.ts'
 import { hasIssuer, signedOutSession, unauthorizedSession } from './app-state.ts'
 import type { SessionState } from './app-state.ts'
 import { AppView } from './AppView.tsx'
@@ -18,7 +18,8 @@ import type { CreateFailure, DesignerForm, DesignerMode } from './card-designer.
 import { API_BASE_URL, GRAPH_RIGHTS_ENDPOINT } from './config.ts'
 import { DASH_COPY } from './copy.ts'
 import type { ClaimState } from './ens-claim.ts'
-import { claimIsBusy, initialClaimState, runClaim } from './ens-claim.ts'
+import { initialClaimState, reconcileClaimState, runClaim } from './ens-claim.ts'
+import { readPendingEnsClaim, reconcilePendingEnsClaim, writePendingEnsClaim } from './ens-pending.ts'
 import { EnsClaim } from './EnsClaim.tsx'
 import type { LogoSet } from './logo.ts'
 import { beginMembersLoad, completeMembersLoad, failMembersLoad } from './members-state.ts'
@@ -30,6 +31,7 @@ import type { SignInFailure } from './operator-sign-in.ts'
 import { canonicalPath, homeFor, navigateTo, redirectFor, routeFromPath, subscribeToRoute } from './router.ts'
 import type { DashRoute } from './router.ts'
 import { createSessionGeneration } from './session-generation.ts'
+import type { VenueForm } from './venue.ts'
 
 const issuerKey = (generation: number) => ['issuer', API_BASE_URL, generation] as const
 
@@ -42,7 +44,10 @@ export interface AppProps {
 }
 
 // The venue after a create: the first card, or one more alongside the rest.
-const operatorWith = (current: IssuerMeResponse | null, created: IssuerCreateResponse): IssuerMeResponse => {
+const operatorWithCard = (
+  current: IssuerMeResponse | null,
+  created: CardCreateResponse,
+): IssuerMeResponse => {
   const existing = current !== null && current.issuer !== null ? current.cards : []
   return {
     cards: [...existing, created.card],
@@ -52,6 +57,8 @@ const operatorWith = (current: IssuerMeResponse | null, created: IssuerCreateRes
     publicUrl: created.publicUrl,
   }
 }
+
+const operatorWithVenue = (created: IssuerCreateResponse): IssuerMeResponse => created
 
 export const App = ({
   initialTheme,
@@ -100,7 +107,15 @@ export const App = ({
       setCreateFailure(null)
       setSigningIn(false)
       setSignInError(null)
-      setClaimState(initialClaimState(next.operator?.ens ?? null))
+      const pending =
+        next.operator?.issuer === null || next.operator?.issuer === undefined
+          ? null
+          : reconcilePendingEnsClaim(next.operator.issuer.id, next.operator.ens)
+      setClaimState(
+        pending === null
+          ? initialClaimState(next.operator?.ens ?? null)
+          : { failure: 'unconfirmed', kind: 'failed', ...pending },
+      )
     },
     [generation, queryClient],
   )
@@ -166,8 +181,11 @@ export const App = ({
     }
     const operator = issuerQuery.data
     if (operator !== undefined && activeSession.current.operator !== null) {
+      const previousEnsName = activeSession.current.operator.ens?.name
       setSession((state) => (state.operator === operator ? state : { ...state, operator }))
-      setClaimState((state) => (claimIsBusy(state) ? state : initialClaimState(operator.ens)))
+      const pending =
+        operator.issuer === null ? null : reconcilePendingEnsClaim(operator.issuer.id, operator.ens)
+      setClaimState((state) => reconcileClaimState(state, operator.ens, pending, previousEnsName))
     }
   }, [generation, issuerTicket, issuerQuery.data, issuerQuery.error, replaceSession, token])
 
@@ -273,7 +291,8 @@ export const App = ({
       return
     }
     const surface = session.operator === null ? 'admin' : 'operator'
-    const target = redirectFor(route, surface, published)
+    const confirmedEns = session.operator?.ens?.status === 'claimed'
+    const target = redirectFor(route, surface, published, confirmedEns)
     if (target !== null) {
       navigateTo(history, target)
       setRoute(target)
@@ -346,7 +365,24 @@ export const App = ({
           }
           const run = async (): Promise<void> => {
             try {
-              const result = await runClaim(operatorIo.claim(sessionToken), guardedEmit)
+              const issuerId = activeSession.current.operator?.issuer?.id
+              let pending = issuerId === undefined ? undefined : (readPendingEnsClaim(issuerId) ?? undefined)
+              if (
+                claimState.kind === 'failed' &&
+                claimState.txHash !== undefined &&
+                claimState.name !== undefined
+              ) {
+                pending = { name: claimState.name, txHash: claimState.txHash }
+              }
+              const result = await runClaim(operatorIo.claim(sessionToken), guardedEmit, pending, (next) => {
+                if (
+                  generation.isCurrent(ticket) &&
+                  activeToken.current === sessionToken &&
+                  issuerId !== undefined
+                ) {
+                  writePendingEnsClaim(issuerId, next)
+                }
+              })
               if (result.kind === 'claimed' && generation.isCurrent(ticket)) {
                 const current = activeSession.current.operator
                 if (current !== null && current.ens !== null) {
@@ -483,7 +519,11 @@ export const App = ({
     [generation, operatorIo, replaceSession, token],
   )
 
-  const onCreate = (mode: DesignerMode, form: DesignerForm, logo: LogoSet | null): void => {
+  const runCreate = <T,>(
+    submit: () => Promise<{ ok: true; body: T } | { ok: false; failure: CreateFailure }>,
+    apply: (body: T) => IssuerMeResponse,
+    target: DashRoute,
+  ): void => {
     if (token === null) {
       setCreateFailure('input')
       return
@@ -493,9 +533,9 @@ export const App = ({
     setCreateFailure(null)
     setCreating(true)
     const run = async (): Promise<void> => {
-      let outcome: Awaited<ReturnType<typeof submitDesign>>
+      let outcome: Awaited<ReturnType<typeof submit>>
       try {
-        outcome = await submitDesign(operatorIo.design, sessionToken, mode, form, logo)
+        outcome = await submit()
       } catch {
         if (!generation.isCurrent(ticket) || activeToken.current !== sessionToken) {
           return
@@ -516,11 +556,27 @@ export const App = ({
         setCreateFailure(outcome.failure)
         return
       }
-      updateOperator(operatorWith(activeSession.current.operator, outcome.body))
-      navigateTo(history, '/published')
-      setRoute('/published')
+      updateOperator(apply(outcome.body))
+      navigateTo(history, target)
+      setRoute(target)
     }
     void run()
+  }
+
+  const onCreate = (_mode: DesignerMode, form: DesignerForm): void => {
+    runCreate(
+      async (): Promise<CardCreateOutcome> => await submitCard(operatorIo.design, token ?? '', form),
+      (body) => operatorWithCard(activeSession.current.operator, body),
+      '/published',
+    )
+  }
+
+  const onCreateVenue = (form: VenueForm, logo: LogoSet | null): void => {
+    runCreate(
+      async (): Promise<VenueCreateOutcome> => await submitVenue(operatorIo.design, token ?? '', form, logo),
+      operatorWithVenue,
+      '/venue',
+    )
   }
 
   // The published screen changes a live venue's mark, which is a staged upload
@@ -569,6 +625,7 @@ export const App = ({
       onCheckSlug={onCheckSlug}
       onCommitLogo={onCommitLogo}
       onCreate={onCreate}
+      onCreateVenue={onCreateVenue}
       onIssue={async (body) =>
         context === null
           ? { error: 'unauthorized', network: false, ok: false, status: 401 }

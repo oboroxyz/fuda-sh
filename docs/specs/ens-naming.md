@@ -46,6 +46,14 @@ ENS or the gateway.
 
 ## Claiming a name, and what writes the mirror
 
+Dashboard onboarding registers the issuer without a card, then acquires its
+ENS name on `/venue`. Only a confirmed claim unlocks `POST /issuers/cards` and
+the `/new` card designer. A cancelled wallet prompt or failed confirmation
+leaves the issuer registered with zero cards and offers another claim attempt.
+Existing card reads and member issuance remain available independently of
+this new-card prerequisite. Deployments without ENS configured show an
+unavailable state instead of bypassing the acquisition step.
+
 An operator claims their venue's name from the dashboard in one press. fuda
 signs the voucher; the operator's own wallet submits it on Ethereum Sepolia,
 sponsored, so a venue owner needs neither that chain's native token nor a second
@@ -60,8 +68,16 @@ wallet:
 A voucher that is signed and never used costs nothing: the nonce is unspent, so
 the next press signs a fresh voucher at the same nonce. Step 3 records a claim
 only when the chain agrees; anything else leaves the name pending, which is
-recoverable, rather than recording a claim that did not happen. Every one of
-these routes answers `503` until `ENS_PARENT_NAME` and all five claim bindings
+recoverable, rather than recording a claim that did not happen. Issuer claim
+writes must be persisted before the API reports success; persistence failure
+returns `503 ens_persistence_failed`. A late voucher write cannot replace an
+already confirmed claim with a pending one. Once the wallet supplies a
+transaction hash, the dashboard retains that pending receipt for the API and
+issuer and retries confirmation without submitting another transaction,
+including after reload. A confirmed server state or a different current ENS
+name supersedes the stored receipt. A reverted receipt returns
+`409 claim_failed`; the dashboard clears it and allows a fresh claim attempt.
+Every one of these routes answers `503` until `ENS_PARENT_NAME` and all five claim bindings
 are configured.
 
 `POST /v1/ens/paymaster` is fuda's own ERC-7677 endpoint, and it exists because no
@@ -82,7 +98,7 @@ The `ens_names` mirror is written in exactly three places:
 
 Only a generated member number becomes a label. The admin path accepts free text
 for `memberId`, and that text never reaches the ENS namespace. A mirror write
-never fails the operation that triggered it: a name is a convenience attached to
+for a member never fails the operation that triggered it: a name is a convenience attached to
 a right, and the right is the product.
 
 A +Private right has no name yet. The mirror stores a stealth meta-address in

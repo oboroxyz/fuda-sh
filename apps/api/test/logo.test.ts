@@ -8,7 +8,7 @@ import type { Bindings } from '../src/env.ts'
 import { LOGO_SIDE } from '../src/media/logo.ts'
 import { appWith, fakeChain, testEnv } from './env.ts'
 import { configuredEnv, NOW, ROOT, seedRoot } from './fixtures.ts'
-import { CARD_INPUT, getJson, postJson, signIn } from './operator.ts'
+import { CARD_INPUT, getJson, postJson, registerVenueWithCard, signIn } from './operator.ts'
 
 type App = ReturnType<typeof appWith>
 
@@ -212,7 +212,7 @@ describe('a branded pass', () => {
     const { token } = await signIn(app, bindings)
     const stagedRes = await upload(app, bindings, token, logoForm())
     const staged = await stagedRes.json<{ logoUploadId: string }>()
-    await postJson(app, bindings, '/v1/issuers', { ...CARD_INPUT, logoUploadId: staged.logoUploadId }, token)
+    await registerVenueWithCard(app, bindings, { ...CARD_INPUT, logoUploadId: staged.logoUploadId }, token)
     const issued = await app.request(
       '/v1/issuers/wassie-coffee/stamp/issue',
       { headers: { 'CF-Connecting-IP': '203.0.113.70' }, method: 'POST' },

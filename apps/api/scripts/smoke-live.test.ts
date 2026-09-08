@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const UID = `0x${'aa'.repeat(32)}`
 const CARD_UID = `0x${'cc'.repeat(32)}`
 const NONCE = `0x${'bb'.repeat(32)}`
+const OPERATOR_KEY = `0x${'6a'.repeat(32)}`
 const HANDLE_RE = /^\/issuers\/(?<handle>[^/]+)$/u
 const CLAIM_RE = /^\/issuers\/(?<handle>[^/]+)\/(?<slug>[^/]+)\/issue$/u
 
@@ -19,7 +20,7 @@ const cardRoute = async (
   pathname: string,
   url: string,
   init: RequestInit | undefined,
-  state: { active: Set<string>; issued: string[]; published: Published },
+  state: { active: Set<string>; ensStatus: 'claimed' | 'unclaimed'; issued: string[]; published: Published },
 ): Promise<Response | null> => {
   if (pathname === '/auth/challenge') {
     return Response.json({ message: 'fuda.sh dashboard sign-in', nonce: NONCE })
@@ -27,14 +28,21 @@ const cardRoute = async (
   if (pathname === '/auth/verify') {
     return Response.json({ issuer: null, token: 'smoke-session' })
   }
-  if (pathname === '/issuers') {
-    const body = await new Request(url, init).json<{ card: { slug: string }; handle: string }>()
-    state.published.handle = body.handle
-    state.published.slug = body.card.slug
+  if (pathname === '/issuers/me') {
     return Response.json({
-      card: { claimable: true, slug: body.card.slug },
-      issuer: { handle: body.handle },
-      publicUrl: `https://fuda.sh/@${body.handle}`,
+      cards: [],
+      ens: { claimTxHash: null, expiry: null, name: 'smoke-coffee.fuda.eth', status: state.ensStatus },
+      issuer: { handle: state.published.handle },
+      publicUrl: `https://fuda.sh/@${state.published.handle}`,
+    })
+  }
+  if (pathname === '/issuers/cards') {
+    const body = await new Request(url, init).json<{ slug: string }>()
+    state.published.slug = body.slug
+    return Response.json({
+      card: { claimable: true, slug: body.slug },
+      issuer: { handle: state.published.handle },
+      publicUrl: `https://fuda.sh/@${state.published.handle}`,
     })
   }
   if (CLAIM_RE.test(pathname)) {
@@ -59,14 +67,14 @@ const cardRoute = async (
 
 // The script's only external boundary is HTTP. Track the remote active rights
 // so cleanup assertions exercise the effect of /revoke, including early exits.
-const fakeApi = (failAt?: string) => {
+const fakeApi = (failAt?: string, ensStatus: 'claimed' | 'unclaimed' = 'claimed') => {
   const active = new Set<string>()
   const issued: string[] = []
   const revoked: string[] = []
   let scans = 0
   let signedScans = 0
   let level = 'bearer'
-  const published: Published = { handle: '', slug: '' }
+  const published: Published = { handle: 'smoke-coffee', slug: '' }
   const fetchSpy = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async (url, init) => {
     // The script sends every request under the version prefix; the fake matches
     // on the route's own path, as the api's own routers do.
@@ -115,7 +123,7 @@ const fakeApi = (failAt?: string) => {
         scans === 1 ? { decision: 'ADMIT' } : { decision: 'REJECT', reason: 'ALREADY_USED' },
       )
     }
-    const card = await cardRoute(pathname, url, init, { active, issued, published })
+    const card = await cardRoute(pathname, url, init, { active, ensStatus, issued, published })
     if (card !== null) {
       if (CLAIM_RE.test(pathname)) {
         // A claimed card is a bearer right, and the scanner starts fresh on it
@@ -154,6 +162,7 @@ const runScript = async () => {
 describe('live smoke cleanup', () => {
   beforeEach(() => {
     vi.stubEnv('SMOKE_LADDERS', '')
+    vi.stubEnv('SMOKE_OPERATOR_KEY', OPERATOR_KEY)
     vi.spyOn(console, 'log').mockReturnValue()
   })
 
@@ -170,6 +179,22 @@ describe('live smoke cleanup', () => {
     await expect(runScript()).rejects.toThrow(/unknown ladder|unsupported/iu)
     expect(api.issued).toStrictEqual([])
     expect(api.fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('requires an explicit operator key before any selected ladder mutates live state', async () => {
+    vi.stubEnv('SMOKE_OPERATOR_KEY', '')
+    const api = fakeApi()
+
+    await expect(runScript()).rejects.toThrow('SMOKE_OPERATOR_KEY')
+    expect(api.issued).toStrictEqual([])
+    expect(api.fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('requires an existing ENS-claimed venue before bearer or signed issuance starts', async () => {
+    const api = fakeApi(undefined, 'unclaimed')
+
+    await expect(runScript()).rejects.toThrow(/ENS.*claimed/iu)
+    expect(api.issued).toStrictEqual([])
   })
 
   it.each(['bearer', 'signed'])('revokes %s rights when verification fails', async (ladder) => {

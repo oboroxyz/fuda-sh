@@ -59,7 +59,7 @@ const claimLog = (label: string) => ({
   transactionIndex: '0x0',
 })
 
-const receipt = (logs: unknown[]) => ({
+const receipt = (logs: unknown[], status: '0x0' | '0x1' = '0x1') => ({
   blockHash: zeroHash,
   blockNumber: '0x1',
   contractAddress: null,
@@ -69,7 +69,7 @@ const receipt = (logs: unknown[]) => ({
   gasUsed: '0x1',
   logs,
   logsBloom: `0x${'00'.repeat(256)}`,
-  status: '0x1',
+  status,
   to: REGISTRAR,
   transactionHash: TX_HASH,
   transactionIndex: '0x0',
@@ -80,7 +80,7 @@ const receipt = (logs: unknown[]) => ({
 // from, and the vendor the paymaster proxy forwards to.
 const rpcAnswer = (result: unknown): Response => Response.json({ id: 1, jsonrpc: '2.0', result })
 
-const stubChain = (options: { logs?: unknown[]; upstream?: unknown } = {}) => {
+const stubChain = (options: { logs?: unknown[]; receiptStatus?: '0x0' | '0x1'; upstream?: unknown } = {}) => {
   const calls: { body: { method?: string; params?: unknown[] }; url: string }[] = []
   vi.stubGlobal(
     'fetch',
@@ -92,7 +92,9 @@ const stubChain = (options: { logs?: unknown[]; upstream?: unknown } = {}) => {
         return await Promise.resolve(rpcAnswer(options.upstream ?? { paymasterAndData: '0xfeed' }))
       }
       if (body.method === 'eth_getTransactionReceipt') {
-        return await Promise.resolve(rpcAnswer(receipt(options.logs ?? [claimLog(HANDLE)])))
+        return await Promise.resolve(
+          rpcAnswer(receipt(options.logs ?? [claimLog(HANDLE)], options.receiptStatus)),
+        )
       }
       // Every contract read in these routes returns a single word; the only one
       // is the registrar's per-issuer nonce, which starts at zero.
@@ -114,6 +116,7 @@ const rowFor = async (name: string) =>
 
 describe('issuer ENS claim', () => {
   beforeEach(async () => {
+    await env.DB.exec('DROP TRIGGER IF EXISTS fail_issuer_ens')
     await env.DB.exec('DELETE FROM ens_names')
     await env.DB.exec('DELETE FROM sessions')
     await env.DB.exec('DELETE FROM cards')
@@ -121,7 +124,8 @@ describe('issuer ENS claim', () => {
     await env.DB.exec('DELETE FROM rate_limits')
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    await env.DB.exec('DROP TRIGGER IF EXISTS fail_issuer_ens')
     vi.unstubAllGlobals()
   })
 
@@ -161,6 +165,21 @@ describe('issuer ENS claim', () => {
       await expect(rowFor(`${HANDLE}.fuda.eth`)).resolves.toMatchObject({ status: 'voucher_issued' })
     })
 
+    it('reports a persistence failure instead of returning an unrecorded voucher', async () => {
+      stubChain()
+      const bindings = configured()
+      const { app: venue, token } = await withVenue(bindings)
+      await env.DB.exec(
+        "CREATE TRIGGER fail_issuer_ens BEFORE INSERT ON ens_names BEGIN SELECT RAISE(FAIL, 'forced'); END",
+      )
+
+      const response = await postJson(venue, bindings, '/v1/issuers/me/ens/claim-voucher', {}, token)
+
+      expect(response.status).toBe(503)
+      await expect(response.json()).resolves.toStrictEqual({ error: 'ens_persistence_failed' })
+      await expect(rowFor(`${HANDLE}.fuda.eth`)).resolves.toBeUndefined()
+    })
+
     it('refuses a second voucher once the name is claimed', async () => {
       stubChain()
       const bindings = configured()
@@ -197,6 +216,34 @@ describe('issuer ENS claim', () => {
       })
     })
 
+    it('reports persistence failure and accepts a retry with the same confirmed hash', async () => {
+      stubChain()
+      const bindings = configured()
+      const { app: venue, token } = await withVenue(bindings)
+      await env.DB.exec(
+        "CREATE TRIGGER fail_issuer_ens BEFORE INSERT ON ens_names BEGIN SELECT RAISE(FAIL, 'forced'); END",
+      )
+
+      const failed = await postJson(venue, bindings, '/v1/issuers/me/ens/claimed', { txHash: TX_HASH }, token)
+      expect(failed.status).toBe(503)
+      await expect(failed.json()).resolves.toStrictEqual({ error: 'ens_persistence_failed' })
+      await expect(rowFor(`${HANDLE}.fuda.eth`)).resolves.toBeUndefined()
+
+      await env.DB.exec('DROP TRIGGER fail_issuer_ens')
+      const retried = await postJson(
+        venue,
+        bindings,
+        '/v1/issuers/me/ens/claimed',
+        { txHash: TX_HASH },
+        token,
+      )
+      expect(retried.status).toBe(200)
+      await expect(rowFor(`${HANDLE}.fuda.eth`)).resolves.toMatchObject({
+        claimTxHash: TX_HASH,
+        status: 'claimed',
+      })
+    })
+
     it('leaves the name pending when the receipt proves another venue’s claim', async () => {
       stubChain({ logs: [claimLog('someone-else')] })
       const bindings = configured()
@@ -212,6 +259,25 @@ describe('issuer ENS claim', () => {
       )
 
       expect(response.status).toBe(409)
+      await expect(rowFor(`${HANDLE}.fuda.eth`)).resolves.toMatchObject({ status: 'voucher_issued' })
+    })
+
+    it('reports a reverted claim as terminal without recording confirmation', async () => {
+      stubChain({ receiptStatus: '0x0' })
+      const bindings = configured()
+      const { app: venue, token } = await withVenue(bindings)
+      await postJson(venue, bindings, '/v1/issuers/me/ens/claim-voucher', {}, token)
+
+      const response = await postJson(
+        venue,
+        bindings,
+        '/v1/issuers/me/ens/claimed',
+        { txHash: TX_HASH },
+        token,
+      )
+
+      expect(response.status).toBe(409)
+      await expect(response.json()).resolves.toStrictEqual({ error: 'claim_failed' })
       await expect(rowFor(`${HANDLE}.fuda.eth`)).resolves.toMatchObject({ status: 'voucher_issued' })
     })
 

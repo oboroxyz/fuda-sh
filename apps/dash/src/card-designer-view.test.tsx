@@ -45,7 +45,7 @@ const designer = (overrides: Partial<CardDesignerViewProps> = {}): CardDesignerV
   locationDenied: false,
   logo: EMPTY_LOGO,
   logoCopy: DASH_COPY.en.logo,
-  mode: 'venue',
+  mode: 'card',
   onCategory: vi.fn<CardDesignerViewProps['onCategory']>(),
   onField: vi.fn<CardDesignerViewProps['onField']>(),
   onLockScreen: vi.fn<CardDesignerViewProps['onLockScreen']>(),
@@ -74,19 +74,18 @@ describe(CardDesignerView, () => {
     expect(viewProps(preview!).style).toStrictEqual({ background: '#1F513F' })
   })
 
-  it('marks the chosen swatch and leaves the others unselected', () => {
+  it('keeps venue colour controls out of the card form', () => {
     const view = CardDesignerView(designer({ form: { ...filled, brandColor: '#1D3A6E' } }))
     const swatches = walkView(view).filter((node) => String(node.props.class).includes('dash-swatch'))
     const selected = swatches.filter((node) => node.props['aria-pressed'] === true)
-    expect(swatches).toHaveLength(4)
-    expect(selected).toHaveLength(1)
-    expect(selected[0]?.props['aria-label']).toBe('#1D3A6E')
+    expect(swatches).toHaveLength(0)
+    expect(selected).toHaveLength(0)
   })
 
-  it('explains why a handle cannot be used and hides the label while it is empty', () => {
+  it('keeps handle status out of the card form', () => {
     const reserved = CardDesignerView(designer({ status: { handle: 'reserved', slug: 'available' } }))
     const idle = CardDesignerView(designer({ form: EMPTY_FORM, status: { handle: 'idle', slug: 'idle' } }))
-    expect(viewText(reserved)).toContain('This name is reserved.')
+    expect(viewText(reserved)).not.toContain('This name is reserved.')
     expect(viewText(idle)).not.toContain('This name is reserved.')
     expect(viewText(idle)).not.toContain('Available')
   })
@@ -108,11 +107,11 @@ describe(CardDesignerView, () => {
     expect(label('reserved')).toContain('This name is reserved.')
   })
 
-  it('asks for the venue fields only while the venue does not exist yet', () => {
+  it('never asks for venue fields', () => {
     const venue = designer()
     const card = designer({ mode: 'card' })
-    expect(inputWithId(venue, 'handle')).toBe(true)
-    expect(inputWithId(venue, 'venue-name')).toBe(true)
+    expect(inputWithId(venue, 'handle')).toBe(false)
+    expect(inputWithId(venue, 'venue-name')).toBe(false)
     expect(inputWithId(card, 'handle')).toBe(false)
     expect(inputWithId(card, 'venue-name')).toBe(false)
     expect(inputWithId(card, 'card-slug')).toBe(true)
@@ -120,8 +119,8 @@ describe(CardDesignerView, () => {
 
   it('disables the submit until the form is complete and its names are free', () => {
     expect(submitOf(designer())).toBe(false)
-    expect(submitOf(designer({ form: EMPTY_FORM }))).toBe(true)
-    expect(submitOf(designer({ status: { handle: 'taken', slug: 'available' } }))).toBe(true)
+    expect(submitOf(designer({ form: EMPTY_FORM }))).toBe(false)
+    expect(submitOf(designer({ status: { handle: 'taken', slug: 'available' } }))).toBe(false)
     expect(submitOf(designer({ status: { handle: 'available', slug: 'taken' } }))).toBe(true)
     expect(submitOf(designer({ busy: true }))).toBe(true)
   })
@@ -219,23 +218,17 @@ const summer: CardView = {
 }
 
 const published = (overrides: Partial<PublishedCardViewProps> = {}): PublishedCardViewProps => ({
+  canAddCard: true,
   cards: [membership],
   copiedSlug: null,
   copy: DASH_COPY.en.published,
-  ens: null,
   issuer,
-  logo: EMPTY_LOGO,
-  logoBusy: false,
-  logoCopy: DASH_COPY.en.logo,
-  logoFailed: false,
-  logoSrc: 'http://localhost:8787/assets/wassie-coffee/logo/master?v=7',
   now: 1_757_000_000,
   onAddCard: vi.fn<() => void>(),
   onCopy: vi.fn<PublishedCardViewProps['onCopy']>(),
-  onLogoError: vi.fn<PublishedCardViewProps['onLogoError']>(),
-  onLogoPick: vi.fn<PublishedCardViewProps['onLogoPick']>(),
   onPrint: vi.fn<PublishedCardViewProps['onPrint']>(),
   onShare: null,
+  onVenue: vi.fn<PublishedCardViewProps['onVenue']>(),
   printSlug: null,
   publicUrl: 'https://fuda.sh/@wassie-coffee',
   ...overrides,
@@ -250,6 +243,13 @@ const qrTargets = (props: PublishedCardViewProps): unknown[] =>
   findViewNodes(PublishedCardView(props), QrBlock).map((node) => viewProps(node).qr)
 
 describe(PublishedCardView, () => {
+  it('sends an empty venue to ENS until claimed, then offers the first card', () => {
+    const view = PublishedCardView(published({ canAddCard: false, cards: [] }))
+    expect(viewText(view)).toContain('Create your first card')
+    expect(viewText(view)).toContain('Go to venue and ENS')
+    expect(viewText(PublishedCardView(published({ cards: [] })))).toContain('Create your first card')
+  })
+
   it('reads as one card when the venue published only one', () => {
     const view = PublishedCardView(published())
     expect(viewText(view)).toContain('Your card is live')
@@ -258,11 +258,10 @@ describe(PublishedCardView, () => {
     expect(viewText(view)).toContain('fuda.sh/@wassie-coffee/membership-card')
   })
 
-  it('names the venue and its own page above the cards', () => {
+  it('keeps venue management out of the card list', () => {
     const view = PublishedCardView(published())
     expect(viewText(view)).toContain('Wassie Coffee')
-    expect(viewText(view)).toContain('Venue page')
-    expect(viewText(view)).toContain('fuda.sh/@wassie-coffee')
+    expect(viewText(view)).not.toContain('Venue page')
   })
 
   it('gives every card of a venue its own link and QR', () => {
@@ -328,10 +327,9 @@ describe('the logo field', () => {
     expect(findViewNodes(view, 'img')).toHaveLength(0)
   })
 
-  it('is the designer own field, named Logo and holding nothing to start with', () => {
+  it('keeps venue logo fields out of the card designer', () => {
     const [field] = findViewNodes(CardDesignerView(designer()), LogoField)
-    expect(field?.props.label).toBe('Logo')
-    expect(field?.props.state).toStrictEqual(EMPTY_LOGO)
+    expect(field).toBeUndefined()
   })
 
   it('previews the generated master and offers to remove it once a file is held', () => {
@@ -359,24 +357,12 @@ describe('the logo field', () => {
   })
 })
 
-describe('the published venue mark', () => {
-  it('shows the mark beside the venue name and offers to change it', () => {
+describe('the published card boundary', () => {
+  it('leaves venue logo management to the venue page', () => {
     const view = PublishedCardView(published())
     const [image] = findViewNodes(view, 'img')
     const [field] = findViewNodes(view, LogoField)
-    expect(image?.props.src).toBe('http://localhost:8787/assets/wassie-coffee/logo/master?v=7')
-    expect(field?.props.label).toBe('Change logo')
-  })
-
-  it('shows the name alone for a venue whose mark the api does not serve', () => {
-    const view = PublishedCardView(published({ logoSrc: null }))
-    expect(findViewNodes(view, 'img')).toHaveLength(0)
-    expect(viewText(view)).toContain('Wassie Coffee')
-  })
-
-  it('reports a change that could not be applied', () => {
-    expect(viewText(PublishedCardView(published({ logoFailed: true })))).toContain(
-      'Could not update the logo',
-    )
+    expect(image).toBeUndefined()
+    expect(field).toBeUndefined()
   })
 })

@@ -33,7 +33,7 @@ export type ClaimState =
   | { kind: 'submitting'; name: string }
   | { kind: 'confirming'; name: string }
   | { kind: 'claimed'; name: string; claimTxHash: Hex | null }
-  | { kind: 'failed'; failure: ClaimFailure }
+  | { kind: 'failed'; failure: ClaimFailure; name?: string; txHash?: Hex }
 
 export interface ClaimIo {
   // Asks the api to sign the authorization the registrar checks.
@@ -51,6 +51,32 @@ export const initialClaimState = (ens: EnsClaimView | null): ClaimState =>
   ens !== null && ens.status === 'claimed'
     ? { claimTxHash: ens.claimTxHash, kind: 'claimed', name: ens.name }
     : { kind: 'unclaimed' }
+
+export const reconcileClaimState = (
+  current: ClaimState,
+  ens: EnsClaimView | null,
+  pending: { name: string; txHash: Hex } | null,
+  previousEnsName?: string,
+): ClaimState => {
+  if (ens === null || ens.status === 'claimed') {
+    return initialClaimState(ens)
+  }
+  if (previousEnsName !== undefined && ens.name !== previousEnsName) {
+    return initialClaimState(ens)
+  }
+  if (current.kind === 'signing') {
+    return current
+  }
+  if ((current.kind === 'submitting' || current.kind === 'confirming') && current.name === ens.name) {
+    return current
+  }
+  if (current.kind === 'failed' && current.name === ens.name && current.txHash !== undefined) {
+    return current
+  }
+  return pending?.name === ens.name
+    ? { failure: 'unconfirmed', kind: 'failed', ...pending }
+    : initialClaimState(ens)
+}
 
 // The wallet reports a refusal and a declined sponsorship as ordinary errors, so
 // the message is the only thing that separates "the operator said no" from
@@ -72,7 +98,35 @@ const failureOf = (error: unknown): ClaimFailure => {
 // An abandoned wallet prompt leaves nothing behind — the voucher goes unused and
 // the next press signs a fresh one at the same nonce — so failure always returns
 // to a state the operator can retry from.
-export const runClaim = async (io: ClaimIo, emit: (state: ClaimState) => void): Promise<ClaimState> => {
+export const runClaim = async (
+  io: ClaimIo,
+  emit: (state: ClaimState) => void,
+  pending?: { name: string; txHash: Hex },
+  onPending?: (pending: { name: string; txHash: Hex } | null) => void,
+): Promise<ClaimState> => {
+  if (pending !== undefined) {
+    emit({ kind: 'confirming', name: pending.name })
+    const confirmed = await io.confirmClaim(pending.txHash)
+    if (!confirmed.ok) {
+      if (confirmed.error === 'claim_failed') {
+        onPending?.(null)
+        const state: ClaimState = { failure: 'unconfirmed', kind: 'failed' }
+        emit(state)
+        return state
+      }
+      const state: ClaimState = { failure: 'unconfirmed', kind: 'failed', ...pending }
+      emit(state)
+      return state
+    }
+    onPending?.(null)
+    const state: ClaimState = {
+      claimTxHash: confirmed.body.claimTxHash,
+      kind: 'claimed',
+      name: confirmed.body.name,
+    }
+    emit(state)
+    return state
+  }
   emit({ kind: 'signing' })
   const voucher = await io.requestVoucher()
   if (!voucher.ok) {
@@ -91,13 +145,20 @@ export const runClaim = async (io: ClaimIo, emit: (state: ClaimState) => void): 
     emit(state)
     return state
   }
+  onPending?.({ name: voucher.body.name, txHash })
 
   emit({ kind: 'confirming', name: voucher.body.name })
   const confirmed = await io.confirmClaim(txHash)
   if (!confirmed.ok) {
+    if (confirmed.error === 'claim_failed') {
+      onPending?.(null)
+      const state: ClaimState = { failure: 'unconfirmed', kind: 'failed' }
+      emit(state)
+      return state
+    }
     // The transaction may still be in flight; the api refuses to record a claim
     // it cannot see. Retrying is safe and is the whole remedy.
-    const state: ClaimState = { failure: 'unconfirmed', kind: 'failed' }
+    const state: ClaimState = { failure: 'unconfirmed', kind: 'failed', name: voucher.body.name, txHash }
     emit(state)
     return state
   }
@@ -106,6 +167,7 @@ export const runClaim = async (io: ClaimIo, emit: (state: ClaimState) => void): 
     kind: 'claimed',
     name: confirmed.body.name,
   }
+  onPending?.(null)
   emit(state)
   return state
 }
