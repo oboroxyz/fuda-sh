@@ -27,8 +27,9 @@ _Avoid_: Ticket, card, credential
 **Device wallet**:
 Apple Wallet or Google Wallet — the phone's OS-level container for Passes. A
 distribution and presentation channel only: it holds no keys, signs nothing,
-and knows nothing about the chain. Every level uses one; Bearer uses nothing
-else. Say "Apple Wallet" / "Google Wallet" when the platform matters.
+and knows nothing about the chain. Bearer and Signed Rights can have Passes;
++Private Rights use the signing and discovery flow without a Pass. Say
+"Apple Wallet" / "Google Wallet" when the platform matters.
 _Avoid_: Wallet (bare), wallet app, mobile wallet
 
 **Crypto wallet** (or **wallet**):
@@ -196,8 +197,8 @@ Right and one nonce with a short lifetime.
 _Avoid_: Nonce (that is only the random part), token
 
 **Slot**:
-The unit consumed on entry by a SINGLE*USE Right; consumed at most once.
-\_Avoid*: Ticket, seat, use
+The unit consumed on entry by a `SINGLE_USE` Right; consumed at most once.
+_Avoid_: Ticket, seat, use
 
 **Entry**:
 One ADMIT of a Right at a Gate, recorded off-chain in the entry log.
@@ -229,8 +230,8 @@ _Avoid_: Eligibility, entitlement (that is the Right), registration (one kind
 of Qualification)
 
 **Attendance**:
-The on-chain `Attendance` attestation written after an Entry — the public,
-composable evidence of entry that sponsor integrations consume.
+The on-chain evidence of a public Right’s Entry. +Private Entries have no
+Attendance, so their visit history stays offchain.
 _Avoid_: Entry record, stamp, proof of attendance
 
 ### Changing a right
@@ -262,9 +263,10 @@ _Avoid_: Activation, claim, conversion, claim-and-merge, migration
 
 **Issuer name**:
 The ENS subname for an Issuer (`<issuer>.fuda.eth`, label = Handle),
-resolving to the address that attests Rights under that Handle —
-offchain-first, onchain-claimable, and living and dying with the Issuer
-delegation. Under it, each Right's Member number is a member label
+resolving to the Issuer's wallet — offchain-first and onchain-claimable.
+A claimed Issuer name follows registry ownership and expiry independently of
+Issuer delegation revocation. Under it, each Right's Member number is a
+member label
 (`<member-no>.<issuer>.fuda.eth`, see `docs/specs/ens-naming.md`); Members as
 people and Operators are never named. A name never makes an Issuer
 legitimate.

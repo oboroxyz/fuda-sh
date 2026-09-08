@@ -9,6 +9,15 @@ that resolve `@`-imports load it via the line below.
 
 @.agents/rules/start-of-task.md
 
+## Documentation
+
+When changing product behavior or protocol contracts, read the relevant
+[canonical specification](docs/specs/README.md) and update it with the change.
+Use [the glossary](docs/CONTEXT.md) when choosing domain terms.
+For setup or deployment changes, update [the runbook](docs/runbook.md).
+The documentation hierarchy and verification cadence are defined in the
+workflow policy imported below.
+
 ## Repository layout
 
 **fuda** is a pnpm workspace monorepo. `apps/*` contains deployable Cloudflare

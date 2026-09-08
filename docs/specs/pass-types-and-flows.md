@@ -5,14 +5,18 @@ does during onboarding, and which pass and holder type the resulting right
 uses. The template is a product-policy choice; Bearer and Signed remain the
 verification rules applied by the gate.
 
+API paths below omit `/v1` except where shown explicitly; pass, asset, gateway,
+and health URLs are unversioned. See
+[API versioning](./attestation-model.md#api-versioning).
+
 ## Choose by use case
 
 Templates and the self-serve handle route are the product model. The api
 derives a right's level from the keys present in the request on the admin
-`POST /issue`; the self-serve route `POST /issuers/:handle/issue` issues only
+`POST /issue`; the self-serve route `POST /issuers/:handle/:slug/issue` issues only
 `standard` (Bearer) rights under the issuer's card (see [Issuer onboarding and
 the handle route](#issuer-onboarding-and-the-handle-route)); the `fuda.sh`
-apex serves the landing page and redirects `/@*` to `app.fuda.sh`.
+apex redirects `/@*` to `app.fuda.sh`; other apex handling is outside this repository.
 
 **The template is the issuer's choice, made at issuance time.** The issuer
 configures which templates are available and sets the default. An authorized
@@ -517,8 +521,8 @@ Terms (Pass, Device wallet, Crypto wallet, Holder) are defined once in the
 
 | Type                                        | Role                                                                                                | Used by                             |
 | ------------------------------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| Device wallet (Apple Wallet, Google Wallet) | Saves and presents the branded pass and its QR; it is not the source of right validity              | U1, U2, and U3                      |
-| Browser-based pass                          | Presents the same right on other devices without a platform wallet                                  | U1, U2, and U3                      |
+| Device wallet (Apple Wallet, Google Wallet) | Saves and presents the branded pass and its QR; it is not the source of right validity              | U1; persistent-value side of U3     |
+| Browser-based pass                          | Presents the same right on other devices without a platform wallet                                  | U1; persistent-value side of U3     |
 | Claimable smart account                     | Holds a standard right at a stable counterfactual address before and after member activation        | U1; persistent-value side of U3     |
 | Passkey                                     | Default member-owned signing key; its PRF extension can also derive +Private keys                   | activated U1; required by U2 and U3 |
 | EOA or compatible external wallet           | Optional open signing rail or direct holder for a right that starts as Signed                       | U1 Signed compatibility paths       |
@@ -587,6 +591,8 @@ current challenge for the Entitlement holder?
 | `api.fuda.sh`    | `apps/api`  | 8787     | the api                                                                                           |
 | `gate.fuda.sh`   | `apps/gate` | 5174     | scanner: uid preview, QR admission, verdict                                                       |
 | `dash.fuda.sh`   | `apps/dash` | 5175     | operator dashboard: passkey or admin-token sign-in; `/` overview from D1 member rows and client configuration, `/rights` D1 search/filter/revoke/pass links plus separate on-chain lookup, and `/issue` issuance; with a passkey session `/new` card designer, `/published` the venue's cards with their links and QR codes, and the venue's ENS name |
+| `app.fuda.sh`    | `apps/app`  | 5173     | member app: `/@<handle>` venue page and `/@<handle>/<slug>` card landing with one-tap issuance, `/signed` challenge-response, `/private` enrolment and discovery, `/rights` member pass list |
+| `fuda.sh` (apex) | Cloudflare zone | —     | `/@*` redirect to the same path on `app.fuda.sh`; other apex paths are outside this repository    |
 
 `GET /members` and `POST /revoke` accept either credential and answer according
 to which one they see. A passkey session is scoped to that operator's venue: it
@@ -595,8 +601,6 @@ since the scope is the issuer rather than the card — and may revoke only those
 rights. A uid belonging to another venue answers `404`, not `403`, so an
 operator cannot learn which uids exist outside their own. The admin token keeps
 the whole-deployment view on both routes.
-| `app.fuda.sh`    | `apps/app`  | 5173     | member app: `/@<handle>` venue page and `/@<handle>/<slug>` card landing with one-tap issuance, `/signed` challenge-response, `/private` enrolment and discovery, `/rights` member pass list |
-| `fuda.sh` (apex) | Cloudflare zone | —     | `/@*` redirect to the same path on `app.fuda.sh`; other apex paths are outside this repository    |
 
 Root `pnpm dev` starts all four services on their fixed development ports. The
 selective `dev:api`, `dev:app`, `dev:gate`, and `dev:dash` commands start one
@@ -638,7 +642,7 @@ rights subgraph configured by `VITE_GRAPH_RIGHTS_ENDPOINT`. The member list at
 
 The dashboard's On-chain status section queries rights by holder, Attendance by
 right UID, and IssuerDelegation by issuer. It is visually and operationally
-separate from the admin-token-protected D1 Members section: on-chain-status reads
+separate from the session- or admin-token-protected D1 Rights view: on-chain-status reads
 do not create or update member rows. A +Private stealth holder may be entered
 locally for a lookup but is never persisted to D1 by either view. If
 `VITE_GRAPH_RIGHTS_ENDPOINT` is empty or a holder query fails, `/rights` keeps

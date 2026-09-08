@@ -1,7 +1,14 @@
 # Deploy runbook
 
 Operator instructions for standing up fuda on Cloudflare and Base Sepolia, in
-order.
+order. The checked-in top-level API configuration already contains the Sepolia
+schema UIDs, root delegation, database id, and Announcer start block. The
+bootstrap steps below are for a new deployment; verify and reuse the existing
+resources when operating this checkout.
+
+For local setup, start at [Local development](#12-local-development).
+API paths in prose omit `/v1` except for the unversioned pass, asset, ENS
+gateway, and health routes; see [API versioning](./specs/attestation-model.md#api-versioning).
 
 ## 1. Prerequisites
 
@@ -51,9 +58,9 @@ depends on.
    wrangler r2 bucket create fuda-media-dev
    ```
 
-   Its `MEDIA_BUCKET` binding is already in `wrangler.jsonc`. Until the bucket
-   exists, logo upload answers `501 media_not_configured` and every other
-   surface works unbranded. Every environment owns its own bucket, because an
+   Its `MEDIA_BUCKET` binding is already in `wrangler.jsonc`. An absent `MEDIA_BUCKET`
+   binding makes logo upload answer `501 media_not_configured`. A configured
+   bucket must exist before deployment. Every environment owns its own bucket, because an
    R2 bucket cannot be renamed and develop must never read or overwrite a
    production venue's mark: `fuda-media-dev` here, `fuda-media` for
    mainnet, `fuda-media-local` for `wrangler dev --remote` only (a plain
@@ -69,12 +76,13 @@ depends on.
 
 4. Look up the `Announcer` contract's deployment block on the Base Sepolia
    explorer and set the top-level `vars.ANNOUNCER_FROM_BLOCK` to it. The
-   checked-in placeholder is `"0"`. This value is the start block used when
+   checked-in Sepolia value is `"7552655"`; a fresh deployment must verify its
+   own value. This value is the start block used when
    generating both data sources in the rights-subgraph manifest; it is not an
    API binding or a D1 cache floor. `pnpm graph:prepare` rejects zero, missing,
    and malformed values.
 5. Create the D1 database and paste its id into both `database_id`
-   placeholders in `apps/api/wrangler.jsonc` (the top-level `d1_databases`
+   entries in `apps/api/wrangler.jsonc` (the top-level `d1_databases`
    entry and the one repeated under `env.local`):
 
    ```bash
@@ -248,7 +256,7 @@ Vite reads it automatically on `vite build`, so a plain `pnpm --filter <app> run
 deploy` from that machine ships the right bundle, and an environment variable
 still overrides it. A deploy from a machine without that file silently bakes
 empty values in (the app then reports "rights discovery is not configured"). Each app's `.env.example`
-lists what it reads; the production values are:
+lists what it reads; values for the current hosted Sepolia deployment are:
 
 ```bash
 VITE_API_BASE_URL=https://api.fuda.sh   # gate, dash, app
@@ -264,17 +272,20 @@ a `VITE_*` value.
 
 ## 7. Build and deploy the rights subgraph
 
-After the top-level production `EAS_SCHEMAS` and `ANNOUNCER_FROM_BLOCK` values
-are populated from live receipts, generate and verify the deployable manifest:
+Install the independent package, then generate and verify the deployable
+manifest from the top-level Sepolia `EAS_SCHEMAS` and `ANNOUNCER_FROM_BLOCK`
+values in `apps/api/wrangler.jsonc`:
 
 ```bash
+pnpm --ignore-workspace --dir packages/subgraphs/rights install --frozen-lockfile
 pnpm graph:prepare
 pnpm graph:codegen
 pnpm graph:test
 pnpm graph:build
 ```
 
-`graph:prepare` deliberately fails while the checked-in placeholders remain.
+`graph:prepare` rejects missing or placeholder values. Its CLI reads the
+top-level API vars and `config/base-sepolia.json`, not `env.production`.
 Create the subgraph in Graph Studio, then authenticate and deploy from its
 independently installed package:
 
@@ -306,14 +317,16 @@ VITE_API_BASE_URL=https://api.fuda.sh VITE_GRAPH_RIGHTS_ENDPOINT=<PUBLIC_GRAPH_E
   pnpm --filter app run deploy
 ```
 
-Each app's `deploy` script builds then runs `wrangler deploy`. Every
+Each frontend's `deploy` script builds then runs `wrangler deploy`; the API
+script runs Wrangler directly. Every
 `wrangler.jsonc` declares its hostname as a custom domain — `api.fuda.sh`,
 `gate.fuda.sh`, `dash.fuda.sh`, and `app.fuda.sh` — so the first deploy of each
 Worker attaches it; the zone must already be on the account. The `fuda.sh/@*`
 redirect is a zone-level Single Redirect and is not managed by Wrangler.
 Validate config without shipping with
-`pnpm --filter api run deploy -- --dry-run` (or `pnpm --filter <app> run deploy --
---dry-run` for a frontend).
+`pnpm --filter api exec wrangler deploy --dry-run`. For a frontend, run
+`pnpm --filter <app> run build` with its intended build environment, then
+`pnpm --filter <app> exec wrangler deploy --dry-run`.
 
 ## 9. Live smoke
 
@@ -419,21 +432,35 @@ after a deploy and periodically thereafter (see
   `members` row write failed. Revoke that uid from the dashboard, or re-issue
   (a re-run attests a second right, so the orphan becomes the duplicate to
   revoke).
-- **Lost `attendance_uid`.** Attendance attests best-effort after the
+- **Missing `attendance_uid` candidates.** Attendance attests best-effort after the
   verdict; a failed attest leaves the admission standing but the on-chain
   evidence missing. List them, from `apps/api`:
 
   ```bash
-  wrangler d1 execute fuda --remote --command "SELECT id, uid, at FROM entry_log WHERE decision = 'ADMIT' AND attendance_uid IS NULL"
+  pnpm exec wrangler d1 execute fuda-beta --remote --command "SELECT id, uid, at FROM entry_log WHERE decision = 'ADMIT' AND attendance_uid IS NULL"
   ```
+
+The query also includes +Private admissions, which intentionally have no
+Attendance. Check the right's level before treating a row as a failure;
+`members.level` can help when a matching operational row exists. For mainnet,
+select `fuda` with `--env production` instead.
 
 ## 12. Local development
 
 ```sh
 pnpm install --frozen-lockfile
+# Fresh checkout only; preserve existing local values when updating.
+cp apps/api/.dev.vars.example apps/api/.dev.vars
+pnpm migrate:local
+VITE_API_BASE_URL=http://localhost:8787 VITE_APP_ORIGIN=http://localhost:5173 VITE_RP_ID=localhost pnpm dev
+```
+
+Run checks separately:
+
+```sh
 pnpm check      # format + lint + type check (vp check)
 pnpm typecheck  # types only (vp check --no-fmt --no-lint)
-pnpm test       # every package's tests (workerd for the api)
+pnpm test       # workspace tests and API script tests; independent packages are separate
 ```
 
 `pnpm dev` starts the whole local stack on the fixed ports below. A single
@@ -460,9 +487,9 @@ dev server.
   deployed rights subgraph.
 - **`VITE_APP_ORIGIN`** (app) — set it to `http://localhost:5173`, or the
   `/signed` gate bounces to the production origin (`https://app.fuda.sh`)
-  instead of running locally. The apex and the app are one Worker, and
-  `/signed`, `/private`, and `/rights` render only on the app origin, which is
-  the only one the api's CORS list allows.
+  instead of running locally. These routes render only on the configured app
+  origin. The deployed app Worker owns `app.fuda.sh`; apex `/@*` redirects are
+  managed separately at the zone.
 - **`VITE_RP_ID`** (app) — set it to `localhost`, or the browser refuses the
   production default (`fuda.sh`), which is not a registrable suffix of the dev
   host.
@@ -479,9 +506,18 @@ never depends on `.dev.vars` being present or on what it contains.
 
 ## 13. Rate-limit state
 
-`POST /ens/gateway` is the only currently budgeted product route. It uses a
-fixed hourly D1 budget of 120 requests per IP. Announcement discovery is a
-browser-to-Graph query and does not pass through the API. The gate routes
+Three routes use the fixed hourly D1 counter and require `CF-Connecting-IP`:
+
+| Route | Requests per IP per hour |
+| --- | --- |
+| `POST /v1/issuers/:handle/:slug/issue` | 20 |
+| `POST /v1/ens/paymaster` | 60 |
+| `POST /ens/gateway` | 120 |
+
+The counter is keyed by IP and hour, not route: requests across these routes
+share a count, with each route applying its own threshold. Rejected requests
+also increment it. Announcement discovery is a browser-to-Graph query and does
+not pass through the API. The gate routes
 (`/verify`, `/challenge`, `/verify-signed`) and the admin routes (`/issue`,
 `/revoke`, `/members`) are never budgeted.
 

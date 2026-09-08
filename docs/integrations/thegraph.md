@@ -184,11 +184,11 @@ so there is no fuda-hosted fallback behind these screens.
 
 | Surface | What it reads from the Graph | Code |
 | --- | --- | --- |
-| Member app `/private` | Every raw `Announcement`, paged by a `(blockNumber, id)` cursor, matched locally against the passkey-derived viewing key. | [`PrivateScreen.tsx#L112-L115`](../../apps/app/src/PrivateScreen.tsx#L112-L115) → [`private-member.ts#L12`](../../apps/app/src/private-member.ts#L12) |
-| Member app `/rights` | The holder's right cards, including `revokedAt`. | [`RightsList.tsx#L203`](../../apps/app/src/RightsList.tsx#L203) |
-| Operator dashboard, "On-chain status" | Rights by holder, Attendance by right, IssuerDelegation by issuer — shown next to the operator's own rows, never merged with them. | [`on-chain-status.ts#L16-L22`](../../apps/dash/src/on-chain-status.ts#L16-L22), [`OnChainStatus.tsx`](../../apps/dash/src/OnChainStatus.tsx) |
-| Shared SDK | The only Graph client: four typed fetchers with full response validation, GraphQL errors taking precedence, integer scalars kept as `bigint`. | [`graph.ts#L290-L353`](../../packages/sdk/src/graph.ts#L290-L353) |
-| Config | `VITE_GRAPH_RIGHTS_ENDPOINT`, baked in at build time for both apps. Empty → the screens render an explicit "not configured" state rather than silently degrading. | [`app/config.ts#L5`](../../apps/app/src/config.ts#L5), [`dash/config.ts#L3`](../../apps/dash/src/config.ts#L3) |
+| Member app `/private` | Every raw `Announcement`, paged by a `(blockNumber, id)` cursor, matched locally against the passkey-derived viewing key. | [`PrivateScreen.tsx`](../../apps/app/src/PrivateScreen.tsx) → [`private-member.ts`](../../apps/app/src/private-member.ts) |
+| Member app `/rights` | Public rights by holder, combined with device memory and live API status checks. | [`RightsList.tsx`](../../apps/app/src/RightsList.tsx) |
+| Operator dashboard, "On-chain status" | Rights by holder, Attendance by right, IssuerDelegation by issuer — shown next to the operator's own rows, never merged with them. | [`on-chain-status.ts`](../../apps/dash/src/on-chain-status.ts), [`OnChainStatus.tsx`](../../apps/dash/src/OnChainStatus.tsx) |
+| Shared SDK | The only Graph client: four typed fetchers with full response validation, GraphQL errors taking precedence, integer scalars kept as `bigint`. | [`graph.ts`](../../packages/sdk/src/graph.ts) |
+| Config | `VITE_GRAPH_RIGHTS_ENDPOINT`, baked in at build time for both apps. Empty → private discovery and on-chain status report missing configuration; `/rights` explicitly falls back to device-remembered passes. | [`app/config.ts`](../../apps/app/src/config.ts), [`dash/config.ts`](../../apps/dash/src/config.ts) |
 
 Gate admission and issuance are deliberately absent from that table: the gate reads
 EAS directly, and issuance writes EAS and D1.
@@ -213,11 +213,15 @@ sequenceDiagram
 The indexer is asked for *everything* and told nothing. Filtering per issuer or per
 member would let it learn which announcements belong to whom, shrinking the
 anonymity set to whatever it indexed for you — which is why
-[ADR 0002](../adr/0002-unfiltered-announcement-log.md) forbids it. Anything that
+[ADR 0003](../adr/0003-graph-push-query-lanes.md) preserves this privacy invariant
+from the superseded API-cache decision in ADR 0002. Anything that
 looks like *matching* belongs to the member's device; anything that looks like
 *state* ("is this right valid right now?") belongs to the gate reading EAS directly.
 
 ## Evidence
+
+The identifiers and results below record prior captures. They are not a fresh
+health check; rerun the verification steps to establish current deployment state.
 
 ### Identifiers
 
@@ -322,7 +326,7 @@ cargo build --release --target wasm32-unknown-unknown \
 
 # the subgraph mappings. `subgraph.yaml`, `src/schema-uids.ts` and `generated/`
 # are gitignored, so they have to be produced before the mappings will compile —
-# prepare reads the production config out of apps/api/wrangler.jsonc.
+# prepare reads top-level Sepolia vars from apps/api/wrangler.jsonc.
 pnpm graph:prepare
 pnpm graph:codegen
 pnpm graph:test                                                                 # 12 Matchstick tests
@@ -390,7 +394,8 @@ With no runner alive: +Private discovery still finds the right, the right cards 
 render, the dashboard's on-chain status still answers, and a revoked pass still scans
 red. Note precisely what that shows — the **Substreams lane** is not on the read
 path. It does **not** show the product works without The Graph: remove the subgraph
-and those same surfaces stop working, which is the point of
+and private discovery and on-chain lookups become unavailable. Public `/rights`
+can still show device-remembered passes with API status checks. This is the boundary in
 [On the product's read path](#on-the-products-read-path).
 
 Deploying and operating the subgraph is a different document —
@@ -401,17 +406,20 @@ smoke query against real UIDs.
 
 One anti-drift detail first, because it is the kind of thing that silently
 invalidates an indexer: the subgraph's `subgraph.yaml` and its schema-UID map are
-**generated from the API's own production configuration**
+**generated from the API's top-level Sepolia schema/start-block configuration**
 ([`scripts/prepare.ts`](../../packages/subgraphs/rights/scripts/prepare.ts)), and
 generation fails loudly while `EAS_SCHEMAS` or `ANNOUNCER_FROM_BLOCK` are unset. The
-indexer and the Worker cannot disagree about which schema UIDs are live.
+generated indexer uses the same accepted schema UIDs as that API configuration.
+The network and contract addresses come from `config/base-sepolia.json`; the
+CLI does not select `env.production`. Rebuild and deploy both after changing
+those inputs.
 
 **`packages/substreams/erc5564/`** — `fuda_erc5564` v0.1.0
 
 | File | What |
 | --- | --- |
 | [`substreams.yaml`](../../packages/substreams/erc5564/substreams.yaml) | one map module; `params` default = the canonical Announcer |
-| [`src/lib.rs#L48`](../../packages/substreams/erc5564/src/lib.rs#L48) | `map_announcements` handler; `extract_announcements` at L56; full 32-byte `scheme_id` at L83 |
+| [`src/lib.rs`](../../packages/substreams/erc5564/src/lib.rs) | `map_announcements` handler; `extract_announcements`; full 32-byte `scheme_id` |
 | [`proto/`](../../packages/substreams/erc5564/proto) | `fuda.erc5564.v1.Announcement` / `Announcements` — the public contract |
 | [`tests/map_announcements.rs`](../../packages/substreams/erc5564/tests/map_announcements.rs) | address parsing, decoding, wrong address, failed tx, malformed logs |
 
@@ -420,7 +428,7 @@ indexer and the Worker cannot disagree about which schema UIDs are live.
 | File | What |
 | --- | --- |
 | [`substreams.yaml`](../../packages/substreams/erc5564-eas-pipeline/substreams.yaml) | the `imports:` line and `fuda_events` inputs |
-| [`src/lib.rs#L79`](../../packages/substreams/erc5564-eas-pipeline/src/lib.rs#L79) | `fuda_events`; `map_eas_events` at L28; `merge_events` at L84 |
+| [`src/lib.rs`](../../packages/substreams/erc5564-eas-pipeline/src/lib.rs) | `fuda_events`; `map_eas_events`; `merge_events` |
 | [`proto/fuda.proto`](../../packages/substreams/erc5564-eas-pipeline/proto) | imports the ERC-5564 proto rather than redefining it |
 
 **`packages/subgraphs/rights/`** — the `fuda-rights` subgraph
@@ -428,10 +436,10 @@ indexer and the Worker cannot disagree about which schema UIDs are live.
 | File | What |
 | --- | --- |
 | [`schema.graphql`](../../packages/subgraphs/rights/schema.graphql) | `Right`, `Delegation` (mutable), `Attendance`, `Announcement` (immutable) |
-| [`src/eas.ts#L21`](../../packages/subgraphs/rights/src/eas.ts#L21) | `handleAttested` decodes by schema UID + version; `handleRevoked` at L113 |
-| [`src/announcer.ts#L4`](../../packages/subgraphs/rights/src/announcer.ts#L4) | `handleAnnouncement` — stores every announcement, unfiltered |
+| [`src/eas.ts`](../../packages/subgraphs/rights/src/eas.ts) | `handleAttested` decodes by schema UID + version; `handleRevoked` |
+| [`src/announcer.ts`](../../packages/subgraphs/rights/src/announcer.ts) | `handleAnnouncement` — stores every announcement, unfiltered |
 | [`src/codecs.ts`](../../packages/subgraphs/rights/src/codecs.ts) | ABI decoders for the three EAS schema payloads |
-| [`scripts/prepare.ts`](../../packages/subgraphs/rights/scripts/prepare.ts) | generates the manifest and UID map from production config; refuses placeholders |
+| [`scripts/prepare.ts`](../../packages/subgraphs/rights/scripts/prepare.ts) | generates the manifest and UID map from top-level Sepolia vars and network config; refuses placeholders |
 
 `packages/substreams/*` and `packages/subgraphs/*` build independently and are not
 pnpm workspace members — see the repository layout notes in

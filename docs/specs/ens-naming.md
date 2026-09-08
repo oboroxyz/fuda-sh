@@ -61,7 +61,8 @@ A voucher that is signed and never used costs nothing: the nonce is unspent, so
 the next press signs a fresh voucher at the same nonce. Step 3 records a claim
 only when the chain agrees; anything else leaves the name pending, which is
 recoverable, rather than recording a claim that did not happen. Every one of
-these routes answers `503` until all five claim bindings are configured.
+these routes answers `503` until `ENS_PARENT_NAME` and all five claim bindings
+are configured.
 
 `POST /v1/ens/paymaster` is fuda's own ERC-7677 endpoint, and it exists because no
 paymaster vendor can restrict sponsorship by destination contract — their
@@ -146,7 +147,8 @@ fuda.sh  ──alias──►  fuda.eth         planned DNS alias; the zone is n
 
 ## Member number
 
-Every right receives its own member number at issuance.
+Every self-serve right receives its own member number at issuance; admin-issued
+rights retain the supplied member id or holder address.
 
 | Property | Rule |
 | --- | --- |
@@ -174,7 +176,7 @@ non-empty string the operator chooses—and stores it as-is in
 `members.member_id`; it is neither validated against nor converted to the
 member-number format. The two coexist: an admin-issued right has whatever id
 the operator typed, a self-serve right has a generated member number.
-`POST /issuers/:handle/issue` is the route that generates them: the generator
+`POST /issuers/:handle/:slug/issue` is the route that generates them: the generator
 and validator are `generateMemberNumber` / `isMemberNumber` in `@fuda/sdk`,
 and `formatMemberNumber` renders the `4-4-5` display form on passes. The
 number is stored in `members.member_id`. Uniqueness is scoped to the **issuer**

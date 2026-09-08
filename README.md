@@ -36,37 +36,8 @@ for every other device.
 - **Backend included** — the operator never touches Apple certificates, the
   Google Wallet API, or on-chain tooling.
 
-Each Right is an [EAS](https://attest.org) `Entitlement` attestation on Base,
-and admission is decided from that record rather than from a fuda account:
-
-```mermaid
-flowchart LR
-    O[Operator] -->|issues| E[("Entitlement attestation<br/>EAS · Base")]
-    E -->|bound to| P["Pass in the member's Device wallet<br/>(Apple / Google Wallet) + QR"]
-    M[Member] -->|holds| P
-    P -->|scan QR| G[Gate]
-    G -->|verify| API[fuda api]
-    API -->|reads EAS via eth_call| E
-    API --> D{ADMIT / REJECT}
-    D -->|ADMIT, except +Private| A[("Attendance attestation")]
-```
-
-The gate app asks the api, and the api reads the Entitlement and its
-IssuerDelegation from EAS by `eth_call`; no API response is trusted as a
-substitute for those records. D1 holds only operational state — one-time
-challenges, single-use consumption, entry logs — and a failed chain read fails
-closed. So revoking on-chain turns the same QR red on the next scan, and anyone
-can run the same check against Base without a fuda account, which is the
-fallback the hosted rails rest on. Admissions are attested on-chain as
-best-effort Attendance, except for +Private Rights, where publishing a visit
-history would defeat the point.
-
-The principle behind that split is **decentralized at the core, hosted rails
-only for UX**. A Right's validity lives on-chain, ownable and verifiable by
-anyone; Apple, Google, and fuda's own Workers are rails that make it pleasant
-to use. Strip the rails away and every function still has a self-runnable
-fallback, with worse UX. See
-[UX and decentralization](./docs/architecture.md#ux-and-decentralization).
+Each Right is an [EAS](https://attest.org) `Entitlement` attestation on Base.
+Passes present it; the API reads the chain to decide admission.
 
 An issuer picks one of three templates per use case:
 
@@ -81,20 +52,93 @@ An issuer picks one of three templates per use case:
 [Pass types and flows](./docs/specs/pass-types-and-flows.md) has the onboarding
 steps and wallet roles behind each one.
 
+## How it fits together
+
+```mermaid
+flowchart TB
+    DASH[Operator dashboard] -->|issue and revoke| API[fuda API]
+    APP[Member app] -->|claim and sign| API
+    GATE[Gate scanner] -->|verify| API
+    API <-->|rights and delegation checks| EAS[(EAS on Base)]
+    API <-->|challenges, single-use slots, entry logs| D1[(D1)]
+    API <-->|venue logos| R2[(R2)]
+    API -->|build and deliver| PASS[Apple, Google, and browser passes]
+    PASS -->|present QR| GATE
+    EAS --> INDEX[Rights index]
+    ANN[ERC-5564 Announcer] --> INDEX
+    API -->|announce private rights| ANN
+    APP -->|discover rights| INDEX
+    DASH -->|read on-chain status| INDEX
+    ENS[ENS resolver] <-->|name lookup via CCIP Read| API
+```
+
+The rights index supports discovery and status views; ENS supplies names and
+address resolution. Gate admission uses EAS and D1. See the
+[architecture overview](./docs/architecture.md) for component responsibilities
+and trust boundaries.
+
+### From issuance to entry
+
+A Bearer pass follows this sequence. Signed and +Private entry add a holder
+signature; their flows are described in [Pass types and flows](./docs/specs/pass-types-and-flows.md#gate-protocol).
+
+```mermaid
+sequenceDiagram
+    actor Operator
+    participant API as fuda API
+    participant EAS as EAS on Base
+    participant D1
+    actor Member
+    participant Gate as Gate scanner
+
+    Operator->>API: Issue a Bearer right
+    API->>EAS: Attest Entitlement
+    EAS-->>API: Confirmed UID
+    API->>D1: Record issued right
+    API-->>Operator: Pass links
+    Operator-->>Member: Share pass
+    Member->>Gate: Present QR
+    Gate->>API: Verify admission
+    API->>EAS: Read Entitlement and IssuerDelegation
+    EAS-->>API: Current chain records
+    API->>D1: Log verdict; consume slot if admitted and single-use
+    API-->>Gate: ADMIT or REJECT
+    opt ADMIT
+        API->>EAS: Record Attendance asynchronously, best-effort
+    end
+```
+
+The gate app asks the API, which reads the Entitlement and its
+IssuerDelegation from EAS by `eth_call`. The hosted scanner trusts that API's
+verdict; an independent verifier can read the same records directly. D1 holds
+operational state — one-time challenges, single-use consumption, entry logs —
+and a failed chain read fails closed. So revoking on-chain turns the same QR red on the next scan, and anyone
+can run the same check against Base without a fuda account, which is the
+fallback the hosted rails rest on. Admissions are attested on-chain as
+best-effort Attendance, except for +Private Rights, where publishing a visit
+history would defeat the point.
+
+The principle behind that split is **decentralized at the core, hosted rails
+only for UX**. A Right's validity lives on-chain, ownable and verifiable by
+anyone; Apple, Google, and fuda's own Workers are rails that make it pleasant
+to use. Strip the rails away and every function still has a self-runnable
+fallback, with worse UX. See
+[UX and decentralization](./docs/architecture.md#ux-and-decentralization).
+
 ## What's in the box
 
 ```text
 .
 ├── apps
 │   ├── api              issuance, gate verification, passes (Workers + D1)
-│   ├── app              member app — apex landing, /signed, /private, /rights
+│   ├── app              member app — /@handle, /signed, /private, /rights
 │   ├── dash             operator dashboard — issue, revoke, members, card designer
 │   └── gate             scanner — camera QR → verdict screen
 ├── packages
 │   ├── sdk              shared types, validators, qrSvg
 │   ├── stealth-address  ERC-5564 scheme-1 stealth address math
 │   ├── pass             Apple .pkpass and Google Wallet save-link builders
-│   ├── ui               shared web UI kit — Scanner, fetch wrapper, short
+│   ├── ui               shared web UI components
 │   ├── styles           shared base CSS
 │   ├── i18n             shared message catalogue
 │   ├── ens-contracts    ENS resolver contracts and naming scripts
@@ -112,50 +156,34 @@ canonical ERC-5564 announcer. fuda runs one deployment per chain and they never
 share state — Base Sepolia today, Base mainnet at the cutover; see
 [Environments](./docs/architecture.md#environments).
 
-## The Graph
+## Quick start
 
-Two Substreams packages composed into a new pipeline, plus a subgraph that is on
-the product's read path — when it landed, the API's own D1 announcement crawl was
-deleted, so there is no fuda-hosted fallback behind the member app's +Private
-discovery or the dashboard's on-chain status.
-
-`fuda_erc5564` extracts raw ERC-5564 `Announcement` events from the canonical
-singleton Announcer with no application policy in it, so any ERC-5564 consumer
-can import it. `erc5564_eas_pipeline` imports that package by `.spkg` and
-composes it with EAS `Attested`/`Revoked` into one `fuda_events` stream. Because
-both source contracts are singletons at the same address on every chain, moving
-the pipeline to another chain changes a network name and a start block, not the
-modules or the package checksum.
-
-**[The Graph in fuda](./docs/integrations/thegraph.md)** has the live
-identifiers — Studio endpoint, deployment, `.spkg` checksums — the captured
-evidence, and the source map.
+See [Local development in the runbook](./docs/runbook.md#12-local-development).
 
 ## Documentation
 
 - **Architecture**
-  - [Architecture overview](./docs/architecture.md) — components, authority and
-    trust boundaries, environments, configuration
-  - [Glossary](./docs/CONTEXT.md) — the one-name-per-concept vocabulary the
-    specs, code, and UI share (level vs path, Right vs Pass, Device wallet vs
-    Crypto wallet)
+    - [Architecture overview](./docs/architecture.md) — components, authority and
+      trust boundaries, environments, configuration
+    - [Glossary](./docs/CONTEXT.md) — the one-name-per-concept vocabulary the
+      specs, code, and UI share (level vs path, Right vs Pass, Device wallet vs
+      Crypto wallet)
 - **Specifications** ([index](./docs/specs/README.md))
-  - [Attestation model](./docs/specs/attestation-model.md) — Entitlement,
-    IssuerDelegation, Attendance, lifecycle, the EAS/D1 authority boundary
-  - [Pass types and flows](./docs/specs/pass-types-and-flows.md) — templates,
-    wallet roles, activation, privacy-first issuance, the gate protocol
-  - [ENS naming](./docs/specs/ens-naming.md) — the name hierarchy, the member
-    number, what a name resolves to, name lifecycle
-  - [Substreams packages](./docs/specs/substreams.md) — the optional push lane
-    and its compatibility guarantees
+    - [Attestation model](./docs/specs/attestation-model.md) — Entitlement,
+      IssuerDelegation, Attendance, lifecycle, the EAS/D1 authority boundary
+    - [Pass types and flows](./docs/specs/pass-types-and-flows.md) — templates,
+      wallet roles, activation, privacy-first issuance, the gate protocol
+    - [ENS naming](./docs/specs/ens-naming.md) — the name hierarchy, the member
+      number, what a name resolves to, name lifecycle
+    - [Substreams packages](./docs/specs/substreams.md) — the optional push lane
+      and its compatibility guarantees
 - **Integrations**
-  - [The Graph](./docs/integrations/thegraph.md) — the two composed Substreams
-    packages, the rights subgraph on the product's read path, live identifiers
-    and captured evidence
+    - [The Graph](./docs/integrations/thegraph.md) — rights indexing, Substreams,
+      and verification evidence
 - **Operations**
-  - [Runbook](./docs/runbook.md) — local development, one-time Cloudflare and
-    Base setup, secrets, deploy order
+    - [Runbook](./docs/runbook.md) — local development, one-time Cloudflare and
+      Base setup, secrets, deploy order
 - **Records**
-  - [Decision records](./docs/adr/) — why the architecture is shaped this way
-  - [References](./docs/references.md) — the standards, prior art, and platform
-    docs the design drew on
+    - [Decision records](./docs/adr/) — why the architecture is shaped this way
+    - [References](./docs/references.md) — the standards, prior art, and platform
+      docs the design drew on

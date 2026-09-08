@@ -455,8 +455,9 @@ the safety. Re-test this behaviour on every viem major bump.
 
 ### D1 tables that mirror or extend attestations
 
-The schema is `apps/api/migrations/0000_init.sql` in full, followed by the
-issuer-onboarding migration `0004_issuers.sql`:
+The core operational tables originate in `apps/api/migrations/0000_init.sql`.
+The excerpt below omits the later issuer, card, logo, and ENS extensions;
+`apps/api/migrations/` and `apps/api/src/db/schema.ts` define the current schema:
 
 ```sql
 CREATE TABLE members (
@@ -514,8 +515,8 @@ Durable Objects are used in the MVP.
 nonce with a conditional `UPDATE … WHERE used_at IS NULL AND created_at > now −
 300`, and `POST /challenge` opportunistically deletes rows older than the 300 s
 TTL on every mint, so the table holds only live nonces. `rate_limits` is the
-generic per-IP fixed hourly-window primitive; `POST /issuers/:handle/issue`
-applies it with a budget of 20 per hour, `POST /ens/gateway` with 120.
+generic per-IP fixed hourly-window primitive. Its route thresholds and shared
+counter semantics are documented in the [runbook](../runbook.md#13-rate-limit-state).
 
 Issuer onboarding adds four things (`0004_issuers.sql`, extended by
 `0005_member_number_per_issuer.sql` and `0006_card_slug.sql`): `issuers` (one
@@ -573,10 +574,12 @@ API encoders. A future wire version needs an explicit decoder and canonical
 upcast before it can index; a configured positive version is not silently
 decoded as v1. Unsupported wire versions produce no decoded entity.
 
-The member app exposes the holder's rights as active or revoked cards at the
-app-only `/rights` route. The operator dashboard retains its existing
-admin-token-protected Members view for D1 operational rows and presents chain
-truth in a separate section. On-chain status does not depend on a matching member
+The member app's `/rights` list combines public holder queries with passes
+remembered by the browser and refreshes each row through `GET /verify/:uid`.
+When the index is unavailable, device-remembered rows remain visible. The
+operator dashboard's `/rights` view reads D1 operational rows using a
+venue-scoped session or the deployment admin token and presents on-chain
+status in a separate section. On-chain status does not depend on a matching member
 row and never writes query results to D1. In particular, entering a +Private
 stealth holder for a local lookup must not attach that address to the D1 member
 record.
@@ -597,7 +600,8 @@ a trace an operator reconciles by hand:
   `attendance_uid = NULL` and the failure is logged. The admission stands; the
   on-chain evidence is missing for that entry.
   `SELECT * FROM entry_log WHERE decision = 'ADMIT' AND attendance_uid IS NULL`
-  lists them.
+  lists candidates, including +Private admissions whose missing Attendance is
+  intentional. Check the entitlement level before classifying a failure.
 
 ### Tests that pin this model
 
@@ -619,8 +623,7 @@ a trace an operator reconciles by hand:
   set; `/pass/:uid` `404` for a +Private row (the shared row load precedes any
   platform check).
 - **Unit (member app):** announcement paging — a short page ends the walk, a
-  full page resumes from its last block and de-duplicates the repeated boundary
-  row; app-only route selection and active, revoked, empty, loading, and error
+  full page resumes using the stable `(blockNumber, id)` cursor; app-only route selection and active, revoked, empty, loading, and error
   card states.
 - **Unit (Graph views):** holder and issuer normalization; multiple, revoked,
   empty, malformed, and GraphQL-error responses; Attendance and delegation
