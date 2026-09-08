@@ -498,10 +498,19 @@ hostname away from the running beta, so the order matters:
    `VITE_API_BASE_URL` decides which api a bundle talks to, so a develop build
    must point at the develop api.
 7. Change the passkey wallet's chain id. `apps/app/src/base-account.ts` and
-   `apps/dash/src/wallet.ts` construct the Base Account SDK with
-   `appChainIds: [84_532]`; a mainnet build must pass `8453` or the operator
-   signs against the wrong network. This is source, not a `VITE_*` value, so a
-   rebuild alone does not fix it.
+   `apps/dash/src/wallet.ts` construct the Base Account SDK with Base Sepolia
+   and Ethereum Sepolia; a mainnet build must pass `8453` in place of `84_532`
+   or the operator signs against the wrong network. This is source, not a
+   `VITE_*` value, so a rebuild alone does not fix it.
+8. Decide what ENS means on mainnet. `env.production` carries no `ENS_*` values
+   and nothing here changes that: today's names live on a dedicated ENSv2
+   deployment on Ethereum Sepolia, which has no mainnet counterpart. Until one
+   exists, a mainnet api leaves every ENS binding unset, every claim route
+   answers `503`, and the dashboard hides the section — the same fail-closed
+   behaviour as an unconfigured develop deployment. Moving the tree means
+   registering a new parent and deploying the topology again against whatever
+   the mainnet addresses turn out to be; nothing migrates, exactly as with the
+   attestations.
 
 ## Rolling back
 
