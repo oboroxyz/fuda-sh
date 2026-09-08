@@ -1,7 +1,7 @@
 # fuda
 
-**Membership as an on-chain right — issued in seconds, held in the phone's
-wallet, verified at a physical door without trusting anyone's server.**
+**Membership as an on-chain right — issued in seconds, verified at the door
+with no server to trust.**
 
 ## The problem
 
