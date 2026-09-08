@@ -13,12 +13,11 @@ import type { ActionContext, DashIo } from './app-actions.ts'
 import { hasIssuer, signedOutSession, unauthorizedSession } from './app-state.ts'
 import type { SessionState } from './app-state.ts'
 import { AppView } from './AppView.tsx'
-import type { AppViewProps } from './AppView.tsx'
 import type { CreateFailure, DesignerForm, DesignerMode } from './card-designer.ts'
 import { API_BASE_URL, GRAPH_RIGHTS_ENDPOINT } from './config.ts'
 import { DASH_COPY } from './copy.ts'
 import type { ClaimState } from './ens-claim.ts'
-import { runClaim } from './ens-claim.ts'
+import { initialClaimState, runClaim } from './ens-claim.ts'
 import { EnsClaim } from './EnsClaim.tsx'
 import type { LogoSet } from './logo.ts'
 import { beginMembersLoad, completeMembersLoad, failMembersLoad } from './members-state.ts'
@@ -28,6 +27,7 @@ import type { OperatorIo } from './operator-io.ts'
 import type { SignInFailure } from './operator-sign-in.ts'
 import { canonicalPath, homeFor, navigateTo, redirectFor, routeFromPath, subscribeToRoute } from './router.ts'
 import type { DashRoute } from './router.ts'
+import { createSessionGeneration } from './session-generation.ts'
 
 const DEFAULT_DASH_IO: DashIo = { issueRight, listMembers, revokeRight }
 
@@ -58,16 +58,43 @@ export const App = ({
   const [locale, updateLocale] = useState(getLocale)
   const [theme, setTheme] = useState(initialTheme)
   const [session, setSession] = useState<SessionState>(signedOutSession)
-  const [claimState, setClaimState] = useState<ClaimState>({ kind: 'unclaimed' })
+  const [claimState, setClaimState] = useState<ClaimState>(() => initialClaimState(null))
   const [signingIn, setSigningIn] = useState(false)
   const [signInError, setSignInError] = useState<SignInFailure | null>(null)
   const [creating, setCreating] = useState(false)
   const [createFailure, setCreateFailure] = useState<CreateFailure | null>(null)
+  const [sessionRevision, setSessionRevision] = useState(0)
+  const [generation] = useState(createSessionGeneration)
   const latestMembersLoad = useRef(0)
+  const activeSession = useRef(session)
+  activeSession.current = session
   const { token } = session
   const activeToken = useRef(token)
   activeToken.current = token
   const copy = pick(DASH_COPY, locale)
+
+  const replaceSession = useCallback(
+    (next: SessionState): void => {
+      generation.invalidate()
+      activeSession.current = next
+      activeToken.current = next.token
+      setSession(next)
+      setSessionRevision((value) => value + 1)
+      setCreating(false)
+      setCreateFailure(null)
+      setSigningIn(false)
+      setSignInError(null)
+      setClaimState(initialClaimState(next.operator?.ens ?? null))
+    },
+    [generation],
+  )
+
+  useEffect(
+    () => () => {
+      generation.invalidate()
+    },
+    [generation],
+  )
 
   useEffect(() => {
     const path = canonicalPath(location.pathname)
@@ -95,38 +122,46 @@ export const App = ({
   useEffect(() => watchThemeMode(theme), [theme])
 
   const reload = useCallback(
-    async (currentToken: string): Promise<void> => {
+    async (currentToken: string, ticket = generation.capture()): Promise<void> => {
       // A completed write may still carry a token from a replaced session.
-      if (activeToken.current !== currentToken) {
+      if (!generation.isCurrent(ticket) || activeToken.current !== currentToken) {
         return
       }
       latestMembersLoad.current += 1
-      const generation = latestMembersLoad.current
+      const memberGeneration = latestMembersLoad.current
       setSession((state) =>
         state.token === currentToken ? { ...state, members: beginMembersLoad(state.members) } : state,
       )
-      const result = await io.listMembers(currentToken)
+      let result: Awaited<ReturnType<DashIo['listMembers']>>
+      try {
+        result = await io.listMembers(currentToken)
+      } catch {
+        return
+      }
+      if (!generation.isCurrent(ticket) || activeToken.current !== currentToken) {
+        return
+      }
       // Only the latest load can replace rows; any current-token 401 still ends the session.
       if (result.ok) {
         const rows = result.body.members.map((row) => memberRowView(row, API_BASE_URL))
         setSession((state) =>
-          state.token === currentToken && generation === latestMembersLoad.current
+          state.token === currentToken && memberGeneration === latestMembersLoad.current
             ? { ...state, members: completeMembersLoad(rows) }
             : state,
         )
         return
       }
       if (result.status === 401) {
-        setSession((state) => (state.token === currentToken ? unauthorizedSession(state) : state))
+        replaceSession(unauthorizedSession(activeSession.current))
         return
       }
       setSession((state) =>
-        state.token === currentToken && generation === latestMembersLoad.current
+        state.token === currentToken && memberGeneration === latestMembersLoad.current
           ? { ...state, members: failMembersLoad(state.members, result.error) }
           : state,
       )
     },
-    [io],
+    [generation, io, replaceSession],
   )
 
   // Only the console reads the D1 member list; a passkey session has no
@@ -135,7 +170,7 @@ export const App = ({
     if (token !== null && session.operator === null) {
       void reload(token)
     }
-  }, [token, reload, session.operator])
+  }, [sessionRevision, token, reload, session.operator])
 
   // Each surface owns its own routes; landing on the other's is a redirect,
   // not a blank page.
@@ -152,15 +187,20 @@ export const App = ({
     }
   }, [published, route, session.operator, token])
 
+  const sessionTicket = generation.capture()
   const context: ActionContext | null =
     token === null
       ? null
       : {
           io,
           onUnauthorized: () => {
-            setSession((state) => (state.token === token ? unauthorizedSession(state) : state))
+            if (generation.isCurrent(sessionTicket) && activeToken.current === token) {
+              replaceSession(unauthorizedSession(activeSession.current))
+            }
           },
-          reload,
+          reload: async (currentToken) => {
+            await reload(currentToken, sessionTicket)
+          },
           token,
         }
 
@@ -205,23 +245,51 @@ export const App = ({
           if (sessionToken === null) {
             return
           }
-          void runClaim(operatorIo.claim(sessionToken), setClaimState)
+          const ticket = generation.capture()
+          const guardedEmit = (next: ClaimState): void => {
+            if (generation.isCurrent(ticket)) {
+              setClaimState(next)
+            }
+          }
+          const run = async (): Promise<void> => {
+            try {
+              await runClaim(operatorIo.claim(sessionToken), guardedEmit)
+            } catch {
+              // A rejected old claim cannot change local state.
+            }
+          }
+          void run()
         }}
         state={claimState}
       />
     )
 
   const onPasskey = (): void => {
+    generation.invalidate()
+    const ticket = generation.capture()
     setSignInError(null)
     setSigningIn(true)
     const run = async (): Promise<void> => {
-      const outcome = await operatorIo.signIn()
+      let outcome: Awaited<ReturnType<OperatorIo['signIn']>>
+      try {
+        outcome = await operatorIo.signIn()
+      } catch {
+        if (!generation.isCurrent(ticket)) {
+          return
+        }
+        setSigningIn(false)
+        setSignInError('network')
+        return
+      }
+      if (!generation.isCurrent(ticket)) {
+        return
+      }
       setSigningIn(false)
       if (!outcome.ok) {
         setSignInError(outcome.failure)
         return
       }
-      setSession({
+      replaceSession({
         authError: null,
         members: { kind: 'idle' },
         operator: outcome.issuer,
@@ -235,16 +303,21 @@ export const App = ({
   }
 
   const onSignOut = (): void => {
-    const run = async (): Promise<void> => {
-      if (token !== null && session.operator !== null) {
-        await operatorIo.signOut(token)
+    const oldToken = token
+    const hadOperator = session.operator !== null
+    replaceSession(signedOutSession())
+    navigateTo(history, '/')
+    setRoute('/')
+    if (oldToken !== null && hadOperator) {
+      const run = async (): Promise<void> => {
+        try {
+          await operatorIo.signOut(oldToken)
+        } catch {
+          // Remote sign-out failure cannot restore the locally signed-out session.
+        }
       }
-      setSession(signedOutSession())
-      setSignInError(null)
-      navigateTo(history, '/')
-      setRoute('/')
+      void run()
     }
-    void run()
   }
 
   const onCheckHandle = useCallback(
@@ -252,13 +325,26 @@ export const App = ({
       if (token === null) {
         return 'unknown'
       }
-      const result = await operatorIo.checkHandle(token, handle)
+      const sessionToken = token
+      const ticket = generation.capture()
+      let result: Awaited<ReturnType<OperatorIo['checkHandle']>>
+      try {
+        result = await operatorIo.checkHandle(sessionToken, handle)
+      } catch {
+        return 'unknown'
+      }
+      if (!generation.isCurrent(ticket) || activeToken.current !== sessionToken) {
+        return 'unknown'
+      }
       if (!result.ok) {
+        if (result.status === 401) {
+          replaceSession(unauthorizedSession(activeSession.current))
+        }
         return 'unknown'
       }
       return result.body.available ? 'available' : 'taken'
     },
-    [operatorIo, token],
+    [generation, operatorIo, replaceSession, token],
   )
 
   const onCheckSlug = useCallback(
@@ -266,13 +352,26 @@ export const App = ({
       if (token === null) {
         return 'unknown'
       }
-      const result = await operatorIo.checkSlug(token, slug)
+      const sessionToken = token
+      const ticket = generation.capture()
+      let result: Awaited<ReturnType<OperatorIo['checkSlug']>>
+      try {
+        result = await operatorIo.checkSlug(sessionToken, slug)
+      } catch {
+        return 'unknown'
+      }
+      if (!generation.isCurrent(ticket) || activeToken.current !== sessionToken) {
+        return 'unknown'
+      }
       if (!result.ok) {
+        if (result.status === 401) {
+          replaceSession(unauthorizedSession(activeSession.current))
+        }
         return 'unknown'
       }
       return result.body.available ? 'available' : 'taken'
     },
-    [operatorIo, token],
+    [generation, operatorIo, replaceSession, token],
   )
 
   const onCreate = (mode: DesignerMode, form: DesignerForm, logo: LogoSet | null): void => {
@@ -280,16 +379,32 @@ export const App = ({
       setCreateFailure('input')
       return
     }
+    const sessionToken = token
+    const ticket = generation.capture()
     setCreateFailure(null)
     setCreating(true)
     const run = async (): Promise<void> => {
-      const outcome = await submitDesign(operatorIo.design, token, mode, form, logo)
+      let outcome: Awaited<ReturnType<typeof submitDesign>>
+      try {
+        outcome = await submitDesign(operatorIo.design, sessionToken, mode, form, logo)
+      } catch {
+        if (!generation.isCurrent(ticket) || activeToken.current !== sessionToken) {
+          return
+        }
+        setCreating(false)
+        setCreateFailure('network')
+        return
+      }
+      if (!generation.isCurrent(ticket) || activeToken.current !== sessionToken) {
+        return
+      }
+      if (!outcome.ok && outcome.failure === 'session') {
+        replaceSession(unauthorizedSession(activeSession.current))
+        return
+      }
       setCreating(false)
       if (!outcome.ok) {
         setCreateFailure(outcome.failure)
-        if (outcome.failure === 'session') {
-          setSession(unauthorizedSession)
-        }
         return
       }
       setSession((state) => ({ ...state, operator: operatorWith(state.operator, outcome.body) }))
@@ -305,10 +420,20 @@ export const App = ({
     if (token === null) {
       return false
     }
-    const outcome = await applyLogo(operatorIo.design, token, variants)
+    const sessionToken = token
+    const ticket = generation.capture()
+    let outcome: Awaited<ReturnType<typeof applyLogo>>
+    try {
+      outcome = await applyLogo(operatorIo.design, sessionToken, variants)
+    } catch {
+      return false
+    }
+    if (!generation.isCurrent(ticket) || activeToken.current !== sessionToken) {
+      return false
+    }
     if (!outcome.ok) {
       if (outcome.session) {
-        setSession(unauthorizedSession)
+        replaceSession(unauthorizedSession(activeSession.current))
       }
       return false
     }
@@ -360,7 +485,7 @@ export const App = ({
       }
       onSignOut={onSignOut}
       onToken={(nextToken) => {
-        setSession({ authError: null, members: { kind: 'idle' }, operator: null, token: nextToken })
+        replaceSession({ authError: null, members: { kind: 'idle' }, operator: null, token: nextToken })
       }}
       route={route}
       session={session}

@@ -1,21 +1,27 @@
 /** @jsxImportSource hono/jsx/dom */
 import { setTimeout } from 'node:timers/promises'
 
-import type { IssueResponse, MembersResponse } from '@fuda/sdk'
+import type { IssuerCreateResponse, IssuerMeResponse, IssueResponse, MembersResponse } from '@fuda/sdk'
 import { LanguageSwitcher, ThemeToggle } from '@fuda/ui'
 import type { LanguageSwitcherProps, ThemeToggleProps } from '@fuda/ui'
 import type * as HonoDom from 'hono/jsx/dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Result } from './api.ts'
-import type { DashIo } from './app-actions.ts'
+import type { DashIo, DesignIo } from './app-actions.ts'
 import { App } from './App.tsx'
 import type { AppProps } from './App.tsx'
 import { AppView } from './AppView.tsx'
 import type { AppViewProps } from './AppView.tsx'
+import { EMPTY_FORM } from './card-designer.ts'
 import { DASH_COPY } from './copy.ts'
+import type { ClaimIo } from './ens-claim.ts'
+import { EnsClaim } from './EnsClaim.tsx'
+import type { EnsClaimProps } from './EnsClaim.tsx'
+import type { LogoSet } from './logo.ts'
 import { DEFAULT_OPERATOR_IO } from './operator-io.ts'
 import type { OperatorIo } from './operator-io.ts'
+import type { SignInOutcome } from './operator-sign-in.ts'
 import { findViewNodes, viewProps } from './test/test-view.ts'
 
 // Control only hook scheduling; App, actions, router and browser preference helpers remain real.
@@ -98,6 +104,50 @@ const listSuccess: Result<MembersResponse> = {
 }
 const unauthorized = { error: 'unauthorized', network: false, ok: false, status: 401 } as const
 
+const operatorIssuer: IssuerMeResponse = {
+  cards: [
+    {
+      category: 'membership',
+      claimFrom: null,
+      claimUntil: null,
+      claimable: true,
+      id: 'card_1',
+      perk: '',
+      reward: '',
+      slug: 'membership-card',
+      title: 'Membership Card',
+      validFrom: null,
+      validUntil: null,
+      validityDays: null,
+    },
+  ],
+  ens: { claimTxHash: null, expiry: null, name: 'wassie-coffee.fuda.eth', status: 'unclaimed' },
+  issuer: {
+    brandColor: '#6F4320',
+    createdAt: 1_757_000_000,
+    handle: 'wassie-coffee',
+    id: 'issuer_1',
+    logoUrl: null,
+    name: 'Wassie Coffee',
+    operatorAddress: `0x${'11'.repeat(20)}`,
+    tagline: '',
+  },
+  publicUrl: 'https://fuda.sh/@wassie-coffee',
+}
+
+const createResponse: IssuerCreateResponse = {
+  card: operatorIssuer.cards[0],
+  issuer: operatorIssuer.issuer,
+  publicUrl: operatorIssuer.publicUrl,
+}
+
+const logo: LogoSet = {
+  logo1x: new Blob([new Uint8Array(1)], { type: 'image/png' }),
+  logo2x: new Blob([new Uint8Array(2)], { type: 'image/png' }),
+  logo3x: new Blob([new Uint8Array(3)], { type: 'image/png' }),
+  master: new Blob([new Uint8Array(4)], { type: 'image/png' }),
+}
+
 const fixture = () => ({
   issueRight: vi.fn<DashIo['issueRight']>().mockResolvedValue({
     body: {
@@ -162,6 +212,11 @@ const authenticate = async (io: DashIo): Promise<AppViewProps> => {
   render(io)
   await setTimeout(0)
   return render(io)
+}
+const authenticateOperator = async (io: DashIo, operatorIo: OperatorIo): Promise<AppViewProps> => {
+  render(io, 'system', operatorIo).onPasskey()
+  await setTimeout(0)
+  return render(io, 'system', operatorIo)
 }
 
 describe(App, () => {
@@ -272,7 +327,7 @@ describe(App, () => {
     const io = fixture()
     const operatorIo: OperatorIo = {
       ...DEFAULT_OPERATOR_IO,
-      signIn: vi.fn().mockResolvedValue({
+      signIn: vi.fn<OperatorIo['signIn']>().mockResolvedValue({
         issuer: { cards: [], ens: null, issuer: null, publicUrl: null },
         ok: true,
         token: 'operator-token',
@@ -285,6 +340,208 @@ describe(App, () => {
     expect(view.route).toBe('/new')
     expect(io.listMembers).not.toHaveBeenCalled()
     expect(operatorIo.signIn).toHaveBeenCalledOnce()
+  })
+
+  it('does not restore an operator after a replacement admin session', async () => {
+    const io = fixture()
+    const pending = Promise.withResolvers<SignInOutcome>()
+    const operatorIo: OperatorIo = {
+      ...DEFAULT_OPERATOR_IO,
+      signIn: async () => await pending.promise,
+    }
+    render(io, 'system', operatorIo).onPasskey()
+    render(io, 'system', operatorIo).onToken('replacement')
+    render(io, 'system', operatorIo)
+    pending.resolve({
+      issuer: { cards: [], ens: null, issuer: null, publicUrl: null },
+      ok: true,
+      token: 'old-operator',
+    })
+    await setTimeout(0)
+    const view = render(io, 'system', operatorIo)
+    expect(view.session.token).toBe('replacement')
+    expect(view.session.operator).toBeNull()
+    expect(view.signingIn).toBe(false)
+    expect(view.route).not.toBe('/new')
+  })
+
+  it('does not let an old sign-in failure clear replacement busy state', async () => {
+    const io = fixture()
+    const pending = Promise.withResolvers<SignInOutcome>()
+    const operatorIo: OperatorIo = { ...DEFAULT_OPERATOR_IO, signIn: async () => await pending.promise }
+    render(io, 'system', operatorIo).onPasskey()
+    render(io, 'system', operatorIo).onToken('replacement')
+    pending.resolve({ failure: 'network', ok: false })
+    await setTimeout(0)
+    const view = render(io, 'system', operatorIo)
+    expect({ error: view.signInError, signingIn: view.signingIn, token: view.session.token }).toStrictEqual({
+      error: null,
+      signingIn: false,
+      token: 'replacement',
+    })
+  })
+
+  it.each([
+    { completion: 'success', outcome: { body: createResponse, ok: true } },
+    {
+      completion: 'session failure',
+      outcome: { error: 'unauthorized', network: false, ok: false, status: 401 },
+    },
+  ] satisfies { completion: string; outcome: Awaited<ReturnType<DesignIo['createIssuer']>> }[])(
+    'does not let an old create $completion affect a replacement session',
+    async ({ outcome }) => {
+      const io = fixture()
+      const pending = Promise.withResolvers<Awaited<ReturnType<DesignIo['createIssuer']>>>()
+      const operatorIo: OperatorIo = {
+        ...DEFAULT_OPERATOR_IO,
+        design: { ...DEFAULT_OPERATOR_IO.design, createIssuer: async () => await pending.promise },
+      }
+      render(io, 'system', operatorIo).onToken('old')
+      render(io, 'system', operatorIo).onCreate(
+        'venue',
+        { ...EMPTY_FORM, handle: 'old-venue', name: 'Old Venue' },
+        null,
+      )
+      expect(render(io, 'system', operatorIo).creating).toBe(true)
+
+      render(io, 'system', operatorIo).onToken('replacement')
+      pending.resolve(outcome)
+      await setTimeout(0)
+      const view = render(io, 'system', operatorIo)
+      expect({
+        createFailure: view.createFailure,
+        creating: view.creating,
+        operator: view.session.operator,
+        route: view.route,
+        token: view.session.token,
+      }).toStrictEqual({
+        createFailure: null,
+        creating: false,
+        operator: null,
+        route: '/rights',
+        token: 'replacement',
+      })
+    },
+  )
+
+  it('returns false and preserves the replacement session after an old logo completion', async () => {
+    const io = fixture()
+    const pending = Promise.withResolvers<Awaited<ReturnType<DesignIo['uploadLogo']>>>()
+    const operatorIo: OperatorIo = {
+      ...DEFAULT_OPERATOR_IO,
+      design: { ...DEFAULT_OPERATOR_IO.design, uploadLogo: async () => await pending.promise },
+      signIn: vi
+        .fn<OperatorIo['signIn']>()
+        .mockResolvedValue({ issuer: operatorIssuer, ok: true, token: 'old' }),
+    }
+    const view = await authenticateOperator(io, operatorIo)
+    const applying = view.onCommitLogo(logo)
+    render(io).onToken('replacement')
+    pending.resolve({ body: { expiresAt: 1_757_000_900, logoUploadId: 'up_1' }, ok: true })
+    await expect(applying).resolves.toBe(false)
+    expect(render(io).session).toMatchObject({ operator: null, token: 'replacement' })
+  })
+
+  it('clears the local operator session before delayed remote sign-out completes', async () => {
+    const io = fixture()
+    const pending = Promise.withResolvers<Awaited<ReturnType<OperatorIo['signOut']>>>()
+    const operatorIo: OperatorIo = {
+      ...DEFAULT_OPERATOR_IO,
+      signIn: vi
+        .fn<OperatorIo['signIn']>()
+        .mockResolvedValue({ issuer: operatorIssuer, ok: true, token: 'old' }),
+      signOut: vi.fn<OperatorIo['signOut']>().mockReturnValue(pending.promise),
+    }
+    const view = await authenticateOperator(io, operatorIo)
+    view.onSignOut()
+    expect(render(io).session).toMatchObject({ operator: null, token: null })
+    render(io).onToken('replacement')
+    pending.resolve({ body: { loggedOut: true }, ok: true })
+    await setTimeout(0)
+    expect(render(io).session).toMatchObject({ operator: null, token: 'replacement' })
+    expect(operatorIo.signOut).toHaveBeenCalledExactlyOnceWith('old')
+  })
+
+  it('ignores a delayed ENS claim failure after a session replacement', async () => {
+    const io = fixture()
+    const pending = Promise.withResolvers<Awaited<ReturnType<ClaimIo['requestVoucher']>>>()
+    const claim: ClaimIo = {
+      confirmClaim: vi.fn<ClaimIo['confirmClaim']>().mockResolvedValue({
+        body: { claimTxHash: null, expiry: null, name: 'wassie-coffee.fuda.eth', status: 'claimed' },
+        ok: true,
+      }),
+      requestVoucher: async () => await pending.promise,
+      submitClaim: vi.fn<ClaimIo['submitClaim']>().mockResolvedValue(UID),
+    }
+    const operatorIo: OperatorIo = {
+      ...DEFAULT_OPERATOR_IO,
+      claim: () => claim,
+      signIn: vi
+        .fn<OperatorIo['signIn']>()
+        .mockResolvedValue({ issuer: operatorIssuer, ok: true, token: 'old' }),
+    }
+    const view = await authenticateOperator(io, operatorIo)
+    const { ens } = view
+    expect(ens).not.toBeNull()
+    if (ens === null) {
+      throw new Error('expected ENS view')
+    }
+    const props = viewProps(findViewNodes(ens, EnsClaim)[0]) as unknown as EnsClaimProps
+    props.onClaim()
+    render(io).onToken('replacement')
+    pending.resolve({ error: 'ens_not_configured', network: false, ok: false, status: 400 })
+    await setTimeout(0)
+    const replacement = render(io)
+    expect({
+      ens: replacement.ens,
+      operator: replacement.session.operator,
+      token: replacement.session.token,
+    }).toStrictEqual({
+      ens: null,
+      operator: null,
+      token: 'replacement',
+    })
+  })
+
+  it('initializes ENS claim state from a claimed sign-in issuer', async () => {
+    const io = fixture()
+    const claimed: IssuerMeResponse = {
+      ...operatorIssuer,
+      ens: { claimTxHash: UID, expiry: null, name: 'wassie-coffee.fuda.eth', status: 'claimed' },
+    }
+    const operatorIo: OperatorIo = {
+      ...DEFAULT_OPERATOR_IO,
+      signIn: vi
+        .fn<OperatorIo['signIn']>()
+        .mockResolvedValue({ issuer: claimed, ok: true, token: 'operator-token' }),
+    }
+    const view = await authenticateOperator(io, operatorIo)
+    const { ens } = view
+    expect(ens).not.toBeNull()
+    if (ens === null) {
+      throw new Error('expected ENS view')
+    }
+    expect((viewProps(findViewNodes(ens, EnsClaim)[0]) as unknown as EnsClaimProps).state).toStrictEqual({
+      claimTxHash: UID,
+      kind: 'claimed',
+      name: 'wassie-coffee.fuda.eth',
+    })
+  })
+
+  it('does not navigate after unmount when sign-in completes', async () => {
+    const io = fixture()
+    const pending = Promise.withResolvers<SignInOutcome>()
+    const operatorIo: OperatorIo = { ...DEFAULT_OPERATOR_IO, signIn: async () => await pending.promise }
+    render(io, 'system', operatorIo).onPasskey()
+    for (const cleanup of hooks.cleanups.values()) {
+      cleanup()
+    }
+    pending.resolve({ issuer: operatorIssuer, ok: true, token: 'old-operator' })
+    await setTimeout(0)
+    expect({ navigation: history.pushState.mock.calls, token: render(io).session.token }).toStrictEqual({
+      navigation: [],
+      token: null,
+    })
   })
 
   it('subscribes to history without reloading and removes the subscription on unmount', async () => {
@@ -466,6 +723,28 @@ describe(App, () => {
     await setTimeout(0)
     expect(render(io).members).toBe(replaced.members)
     expect(render(io).session.token).toBe('replacement')
+  })
+
+  it('reloads a replacement session even when it reuses the same token', async () => {
+    const io = fixture()
+    const first = Promise.withResolvers<Result<MembersResponse>>()
+    const second = Promise.withResolvers<Result<MembersResponse>>()
+    io.listMembers.mockReset().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+
+    render(io).onToken('same-token')
+    render(io)
+    render(io).onToken('same-token')
+    render(io)
+    expect(io.listMembers.mock.calls).toStrictEqual([['same-token'], ['same-token']])
+
+    first.resolve(unauthorized)
+    await setTimeout(0)
+    expect(render(io).session.token).toBe('same-token')
+
+    second.resolve(listSuccess)
+    await setTimeout(0)
+    expect(render(io).members).toMatchObject({ kind: 'ready', rows: [{ memberId: 'alice', uid: UID }] })
+    expect(io.listMembers).toHaveBeenCalledTimes(2)
   })
 
   it('keeps the replacement token load current when an earlier token issue succeeds after 401', async () => {
