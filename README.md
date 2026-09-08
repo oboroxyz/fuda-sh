@@ -101,7 +101,7 @@ sequenceDiagram
     Gate->>API: Verify admission
     API->>EAS: Read Entitlement and IssuerDelegation
     EAS-->>API: Current chain records
-    API->>D1: Log verdict; consume slot if admitted and single-use
+    API->>D1: Log verdict and consume slot if admitted and single-use
     API-->>Gate: ADMIT or REJECT
     opt ADMIT
         API->>EAS: Record Attendance asynchronously, best-effort
