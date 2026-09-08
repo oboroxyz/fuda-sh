@@ -104,10 +104,7 @@ interface VenueBrand {
 // different URL; a client that assembled one from the handle would keep
 // showing the old mark out of cache.
 const brandCard = (venue: VenueBrand, body: JSX.Element): JSX.Element => (
-  <div
-    class="flex flex-col gap-4 rounded-2xl p-6 text-white shadow-lg"
-    style={{ background: venue.brandColor }}
-  >
+  <div class="member-brand" style={{ background: venue.brandColor }}>
     <div class="flex items-center gap-3">
       {venue.logoUrl === null ? null : (
         <img
@@ -182,8 +179,8 @@ const chooserRow = (venue: PublicVenue, card: CardView, held: boolean): JSX.Elem
       href={cardHref(venue.handle, card.slug)}
     >
       <div class="flex items-center justify-between gap-3">
-        <span class="font-bold">{card.title}</span>
-        <span class="badge badge-sm badge-ghost">{CATEGORY[card.category].label}</span>
+        <span class="min-w-0 font-bold [overflow-wrap:anywhere]">{card.title}</span>
+        <span class="badge badge-sm badge-ghost shrink-0">{CATEGORY[card.category].label}</span>
       </div>
       {card.perk === '' ? null : <span class="text-sm opacity-70">{card.perk}</span>}
       <span class="text-xs font-semibold opacity-80">{rowInvitation(card, held)}</span>
@@ -201,7 +198,7 @@ const chooser = (venue: PublicVenue, heldSlugs: readonly string[]): JSX.Element 
       </>,
     )}
     {venue.cards.length === 0 ? (
-      <p class="text-sm opacity-70">{venue.name} has no cards to hand out right now.</p>
+      <p class="member-empty">{venue.name} has no cards to hand out right now.</p>
     ) : (
       <ul class="flex flex-col gap-3">
         {venue.cards.map((card): JSX.Element => chooserRow(venue, card, heldSlugs.includes(card.slug)))}
@@ -257,11 +254,11 @@ const passActions = (
 )
 
 const qrBlock = (card: PublicCard, issued: IssuedCard): JSX.Element => (
-  <div class="flex justify-center">
+  <div class="member-qr flex justify-center">
     <div
       role="img"
       aria-label={`Your ${nounOf(card)} QR code for ${card.name}`}
-      class="rounded-box bg-white p-2"
+      class="rounded-box w-64 max-w-full bg-white p-2"
       // The markup is built locally by qrSvg from the right's uid — no remote or
       // venue-entered content reaches it.
       dangerouslySetInnerHTML={{ __html: qrSvg(issued.qr, { modulePx: 120 }) }}
@@ -270,12 +267,20 @@ const qrBlock = (card: PublicCard, issued: IssuedCard): JSX.Element => (
 )
 
 const shell = (children: JSX.Element): JSX.Element => (
-  <main class="mx-auto flex min-h-screen max-w-md flex-col gap-6 p-6">{children}</main>
+  <main class="member-page member-page-narrow flex flex-col gap-6">
+    <p class="text-xs font-semibold tracking-widest text-[var(--fuda-muted)] uppercase">fuda · Member</p>
+    {children}
+  </main>
 )
 
 export const CardScreenView = ({ onIssue, onReload, state }: CardScreenViewProps): JSX.Element => {
   if (state.kind === 'loading') {
-    return shell(<p class="text-sm opacity-70">Loading card…</p>)
+    return shell(
+      <div class="member-panel flex min-h-44 items-center justify-center gap-3" role="status">
+        <span class="loading loading-spinner loading-sm" aria-hidden="true" />
+        <p class="text-sm text-[var(--fuda-muted)]">Loading card…</p>
+      </div>,
+    )
   }
   if (state.kind === 'not_found') {
     return shell(notFound(state.venue))

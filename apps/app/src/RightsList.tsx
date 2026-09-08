@@ -61,7 +61,7 @@ const metaUri = (value: string): JSX.Element | null => {
 }
 
 const graphCard = (right: GraphRight): JSX.Element => (
-  <li class="card bg-base-200" key={right.id}>
+  <li class="card member-pass" key={right.id}>
     <div class="card-body gap-2">
       <div class={right.revokedAt === null ? 'badge badge-success' : 'badge badge-error'}>
         {right.revokedAt === null ? 'ACTIVE' : 'REVOKED'}
@@ -87,7 +87,7 @@ const memberPassLinks = (row: MemberPassRow, publicPass: boolean): JSX.Element |
     return null
   }
   return (
-    <div class="flex gap-3 text-sm">
+    <div class="member-pass-actions">
       <a class="link" href={row.passes.web} target="_blank" rel="noreferrer">
         View pass
       </a>
@@ -127,7 +127,7 @@ const memberCard = (row: MemberPassRow): JSX.Element => {
   const publicPass = hasPublicPass(row)
   const status = memberStatus(row)
   return (
-    <li class="card bg-base-200" key={row.uid}>
+    <li class="card member-pass" key={row.uid}>
       <div class="card-body gap-2">
         <div class={row.preview?.decision === 'ADMIT' ? 'badge badge-success' : 'badge badge-error'}>
           {status}
@@ -146,14 +146,19 @@ export const RightsListView = ({ state }: { state: RightsListState | MemberListS
     return <p class="text-sm opacity-70">Enter a holder address to read its on-chain rights.</p>
   }
   if (state.kind === 'loading') {
-    return <p class="text-sm opacity-70">Loading rights…</p>
+    return (
+      <p class="member-empty flex items-center justify-center gap-3" role="status">
+        <span class="loading loading-spinner loading-sm" aria-hidden="true" />
+        Loading rights…
+      </p>
+    )
   }
   if (state.kind === 'error') {
     return <div class="alert alert-error">{state.message}</div>
   }
   if ('rights' in state) {
     if (state.rights.length === 0) {
-      return <p class="text-sm opacity-70">No rights found for this holder.</p>
+      return <p class="member-empty">No rights found for this holder.</p>
     }
     return <ul class="grid gap-3 md:grid-cols-2">{state.rights.map(graphCard)}</ul>
   }
@@ -163,7 +168,10 @@ export const RightsListView = ({ state }: { state: RightsListState | MemberListS
         {state.result.indexUnavailable ? (
           <div class="alert alert-warning">index unavailable; showing passes saved on this device</div>
         ) : null}
-        <p class="text-sm opacity-70">No passes found yet.</p>
+        <div class="member-empty">
+          <p class="font-semibold text-[var(--fuda-text)]">No passes found yet.</p>
+          <p class="mt-2">Open a card link from your venue, or connect the wallet that holds your passes.</p>
+        </div>
       </>
     )
   }
@@ -287,17 +295,20 @@ export const RightsList = ({
   }
 
   return (
-    <main class="flex min-h-screen flex-col gap-4 p-6">
-      <h1 class="text-xl font-bold">Your passes</h1>
-      <p class="text-sm opacity-70">
-        Connect a passkey or wallet to find public passes. Passes saved on this device appear here too. For
-        private discovery, use +Private.
-      </p>
-      <p class="text-sm opacity-70">
-        If you lose this device, this saved pass can disappear; activation makes your pass follow the owning
-        key.
-      </p>
-      <div class="flex flex-wrap gap-2">
+    <main class="member-page flex flex-col gap-6">
+      <header class="flex max-w-2xl flex-col gap-3">
+        <p class="text-xs font-semibold tracking-widest text-[var(--fuda-muted)] uppercase">fuda · Member</p>
+        <h1 class="member-heading">Your passes</h1>
+        <p class="text-sm leading-relaxed text-[var(--fuda-muted)]">
+          Connect a passkey or wallet to find public passes. Passes saved on this device appear here too. For
+          private discovery, use +Private.
+        </p>
+        <p class="text-xs leading-relaxed text-[var(--fuda-muted)]">
+          If you lose this device, this saved pass can disappear; activation makes your pass follow the owning
+          key.
+        </p>
+      </header>
+      <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <button
           class="btn btn-primary"
           type="button"
@@ -322,10 +333,10 @@ export const RightsList = ({
           Private rights →
         </a>
       </div>
-      <details>
-        <summary class="cursor-pointer">Look up another address</summary>
+      <details class="member-panel">
+        <summary class="cursor-pointer text-sm font-semibold">Look up another address</summary>
         <form
-          class="mt-2 flex max-w-xl gap-2"
+          class="mt-4 flex max-w-xl flex-col gap-2 sm:flex-row"
           onSubmit={(event) => {
             event.preventDefault()
             lookup()

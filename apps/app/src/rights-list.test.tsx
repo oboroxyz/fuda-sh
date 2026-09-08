@@ -19,6 +19,7 @@ const RIGHT = `0x${'aa'.repeat(32)}` as const
 const DELEGATION = `0x${'bb'.repeat(32)}` as const
 
 interface ViewNode {
+  tag?: unknown
   props: { children?: unknown; class?: unknown; href?: unknown }
 }
 
@@ -504,7 +505,7 @@ describe(RightsListView, () => {
       state: { kind: 'ready', rights: [right(RIGHT, null), right(`0x${'cc'.repeat(32)}`, 88n)] },
     })
     const text = viewText(view)
-    expect(viewNodes(view).filter(({ props }) => props.class === 'card bg-base-200')).toHaveLength(2)
+    expect(viewNodes(view).filter(({ tag }) => tag === 'li')).toHaveLength(2)
     expect(text).toContain('ACTIVE')
     expect(text).toContain('REVOKED')
     expect(text).toContain(RIGHT)

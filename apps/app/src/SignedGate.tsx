@@ -69,9 +69,9 @@ export const SignedGate = ({ provider }: { provider?: Eip1193Provider | null }):
     )
   }
   return (
-    <main class="flex min-h-screen flex-col items-center gap-4 p-4">
-      <h1 class="text-xl font-bold">Enter with your wallet</h1>
-      <p class="text-center text-sm opacity-70">
+    <main class="member-page member-page-narrow flex flex-col items-center gap-6">
+      <h1 class="member-heading text-center">Enter with your wallet</h1>
+      <p class="text-center text-sm leading-relaxed text-[var(--fuda-muted)]">
         Scan or paste your pass, then sign the one-time challenge from the Venue's gate.
       </p>
       <Scanner
