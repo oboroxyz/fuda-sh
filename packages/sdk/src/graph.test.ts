@@ -60,6 +60,28 @@ const attendanceRow = (id: `0x${string}` = TX_A) => ({
 })
 
 describe(fetchAnnouncements, () => {
+  it('posts the announcement cursor and caller signal', async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ data: { announcements: [] } }))
+    vi.stubGlobal('fetch', request)
+    const controller = new AbortController()
+    await fetchAnnouncements('https://graph.example/rights', 123n, controller.signal)
+    expect(request).toHaveBeenCalledOnce()
+    const [call] = request.mock.calls
+    if (call === undefined) {
+      throw new Error('expected a fetch call')
+    }
+    const [endpoint, init] = call
+    expect(endpoint).toBe('https://graph.example/rights')
+    expect(init).toMatchObject({
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+      signal: controller.signal,
+    })
+    const body = JSON.parse(init!.body as string) as { query: string; variables: unknown }
+    expect(body.variables).toStrictEqual({ afterBlock: '122', afterId: '0x', first: 1000 })
+    expect(body.query).toContain('query Announcements')
+  })
+
   it('parses Graph scalars without losing bigint precision and keeps stable order', async () => {
     vi.stubGlobal(
       'fetch',

@@ -363,28 +363,18 @@ export const fetchAnnouncements = async (
   let afterId = '0x'
 
   while (true) {
-    // oxlint-disable-next-line no-await-in-loop -- each Graph page starts at the cursor returned by the previous page
-    const response = await fetch(endpoint, {
-      body: JSON.stringify({
-        query: ANNOUNCEMENTS_QUERY,
-        variables: { afterBlock: afterBlock.toString(), afterId, first: PAGE_SIZE },
-      }),
-      headers: { 'content-type': 'application/json' },
-      method: 'POST',
+    // oxlint-disable-next-line no-await-in-loop -- each announcement page starts at the previous page's cursor
+    const body = await postGraph(
+      ResponseSchema,
+      endpoint,
+      ANNOUNCEMENTS_QUERY,
+      { afterBlock: afterBlock.toString(), afterId, first: PAGE_SIZE },
       signal,
-    })
-    if (!response.ok) {
-      throw new Error(`Graph endpoint returned ${response.status}`)
+    )
+    if ('errors' in body) {
+      throw graphErrors(body.errors)
     }
-    // oxlint-disable-next-line no-await-in-loop -- response parsing belongs to the same sequential cursor request
-    const body = v.safeParse(ResponseSchema, await response.json())
-    if (!body.success) {
-      throw new Error('invalid Graph response')
-    }
-    if ('errors' in body.output) {
-      throw graphErrors(body.output.errors)
-    }
-    const page = body.output.data.announcements
+    const page = body.data.announcements
     rows.push(...page.map(toAnnouncement))
     const last = page.at(-1)
     if (page.length < PAGE_SIZE || last === undefined) {
