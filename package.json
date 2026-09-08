@@ -10,6 +10,8 @@
     "dev:app": "pnpm --filter app run dev",
     "dev:gate": "pnpm --filter gate run dev",
     "dev:dash": "pnpm --filter dash run dev",
+    "migrate:local": "pnpm --filter api run migrate:local",
+    "migrate:remote": "pnpm --filter api run migrate:remote",
     "graph:build": "pnpm --ignore-workspace --dir packages/subgraphs/rights run build",
     "graph:codegen": "pnpm --ignore-workspace --dir packages/subgraphs/rights run codegen",
     "graph:prepare": "pnpm --ignore-workspace --dir packages/subgraphs/rights run graph:prepare",
