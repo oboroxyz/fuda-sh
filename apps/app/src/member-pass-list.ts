@@ -1,5 +1,5 @@
 import { passUrls } from '@fuda/sdk'
-import type { GraphRight, Hex, PassUrls, VerifyResponse } from '@fuda/sdk'
+import type { GraphRight, Hex, PassUrls, StampSummary, VerifyResponse } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
 
 import { API_BASE_URL } from './config.ts'
@@ -13,6 +13,7 @@ export interface MemberPassRow {
   passes: PassUrls
   googleHref: string | null
   appleHref: string | null
+  stamps: StampSummary | null
 }
 
 export interface MemberPassListInput {
@@ -26,6 +27,7 @@ export interface MemberPassListIo {
   verify: (uid: Hex) => Promise<Result<VerifyResponse>>
   googleHref: (url: string) => Promise<string | null>
   appleAvailable: (url: string) => Promise<boolean>
+  stampSummary: (uid: Hex) => Promise<StampSummary | null>
 }
 
 export interface MemberPassListResult {
@@ -256,7 +258,11 @@ export const loadMemberPassList = async (
         isPublicLevel(seed.graph?.level) || isPublicPreview(preview)
           ? await linksOf(seed.uid, io)
           : unlinkedPassesOf(seed.uid)
-      return { ...seed, ...links, preview }
+      const stamps =
+        isPublicLevel(seed.graph?.level) || isPublicPreview(preview)
+          ? await settledValue(io.stampSummary(seed.uid))
+          : null
+      return { ...seed, ...links, preview, stamps }
     }),
   )
   const rows = rowsWithPrivateFiltered.filter((row): row is MemberPassRow => row !== null)

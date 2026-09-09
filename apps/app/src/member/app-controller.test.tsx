@@ -42,7 +42,15 @@ const io = (overrides: Partial<MemberAppIo> = {}): MemberAppIo => ({
   ...overrides,
 })
 
-const mount = (memberIo: MemberAppIo = io(), memberPassIo?: MemberPassListIo): void => {
+const passIo = (): MemberPassListIo => ({
+  appleAvailable: async () => await Promise.resolve(false),
+  fetchRights: async () => await Promise.resolve([]),
+  googleHref: async () => await Promise.resolve(null),
+  stampSummary: async () => await Promise.resolve(null),
+  verify: async () => await Promise.resolve({ error: 'not_found', network: false, ok: false, status: 404 }),
+})
+
+const mount = (memberIo: MemberAppIo = io(), memberPassIo: MemberPassListIo = passIo()): void => {
   render(<App memberIo={memberIo} memberPassIo={memberPassIo} />, root)
 }
 
@@ -197,6 +205,7 @@ describe('member app controller', () => {
       appleAvailable: async () => await Promise.resolve(false),
       fetchRights: async () => await Promise.resolve([]),
       googleHref: async () => await Promise.resolve(null),
+      stampSummary: async () => await Promise.resolve(null),
       verify: async () =>
         await Promise.resolve(
           ok({
@@ -294,6 +303,7 @@ describe('member app controller', () => {
       appleAvailable: async () => await Promise.resolve(false),
       fetchRights: async () => await Promise.resolve([]),
       googleHref: async () => await Promise.resolve(null),
+      stampSummary: async () => await Promise.resolve(null),
       verify,
     }
     history.replaceState(null, '', `/rights?uid=${uidA}`)

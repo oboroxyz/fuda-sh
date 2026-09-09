@@ -505,6 +505,75 @@ Identical to Signed. The member recovers the stealth address's private key
 client-side and signs the same challenge; `holder` in the verdict is the stealth
 address. There is no separate +Private gate machinery.
 
+## Venue reception and Stamps
+
+The dashboard's `/reception` is a venue-scoped, operator-authenticated
+reception for a keyboard-wedge reader. The reader sends `fuda:v1:<uid>` followed
+by Enter. The input stays ready for the next presentation, shows a pending
+state during verification, and displays admission separately from Stamp
+credit. Camera and Signed reception are not part of this screen. The existing
+`gate.fuda.sh` scanner remains admission-only.
+
+An operator configures the venue's Stamp policy on `/venue`: `enabled`
+(default false), `dailyLimit` (integer 1–100, default 1), and `goal` (integer
+1–1000, default 10). The day boundary is fixed at midnight Asia/Tokyo, determined
+by the API clock. One eligible reception awards one Stamp. Goals are display
+targets; reaching or editing a goal never resets the accumulated count.
+Disabling Stamps preserves credits, and enabling them does not backfill past
+Entries. Policies apply across the venue's cards, with totals and daily limits
+tracked separately for each Right UID. This is not a per-person limit across
+multiple Rights.
+
+| Endpoint (under `/v1`) | Contract |
+| --- | --- |
+| `GET /issuers/me/stamps` | Operator session and registered venue required; returns `{ enabled, dailyLimit, goal }`, including defaults before the first settings save |
+| `PUT /issuers/me/stamps` | Same authorization; accepts and returns the complete settings object; invalid bounds or types answer `400 bad_input` |
+| `POST /issuers/me/reception` | Accepts `{ qr, requestId }`, where `requestId` is a UUID for one reception attempt; returns a verification verdict, `uid`, and `stamp: { status, summary }` |
+| `GET /stamps/:uid` | Read-only public summary `{ enabled, dailyLimit, goal, total, today }`; no visit timestamps or operator identity; unknown, unscoped, or +Private Rights answer `404 not_found` |
+
+All responses containing settings, summaries or receipts are `no-store`.
+Reception resolves the venue exclusively from the operator session, then
+requires the UID to belong to that venue's member records before reading the
+chain. Unknown or foreign Rights answer `404 not_found`; member sessions and
+admin tokens cannot perform reception. Invalid QR data answers `400 bad_qr`,
+and malformed request IDs answer `400 bad_input`. Registered venue reception
+does not require an ENS claim.
+
+The chain and verification-level rules are the same as public QR admission.
+An otherwise valid Signed or +Private QR answers `LEVEL_REQUIRED`. A
+MULTI_USE Right can enter repeatedly; a SINGLE_USE Right still consumes its
+one slot and rejects later attempts. Rejected presentations earn no credit.
+
+| Admission | Stamp status | Meaning |
+| --- | --- | --- |
+| `ADMIT` | `awarded` | One credit recorded; summary includes that credit |
+| `ADMIT` | `daily_limit` | Entry recorded, but the day's Stamp limit was already reached |
+| `ADMIT` | `disabled` | Entry recorded; the venue has disabled Stamps |
+| `REJECT` | `not_admitted` | No credit; the reason is the admission rejection |
+
+Entry, SINGLE_USE consumption when applicable, Stamp credit and the response
+receipt commit in one D1 batch. A failed batch commits none of them. Daily
+credit checks run inside the transaction, so simultaneous readers cannot
+exceed the configured cap. A retry with the same venue, UUID and UID returns
+the original receipt without another Entry, credit or Attendance hook. It is
+a replay of the original attempt, not a fresh validity check. Reusing the UUID
+for a different UID answers `409 bad_input`. The UI retains the UUID for an
+uncertain request's explicit retry; a new presentation uses a new UUID.
+
+Stamps count credit records, not Entries or on-chain Attendance. With the
+default policy, two same-day admissions produce two Entries and one Stamp.
+Attendance remains asynchronous and best-effort for each new admitted public
+Right. Public `POST /verify`, signature verification and UID previews never
+award Stamps. No manual credit adjustment, redemption or +Private correlation
+is implemented.
+
+Browser and member-app Pass views show enabled Stamp progress from the
+read-only summary. Saved Google Wallet objects are updated best-effort after
+reception; display synchronization cannot grant credits or undo an Entry.
+Apple downloads can contain a snapshot, but saved Apple Pass push updates are
+not implemented. A successful admission does not claim that Wallet display
+or on-chain Attendance has already updated.
+
 ## Passes
 
 A pass presents a right; it is never the source of validity. The api serves
@@ -611,7 +680,7 @@ current challenge for the Entitlement holder?
 | ---------------- | ----------- | -------- | ------------------------------------------------------------------------------------------------- |
 | `api.fuda.sh`    | `apps/api`  | 8787     | the api                                                                                           |
 | `gate.fuda.sh`   | `apps/gate` | 5174     | scanner: uid preview, QR admission, verdict                                                       |
-| `dash.fuda.sh`   | `apps/dash` | 5175     | operator dashboard: passkey or admin-token sign-in; `/` overview from D1 member rows and client configuration, `/rights` D1 search/filter/revoke/pass links plus separate on-chain lookup, and `/issue` issuance; with a passkey session `/venue` venue registration, identity and ENS acquisition, `/new` card designer after ENS acquisition, and `/published` the venue's cards with their links and QR codes |
+| `dash.fuda.sh`   | `apps/dash` | 5175     | operator dashboard: passkey or admin-token sign-in; `/` overview from D1 member rows and client configuration, `/rights` D1 search/filter/revoke/pass links plus separate on-chain lookup, and `/issue` issuance; with a passkey session `/venue` venue registration, identity, ENS acquisition and Stamp settings, `/new` card designer after ENS acquisition, `/published` the venue's cards with their links and QR codes, and `/reception` keyboard-reader admission with daily Stamp limits |
 | `app.fuda.sh`    | `apps/app`  | 5173     | member app: public `/` and `/signin`; public `/@<handle>` venue and `/@<handle>/<slug>` card issuance; authenticated `/rights`, `/signed`, `/private`, and `/settings` |
 | `fuda.sh` (apex) | Cloudflare zone | —     | `/@*` redirect to the same path on `app.fuda.sh`; other apex paths are outside this repository    |
 

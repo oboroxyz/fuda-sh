@@ -10,6 +10,7 @@ import { loadPassRow } from '../pass/pass-row.ts'
 import { passView } from '../pass/pass-view.ts'
 import type { PassOutcome } from '../pass/pass-view.ts'
 import { PassPage } from '../pass/PassPage.tsx'
+import { readStampSummary } from '../stamps/store.ts'
 import { resolveVerdict } from './verify.ts'
 
 // A .pkpass embeds its images, so the three small variants are read out of R2
@@ -46,11 +47,15 @@ passRoutes.get('/pass/:uid', async (c) => {
   }
   // The live status is read per request; a cached copy would show a stale
   // verdict at the door (loadPassRow already set no-store).
-  const resolved = await resolveVerdict(c, found.row.uid, c.get('now')())
+  const now = c.get('now')()
+  const [resolved, stamps] = await Promise.all([
+    resolveVerdict(c, found.row.uid, now),
+    readStampSummary(c.get('db'), found.row.uid, now),
+  ])
   const outcome: PassOutcome = resolved.ok
     ? { decision: resolved.out.decision, reason: resolved.out.reason }
     : null
-  return await c.html(PassPage(passView(found.row, outcome)))
+  return await c.html(PassPage(passView(found.row, outcome, stamps)))
 })
 
 // Wallet-pass builders live in @fuda/pass; an unconfigured platform answers 501.
@@ -63,7 +68,7 @@ passRoutes.get('/pass/:uid/google', async (c) => {
   if (cfg === null) {
     return errorResponse(c, 'google_not_configured', 501)
   }
-  const view = passView(found.row, null)
+  const view = passView(found.row, null, await readStampSummary(c.get('db'), found.row.uid, c.get('now')()))
   try {
     const saveUrl = await buildGoogleSaveUrl(
       cfg,
@@ -71,6 +76,7 @@ passRoutes.get('/pass/:uid/google', async (c) => {
         branding: view.branding,
         holderShort: view.holderShort,
         qr: view.qr,
+        stamps: view.stamps,
         tierLabel: view.tier,
         uid: found.row.uid,
       },
@@ -100,7 +106,7 @@ passRoutes.get('/pass/:uid/apple.pkpass', async (c) => {
   if (cfg === null) {
     return errorResponse(c, 'apple_not_configured', 501)
   }
-  const view = passView(found.row, null)
+  const view = passView(found.row, null, await readStampSummary(c.get('db'), found.row.uid, c.get('now')()))
   try {
     const pkpass = await buildPkpass(
       cfg,
@@ -108,6 +114,7 @@ passRoutes.get('/pass/:uid/apple.pkpass', async (c) => {
         branding: view.branding,
         holderShort: view.holderShort,
         qr: view.qr,
+        stamps: view.stamps,
         tierLabel: view.tier,
         uid: found.row.uid,
       },

@@ -4,7 +4,15 @@ import { describe, expect, it } from 'vitest'
 
 import { base64urlBytes } from './base64url.ts'
 import type { GoogleConfig, GoogleJwtClaims, GooglePassInput } from './google.ts'
-import { buildGenericObject, buildGoogleSaveUrl, GOOGLE_SAVE_BASE, googleConfigFrom } from './google.ts'
+import {
+  buildGenericObject,
+  buildGoogleSaveUrl,
+  googleAccessToken,
+  GOOGLE_SAVE_BASE,
+  googleConfigFrom,
+  mergeStampModules,
+  patchGoogleGenericObject,
+} from './google.ts'
 
 const UID: Hex = `0x${'ab'.repeat(32)}`
 const INPUT: GooglePassInput = {
@@ -186,6 +194,73 @@ describe('branded generic object', () => {
       body: 'QJ2Y-XPHE-PDRKA',
       header: 'Member number',
       id: 'member',
+    })
+  })
+})
+
+describe(mergeStampModules, () => {
+  it('replaces prior stamp modules while preserving unrelated modules', () => {
+    expect(
+      mergeStampModules(
+        [
+          { body: 'VIP', header: 'Tier', id: 'tier' },
+          { body: '1 / 10', header: 'Stamps', id: 'fuda-stamps' },
+          { body: 'old', header: 'Today', id: 'fuda-stamps-today' },
+        ],
+        { dailyLimit: 2, enabled: true, goal: 10, today: 2, total: 4 },
+      ),
+    ).toStrictEqual([
+      { body: 'VIP', header: 'Tier', id: 'tier' },
+      { body: '4 / 10', header: 'Stamps', id: 'fuda-stamps' },
+    ])
+  })
+})
+
+describe(googleAccessToken, () => {
+  it('exchanges a signed service-account assertion for a Wallet issuer token', async () => {
+    const { cfg } = await fixture
+    const requests: Request[] = []
+    // oxlint-disable-next-line require-await -- Fetch-compatible test double
+    const token = await googleAccessToken(cfg, IAT, async (input, init) => {
+      requests.push(new Request(input, init))
+      return Response.json({ access_token: 'access' })
+    })
+    expect(token).toBe('access')
+    expect(requests[0]?.url).toBe('https://oauth2.googleapis.com/token')
+    expect(requests[0]?.method).toBe('POST')
+    const body = await requests[0]?.text()
+    expect(body).toContain('grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer')
+  })
+})
+
+describe(patchGoogleGenericObject, () => {
+  it('reads the saved object and patches merged stamp modules only', async () => {
+    const requests: Request[] = []
+    // oxlint-disable-next-line require-await -- Fetch-compatible test double
+    const request = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const current = new Request(input, init)
+      requests.push(current)
+      if (current.method === 'GET') {
+        return Response.json({ textModulesData: [{ body: 'VIP', header: 'Tier', id: 'tier' }] })
+      }
+      return Response.json({})
+    }
+    await patchGoogleGenericObject(
+      { classId: 'c', issuerId: '338', saEmail: 'e', saKeyPem: 'p' },
+      UID,
+      { dailyLimit: 1, enabled: true, goal: 10, today: 1, total: 3 },
+      'access',
+      request,
+    )
+    expect(requests.map(({ method }) => method)).toStrictEqual(['GET', 'PATCH'])
+    expect(requests[1]?.url).toBe(
+      `https://walletobjects.googleapis.com/walletobjects/v1/genericObject/338.${UID.slice(2)}`,
+    )
+    await expect(requests[1]?.json()).resolves.toStrictEqual({
+      textModulesData: [
+        { body: 'VIP', header: 'Tier', id: 'tier' },
+        { body: '3 / 10', header: 'Stamps', id: 'fuda-stamps' },
+      ],
     })
   })
 })

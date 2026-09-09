@@ -3,6 +3,7 @@ import type {
   Hex,
   PublicVenue,
   SelfServeIssueResponse,
+  StampSummary,
   VerifyResponse,
   VerifySignedResponse,
 } from '@fuda/sdk'
@@ -30,6 +31,11 @@ export const verifySigned = async (body: {
 
 export const verifyUid = async (uid: Hex): Promise<Result<VerifyResponse>> =>
   await apiFetch<VerifyResponse>(API_BASE_URL, `/verify/${uid}`, { method: 'GET' })
+
+export const fetchStampSummary = async (uid: Hex): Promise<StampSummary | null> => {
+  const result = await apiFetch<StampSummary>(API_BASE_URL, `/stamps/${uid}`, { method: 'GET' })
+  return result.ok ? result.body : null
+}
 
 // The venue behind /@<handle> and every card it publishes: what a member sees
 // before asking for one. A handle nobody owns answers 404 `not_found`.

@@ -105,11 +105,16 @@ const props: AppViewProps = {
   onRevoke: vi.fn<AppViewProps['onRevoke']>(),
   onSignOut: vi.fn<AppViewProps['onSignOut']>(),
   onToken: vi.fn<AppViewProps['onToken']>(),
+  receiveAtReception: vi.fn<AppViewProps['receiveAtReception']>(),
   restoreState: null,
   route: '/',
   session: adminSession,
   signInError: null,
   signingIn: false,
+  stampSettings: {
+    load: vi.fn<AppViewProps['stampSettings']['load']>(),
+    save: vi.fn<AppViewProps['stampSettings']['save']>(),
+  },
 }
 
 describe(AppView, () => {

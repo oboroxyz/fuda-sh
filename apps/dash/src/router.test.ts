@@ -19,6 +19,10 @@ describe('Dash router', () => {
     expect(routeFromPath('/unknown')).toBe('/')
   })
 
+  it('recognizes the reception route', () => {
+    expect(routeFromPath('/reception')).toBe('/reception')
+  })
+
   it('canonicalizes an unknown path', () => {
     expect(canonicalPath('/unknown')).toBe('/')
   })
@@ -70,5 +74,9 @@ describe(surfaceOf, () => {
     expect(surfaceOf('/new')).toBe('operator')
     expect(surfaceOf('/venue')).toBe('operator')
     expect(surfaceOf('/published')).toBe('operator')
+  })
+
+  it('places reception on the operator surface', () => {
+    expect(surfaceOf('/reception')).toBe('operator')
   })
 })

@@ -7,7 +7,7 @@ import { short } from '@fuda/ui'
 import { useEffect, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
-import { verifyUid } from '../api.ts'
+import { fetchStampSummary, verifyUid } from '../api.ts'
 import { API_BASE_URL, GRAPH_RIGHTS_ENDPOINT } from '../config.ts'
 import {
   applePassAvailable,
@@ -143,6 +143,12 @@ const memberCard = (row: MemberPassRow): JSX.Element => {
           <div class="font-mono break-all">{row.uid}</div>
         </details>
         {memberMetadata(row)}
+        {row.stamps?.enabled === true ? (
+          <div class="rounded-box bg-base-200 p-3" aria-label="Stamp progress">
+            <div class="text-lg font-bold">{`${row.stamps.total} / ${row.stamps.goal} stamps`}</div>
+            <div class="text-sm text-[var(--fuda-muted)]">{`${row.stamps.today} / ${row.stamps.dailyLimit} today`}</div>
+          </div>
+        ) : null}
         {memberPassLinks(row, publicPass)}
       </div>
     </li>
@@ -237,6 +243,7 @@ const defaultIo: MemberPassListIo = {
   appleAvailable: applePassAvailable,
   fetchRights: async (holder) => await fetchRightsByHolder(GRAPH_RIGHTS_ENDPOINT, holder),
   googleHref: googlePassHref,
+  stampSummary: fetchStampSummary,
   verify: verifyUid,
 }
 

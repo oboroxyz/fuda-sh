@@ -479,10 +479,61 @@ pnpm typecheck  # types only (vp check --no-fmt --no-lint)
 pnpm test       # workspace tests and API script tests; independent packages are separate
 ```
 
+After the initial setup above, start dashboard development from the repository root:
+
+```sh
+pnpm dev:dash-api
+```
+
+Run `pnpm migrate:local` after pulling new database migrations.
+`dev:dash-api` starts the dashboard at
+http://localhost:5175 and its local API at http://localhost:8787 together.
+The example uses a fake chain; ENS acquisition requires the claim bindings
+documented above, and new cards remain unavailable until ENS is claimed.
+
 `pnpm dev` starts the whole local stack on the fixed ports below. A single
 surface starts with `pnpm dev:api`, `pnpm dev:app`, `pnpm dev:gate`, or
 `pnpm dev:dash`; a frontend on its own still needs `pnpm dev:api` running in
-another terminal for live api calls.
+another terminal for live api calls. Stop an existing API before `pnpm dev:dash-api`
+to avoid a port conflict.
+
+### Venue reception demo
+
+Apply migration `0010_reception_stamps.sql` before running the new reception
+API. Use `pnpm migrate:local` for local development; apply the normal remote
+migration procedure before deploying the updated API. The migration adds
+venue Stamp policies, credit records, request receipts and an optional
+reception ID on Entry logs. It does not award credits to existing Entries.
+
+1. Sign in to dash as the demo venue operator. On `/venue`, enable Stamps,
+   set the daily limit to `1`, and set the goal to `10`.
+2. Prepare an active Bearer membership Right belonging to that venue. A
+   ticket with SINGLE_USE is unsuitable for repeated-admission demos.
+3. Open `/reception`. Configure the QR reader as a keyboard input device
+   with an Enter suffix and scan the Wallet or browser Pass's QR. The same
+   flow can be exercised by pasting `fuda:v1:<uid>` and pressing Enter.
+4. The first scan shows ADMIT and a Stamp credit. A second scan on the same
+   Japan calendar day also shows ADMIT, with the daily-limit result and no
+   additional credit. A fresh day allows another credit; the total remains.
+5. Open the browser Pass or refresh the member-app Pass list to see progress.
+   Browser Pass summaries refresh every 30 seconds. With Google Wallet
+   configured, reception also attempts to update the saved Google object.
+6. Revoke the Right from dash and scan again: REVOKED, with no Stamp credit.
+
+Changing the daily limit affects subsequent receptions, including the current
+day; lowering it does not remove credits. Disabling Stamps preserves totals
+and still permits valid admissions. The demo does not implement redemption,
+manual adjustment, per-person deduplication across Rights, or a clock override.
+The read-only summary endpoint and the public gate verification endpoints
+cannot award Stamps. An authenticated receipt retry returns the original
+result, not a new admission decision.
+
+Reception records commit before the asynchronous Attendance and Google Wallet
+effects. Inspect Worker logs for Google sync failures and verify credentials
+and the saved object's ID. A receipt retry or later reception can attempt
+display synchronization again without re-awarding an existing receipt's
+Stamp. A saved Apple Pass has no push-refresh service in this implementation;
+a new download contains the current snapshot.
 
 | Surface | Path | Dev |
 | --- | --- | --- |

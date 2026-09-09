@@ -1,3 +1,4 @@
+import type { ReceptionResponse } from '@fuda/sdk'
 import { isNotNull } from 'drizzle-orm'
 import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
@@ -107,6 +108,47 @@ export const entryLog = sqliteTable('entry_log', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   path: text('path', { enum: ['qr', 'signature'] }).notNull(),
   reason: text('reason').notNull(),
+  receptionId: text('reception_id').unique(),
+  uid: text('uid').notNull(),
+})
+
+export const stampSettings = sqliteTable('stamp_settings', {
+  dailyLimit: integer('daily_limit').notNull().default(1),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(false),
+  goal: integer('goal').notNull().default(10),
+  issuerId: text('issuer_id')
+    .primaryKey()
+    .references(() => issuers.id),
+})
+
+export const stampCredits = sqliteTable(
+  'stamp_credits',
+  {
+    at: integer('at').notNull(),
+    day: text('day').notNull(),
+    entryLogId: integer('entry_log_id')
+      .notNull()
+      .unique()
+      .references(() => entryLog.id),
+    issuerId: text('issuer_id')
+      .notNull()
+      .references(() => issuers.id),
+    operatorAddress: text('operator_address').notNull(),
+    ordinal: integer('ordinal').notNull(),
+    uid: text('uid').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.issuerId, t.uid, t.day, t.ordinal] })],
+)
+
+export const receptionRequests = sqliteTable('reception_requests', {
+  entryLogId: integer('entry_log_id')
+    .notNull()
+    .references(() => entryLog.id),
+  id: text('id').primaryKey(),
+  issuerId: text('issuer_id')
+    .notNull()
+    .references(() => issuers.id),
+  response: text('response', { mode: 'json' }).$type<ReceptionResponse>().notNull(),
   uid: text('uid').notNull(),
 })
 

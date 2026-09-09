@@ -165,7 +165,7 @@ describe('dashboard navigation', () => {
     (hasIssuer) => {
       start('operator', hasIssuer)
       expect([...root.querySelectorAll('nav a')].map((link) => link.getAttribute('href'))).toStrictEqual(
-        hasIssuer ? ['/venue', '/published', '/new'] : ['/venue'],
+        hasIssuer ? ['/venue', '/reception', '/published', '/new'] : ['/venue'],
       )
     },
   )

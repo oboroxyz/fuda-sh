@@ -70,6 +70,18 @@ describe(passJson, () => {
     expect(json.labelColor).toBe('rgb(170,170,170)')
     expect(json.description).toBe('fuda membership')
   })
+
+  it('shows a stamp snapshot when stamps are enabled', () => {
+    const json = passJson(CFG, {
+      ...INPUT,
+      stamps: { dailyLimit: 2, enabled: true, goal: 10, today: 1, total: 4 },
+    })
+    expect(json.storeCard.primaryFields).toStrictEqual([{ key: 'stamps', label: 'STAMPS', value: '4 / 10' }])
+    expect(json.storeCard.secondaryFields).toStrictEqual([
+      { key: 'tier', label: 'TIER', value: 'VIP' },
+      { key: 'member', label: 'MEMBER', value: '0x1234…abcd' },
+    ])
+  })
 })
 
 const branded = () =>
@@ -108,5 +120,32 @@ describe('branded pass.json', () => {
     expect(json.locations).toStrictEqual([
       { latitude: 35.665, longitude: 139.712, relevantText: 'Wassie Coffee' },
     ])
+  })
+
+  it('puts an enabled stamp snapshot ahead of branded member details', () => {
+    const json = passJson(
+      { certPem: '', keyPem: '', passTypeId: 'pass.sh.fuda', teamId: 'TEAM', wwdrPem: '' },
+      {
+        branding: {
+          brandColor: '#6F4320',
+          cardTitle: 'Membership Card',
+          issuerName: 'Wassie Coffee',
+          logoUrl: null,
+          memberNumber: 'QJ2Y-XPHE-PDRKA',
+          venue: null,
+        },
+        holderShort: '0x1234…abcd',
+        qr: `fuda:v1:${UID}`,
+        stamps: { dailyLimit: 2, enabled: true, goal: 10, today: 1, total: 4 },
+        tierLabel: 'VIP',
+        uid: UID,
+      },
+    )
+    expect(json.storeCard.primaryFields).toStrictEqual([{ key: 'stamps', label: 'STAMPS', value: '4 / 10' }])
+    expect(json.storeCard.secondaryFields[0]).toStrictEqual({
+      key: 'member',
+      label: 'MEMBER NO.',
+      value: 'QJ2Y-XPHE-PDRKA',
+    })
   })
 })

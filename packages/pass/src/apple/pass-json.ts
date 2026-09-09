@@ -1,4 +1,4 @@
-import type { Hex } from '@fuda/sdk'
+import type { Hex, StampSummary } from '@fuda/sdk'
 
 import { hexToRgb, rgbCss, textOn } from '../branding.ts'
 import type { PassBranding } from '../branding.ts'
@@ -43,6 +43,7 @@ export interface ApplePassInput {
   qr: string
   // the venue's card, when the right was issued under one
   branding?: PassBranding | null
+  stamps?: StampSummary | null
 }
 
 interface PassField {
@@ -85,6 +86,7 @@ export const passJson = (cfg: AppleConfig, input: ApplePassInput): PassJson => {
     teamIdentifier: cfg.teamId,
   }
   if (branding === null) {
+    const stamps = input.stamps?.enabled === true ? input.stamps : null
     return {
       ...base,
       backgroundColor: 'rgb(20,20,20)',
@@ -94,8 +96,17 @@ export const passJson = (cfg: AppleConfig, input: ApplePassInput): PassJson => {
       organizationName: 'fuda',
       storeCard: {
         backFields: [{ key: 'uid', label: 'Attestation', value: input.uid }],
-        primaryFields: [{ key: 'tier', label: 'TIER', value: input.tierLabel }],
-        secondaryFields: [{ key: 'member', label: 'MEMBER', value: input.holderShort }],
+        primaryFields:
+          stamps === null
+            ? [{ key: 'tier', label: 'TIER', value: input.tierLabel }]
+            : [{ key: 'stamps', label: 'STAMPS', value: `${stamps.total} / ${stamps.goal}` }],
+        secondaryFields:
+          stamps === null
+            ? [{ key: 'member', label: 'MEMBER', value: input.holderShort }]
+            : [
+                { key: 'tier', label: 'TIER', value: input.tierLabel },
+                { key: 'member', label: 'MEMBER', value: input.holderShort },
+              ],
       },
     }
   }
@@ -103,6 +114,7 @@ export const passJson = (cfg: AppleConfig, input: ApplePassInput): PassJson => {
   // and — when the card asks for it — the venue location so Wallet surfaces
   // the pass on the lock screen nearby.
   const { label, text } = textOn(branding.brandColor)
+  const stamps = input.stamps?.enabled === true ? input.stamps : null
   const locations =
     branding.venue === null
       ? {}
@@ -128,8 +140,17 @@ export const passJson = (cfg: AppleConfig, input: ApplePassInput): PassJson => {
         { key: 'holder', label: 'Holder', value: input.holderShort },
         { key: 'uid', label: 'Attestation', value: input.uid },
       ],
-      primaryFields: [{ key: 'member', label: 'MEMBER NO.', value: branding.memberNumber }],
-      secondaryFields: [{ key: 'tier', label: 'TIER', value: input.tierLabel }],
+      primaryFields:
+        stamps === null
+          ? [{ key: 'member', label: 'MEMBER NO.', value: branding.memberNumber }]
+          : [{ key: 'stamps', label: 'STAMPS', value: `${stamps.total} / ${stamps.goal}` }],
+      secondaryFields:
+        stamps === null
+          ? [{ key: 'tier', label: 'TIER', value: input.tierLabel }]
+          : [
+              { key: 'member', label: 'MEMBER NO.', value: branding.memberNumber },
+              { key: 'tier', label: 'TIER', value: input.tierLabel },
+            ],
     },
   }
 }

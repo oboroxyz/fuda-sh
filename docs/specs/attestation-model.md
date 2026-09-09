@@ -511,16 +511,30 @@ CREATE TABLE entry_log (
   reason   TEXT NOT NULL,                     -- reason table above
   path     TEXT NOT NULL,                     -- 'qr' | 'signature' (entry path, not the right's level)
   at       INTEGER NOT NULL,
-  attendance_uid TEXT                          -- written back after the Attendance attest lands
+  attendance_uid TEXT,                         -- written back after the Attendance attest lands
+  reception_id TEXT UNIQUE                     -- nullable, idempotent authenticated reception
 );
 
 ```
 
 SINGLE_USE consumption is a D1 batch that writes the `slots` row and the `ADMIT`
-`entry_log` row together: the slot insert is a plain `INSERT`, so a second scan
+`entry_log` row together: on public QR and signature admission the slot insert is a plain `INSERT`, so a second scan
 violates the `(uid, slot)` primary key and the whole batch rolls back — the slot
 is the lock, and no `ADMIT` is ever logged against a slot already burned. No
 Durable Objects are used in the MVP.
+
+Authenticated venue reception shares the same `slots` table but evaluates
+slot availability and writes its Entry inside the receipt transaction. It
+adds `stamp_settings`, `stamp_credits`, and `reception_requests` (migration
+`0010_reception_stamps.sql`). Settings belong to an issuer. A credit belongs to
+an issuer, Right UID, Japan date and daily ordinal, with a unique Entry
+reference and the granting operator address. A receipt stores the original
+response and Entry reference under a venue-scoped request UUID. The entire
+batch commits or rolls back together, including SINGLE_USE consumption.
+Credits are operational loyalty state, independent of on-chain Attendance;
+the public admission endpoints do not create them. See
+[venue reception and Stamps](./pass-types-and-flows.md#venue-reception-and-stamps)
+for authorization, daily limits and replay semantics.
 
 `challenges` rows are one-time and short-lived: `POST /verify-signed` consumes a
 nonce with a conditional `UPDATE … WHERE used_at IS NULL AND created_at > now −

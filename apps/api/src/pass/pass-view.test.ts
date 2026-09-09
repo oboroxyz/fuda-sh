@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { passView } from './pass-view.ts'
+import { PassPage } from './PassPage.tsx'
 
 const UID = `0x${'ab'.repeat(32)}` as const
 const HOLDER = '0x1111111111111111111111111111111111111111' as const
@@ -41,5 +42,44 @@ describe(passView, () => {
       null,
     )
     expect(view.tier).toBe('TIER 9')
+  })
+})
+
+describe(PassPage, () => {
+  it('renders enabled stamp progress and refreshes it from the public summary endpoint', async () => {
+    const view = passView(
+      {
+        branding: null,
+        holder: `0x${'11'.repeat(20)}`,
+        level: 'bearer',
+        logoPrefix: null,
+        tier: 1,
+        uid: `0x${'ab'.repeat(32)}`,
+      },
+      { decision: 'ADMIT', reason: 'OK' },
+      { dailyLimit: 2, enabled: true, goal: 10, today: 1, total: 4 },
+    )
+    const page = String(await PassPage(view))
+    expect(page).toContain('id="stamps"')
+    expect(page).not.toContain('id="stamps" class="stamps" hidden')
+    expect(page).toContain('4 / 10 stamps')
+    expect(page).toContain('1 / 2 today')
+    expect(page).toContain(`/v1/stamps/${view.uid}`)
+  })
+
+  it('hides stamp progress when stamps are disabled', async () => {
+    const view = passView(
+      {
+        branding: null,
+        holder: `0x${'11'.repeat(20)}`,
+        level: 'bearer',
+        logoPrefix: null,
+        tier: 1,
+        uid: `0x${'ab'.repeat(32)}`,
+      },
+      { decision: 'ADMIT', reason: 'OK' },
+      { dailyLimit: 2, enabled: false, goal: 10, today: 0, total: 4 },
+    )
+    expect(String(await PassPage(view))).toContain('id="stamps" class="stamps" hidden')
   })
 })

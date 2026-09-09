@@ -59,6 +59,7 @@ const fixture = () => ({
   appleAvailable: vi.fn<MemberPassListIo['appleAvailable']>().mockResolvedValue(false),
   fetchRights: vi.fn<MemberPassListIo['fetchRights']>().mockResolvedValue([]),
   googleHref: vi.fn<MemberPassListIo['googleHref']>().mockResolvedValue(null),
+  stampSummary: vi.fn<MemberPassListIo['stampSummary']>().mockResolvedValue(null),
   verify: vi.fn<MemberPassListIo['verify']>().mockResolvedValue(publicPreview),
 })
 const root = document.createElement('div')

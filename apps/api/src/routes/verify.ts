@@ -9,6 +9,7 @@ import type { AppEnv } from '../env.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { admitAndHook, logEntry } from '../verify/admit.ts'
 import { verifyConfig } from '../verify/config.ts'
+import { qrOutcome } from '../verify/qr-admission.ts'
 import type { VerifyOutcome } from '../verify/verify-uid.ts'
 import { verifyUid } from '../verify/verify-uid.ts'
 
@@ -104,7 +105,7 @@ verifyRoutes.post('/verify', async (c) => {
   if (!resolved.ok) {
     return resolved.res
   }
-  const { out } = resolved
+  const out = qrOutcome(resolved.out)
   const db = c.get('db')
   const reject = async (reason: 'LEVEL_REQUIRED' | 'ALREADY_USED'): Promise<Response> => {
     await logEntry(db, { at: now, decision: 'REJECT', path: 'qr', reason, uid })
@@ -113,9 +114,6 @@ verifyRoutes.post('/verify', async (c) => {
   if (out.decision === 'REJECT') {
     await logEntry(db, { at: now, decision: 'REJECT', path: 'qr', reason: out.reason, uid })
     return jsonResponse(c, verdictBody(out))
-  }
-  if (out.canonical.level !== 0) {
-    return await reject('LEVEL_REQUIRED')
   }
   const outcome = await admitAndHook({
     canonical: out.canonical,

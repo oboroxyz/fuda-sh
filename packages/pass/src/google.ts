@@ -1,4 +1,4 @@
-import type { Hex } from '@fuda/sdk'
+import type { Hex, StampSummary } from '@fuda/sdk'
 
 import { base64urlBytes, base64urlText } from './base64url.ts'
 import type { PassBranding } from './branding.ts'
@@ -39,13 +39,14 @@ export interface GooglePassInput {
   qr: string
   // the venue's card, when the right was issued under one
   branding?: PassBranding | null
+  stamps?: StampSummary | null
 }
 
 interface LocalizedString {
   defaultValue: { language: string; value: string }
 }
 
-interface TextModule {
+export interface TextModule {
   body: string
   header: string
   id: string
@@ -70,6 +71,19 @@ export interface GoogleGenericObject {
 
 const localized = (value: string): LocalizedString => ({ defaultValue: { language: 'en-US', value } })
 
+const STAMP_IDS = new Set(['fuda-stamps', 'fuda-stamps-today'])
+
+export const mergeStampModules = (
+  modules: readonly TextModule[],
+  stamps: StampSummary | null,
+): TextModule[] => {
+  const preserved = modules.filter(({ id }) => !STAMP_IDS.has(id))
+  if (stamps?.enabled !== true) {
+    return preserved
+  }
+  return [...preserved, { body: `${stamps.total} / ${stamps.goal}`, header: 'Stamps', id: 'fuda-stamps' }]
+}
+
 // docs/specs/pass-types-and-flows.md#passes. The object id is issuer-scoped and must be unique per pass, so the
 // attestation uid (without its 0x) is the suffix.
 export const buildGenericObject = (cfg: GoogleConfig, input: GooglePassInput): GoogleGenericObject => {
@@ -85,10 +99,13 @@ export const buildGenericObject = (cfg: GoogleConfig, input: GooglePassInput): G
       ...base,
       cardTitle: localized('fuda membership'),
       header: localized(input.tierLabel),
-      textModulesData: [
-        { body: input.tierLabel, header: 'Tier', id: 'tier' },
-        { body: input.holderShort, header: 'Member', id: 'member' },
-      ],
+      textModulesData: mergeStampModules(
+        [
+          { body: input.tierLabel, header: 'Tier', id: 'tier' },
+          { body: input.holderShort, header: 'Member', id: 'member' },
+        ],
+        input.stamps ?? null,
+      ),
     }
   }
   // A venue card: the venue is the title, the card title the header, the
@@ -102,10 +119,13 @@ export const buildGenericObject = (cfg: GoogleConfig, input: GooglePassInput): G
     header: localized(branding.cardTitle),
     hexBackgroundColor: branding.brandColor,
     subheader: localized(branding.memberNumber),
-    textModulesData: [
-      { body: branding.memberNumber, header: 'Member number', id: 'member' },
-      { body: input.tierLabel, header: 'Tier', id: 'tier' },
-    ],
+    textModulesData: mergeStampModules(
+      [
+        { body: branding.memberNumber, header: 'Member number', id: 'member' },
+        { body: input.tierLabel, header: 'Tier', id: 'tier' },
+      ],
+      input.stamps ?? null,
+    ),
   }
 }
 
@@ -116,6 +136,14 @@ export interface GoogleJwtClaims {
   origins: string[]
   payload: { genericObjects: GoogleGenericObject[] }
   typ: string
+}
+
+interface GoogleOAuthClaims {
+  aud: string
+  exp: number
+  iat: number
+  iss: string
+  scope: string
 }
 
 // The service-account private key, imported for signing only: `extractable`
@@ -131,11 +159,108 @@ export const importRs256Key = async (pem: string): Promise<CryptoKey> =>
 
 // A compact JWS by hand: workerd has WebCrypto but no Node crypto, and the
 // only algorithm Google's save link accepts is RS256.
-export const signJwtRs256 = async (key: CryptoKey, claims: GoogleJwtClaims): Promise<string> => {
+export const signJwtRs256 = async (
+  key: CryptoKey,
+  claims: GoogleJwtClaims | GoogleOAuthClaims,
+): Promise<string> => {
   const head = base64urlText(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
   const body = base64urlText(JSON.stringify(claims))
   const sig = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(`${head}.${body}`))
   return `${head}.${body}.${base64urlBytes(new Uint8Array(sig))}`
+}
+
+type PassRequest = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+
+const checked = (response: Response): Response => {
+  if (!response.ok) {
+    throw new Error(`Google Wallet request failed (${response.status})`)
+  }
+  return response
+}
+
+export const googleAccessToken = async (
+  cfg: GoogleConfig,
+  now: number,
+  request: PassRequest = globalThis.fetch,
+): Promise<string> => {
+  const assertion = await signJwtRs256(await importRs256Key(cfg.saKeyPem), {
+    aud: 'https://oauth2.googleapis.com/token',
+    exp: now + 3600,
+    iat: now,
+    iss: cfg.saEmail,
+    scope: 'https://www.googleapis.com/auth/wallet_object.issuer',
+  })
+  const body = new URLSearchParams({
+    assertion,
+    grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+  })
+  const value: unknown = await checked(
+    await request('https://oauth2.googleapis.com/token', {
+      body,
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      method: 'POST',
+    }),
+  ).json()
+  /* oxlint-disable anti-slop/no-runtime-typeof -- OAuth JSON is parsed and accepted only with a string access_token */
+  if (
+    value === null ||
+    typeof value !== 'object' ||
+    !('access_token' in value) ||
+    typeof value.access_token !== 'string'
+  ) {
+    throw new Error('Google OAuth response did not contain an access token')
+  }
+  /* oxlint-enable anti-slop/no-runtime-typeof */
+  return value.access_token
+}
+
+/* oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, anti-slop/require-safety-comment-for-type-assertion -- this block parses Google Wallet's external JSON */
+const textModulesFrom = (value: unknown): TextModule[] => {
+  if (
+    value === null ||
+    typeof value !== 'object' ||
+    !('textModulesData' in value) ||
+    !Array.isArray(value.textModulesData)
+  ) {
+    return []
+  }
+  return value.textModulesData.flatMap((item: unknown): TextModule[] => {
+    if (item === null || typeof item !== 'object') {
+      return []
+    }
+    // SAFETY: every field copied below is checked as a string first.
+    const candidate = item as Partial<TextModule>
+    if (
+      typeof candidate.body !== 'string' ||
+      typeof candidate.header !== 'string' ||
+      typeof candidate.id !== 'string'
+    ) {
+      return []
+    }
+    return [{ body: candidate.body, header: candidate.header, id: candidate.id }]
+  })
+}
+/* oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, anti-slop/require-safety-comment-for-type-assertion */
+
+export const patchGoogleGenericObject = async (
+  cfg: GoogleConfig,
+  uid: Hex,
+  stamps: StampSummary,
+  accessToken: string,
+  request: PassRequest = globalThis.fetch,
+): Promise<void> => {
+  const objectId = `${cfg.issuerId}.${uid.slice(2)}`
+  const url = `https://walletobjects.googleapis.com/walletobjects/v1/genericObject/${objectId}`
+  const headers = { authorization: `Bearer ${accessToken}` }
+  const current: unknown = await checked(await request(url, { headers })).json()
+  const modules = textModulesFrom(current)
+  await checked(
+    await request(url, {
+      body: JSON.stringify({ textModulesData: mergeStampModules(modules, stamps) }),
+      headers: { ...headers, 'content-type': 'application/json' },
+      method: 'PATCH',
+    }),
+  ).json()
 }
 
 export const GOOGLE_SAVE_BASE = 'https://pay.google.com/gp/v/save/'

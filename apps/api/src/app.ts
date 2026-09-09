@@ -17,6 +17,7 @@ import { issuersRoutes } from './routes/issuers.ts'
 import { assetRoutes, mediaRoutes } from './routes/media.ts'
 import { membersRoutes } from './routes/members.ts'
 import { passRoutes } from './routes/pass.ts'
+import { receptionRoutes } from './routes/reception.ts'
 import { revokeRoutes } from './routes/revoke.ts'
 import { verifySignedRoutes } from './routes/verify-signed.ts'
 import { verifyRoutes } from './routes/verify.ts'
@@ -54,6 +55,7 @@ export const createApp = (deps: AppDeps): Hono<AppEnv> => {
   const v1 = new Hono<AppEnv>()
   v1.route('/', authRoutes)
   v1.route('/', issuersRoutes)
+  v1.route('/', receptionRoutes)
   v1.route('/', mediaRoutes)
   v1.route('/', challengeRoutes)
   v1.route('/', ensClaimRoutes)

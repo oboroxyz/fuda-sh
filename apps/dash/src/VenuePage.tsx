@@ -9,6 +9,8 @@ import type { DashCopy } from './copy.ts'
 import { browserLogoTools, EMPTY_LOGO, generateLogoSet, withLogoResult } from './logo.ts'
 import type { LogoSet, LogoState } from './logo.ts'
 import { LogoField } from './LogoField.tsx'
+import { StampSettings } from './StampSettings.tsx'
+import type { StampSettingsProps } from './StampSettings.tsx'
 import { EMPTY_VENUE_FORM, venueBodyFrom } from './venue.ts'
 import type { VenueForm } from './venue.ts'
 
@@ -24,6 +26,7 @@ export interface VenuePageProps {
   onCreate: (form: VenueForm, logo: LogoSet | null) => void
   onNewCard: () => void
   publicUrl: string | null
+  stampSettings: Pick<StampSettingsProps, 'load' | 'save'>
 }
 
 const statusText = (copy: DashCopy['designer'], status: FieldStatus): string | null =>
@@ -135,6 +138,7 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
             {props.copy.published.addCard}
           </button>
         </div>
+        <StampSettings copy={props.copy.stamps} {...props.stampSettings} />
       </section>
     )
   }

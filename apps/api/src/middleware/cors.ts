@@ -20,7 +20,7 @@ const fudaOrigin = (origin: string): string =>
 export const corsPolicy = (): MiddlewareHandler<AppEnv> => async (c, next) => {
   const policy = cors({
     allowHeaders: ['Authorization', 'Content-Type'],
-    allowMethods: ['GET', 'POST', 'OPTIONS'],
+    allowMethods: ['GET', 'POST', 'PUT', 'OPTIONS'],
     origin: c.req.path === PAYMASTER_PATH ? '*' : fudaOrigin,
   })
   return await policy(c, next)

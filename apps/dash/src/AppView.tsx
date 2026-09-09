@@ -14,11 +14,14 @@ import type { MembersState } from './members-state.ts'
 import type { SignInFailure } from './operator-sign-in.ts'
 import { OverviewPage } from './OverviewPage.tsx'
 import { PublishedCard } from './PublishedCard.tsx'
+import { ReceptionPage } from './ReceptionPage.tsx'
+import type { ReceptionPageProps } from './ReceptionPage.tsx'
 import type { RightsPageProps } from './RightsPage.tsx'
 import { RightsPage } from './RightsPage.tsx'
 import type { DashRoute } from './router.ts'
 import { SignIn, signInErrorOf } from './SignIn.tsx'
 import { SignOutButton } from './SignOutButton.tsx'
+import type { StampSettingsProps } from './StampSettings.tsx'
 import type { VenueForm } from './venue.ts'
 import { VenuePage } from './VenuePage.tsx'
 
@@ -46,10 +49,12 @@ export interface AppViewProps {
   onRevoke: RightsPageProps['onRevoke']
   onSignOut: () => void
   onToken: (token: string) => void
+  receiveAtReception: ReceptionPageProps['receive']
   route: DashRoute
   session: SessionState
   signInError: SignInFailure | null
   signingIn: boolean
+  stampSettings: Pick<StampSettingsProps, 'load' | 'save'>
 }
 
 export const AppView = ({
@@ -74,10 +79,12 @@ export const AppView = ({
   onRevoke,
   onSignOut,
   onToken,
+  receiveAtReception,
   route,
   session,
   signInError,
   signingIn,
+  stampSettings,
 }: AppViewProps): JSX.Element => {
   const signInMessage = (): string | null => {
     if (signInError !== null) {
@@ -140,6 +147,7 @@ export const AppView = ({
               onNavigate('/new')
             }}
             publicUrl={operator.publicUrl}
+            stampSettings={stampSettings}
           />
         )
       }
@@ -159,6 +167,7 @@ export const AppView = ({
               onNavigate('/new')
             }}
             publicUrl={operator.publicUrl}
+            stampSettings={stampSettings}
           />
         )
       }
@@ -179,6 +188,9 @@ export const AppView = ({
           />
         )
       }
+      if (operator.issuer !== null && route === '/reception') {
+        return <ReceptionPage copy={copy.reception} receive={receiveAtReception} />
+      }
       return operator.issuer === null ? (
         <VenuePage
           busy={creating}
@@ -194,6 +206,7 @@ export const AppView = ({
             onNavigate('/new')
           }}
           publicUrl={null}
+          stampSettings={stampSettings}
         />
       ) : (
         <CardDesigner

@@ -93,6 +93,25 @@ export type AdmitOutcome =
   | { admitted: true; entryLogId: number }
   | { admitted: false; reason: 'ALREADY_USED' }
 
+export const notifyAdmission = (ctx: AdmitContext, entryLogId: number): void => {
+  // No Attendance for a +Private right
+  // (docs/specs/attestation-model.md#entitlement-lifecycle): a public record would publish the visit history +Private exists to hide.
+  if (ctx.canonical.level === LEVEL_CODE.private) {
+    return
+  }
+  try {
+    ctx.onAdmit({
+      entryLogId,
+      holder: ctx.canonical.holder,
+      now: ctx.now,
+      uid: ctx.uid,
+      waitUntil: ctx.waitUntil,
+    })
+  } catch {
+    // Attendance is best-effort (docs/specs/attestation-model.md#operational-reconciliation): a failed side effect never fails an admission
+  }
+}
+
 // The spine every entry path shares once the chain verification (and, for the signature path, the
 // challenge and the signature) have said the right may enter: burn the slot of a
 // SINGLE_USE right or log a plain ADMIT, then fire the best-effort hook. The
@@ -115,21 +134,6 @@ export const admitAndHook = async (ctx: AdmitContext): Promise<AdmitOutcome> => 
       uid: ctx.uid,
     })
   }
-  // No Attendance for a +Private right
-  // (docs/specs/attestation-model.md#entitlement-lifecycle): a public record would publish the visit history +Private exists to hide.
-  if (ctx.canonical.level === LEVEL_CODE.private) {
-    return { admitted: true, entryLogId }
-  }
-  try {
-    ctx.onAdmit({
-      entryLogId,
-      holder: ctx.canonical.holder,
-      now: ctx.now,
-      uid: ctx.uid,
-      waitUntil: ctx.waitUntil,
-    })
-  } catch {
-    // Attendance is best-effort (docs/specs/attestation-model.md#operational-reconciliation): a failed side effect never fails an admission
-  }
+  notifyAdmission(ctx, entryLogId)
   return { admitted: true, entryLogId }
 }

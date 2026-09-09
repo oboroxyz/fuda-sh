@@ -11,6 +11,7 @@ describe('Dash copy', () => {
       issue: 'Issue',
       newCard: 'New card',
       overview: 'Overview',
+      reception: 'Reception',
       rights: 'Rights',
       venue: 'Venue',
     })
@@ -53,6 +54,7 @@ describe('Dash copy', () => {
       issue: '発行',
       newCard: 'カードを作る',
       overview: '概要',
+      reception: '受付',
       rights: '権利',
       venue: '店舗',
     })

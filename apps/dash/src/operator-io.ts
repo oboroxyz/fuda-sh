@@ -4,9 +4,12 @@ import {
   claimVoucher,
   confirmEnsClaim,
   issuerMe,
+  readStampSettings,
+  receiveAtReception,
   signInChallenge,
   signInVerify,
   signOut,
+  updateStampSettings,
 } from './api.ts'
 import { DEFAULT_DESIGN_IO } from './app-actions.ts'
 import type { DesignIo } from './app-actions.ts'
@@ -23,8 +26,11 @@ export interface OperatorIo {
   claim: (token: string) => ClaimIo
   design: DesignIo
   issuerMe: typeof issuerMe
+  readStampSettings: typeof readStampSettings
+  receiveAtReception: typeof receiveAtReception
   signIn: () => Promise<SignInOutcome>
   signOut: typeof signOut
+  updateStampSettings: typeof updateStampSettings
 }
 
 export const DEFAULT_OPERATOR_IO: OperatorIo = {
@@ -37,6 +43,8 @@ export const DEFAULT_OPERATOR_IO: OperatorIo = {
   }),
   design: DEFAULT_DESIGN_IO,
   issuerMe,
+  readStampSettings,
+  receiveAtReception,
   signIn: async () =>
     await signInWithPasskey({
       challenge: signInChallenge,
@@ -47,4 +55,5 @@ export const DEFAULT_OPERATOR_IO: OperatorIo = {
       verify: signInVerify,
     }),
   signOut,
+  updateStampSettings,
 }

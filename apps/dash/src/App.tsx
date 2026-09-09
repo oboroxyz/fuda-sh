@@ -612,6 +612,55 @@ export const App = ({
     return true
   }
 
+  const readStamps = useCallback(async () => {
+    const sessionToken = token ?? ''
+    const ticket = generation.capture()
+    const result = await operatorIo.readStampSettings(sessionToken)
+    if (
+      !result.ok &&
+      result.status === 401 &&
+      generation.isCurrent(ticket) &&
+      activeToken.current === sessionToken
+    ) {
+      replaceSession(unauthorizedSession(activeSession.current))
+    }
+    return result
+  }, [generation, operatorIo, replaceSession, token])
+  const saveStamps = useCallback(
+    async (settings: Parameters<OperatorIo['updateStampSettings']>[1]) => {
+      const sessionToken = token ?? ''
+      const ticket = generation.capture()
+      const result = await operatorIo.updateStampSettings(sessionToken, settings)
+      if (
+        !result.ok &&
+        result.status === 401 &&
+        generation.isCurrent(ticket) &&
+        activeToken.current === sessionToken
+      ) {
+        replaceSession(unauthorizedSession(activeSession.current))
+      }
+      return result
+    },
+    [generation, operatorIo, replaceSession, token],
+  )
+  const receiveAtReception = useCallback(
+    async (qr: string, requestId: string) => {
+      const sessionToken = token ?? ''
+      const ticket = generation.capture()
+      const result = await operatorIo.receiveAtReception(sessionToken, qr, requestId)
+      if (
+        !result.ok &&
+        result.status === 401 &&
+        generation.isCurrent(ticket) &&
+        activeToken.current === sessionToken
+      ) {
+        replaceSession(unauthorizedSession(activeSession.current))
+      }
+      return result
+    },
+    [generation, operatorIo, replaceSession, token],
+  )
+
   return (
     <AppView
       appearance={appearance}
@@ -650,10 +699,12 @@ export const App = ({
       onToken={(nextToken) => {
         replaceSession({ authError: null, members: { kind: 'idle' }, operator: null, token: nextToken })
       }}
+      receiveAtReception={receiveAtReception}
       route={route}
       session={session}
       signInError={signInError}
       signingIn={signingIn}
+      stampSettings={{ load: readStamps, save: saveStamps }}
     />
   )
 }

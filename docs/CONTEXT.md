@@ -205,8 +205,9 @@ One ADMIT of a Right at a Gate, recorded off-chain in the entry log.
 _Avoid_: Check-in, visit, scan
 
 **Stamp**:
-One unit of a Venue's loyalty count for a Right — the number of that Right's
-Entries, whatever their path. Display-only in B1; redemption is out of scope.
+One unit of a Venue's loyalty count for a Right, awarded under the Venue's
+Stamp policy. An Entry does not necessarily earn a Stamp; redemption is a
+separate action.
 _Avoid_: Point, visit count, check-in
 
 **Member number**:

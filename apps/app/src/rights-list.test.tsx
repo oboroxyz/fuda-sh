@@ -121,6 +121,7 @@ const memberIo = (fetchRights: MemberPassListIo['fetchRights']): MemberPassListI
   appleAvailable: async () => await Promise.resolve(false),
   fetchRights,
   googleHref: async () => await Promise.resolve(null),
+  stampSummary: async () => await Promise.resolve(null),
   verify: async (uid) => await Promise.resolve(admitted(uid === UID_C ? HOLDER_B : HOLDER_A)),
 })
 
@@ -135,6 +136,7 @@ const memberRow = (overrides: Partial<MemberPassRow>): MemberPassRow => ({
     web: `http://localhost:8787/pass/${RIGHT}`,
   },
   preview: { decision: 'ADMIT', reason: 'OK' },
+  stamps: null,
   uid: RIGHT,
   ...overrides,
 })
@@ -214,6 +216,7 @@ describe(loadMemberPassList, () => {
         appleAvailable,
         fetchRights: async () => await Promise.resolve([{ ...right(RIGHT, null), level: 2 }]),
         googleHref,
+        stampSummary: async () => await Promise.resolve(null),
         verify,
       },
     )
@@ -233,6 +236,7 @@ describe(loadMemberPassList, () => {
         appleAvailable: async () => await Promise.resolve(false),
         fetchRights,
         googleHref: async () => await Promise.resolve(null),
+        stampSummary: async () => await Promise.resolve(null),
         verify: async () => await Promise.resolve(privateAdmitted(HOLDER_A)),
       },
     )
@@ -252,6 +256,7 @@ describe(loadMemberPassList, () => {
         appleAvailable,
         fetchRights,
         googleHref,
+        stampSummary: async () => await Promise.resolve(null),
         verify: async () =>
           await Promise.resolve({ error: 'offline', network: true, ok: false, status: 503 }),
       },
@@ -274,6 +279,7 @@ describe(loadMemberPassList, () => {
         appleAvailable,
         fetchRights,
         googleHref,
+        stampSummary: async () => await Promise.resolve(null),
         verify: async () =>
           await Promise.resolve({ body: { decision: 'REJECT', reason: 'REVOKED' }, ok: true }),
       },
@@ -306,6 +312,7 @@ describe(loadMemberPassList, () => {
         appleAvailable,
         fetchRights: async () => await Promise.resolve([{ ...right(RIGHT, null), level: 2 }]),
         googleHref,
+        stampSummary: async () => await Promise.resolve(null),
         verify: async () =>
           await Promise.resolve({ error: 'offline', network: true, ok: false, status: 503 }),
       },
@@ -326,6 +333,7 @@ describe('pass link availability', () => {
         appleAvailable: async () => await Promise.resolve(true),
         fetchRights: async () => await Promise.resolve([]),
         googleHref: async () => await Promise.resolve(google),
+        stampSummary: async () => await Promise.resolve(null),
         verify: async () => await Promise.resolve(admitted(HOLDER_A)),
       },
     )
@@ -574,5 +582,19 @@ describe(RightsListView, () => {
     })
 
     expect(viewText(view)).toContain('index unavailable; showing passes saved on this device')
+  })
+
+  it('shows live enabled stamp progress on a public Pass', () => {
+    const view = RightsListView({
+      state: {
+        kind: 'ready',
+        result: {
+          indexUnavailable: false,
+          rows: [memberRow({ stamps: { dailyLimit: 2, enabled: true, goal: 10, today: 1, total: 4 } })],
+        },
+      },
+    })
+    expect(viewText(view)).toContain('4 / 10 stamps')
+    expect(viewText(view)).toContain('1 / 2 today')
   })
 })

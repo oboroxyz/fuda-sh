@@ -20,6 +20,7 @@ const STYLE = `
   .number{font-size:18px;font-weight:700;letter-spacing:.06em;margin:8px 0 0;font-variant-numeric:tabular-nums}
   .qr{background:#fff;border-radius:12px;padding:12px;display:inline-block}
   .status{font-size:22px;font-weight:700;margin:12px 0}.status[data-ok=true]{color:#22c55e}.status[data-ok=false]{color:#ef4444}.status[data-ok=unknown]{color:#eab308}
+  .stamps{margin:12px 0;padding:12px;border-radius:12px;background:#0003}.stamps strong{font-size:22px;display:block}.stamps small{opacity:.8}
   .meta{color:#aaa;font-size:14px;line-height:1.6}.hint{color:#888;font-size:12px;margin-top:16px}code{word-break:break-all}
   .btn{display:inline-block;margin-top:12px;padding:10px 16px;border-radius:999px;background:#fff;color:#141414;font-weight:600;text-decoration:none}
 `
@@ -34,6 +35,12 @@ const refreshScript = (uid: string): string => `
   const tick=async()=>{try{const r=await fetch('/verify/${uid}');if(!r.ok){paint('UNKNOWN','unknown');return}
     const j=await r.json();paint(j.decision==='ADMIT'?'VALID':j.reason,j.decision==='ADMIT'?'true':'false')}catch{paint('UNKNOWN','unknown')}};
   tick();setInterval(tick,30000);
+  const stamps=document.getElementById('stamps');
+  const stampCount=document.getElementById('stamp-count');
+  const stampToday=document.getElementById('stamp-today');
+  const stampTick=async()=>{try{const r=await fetch('/v1/stamps/${uid}');if(!r.ok)return;const j=await r.json();
+    stamps.hidden=!j.enabled;if(j.enabled){stampCount.textContent=j.total+' / '+j.goal+' stamps';stampToday.textContent=j.today+' / '+j.dailyLimit+' today'}}catch{}};
+  stampTick();setInterval(stampTick,30000);
   const gw=document.getElementById('gw');
   fetch('/pass/${uid}/google').then(async r=>{if(!r.ok)return;const j=await r.json();gw.href=j.saveUrl;gw.hidden=false}).catch(()=>{});
 `
@@ -83,6 +90,17 @@ const pageTitle = (view: PassView): string =>
     ? `fuda pass · ${view.tier}`
     : `${view.branding.issuerName} · ${view.branding.cardTitle}`
 
+const stampProgress = (view: PassView): HtmlEscapedString | Promise<HtmlEscapedString> => {
+  const { stamps } = view
+  const contents = html`
+    <strong id="stamp-count">${stamps?.total ?? 0} / ${stamps?.goal ?? 0} stamps</strong>
+    <small id="stamp-today">${stamps?.today ?? 0} / ${stamps?.dailyLimit ?? 0} today</small>
+  `
+  return stamps?.enabled === true
+    ? html`<div id="stamps" class="stamps">${contents}</div>`
+    : html`<div id="stamps" class="stamps" hidden>${contents}</div>`
+}
+
 export const PassPage = (
   view: PassView,
 ): HtmlEscapedString | Promise<HtmlEscapedString> => html`<!doctype html>
@@ -102,6 +120,7 @@ export const PassPage = (
           ${heading(view)}
           <div class="qr" data-qr="${view.qr}">${raw(qrSvg(view.qr))}</div>
           <div id="status" class="status" data-ok="${okAttr(view.status)}">${view.status}</div>
+          ${stampProgress(view)}
           <div class="meta">${memberLine(view)}<br />Level ${view.level}<br /><code>${view.uid}</code></div>
           <a id="gw" class="btn" hidden>Add to Google Wallet</a>
           <div class="hint">

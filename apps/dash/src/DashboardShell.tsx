@@ -58,6 +58,7 @@ const navigationItems = (copy: DashCopy, surface: DashSurface, hasIssuer: boolea
   return hasIssuer
     ? [
         { label: copy.nav.venue, route: '/venue' },
+        { label: copy.nav.reception, route: '/reception' },
         { label: copy.nav.card, route: '/published' },
         { label: copy.nav.newCard, route: '/new' },
       ]
@@ -70,6 +71,7 @@ const navigationIcon = (route: DashRoute): JSX.Element => {
     '/issue': 'M12 3v12 M7 10l5 5 5-5 M4 17v4h16v-4',
     '/new': 'M4 5h16v14H4z M8 12h8 M12 8v8',
     '/published': 'M3 7h18v13H3z M6 4h12 M3 11h18',
+    '/reception': 'M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 14h2v2h-2z M18 14h2v6h-6v-2',
     '/rights': 'M4 4h16v16H4z M8 8h8 M8 12h8 M8 16h5',
     '/venue': 'M4 21V10l8-7 8 7v11 M9 21v-6h6v6',
   }

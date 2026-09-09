@@ -12,7 +12,15 @@ export interface DashCopy {
     japanese: string
     theme: { control: string; light: string; dark: string; system: string }
   }
-  nav: { overview: string; rights: string; issue: string; venue: string; newCard: string; card: string }
+  nav: {
+    overview: string
+    rights: string
+    issue: string
+    venue: string
+    reception: string
+    newCard: string
+    card: string
+  }
   auth: {
     title: string
     description: string
@@ -59,6 +67,30 @@ export interface DashCopy {
     registerDescription: string
     register: string
     registering: string
+  }
+  stamps: {
+    title: string
+    description: string
+    enabled: string
+    dailyLimit: string
+    goal: string
+    loading: string
+    save: string
+    saving: string
+    retry: string
+    saved: string
+    failures: { load: string; save: string; validation: string }
+  }
+  reception: {
+    eyebrow: string
+    title: string
+    description: string
+    scannerLabel: string
+    scannerPlaceholder: string
+    checking: string
+    retry: string
+    failures: { network: string; rejected: string; notFound: string; badQr: string; badInput: string }
+    stamp: { awarded: string; daily_limit: string; disabled: string; not_admitted: string }
   }
   designer: {
     title: string
@@ -311,6 +343,7 @@ export const DASH_COPY = {
       rights: 'Rights',
       issue: 'Issue',
       venue: 'Venue',
+      reception: 'Reception',
       newCard: 'New card',
       card: 'Your cards',
     },
@@ -367,6 +400,45 @@ export const DASH_COPY = {
       registerDescription: 'Set the identity members will recognise. You’ll claim its ENS name next.',
       register: 'Register venue',
       registering: 'Registering…',
+    },
+    stamps: {
+      title: 'Stamp settings',
+      description: 'Choose how many stamps each card can earn per Japan calendar day.',
+      enabled: 'Award stamps at reception',
+      dailyLimit: 'Daily limit (1–100)',
+      goal: 'Stamp goal (1–1000)',
+      loading: 'Loading stamp settings…',
+      save: 'Save settings',
+      saving: 'Saving…',
+      retry: 'Retry',
+      saved: 'Saved',
+      failures: {
+        load: 'Could not load stamp settings. Refresh the page to try again.',
+        save: 'Could not save stamp settings. Try again.',
+        validation: 'Daily limit must be 1–100 and stamp goal must be 1–1000.',
+      },
+    },
+    reception: {
+      eyebrow: 'Reception',
+      title: 'Scan member cards',
+      description: 'Scan a fuda QR code. The scanner input stays ready for the next guest.',
+      scannerLabel: 'QR scanner input',
+      scannerPlaceholder: 'Scan fuda:v1:… and press Enter',
+      checking: 'Checking admission…',
+      retry: 'Try again',
+      failures: {
+        network: 'The result is uncertain because fuda could not be reached. Retry this scan safely.',
+        rejected: 'The scan could not be processed. Check the QR code and try again.',
+        notFound: 'This QR code belongs to another venue or is unknown.',
+        badQr: 'This is not a valid fuda QR code.',
+        badInput: 'This scan could not be accepted. Scan the QR code again.',
+      },
+      stamp: {
+        awarded: 'Stamp awarded · total',
+        daily_limit: 'Admitted · daily stamp limit already reached',
+        disabled: 'Admitted · stamps are disabled',
+        not_admitted: 'No stamp · admission was declined',
+      },
     },
     designer: {
       title: 'Design the card',
@@ -617,6 +689,7 @@ export const DASH_COPY = {
       rights: '権利',
       issue: '発行',
       venue: '店舗',
+      reception: '受付',
       newCard: 'カードを作る',
       card: 'カード',
     },
@@ -672,6 +745,45 @@ export const DASH_COPY = {
       registerDescription: 'メンバーに伝わる店舗情報を設定します。次に ENS 名を取得します。',
       register: '店舗を登録',
       registering: '登録中…',
+    },
+    stamps: {
+      title: 'スタンプ設定',
+      description: '日本時間の1日あたりに、1枚のカードが獲得できるスタンプ数を設定します。',
+      enabled: '受付でスタンプを付与',
+      dailyLimit: '1日の上限（1〜100）',
+      goal: 'ゴール（1〜1000）',
+      loading: 'スタンプ設定を読み込み中…',
+      save: '設定を保存',
+      saving: '保存中…',
+      retry: '再試行',
+      saved: '保存しました',
+      failures: {
+        load: 'スタンプ設定を読み込めませんでした。ページを再読み込みしてください。',
+        save: 'スタンプ設定を保存できませんでした。もう一度お試しください。',
+        validation: '1日の上限は1〜100、ゴールは1〜1000で入力してください。',
+      },
+    },
+    reception: {
+      eyebrow: '受付',
+      title: 'メンバーカードをスキャン',
+      description: 'fuda の QR コードを読み取ります。読み取り後も次のお客さまの入力をすぐ受け付けます。',
+      scannerLabel: 'QR スキャナー入力',
+      scannerPlaceholder: 'fuda:v1:… を読み取って Enter',
+      checking: '入場可否を確認中…',
+      retry: '再試行',
+      failures: {
+        network: 'fuda に接続できず、結果を確定できません。同じ読み取りを安全に再試行できます。',
+        rejected: '読み取りを処理できませんでした。QR コードを確認してもう一度お試しください。',
+        notFound: 'この QR コードは別の店舗のものか、登録されていません。',
+        badQr: 'fuda の正しい QR コードではありません。',
+        badInput: 'この読み取りは受け付けられませんでした。QR コードをもう一度読み取ってください。',
+      },
+      stamp: {
+        awarded: 'スタンプを付与・合計',
+        daily_limit: '入場可・本日のスタンプ上限に達しています',
+        disabled: '入場可・スタンプは無効です',
+        not_admitted: 'スタンプなし・入場できません',
+      },
     },
     designer: {
       title: 'カードをデザイン',

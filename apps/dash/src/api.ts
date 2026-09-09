@@ -12,6 +12,8 @@ import type {
   IssueResponse,
   MembersResponse,
   RevokeResponse,
+  ReceptionResponse,
+  StampSettings,
   SignInChallengeResponse,
   SignInResponse,
 } from '@fuda/sdk'
@@ -73,6 +75,30 @@ export const signOut = async (token: string): Promise<Result<{ loggedOut: true }
 
 export const issuerMe = async (token: string): Promise<Result<IssuerMeResponse>> =>
   await apiFetch<IssuerMeResponse>(API_BASE_URL, '/issuers/me', { token })
+
+export const readStampSettings = async (token: string): Promise<Result<StampSettings>> =>
+  await apiFetch<StampSettings>(API_BASE_URL, '/issuers/me/stamps', { token })
+
+export const updateStampSettings = async (
+  token: string,
+  body: StampSettings,
+): Promise<Result<StampSettings>> =>
+  await apiFetch<StampSettings>(API_BASE_URL, '/issuers/me/stamps', {
+    body: JSON.stringify(body),
+    method: 'PUT',
+    token,
+  })
+
+export const receiveAtReception = async (
+  token: string,
+  qr: string,
+  requestId: string,
+): Promise<Result<ReceptionResponse>> =>
+  await apiFetch<ReceptionResponse>(API_BASE_URL, '/issuers/me/reception', {
+    body: JSON.stringify({ qr, requestId }),
+    method: 'POST',
+    token,
+  })
 
 export const checkHandle = async (token: string, handle: string): Promise<Result<HandleCheckResponse>> =>
   await apiFetch<HandleCheckResponse>(API_BASE_URL, `/issuers/check?handle=${encodeURIComponent(handle)}`, {

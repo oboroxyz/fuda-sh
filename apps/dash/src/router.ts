@@ -1,4 +1,4 @@
-export const DASH_ROUTES = ['/', '/rights', '/issue', '/venue', '/new', '/published'] as const
+export const DASH_ROUTES = ['/', '/rights', '/issue', '/venue', '/reception', '/new', '/published'] as const
 
 export type DashRoute = (typeof DASH_ROUTES)[number]
 
@@ -7,7 +7,7 @@ export type DashRoute = (typeof DASH_ROUTES)[number]
 // venue's own card. Each kind is sent back to its own home on the other's route.
 export type DashSurface = 'admin' | 'operator'
 
-const OPERATOR_ROUTES: ReadonlySet<DashRoute> = new Set(['/venue', '/new', '/published'])
+const OPERATOR_ROUTES: ReadonlySet<DashRoute> = new Set(['/venue', '/reception', '/new', '/published'])
 
 export const surfaceOf = (route: DashRoute): DashSurface =>
   OPERATOR_ROUTES.has(route) ? 'operator' : 'admin'
