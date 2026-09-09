@@ -106,7 +106,10 @@ export const ERROR_CODES = [
   'bad_upload',
   'upload_not_found',
   'ens_not_configured',
+  'ens_required',
+  'ens_persistence_failed',
   'already_claimed',
+  'claim_failed',
   'claim_unconfirmed',
 ] as const
 export type ErrorCode = (typeof ERROR_CODES)[number]

@@ -1,9 +1,10 @@
 /** @jsxImportSource hono/jsx/dom */
-import { useEffect, useRef } from 'hono/jsx/dom'
+import { useEffect, useId, useRef, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import type { DashCopy } from './copy.ts'
 import type { DashRoute, DashSurface } from './router.ts'
+import { SignOutButton } from './SignOutButton.tsx'
 
 export interface DashboardShellProps {
   appearance: JSX.Element
@@ -38,23 +39,6 @@ export interface DesktopBreakpoint {
   removeEventListener: (type: 'change', listener: (event: MediaQueryListEvent) => void) => void
 }
 
-export const subscribeToDesktopEntry = (
-  breakpoint: DesktopBreakpoint,
-  onEnterDesktop: () => void,
-): (() => void) => {
-  let wasDesktop = breakpoint.matches
-  const listener = (event: MediaQueryListEvent): void => {
-    if (!wasDesktop && event.matches) {
-      onEnterDesktop()
-    }
-    wasDesktop = event.matches
-  }
-  breakpoint.addEventListener('change', listener)
-  return (): void => {
-    breakpoint.removeEventListener('change', listener)
-  }
-}
-
 const desktopBreakpoint = (): DesktopBreakpoint | null =>
   globalThis.matchMedia?.(DASH_DESKTOP_MEDIA_QUERY) ?? null
 
@@ -73,10 +57,34 @@ const navigationItems = (copy: DashCopy, surface: DashSurface, hasIssuer: boolea
   }
   return hasIssuer
     ? [
+        { label: copy.nav.venue, route: '/venue' },
         { label: copy.nav.card, route: '/published' },
         { label: copy.nav.newCard, route: '/new' },
       ]
-    : [{ label: copy.nav.newCard, route: '/new' }]
+    : [{ label: copy.nav.venue, route: '/venue' }]
+}
+
+const navigationIcon = (route: DashRoute): JSX.Element => {
+  const paths = {
+    '/': 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',
+    '/issue': 'M12 3v12 M7 10l5 5 5-5 M4 17v4h16v-4',
+    '/new': 'M4 5h16v14H4z M8 12h8 M12 8v8',
+    '/published': 'M3 7h18v13H3z M6 4h12 M3 11h18',
+    '/rights': 'M4 4h16v16H4z M8 8h8 M8 12h8 M8 16h5',
+    '/venue': 'M4 21V10l8-7 8 7v11 M9 21v-6h6v6',
+  }
+  return (
+    <svg
+      aria-hidden="true"
+      class="size-5 shrink-0"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      stroke-width="1.5"
+    >
+      <path d={paths[route]} stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+  )
 }
 
 const Navigation = ({
@@ -87,32 +95,31 @@ const Navigation = ({
   route,
   surface,
 }: NavigationProps): JSX.Element => (
-  <nav aria-label={copy.chrome.navigation} class="dash-nav">
-    {navigationItems(copy, surface, hasIssuer).map((item): JSX.Element => (
-      <a
-        aria-current={route === item.route ? 'page' : undefined}
-        href={item.route}
-        onClick={(event: MouseEvent): void => {
-          if (!isPrimaryNavigation(event)) {
-            return
-          }
-          event.preventDefault()
-          onSelection?.()
-          onNavigate(item.route)
-        }}
-      >
-        {item.label}
-      </a>
-    ))}
+  <nav aria-label={copy.chrome.navigation}>
+    <ul class="menu w-full gap-1 p-0">
+      {navigationItems(copy, surface, hasIssuer).map((item): JSX.Element => (
+        <li key={item.route}>
+          <a
+            aria-current={route === item.route ? 'page' : undefined}
+            class={route === item.route ? 'menu-active' : ''}
+            href={item.route}
+            onClick={(event: MouseEvent): void => {
+              if (!isPrimaryNavigation(event)) {
+                return
+              }
+              event.preventDefault()
+              onSelection?.()
+              onNavigate(item.route)
+            }}
+          >
+            {navigationIcon(item.route)}
+            <span>{item.label}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
   </nav>
 )
-
-const SignOutButton = (label: string, onSignOut: (() => void) | null): JSX.Element | null =>
-  onSignOut === null ? null : (
-    <button class="btn btn-ghost btn-sm self-start" onClick={onSignOut} type="button">
-      {label}
-    </button>
-  )
 
 export const DashboardShell = ({
   appearance,
@@ -124,104 +131,172 @@ export const DashboardShell = ({
   route,
   surface,
 }: DashboardShellProps): JSX.Element => {
-  const dialog = useRef<HTMLDialogElement | null>(null)
+  const drawerId = useId()
+  const [open, setOpen] = useState(false)
+  const [desktop, setDesktop] = useState(() => desktopBreakpoint()?.matches ?? false)
   const opener = useRef<HTMLButtonElement | null>(null)
-
+  const sidebar = useRef<HTMLElement | null>(null)
+  const modal = open && !desktop
+  const restoreFocus = useRef(false)
   const closeDrawer = (): void => {
-    dialog.current?.close()
-    opener.current?.focus()
+    restoreFocus.current = true
+    setOpen(false)
   }
 
-  const closeOpenDrawer = (): void => {
-    if (dialog.current?.open === true) {
-      closeDrawer()
+  const previousRoute = useRef(route)
+  useEffect(() => {
+    if (previousRoute.current !== route) {
+      previousRoute.current = route
+      if (open) {
+        closeDrawer()
+      }
     }
-  }
+  }, [route])
 
-  useEffect(closeOpenDrawer, [route])
+  useEffect(() => {
+    const breakpoint = desktopBreakpoint()
+    if (breakpoint === null) {
+      return
+    }
+    const changed = (event: MediaQueryListEvent): void => {
+      setDesktop(event.matches)
+      if (event.matches) {
+        setOpen(false)
+      }
+    }
+    breakpoint.addEventListener('change', changed)
+    return () => {
+      breakpoint.removeEventListener('change', changed)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (modal) {
+      sidebar.current?.querySelector<HTMLElement>('button, a')?.focus()
+    } else if (restoreFocus.current) {
+      restoreFocus.current = false
+      opener.current?.focus()
+    }
+  }, [modal])
 
   return (
-    <div class="dash-app">
-      <aside class="dash-sidebar">
-        <div>
-          <p class="text-xl font-bold">{copy.chrome.brand}</p>
-          <p class="text-sm opacity-70">{copy.chrome.subtitle}</p>
-        </div>
-        {Navigation({ copy, hasIssuer, onNavigate, route, surface })}
-        <div class="mt-auto flex flex-col gap-3">
-          {SignOutButton(copy.auth.signOut, onSignOut)}
-          {appearance}
-        </div>
-      </aside>
-
-      <div class="dash-workspace">
+    <div class="dash-app drawer lg:drawer-open">
+      <input
+        id={drawerId}
+        class="drawer-toggle"
+        type="checkbox"
+        checked={open}
+        tabIndex={-1}
+        aria-label={copy.chrome.openMenu}
+        onChange={(event) => {
+          if (event.currentTarget instanceof HTMLInputElement) {
+            setOpen(event.currentTarget.checked)
+          }
+        }}
+      />
+      <div class="drawer-content dash-workspace" inert={modal}>
         <header class="dash-mobile-header">
           <div>
             <p class="font-bold">{copy.chrome.brand}</p>
             <p class="text-xs opacity-70">{copy.chrome.subtitle}</p>
           </div>
-          <div class="ml-auto">
-            <button
-              aria-label={copy.chrome.openMenu}
-              class="dash-menu-button btn btn-ghost btn-square"
-              onClick={() => {
-                dialog.current?.showModal()
-              }}
-              ref={(element: HTMLButtonElement | null): void => {
-                opener.current = element
-              }}
-              type="button"
-            >
-              <span aria-hidden="true">☰</span>
-            </button>
-          </div>
+          <button
+            ref={opener}
+            aria-label={copy.chrome.openMenu}
+            aria-expanded={open}
+            aria-controls={`${drawerId}-side`}
+            class="btn btn-ghost btn-square ml-auto"
+            type="button"
+            onClick={() => {
+              setOpen(true)
+            }}
+          >
+            <span aria-hidden="true">☰</span>
+          </button>
         </header>
         <main class="dash-main">{children}</main>
       </div>
-
-      <dialog
-        aria-label={copy.chrome.navigation}
-        class="dash-drawer"
-        onCancel={(event: Event): void => {
-          event.preventDefault()
-          closeDrawer()
-        }}
-        onClick={(event: MouseEvent): void => {
-          if (event.target === event.currentTarget) {
+      <div class="drawer-side z-30 lg:z-auto">
+        <label
+          for={drawerId}
+          class="drawer-overlay"
+          aria-label={copy.chrome.closeMenu}
+          onClick={(event) => {
+            event.preventDefault()
             closeDrawer()
-          }
-        }}
-        ref={(element: HTMLDialogElement | null): (() => void) | undefined => {
-          dialog.current = element
-          const breakpoint = desktopBreakpoint()
-          if (element === null || breakpoint === null) {
-            return
-          }
-          return subscribeToDesktopEntry(breakpoint, closeOpenDrawer)
-        }}
-      >
-        <div class="dash-drawer-panel">
-          <div class="flex items-start justify-between gap-4">
+          }}
+        />
+        <aside
+          ref={sidebar}
+          id={`${drawerId}-side`}
+          class="dash-sidebar"
+          role={modal ? 'dialog' : undefined}
+          aria-modal={modal ? 'true' : undefined}
+          aria-label={copy.chrome.navigation}
+          onKeyDown={(event) => {
+            if (event.target instanceof Element && event.target.closest('dialog') !== null) {
+              return
+            }
+            if (!modal) {
+              return
+            }
+            if (event.key === 'Escape') {
+              event.preventDefault()
+              closeDrawer()
+              return
+            }
+            if (event.key !== 'Tab') {
+              return
+            }
+            const controls = [
+              ...(sidebar.current?.querySelectorAll<HTMLElement>('a[href], button:not([disabled])') ?? []),
+            ]
+            const visibleControls = controls.filter(
+              (element) => element.closest('dialog:not([open]), [hidden], [inert]') === null,
+            )
+            const [first] = visibleControls
+            const last = visibleControls.at(-1)
+            if (event.shiftKey && document.activeElement === first) {
+              event.preventDefault()
+              last?.focus()
+            } else if (!event.shiftKey && document.activeElement === last) {
+              event.preventDefault()
+              first?.focus()
+            }
+          }}
+        >
+          <div class="flex items-start justify-between gap-2">
             <div>
               <p class="text-xl font-bold">{copy.chrome.brand}</p>
               <p class="text-sm opacity-70">{copy.chrome.subtitle}</p>
             </div>
             <button
+              class="dash-drawer-close btn btn-ghost btn-square"
               aria-label={copy.chrome.closeMenu}
-              class="btn btn-ghost btn-square"
-              onClick={closeDrawer}
               type="button"
+              onClick={closeDrawer}
             >
               <span aria-hidden="true">×</span>
             </button>
           </div>
-          {Navigation({ copy, hasIssuer, onNavigate, onSelection: closeDrawer, route, surface })}
-          <div class="flex flex-col gap-3">
-            {SignOutButton(copy.auth.signOut, onSignOut)}
+          {Navigation({
+            copy,
+            hasIssuer,
+            onNavigate,
+            onSelection: () => {
+              if (open) {
+                closeDrawer()
+              }
+            },
+            route,
+            surface,
+          })}
+          <div class="mt-auto flex flex-col gap-3">
+            {onSignOut === null ? null : <SignOutButton copy={copy.auth} onSignOut={onSignOut} />}
             {appearance}
           </div>
-        </div>
-      </dialog>
+        </aside>
+      </div>
     </div>
   )
 }

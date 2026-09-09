@@ -5,7 +5,6 @@ import {
   cardBodyFrom,
   cardUrl,
   claimStateOf,
-  createBodyFrom,
   createFailureOf,
   displayUrl,
   EMPTY_FORM,
@@ -93,51 +92,21 @@ describe(cardBodyFrom, () => {
   })
 })
 
-describe(createBodyFrom, () => {
-  it('nests the card under the venue and upper-cases the brand colour', () => {
-    const body = createBodyFrom({ ...filled, brandColor: '#6f4320' })
-    expect(body?.brandColor).toBe('#6F4320')
-    expect(body?.handle).toBe('wassie-coffee')
-    expect(body?.card).toMatchObject({
-      category: 'membership',
-      slug: 'membership-card',
-      title: 'Membership Card',
-      validityDays: null,
-    })
-  })
-
-  it('is null while a required field, the colour or the slug is not usable', () => {
-    expect(createBodyFrom(EMPTY_FORM)).toBeNull()
-    expect(createBodyFrom({ ...filled, brandColor: 'brown' })).toBeNull()
-    expect(createBodyFrom({ ...filled, name: '' })).toBeNull()
-    expect(createBodyFrom({ ...filled, handle: 'Wassie' })).toBeNull()
-    expect(createBodyFrom({ ...filled, slug: '' })).toBeNull()
-  })
-})
-
 describe(canSubmit, () => {
-  it('allows a complete venue form whose handle and slug are free', () => {
-    expect(canSubmit('venue', filled, free, false)).toBe(true)
-    expect(canSubmit('venue', filled, free, true)).toBe(false)
-    expect(canSubmit('venue', filled, { ...free, handle: 'taken' }, false)).toBe(false)
-    expect(canSubmit('venue', filled, { ...free, slug: 'reserved' }, false)).toBe(false)
-    expect(canSubmit('venue', EMPTY_FORM, free, false)).toBe(false)
-  })
-
   it('ignores the handle when the venue already exists and only a card is added', () => {
     expect(canSubmit('card', { ...EMPTY_FORM, handle: '' }, free, false)).toBe(true)
     expect(canSubmit('card', { ...EMPTY_FORM, handle: '' }, { ...free, handle: 'taken' }, false)).toBe(true)
     expect(canSubmit('card', { ...EMPTY_FORM, slug: '' }, free, false)).toBe(false)
     expect(canSubmit('card', EMPTY_FORM, { ...free, slug: 'taken' }, false)).toBe(false)
   })
-
-  it('still allows a submit while an availability check is in flight or unknown', () => {
-    expect(canSubmit('venue', filled, { handle: 'checking', slug: 'checking' }, false)).toBe(true)
-    expect(canSubmit('venue', filled, { handle: 'unknown', slug: 'unknown' }, false)).toBe(true)
-  })
 })
 
 describe(createFailureOf, () => {
+  it('maps ENS prerequisites to venue guidance', () => {
+    expect(createFailureOf(409, false, 'ens_required')).toBe('ensRequired')
+    expect(createFailureOf(503, false, 'ens_not_configured')).toBe('ensUnavailable')
+  })
+
   it('separates a taken handle, a taken slug, an expired session and an unreachable api', () => {
     expect(createFailureOf(409, false, 'handle_taken')).toBe('taken')
     expect(createFailureOf(409, false, 'slug_taken')).toBe('slugTaken')
@@ -269,12 +238,6 @@ describe('card body windows', () => {
     expect(cardBodyFrom({ ...filled, validUntil: CURTAIN, validityDays: 30 })).toBeNull()
     expect(canSubmit('card', { ...filled, claimFrom: CURTAIN, claimUntil: DOORS }, free, false)).toBe(false)
     expect(canSubmit('card', { ...filled, validUntil: CURTAIN, validityDays: 30 }, free, false)).toBe(false)
-  })
-
-  it('nests the same windows under a new venue', () => {
-    const body = createBodyFrom({ ...filled, claimUntil: CURTAIN })
-    expect(body?.card.claimUntil).toBe(unixFromLocal(CURTAIN))
-    expect(body?.card.claimFrom).toBeNull()
   })
 })
 

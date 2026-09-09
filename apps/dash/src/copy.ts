@@ -12,7 +12,7 @@ export interface DashCopy {
     japanese: string
     theme: { control: string; light: string; dark: string; system: string }
   }
-  nav: { overview: string; rights: string; issue: string; newCard: string; card: string }
+  nav: { overview: string; rights: string; issue: string; venue: string; newCard: string; card: string }
   auth: {
     title: string
     description: string
@@ -24,7 +24,13 @@ export interface DashCopy {
     passkeyHint: string
     adminSection: string
     signingIn: string
+    restoring: string
+    restoreFailed: string
+    retry: string
     signOut: string
+    signOutTitle: string
+    signOutDescription: string
+    cancelSignOut: string
     failures: { network: string; rejected: string; unavailable: string; wallet: string }
   }
   logo: {
@@ -44,6 +50,15 @@ export interface DashCopy {
       tooSmall: string
       type: string
     }
+  }
+  venue: {
+    ensUnavailable: string
+    handleLabel: string
+    handleHint: string
+    registerTitle: string
+    registerDescription: string
+    register: string
+    registering: string
   }
   designer: {
     title: string
@@ -109,6 +124,8 @@ export interface DashCopy {
       unknown: string
     }
     failures: {
+      ensRequired: string
+      ensUnavailable: string
       input: string
       logo: string
       network: string
@@ -137,6 +154,10 @@ export interface DashCopy {
     }
   }
   published: {
+    createFirst: string
+    manageVenue: string
+    emptyTitle: string
+    emptyDescription: string
     title: string
     titleMany: string
     description: string
@@ -285,7 +306,14 @@ export const DASH_COPY = {
       japanese: '日本語',
       theme: { control: 'Theme', light: 'Light', dark: 'Dark', system: 'System' },
     },
-    nav: { overview: 'Overview', rights: 'Rights', issue: 'Issue', newCard: 'New card', card: 'Your cards' },
+    nav: {
+      overview: 'Overview',
+      rights: 'Rights',
+      issue: 'Issue',
+      venue: 'Venue',
+      newCard: 'New card',
+      card: 'Your cards',
+    },
     auth: {
       title: 'fuda. dashboard',
       description:
@@ -298,7 +326,13 @@ export const DASH_COPY = {
       passkeyHint: 'No email, no password. Your passkey is the whole account.',
       adminSection: 'Sign in with an admin token instead',
       signingIn: 'Waiting for your passkey…',
+      restoring: 'Restoring your session…',
+      restoreFailed: 'Could not restore your session. Please try again.',
+      retry: 'Try again',
       signOut: 'Sign out',
+      signOutTitle: 'Sign out of fuda?',
+      signOutDescription: 'You will need to sign in again to manage your venue.',
+      cancelSignOut: 'Cancel',
       failures: {
         network: 'Could not reach fuda. Check your connection and try again.',
         rejected: 'That signature was not accepted. Please try again.',
@@ -323,6 +357,16 @@ export const DASH_COPY = {
         tooSmall: 'That image is too small. Use one at least 660×660.',
         type: 'Use a PNG, JPEG or WebP image.',
       },
+    },
+    venue: {
+      ensUnavailable:
+        'ENS is not configured for this deployment. Card creation is unavailable until it is enabled.',
+      handleLabel: 'Venue handle',
+      handleHint: 'Used in your venue link and ENS name. This cannot be changed.',
+      registerTitle: 'Register your venue',
+      registerDescription: 'Set the identity members will recognise. You’ll claim its ENS name next.',
+      register: 'Register venue',
+      registering: 'Registering…',
     },
     designer: {
       title: 'Design the card',
@@ -388,6 +432,8 @@ export const DASH_COPY = {
         unknown: 'Could not check this link.',
       },
       failures: {
+        ensRequired: 'Claim your venue ENS name before creating a card.',
+        ensUnavailable: 'Card creation is unavailable because ENS is not configured.',
         input: 'Some fields need a change before this card can be created.',
         logo: 'Could not upload the logo. Your card is still here — try again.',
         network: 'Could not reach fuda. Check your connection and try again.',
@@ -417,6 +463,10 @@ export const DASH_COPY = {
       },
     },
     published: {
+      createFirst: 'Create your first card',
+      manageVenue: 'Go to venue and ENS',
+      emptyTitle: 'Create your first card',
+      emptyDescription: 'Your venue is ready. Add a card when its ENS name has been claimed.',
       title: 'Your card is live',
       titleMany: 'Your cards are live',
       description: 'One link is the whole sign-up. Print it, mail it, or post it.',
@@ -562,7 +612,14 @@ export const DASH_COPY = {
       japanese: '日本語',
       theme: { control: 'テーマ', light: 'ライト', dark: 'ダーク', system: 'システム' },
     },
-    nav: { overview: '概要', rights: '権利', issue: '発行', newCard: 'カードを作る', card: 'カード' },
+    nav: {
+      overview: '概要',
+      rights: '権利',
+      issue: '発行',
+      venue: '店舗',
+      newCard: 'カードを作る',
+      card: 'カード',
+    },
     auth: {
       title: 'fuda. dashboard',
       description:
@@ -575,7 +632,13 @@ export const DASH_COPY = {
       passkeyHint: 'メールアドレスもパスワードも不要です。パスキーがそのままアカウントになります。',
       adminSection: '管理トークンでサインインする',
       signingIn: 'パスキーの操作を待っています…',
+      restoring: 'ログイン状態を確認しています…',
+      restoreFailed: 'ログイン状態を確認できませんでした。もう一度お試しください。',
+      retry: '再試行',
       signOut: 'サインアウト',
+      signOutTitle: 'サインアウトしますか？',
+      signOutDescription: 'Venueを管理するには、もう一度サインインする必要があります。',
+      cancelSignOut: 'キャンセル',
       failures: {
         network: 'fuda に接続できませんでした。通信環境を確認して、もう一度お試しください。',
         rejected: '署名が受け付けられませんでした。もう一度お試しください。',
@@ -600,6 +663,15 @@ export const DASH_COPY = {
         tooSmall: '画像が小さすぎます。660px 以上の画像を選んでください。',
         type: 'PNG・JPEG・WebP の画像を選んでください。',
       },
+    },
+    venue: {
+      ensUnavailable: 'この環境では ENS が設定されていません。有効になるまでカードを作成できません。',
+      handleLabel: '店舗ハンドル',
+      handleHint: '店舗リンクと ENS 名に使われます。登録後は変更できません。',
+      registerTitle: '店舗を登録',
+      registerDescription: 'メンバーに伝わる店舗情報を設定します。次に ENS 名を取得します。',
+      register: '店舗を登録',
+      registering: '登録中…',
     },
     designer: {
       title: 'カードをデザイン',
@@ -665,6 +737,8 @@ export const DASH_COPY = {
         unknown: 'リンクを確認できませんでした。',
       },
       failures: {
+        ensRequired: 'カードを作成する前に店舗の ENS 名を取得してください。',
+        ensUnavailable: 'ENS が設定されていないため、カードを作成できません。',
         input: '入力内容を確認してください。このままではカードを作成できません。',
         logo: 'ロゴをアップロードできませんでした。入力内容はそのままです。もう一度お試しください。',
         network: 'fuda に接続できませんでした。通信環境を確認して、もう一度お試しください。',
@@ -694,6 +768,10 @@ export const DASH_COPY = {
       },
     },
     published: {
+      createFirst: '最初のカードを作成',
+      manageVenue: '店舗と ENS を確認',
+      emptyTitle: '最初のカードを作成',
+      emptyDescription: '店舗の準備ができました。ENS 名を取得するとカードを作成できます。',
       title: 'カードを公開しました',
       titleMany: '公開中のカード',
       description: 'このリンク 1 本が入会導線になります。印刷しても、送っても、投稿してもかまいません。',

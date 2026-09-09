@@ -169,8 +169,13 @@ password manager, not just `packages/ens-contracts/.env`.
 After topology verification, configure the API with the five claim bindings in
 §3 alongside `ENS_PARENT_NAME=fuda.eth` and the shared resolver in
 `ENS_RESOLVER_ADDRESSES`. Every claim route answers `503 ens_not_configured`
-until all of them are present, and the dashboard leaves the section out
-entirely rather than offering a button that could only fail.
+until all of them are present. The dashboard registers the venue first and
+then guides the operator through ENS acquisition on `/venue`; card creation
+requires the confirmed claim. When no ENS name is configured, `/venue` shows
+an unavailable state and new cards cannot be created. Configure these bindings
+before testing the complete onboarding flow. Existing cards and member
+issuance remain available. The issuer can be registered and restored with no
+cards, so an interrupted claim can be retried without registering again.
 
 The DNSSEC TXT value required to expose the `.eth` tree through `fuda.sh` is:
 
@@ -348,16 +353,21 @@ either way. That is the point of the scoping — a venue's access does not depen
 on fuda's deployment secret.
 
 ```bash
-API_URL=https://api.fuda.sh ADMIN_TOKEN=… \
+API_URL=https://api.fuda.sh ADMIN_TOKEN=… SMOKE_OPERATOR_KEY=… \
   pnpm --filter api smoke:live --ladder bearer,signed,card
 ```
 
 Runs the supported ladders end to end against the live API. The `card` ladder
 is the one that covers the venue's own front door — an operator signs in with
 their wallet, publishes a card, and a member claims it off the public page with
-no admin token — so it exercises what a phone in the queue does. It mints a
-fresh operator key and a fresh handle each run and leaves both behind in the
-database; that is deliberate, since one address may own only one venue.
+no admin token — so it exercises what a phone in the queue does. Set
+`SMOKE_OPERATOR_KEY` to a dedicated operator key whose venue is already
+registered and has a confirmed ENS claim. The script checks these prerequisites
+before running the selected ladders, creates a card with a unique slug, and
+leaves that card behind in the venue. It does not acquire an ENS name or fund a
+wallet. Use `--ladder bearer,signed` when testing without an operator venue;
+the card ladder is not silently skipped. Fresh issuer registration and the
+ENS card-creation prerequisite are also covered by the API test suite.
 There is no `private` ladder: discovery is a browser-to-Graph query and the
 script would have nothing to drive. Verify +Private discovery through the rights subgraph
 and member app, then enter through the ordinary Signed challenge-response flow,

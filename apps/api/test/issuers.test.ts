@@ -6,14 +6,25 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '../src/db/client.ts'
 import { cards, challenges, issuers, members, sessions } from '../src/db/schema.ts'
 import { decodeEntitlementV1 } from '../src/eas/codecs.ts'
+import { mirrorIssuerName } from '../src/ens/mirror.ts'
+import { ensNames } from '../src/ens/schema.ts'
 import type { Bindings } from '../src/env.ts'
 import { appWith, fakeChain, testEnv } from './env.ts'
 import { configuredEnv, NOW, other, ROOT, seedRoot } from './fixtures.ts'
-import { CARD_INPUT, getJson, postJson, SECOND_CARD, signIn } from './operator.ts'
+import {
+  CARD_INPUT,
+  getJson,
+  operator,
+  postJson,
+  registerVenueWithCard,
+  SECOND_CARD,
+  signIn,
+} from './operator.ts'
 
 interface Created {
+  cards: []
+  ens: null
   issuer: { id: string; handle: string; brandColor: string; operatorAddress: string }
-  card: { id: string; title: string; category: string; validityDays: number | null }
   publicUrl: string
 }
 
@@ -43,6 +54,7 @@ const issue = async (
 describe('issuer onboarding', () => {
   beforeEach(async () => {
     const db = getDb({ DB: env.DB })
+    await db.delete(ensNames)
     await db.delete(members)
     await db.delete(sessions)
     await db.delete(challenges)
@@ -50,32 +62,32 @@ describe('issuer onboarding', () => {
     await db.delete(issuers)
   })
 
-  it('creates the issuer and first card and binds the session to it', async () => {
+  it('creates a venue without cards and binds the session to it', async () => {
     const app = appWith({ chain: fakeChain(), now: () => NOW })
     const { token } = await signIn(app, publicEnv())
-    const res = await postJson(app, publicEnv(), '/v1/issuers', CARD_INPUT, token)
+    const { card: _card, ...venueInput } = CARD_INPUT
+    const res = await postJson(app, publicEnv(), '/v1/issuers', venueInput, token)
     expect(res.status).toBe(201)
     const body = await res.json<Created>()
-    expect(body.issuer.brandColor).toBe('#6F4320')
-    expect(body.publicUrl).toBe('https://fuda.test/@wassie-coffee')
-    const me = await getJson(app, publicEnv(), '/v1/issuers/me', token)
-    await expect(me.json()).resolves.toStrictEqual({
-      cards: [body.card],
-      // No ENS parent is configured in this deployment, so the venue has no name.
-      ens: null,
-      issuer: body.issuer,
-      publicUrl: body.publicUrl,
+    expect(body).toMatchObject({
+      cards: [],
+      issuer: { brandColor: '#6F4320' },
+      publicUrl: 'https://fuda.test/@wassie-coffee',
     })
+    await expect(getDb({ DB: env.DB }).select().from(cards)).resolves.toStrictEqual([])
+    const me = await getJson(app, publicEnv(), '/v1/issuers/me', token)
+    await expect(me.json()).resolves.toStrictEqual(body)
   })
 
   it('finds the issuer again on the next sign-in', async () => {
     const app = appWith({ chain: fakeChain(), now: () => NOW })
     const first = await signIn(app, publicEnv())
-    await postJson(app, publicEnv(), '/v1/issuers', CARD_INPUT, first.token)
+    const { card: _card, ...venueInput } = CARD_INPUT
+    await postJson(app, publicEnv(), '/v1/issuers', venueInput, first.token)
     const second = await signIn(app, publicEnv())
     expect(second.issuer).toMatchObject({ handle: 'wassie-coffee' })
     const me = await getJson(app, publicEnv(), '/v1/issuers/me', second.token)
-    await expect(me.json()).resolves.toMatchObject({ cards: [{ title: 'Membership Card' }] })
+    await expect(me.json()).resolves.toMatchObject({ cards: [], issuer: { handle: 'wassie-coffee' } })
   })
 
   it('rejects a bad handle, a taken handle and a second issuer', async () => {
@@ -122,9 +134,10 @@ describe('issuer onboarding', () => {
 
   it('serves the venue and its cards without the operator address', async () => {
     const app = appWith({ chain: fakeChain(), now: () => NOW })
-    const { token } = await signIn(app, publicEnv())
-    await postJson(app, publicEnv(), '/v1/issuers', CARD_INPUT, token)
-    const res = await getJson(app, publicEnv(), '/v1/issuers/wassie-coffee')
+    const bindings = publicEnv()
+    const { token } = await signIn(app, bindings)
+    await registerVenueWithCard(app, bindings, CARD_INPUT, token)
+    const res = await getJson(app, bindings, '/v1/issuers/wassie-coffee')
     expect(res.headers.get('cache-control')).toBe('no-store')
     const body = await res.json<{ brandColor: string; cards: { slug: string }[]; handle: string }>()
     expect(body).toMatchObject({ brandColor: '#6F4320', handle: 'wassie-coffee', name: 'Wassie Coffee' })
@@ -149,19 +162,14 @@ const setup = async (card: Partial<typeof CARD_INPUT.card> = {}) => {
     PUBLIC_BASE_URL: 'https://fuda.test',
   })
   const { token } = await signIn(app, bindings)
-  await postJson(
-    app,
-    bindings,
-    '/v1/issuers',
-    { ...CARD_INPUT, card: { ...CARD_INPUT.card, ...card } },
-    token,
-  )
+  await registerVenueWithCard(app, bindings, { ...CARD_INPUT, card: { ...CARD_INPUT.card, ...card } }, token)
   return { app, bindings, chain }
 }
 
 describe('POST /issuers/:handle/issue', () => {
   beforeEach(async () => {
     const db = getDb({ DB: env.DB })
+    await db.delete(ensNames)
     await db.delete(members)
     await db.delete(sessions)
     await db.delete(challenges)
@@ -225,7 +233,7 @@ describe('POST /issuers/:handle/issue', () => {
     const app = appWith({ chain: fakeChain({ signer: null }), now: () => NOW })
     const bindings = publicEnv()
     const { token } = await signIn(app, bindings)
-    await postJson(app, bindings, '/v1/issuers', CARD_INPUT, token)
+    await registerVenueWithCard(app, bindings, CARD_INPUT, token)
     const noSigner = await issue(app, bindings)
     expect(noSigner.status).toBe(501)
     const signing = appWith({ chain: fakeChain({ signer: ROOT }), now: () => NOW })
@@ -236,6 +244,7 @@ describe('POST /issuers/:handle/issue', () => {
 describe('branded passes for a self-serve right', () => {
   beforeEach(async () => {
     const db = getDb({ DB: env.DB })
+    await db.delete(ensNames)
     await db.delete(members)
     await db.delete(sessions)
     await db.delete(challenges)
@@ -277,6 +286,7 @@ describe('branded passes for a self-serve right', () => {
 describe('a venue with several cards', () => {
   beforeEach(async () => {
     const db = getDb({ DB: env.DB })
+    await db.delete(ensNames)
     await db.delete(members)
     await db.delete(sessions)
     await db.delete(challenges)
@@ -284,13 +294,65 @@ describe('a venue with several cards', () => {
     await db.delete(issuers)
   })
 
-  it('adds a second card to the same venue and lists both for the operator', async () => {
+  const venueWithoutCard = async () => {
     const app = appWith({ chain: fakeChain(), now: () => NOW })
     const { token } = await signIn(app, publicEnv())
-    await postJson(app, publicEnv(), '/v1/issuers', CARD_INPUT, token)
-    const added = await postJson(app, publicEnv(), '/v1/issuers/cards', SECOND_CARD, token)
+    const { card: firstCard, ...venueInput } = CARD_INPUT
+    await postJson(app, publicEnv(), '/v1/issuers', venueInput, token)
+    return { app, firstCard, token, venueInput }
+  }
+
+  it('refuses card creation when ENS is not configured', async () => {
+    const { app, firstCard, token } = await venueWithoutCard()
+    const unavailable = await postJson(app, publicEnv(), '/v1/issuers/cards', firstCard, token)
+    expect(unavailable.status).toBe(503)
+    await expect(unavailable.json()).resolves.toStrictEqual({ error: 'ens_not_configured' })
+    await expect(getDb({ DB: env.DB }).select().from(cards)).resolves.toStrictEqual([])
+  })
+
+  it('refuses card creation while the ENS claim is only voucher-issued', async () => {
+    const { app, firstCard, token, venueInput } = await venueWithoutCard()
+    const configured = publicEnv({ ENS_PARENT_NAME: 'fuda.eth' })
+    await mirrorIssuerName(getDb({ DB: env.DB }), {
+      handle: venueInput.handle,
+      now: NOW,
+      owner: operator.address,
+      parentName: 'fuda.eth',
+      status: 'voucher_issued',
+    })
+    const required = await postJson(app, configured, '/v1/issuers/cards', firstCard, token)
+    expect(required.status).toBe(409)
+    await expect(required.json()).resolves.toStrictEqual({ error: 'ens_required' })
+    await expect(getDb({ DB: env.DB }).select().from(cards)).resolves.toStrictEqual([])
+  })
+
+  it('allows different card slugs after the ENS claim is confirmed', async () => {
+    const { app, firstCard, token, venueInput } = await venueWithoutCard()
+    const configured = publicEnv({ ENS_PARENT_NAME: 'fuda.eth' })
+    await mirrorIssuerName(getDb({ DB: env.DB }), {
+      claimTxHash: `0x${'ab'.repeat(32)}`,
+      expiry: NOW + 3600,
+      handle: venueInput.handle,
+      now: NOW,
+      owner: operator.address,
+      parentName: 'fuda.eth',
+      status: 'claimed',
+    })
+    const first = await postJson(app, configured, '/v1/issuers/cards', firstCard, token)
+    const second = await postJson(app, configured, '/v1/issuers/cards', SECOND_CARD, token)
+    expect([first.status, second.status]).toStrictEqual([201, 201])
+    const stored = await getDb({ DB: env.DB }).select().from(cards)
+    expect(stored.map((card) => card.slug).toSorted()).toStrictEqual(['gig', 'stamp'])
+  })
+
+  it('adds a second card to the same venue and lists both for the operator', async () => {
+    const app = appWith({ chain: fakeChain(), now: () => NOW })
+    const bindings = publicEnv({ ENS_PARENT_NAME: 'fuda.eth' })
+    const { token } = await signIn(app, bindings)
+    await registerVenueWithCard(app, bindings, CARD_INPUT, token)
+    const added = await postJson(app, bindings, '/v1/issuers/cards', SECOND_CARD, token)
     expect(added.status).toBe(201)
-    const me = await getJson(app, publicEnv(), '/v1/issuers/me', token)
+    const me = await getJson(app, bindings, '/v1/issuers/me', token)
     const body = await me.json<{ cards: { slug: string }[]; publicUrl: string }>()
     expect(body.cards.map((card) => card.slug)).toStrictEqual(['stamp', 'gig'])
     expect(body.publicUrl).toBe('https://fuda.test/@wassie-coffee')
@@ -298,11 +360,12 @@ describe('a venue with several cards', () => {
 
   it('refuses a duplicate slug and an invalid one', async () => {
     const app = appWith({ chain: fakeChain(), now: () => NOW })
-    const { token } = await signIn(app, publicEnv())
-    await postJson(app, publicEnv(), '/v1/issuers', CARD_INPUT, token)
+    const bindings = publicEnv({ ENS_PARENT_NAME: 'fuda.eth' })
+    const { token } = await signIn(app, bindings)
+    await registerVenueWithCard(app, bindings, CARD_INPUT, token)
     const duplicate = await postJson(
       app,
-      publicEnv(),
+      bindings,
       '/v1/issuers/cards',
       { ...SECOND_CARD, slug: 'stamp' },
       token,
@@ -311,7 +374,7 @@ describe('a venue with several cards', () => {
     await expect(duplicate.json()).resolves.toStrictEqual({ error: 'slug_taken' })
     const reserved = await postJson(
       app,
-      publicEnv(),
+      bindings,
       '/v1/issuers/cards',
       { ...SECOND_CARD, slug: 'cards' },
       token,
@@ -321,10 +384,11 @@ describe('a venue with several cards', () => {
 
   it('serves both cards on the venue page', async () => {
     const app = appWith({ chain: fakeChain(), now: () => NOW })
-    const { token } = await signIn(app, publicEnv())
-    await postJson(app, publicEnv(), '/v1/issuers', CARD_INPUT, token)
-    await postJson(app, publicEnv(), '/v1/issuers/cards', SECOND_CARD, token)
-    const res = await getJson(app, publicEnv(), '/v1/issuers/wassie-coffee')
+    const bindings = publicEnv({ ENS_PARENT_NAME: 'fuda.eth' })
+    const { token } = await signIn(app, bindings)
+    await registerVenueWithCard(app, bindings, CARD_INPUT, token)
+    await postJson(app, bindings, '/v1/issuers/cards', SECOND_CARD, token)
+    const res = await getJson(app, bindings, '/v1/issuers/wassie-coffee')
     const venue = await res.json<{ cards: { slug: string; title: string }[] }>()
     expect(venue.cards.map((card) => card.slug)).toStrictEqual(['stamp', 'gig'])
     expect(venue.cards[1]?.title).toBe('Gig Ticket')
@@ -332,11 +396,12 @@ describe('a venue with several cards', () => {
 
   it('checks a slug against the venue that would own it', async () => {
     const app = appWith({ chain: fakeChain(), now: () => NOW })
-    const { token } = await signIn(app, publicEnv())
-    await postJson(app, publicEnv(), '/v1/issuers', CARD_INPUT, token)
-    const taken = await getJson(app, publicEnv(), '/v1/issuers/cards/check?slug=stamp', token)
+    const bindings = publicEnv()
+    const { token } = await signIn(app, bindings)
+    await registerVenueWithCard(app, bindings, CARD_INPUT, token)
+    const taken = await getJson(app, bindings, '/v1/issuers/cards/check?slug=stamp', token)
     await expect(taken.json()).resolves.toStrictEqual({ available: false, slug: 'stamp', valid: true })
-    const free = await getJson(app, publicEnv(), '/v1/issuers/cards/check?slug=gig', token)
+    const free = await getJson(app, bindings, '/v1/issuers/cards/check?slug=gig', token)
     await expect(free.json()).resolves.toStrictEqual({ available: true, slug: 'gig', valid: true })
   })
 
@@ -346,10 +411,11 @@ describe('a venue with several cards', () => {
     const app = appWith({ chain, now: () => NOW })
     const bindings = configuredEnv(del, {
       API_BASE_URL: 'https://api.test',
+      ENS_PARENT_NAME: 'fuda.eth',
       PUBLIC_BASE_URL: 'https://fuda.test',
     })
     const { token } = await signIn(app, bindings)
-    await postJson(app, bindings, '/v1/issuers', CARD_INPUT, token)
+    await registerVenueWithCard(app, bindings, CARD_INPUT, token)
     await postJson(app, bindings, '/v1/issuers/cards', SECOND_CARD, token)
     const first = await app.request(
       '/v1/issuers/wassie-coffee/stamp/issue',
@@ -390,9 +456,9 @@ const venueWith = async (card: Partial<typeof SECOND_CARD>) => {
   const chain = fakeChain({ signer: ROOT })
   const del = seedRoot(chain)
   const app = appWith({ chain, now: () => NOW })
-  const bindings = configuredEnv(del, { PUBLIC_BASE_URL: 'https://fuda.test' })
+  const bindings = configuredEnv(del, { ENS_PARENT_NAME: 'fuda.eth', PUBLIC_BASE_URL: 'https://fuda.test' })
   const { token } = await signIn(app, bindings)
-  await postJson(app, bindings, '/v1/issuers', CARD_INPUT, token)
+  await registerVenueWithCard(app, bindings, CARD_INPUT, token)
   await postJson(app, bindings, '/v1/issuers/cards', { ...SECOND_CARD, ...card }, token)
   return { app, bindings, chain }
 }

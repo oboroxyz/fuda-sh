@@ -113,6 +113,34 @@ describe(mirrorIssuerName, () => {
     })
     await expect(rowFor(name)).resolves.toMatchObject({ expiry: 2000, status: 'claimed' })
   })
+
+  it('does not let a late voucher write downgrade a confirmed claim', async () => {
+    const name = `bakery.${PARENT}`
+    await mirrorIssuerName(db(), {
+      claimTxHash: TX_HASH,
+      expiry: 2000,
+      handle: 'bakery',
+      now: 20,
+      owner: OWNER,
+      parentName: PARENT,
+      status: 'claimed',
+    })
+
+    await mirrorIssuerName(db(), {
+      handle: 'bakery',
+      now: 30,
+      owner: OWNER,
+      parentName: PARENT,
+      status: 'voucher_issued',
+    })
+
+    await expect(rowFor(name)).resolves.toMatchObject({
+      claimTxHash: TX_HASH,
+      expiry: 2000,
+      status: 'claimed',
+      updatedAt: 20,
+    })
+  })
 })
 
 describe(darkenMemberName, () => {

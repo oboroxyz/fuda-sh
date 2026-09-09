@@ -1,12 +1,18 @@
-import type { IssuerCreateResponse, IssuerView, IssueResponse, RevokeResponse } from '@fuda/sdk'
+import type {
+  CardCreateResponse,
+  IssuerCreateResponse,
+  IssuerView,
+  IssueResponse,
+  RevokeResponse,
+} from '@fuda/sdk'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { Result } from './api.ts'
-import { applyLogo, issueAndReload, revokeAndReload, submitDesign } from './app-actions.ts'
+import { applyLogo, issueAndReload, revokeAndReload, submitCard, submitVenue } from './app-actions.ts'
 import type { ActionContext, DashIo, DesignIo } from './app-actions.ts'
 import { EMPTY_FORM } from './card-designer.ts'
-import type { DesignerForm } from './card-designer.ts'
 import type { LogoSet } from './logo.ts'
+import { EMPTY_VENUE_FORM } from './venue.ts'
 
 const UID = `0x${'ab'.repeat(32)}` as const
 const HOLDER = `0x${'11'.repeat(20)}` as const
@@ -88,7 +94,7 @@ const pngOf = (bytes: number): Blob => new Blob([new Uint8Array(bytes)], { type:
 
 const logo: LogoSet = { logo1x: pngOf(1), logo2x: pngOf(2), logo3x: pngOf(3), master: pngOf(4) }
 
-const venueForm: DesignerForm = { ...EMPTY_FORM, handle: 'wassie-coffee', name: 'Wassie Coffee' }
+const venueForm = { ...EMPTY_VENUE_FORM, handle: 'wassie-coffee', name: 'Wassie Coffee' }
 
 const issuer: IssuerView = {
   brandColor: '#6F4320',
@@ -102,6 +108,15 @@ const issuer: IssuerView = {
 }
 
 const created: Result<IssuerCreateResponse> = {
+  body: {
+    cards: [],
+    ens: { claimTxHash: null, expiry: null, name: 'wassie-coffee.fuda.eth', status: 'unclaimed' },
+    issuer,
+    publicUrl: 'https://fuda.sh/@wassie-coffee',
+  },
+  ok: true,
+}
+const cardCreated: Result<CardCreateResponse> = {
   body: {
     card: {
       category: 'membership',
@@ -125,7 +140,7 @@ const created: Result<IssuerCreateResponse> = {
 
 const designIo = (overrides: Partial<DesignIo> = {}): DesignIo => ({
   commitLogo: vi.fn<DesignIo['commitLogo']>().mockResolvedValue({ body: { issuer }, ok: true }),
-  createCard: vi.fn<DesignIo['createCard']>().mockResolvedValue(created),
+  createCard: vi.fn<DesignIo['createCard']>().mockResolvedValue(cardCreated),
   createIssuer: vi.fn<DesignIo['createIssuer']>().mockResolvedValue(created),
   uploadLogo: vi
     .fn<DesignIo['uploadLogo']>()
@@ -136,7 +151,7 @@ const designIo = (overrides: Partial<DesignIo> = {}): DesignIo => ({
 describe('the designer submit', () => {
   it('carries the id the upload returned into the venue create body', async () => {
     const io = designIo()
-    const outcome = await submitDesign(io, 'secret', 'venue', venueForm, logo)
+    const outcome = await submitVenue(io, 'secret', venueForm, logo)
     expect(outcome.ok).toBe(true)
     expect(io.uploadLogo).toHaveBeenCalledExactlyOnceWith('secret', logo)
     expect(io.createIssuer).toHaveBeenCalledExactlyOnceWith(
@@ -147,7 +162,7 @@ describe('the designer submit', () => {
 
   it('leaves the create body without a logo id when the operator picked none', async () => {
     const io = designIo()
-    await submitDesign(io, 'secret', 'venue', venueForm, null)
+    await submitVenue(io, 'secret', venueForm, null)
     expect(io.uploadLogo).not.toHaveBeenCalled()
     expect(io.createIssuer).toHaveBeenCalledExactlyOnceWith(
       'secret',
@@ -161,7 +176,7 @@ describe('the designer submit', () => {
         .fn<DesignIo['uploadLogo']>()
         .mockResolvedValue({ error: 'bad_upload', network: false, ok: false, status: 400 }),
     })
-    const outcome = await submitDesign(io, 'secret', 'venue', venueForm, logo)
+    const outcome = await submitVenue(io, 'secret', venueForm, logo)
     expect(outcome).toStrictEqual({ failure: 'logo', ok: false })
     expect(io.createIssuer).not.toHaveBeenCalled()
   })
@@ -172,16 +187,17 @@ describe('the designer submit', () => {
         .fn<DesignIo['uploadLogo']>()
         .mockResolvedValue({ error: 'unauthorized', network: false, ok: false, status: 401 }),
     })
-    const outcome = await submitDesign(io, 'secret', 'venue', venueForm, logo)
+    const outcome = await submitVenue(io, 'secret', venueForm, logo)
     expect(outcome).toStrictEqual({ failure: 'session', ok: false })
     expect(io.createIssuer).not.toHaveBeenCalled()
   })
 
-  it('commits the upload for a venue that already exists, then adds the card', async () => {
+  it('adds a card without changing venue identity or logo', async () => {
     const io = designIo()
-    const outcome = await submitDesign(io, 'secret', 'card', venueForm, logo)
+    const outcome = await submitCard(io, 'secret', EMPTY_FORM)
     expect(outcome.ok).toBe(true)
-    expect(io.commitLogo).toHaveBeenCalledExactlyOnceWith('secret', 'up_1')
+    expect(io.commitLogo).not.toHaveBeenCalled()
+    expect(io.uploadLogo).not.toHaveBeenCalled()
     expect(io.createCard).toHaveBeenCalledOnce()
     expect(io.createIssuer).not.toHaveBeenCalled()
   })

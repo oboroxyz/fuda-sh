@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@base-org/account": "2.5.10",
+    "@fuda/libs": "workspace:*",
     "@fuda/sdk": "workspace:*",
     "@fuda/stealth-address": "workspace:*",
     "@fuda/styles": "workspace:*",

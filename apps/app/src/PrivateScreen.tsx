@@ -137,14 +137,14 @@ export const PrivateScreen = (): JSX.Element => {
     )
   }
   return (
-    <main class="flex min-h-screen flex-col items-center gap-4 p-4">
-      <h1 class="text-xl font-bold">+Private</h1>
-      <p class="text-center text-sm opacity-70">
+    <main class="member-page member-page-narrow flex flex-col items-center gap-6">
+      <h1 class="member-heading">+Private</h1>
+      <p class="text-center text-sm leading-relaxed text-[var(--fuda-muted)]">
         Your passkey derives a meta-address. Give it to the Venue; your pass lands on a one-time address only
         you can find.
       </p>
       {keys === null ? (
-        <div class="flex gap-2">
+        <div class="flex w-full flex-col gap-2 sm:flex-row sm:justify-center">
           <button
             type="button"
             class="btn btn-primary"

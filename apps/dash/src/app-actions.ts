@@ -1,10 +1,18 @@
-import type { IssuerCreateResponse, IssuerView, IssueResponse, RevokeResponse } from '@fuda/sdk'
+import type {
+  CardCreateResponse,
+  IssuerCreateResponse,
+  IssuerView,
+  IssueResponse,
+  RevokeResponse,
+} from '@fuda/sdk'
 
 import { commitLogo, createCard, createIssuer, uploadLogo } from './api.ts'
 import type { issueRight, listMembers, Result, revokeRight } from './api.ts'
-import { cardBodyFrom, createBodyFrom, createFailureOf } from './card-designer.ts'
-import type { CreateFailure, DesignerForm, DesignerMode } from './card-designer.ts'
+import { cardBodyFrom, createFailureOf } from './card-designer.ts'
+import type { CreateFailure, DesignerForm } from './card-designer.ts'
 import type { LogoSet } from './logo.ts'
+import { venueBodyFrom } from './venue.ts'
+import type { VenueForm } from './venue.ts'
 
 export interface DashIo {
   issueRight: typeof issueRight
@@ -100,9 +108,12 @@ export const applyLogo = async (
   return { issuer: committed.body.issuer, ok: true }
 }
 
-export type CreateOutcome = { ok: true; body: IssuerCreateResponse } | { ok: false; failure: CreateFailure }
+export type VenueCreateOutcome =
+  | { ok: true; body: IssuerCreateResponse }
+  | { ok: false; failure: CreateFailure }
+export type CardCreateOutcome = { ok: true; body: CardCreateResponse } | { ok: false; failure: CreateFailure }
 
-const outcomeOf = (result: Result<IssuerCreateResponse>): CreateOutcome =>
+const outcomeOf = <T>(result: Result<T>): { ok: true; body: T } | { ok: false; failure: CreateFailure } =>
   result.ok
     ? { body: result.body, ok: true }
     : { failure: createFailureOf(result.status, result.network, result.error), ok: false }
@@ -111,31 +122,26 @@ const outcomeOf = (result: Result<IssuerCreateResponse>): CreateOutcome =>
 // created already wearing its mark and an existing one commits the upload
 // alongside the new card. A failed upload returns a failure and writes nothing,
 // which leaves the operator's form exactly as they left it.
-export const submitDesign = async (
+export const submitVenue = async (
   io: DesignIo,
   token: string,
-  mode: DesignerMode,
-  form: DesignerForm,
+  form: VenueForm,
   logo: LogoSet | null,
-): Promise<CreateOutcome> => {
+): Promise<VenueCreateOutcome> => {
   const staged = await stageLogo(io, token, logo)
   if (!staged.ok) {
     return { failure: staged.session ? 'session' : 'logo', ok: false }
   }
   const { logoUploadId } = staged
-  if (mode === 'card') {
-    const body = cardBodyFrom(form)
-    if (body === null) {
-      return { failure: 'input', ok: false }
-    }
-    if (logoUploadId !== null) {
-      const committed = await io.commitLogo(token, logoUploadId)
-      if (!committed.ok) {
-        return { failure: committed.status === 401 ? 'session' : 'logo', ok: false }
-      }
-    }
-    return outcomeOf(await io.createCard(token, body))
-  }
-  const body = createBodyFrom(form, logoUploadId)
+  const body = venueBodyFrom(form, logoUploadId)
   return body === null ? { failure: 'input', ok: false } : outcomeOf(await io.createIssuer(token, body))
+}
+
+export const submitCard = async (
+  io: DesignIo,
+  token: string,
+  form: DesignerForm,
+): Promise<CardCreateOutcome> => {
+  const body = cardBodyFrom(form)
+  return body === null ? { failure: 'input', ok: false } : outcomeOf(await io.createCard(token, body))
 }

@@ -104,8 +104,8 @@ export const SignInView = ({
   </main>
 )
 
-// Neither credential is persisted: the admin token and the passkey session
-// token both live in this tab's memory only (docs/specs/pass-types-and-flows.md#surfaces).
+// The admin credential stays in memory; App persists only operator sessions
+// (docs/specs/pass-types-and-flows.md#surfaces).
 export const SignIn = (props: SignInProps): JSX.Element => {
   const [value, setValue] = useState('')
   return <SignInView {...props} onValue={setValue} value={value} />

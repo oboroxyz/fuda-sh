@@ -1,2 +1,98 @@
 @import 'tailwindcss';
 @import '@fuda/styles/base.css';
+
+/* The shared theme intentionally omits daisyUI themes and button sizing.
+   Give the member app's components the same surfaces and readable controls. */
+@theme inline {
+  --color-base-100: var(--fuda-surface);
+  --color-base-200: var(--fuda-bg);
+  --color-base-300: var(--fuda-border);
+  --color-base-content: var(--fuda-text);
+  --color-primary: var(--fuda-accent);
+  --color-primary-content: #ffffff;
+  --color-success: #26704b;
+  --color-success-content: #ffffff;
+  --color-warning: #f3d99a;
+  --color-warning-content: #513c0c;
+  --color-error: var(--fuda-danger);
+  --color-error-content: #ffffff;
+  --radius-box: 1rem;
+  --radius-field: 0.75rem;
+  --radius-selector: 0.5rem;
+}
+
+@layer components {
+  .member-page {
+    @apply mx-auto min-h-svh w-full max-w-5xl px-5 py-8 sm:px-8 sm:py-12;
+  }
+
+  .member-page-narrow {
+    @apply max-w-lg;
+  }
+
+  .member-heading {
+    @apply text-3xl leading-tight font-bold tracking-tight sm:text-4xl;
+  }
+
+  .member-panel {
+    @apply rounded-2xl border border-[var(--fuda-border)] bg-[var(--fuda-surface)] p-5 sm:p-6;
+  }
+
+  .btn {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 px-5 py-2.5 text-center text-sm leading-snug no-underline transition-colors;
+  }
+
+  .btn:disabled {
+    @apply cursor-not-allowed opacity-50;
+  }
+
+  .btn-ghost {
+    @apply bg-transparent text-[var(--fuda-text)] hover:bg-[var(--fuda-border)];
+  }
+
+  .input,
+  .select,
+  .textarea {
+    @apply min-h-11 min-w-0 rounded-xl border border-[var(--fuda-border)] bg-[var(--fuda-surface)] px-3 py-2.5 text-base text-[var(--fuda-text)];
+  }
+
+  .alert {
+    @apply rounded-xl border p-4 text-sm leading-relaxed [overflow-wrap:anywhere];
+  }
+
+  .alert-warning {
+    @apply border-amber-300 bg-amber-50 text-amber-950;
+  }
+
+  .alert-error {
+    @apply border-red-200 bg-red-50 text-red-900;
+  }
+
+  .member-pass {
+    @apply min-w-0 rounded-2xl border border-[var(--fuda-border)] bg-[var(--fuda-surface)];
+  }
+
+  .member-pass .card-body {
+    @apply gap-3 p-5 [overflow-wrap:anywhere] sm:p-6;
+  }
+
+  .member-pass-actions {
+    @apply mt-1 flex flex-wrap gap-x-4 gap-y-1 border-t border-[var(--fuda-border)] pt-3 text-sm;
+  }
+
+  .member-pass-actions a {
+    @apply inline-flex min-h-11 items-center font-semibold underline-offset-4;
+  }
+
+  .member-empty {
+    @apply rounded-2xl border border-dashed border-[var(--fuda-border)] px-6 py-10 text-center text-sm leading-relaxed text-[var(--fuda-muted)];
+  }
+
+  .member-brand {
+    @apply flex min-h-44 flex-col justify-between gap-6 rounded-2xl p-6 [overflow-wrap:anywhere] text-white shadow-sm sm:p-8;
+  }
+
+  .member-qr svg {
+    @apply h-auto w-full max-w-60;
+  }
+}

@@ -1,11 +1,9 @@
 /** @jsxImportSource hono/jsx/dom */
 import type { CardCategory, IssuerView } from '@fuda/sdk'
-import { cn } from 'cn'
 import { useCallback, useEffect, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import {
-  BRAND_SWATCHES,
   canSubmit,
   EMPTY_FORM,
   EXPIRY_DAY_CHOICES,
@@ -32,7 +30,6 @@ import type {
 import type { DashCopy } from './copy.ts'
 import { browserLogoTools, EMPTY_LOGO, generateLogoSet, withLogoResult } from './logo.ts'
 import type { LogoSet, LogoState } from './logo.ts'
-import { LogoField } from './LogoField.tsx'
 
 export interface CardDesignerViewProps {
   busy: boolean
@@ -272,85 +269,20 @@ const prefixedField = (
   </div>
 )
 
-const swatches = (
-  copy: DashCopy['designer'],
-  form: DesignerForm,
-  onField: CardDesignerViewProps['onField'],
-): JSX.Element => (
-  <div class="flex flex-col gap-2">
-    <span>{copy.colorLabel}</span>
-    <div class="flex flex-wrap items-center gap-2">
-      {BRAND_SWATCHES.map((swatch): JSX.Element => (
-        <button
-          aria-label={swatch}
-          aria-pressed={form.brandColor.toUpperCase() === swatch}
-          class={cn('dash-swatch', form.brandColor.toUpperCase() === swatch && 'dash-swatch-selected')}
-          key={swatch}
-          onClick={() => {
-            onField('brandColor', swatch)
-          }}
-          style={{ background: swatch }}
-          type="button"
-        />
-      ))}
-      <input
-        aria-label={copy.colorHexLabel}
-        class="input w-28 font-mono"
-        onInput={(e) => {
-          if (e.currentTarget instanceof HTMLInputElement) {
-            onField('brandColor', e.currentTarget.value)
-          }
-        }}
-        type="text"
-        value={form.brandColor}
-      />
-    </div>
-  </div>
-)
-
-// The venue's own fields, asked for only while the venue does not exist yet.
-const venueFields = (
-  copy: DashCopy['designer'],
-  form: DesignerForm,
-  status: FieldStatus,
-  onField: CardDesignerViewProps['onField'],
-): JSX.Element => (
-  <div class="flex flex-col gap-4">
-    {prefixedField(
-      'handle',
-      copy.handleLabel,
-      copy.handlePrefix,
-      form.handle,
-      copy.handlePlaceholder,
-      statusLabel(copy.handleStatus, status),
-      (next) => {
-        onField('handle', next)
-      },
-    )}
-    {textField('venue-name', copy.nameLabel, form.name, copy.namePlaceholder, (next) => {
-      onField('name', next)
-    })}
-    {textField('tagline', copy.taglineLabel, form.tagline, copy.taglinePlaceholder, (next) => {
-      onField('tagline', next)
-    })}
-    {swatches(copy, form, onField)}
-  </div>
-)
-
 export const CardDesignerView = ({
   busy,
   copy,
   failure,
   form,
   locationDenied,
-  logo,
-  logoCopy,
+  logo: _logo,
+  logoCopy: _logoCopy,
   mode,
   onCategory,
   onField,
   onLockScreen,
-  onLogoClear,
-  onLogoPick,
+  onLogoClear: _onLogoClear,
+  onLogoPick: _onLogoPick,
   onSlug,
   onSubmit,
   onTitle,
@@ -383,18 +315,6 @@ export const CardDesignerView = ({
         onSubmit()
       }}
     >
-      {mode === 'venue' ? venueFields(copy, form, status.handle, onField) : null}
-
-      <LogoField
-        busy={busy}
-        copy={logoCopy}
-        id="venue-logo"
-        label={logoCopy.label}
-        onClear={onLogoClear}
-        onPick={onLogoPick}
-        state={logo}
-      />
-
       {textField('card-title', copy.titleLabel, form.title, '', onTitle)}
       {prefixedField(
         'card-slug',
@@ -525,7 +445,7 @@ export const CardDesigner = ({
   onCheckSlug,
   onSubmit,
 }: CardDesignerProps): JSX.Element => {
-  const mode: DesignerMode = issuer === null ? 'venue' : 'card'
+  const mode: DesignerMode = 'card'
   const [form, setForm] = useState<DesignerForm>(() => initialForm(issuer))
   const [handleStatus, setHandleStatus] = useState<FieldStatus>('idle')
   const [slugStatus, setSlugStatus] = useState<FieldStatus>('idle')

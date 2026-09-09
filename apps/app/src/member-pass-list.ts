@@ -240,10 +240,7 @@ export const loadMemberPassList = async (
   }
   const publicRights = rights.filter((right) => isPublicLevel(right.level))
   const eligibleMemory = memoryPreviews
-    .filter(
-      ({ entry, preview }) =>
-        !nonPublicUids.has(keyOf(entry.uid)) && (preview === null || isPublicPreview(preview)),
-    )
+    .filter(({ entry }) => !nonPublicUids.has(keyOf(entry.uid)))
     .map(({ entry }) => entry)
   const seeds = rowsFrom(eligibleMemory, publicRights).filter((seed) => !nonPublicUids.has(keyOf(seed.uid)))
   const rowsWithPrivateFiltered = await Promise.all(
@@ -264,95 +261,4 @@ export const loadMemberPassList = async (
   )
   const rows = rowsWithPrivateFiltered.filter((row): row is MemberPassRow => row !== null)
   return { indexUnavailable, rows }
-}
-
-export const refreshPassStatuses = async (
-  rows: readonly MemberPassRow[],
-  verify: MemberPassListIo['verify'],
-): Promise<MemberPassRow[]> => {
-  const refreshed = await Promise.all(
-    rows.map(async (row) => {
-      const preview = await previewOf(row.uid, verify)
-      return isNonPublicPreview(preview) ? null : { ...row, preview }
-    }),
-  )
-  return refreshed.filter((row): row is MemberPassRow => row !== null)
-}
-
-interface RefreshTicket {
-  listGeneration: number
-  refreshGeneration: number
-}
-
-export interface PassListRefreshGate {
-  beginListLoad: () => number
-  isListCurrent: (generation: number) => boolean
-  beginRefresh: (listGeneration: number) => RefreshTicket
-  isRefreshCurrent: (ticket: RefreshTicket) => boolean
-}
-
-export const createPassListRefreshGate = (): PassListRefreshGate => {
-  let listGeneration = 0
-  let refreshGeneration = 0
-  return {
-    beginListLoad: () => {
-      listGeneration += 1
-      refreshGeneration += 1
-      return listGeneration
-    },
-    beginRefresh: (ticketListGeneration) => {
-      refreshGeneration += 1
-      return { listGeneration: ticketListGeneration, refreshGeneration }
-    },
-    isListCurrent: (generation) => generation === listGeneration,
-    isRefreshCurrent: (ticket) =>
-      ticket.listGeneration === listGeneration && ticket.refreshGeneration === refreshGeneration,
-  }
-}
-
-export const refreshCurrentPassStatuses = async (
-  gate: PassListRefreshGate,
-  listGeneration: number,
-  rows: readonly MemberPassRow[],
-  verify: MemberPassListIo['verify'],
-): Promise<MemberPassRow[] | null> => {
-  const ticket = gate.beginRefresh(listGeneration)
-  const refreshed = await refreshPassStatuses(rows, verify)
-  return gate.isRefreshCurrent(ticket) ? refreshed : null
-}
-
-export interface VisibleRefreshIo<TInterval> {
-  setInterval: (callback: () => void, milliseconds: number) => TInterval
-  clearInterval: (interval: TInterval) => void
-  visibilityState: () => DocumentVisibilityState
-}
-
-export interface VisibleRefreshHost<TInterval> {
-  setInterval: (callback: () => void, milliseconds: number) => TInterval
-  clearInterval: (interval: TInterval) => void
-  document: Pick<Document, 'visibilityState'>
-}
-
-export const visibleRefreshIoFrom = <TInterval>(
-  host: VisibleRefreshHost<TInterval>,
-): VisibleRefreshIo<TInterval> => ({
-  clearInterval: (interval) => {
-    host.clearInterval(interval)
-  },
-  setInterval: (callback, milliseconds) => host.setInterval(callback, milliseconds),
-  visibilityState: () => host.document.visibilityState,
-})
-
-export const scheduleVisibleRefresh = <TInterval>(
-  refresh: () => void,
-  io: VisibleRefreshIo<TInterval>,
-): (() => void) => {
-  const interval = io.setInterval(() => {
-    if (io.visibilityState() === 'visible') {
-      refresh()
-    }
-  }, 30_000)
-  return () => {
-    io.clearInterval(interval)
-  }
 }

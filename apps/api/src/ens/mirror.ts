@@ -1,5 +1,5 @@
 import { isMemberNumber } from '@fuda/sdk'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, ne } from 'drizzle-orm'
 import type { Hex } from 'viem'
 
 import { ZERO_ADDRESS } from '../chain/client.ts'
@@ -11,9 +11,10 @@ import { ensNames } from './schema.ts'
 // (docs/specs/ens-naming.md#hybrid-resolution). Nothing else writes it, so every
 // write in the product goes through this module.
 //
-// A name is a convenience attached to a right; the right is the product. So a
-// mirror write never fails the operation that triggered it — a missing row costs
-// a resolution, a failed issuance costs a member their card.
+// A member name is a convenience attached to a right; the right is the product.
+// Those mirror writes stay best-effort, because a failed issuance would cost a
+// member their card. Issuer claims are different: card creation is gated on the
+// durable row, so their writer below reports failures to its route.
 const quietly = async <T>(what: string, write: () => Promise<T>): Promise<void> => {
   try {
     await write()
@@ -91,12 +92,7 @@ export interface IssuerNameInput {
 // the claim transaction is confirmed. Unlike a member name this one is backed by
 // an onchain User Registry entry, so `claimed` means the chain agrees.
 export const mirrorIssuerName = async (db: Db, input: IssuerNameInput): Promise<void> => {
-  let name: string
-  try {
-    name = issuerEnsName(input.handle, input.parentName)
-  } catch {
-    return
-  }
+  const name = issuerEnsName(input.handle, input.parentName)
   const row = {
     claimTxHash: input.claimTxHash ?? null,
     expiry: input.expiry ?? null,
@@ -109,14 +105,20 @@ export const mirrorIssuerName = async (db: Db, input: IssuerNameInput): Promise<
     updatedAt: input.now,
     voucherIssuedAt: input.status === 'voucher_issued' ? input.now : undefined,
   }
-  await quietly(
-    `issuer name ${name}`,
-    async () =>
-      await db
-        .insert(ensNames)
-        .values({ ...row, createdAt: input.now, voucherIssuedAt: row.voucherIssuedAt ?? input.now })
-        .onConflictDoUpdate({ set: row, target: ensNames.name }),
-  )
+  const insert = db
+    .insert(ensNames)
+    .values({ ...row, createdAt: input.now, voucherIssuedAt: row.voucherIssuedAt ?? input.now })
+  if (input.status === 'claimed') {
+    await insert.onConflictDoUpdate({ set: row, target: ensNames.name })
+    return
+  }
+  // A voucher request can race a successful confirmation after its initial
+  // status read. Once claimed, only another confirmed write may update it.
+  await insert.onConflictDoUpdate({
+    set: row,
+    setWhere: ne(ensNames.status, 'claimed'),
+    target: ensNames.name,
+  })
 }
 
 // Revocation is what the gate reads, and a name that still resolved after it

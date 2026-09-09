@@ -1,4 +1,4 @@
-export const DASH_ROUTES = ['/', '/rights', '/issue', '/new', '/published'] as const
+export const DASH_ROUTES = ['/', '/rights', '/issue', '/venue', '/new', '/published'] as const
 
 export type DashRoute = (typeof DASH_ROUTES)[number]
 
@@ -7,7 +7,7 @@ export type DashRoute = (typeof DASH_ROUTES)[number]
 // venue's own card. Each kind is sent back to its own home on the other's route.
 export type DashSurface = 'admin' | 'operator'
 
-const OPERATOR_ROUTES: ReadonlySet<DashRoute> = new Set(['/new', '/published'])
+const OPERATOR_ROUTES: ReadonlySet<DashRoute> = new Set(['/venue', '/new', '/published'])
 
 export const surfaceOf = (route: DashRoute): DashSurface =>
   OPERATOR_ROUTES.has(route) ? 'operator' : 'admin'
@@ -18,16 +18,26 @@ export const homeFor = (surface: DashSurface, hasIssuer: boolean): DashRoute => 
   if (surface === 'admin') {
     return '/'
   }
-  return hasIssuer ? '/published' : '/new'
+  return hasIssuer ? '/published' : '/venue'
 }
 
 // null means the route is allowed as it stands.
-export const redirectFor = (route: DashRoute, surface: DashSurface, hasIssuer: boolean): DashRoute | null => {
+export const redirectFor = (
+  route: DashRoute,
+  surface: DashSurface,
+  hasIssuer: boolean,
+  hasConfirmedEns = false,
+): DashRoute | null => {
   if (surfaceOf(route) !== surface) {
     return homeFor(surface, hasIssuer)
   }
-  // `/new` stays open with a venue: it is how a second card is added.
-  return surface === 'operator' && route === '/published' && !hasIssuer ? '/new' : null
+  if (surface === 'operator' && !hasIssuer && route !== '/venue') {
+    return '/venue'
+  }
+  if (surface === 'operator' && route === '/new' && !hasConfirmedEns) {
+    return '/venue'
+  }
+  return null
 }
 
 export interface PushHistory {

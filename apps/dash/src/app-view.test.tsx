@@ -14,7 +14,9 @@ import { OverviewPage } from './OverviewPage.tsx'
 import { PublishedCard } from './PublishedCard.tsx'
 import { RightsPage } from './RightsPage.tsx'
 import { SignIn } from './SignIn.tsx'
-import { findViewNodes, viewProps } from './test/test-view.ts'
+import { SignOutButton } from './SignOutButton.tsx'
+import { findViewNodes, viewProps, walkView } from './test/test-view.ts'
+import { VenuePage } from './VenuePage.tsx'
 
 const issuer = {
   brandColor: '#6F4320',
@@ -45,7 +47,17 @@ const card = {
 const operatorSession: AppViewProps['session'] = {
   authError: null,
   members: { kind: 'idle' },
-  operator: { cards: [card], ens: null, issuer, publicUrl: 'https://fuda.sh/@wassie-coffee' },
+  operator: {
+    cards: [card],
+    ens: {
+      claimTxHash: `0x${'aa'.repeat(32)}`,
+      expiry: null,
+      name: 'wassie-coffee.fuda.eth',
+      status: 'claimed',
+    },
+    issuer,
+    publicUrl: 'https://fuda.sh/@wassie-coffee',
+  },
   token: 'session',
 }
 
@@ -85,12 +97,15 @@ const props: AppViewProps = {
   onCheckSlug: vi.fn<AppViewProps['onCheckSlug']>(),
   onCommitLogo: vi.fn<AppViewProps['onCommitLogo']>().mockResolvedValue(true),
   onCreate: vi.fn<AppViewProps['onCreate']>(),
+  onCreateVenue: vi.fn<AppViewProps['onCreateVenue']>(),
   onIssue: vi.fn<AppViewProps['onIssue']>(),
   onNavigate: vi.fn<AppViewProps['onNavigate']>(),
   onPasskey: vi.fn<AppViewProps['onPasskey']>(),
+  onRestore: vi.fn<AppViewProps['onRestore']>(),
   onRevoke: vi.fn<AppViewProps['onRevoke']>(),
   onSignOut: vi.fn<AppViewProps['onSignOut']>(),
   onToken: vi.fn<AppViewProps['onToken']>(),
+  restoreState: null,
   route: '/',
   session: adminSession,
   signInError: null,
@@ -98,6 +113,20 @@ const props: AppViewProps = {
 }
 
 describe(AppView, () => {
+  it.each(['loading', 'failed'] as const)(
+    'keeps sign-in and protected pages hidden while restoration is %s',
+    (restoreState) => {
+      const view = AppView({ ...props, restoreState, session: { ...adminSession, token: null } })
+      expect(findViewNodes(view, SignIn)).toHaveLength(0)
+      expect(findViewNodes(view, DashboardShell)).toHaveLength(0)
+      const buttons = walkView(view)
+        .map((node) => viewProps(node))
+        .filter((node) => node.type === 'button')
+      expect(viewProps(findViewNodes(view, SignOutButton)[0]).onSignOut).toBe(props.onSignOut)
+      expect(buttons.some((button) => button.onClick === props.onRestore)).toBe(restoreState === 'failed')
+    },
+  )
+
   it('gates protected pages while retaining the requested route and appearance', () => {
     const requested: AppViewProps = { ...props, route: '/issue', session: { ...adminSession, token: null } }
     const view = AppView(requested)
@@ -187,13 +216,36 @@ describe(AppView, () => {
     expect(findViewNodes(view, PublishedCard)).toHaveLength(0)
   })
 
-  it('opens the designer in venue mode while the operator has no venue', () => {
+  it('does not render the card designer before ENS is confirmed', () => {
+    const session: AppViewProps['session'] = {
+      authError: null,
+      members: { kind: 'idle' },
+      operator: {
+        cards: [card],
+        ens: {
+          claimTxHash: null,
+          expiry: null,
+          name: 'wassie-coffee.fuda.eth',
+          status: 'unclaimed' as const,
+        },
+        issuer,
+        publicUrl: 'https://fuda.sh/@wassie-coffee',
+      },
+      token: 'session',
+    }
+    const view = AppView({ ...props, route: '/new', session })
+    expect(findViewNodes(view, CardDesigner)).toHaveLength(0)
+    expect(findViewNodes(view, VenuePage)).toHaveLength(1)
+  })
+
+  it('opens the dedicated venue form while the operator has no venue', () => {
     const empty: AppViewProps['session'] = {
       ...operatorSession,
       operator: { cards: [], ens: null, issuer: null, publicUrl: null },
     }
-    const view = AppView({ ...props, route: '/new', session: empty })
-    expect(viewProps(findViewNodes(view, CardDesigner)[0]).issuer).toBeNull()
+    const view = AppView({ ...props, route: '/venue', session: empty })
+    expect(viewProps(findViewNodes(view, VenuePage)[0]).issuer).toBeNull()
+    expect(findViewNodes(view, CardDesigner)).toHaveLength(0)
     expect(viewProps(findViewNodes(view, DashboardShell)[0])).toMatchObject({ hasIssuer: false })
   })
 

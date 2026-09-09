@@ -22,11 +22,11 @@
 }
 
 .dash-app {
-  @apply grid min-h-svh bg-[var(--fuda-bg)] text-[var(--fuda-text)] lg:grid-cols-[248px_minmax(0,1fr)];
+  @apply min-h-svh bg-[var(--fuda-bg)] text-[var(--fuda-text)];
 }
 
 .dash-sidebar {
-  @apply sticky top-0 hidden h-dvh flex-col gap-8 overflow-y-auto border-r border-[var(--fuda-border)] bg-[var(--fuda-surface)] px-5 py-8 lg:flex;
+  @apply flex min-h-dvh w-64 flex-col gap-8 border-r border-[var(--fuda-border)] bg-[var(--fuda-surface)] px-5 py-6;
 }
 
 .dash-workspace,
@@ -40,29 +40,6 @@
 
 .dash-mobile-header {
   @apply sticky top-0 z-20 flex items-center gap-4 border-b border-[var(--fuda-border)] bg-[var(--fuda-surface)] px-4 py-3 lg:hidden;
-}
-
-.dash-menu-button {
-  @apply size-11;
-}
-
-.dash-nav {
-  @apply flex flex-col gap-1.5;
-}
-
-.dash-nav a {
-  @apply flex min-h-11 items-center rounded-[0.625rem] border border-transparent px-3.5 py-2.5 font-medium text-[var(--fuda-muted)] no-underline;
-}
-
-.dash-nav a:hover {
-  background: color-mix(in srgb, var(--fuda-accent) 8%, var(--fuda-surface));
-  color: var(--fuda-text);
-}
-
-.dash-nav a[aria-current='page'] {
-  @apply font-bold text-[var(--fuda-accent)];
-  border-color: color-mix(in srgb, var(--fuda-accent) 25%, var(--fuda-border));
-  background: color-mix(in srgb, var(--fuda-accent) 12%, var(--fuda-surface));
 }
 
 .dash-app :focus-visible,
@@ -112,12 +89,23 @@
 
 .dash-app :where(.btn, .fuda-icon-button),
 .dash-auth :where(.btn, .fuda-icon-button) {
-  @apply h-auto min-h-11 min-w-11 rounded-full border border-[var(--fuda-border)] bg-[var(--fuda-surface)] whitespace-normal text-[var(--fuda-text)] shadow-none;
+  @apply inline-flex h-auto min-h-11 min-w-11 items-center justify-center rounded-full border border-[var(--fuda-border)] bg-[var(--fuda-surface)] px-4 py-2 whitespace-normal text-[var(--fuda-text)] shadow-none;
 }
 
 .dash-app .fuda-icon-button,
 .dash-auth .fuda-icon-button {
   @apply size-11 p-0;
+}
+
+.dash-app .btn-square,
+.dash-auth .btn-square {
+  @apply size-11 p-0;
+}
+
+@media (min-width: 64rem) {
+  .dash-drawer-close {
+    display: none !important;
+  }
 }
 
 .dash-app :where(.btn, .fuda-icon-button):hover:not(:disabled),
@@ -250,14 +238,6 @@
 
 .dash-app dialog::backdrop {
   background: rgb(0 0 0 / 60%);
-}
-
-.dash-drawer {
-  @apply m-4 max-h-[calc(100dvh-2rem)] w-[min(22rem,calc(100vw-2rem))] rounded-[0.875rem] border border-[var(--fuda-border)] bg-[var(--fuda-surface)] p-0 text-[var(--fuda-text)] lg:hidden;
-}
-
-.dash-drawer-panel {
-  @apply flex min-w-0 flex-col gap-6 p-5;
 }
 
 @media (prefers-reduced-motion: reduce) {

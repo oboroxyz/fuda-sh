@@ -4,18 +4,19 @@
 //   bearer  — issue → verify → re-scan → revoke → verify
 //   signed  — issue to a holder key → challenge/response admission, including
 //             the wrong-signature, replayed-nonce and single-use rejections
-//   card    — operator sign-in → publish a venue and card → the member's own
-//             one-tap claim off the public page → scan → revoke
+//   card    — operator sign-in → verify an existing ENS-claimed venue → publish
+//             a card → the member's own one-tap claim → scan → revoke
 //
 // Pick ladders with `--ladder bearer,signed` (or `all`), or with SMOKE_LADDERS;
-// the default is both. Every returned issue UID is revoked in finally, even
+// the default runs all three. Every returned issue UID is revoked in finally, even
 // after an unexpected verdict. Private discovery is exercised by the Graph
 // demo and member app; this script rejects that ladder before any issuance.
 import type {
+  CardCreateResponse,
   ChallengeResponse,
   Hex,
   IssueResponse,
-  IssuerCreateResponse,
+  IssuerMeResponse,
   PublicVenue,
   RevokeResponse,
   SelfServeIssueResponse,
@@ -24,6 +25,7 @@ import type {
   VerifyResponse,
   VerifySignedResponse,
 } from '@fuda/sdk'
+import { asHex } from '@fuda/sdk'
 import { API_VERSION_PREFIX } from '@fuda/sdk/http'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 
@@ -51,6 +53,9 @@ const call = async <T>(
   const body = await readResponseJson<T>(res)
   // oxlint-disable-next-line no-console -- smoke script progress output, not app logging
   console.log(`${init?.method ?? 'GET'} ${path} → ${res.status}`, describe(body))
+  if (!res.ok) {
+    throw new Error(`${init?.method ?? 'GET'} ${path} failed with ${res.status}: ${JSON.stringify(body)}`)
+  }
   return body
 }
 
@@ -224,57 +229,73 @@ const signedLadder = async (): Promise<void> => {
 }
 
 // The venue's own front door, end to end. Nothing here uses ADMIN_TOKEN: an
-// operator signs in with their wallet, publishes a card, and a member claims it
-// off the public page exactly as a phone in the queue would
+// operator signs in with their wallet, publishes a card for an ENS-claimed
+// venue, and a member claims it off the public page exactly as a phone in the queue would
 // (docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route).
-//
-// A fresh operator key every run, because one address may own one venue and a
-// deployed database remembers the last one.
-const cardLadder = async (): Promise<void> => {
-  const operator = privateKeyToAccount(generatePrivateKey())
-  const stamp = Date.now()
-  const handle = `smoke-${stamp}`
-  const slug = 'stamp'
+
+interface CardContext {
+  handle: string
+  operatorHeaders: Headers
+}
+
+const cardPreflight = async (): Promise<CardContext> => {
+  const rawKey = process.env.SMOKE_OPERATOR_KEY
+  const operatorKey = rawKey === undefined ? null : asHex(rawKey, 32)
+  if (operatorKey === null) {
+    throw new Error('card ladder requires SMOKE_OPERATOR_KEY as a 32-byte private key')
+  }
+  const operator = privateKeyToAccount(operatorKey)
 
   const challenge = await call<SignInChallengeResponse>('/auth/challenge', {
     body: JSON.stringify({ address: operator.address }),
     headers: new Headers({ 'content-type': 'application/json' }),
     method: 'POST',
   })
-  const session = await call<SignInResponse>('/auth/verify', {
-    body: JSON.stringify({
-      address: operator.address,
-      nonce: challenge.nonce,
-      signature: await operator.signMessage({ message: challenge.message }),
-    }),
-    headers: new Headers({ 'content-type': 'application/json' }),
-    method: 'POST',
-  })
+  const session = await call<SignInResponse>(
+    '/auth/verify',
+    {
+      body: JSON.stringify({
+        address: operator.address,
+        nonce: challenge.nonce,
+        signature: await operator.signMessage({ message: challenge.message }),
+      }),
+      headers: new Headers({ 'content-type': 'application/json' }),
+      method: 'POST',
+    },
+    (body) => JSON.stringify({ issuer: body.issuer?.handle ?? null }),
+  )
   const operatorHeaders = new Headers({
     authorization: `Bearer ${session.token}`,
     'content-type': 'application/json',
   })
+  const me = await call<IssuerMeResponse>('/issuers/me', { headers: operatorHeaders })
+  if (me.issuer === null) {
+    throw new Error('card ladder requires SMOKE_OPERATOR_KEY to own an existing venue')
+  }
+  if (me.ens?.status !== 'claimed') {
+    throw new Error(`card ladder requires ${me.issuer.handle} ENS name to be claimed`)
+  }
+  return { handle: me.issuer.handle, operatorHeaders }
+}
 
-  const created = await call<IssuerCreateResponse>('/issuers', {
+const cardLadder = async ({ handle, operatorHeaders }: CardContext): Promise<void> => {
+  const slug = `smoke-${Date.now()}`
+
+  const created = await call<CardCreateResponse>('/issuers/cards', {
     body: JSON.stringify({
-      brandColor: '#6F4320',
-      card: {
-        category: 'membership',
-        lockScreen: false,
-        perk: 'Stamp card · 10 stamps',
-        reward: 'Free drink',
-        slug,
-        title: 'Membership Card',
-        validityDays: null,
-      },
-      handle,
-      name: 'Smoke Coffee',
-      tagline: 'Live smoke run',
+      category: 'membership',
+      lockScreen: false,
+      perk: 'Stamp card · 10 stamps',
+      reward: 'Free drink',
+      slug,
+      title: 'Membership Card',
+      validityDays: null,
     }),
     headers: operatorHeaders,
     method: 'POST',
   })
-  expectMatch('publish', created.issuer, { handle })
+  expectMatch('publish venue', created.issuer, { handle })
+  expectMatch('publish card', created.card, { slug })
 
   // What the member's phone sees before it taps anything.
   const venue = await call<PublicVenue>(`/issuers/${handle}`)
@@ -314,12 +335,6 @@ const cardLadder = async (): Promise<void> => {
 
 const LADDERS = ['bearer', 'signed', 'card'] as const
 type Ladder = (typeof LADDERS)[number]
-const RUN = {
-  bearer: bearerLadder,
-  card: cardLadder,
-  signed: signedLadder,
-} satisfies Record<Ladder, () => Promise<void>>
-
 const selected = (): Ladder[] => {
   const flag = process.argv.indexOf('--ladder')
   const raw = (flag === -1 ? process.env.SMOKE_LADDERS : process.argv[flag + 1]) ?? 'all'
@@ -334,11 +349,24 @@ const selected = (): Ladder[] => {
   return LADDERS.filter((l) => names.includes(l))
 }
 
-for (const ladder of selected()) {
+const ladders = selected()
+const cardContext = ladders.includes('card') ? await cardPreflight() : null
+const run = {
+  bearer: bearerLadder,
+  card: async () => {
+    if (cardContext === null) {
+      throw new Error('card ladder preflight was not run')
+    }
+    await cardLadder(cardContext)
+  },
+  signed: signedLadder,
+} satisfies Record<Ladder, () => Promise<void>>
+
+for (const ladder of ladders) {
   // oxlint-disable-next-line no-console -- smoke script progress output, not app logging
   console.log(`\n── ${ladder} ladder`)
   // oxlint-disable-next-line no-await-in-loop -- the ladders run one after another against one api
-  await RUN[ladder]()
+  await run[ladder]()
 }
 
 // oxlint-disable-next-line no-console -- smoke script success marker, not app logging

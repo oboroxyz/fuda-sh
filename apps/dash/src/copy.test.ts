@@ -12,6 +12,7 @@ describe('Dash copy', () => {
       newCard: 'New card',
       overview: 'Overview',
       rights: 'Rights',
+      venue: 'Venue',
     })
     expect(copy.auth.tokenLabel).toBe('Admin token')
     expect(copy.auth.title).toBe('fuda. dashboard')
@@ -53,6 +54,7 @@ describe('Dash copy', () => {
       newCard: 'カードを作る',
       overview: '概要',
       rights: '権利',
+      venue: '店舗',
     })
     expect(copy.auth.tokenLabel).toBe('管理トークン')
     expect(copy.auth.title).toBe('fuda. dashboard')

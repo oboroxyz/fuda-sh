@@ -2,7 +2,7 @@ import type { EnsClaimView, Hex } from '@fuda/sdk'
 import { describe, expect, it } from 'vitest'
 
 import type { Result } from './api.ts'
-import { claimIsBusy, initialClaimState, runClaim } from './ens-claim.ts'
+import { claimIsBusy, initialClaimState, reconcileClaimState, runClaim } from './ens-claim.ts'
 import type { ClaimIo, ClaimState, ClaimVoucher, ClaimVoucherResponse } from './ens-claim.ts'
 
 const TX: Hex = `0x${'ab'.repeat(32)}`
@@ -49,6 +49,36 @@ describe(initialClaimState, () => {
   })
 })
 
+describe(reconcileClaimState, () => {
+  const unclaimed: EnsClaimView = { claimTxHash: null, expiry: null, name: NAME, status: 'unclaimed' }
+
+  it('preserves a busy claim across a same-name issuer refresh', () => {
+    expect(reconcileClaimState({ kind: 'signing' }, unclaimed, null)).toStrictEqual({ kind: 'signing' })
+    expect(reconcileClaimState({ kind: 'submitting', name: NAME }, unclaimed, null)).toStrictEqual({
+      kind: 'submitting',
+      name: NAME,
+    })
+  })
+
+  it('preserves an in-memory receipt when storage is unavailable', () => {
+    const state: ClaimState = { failure: 'unconfirmed', kind: 'failed', name: NAME, txHash: TX }
+    expect(reconcileClaimState(state, unclaimed, null)).toBe(state)
+  })
+
+  it('lets authoritative claimed, unavailable, or renamed ENS replace local work', () => {
+    const state: ClaimState = { failure: 'unconfirmed', kind: 'failed', name: NAME, txHash: TX }
+    expect(reconcileClaimState(state, null, null)).toStrictEqual({ kind: 'unclaimed' })
+    expect(reconcileClaimState(state, { ...unclaimed, name: 'other.fuda.eth' }, null)).toStrictEqual({
+      kind: 'unclaimed',
+    })
+    expect(
+      reconcileClaimState(state, { ...unclaimed, claimTxHash: TX, status: 'claimed' }, null),
+    ).toMatchObject({
+      kind: 'claimed',
+    })
+  })
+})
+
 describe(runClaim, () => {
   it('reports each leg in order and ends claimed', async () => {
     const { final, seen } = await run()
@@ -82,8 +112,51 @@ describe(runClaim, () => {
       confirmClaim: async () => await Promise.resolve(fail('claim_unconfirmed')),
     })
 
-    expect(final).toStrictEqual({ failure: 'unconfirmed', kind: 'failed' })
+    expect(final).toStrictEqual({
+      failure: 'unconfirmed',
+      kind: 'failed',
+      name: 'wassie-coffee.fuda.eth',
+      txHash: TX,
+    })
     expect(seen.at(-2)?.kind).toBe('confirming')
+  })
+
+  it('retries only confirmation for a retained transaction', async () => {
+    let requested = 0
+    let submitted = 0
+    const final = await runClaim(
+      io({
+        requestVoucher: async () => {
+          requested += 1
+          return await Promise.resolve(fail('unexpected'))
+        },
+        submitClaim: async () => {
+          submitted += 1
+          return await Promise.resolve(TX)
+        },
+      }),
+      () => {},
+      { name: NAME, txHash: TX },
+    )
+    expect(final.kind).toBe('claimed')
+    expect({ requested, submitted }).toStrictEqual({ requested: 0, submitted: 0 })
+  })
+
+  it('discards a proven failed transaction so the next retry can start fresh', async () => {
+    let pending: { name: string; txHash: Hex } | null = { name: NAME, txHash: TX }
+    const final = await runClaim(
+      io({
+        confirmClaim: async () =>
+          await Promise.resolve({ error: 'claim_failed', network: false, ok: false, status: 409 }),
+      }),
+      () => {},
+      pending,
+      (next) => {
+        pending = next
+      },
+    )
+    expect(final).toStrictEqual({ failure: 'unconfirmed', kind: 'failed' })
+    expect(pending).toBeNull()
   })
 
   it('does not submit anything when the voucher never arrives', async () => {

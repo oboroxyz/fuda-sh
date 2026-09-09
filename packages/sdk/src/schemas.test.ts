@@ -1,7 +1,7 @@
 import * as v from 'valibot'
 import { describe, expect, it } from 'vitest'
 
-import { deriveIssueKind, IssueBody, RevokeBody, VerifyBody } from './schemas.ts'
+import { deriveIssueKind, IssuerCreateBody, IssueBody, RevokeBody, VerifyBody } from './schemas.ts'
 
 const addr = `0x${'11'.repeat(20)}`
 const uid = `0x${'ab'.repeat(32)}`
@@ -47,5 +47,24 @@ describe('VerifyBody / RevokeBody', () => {
     expect(v.safeParse(VerifyBody, { qr: `fuda:v1:${uid}` }).success).toBe(true)
     expect(v.safeParse(VerifyBody, { qr: uid }).success).toBe(false)
     expect(v.safeParse(RevokeBody, { uid }).success).toBe(true)
+  })
+})
+
+describe('IssuerCreateBody schema', () => {
+  it('accepts venue fields without requiring or returning card fields', () => {
+    const out = v.parse(IssuerCreateBody, {
+      brandColor: '#6f4320',
+      handle: 'wassie-coffee',
+      name: 'Wassie Coffee',
+      tagline: 'Omotesando · Coffee shop',
+    })
+
+    expect(out).toStrictEqual({
+      brandColor: '#6F4320',
+      handle: 'wassie-coffee',
+      logoUploadId: null,
+      name: 'Wassie Coffee',
+      tagline: 'Omotesando · Coffee shop',
+    })
   })
 })

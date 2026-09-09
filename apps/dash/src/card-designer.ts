@@ -4,19 +4,10 @@ import {
   hasSingleValidityRule,
   isClaimable,
   issuerHandleProblem,
-  IssuerCreateBody,
   isOrderedWindow,
-  normalizeBrandColor,
   slugFromTitle,
 } from '@fuda/sdk'
-import type {
-  CardCategory,
-  CardRequest,
-  CardValidity,
-  CardView,
-  ClaimWindow,
-  IssuerCreateRequest,
-} from '@fuda/sdk'
+import type { CardCategory, CardRequest, CardValidity, CardView, ClaimWindow } from '@fuda/sdk'
 import * as v from 'valibot'
 
 // The four presets the designer offers; any `#RRGGBB` may be typed instead.
@@ -63,7 +54,7 @@ export const formatInstant = (seconds: number): string => localFromUnix(seconds)
 
 // The designer collects the venue and its first card together, or one more
 // card for a venue that already exists. Only the submitted body differs.
-export type DesignerMode = 'card' | 'venue'
+export type DesignerMode = 'card'
 
 export interface DesignerForm {
   brandColor: string
@@ -257,26 +248,6 @@ export const cardBodyFrom = (form: DesignerForm): CardRequest | null => {
 // The venue-and-first-card body. The api validates the same schema, so a
 // disabled submit and a 400 agree. `logoUploadId` is the upload staged moments
 // earlier by the submit; a venue is created already wearing its mark.
-export const createBodyFrom = (
-  form: DesignerForm,
-  logoUploadId: string | null = null,
-): IssuerCreateRequest | null => {
-  const brandColor = normalizeBrandColor(form.brandColor)
-  const card = cardBodyFrom(form)
-  if (brandColor === null || card === null) {
-    return null
-  }
-  const parsed = v.safeParse(IssuerCreateBody, {
-    brandColor,
-    card,
-    handle: form.handle,
-    logoUploadId,
-    name: form.name,
-    tagline: form.tagline,
-  })
-  return parsed.success ? parsed.output : null
-}
-
 const blocks = (status: FieldStatus): boolean =>
   status === 'format' || status === 'reserved' || status === 'taken'
 
@@ -292,14 +263,20 @@ export const canSubmit = (
   if (windowProblemOf(form) !== null) {
     return false
   }
-  if (mode === 'card') {
-    return cardBodyFrom(form) !== null
-  }
-  return !blocks(status.handle) && createBodyFrom(form) !== null
+  return cardBodyFrom(form) !== null
 }
 
 // Why a create failed, in the terms the form explains it.
-export type CreateFailure = 'input' | 'logo' | 'network' | 'session' | 'slugInvalid' | 'slugTaken' | 'taken'
+export type CreateFailure =
+  | 'ensRequired'
+  | 'ensUnavailable'
+  | 'input'
+  | 'logo'
+  | 'network'
+  | 'session'
+  | 'slugInvalid'
+  | 'slugTaken'
+  | 'taken'
 
 export const createFailureOf = (status: number, network: boolean, error: string): CreateFailure => {
   if (network) {
@@ -309,10 +286,16 @@ export const createFailureOf = (status: number, network: boolean, error: string)
     return 'session'
   }
   if (status === 409) {
+    if (error === 'ens_required') {
+      return 'ensRequired'
+    }
     if (error === 'issuer_exists') {
       return 'input'
     }
     return error === 'slug_taken' ? 'slugTaken' : 'taken'
+  }
+  if (status === 503 && error === 'ens_not_configured') {
+    return 'ensUnavailable'
   }
   if (status === 400) {
     return error === 'bad_slug' ? 'slugInvalid' : 'input'

@@ -1,26 +1,22 @@
+import { useQuery, useQueryScope } from '@fuda/libs/query'
 /** @jsxImportSource hono/jsx/dom */
 import { asHex, fetchRightsByHolder, normalizeUid } from '@fuda/sdk'
 import type { GraphRight, Hex } from '@fuda/sdk'
 import { short } from '@fuda/ui'
-import { useEffect, useRef, useState } from 'hono/jsx/dom'
+import { useEffect, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import { verifyUid } from './api.ts'
-import { GRAPH_RIGHTS_ENDPOINT } from './config.ts'
+import { API_BASE_URL, GRAPH_RIGHTS_ENDPOINT } from './config.ts'
 import {
   applePassAvailable,
   connectMemberRail,
-  createPassListRefreshGate,
   googlePassHref,
-  loadMemberPassList,
   PrivatePassRecoveryError,
-  rememberQueryPass,
-  refreshCurrentPassStatuses,
-  scheduleVisibleRefresh,
-  visibleRefreshIoFrom,
   withConnectedAddress,
 } from './member-pass-list.ts'
 import type { MemberPassListIo, MemberPassListResult, MemberPassRow } from './member-pass-list.ts'
+import { memberPassListQueryOptions, memberPassRecoveryQueryOptions } from './member-pass-query.ts'
 import { readPassMemory, rememberPass } from './pass-memory.ts'
 import type { PassMemoryEntry } from './pass-memory.ts'
 import { injectedProvider, requestAccount } from './wallet.ts'
@@ -35,7 +31,17 @@ export type RightsListState =
 type MemberListState =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
-  | { kind: 'ready'; result: MemberPassListResult; generation: number }
+  | { kind: 'ready'; result: MemberPassListResult }
+
+const memberListState = (data: MemberPassListResult | undefined, error: Error | null): MemberListState => {
+  if (data !== undefined) {
+    return { kind: 'ready', result: data }
+  }
+  if (error !== null) {
+    return { kind: 'error', message: error.message }
+  }
+  return { kind: 'loading' }
+}
 
 const SAFE_META_PROTOCOLS = new Set(['http:', 'https:', 'ipfs:'])
 
@@ -55,7 +61,7 @@ const metaUri = (value: string): JSX.Element | null => {
 }
 
 const graphCard = (right: GraphRight): JSX.Element => (
-  <li class="card bg-base-200" key={right.id}>
+  <li class="card member-pass" key={right.id}>
     <div class="card-body gap-2">
       <div class={right.revokedAt === null ? 'badge badge-success' : 'badge badge-error'}>
         {right.revokedAt === null ? 'ACTIVE' : 'REVOKED'}
@@ -81,7 +87,7 @@ const memberPassLinks = (row: MemberPassRow, publicPass: boolean): JSX.Element |
     return null
   }
   return (
-    <div class="flex gap-3 text-sm">
+    <div class="member-pass-actions">
       <a class="link" href={row.passes.web} target="_blank" rel="noreferrer">
         View pass
       </a>
@@ -121,7 +127,7 @@ const memberCard = (row: MemberPassRow): JSX.Element => {
   const publicPass = hasPublicPass(row)
   const status = memberStatus(row)
   return (
-    <li class="card bg-base-200" key={row.uid}>
+    <li class="card member-pass" key={row.uid}>
       <div class="card-body gap-2">
         <div class={row.preview?.decision === 'ADMIT' ? 'badge badge-success' : 'badge badge-error'}>
           {status}
@@ -140,14 +146,19 @@ export const RightsListView = ({ state }: { state: RightsListState | MemberListS
     return <p class="text-sm opacity-70">Enter a holder address to read its on-chain rights.</p>
   }
   if (state.kind === 'loading') {
-    return <p class="text-sm opacity-70">Loading rights…</p>
+    return (
+      <p class="member-empty flex items-center justify-center gap-3" role="status">
+        <span class="loading loading-spinner loading-sm" aria-hidden="true" />
+        Loading rights…
+      </p>
+    )
   }
   if (state.kind === 'error') {
     return <div class="alert alert-error">{state.message}</div>
   }
   if ('rights' in state) {
     if (state.rights.length === 0) {
-      return <p class="text-sm opacity-70">No rights found for this holder.</p>
+      return <p class="member-empty">No rights found for this holder.</p>
     }
     return <ul class="grid gap-3 md:grid-cols-2">{state.rights.map(graphCard)}</ul>
   }
@@ -157,7 +168,10 @@ export const RightsListView = ({ state }: { state: RightsListState | MemberListS
         {state.result.indexUnavailable ? (
           <div class="alert alert-warning">index unavailable; showing passes saved on this device</div>
         ) : null}
-        <p class="text-sm opacity-70">No passes found yet.</p>
+        <div class="member-empty">
+          <p class="font-semibold text-[var(--fuda-text)]">No passes found yet.</p>
+          <p class="mt-2">Open a card link from your venue, or connect the wallet that holds your passes.</p>
+        </div>
       </>
     )
   }
@@ -223,83 +237,39 @@ export const RightsList = ({
   memory: givenMemory,
   queryUid,
 }: RightsListProps): JSX.Element => {
+  const queryClient = useQueryScope()
   const injected = givenInjected === undefined ? injectedProvider() : givenInjected
   const [addresses, setAddresses] = useState<Hex[]>([])
   const [memory, setMemory] = useState<PassMemoryEntry[]>(() => [...(givenMemory ?? readPassMemory())])
-  const [state, setState] = useState<MemberListState>({ kind: 'loading' })
   const [manual, setManual] = useState('')
   const [problem, setProblem] = useState<Error | null>(null)
   const uid = queryUid === undefined ? queryUidFromLocation() : queryUid
-  const refreshGate = useRef(createPassListRefreshGate())
+  const listQuery = useQuery(
+    queryClient,
+    memberPassListQueryOptions(
+      {
+        addresses,
+        apiEndpoint: API_BASE_URL,
+        graphEndpoint: GRAPH_RIGHTS_ENDPOINT,
+        memory,
+      },
+      io,
+    ),
+  )
+  const recoveryQuery = useQuery(queryClient, memberPassRecoveryQueryOptions(uid, API_BASE_URL, io))
+  const state = memberListState(listQuery.data, listQuery.error)
+  const recoveryProblem =
+    recoveryQuery.error === null || recoveryQuery.error instanceof PrivatePassRecoveryError
+      ? recoveryQuery.error
+      : new Error(`Could not recover this pass: ${recoveryQuery.error.message}`)
+  const queryProblem = recoveryProblem ?? (listQuery.data === undefined ? null : listQuery.error)
 
   useEffect(() => {
-    let current = true
-    const generation = refreshGate.current.beginListLoad()
-    void (async () => {
-      try {
-        const result = await loadMemberPassList(
-          { addresses, graphConfigured: GRAPH_RIGHTS_ENDPOINT !== '', memory },
-          io,
-        )
-        if (current && refreshGate.current.isListCurrent(generation)) {
-          setState({ generation, kind: 'ready', result })
-        }
-      } catch (error) {
-        if (current && refreshGate.current.isListCurrent(generation)) {
-          setState({ kind: 'error', message: error instanceof Error ? error.message : 'Pass list failed.' })
-        }
-      }
-    })()
-    return () => {
-      current = false
-    }
-  }, [addresses, io, memory])
-
-  useEffect(() => {
-    if (uid === null) {
+    if (recoveryQuery.data === undefined || recoveryQuery.data === null) {
       return
     }
-    void (async () => {
-      try {
-        await rememberQueryPass(uid, io.verify, (pass) => {
-          setMemory(rememberPass(pass))
-        })
-      } catch (error) {
-        setProblem(
-          error instanceof PrivatePassRecoveryError
-            ? error
-            : new Error(
-                `Could not recover this pass: ${error instanceof Error ? error.message : 'unknown error'}`,
-              ),
-        )
-      }
-    })()
-  }, [io, uid])
-
-  useEffect(
-    () =>
-      scheduleVisibleRefresh(() => {
-        if (state.kind !== 'ready') {
-          return
-        }
-        void (async () => {
-          try {
-            const rows = await refreshCurrentPassStatuses(
-              refreshGate.current,
-              state.generation,
-              state.result.rows,
-              io.verify,
-            )
-            if (rows !== null) {
-              setState({ generation: state.generation, kind: 'ready', result: { ...state.result, rows } })
-            }
-          } catch (error) {
-            setProblem(error instanceof Error ? error : new Error('Could not refresh pass status.'))
-          }
-        })()
-      }, visibleRefreshIoFrom(globalThis)),
-    [io.verify, state],
-  )
+    setMemory(rememberPass(recoveryQuery.data))
+  }, [recoveryQuery.data])
 
   const addAddress = (address: Hex): void => {
     setAddresses((stored) => withConnectedAddress(stored, address))
@@ -325,17 +295,20 @@ export const RightsList = ({
   }
 
   return (
-    <main class="flex min-h-screen flex-col gap-4 p-6">
-      <h1 class="text-xl font-bold">Your passes</h1>
-      <p class="text-sm opacity-70">
-        Connect a passkey or wallet to find public passes. Passes saved on this device appear here too. For
-        private discovery, use +Private.
-      </p>
-      <p class="text-sm opacity-70">
-        If you lose this device, this saved pass can disappear; activation makes your pass follow the owning
-        key.
-      </p>
-      <div class="flex flex-wrap gap-2">
+    <main class="member-page flex flex-col gap-6">
+      <header class="flex max-w-2xl flex-col gap-3">
+        <p class="text-xs font-semibold tracking-widest text-[var(--fuda-muted)] uppercase">fuda · Member</p>
+        <h1 class="member-heading">Your passes</h1>
+        <p class="text-sm leading-relaxed text-[var(--fuda-muted)]">
+          Connect a passkey or wallet to find public passes. Passes saved on this device appear here too. For
+          private discovery, use +Private.
+        </p>
+        <p class="text-xs leading-relaxed text-[var(--fuda-muted)]">
+          If you lose this device, this saved pass can disappear; activation makes your pass follow the owning
+          key.
+        </p>
+      </header>
+      <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <button
           class="btn btn-primary"
           type="button"
@@ -360,10 +333,10 @@ export const RightsList = ({
           Private rights →
         </a>
       </div>
-      <details>
-        <summary class="cursor-pointer">Look up another address</summary>
+      <details class="member-panel">
+        <summary class="cursor-pointer text-sm font-semibold">Look up another address</summary>
         <form
-          class="mt-2 flex max-w-xl gap-2"
+          class="mt-4 flex max-w-xl flex-col gap-2 sm:flex-row"
           onSubmit={(event) => {
             event.preventDefault()
             lookup()
@@ -386,7 +359,7 @@ export const RightsList = ({
           </button>
         </form>
       </details>
-      {problemNotice(problem)}
+      {problemNotice(problem ?? queryProblem)}
       <RightsListView state={state} />
     </main>
   )

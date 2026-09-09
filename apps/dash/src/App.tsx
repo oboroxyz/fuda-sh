@@ -1,15 +1,16 @@
 /** @jsxImportSource hono/jsx/dom */
 import { isLocale, pick } from '@fuda/i18n'
 import { getLocale, setLocale } from '@fuda/i18n/browser'
-import type { IssuerCreateResponse, IssuerMeResponse } from '@fuda/sdk'
+import { QueryError, readQueryResult, useQuery, useQueryScope } from '@fuda/libs/query'
+import type { CardCreateResponse, IssuerCreateResponse, IssuerMeResponse } from '@fuda/sdk'
 import { LanguageSwitcher, saveThemeMode, ThemeToggle, watchThemeMode } from '@fuda/ui'
 import type { ThemeMode } from '@fuda/ui'
 import { useCallback, useEffect, useRef, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import { issueRight, listMembers, revokeRight } from './api.ts'
-import { applyLogo, issueAndReload, revokeAndReload, submitDesign } from './app-actions.ts'
-import type { ActionContext, DashIo } from './app-actions.ts'
+import { applyLogo, issueAndReload, revokeAndReload, submitCard, submitVenue } from './app-actions.ts'
+import type { ActionContext, CardCreateOutcome, DashIo, VenueCreateOutcome } from './app-actions.ts'
 import { hasIssuer, signedOutSession, unauthorizedSession } from './app-state.ts'
 import type { SessionState } from './app-state.ts'
 import { AppView } from './AppView.tsx'
@@ -17,17 +18,22 @@ import type { CreateFailure, DesignerForm, DesignerMode } from './card-designer.
 import { API_BASE_URL, GRAPH_RIGHTS_ENDPOINT } from './config.ts'
 import { DASH_COPY } from './copy.ts'
 import type { ClaimState } from './ens-claim.ts'
-import { initialClaimState, runClaim } from './ens-claim.ts'
+import { initialClaimState, reconcileClaimState, runClaim } from './ens-claim.ts'
+import { readPendingEnsClaim, reconcilePendingEnsClaim, writePendingEnsClaim } from './ens-pending.ts'
 import { EnsClaim } from './EnsClaim.tsx'
 import type { LogoSet } from './logo.ts'
 import { beginMembersLoad, completeMembersLoad, failMembersLoad } from './members-state.ts'
 import { memberRowView } from './members-view.ts'
 import { DEFAULT_OPERATOR_IO } from './operator-io.ts'
 import type { OperatorIo } from './operator-io.ts'
+import { clearOperatorToken, readOperatorToken, saveOperatorToken } from './operator-session.ts'
 import type { SignInFailure } from './operator-sign-in.ts'
 import { canonicalPath, homeFor, navigateTo, redirectFor, routeFromPath, subscribeToRoute } from './router.ts'
 import type { DashRoute } from './router.ts'
 import { createSessionGeneration } from './session-generation.ts'
+import type { VenueForm } from './venue.ts'
+
+const issuerKey = (generation: number) => ['issuer', API_BASE_URL, generation] as const
 
 const DEFAULT_DASH_IO: DashIo = { issueRight, listMembers, revokeRight }
 
@@ -38,7 +44,10 @@ export interface AppProps {
 }
 
 // The venue after a create: the first card, or one more alongside the rest.
-const operatorWith = (current: IssuerMeResponse | null, created: IssuerCreateResponse): IssuerMeResponse => {
+const operatorWithCard = (
+  current: IssuerMeResponse | null,
+  created: CardCreateResponse,
+): IssuerMeResponse => {
   const existing = current !== null && current.issuer !== null ? current.cards : []
   return {
     cards: [...existing, created.card],
@@ -49,15 +58,23 @@ const operatorWith = (current: IssuerMeResponse | null, created: IssuerCreateRes
   }
 }
 
+const operatorWithVenue = (created: IssuerCreateResponse): IssuerMeResponse => created
+
 export const App = ({
   initialTheme,
   io = DEFAULT_DASH_IO,
   operatorIo = DEFAULT_OPERATOR_IO,
 }: AppProps): JSX.Element => {
+  const queryClient = useQueryScope()
   const [route, setRoute] = useState<DashRoute>(() => routeFromPath(location.pathname))
   const [locale, updateLocale] = useState(getLocale)
   const [theme, setTheme] = useState(initialTheme)
   const [session, setSession] = useState<SessionState>(signedOutSession)
+  const [savedToken] = useState(readOperatorToken)
+  const restoringToken = useRef(savedToken)
+  const [restoreState, setRestoreState] = useState<'loading' | 'failed' | null>(
+    savedToken === null ? null : 'loading',
+  )
   const [claimState, setClaimState] = useState<ClaimState>(() => initialClaimState(null))
   const [signingIn, setSigningIn] = useState(false)
   const [signInError, setSignInError] = useState<SignInFailure | null>(null)
@@ -76,6 +93,12 @@ export const App = ({
   const replaceSession = useCallback(
     (next: SessionState): void => {
       generation.invalidate()
+      queryClient.clear()
+      if (next.operator === null) {
+        clearOperatorToken(activeToken.current ?? restoringToken.current)
+      }
+      restoringToken.current = null
+      setRestoreState(null)
       activeSession.current = next
       activeToken.current = next.token
       setSession(next)
@@ -84,10 +107,98 @@ export const App = ({
       setCreateFailure(null)
       setSigningIn(false)
       setSignInError(null)
-      setClaimState(initialClaimState(next.operator?.ens ?? null))
+      const pending =
+        next.operator?.issuer === null || next.operator?.issuer === undefined
+          ? null
+          : reconcilePendingEnsClaim(next.operator.issuer.id, next.operator.ens)
+      setClaimState(
+        pending === null
+          ? initialClaimState(next.operator?.ens ?? null)
+          : { failure: 'unconfirmed', kind: 'failed', ...pending },
+      )
     },
-    [generation],
+    [generation, queryClient],
   )
+
+  const restoreSession = useCallback((): void => {
+    const storedToken = restoringToken.current
+    if (storedToken === null) {
+      return
+    }
+    generation.invalidate()
+    const ticket = generation.capture()
+    setRestoreState('loading')
+    const run = async (): Promise<void> => {
+      let operator: IssuerMeResponse
+      try {
+        operator = await queryClient.query({
+          queryFn: async () => readQueryResult(await operatorIo.issuerMe(storedToken)),
+          queryKey: issuerKey(ticket),
+          retry: false,
+          staleTime: 0,
+        })
+      } catch (error) {
+        if (generation.isCurrent(ticket)) {
+          if (error instanceof QueryError && error.status === 401) {
+            replaceSession(unauthorizedSession(activeSession.current))
+          } else {
+            setRestoreState('failed')
+          }
+        }
+        return
+      }
+      if (!generation.isCurrent(ticket)) {
+        return
+      }
+      if (readOperatorToken() !== storedToken) {
+        replaceSession(signedOutSession())
+        return
+      }
+      replaceSession({
+        ...signedOutSession(),
+        operator,
+        token: storedToken,
+      })
+    }
+    void run()
+  }, [generation, operatorIo, queryClient, replaceSession])
+
+  const issuerTicket = generation.capture()
+  const issuerQuery = useQuery<IssuerMeResponse>(queryClient, {
+    enabled: token !== null && session.operator !== null,
+    initialData: session.operator ?? undefined,
+    queryFn: async () => readQueryResult(await operatorIo.issuerMe(token ?? '')),
+    queryKey: issuerKey(issuerTicket),
+  })
+
+  useEffect(() => {
+    if (!generation.isCurrent(issuerTicket) || token === null || activeToken.current !== token) {
+      return
+    }
+    if (issuerQuery.error instanceof QueryError && issuerQuery.error.status === 401) {
+      replaceSession(unauthorizedSession(activeSession.current))
+      return
+    }
+    const operator = issuerQuery.data
+    if (operator !== undefined && activeSession.current.operator !== null) {
+      const previousEnsName = activeSession.current.operator.ens?.name
+      setSession((state) => (state.operator === operator ? state : { ...state, operator }))
+      const pending =
+        operator.issuer === null ? null : reconcilePendingEnsClaim(operator.issuer.id, operator.ens)
+      setClaimState((state) => reconcileClaimState(state, operator.ens, pending, previousEnsName))
+    }
+  }, [generation, issuerTicket, issuerQuery.data, issuerQuery.error, replaceSession, token])
+
+  const updateOperator = (operator: IssuerMeResponse): void => {
+    const queryKey = issuerKey(generation.capture())
+    void queryClient.cancelQueries({ exact: true, queryKey })
+    queryClient.setQueryData(queryKey, operator)
+    const next = { ...activeSession.current, operator }
+    activeSession.current = next
+    setSession(next)
+  }
+
+  useEffect(restoreSession, [restoreSession])
 
   useEffect(
     () => () => {
@@ -180,7 +291,8 @@ export const App = ({
       return
     }
     const surface = session.operator === null ? 'admin' : 'operator'
-    const target = redirectFor(route, surface, published)
+    const confirmedEns = session.operator?.ens?.status === 'claimed'
+    const target = redirectFor(route, surface, published, confirmedEns)
     if (target !== null) {
       navigateTo(history, target)
       setRoute(target)
@@ -253,7 +365,39 @@ export const App = ({
           }
           const run = async (): Promise<void> => {
             try {
-              await runClaim(operatorIo.claim(sessionToken), guardedEmit)
+              const issuerId = activeSession.current.operator?.issuer?.id
+              let pending = issuerId === undefined ? undefined : (readPendingEnsClaim(issuerId) ?? undefined)
+              if (
+                claimState.kind === 'failed' &&
+                claimState.txHash !== undefined &&
+                claimState.name !== undefined
+              ) {
+                pending = { name: claimState.name, txHash: claimState.txHash }
+              }
+              const result = await runClaim(operatorIo.claim(sessionToken), guardedEmit, pending, (next) => {
+                if (
+                  generation.isCurrent(ticket) &&
+                  activeToken.current === sessionToken &&
+                  issuerId !== undefined
+                ) {
+                  writePendingEnsClaim(issuerId, next)
+                }
+              })
+              if (result.kind === 'claimed' && generation.isCurrent(ticket)) {
+                const current = activeSession.current.operator
+                if (current !== null && current.ens !== null) {
+                  updateOperator({
+                    ...current,
+                    ens: {
+                      ...current.ens,
+                      claimTxHash: result.claimTxHash,
+                      name: result.name,
+                      status: 'claimed',
+                    },
+                  })
+                }
+                await queryClient.invalidateQueries({ exact: true, queryKey: issuerKey(ticket) })
+              }
             } catch {
               // A rejected old claim cannot change local state.
             }
@@ -289,6 +433,7 @@ export const App = ({
         setSignInError(outcome.failure)
         return
       }
+      saveOperatorToken(outcome.token)
       replaceSession({
         authError: null,
         members: { kind: 'idle' },
@@ -303,8 +448,8 @@ export const App = ({
   }
 
   const onSignOut = (): void => {
-    const oldToken = token
-    const hadOperator = session.operator !== null
+    const oldToken = token ?? restoringToken.current
+    const hadOperator = session.operator !== null || restoringToken.current !== null
     replaceSession(signedOutSession())
     navigateTo(history, '/')
     setRoute('/')
@@ -374,7 +519,11 @@ export const App = ({
     [generation, operatorIo, replaceSession, token],
   )
 
-  const onCreate = (mode: DesignerMode, form: DesignerForm, logo: LogoSet | null): void => {
+  const runCreate = <T,>(
+    submit: () => Promise<{ ok: true; body: T } | { ok: false; failure: CreateFailure }>,
+    apply: (body: T) => IssuerMeResponse,
+    target: DashRoute,
+  ): void => {
     if (token === null) {
       setCreateFailure('input')
       return
@@ -384,9 +533,9 @@ export const App = ({
     setCreateFailure(null)
     setCreating(true)
     const run = async (): Promise<void> => {
-      let outcome: Awaited<ReturnType<typeof submitDesign>>
+      let outcome: Awaited<ReturnType<typeof submit>>
       try {
-        outcome = await submitDesign(operatorIo.design, sessionToken, mode, form, logo)
+        outcome = await submit()
       } catch {
         if (!generation.isCurrent(ticket) || activeToken.current !== sessionToken) {
           return
@@ -407,11 +556,27 @@ export const App = ({
         setCreateFailure(outcome.failure)
         return
       }
-      setSession((state) => ({ ...state, operator: operatorWith(state.operator, outcome.body) }))
-      navigateTo(history, '/published')
-      setRoute('/published')
+      updateOperator(apply(outcome.body))
+      navigateTo(history, target)
+      setRoute(target)
     }
     void run()
+  }
+
+  const onCreate = (_mode: DesignerMode, form: DesignerForm): void => {
+    runCreate(
+      async (): Promise<CardCreateOutcome> => await submitCard(operatorIo.design, token ?? '', form),
+      (body) => operatorWithCard(activeSession.current.operator, body),
+      '/published',
+    )
+  }
+
+  const onCreateVenue = (form: VenueForm, logo: LogoSet | null): void => {
+    runCreate(
+      async (): Promise<VenueCreateOutcome> => await submitVenue(operatorIo.design, token ?? '', form, logo),
+      operatorWithVenue,
+      '/venue',
+    )
   }
 
   // The published screen changes a live venue's mark, which is a staged upload
@@ -440,15 +605,10 @@ export const App = ({
     // The commit answers the updated issuer, whose `logoUrl` names the new
     // version; storing it is what makes the screen show the new mark.
     const { issuer } = outcome
-    setSession((state) => {
-      // Only a venue that already exists can have its logo replaced, so the
-      // non-null arm of the operator union is the only one to update.
-      const current = state.operator
-      if (current === null || current.issuer === null) {
-        return state
-      }
-      return { ...state, operator: { ...current, issuer } }
-    })
+    const current = activeSession.current.operator
+    if (current !== null && current.issuer !== null) {
+      updateOperator({ ...current, issuer })
+    }
     return true
   }
 
@@ -465,6 +625,7 @@ export const App = ({
       onCheckSlug={onCheckSlug}
       onCommitLogo={onCommitLogo}
       onCreate={onCreate}
+      onCreateVenue={onCreateVenue}
       onIssue={async (body) =>
         context === null
           ? { error: 'unauthorized', network: false, ok: false, status: 401 }
@@ -478,6 +639,8 @@ export const App = ({
       }}
       ens={ensSection}
       onPasskey={onPasskey}
+      onRestore={restoreSession}
+      restoreState={restoreState}
       onRevoke={async (uid) =>
         context === null
           ? { error: 'unauthorized', network: false, ok: false, status: 401 }

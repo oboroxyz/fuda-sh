@@ -11,7 +11,7 @@ export interface VenueRows {
 // The venue behind a handle with every card it has published, oldest first.
 const cardsOf = async (db: Db, issuer: typeof issuers.$inferSelect): Promise<VenueRows | null> => {
   const owned = await db.select().from(cards).where(eq(cards.issuerId, issuer.id)).orderBy(cards.createdAt)
-  return owned.length === 0 ? null : { cards: owned, issuer }
+  return { cards: owned, issuer }
 }
 
 export const venueOf = async (db: Db, handle: string): Promise<VenueRows | null> => {

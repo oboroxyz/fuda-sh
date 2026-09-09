@@ -13,9 +13,13 @@ import type { DashRoute, PushHistory, RouteEvents } from './router.ts'
 describe('Dash router', () => {
   it('recognizes routes and normalizes trailing and unknown paths', () => {
     expect(routeFromPath('/')).toBe('/')
+    expect(routeFromPath('/venue')).toBe('/venue')
     expect(routeFromPath('/rights/')).toBe('/rights')
     expect(routeFromPath('/issue?from=overview')).toBe('/issue')
     expect(routeFromPath('/unknown')).toBe('/')
+  })
+
+  it('canonicalizes an unknown path', () => {
     expect(canonicalPath('/unknown')).toBe('/')
   })
 
@@ -45,16 +49,17 @@ describe('Dash router', () => {
 describe(redirectFor, () => {
   it('keeps each session on its own surface', () => {
     expect(redirectFor('/', 'admin', false)).toBeNull()
-    expect(redirectFor('/new', 'admin', false)).toBe('/')
-    expect(redirectFor('/rights', 'operator', false)).toBe('/new')
+    expect(redirectFor('/new', 'admin', false, false)).toBe('/')
+    expect(redirectFor('/rights', 'operator', false, false)).toBe('/venue')
     expect(redirectFor('/rights', 'operator', true)).toBe('/published')
   })
 
   it('keeps the designer open for a second card and needs a venue for the card list', () => {
-    expect(redirectFor('/new', 'operator', false)).toBeNull()
-    expect(redirectFor('/new', 'operator', true)).toBeNull()
-    expect(redirectFor('/published', 'operator', false)).toBe('/new')
-    expect(redirectFor('/published', 'operator', true)).toBeNull()
+    expect(redirectFor('/venue', 'operator', false, false)).toBeNull()
+    expect(redirectFor('/new', 'operator', false, false)).toBe('/venue')
+    expect(redirectFor('/new', 'operator', true, false)).toBe('/venue')
+    expect(redirectFor('/new', 'operator', true, true)).toBeNull()
+    expect(redirectFor('/published', 'operator', true, false)).toBeNull()
   })
 })
 
@@ -63,6 +68,7 @@ describe(surfaceOf, () => {
     expect(surfaceOf('/')).toBe('admin')
     expect(surfaceOf('/issue')).toBe('admin')
     expect(surfaceOf('/new')).toBe('operator')
+    expect(surfaceOf('/venue')).toBe('operator')
     expect(surfaceOf('/published')).toBe('operator')
   })
 })

@@ -46,14 +46,13 @@ export const insertCard = async (
   }
 }
 
-export const insertIssuerAndCard = async (
+export const insertIssuer = async (
   db: Db,
   operator: OperatorSession,
   input: IssuerCreateRequest,
   now: number,
-): Promise<{ cardId: string; issuerId: string }> => {
+): Promise<string> => {
   const issuerId = crypto.randomUUID()
-  const cardId = crypto.randomUUID()
   // A logo staged before the venue existed is claimed here; an id that is
   // unknown, spent or someone else's simply leaves the venue unbranded rather
   // than failing a create the operator cannot retry.
@@ -72,8 +71,7 @@ export const insertIssuerAndCard = async (
       operatorAddress: operator.address,
       tagline: input.tagline,
     }),
-    db.insert(cards).values(cardValues(input.card, { createdAt: now, id: cardId, issuerId })),
     attachIssuer(db, operator.tokenHash, issuerId),
   ])
-  return { cardId, issuerId }
+  return issuerId
 }

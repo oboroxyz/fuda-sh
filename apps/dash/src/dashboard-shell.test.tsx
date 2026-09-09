@@ -1,326 +1,183 @@
+// @vitest-environment happy-dom
 /** @jsxImportSource hono/jsx/dom */
+import { setTimeout } from 'node:timers/promises'
+
 import { pick } from '@fuda/i18n'
-import type * as HonoDom from 'hono/jsx/dom'
+import { render, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DASH_COPY } from './copy.ts'
 import { DashboardShell } from './DashboardShell.tsx'
-import type { DashboardShellProps } from './DashboardShell.tsx'
-import { findViewNodes, viewProps, viewText, walkView } from './test/test-view.ts'
+import type { DashRoute, DashSurface } from './router.ts'
 
-type ClickHandler = (event: MouseEvent) => void
-type DialogRef = (element: HTMLDialogElement | null) => (() => void) | undefined
-type ButtonRef = (element: HTMLButtonElement | null) => void
-
-// Keep the mounted refs and route-effect scheduling while exercising the real shell.
-const hooks = vi.hoisted(() => ({
-  effects: [] as Parameters<typeof HonoDom.useEffect>[0][],
-  index: 0,
-  slots: new Map<number, unknown>(),
-}))
-vi.mock(import('hono/jsx/dom'), async (importOriginal) => ({
-  ...(await importOriginal()),
-  useEffect: (
-    effect: Parameters<typeof HonoDom.useEffect>[0],
-    dependencies: readonly unknown[] = [],
-  ): void => {
-    const { index } = hooks
-    hooks.index += 1
-    const previous = hooks.slots.get(index) as unknown[] | undefined
-    if (
-      previous === undefined ||
-      dependencies.some((value, position) => !Object.is(value, previous[position]))
-    ) {
-      hooks.effects.push(effect)
-      hooks.slots.set(index, dependencies)
+let breakpoint: MediaQueryList
+let root: HTMLDivElement
+let dispose: (() => void) | undefined
+let changeRoute: ((route: DashRoute) => void) | undefined
+const signOut = vi.fn<() => void>()
+const start = (surface: DashSurface = 'operator', hasIssuer = true): void => {
+  const Harness = (): JSX.Element | null => {
+    const [mounted, setMounted] = useState(true)
+    const [route, setRoute] = useState<DashRoute>(surface === 'operator' ? '/published' : '/')
+    dispose = () => {
+      setMounted(false)
     }
-  },
-  useRef: <T,>(initial: T): { current: T } => {
-    const { index } = hooks
-    hooks.index += 1
-    if (!hooks.slots.has(index)) {
-      hooks.slots.set(index, { current: initial })
-    }
-    return hooks.slots.get(index) as { current: T }
-  },
-}))
-
-const shell = (route: '/' | '/rights' | '/issue' = '/'): JSX.Element => {
-  hooks.index = 0
-  return DashboardShell({
-    appearance: <div data-testid="appearance" />,
-    children: <section>page</section>,
-    copy: pick(DASH_COPY, 'en'),
-    hasIssuer: false,
-    onNavigate: (): void => {},
-    onSignOut: null,
-    route,
-    surface: 'admin' as const,
-  })
+    changeRoute = setRoute
+    return mounted ? (
+      <DashboardShell
+        appearance={<span>Appearance</span>}
+        copy={pick(DASH_COPY, 'en')}
+        hasIssuer={hasIssuer}
+        onNavigate={setRoute}
+        onSignOut={signOut}
+        route={route}
+        surface={surface}
+      >
+        <p>Page content</p>
+      </DashboardShell>
+    ) : null
+  }
+  render(<Harness />, root)
+}
+const button = (label: string): HTMLButtonElement => {
+  const found = [...root.querySelectorAll('button')].find(
+    (element) => element.getAttribute('aria-label') === label || element.textContent?.trim() === label,
+  )
+  if (found === undefined) {
+    throw new Error(`Missing button: ${label}`)
+  }
+  return found
 }
 
-const linksIn = (node: unknown) => findViewNodes(node, 'a')
-
-const operatorShell = (hasIssuer: boolean): JSX.Element => {
-  hooks.index = 0
-  return DashboardShell({
-    appearance: <div />,
-    children: <section>page</section>,
-    copy: pick(DASH_COPY, 'en'),
-    hasIssuer,
-    onNavigate: (): void => {},
-    onSignOut: null,
-    route: '/published',
-    surface: 'operator' as const,
-  })
-}
-
-const linkWithPath = (node: unknown, path: string) =>
-  linksIn(node).find((link) => viewProps(link).href === path)
-
-const navPaths = (view: JSX.Element): string[] =>
-  linksIn(findViewNodes(view, 'aside')[0]).map((link) => String(viewProps(link).href))
-
-const openDrawer = (view: JSX.Element): void => {
-  const openMenu = walkView(view).find((node) => node.props['aria-label'] === 'Open menu')!
-  ;(openMenu.props.onClick as () => void)()
-}
-
-describe('dashboard shell', () => {
+describe('dashboard navigation', () => {
   beforeEach(() => {
-    hooks.index = 0
-    hooks.slots.clear()
-    hooks.effects.length = 0
+    breakpoint = Object.assign(new EventTarget(), { matches: false }) as MediaQueryList
+    vi.spyOn(window, 'matchMedia').mockReturnValue(breakpoint)
+    root = document.createElement('div')
+    document.body.append(root)
+    signOut.mockClear()
+    dispose = undefined
+    changeRoute = undefined
+  })
+  afterEach(async () => {
+    dispose?.()
+    await setTimeout(0)
+    root.remove()
+    vi.restoreAllMocks()
   })
 
-  it('renders labelled desktop and drawer navigation with the selected route and appearance', () => {
-    const view = shell()
-    const navigation = findViewNodes(view, 'nav')
-
-    expect(navigation).toHaveLength(2)
-    expect(navigation.map((node) => viewProps(node)['aria-label'])).toStrictEqual([
-      'Dashboard navigation',
-      'Dashboard navigation',
-    ])
-    for (const nav of navigation) {
-      expect(linksIn(nav).map((link) => viewProps(link).href)).toStrictEqual(['/', '/rights', '/issue'])
+  it('uses one responsive daisyUI drawer with icons before menu labels', () => {
+    start('admin')
+    expect(root.querySelector('.drawer.lg\\:drawer-open')).not.toBeNull()
+    expect(root.querySelectorAll('nav')).toHaveLength(1)
+    const links = [...root.querySelectorAll('nav a')]
+    expect(links.map((link) => link.getAttribute('href'))).toStrictEqual(['/', '/rights', '/issue'])
+    for (const link of links) {
+      expect(link.firstElementChild?.tagName.toLowerCase()).toBe('svg')
     }
-    expect(
-      walkView(view)
-        .filter((node) => viewProps(node)['aria-current'] === 'page')
-        .map(viewText),
-    ).toStrictEqual(['Overview', 'Overview'])
-    expect(walkView(view).some((node) => viewProps(node)['aria-label'] === 'Open menu')).toBe(true)
-    expect(walkView(view).some((node) => viewProps(node)['data-testid'] === 'appearance')).toBe(true)
+    expect(root.querySelector('[aria-current="page"]')?.textContent).toBe('Overview')
   })
 
-  it('offers the venue its cards and a second card once it has one', () => {
-    expect(navPaths(operatorShell(true))).toStrictEqual(['/published', '/new'])
-    expect(navPaths(operatorShell(false))).toStrictEqual(['/new'])
-  })
-
-  it('marks Rights as the current route', () => {
-    const view = shell('/rights')
-
-    expect(
-      walkView(view)
-        .filter((node) => viewProps(node)['aria-current'] === 'page')
-        .map(viewText),
-    ).toStrictEqual(['Rights', 'Rights'])
-  })
-
-  it('uses native links while intercepting only unmodified primary navigation', () => {
-    const navigated: string[] = []
-    const onNavigate: DashboardShellProps['onNavigate'] = (route): void => {
-      navigated.push(route)
-    }
-    const view = DashboardShell({
-      appearance: <div />,
-      children: <section>page</section>,
-      copy: pick(DASH_COPY, 'en'),
-      hasIssuer: false,
-      onNavigate,
-      onSignOut: null,
-      route: '/',
-      surface: 'admin' as const,
+  it('requires confirmation and cancels without ending the session', async () => {
+    start()
+    button('Sign out').click()
+    expect(signOut).not.toHaveBeenCalled()
+    await vi.waitFor(() => {
+      expect(root.querySelector('dialog.modal')?.hasAttribute('open')).toBe(true)
     })
-    const rights = linkWithPath(findViewNodes(view, 'aside')[0], '/rights')
-    const handler = viewProps(rights!).onClick as ClickHandler
-    const preventDefault = vi.fn<() => void>()
-
-    handler({
-      button: 0,
-      ctrlKey: false,
-      metaKey: false,
-      preventDefault,
-      shiftKey: false,
-    } as unknown as MouseEvent)
-    expect(preventDefault).toHaveBeenCalledOnce()
-    expect(navigated).toStrictEqual(['/rights'])
-
-    handler({
-      button: 0,
-      ctrlKey: true,
-      metaKey: false,
-      preventDefault,
-      shiftKey: false,
-    } as unknown as MouseEvent)
-    expect(preventDefault).toHaveBeenCalledOnce()
-    expect(navigated).toStrictEqual(['/rights'])
+    button('Cancel').click()
+    expect(signOut).not.toHaveBeenCalled()
+    expect(root.querySelector('dialog.modal')?.hasAttribute('open')).toBe(false)
+    button('Sign out').click()
+    const confirm = root.querySelector<HTMLButtonElement>('dialog.modal .btn-error')
+    if (confirm === null) {
+      throw new Error('Missing confirmation')
+    }
+    confirm.click()
+    expect(signOut).toHaveBeenCalledOnce()
   })
 
-  it('closes the drawer before mobile navigation and restores its opener focus', () => {
-    const calls: string[] = []
-    const view = DashboardShell({
-      appearance: <div />,
-      children: <section>page</section>,
-      copy: pick(DASH_COPY, 'en'),
-      hasIssuer: false,
-      onNavigate: (route) => {
-        calls.push(route)
-      },
-      onSignOut: null,
-      route: '/',
-      surface: 'admin' as const,
+  it('closes the drawer on Escape and restores focus to its opener', async () => {
+    start()
+    button('Open menu').click()
+    await vi.waitFor(() => {
+      expect(root.querySelector<HTMLInputElement>('.drawer-toggle')?.checked).toBe(true)
     })
-    const [dialog] = findViewNodes(view, 'dialog')
-    const openMenu = walkView(view).find((node) => viewProps(node)['aria-label'] === 'Open menu')
-    const closeMenu = walkView(view).find((node) => viewProps(node)['aria-label'] === 'Close menu')
-    let focusCalls = 0
-    let showModalCalls = 0
-    const opener = {
-      focus: (): void => {
-        focusCalls += 1
-      },
-    } as unknown as HTMLButtonElement
-    const drawer = {
-      close: () => {
-        calls.push('close')
-      },
-      showModal: (): void => {
-        showModalCalls += 1
-      },
-    } as unknown as HTMLDialogElement
-
-    ;(viewProps(openMenu!).ref as ButtonRef)(opener)
-    ;(viewProps(dialog).ref as DialogRef)(drawer)
-    ;(viewProps(openMenu!).onClick as ClickHandler)({} as MouseEvent)
-    expect(showModalCalls).toBe(1)
-
-    ;(viewProps(linkWithPath(dialog, '/rights')!).onClick as ClickHandler)({
-      button: 0,
-      ctrlKey: false,
-      metaKey: false,
-      preventDefault: vi.fn<() => void>(),
-      shiftKey: false,
-    } as unknown as MouseEvent)
-    expect(calls).toStrictEqual(['close', '/rights'])
-    expect(focusCalls).toBe(1)
-
-    ;(viewProps(closeMenu!).onClick as ClickHandler)({} as MouseEvent)
-    ;(viewProps(dialog).onCancel as (event: Event) => void)({
-      preventDefault: vi.fn<() => void>(),
-    } as unknown as Event)
-    ;(viewProps(dialog).onClick as ClickHandler)({
-      currentTarget: drawer,
-      target: drawer,
-    } as unknown as MouseEvent)
-    expect(calls).toStrictEqual(['close', '/rights', 'close', 'close', 'close'])
-    expect(focusCalls).toBe(4)
+    root.querySelector('aside')?.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Escape' }))
+    await vi.waitFor(() => {
+      expect(root.querySelector<HTMLInputElement>('.drawer-toggle')?.checked).toBe(false)
+    })
+    expect(document.activeElement).toBe(button('Open menu'))
   })
 
-  it('closes the same open drawer on back and forward route updates without closing on unrelated renders', () => {
-    let focusCalls = 0
-    const drawer = {
-      close: (): void => {
-        drawer.open = false
-      },
-      open: false,
-      showModal: (): void => {
-        drawer.open = true
-      },
-    }
-    const opener = {
-      focus: (): void => {
-        focusCalls += 1
-      },
-    }
-    const mount = (route: '/' | '/rights' | '/issue'): JSX.Element => {
-      const view = shell(route)
-      const openMenu = walkView(view).find((node) => node.props['aria-label'] === 'Open menu')!
-      ;(openMenu.props.ref as ButtonRef)(opener as HTMLButtonElement)
-      ;(findViewNodes(view, 'dialog')[0].props.ref as DialogRef)(drawer as HTMLDialogElement)
-      for (const effect of hooks.effects.splice(0)) {
-        effect()
-      }
-      return view
-    }
-    openDrawer(mount('/issue'))
-    void mount('/issue')
-    expect({ focusCalls, open: drawer.open }).toStrictEqual({ focusCalls: 0, open: true })
-
-    const previous = mount('/rights')
-    expect({ focusCalls, open: drawer.open }).toStrictEqual({ focusCalls: 1, open: false })
-    openDrawer(previous)
-    void mount('/issue')
-    expect({ focusCalls, open: drawer.open }).toStrictEqual({ focusCalls: 2, open: false })
-    void mount('/')
-    expect(focusCalls).toBe(2)
+  it('closes the drawer when navigation changes externally', async () => {
+    start('admin')
+    button('Open menu').click()
+    await vi.waitFor(() => {
+      expect(root.querySelector<HTMLInputElement>('.drawer-toggle')?.checked).toBe(true)
+    })
+    changeRoute?.('/rights')
+    await vi.waitFor(() => {
+      expect(root.querySelector<HTMLInputElement>('.drawer-toggle')?.checked).toBe(false)
+    })
+    expect(root.querySelector('[aria-current="page"]')?.textContent).toBe('Rights')
   })
 
-  it('closes an open mobile drawer when entering desktop and cleans up the breakpoint listener', () => {
-    let listener: ((event: MediaQueryListEvent) => void) | undefined
-    let removed: ((event: MediaQueryListEvent) => void) | undefined
-    const breakpoint = {
-      addEventListener: (_type: 'change', next: EventListenerOrEventListenerObject | null): void => {
-        listener = next as (event: MediaQueryListEvent) => void
-      },
-      matches: false,
-      removeEventListener: (_type: 'change', next: EventListenerOrEventListenerObject | null): void => {
-        removed = next as (event: MediaQueryListEvent) => void
-      },
-    } as unknown as MediaQueryList
-    const matchMedia = vi.fn<(query: string) => MediaQueryList>(() => breakpoint)
-    vi.stubGlobal('matchMedia', matchMedia)
-
-    try {
-      const view = shell()
-      const [dialog] = findViewNodes(view, 'dialog')
-      const openMenu = walkView(view).find((node) => viewProps(node)['aria-label'] === 'Open menu')
-      let closeCalls = 0
-      let focusCalls = 0
-      const drawer = {
-        close: (): void => {
-          closeCalls += 1
-        },
-        open: true,
-      } as unknown as HTMLDialogElement
-      const opener = {
-        focus: (): void => {
-          focusCalls += 1
-        },
-      } as unknown as HTMLButtonElement
-
-      ;(viewProps(openMenu!).ref as ButtonRef)(opener)
-      const cleanup = (viewProps(dialog).ref as DialogRef)(drawer)
-      if (listener === undefined) {
-        throw new Error('Expected a breakpoint listener')
-      }
-
-      listener({ matches: false } as MediaQueryListEvent)
-      listener({ matches: true } as MediaQueryListEvent)
-      listener({ matches: true } as MediaQueryListEvent)
-
-      cleanup?.()
-      expect({ closeCalls, focusCalls, query: matchMedia.mock.calls, removed }).toStrictEqual({
-        closeCalls: 1,
-        focusCalls: 1,
-        query: [['(min-width: 64rem)']],
-        removed: listener,
-      })
-    } finally {
-      vi.unstubAllGlobals()
+  it('keeps modified links native and closes after normal navigation', async () => {
+    start('admin')
+    button('Open menu').click()
+    await setTimeout(0)
+    const link = root.querySelector<HTMLAnchorElement>('nav a[href="/rights"]')
+    if (link === null) {
+      throw new Error('Missing rights link')
     }
+    const modified = new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true })
+    link.dispatchEvent(modified)
+    expect(modified.defaultPrevented).toBe(false)
+    expect(root.querySelector('[aria-current="page"]')?.textContent).toBe('Overview')
+    const primary = new MouseEvent('click', { bubbles: true, cancelable: true })
+    link.dispatchEvent(primary)
+    expect(primary.defaultPrevented).toBe(true)
+    await vi.waitFor(() => {
+      expect(root.querySelector('[aria-current="page"]')?.textContent).toBe('Rights')
+      expect(root.querySelector<HTMLInputElement>('.drawer-toggle')?.checked).toBe(false)
+    })
+  })
+
+  it('closes mobile state on desktop entry and removes the breakpoint listener on unmount', async () => {
+    const remove = vi.spyOn(breakpoint, 'removeEventListener')
+    start()
+    button('Open menu').click()
+    await setTimeout(0)
+    breakpoint.dispatchEvent(Object.assign(new Event('change'), { matches: true }))
+    await vi.waitFor(() => {
+      expect(root.querySelector<HTMLInputElement>('.drawer-toggle')?.checked).toBe(false)
+    })
+    expect(root.querySelector('aside')?.getAttribute('aria-modal')).toBeNull()
+    dispose?.()
+    await setTimeout(0)
+    expect(remove).toHaveBeenCalledWith('change', expect.any(Function))
+  })
+
+  it.each([true, false])(
+    'keeps operator navigation separate from the admin console (issuer: %s)',
+    (hasIssuer) => {
+      start('operator', hasIssuer)
+      expect([...root.querySelectorAll('nav a')].map((link) => link.getAttribute('href'))).toStrictEqual(
+        hasIssuer ? ['/venue', '/published', '/new'] : ['/venue'],
+      )
+    },
+  )
+
+  it('traps mobile navigation focus without including closed modal controls', async () => {
+    start()
+    button('Open menu').click()
+    await setTimeout(0)
+    button('Sign out').focus()
+    button('Sign out').dispatchEvent(
+      new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Tab' }),
+    )
+    expect(document.activeElement).toBe(button('Close menu'))
   })
 })

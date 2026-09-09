@@ -86,15 +86,14 @@ export interface HandleCheckResponse {
   valid: boolean
   available: boolean
 }
-export interface IssuerCreateResponse {
+export interface CardCreateResponse {
   issuer: IssuerView
   card: CardView
   // the venue page; a card's own link is `${publicUrl}/${card.slug}`
   publicUrl: string
 }
-// The operator's own venue. `cards` is a list because an issuer owns 1..N
-// cards; only the first is created and shown today, but the shape does not
-// change when a venue publishes a second one.
+// The operator's own venue. `cards` is a list because an issuer owns 0..N
+// cards; venue registration precedes the first card.
 export interface IssuerCardsResponse {
   issuer: IssuerView
   cards: CardView[]
@@ -103,6 +102,7 @@ export interface IssuerCardsResponse {
   // deployment has no ENS configured (docs/specs/ens-naming.md).
   ens: EnsClaimView | null
 }
+export type IssuerCreateResponse = IssuerCardsResponse
 export type IssuerMeResponse = IssuerCardsResponse | { issuer: null; cards: []; publicUrl: null; ens: null }
 
 // `unclaimed` covers both "never asked" and a voucher that was signed and never
