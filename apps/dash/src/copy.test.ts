@@ -69,7 +69,7 @@ describe('Dash copy', () => {
     expect(copy.designer.slugStatus.taken).toBe('すでに使われています')
     expect(copy.published.addCard).toBe('カードを追加')
     expect(copy.published.titleMany).toBe('公開中のカード')
-    expect(copy.published.venueLabel).toBe('店舗ページ')
+    expect(copy.published.venueLabel).toBe('公開ページ')
   })
 
   it('names the two time windows and the closed state in Japanese', () => {

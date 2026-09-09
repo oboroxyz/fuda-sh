@@ -266,7 +266,7 @@ describe(PublishedCardView, () => {
   it('sends an empty venue to ENS until claimed, then offers the first card', () => {
     const view = PublishedCardView(published({ canAddCard: false, cards: [] }))
     expect(viewText(view)).toContain('Create your first card')
-    expect(viewText(view)).toContain('Go to venue and ENS')
+    expect(viewText(view)).toContain('Go to profile')
     expect(viewText(PublishedCardView(published({ cards: [] })))).toContain('Create your first card')
   })
 
@@ -281,7 +281,7 @@ describe(PublishedCardView, () => {
   it('keeps venue management out of the card list', () => {
     const view = PublishedCardView(published())
     expect(viewText(view)).toContain('Wassie Coffee')
-    expect(viewText(view)).not.toContain('Venue page')
+    expect(viewText(view)).not.toContain('Public page')
   })
 
   it('gives every card of a venue its own link and QR', () => {

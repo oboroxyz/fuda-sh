@@ -184,7 +184,7 @@ export const RightsListView = ({ state }: { state: RightsListState | MemberListS
         ) : null}
         <div class="member-empty">
           <p class="font-semibold text-[var(--fuda-text)]">No passes found yet.</p>
-          <p class="mt-2">Open a card link or scan a QR from your venue to get started.</p>
+          <p class="mt-2">Open a card link or scan a card QR code to get started.</p>
         </div>
       </>
     )

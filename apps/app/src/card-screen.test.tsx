@@ -207,8 +207,8 @@ describe(CardScreenView, () => {
     expect(viewText(render({ kind: 'loading' }))).toContain('Loading card')
     expect(viewText(render({ kind: 'not_found', venue: null }))).toContain('No card here')
     expect(message('rate_limited')).toContain('try again later')
-    expect(message('no_signer')).toContain('cannot issue cards right now')
-    expect(message('chain_error')).toContain('cannot issue cards right now')
+    expect(message('no_signer')).toContain('cannot be issued right now')
+    expect(message('chain_error')).toContain('cannot be issued right now')
   })
 
   it('formats the issue date in UTC regardless of the device locale', () => {

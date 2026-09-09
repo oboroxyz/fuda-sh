@@ -6,7 +6,7 @@ export const VenueLayout = ({ handle, children }: { handle: string; children: JS
     <header class="venue-header">
       <a href={`/@${handle}`} class="inline-flex min-h-11 items-center gap-2 text-sm font-medium">
         <span aria-hidden="true">←</span>
-        Back to venue
+        Back to cards
       </a>
       <span class="text-xs tracking-widest text-[var(--fuda-muted)]">fuda</span>
     </header>

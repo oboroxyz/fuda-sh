@@ -69,9 +69,9 @@ export const issueDateOf = (issuedAt: number): string => ISSUE_DATE.format(new D
 const FAILURE_MESSAGE = {
   // The card closed between loading the page and tapping the button.
   card_closed: 'This card is no longer being handed out.',
-  chain_error: 'This venue cannot issue cards right now. Please try again later.',
+  chain_error: 'Cards cannot be issued right now. Please try again later.',
   network: 'Could not reach fuda. Check your connection and try again.',
-  no_signer: 'This venue cannot issue cards right now. Please try again later.',
+  no_signer: 'Cards cannot be issued right now. Please try again later.',
   not_found: 'This card is no longer available.',
   rate_limited: 'Too many cards were requested from this device. Please try again later.',
 } satisfies Record<CardFailure, string>

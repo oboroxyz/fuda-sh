@@ -124,7 +124,7 @@ describe(ReceptionPage, () => {
 
   /* oxlint-disable promise/prefer-await-to-callbacks, promise/no-promise-in-callback -- Vitest supplies each table row through this async callback. */
   it.each([
-    ['not_found', 'This QR code belongs to another venue or is unknown.'],
+    ['not_found', 'This QR code is not recognised or belongs to another profile.'],
     ['bad_qr', 'This is not a valid fuda QR code.'],
     ['bad_input', 'This scan could not be accepted. Scan the QR code again.'],
   ])('explains the %s scan failure', async (error, message) => {

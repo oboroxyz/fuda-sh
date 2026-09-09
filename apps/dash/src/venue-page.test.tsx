@@ -96,7 +96,7 @@ describe('venue registration and details', () => {
     ])
     expect(root.textContent).not.toContain('Required')
     expect(field('tagline').closest('label')?.textContent).toContain('(optional)')
-    expect(button('Register venue').disabled).toBe(true)
+    expect(button('Create profile').disabled).toBe(true)
   })
 
   it('registers without a tagline, custom colour or logo', async () => {
@@ -105,9 +105,9 @@ describe('venue registration and details', () => {
     typeField('handle', 'new-coffee')
     typeField('name', 'New Coffee')
     await vi.waitFor(() => {
-      expect(button('Register venue').disabled).toBe(false)
+      expect(button('Create profile').disabled).toBe(false)
     })
-    submitForm('Register venue')
+    submitForm('Create profile')
     expect(input.onCreate).toHaveBeenCalledExactlyOnceWith(
       { brandColor: '#0073EB', handle: 'new-coffee', name: 'New Coffee', tagline: '' },
       null,
@@ -179,7 +179,7 @@ describe('venue registration and details', () => {
       })
     })
     await vi.waitFor(() => {
-      expect(root.textContent).toContain('Venue saved.')
+      expect(root.textContent).toContain('Saved.')
     })
   })
 
@@ -193,7 +193,7 @@ describe('venue registration and details', () => {
     })
     submitForm('Save')
     await vi.waitFor(() => {
-      expect(root.textContent).toContain('Could not save the venue.')
+      expect(root.textContent).toContain('Could not save your changes.')
     })
     expect(field('name').value).toBe('New Coffee')
     expect(button('Save').disabled).toBe(false)
