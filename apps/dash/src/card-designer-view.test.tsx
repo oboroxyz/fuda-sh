@@ -1,18 +1,17 @@
+// @vitest-environment happy-dom
 /** @jsxImportSource hono/jsx/dom */
-import type { CardView, IssuerView } from '@fuda/sdk'
+import type { IssuerView } from '@fuda/sdk'
+import { render } from 'hono/jsx/dom'
 import { describe, expect, it, vi } from 'vitest'
 
-import { EMPTY_FORM, formatInstant, withCategory } from './card-designer.ts'
+import { EMPTY_FORM, withCategory } from './card-designer.ts'
 import type { DesignerForm } from './card-designer.ts'
-import { CardDesignerView } from './CardDesigner.tsx'
+import { CardDesigner, CardDesignerView } from './CardDesigner.tsx'
 import type { CardDesignerViewProps } from './CardDesigner.tsx'
 import { DASH_COPY } from './copy.ts'
 import { EMPTY_LOGO } from './logo.ts'
 import { LogoField } from './LogoField.tsx'
 import type { LogoFieldProps } from './LogoField.tsx'
-import { PublishedCardView } from './PublishedCard.tsx'
-import type { PublishedCardViewProps } from './PublishedCard.tsx'
-import { QrBlock } from './QrBlock.tsx'
 import { findViewNodes, viewProps, viewText, walkView } from './test/test-view.ts'
 
 const filled: DesignerForm = { ...EMPTY_FORM, handle: 'wassie-coffee', name: 'Wassie Coffee' }
@@ -47,6 +46,7 @@ const designer = (overrides: Partial<CardDesignerViewProps> = {}): CardDesignerV
   logoCopy: DASH_COPY.en.logo,
   mode: 'card',
   onCategory: vi.fn<CardDesignerViewProps['onCategory']>(),
+  onEditProfile: vi.fn<CardDesignerViewProps['onEditProfile']>(),
   onField: vi.fn<CardDesignerViewProps['onField']>(),
   onLockScreen: vi.fn<CardDesignerViewProps['onLockScreen']>(),
   onLogoClear: vi.fn<CardDesignerViewProps['onLogoClear']>(),
@@ -57,6 +57,7 @@ const designer = (overrides: Partial<CardDesignerViewProps> = {}): CardDesignerV
   onValidityDays: vi.fn<CardDesignerViewProps['onValidityDays']>(),
   onValidityMode: vi.fn<CardDesignerViewProps['onValidityMode']>(),
   onWindow: vi.fn<CardDesignerViewProps['onWindow']>(),
+  savedLogoUrl: null,
   status: { handle: 'available', slug: 'available' },
   ...overrides,
 })
@@ -64,7 +65,97 @@ const designer = (overrides: Partial<CardDesignerViewProps> = {}): CardDesignerV
 const inputWithId = (props: CardDesignerViewProps, id: string): boolean =>
   walkView(CardDesignerView(props)).some((node) => node.props.id === id)
 
+const issuer: IssuerView = {
+  brandColor: '#6F4320',
+  createdAt: 1_757_000_000,
+  handle: 'wassie-coffee',
+  id: 'issuer-1',
+  logoUrl: null,
+  name: 'Wassie Coffee',
+  operatorAddress: `0x${'ab'.repeat(20)}`,
+  tagline: 'Omotesando · Coffee shop',
+}
+
 describe(CardDesignerView, () => {
+  it('does not publish an old draft after the designer is unmounted', () => {
+    const frames: FrameRequestCallback[] = []
+    // oxlint-disable-next-line promise/prefer-await-to-callbacks -- capture the browser callback API to test effects that run after unmount.
+    const requestFrame = vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((callback) => {
+      frames.push(callback)
+      return frames.length
+    })
+    const onDraftChange = vi.fn<(form: DesignerForm) => void>()
+    const root = document.createElement('div')
+    vi.useFakeTimers()
+    try {
+      render(
+        <CardDesigner
+          busy={false}
+          copy={DASH_COPY.en.designer}
+          failure={null}
+          initialDraft={{ ...filled, title: 'Previous session draft' }}
+          issuer={issuer}
+          logoCopy={DASH_COPY.en.logo}
+          onCheckHandle={async () => await Promise.resolve('available')}
+          onCheckSlug={async () => await Promise.resolve('available')}
+          onDraftChange={onDraftChange}
+          onEditProfile={vi.fn<() => void>()}
+          onSubmit={vi.fn<() => void>()}
+        />,
+        root,
+      )
+      render(null, root)
+      onDraftChange.mockClear()
+      for (const frame of frames.splice(0)) {
+        frame(0)
+      }
+      expect(onDraftChange).not.toHaveBeenCalled()
+    } finally {
+      render(null, root)
+      vi.clearAllTimers()
+      vi.useRealTimers()
+      requestFrame.mockRestore()
+    }
+  })
+
+  it.each([
+    { expected: null, logoUrl: null },
+    { expected: 'https://cdn.example/logo.png?v=1', logoUrl: 'https://cdn.example/logo.png?v=1' },
+    {
+      expected: '/api/assets/wassie-coffee/logo/master?v=1',
+      logoUrl: 'http://localhost:8787/assets/wassie-coffee/logo/master?v=1',
+    },
+  ])('previews the saved issuer logo: $logoUrl', ({ logoUrl, expected }) => {
+    const root = document.createElement('div')
+    try {
+      render(
+        <CardDesigner
+          busy={false}
+          copy={DASH_COPY.en.designer}
+          failure={null}
+          issuer={{ ...issuer, logoUrl }}
+          logoCopy={DASH_COPY.en.logo}
+          onCheckHandle={async () => await Promise.resolve('available')}
+          onCheckSlug={async () => await Promise.resolve('available')}
+          onEditProfile={vi.fn<() => void>()}
+          onSubmit={vi.fn<() => void>()}
+        />,
+        root,
+      )
+      const preview = root.querySelector('.dash-card-preview')
+      expect(preview?.textContent).toContain(issuer.name)
+      expect(preview?.textContent).toContain('ABCD-E123-F5679')
+      expect(preview?.querySelector('svg')).not.toBeNull()
+      const image = preview?.querySelector('img')
+      expect({
+        alt: image?.getAttribute('alt') ?? null,
+        src: image?.getAttribute('src') ?? null,
+      }).toStrictEqual({ alt: expected === null ? null : '', src: expected })
+    } finally {
+      render(null, root)
+    }
+  })
+
   it('offers one multiline card description for onboarding', () => {
     const view = CardDesignerView(designer({ form: { ...filled, description: 'First line\nSecond line' } }))
     const [textarea] = findViewNodes(view, 'textarea')
@@ -77,12 +168,11 @@ describe(CardDesignerView, () => {
     expect(inputWithId(designer(), 'reward')).toBe(false)
   })
 
-  it('previews the venue name, card type and title in the brand colour', () => {
+  it('previews the venue name and title in the brand colour', () => {
     const view = CardDesignerView(designer({ form: { ...filled, brandColor: '#1F513F' } }))
     const preview = walkView(view).find((node) => node.props.class === 'dash-card-preview')
     expect(viewText(preview)).toContain('Wassie Coffee')
     expect(viewText(preview)).toContain('Membership')
-    expect(viewText(preview)).toContain('Membership Card')
     expect(viewProps(preview!).style).toStrictEqual({ background: '#1F513F', color: '#FFFFFF' })
   })
 
@@ -197,147 +287,6 @@ describe(CardDesignerView, () => {
   })
 })
 
-const issuer: IssuerView = {
-  brandColor: '#6F4320',
-  createdAt: 1_757_000_000,
-  handle: 'wassie-coffee',
-  id: 'issuer-1',
-  logoUrl: null,
-  name: 'Wassie Coffee',
-  operatorAddress: `0x${'ab'.repeat(20)}`,
-  tagline: 'Omotesando · Coffee shop',
-}
-
-const membership: CardView = {
-  category: 'membership',
-  claimFrom: null,
-  claimUntil: null,
-  claimable: true,
-  description: '',
-  id: 'card-1',
-  slug: 'membership-card',
-  title: 'Membership Card',
-  validFrom: null,
-  validUntil: null,
-  validityDays: null,
-}
-
-const summer: CardView = {
-  category: 'ticket',
-  claimFrom: null,
-  claimUntil: null,
-  claimable: true,
-  description: '',
-  id: 'card-2',
-  slug: 'summer',
-  title: 'Summer Pass',
-  validFrom: null,
-  validUntil: null,
-  validityDays: 30,
-}
-
-const published = (overrides: Partial<PublishedCardViewProps> = {}): PublishedCardViewProps => ({
-  canAddCard: true,
-  cards: [membership],
-  copiedSlug: null,
-  copy: DASH_COPY.en.published,
-  issuer,
-  now: 1_757_000_000,
-  onAddCard: vi.fn<() => void>(),
-  onCopy: vi.fn<PublishedCardViewProps['onCopy']>(),
-  onPrint: vi.fn<PublishedCardViewProps['onPrint']>(),
-  onSettings: vi.fn<PublishedCardViewProps['onSettings']>(),
-  onShare: null,
-  onVenue: vi.fn<PublishedCardViewProps['onVenue']>(),
-  printSlug: null,
-  publicUrl: 'https://fuda.sh/@wassie-coffee',
-  ...overrides,
-})
-
-const printTargets = (props: PublishedCardViewProps): string[] =>
-  walkView(PublishedCardView(props))
-    .map((node) => String(node.props.class))
-    .filter((value) => value.includes('dash-print-target'))
-
-const qrTargets = (props: PublishedCardViewProps): unknown[] =>
-  findViewNodes(PublishedCardView(props), QrBlock).map((node) => viewProps(node).qr)
-
-describe(PublishedCardView, () => {
-  it('sends an empty venue to ENS until claimed, then offers the first card', () => {
-    const view = PublishedCardView(published({ canAddCard: false, cards: [] }))
-    expect(viewText(view)).toContain('Create your first card')
-    expect(viewText(view)).toContain('Go to profile')
-    expect(viewText(PublishedCardView(published({ cards: [] })))).toContain('Create your first card')
-  })
-
-  it('reads as one card when the venue published only one', () => {
-    const view = PublishedCardView(published())
-    expect(viewText(view)).toContain('Your card is live')
-    expect(viewText(view)).not.toContain('Your cards are live')
-    expect(qrTargets(published())).toStrictEqual(['https://fuda.sh/@wassie-coffee/membership-card'])
-    expect(viewText(view)).toContain('fuda.sh/@wassie-coffee/membership-card')
-  })
-
-  it('keeps venue management out of the card list', () => {
-    const view = PublishedCardView(published())
-    expect(viewText(view)).toContain('Wassie Coffee')
-    expect(viewText(view)).not.toContain('Public page')
-  })
-
-  it('gives every card of a venue its own link and QR', () => {
-    const props = published({ cards: [membership, summer] })
-    const view = PublishedCardView(props)
-    expect(viewText(view)).toContain('Your cards are live')
-    expect(qrTargets(props)).toStrictEqual([
-      'https://fuda.sh/@wassie-coffee/membership-card',
-      'https://fuda.sh/@wassie-coffee/summer',
-    ])
-    expect(viewText(view)).toContain('Summer Pass')
-    expect(viewText(view)).toContain('fuda.sh/@wassie-coffee/summer')
-  })
-
-  it('offers another card and share only where the browser supports it', () => {
-    expect(viewText(PublishedCardView(published()))).toContain('Add card')
-    expect(viewText(PublishedCardView(published()))).not.toContain('Share link')
-    expect(viewText(PublishedCardView(published({ onShare: (): void => {} })))).toContain('Share link')
-  })
-
-  it('confirms a copy on the card that was copied and on no other', () => {
-    const props = published({ cards: [membership, summer], copiedSlug: 'summer' })
-    const text = viewText(PublishedCardView(props))
-    expect(text).toContain('Copied')
-    expect(text).toContain('Copy link')
-    expect(viewText(PublishedCardView(published()))).not.toContain('Copied')
-  })
-
-  it('marks a card that is no longer handed out and says when it closed', () => {
-    const closed: CardView = { ...summer, claimUntil: 1_757_000_000, claimable: false }
-    const text = viewText(PublishedCardView(published({ cards: [closed] })))
-    expect(text).toContain('Closed since')
-    expect(text).toContain(formatInstant(1_757_000_000))
-    expect(text).toContain('Valid 30 days after claiming')
-    expect(viewText(PublishedCardView(published()))).not.toContain('Closed')
-  })
-
-  it('says when a card opens later, closes later, and how long it stays valid', () => {
-    const later: CardView = { ...membership, claimFrom: 1_800_000_000, claimable: false }
-    expect(viewText(PublishedCardView(published({ cards: [later] })))).toContain(
-      `Opens ${formatInstant(1_800_000_000)}`,
-    )
-    expect(viewText(PublishedCardView(published({ cards: [summer] })))).toContain('Valid 30 days')
-    expect(viewText(PublishedCardView(published()))).toContain('Does not expire')
-  })
-
-  it('narrows the poster to one card while that card is printing', () => {
-    const both = published({ cards: [membership, summer] })
-    expect(printTargets(both)).toStrictEqual(['dash-print-target', 'dash-print-target'])
-    expect(printTargets({ ...both, printSlug: 'summer' })).toStrictEqual([
-      'dash-print-target dash-no-print',
-      'dash-print-target',
-    ])
-  })
-})
-
 describe('the logo field', () => {
   it('offers the picker with the minimum source size and nothing held yet', () => {
     const view = LogoField(logoField())
@@ -374,15 +323,5 @@ describe('the logo field', () => {
 
   it('says a failed upload left the card alone', () => {
     expect(viewText(CardDesignerView(designer({ failure: 'logo' })))).toContain('Could not upload the logo')
-  })
-})
-
-describe('the published card boundary', () => {
-  it('leaves venue logo management to the venue page', () => {
-    const view = PublishedCardView(published())
-    const [image] = findViewNodes(view, 'img')
-    const [field] = findViewNodes(view, LogoField)
-    expect(image).toBeUndefined()
-    expect(field).toBeUndefined()
   })
 })

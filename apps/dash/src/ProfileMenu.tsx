@@ -92,7 +92,7 @@ export const ProfileMenu = ({
           class="absolute top-full right-0 left-0 z-40 mt-2 rounded-xl border border-[var(--fuda-border)] bg-[var(--fuda-surface)] p-1 shadow-lg"
         >
           <button
-            class="dash-menu-item btn btn-ghost !border-0 font-normal shadow-none"
+            class="dash-menu-item btn btn-ghost w-full !border-0 font-normal shadow-none"
             type="button"
             disabled
           >

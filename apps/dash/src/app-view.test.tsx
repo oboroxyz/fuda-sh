@@ -4,11 +4,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { AppView } from './AppView.tsx'
 import type { AppViewProps } from './AppView.tsx'
 import { CardDesigner } from './CardDesigner.tsx'
-import { CardStampSettingsPage } from './CardStampSettingsPage.tsx'
+import { CardDetailPage } from './CardDetailPage.tsx'
+import { CardEditPage } from './CardEditPage.tsx'
 import { API_BASE_URL } from './config.ts'
 import { DASH_COPY } from './copy.ts'
 import { DashboardShell } from './DashboardShell.tsx'
 import { IssueForm } from './IssueForm.tsx'
+import { IssuerPassesPage } from './IssuerPassesPage.tsx'
 import type { MembersState } from './members-state.ts'
 import { OnChainStatus } from './OnChainStatus.tsx'
 import { OverviewPage } from './OverviewPage.tsx'
@@ -87,17 +89,25 @@ const adminSession: AppViewProps['session'] = {
 const props: AppViewProps = {
   appearance: <div>Appearance controls</div>,
   authError: null,
+  cardDraft: null,
+  cardManagement: {
+    load: vi.fn<AppViewProps['cardManagement']['load']>(),
+    save: vi.fn<AppViewProps['cardManagement']['save']>(),
+  },
   copy: DASH_COPY.en,
   createFailure: null,
   creating: false,
   ens: null,
   graphEndpoint: 'https://index.example/rights',
+  loadPasses: vi.fn<AppViewProps['loadPasses']>(),
   members,
+  onChangeCardDraft: vi.fn<AppViewProps['onChangeCardDraft']>(),
   onCheckHandle: vi.fn<AppViewProps['onCheckHandle']>(),
   onCheckSlug: vi.fn<AppViewProps['onCheckSlug']>(),
   onCommitLogo: vi.fn<AppViewProps['onCommitLogo']>().mockResolvedValue(true),
   onCreate: vi.fn<AppViewProps['onCreate']>(),
   onCreateVenue: vi.fn<AppViewProps['onCreateVenue']>(),
+  onEditProfile: vi.fn<AppViewProps['onEditProfile']>(),
   onIssue: vi.fn<AppViewProps['onIssue']>(),
   onNavigate: vi.fn<AppViewProps['onNavigate']>(),
   onPasskey: vi.fn<AppViewProps['onPasskey']>(),
@@ -212,15 +222,42 @@ describe(AppView, () => {
     expect(viewProps(findViewNodes(view, DashboardShell)[0])).toMatchObject({ hasIssuer: true })
   })
 
+  it('selects a Card by slug and uses its slug for the settings link', () => {
+    const view = AppView({ ...props, route: '/cards/membership-card', session: operatorSession })
+    expect(viewProps(findViewNodes(view, CardDetailPage)[0]).card).toStrictEqual(card)
+    const list = AppView({ ...props, route: '/cards', session: operatorSession })
+    const published = viewProps(findViewNodes(list, PublishedCard)[0])
+    const onSettings = published.onSettings as (cardId: string) => void
+    onSettings(card.id)
+    expect(props.onNavigate).toHaveBeenCalledWith('/cards/membership-card/edit')
+    const missing = AppView({ ...props, route: '/cards/not-my-card', session: operatorSession })
+    expect(viewProps(findViewNodes(missing, CardDetailPage)[0]).card).toBeNull()
+  })
+
   it('identifies the selected Card on a direct settings route', () => {
     const view = AppView({ ...props, route: '/cards/card-1/stamps', session: operatorSession })
-    expect(viewProps(findViewNodes(view, CardStampSettingsPage)[0])).toMatchObject({
+    expect(viewProps(findViewNodes(view, CardEditPage)[0])).toMatchObject({
       card,
       settings: props.stampSettings,
     })
     expect(findViewNodes(view, VenuePage)).toHaveLength(0)
     const missing = AppView({ ...props, route: '/cards/foreign-card/stamps', session: operatorSession })
-    expect(viewProps(findViewNodes(missing, CardStampSettingsPage)[0]).card).toBeNull()
+    expect(viewProps(findViewNodes(missing, CardEditPage)[0]).card).toBeNull()
+  })
+
+  it('opens the shared editor and the operator pass list on their direct routes', () => {
+    const edit = AppView({ ...props, route: '/cards/membership-card/edit', session: operatorSession })
+    expect(viewProps(findViewNodes(edit, CardEditPage)[0])).toMatchObject({
+      card,
+      load: props.cardManagement.load,
+      save: props.cardManagement.save,
+      settings: props.stampSettings,
+    })
+    const passes = AppView({ ...props, route: '/passes', session: operatorSession })
+    expect(viewProps(findViewNodes(passes, IssuerPassesPage)[0])).toMatchObject({
+      cards: [card],
+      load: props.loadPasses,
+    })
   })
 
   it('opens the designer in card mode when a venue adds another card', () => {

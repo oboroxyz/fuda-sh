@@ -41,6 +41,9 @@ describe('POST /issue (signed)', () => {
     const res = await post(appWith({ chain, now: () => NOW }), configuredEnv(del), '/v1/issue', {
       holder: lower,
       tier: 1,
+      usageModel: 0,
+      validFrom: 12,
+      validUntil: 34,
     })
     expect(res.status).toBe(200)
     const body: Issued = await res.json()
@@ -55,6 +58,9 @@ describe('POST /issue (signed)', () => {
       level: 'signed',
       memberId: getAddress(signer.address),
       status: 'active',
+      usageModel: 0,
+      validFrom: 12,
+      validUntil: 34,
     })
   })
 

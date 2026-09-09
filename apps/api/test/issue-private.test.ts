@@ -83,11 +83,22 @@ describe('POST /issue (+Private)', () => {
     const res = await post(app, bindings, '/v1/issue', {
       memberId: 'alice',
       stealthMetaAddress: keys.metaAddress,
+      usageModel: 2,
+      validFrom: 12,
+      validUntil: 34,
     })
     const { uid }: IssuedPrivate = await res.json()
     const rows = await db().select().from(members)
     expect(rows).toHaveLength(1)
-    expect(rows[0]).toMatchObject({ attestationUid: uid, holder: null, level: 'private', memberId: 'alice' })
+    expect(rows[0]).toMatchObject({
+      attestationUid: uid,
+      holder: null,
+      level: 'private',
+      memberId: 'alice',
+      usageModel: 2,
+      validFrom: 12,
+      validUntil: 34,
+    })
   })
 
   it('stores an empty member id when none is given', async () => {

@@ -5,6 +5,7 @@ import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import type { FieldStatus } from './card-designer.ts'
 import type { DashCopy } from './copy.ts'
+import { FieldLabel } from './FieldLabel.tsx'
 import type { VenueForm } from './venue.ts'
 
 type IdentityField = 'handle' | 'name' | 'tagline'
@@ -27,10 +28,7 @@ export const VenueIdentityFields = ({
   const invalidHandle = handleStatus !== 'idle' && handleStatus !== 'available' && handleStatus !== 'checking'
   const field = (key: IdentityField, label: string, placeholder: string, maxLength: number): JSX.Element => (
     <label class="flex w-full flex-col gap-2">
-      <span class="flex items-center gap-2">
-        <span>{label}</span>
-        {key === 'tagline' ? <span class="text-moderate text-xs">{copy.venue.optional}</span> : null}
-      </span>
+      <FieldLabel label={label} optional={key === 'tagline' ? copy.venue.optional : undefined} />
       <div class="flex min-w-0 items-center gap-2">
         {key === 'handle' ? <span class="shrink-0 text-sm">https://{copy.designer.handlePrefix}</span> : null}
         <input

@@ -30,7 +30,7 @@
 }
 
 .dash-sidebar .dash-menu-item {
-  @apply mx-2 flex min-h-12 items-center justify-start gap-3 rounded-none rounded-xl px-5 py-3 text-left text-sm;
+  @apply flex min-h-12 items-center justify-start gap-3 rounded-none rounded-xl px-5 py-3 text-left text-sm;
 }
 
 .menu-active {
@@ -74,12 +74,6 @@
 
 .dash-auth .fuda-language-menu-panel {
   @apply top-[calc(100%+0.5rem)] right-0 bottom-auto left-auto;
-}
-
-.dash-app :where(.input, .select),
-.dash-auth :where(.input, .select),
-.dash-appearance select {
-  @apply min-h-11 max-w-full min-w-0 rounded-lg border border-[var(--fuda-border)] bg-[var(--fuda-surface)] px-3 text-sm text-[var(--fuda-text)];
 }
 
 /* daisyUI themes are disabled; these controls still need their component tokens. */
@@ -256,15 +250,15 @@
 }
 
 .dash-card-preview {
-  @apply flex aspect-[1.586/1] w-full min-w-0 flex-col gap-1 rounded-[0.875rem] p-5 shadow-md;
+  @apply mb-2 flex aspect-[1.586/1] w-full max-w-sm min-w-0 flex-col justify-between gap-4 rounded-2xl p-6 [overflow-wrap:anywhere] shadow-lg;
 }
 
 .dash-card-preview-top {
-  @apply flex items-center justify-between text-[0.6875rem] tracking-[0.08em] uppercase;
+  @apply flex items-center justify-between gap-3 text-xs font-semibold tracking-widest uppercase;
 }
 
 .dash-card-preview strong {
-  @apply text-lg font-bold;
+  @apply text-2xl font-bold;
 }
 
 .dash-swatch {
@@ -273,7 +267,11 @@
 
 .dash-logo-preview {
   @apply size-24 rounded-lg border border-[var(--fuda-border)] object-contain;
-  background: conic-gradient(#e5e7eb 25%, #fff 0 50%, #e5e7eb 0 75%, #fff 0) 0 0 / 16px 16px;
+  background: var(
+    --dash-logo-preview-background,
+    conic-gradient(#e5e7eb 25%, #fff 0 50%, #e5e7eb 0 75%, #fff 0)
+  );
+  background-size: 16px 16px;
 }
 
 .dash-swatch-selected {
@@ -285,39 +283,46 @@
   @apply cursor-pointer text-sm opacity-70;
 }
 
-.dash-published-card {
-  @apply flex min-w-0 flex-col gap-4 rounded-[0.875rem] border border-[var(--fuda-border)] bg-[var(--fuda-surface)] p-5;
+.dash-app .select {
+  @apply pr-9;
+}
+
+.dash-management-table table {
+  @apply min-w-240;
+}
+
+.dash-management-table .badge {
+  @apply whitespace-nowrap;
+}
+
+.dash-management-table :where(th, td) {
+  @apply border-b border-[var(--fuda-border)] px-4 py-4 align-top;
+}
+
+.dash-management-table thead th {
+  @apply bg-[var(--fuda-bg)] py-3 text-xs font-medium text-[var(--fuda-muted)];
+}
+
+.dash-management-table tbody tr:last-child :where(th, td) {
+  @apply border-b-0;
+}
+
+.dash-management-table tbody tr:hover {
+  background: color-mix(in srgb, var(--fuda-text) 3%, var(--fuda-surface));
 }
 
 .dash-print-target {
   @apply flex flex-col items-center gap-3;
 }
 
-/* A published card prints as a poster: only the QR and its link. A venue with
-   several cards prints one poster per card, and a card's own Print button
-   narrows that to its poster alone. */
+/* The card detail prints its public QR poster. */
 @media print {
   .dash-no-print {
     display: none !important;
   }
 
-  /* Forced breaks are unreliable inside flex and grid containers, so the
-     printed page is a plain block flow. */
-  .dash-published {
-    display: block;
-  }
-
-  .dash-published-card {
-    @apply gap-0 border-0 bg-transparent p-0;
-    display: block;
-  }
-
   .dash-print-target {
     @apply mx-auto mt-16;
     break-inside: avoid;
-  }
-
-  .dash-published:not(.dash-print-one) .dash-published-card + .dash-published-card {
-    break-before: page;
   }
 }

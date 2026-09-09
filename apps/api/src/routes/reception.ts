@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import * as v from 'valibot'
 
-import { cards, cardStampSettings, members } from '../db/schema.ts'
+import { cards, members } from '../db/schema.ts'
 import type { AppEnv } from '../env.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { operatorAuth } from '../middleware/operator-auth.ts'
@@ -35,30 +35,47 @@ receptionRoutes.get('/issuers/me/cards/:cardId/stamps', operatorAuth(), async (c
 })
 
 receptionRoutes.put('/issuers/me/cards/:cardId/stamps', operatorAuth(), async (c) => {
+  c.header('cache-control', 'no-store')
   const { issuerId } = c.get('operator')
   if (issuerId === null) {
     return errorResponse(c, 'not_found', 404)
   }
   const card = await c
     .get('db')
-    .select({ id: cards.id })
+    .select({ category: cards.category, id: cards.id })
     .from(cards)
     .where(and(eq(cards.id, c.req.param('cardId')), eq(cards.issuerId, issuerId)))
     .get()
   if (card === undefined) {
     return errorResponse(c, 'not_found', 404)
   }
+  if (card.category !== 'membership') {
+    return errorResponse(c, 'stamps_not_supported', 409)
+  }
   const body: unknown = await c.req.json().catch(() => null)
   const parsed = v.safeParse(StampSettingsBody, body)
   if (!parsed.success) {
     return errorResponse(c, 'bad_input', 400)
   }
-  await c
-    .get('db')
-    .insert(cardStampSettings)
-    .values({ ...parsed.output, cardId: card.id })
-    .onConflictDoUpdate({ set: parsed.output, target: cardStampSettings.cardId })
-  c.header('cache-control', 'no-store')
+  // The ownership and category predicate belongs to this write. A preliminary
+  // lookup alone would let an overlapping Card edit turn the Card into a Ticket
+  // before this upsert and then have this request silently re-enable Stamps.
+  const saved = await c.env.DB.prepare(
+    `INSERT INTO card_stamp_settings (card_id, daily_limit, enabled, goal)
+     SELECT id, ?1, ?2, ?3
+     FROM cards
+     WHERE id = ?4 AND issuer_id = ?5 AND category = 'membership'
+     ON CONFLICT(card_id) DO UPDATE SET
+       daily_limit = excluded.daily_limit,
+       enabled = excluded.enabled,
+       goal = excluded.goal
+     RETURNING card_id AS cardId`,
+  )
+    .bind(parsed.output.dailyLimit, parsed.output.enabled ? 1 : 0, parsed.output.goal, card.id, issuerId)
+    .first<{ cardId: string }>()
+  if (saved === null) {
+    return errorResponse(c, 'stamps_not_supported', 409)
+  }
   return jsonResponse(c, parsed.output)
 })
 

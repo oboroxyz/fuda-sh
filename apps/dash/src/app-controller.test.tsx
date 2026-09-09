@@ -389,6 +389,23 @@ describe(App, () => {
     expect(io.listMembers).not.toHaveBeenCalled()
   })
 
+  it('replaces a restored legacy Card URL with its slug without adding a history entry', async () => {
+    browser.storage.set(sessionKey, 'saved-token')
+    location.pathname = '/cards/card_1/stamps'
+    const io = fixture()
+    const operatorIo = {
+      ...DEFAULT_OPERATOR_IO,
+      issuerMe: vi.fn<OperatorIo['issuerMe']>().mockResolvedValue({ body: operatorIssuer, ok: true }),
+    }
+    render(io, 'system', operatorIo)
+    await setTimeout(0)
+    render(io, 'system', operatorIo)
+    const restored = render(io, 'system', operatorIo)
+    expect(restored.route).toBe('/cards/membership-card/edit')
+    expect(history.replaceState).toHaveBeenCalledWith(null, '', '/cards/membership-card/edit')
+    expect(history.pushState).not.toHaveBeenCalled()
+  })
+
   it('clears an expired saved session', async () => {
     browser.storage.set(sessionKey, 'expired')
     const io = fixture()

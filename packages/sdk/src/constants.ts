@@ -101,6 +101,7 @@ export const ERROR_CODES = [
   'issuer_exists',
   'bad_slug',
   'slug_taken',
+  'stamps_not_supported',
   'card_closed',
   'media_not_configured',
   'bad_upload',

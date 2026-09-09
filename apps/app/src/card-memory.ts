@@ -1,4 +1,4 @@
-import { asHex, isCardSlug, isIssuerHandle, isMemberNumber, isUid, normalizeUid } from '@fuda/sdk'
+import { asHex, isCardSlugReference, isIssuerHandle, isMemberNumber, isUid, normalizeUid } from '@fuda/sdk'
 import type { Hex } from '@fuda/sdk'
 
 import type { PassMemoryStorage } from './pass-memory.ts'
@@ -30,7 +30,7 @@ const isCardKey = (key: string): boolean => {
     handle !== undefined &&
     slug !== undefined &&
     isIssuerHandle(handle) &&
-    isCardSlug(slug)
+    isCardSlugReference(slug)
   )
 }
 
@@ -96,7 +96,7 @@ export const rememberCard = (
       uid === null ||
       holder === null ||
       !isIssuerHandle(handle) ||
-      !isCardSlug(slug) ||
+      !isCardSlugReference(slug) ||
       !isMemberNumber(card.memberNumber)
     ) {
       return null

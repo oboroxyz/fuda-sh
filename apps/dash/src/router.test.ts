@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   canonicalPath,
+  cardSettingsPath,
+  navigationRoute,
   navigateTo,
   redirectFor,
   routeFromPath,
@@ -29,9 +31,44 @@ describe('Dash router', () => {
     expect(routeFromPath('/reception')).toBe('/reception')
   })
 
+  it('keeps card edit deep links on the operator card surface', () => {
+    expect(routeFromPath('/cards/membership/edit/')).toBe('/cards/membership/edit')
+    expect(navigationRoute('/cards/membership/edit')).toBe('/cards')
+    expect(surfaceOf('/cards/membership/edit')).toBe('operator')
+    expect(redirectFor('/cards/membership/edit', 'operator', false)).toBe('/start')
+    expect(redirectFor('/cards/membership/edit', 'admin', false)).toBe('/')
+  })
+
+  it('disambiguates reserved card slugs and unsupported suffixes', () => {
+    expect(routeFromPath('/cards/new/edit')).toBe('/cards/new/edit')
+    expect(routeFromPath('/cards/membership/unknown')).toBe('/')
+  })
+
+  it('restricts the pass list to a registered operator', () => {
+    expect(routeFromPath('/passes/')).toBe('/passes')
+    expect(surfaceOf(routeFromPath('/passes'))).toBe('operator')
+    expect(redirectFor(routeFromPath('/passes'), 'admin', false)).toBe('/')
+    expect(redirectFor(routeFromPath('/passes'), 'operator', false)).toBe('/start')
+    expect(redirectFor(routeFromPath('/passes'), 'operator', true)).toBeNull()
+  })
+
   it('opens card settings directly and preserves the selected card through history', () => {
     expect(routeFromPath('/cards/card-1/stamps/')).toBe('/cards/card-1/stamps')
     expect(routeFromPath('/cards/card-2/stamps?from=list')).toBe('/cards/card-2/stamps')
+  })
+
+  it('opens a card by slug and keeps the card list selected', () => {
+    expect(routeFromPath('/cards/membership-card/')).toBe('/cards/membership-card')
+    expect(cardSettingsPath({ id: 'card-1', slug: 'membership-card' })).toBe('/cards/membership-card')
+    expect(navigationRoute('/cards/membership-card')).toBe('/cards')
+    expect(surfaceOf('/cards/membership-card')).toBe('operator')
+    expect(redirectFor('/cards/membership-card', 'operator', false)).toBe('/start')
+  })
+
+  it('keeps creation separate and retains access to pre-existing new slugs', () => {
+    expect(routeFromPath('/cards/new')).toBe('/cards/new')
+    expect(cardSettingsPath({ id: 'legacy-card', slug: 'new' })).toBe('/cards/legacy-card/stamps')
+    expect(routeFromPath('/cards/legacy-card/stamps')).toBe('/cards/legacy-card/stamps')
   })
 
   it('guards Card settings as an operator route', () => {

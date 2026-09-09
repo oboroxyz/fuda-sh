@@ -64,7 +64,7 @@ const navigationItems = (copy: DashCopy, surface: DashSurface, hasIssuer: boolea
         { label: copy.nav.venue, route: '/profile' },
         { label: copy.nav.reception, route: '/reception' },
         { label: copy.nav.card, route: '/cards' },
-        { label: copy.nav.newCard, route: '/cards/new' },
+        { label: copy.nav.passes, route: '/passes' },
       ]
     : [{ label: copy.nav.venue, route: '/start' }]
 }
@@ -75,6 +75,7 @@ const navigationIcon = (route: MainDashRoute): JSX.Element => {
     '/cards': 'M3 7h18v13H3z M6 4h12 M3 11h18',
     '/cards/new': 'M4 5h16v14H4z M8 12h8 M12 8v8',
     '/issue': 'M12 3v12 M7 10l5 5 5-5 M4 17v4h16v-4',
+    '/passes': 'M3 5h18v14H3z M7 9h4 M7 13h6 M16 9h1 M16 13h1',
     '/profile': 'M4 21V10l8-7 8 7v11 M9 21v-6h6v6',
     '/reception': 'M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 14h2v2h-2z M18 14h2v6h-6v-2',
     '/rights': 'M4 4h16v16H4z M8 8h8 M8 12h8 M8 16h5',
@@ -103,7 +104,7 @@ const Navigation = ({
   surface,
 }: NavigationProps): JSX.Element => (
   <nav aria-label={copy.chrome.navigation}>
-    <ul class="menu w-full gap-1 p-0">
+    <ul class="menu w-full gap-1.5 px-2 py-4">
       {navigationItems(copy, surface, hasIssuer).map((item): JSX.Element => (
         <li key={item.route}>
           <a
@@ -147,7 +148,6 @@ const Brand = ({ copy }: { copy: DashCopy['chrome'] }): JSX.Element => (
       </svg>
       <span>{copy.brand}</span>
     </p>
-    <p class="font-display mt-2 hidden px-1.5 opacity-70 md:block">{copy.subtitle}</p>
   </div>
 )
 
@@ -203,7 +203,25 @@ export const DashboardShell = ({
 
   useEffect(() => {
     if (modal) {
-      sidebar.current?.querySelector<HTMLElement>('button, a')?.focus()
+      let frame = 0
+      const focusDrawer = (): void => {
+        const panel = sidebar.current
+        const first = panel?.querySelector<HTMLElement>('button, a')
+        if (!first || panel?.contains(document.activeElement) === true) {
+          return
+        }
+        // daisyUI delays visibility while the drawer begins its transition.
+        // Browsers ignore focus until that transition makes the control visible.
+        if (getComputedStyle(first).visibility === 'hidden') {
+          frame = requestAnimationFrame(focusDrawer)
+          return
+        }
+        first.focus()
+      }
+      focusDrawer()
+      return () => {
+        cancelAnimationFrame(frame)
+      }
     } else if (restoreFocus.current) {
       restoreFocus.current = false
       opener.current?.focus()
@@ -226,7 +244,7 @@ export const DashboardShell = ({
         }}
       />
       <div class="drawer-content min-w-0" inert={modal}>
-        <header class="sticky top-0 z-20 flex items-center gap-4 border-b border-[var(--fuda-border)] bg-[var(--fuda-surface)] px-4 py-2 md:hidden print:hidden!">
+        <header class="sticky top-0 z-20 flex h-14 items-center gap-4 border-b border-[var(--fuda-border)] bg-[var(--fuda-surface)] px-4 md:hidden print:hidden!">
           <Brand copy={copy.chrome} />
           <button
             ref={opener}
@@ -259,7 +277,7 @@ export const DashboardShell = ({
         <aside
           ref={sidebar}
           id={`${drawerId}-side`}
-          class="dash-sidebar flex min-h-dvh w-64 flex-col gap-8 border-r border-[var(--fuda-border)] bg-[var(--fuda-surface)] py-6 print:hidden!"
+          class="dash-sidebar flex min-h-dvh w-64 flex-col border-r border-[var(--fuda-border)] bg-[var(--fuda-surface)] pb-6 print:hidden!"
           role={modal ? 'dialog' : undefined}
           aria-modal={modal ? 'true' : undefined}
           aria-label={copy.chrome.navigation}
@@ -295,7 +313,7 @@ export const DashboardShell = ({
             }
           }}
         >
-          <div class="flex items-start justify-between gap-2 px-5">
+          <div class="flex h-14 shrink-0 items-center justify-between gap-2 px-5">
             <Brand copy={copy.chrome} />
             <button
               class="btn btn-ghost btn-square md:hidden!"

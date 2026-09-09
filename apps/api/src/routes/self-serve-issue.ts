@@ -1,6 +1,6 @@
 import {
   generateMemberNumber,
-  isCardSlug,
+  isCardSlugReference,
   isClaimable,
   isIssuerHandle,
   entitlementWindow,
@@ -52,7 +52,8 @@ selfServeIssueRoutes.post(
     c.header('cache-control', 'no-store')
     const handle = c.req.param('handle')
     const slug = c.req.param('slug')
-    const venue = isIssuerHandle(handle) && isCardSlug(slug) ? await venueOf(c.get('db'), handle) : null
+    const venue =
+      isIssuerHandle(handle) && isCardSlugReference(slug) ? await venueOf(c.get('db'), handle) : null
     const card = venue?.cards.find((entry) => entry.slug === slug)
     const found =
       venue === null || venue === undefined || card === undefined ? null : { card, issuer: venue.issuer }

@@ -1,246 +1,283 @@
 /** @jsxImportSource hono/jsx/dom */
-import { brandTextColor } from '@fuda/sdk'
-import type { CardView, IssuerView } from '@fuda/sdk'
-import { cn } from 'cn'
-import { useEffect, useRef, useState } from 'hono/jsx/dom'
+import type { CardCategory, CardView, IssuerView } from '@fuda/sdk'
+import { useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
-import { cardUrl, claimStateOf, displayUrl, formatInstant, validityStateOf } from './card-designer.ts'
+import { cardUrl, displayUrl } from './card-designer.ts'
+import { cardClaimText, cardValidityText } from './card-display.ts'
 import type { DashCopy } from './copy.ts'
-import { QrBlock } from './QrBlock.tsx'
+import { useIssuerPasses } from './issuer-passes-state.ts'
+import type { PassesLoad } from './issuer-passes-state.ts'
+import type { ManagementCopy } from './management-copy.ts'
+import { ManagementSummary } from './ManagementSummary.tsx'
+import { cardEditPath, cardSettingsPath } from './router.ts'
+import type { DashRoute } from './router.ts'
+import { useCopyText } from './use-copy-text.ts'
 
-export interface PublishedCardViewProps {
+export interface PublishedCardProps {
   canAddCard: boolean
   cards: CardView[]
-  // The venue's ENS section, or null while this deployment has no ENS parent.
-  // Passed in already rendered so the claim's own state stays out of this view.
-  // The card whose link was just copied, so only its button confirms.
-  copiedSlug: string | null
   copy: DashCopy['published']
+  managementCopy: ManagementCopy
   issuer: IssuerView
-  // The venue's own mark, refused by the api until there is one.
+  loadPasses: PassesLoad
   onAddCard: () => void
   onSettings: (cardId: string) => void
   onVenue: () => void
-  onCopy: (slug: string) => void
-  onPrint: (slug: string) => void
-  onShare: ((slug: string) => void) | null
-  // Unix seconds, only to word a closed card as "not open yet" or "closed";
-  // whether it is open at all is the api's `claimable`.
-  now: number
-  // Non-null while one card's poster is printing; the other posters step aside.
-  printSlug: string | null
+  onNavigate: (route: DashRoute) => void
   publicUrl: string
 }
 
-const instantOrEmpty = (seconds: number | null): string => (seconds === null ? '' : formatInstant(seconds))
-
-// One card's claim state and its validity, in plain words with the instants
-// filled in.
-const claimText = (copy: DashCopy['published'], card: CardView, now: number): string => {
-  const state = claimStateOf(card, now)
-  const key = state === 'closed' && card.claimUntil !== null ? 'closedSince' : state
-  return copy.claimStates[key]
-    .replace('{from}', instantOrEmpty(card.claimFrom))
-    .replace('{until}', instantOrEmpty(card.claimUntil))
-}
-
-const validityText = (copy: DashCopy['published'], card: CardView): string =>
-  copy.validityStates[validityStateOf(card)]
-    .replace('{days}', String(card.validityDays))
-    .replace('{from}', instantOrEmpty(card.validFrom))
-    .replace('{until}', instantOrEmpty(card.validUntil))
-
-const cardEntry = (props: PublishedCardViewProps, card: CardView): JSX.Element => {
-  const { copiedSlug, copy, issuer, now, onCopy, onPrint, onShare, printSlug } = props
-  const url = cardUrl(props.publicUrl, card.slug)
-  const asideForPrint = printSlug !== null && printSlug !== card.slug
-  return (
-    <article class="dash-published-card" key={card.slug}>
-      <div
-        class="dash-card-preview dash-no-print"
-        style={{ background: issuer.brandColor, color: brandTextColor(issuer.brandColor) }}
-      >
-        <div class="dash-card-preview-top">
-          <span>{issuer.name}</span>
-          <span>{card.category === 'ticket' ? 'TICKET' : 'MEMBER'}</span>
-        </div>
-        <strong>{card.title}</strong>
-      </div>
-
-      <div class="dash-no-print flex flex-wrap items-center gap-2 text-sm">
-        <span class={cn('badge', card.claimable ? 'badge-success' : 'badge-neutral')}>
-          {claimText(copy, card, now)}
-        </span>
-        <span class="badge badge-ghost">{validityText(copy, card)}</span>
-      </div>
-
-      <div class={cn('dash-print-target', asideForPrint && 'dash-no-print')}>
-        <QrBlock label={copy.qrLabel} qr={url} />
-        <code class="text-sm font-semibold">{displayUrl(url)}</code>
-      </div>
-
-      <div class="dash-actions dash-no-print">
-        <button
-          class="btn"
-          type="button"
-          onClick={() => {
-            props.onSettings(card.id)
-          }}
-        >
-          {copy.settings}
-        </button>
-        <button
-          class="btn"
-          onClick={() => {
-            onPrint(card.slug)
-          }}
-          type="button"
-        >
-          {copy.print}
-        </button>
-        {onShare === null ? null : (
-          <button
-            class="btn"
-            onClick={() => {
-              onShare(card.slug)
-            }}
-            type="button"
-          >
-            {copy.share}
-          </button>
-        )}
-        <button
-          class="btn"
-          onClick={() => {
-            onCopy(card.slug)
-          }}
-          type="button"
-        >
-          {copiedSlug === card.slug ? copy.copied : copy.copy}
-        </button>
-      </div>
-    </article>
-  )
-}
-
-const publishedIntro = (copy: DashCopy['published'], count: number) => {
-  if (count === 0) {
-    return { description: copy.emptyDescription, heading: copy.emptyTitle }
-  }
-  if (count === 1) {
-    return { description: copy.description, heading: copy.title }
-  }
-  return { description: copy.descriptionMany, heading: copy.titleMany }
-}
-
-export const PublishedCardView = (props: PublishedCardViewProps): JSX.Element => {
-  const { cards, copy, onAddCard, onVenue, printSlug } = props
-  const { description, heading } = publishedIntro(copy, cards.length)
-  let actionLabel = copy.manageVenue
-  if (props.canAddCard) {
-    actionLabel = cards.length === 0 ? copy.createFirst : copy.addCard
-  }
-  return (
-    <section
-      class={cn('dash-published flex max-w-2xl flex-col gap-6', printSlug !== null && 'dash-print-one')}
-    >
-      <header class="dash-page-header dash-no-print">
-        <h1 class="dash-page-title">{heading}</h1>
-        <p class="opacity-70">{description}</p>
-      </header>
-
-      {cards.map((card): JSX.Element => cardEntry(props, card))}
-
-      <div class="dash-actions dash-no-print">
-        {props.canAddCard && cards.length > 0 ? (
-          <a class="link link-hover text-sm" href="/cards/new">
-            {actionLabel}
-          </a>
-        ) : (
-          <button
-            class={cn('btn', props.canAddCard && 'btn-primary')}
-            onClick={props.canAddCard ? onAddCard : onVenue}
-            type="button"
-          >
-            {actionLabel}
-          </button>
-        )}
-      </div>
-
-      <p class="dash-no-print text-sm opacity-70">{copy.hint}</p>
-    </section>
-  )
-}
-
-const COPIED_MS = 2000
 const MS_PER_SECOND = 1000
 
-export type PublishedCardProps = Omit<
-  PublishedCardViewProps,
-  'copiedSlug' | 'now' | 'onCopy' | 'onPrint' | 'onShare' | 'printSlug'
->
-
-export const PublishedCard = (props: PublishedCardProps): JSX.Element => {
-  const [copiedSlug, setCopiedSlug] = useState<string | null>(null)
-  const [printSlug, setPrintSlug] = useState<string | null>(null)
-  // One timer for the whole list: copying a second card must reset the first
-  // card's countdown, not let it clear the second card's confirmation early.
-  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // `navigator.share` exists only on some browsers, so the action appears only
-  // where it works; copy and print are always available.
-  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- feature detection of a browser API, not a domain value
-  const canShare = typeof globalThis.navigator?.share === 'function'
-
-  // The narrowed poster has to be on screen before the dialog opens, so the
-  // print runs one render after the choice, not in the click handler.
-  useEffect(() => {
-    if (printSlug === null) {
-      return
-    }
-    globalThis.print()
-    setPrintSlug(null)
-  }, [printSlug])
-
+export const PublishedCard = ({
+  cards,
+  copy,
+  managementCopy: labels,
+  loadPasses,
+  ...props
+}: PublishedCardProps): JSX.Element => {
+  const { state, refresh } = useIssuerPasses(loadPasses, { page: 1, pageSize: 1 })
+  const [search, setSearch] = useState('')
+  const [category, setCategory] = useState<CardCategory | 'all'>('all')
+  const clipboard = useCopyText()
+  const needle = search.trim().toLocaleLowerCase()
+  const filtered = cards.filter(
+    (card) =>
+      (category === 'all' || card.category === category) &&
+      `${card.title} ${card.id} ${card.slug}`.toLocaleLowerCase().includes(needle),
+  )
+  const now = Math.floor(Date.now() / MS_PER_SECOND)
+  const clear = (): void => {
+    setSearch('')
+    setCategory('all')
+  }
   return (
-    <PublishedCardView
-      {...props}
-      copiedSlug={copiedSlug}
-      now={Math.floor(Date.now() / MS_PER_SECOND)}
-      onCopy={(slug) => {
-        const run = async (): Promise<void> => {
-          try {
-            await globalThis.navigator.clipboard.writeText(cardUrl(props.publicUrl, slug))
-            setCopiedSlug(slug)
-            if (copiedTimer.current !== null) {
-              clearTimeout(copiedTimer.current)
-            }
-            copiedTimer.current = setTimeout(() => {
-              copiedTimer.current = null
-              setCopiedSlug(null)
-            }, COPIED_MS)
-          } catch {
-            setCopiedSlug(null)
-          }
-        }
-        void run()
-      }}
-      onPrint={setPrintSlug}
-      onShare={
-        canShare
-          ? (slug) => {
-              const run = async (): Promise<void> => {
-                try {
-                  await globalThis.navigator.share({ url: cardUrl(props.publicUrl, slug) })
-                } catch {
-                  // a dismissed share sheet is not an error worth reporting
+    <section class="dash-page flex min-w-0 flex-col gap-6">
+      <header class="dash-page-header">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h1 class="dash-page-title">{copy.title}</h1>
+          {props.canAddCard ? (
+            <a
+              class="link link-hover inline-flex min-h-11 items-center text-sm"
+              href="/cards/new"
+              onClick={(event) => {
+                if (event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+                  return
                 }
-              }
-              void run()
-            }
-          : null
-      }
-      printSlug={printSlug}
-    />
+                event.preventDefault()
+                props.onAddCard()
+              }}
+            >
+              {copy.addCard}
+            </a>
+          ) : null}
+        </div>
+        <p class="text-[var(--fuda-muted)]">{copy.description}</p>
+      </header>
+      <ManagementSummary state={state} copy={labels} />
+      {state.kind === 'failed' ? (
+        <div role="alert" class="flex flex-wrap items-center gap-3 text-sm">
+          <span>{labels.loadFailed}</span>
+          <button class="btn btn-sm" type="button" onClick={refresh}>
+            {labels.retry}
+          </button>
+        </div>
+      ) : null}
+      {state.kind === 'loading' ? (
+        <p class="text-sm text-[var(--fuda-muted)]" role="status">
+          {labels.loading}
+        </p>
+      ) : null}
+      {state.kind === 'ready' && state.data.summary.unknown > 0 ? (
+        <p class="text-sm text-[var(--fuda-muted)]">
+          {labels.unknownHint.replace('{count}', String(state.data.summary.unknown))}
+        </p>
+      ) : null}
+      {cards.length > 0 ? (
+        <div class="card overflow-hidden">
+          <div class="flex flex-wrap items-end gap-3 border-b border-[var(--fuda-border)] p-4">
+            <label class="flex min-w-0 flex-1 basis-52 flex-col gap-1.5 text-sm">
+              <span>{labels.searchCards}</span>
+              <input
+                class="input w-full"
+                type="search"
+                value={search}
+                placeholder={labels.searchCardsPlaceholder}
+                onInput={(event) => {
+                  if (event.currentTarget instanceof HTMLInputElement) {
+                    setSearch(event.currentTarget.value)
+                  }
+                }}
+              />
+            </label>
+            <label class="flex flex-col gap-1.5 text-sm">
+              <span>{labels.type}</span>
+              <select
+                class="select min-w-40"
+                value={category}
+                onChange={(event) => {
+                  if (event.currentTarget instanceof HTMLSelectElement) {
+                    const { value } = event.currentTarget
+                    setCategory(value === 'membership' || value === 'ticket' ? value : 'all')
+                  }
+                }}
+              >
+                <option value="all">{labels.allTypes}</option>
+                <option value="membership">{labels.membership}</option>
+                <option value="ticket">{labels.ticket}</option>
+              </select>
+            </label>
+            <button class="btn btn-sm" type="button" disabled={state.kind === 'loading'} onClick={refresh}>
+              {labels.refresh}
+            </button>
+          </div>
+          {filtered.length === 0 ? (
+            <div class="flex flex-col items-start gap-3 p-6">
+              <p role="status">{labels.noCardsMatch}</p>
+              <button class="btn btn-sm" type="button" onClick={clear}>
+                {labels.clearFilters}
+              </button>
+            </div>
+          ) : (
+            <div
+              class="dash-management-table overflow-x-auto"
+              role="region"
+              aria-label={copy.title}
+              tabIndex={0}
+            >
+              <table class="table w-full min-w-190 text-sm">
+                <thead>
+                  <tr>
+                    <th scope="col">{labels.card}</th>
+                    <th scope="col" class="text-right">
+                      {labels.issued}
+                    </th>
+                    <th scope="col" class="text-right">
+                      {labels.active}
+                    </th>
+                    <th scope="col">{labels.type}</th>
+                    <th scope="col">{labels.validity}</th>
+                    <th scope="col">{labels.url}</th>
+                    <th scope="col">
+                      <span class="sr-only">{labels.actions}</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((card): JSX.Element => {
+                    const url = cardUrl(props.publicUrl, card.slug)
+                    const stats =
+                      state.kind === 'ready'
+                        ? (state.data.cardStats.find((entry) => entry.cardId === card.id) ?? {
+                            active: 0,
+                            issued: 0,
+                          })
+                        : null
+                    return (
+                      <tr key={card.id}>
+                        <th scope="row" class="min-w-40 font-normal">
+                          <a
+                            class="link link-hover font-semibold"
+                            href={cardSettingsPath(card)}
+                            onClick={(event) => {
+                              if (
+                                event.button !== 0 ||
+                                event.altKey ||
+                                event.ctrlKey ||
+                                event.metaKey ||
+                                event.shiftKey
+                              ) {
+                                return
+                              }
+                              event.preventDefault()
+                              props.onNavigate(cardSettingsPath(card))
+                            }}
+                          >
+                            {card.title || card.id}
+                          </a>
+                          <p class="mt-1 font-mono text-xs text-[var(--fuda-muted)]">{card.slug}</p>
+                        </th>
+                        <td class="text-right tabular-nums">{stats?.issued.toLocaleString() ?? '—'}</td>
+                        <td class="text-right tabular-nums">{stats?.active.toLocaleString() ?? '—'}</td>
+                        <td>
+                          <span class="badge badge-ghost whitespace-nowrap">
+                            {card.category === 'membership' ? labels.membership : labels.ticket}
+                          </span>
+                        </td>
+                        <td class="max-w-64 min-w-44">
+                          <p>{cardClaimText(copy, card, now)}</p>
+                          <p class="mt-1 text-xs text-[var(--fuda-muted)]">{cardValidityText(copy, card)}</p>
+                        </td>
+                        <td class="max-w-64 min-w-44">
+                          <a
+                            class="link link-hover font-mono text-xs"
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            {displayUrl(url)}
+                          </a>
+                          <button
+                            class="link link-hover mt-1 block min-h-8 text-xs"
+                            type="button"
+                            onClick={() => {
+                              clipboard.copy(url)
+                            }}
+                          >
+                            {clipboard.copied === url ? copy.copied : copy.copy}
+                          </button>
+                        </td>
+                        <td>
+                          <a
+                            class="link link-hover inline-flex min-h-11 items-center"
+                            href={cardEditPath(card)}
+                            onClick={(event) => {
+                              if (
+                                event.button !== 0 ||
+                                event.altKey ||
+                                event.ctrlKey ||
+                                event.metaKey ||
+                                event.shiftKey
+                              ) {
+                                return
+                              }
+                              event.preventDefault()
+                              props.onSettings(card.id)
+                            }}
+                          >
+                            {labels.edit}
+                          </a>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p class="border-t border-[var(--fuda-border)] px-4 py-3 text-xs text-[var(--fuda-muted)]">
+            {labels.results.replace('{count}', String(filtered.length))}
+          </p>
+        </div>
+      ) : (
+        <div class="card flex flex-col items-start gap-4 p-6">
+          <p>{props.canAddCard ? copy.createFirst : copy.manageVenue}</p>
+          <button
+            class="btn btn-primary"
+            onClick={props.canAddCard ? props.onAddCard : props.onVenue}
+            type="button"
+          >
+            {props.canAddCard ? copy.addCard : copy.manageVenue}
+          </button>
+        </div>
+      )}
+      {clipboard.failed === null ? null : (
+        <p class="text-error text-sm" role="alert">
+          {labels.copyFailed}
+        </p>
+      )}
+      <p class="text-xs text-[var(--fuda-muted)]">{labels.snapshotHint}</p>
+    </section>
   )
 }

@@ -33,7 +33,19 @@ import { DEFAULT_OPERATOR_IO } from './operator-io.ts'
 import type { OperatorIo } from './operator-io.ts'
 import { clearOperatorToken, readOperatorToken, saveOperatorToken } from './operator-session.ts'
 import type { SignInFailure } from './operator-sign-in.ts'
-import { canonicalPath, homeFor, navigateTo, redirectFor, routeFromPath, subscribeToRoute } from './router.ts'
+import {
+  canonicalPath,
+  cardForRoute,
+  cardEditPath,
+  cardSettingsPath,
+  isCardEditRoute,
+  isLegacyCardSettingsRoute,
+  homeFor,
+  navigateTo,
+  redirectFor,
+  routeFromPath,
+  subscribeToRoute,
+} from './router.ts'
 import type { DashRoute } from './router.ts'
 import { createSessionGeneration } from './session-generation.ts'
 import type { VenueForm } from './venue.ts'
@@ -85,9 +97,11 @@ export const App = ({
   const [signInError, setSignInError] = useState<SignInFailure | null>(null)
   const [creating, setCreating] = useState(false)
   const [createFailure, setCreateFailure] = useState<CreateFailure | null>(null)
+  const [cardDraft, setCardDraft] = useState<DesignerForm | null>(null)
   const [sessionRevision, setSessionRevision] = useState(0)
   const [generation] = useState(createSessionGeneration)
   const latestMembersLoad = useRef(0)
+  const latestCardSave = useRef(new Map<string, symbol>())
   const activeSession = useRef(session)
   activeSession.current = session
   const { token } = session
@@ -98,6 +112,7 @@ export const App = ({
   const replaceSession = useCallback(
     (next: SessionState): void => {
       generation.invalidate()
+      latestCardSave.current.clear()
       queryClient.clear()
       if (next.operator === null) {
         clearOperatorToken(activeToken.current ?? restoringToken.current)
@@ -110,6 +125,7 @@ export const App = ({
       setSessionRevision((value) => value + 1)
       setCreating(false)
       setCreateFailure(null)
+      setCardDraft(null)
       setSigningIn(false)
       setSignInError(null)
       const pending =
@@ -194,14 +210,17 @@ export const App = ({
     }
   }, [generation, issuerTicket, issuerQuery.data, issuerQuery.error, replaceSession, token])
 
-  const updateOperator = (operator: IssuerMeResponse): void => {
-    const queryKey = issuerKey(generation.capture())
-    void queryClient.cancelQueries({ exact: true, queryKey })
-    queryClient.setQueryData(queryKey, operator)
-    const next = { ...activeSession.current, operator }
-    activeSession.current = next
-    setSession(next)
-  }
+  const updateOperator = useCallback(
+    (operator: IssuerMeResponse): void => {
+      const queryKey = issuerKey(generation.capture())
+      void queryClient.cancelQueries({ exact: true, queryKey })
+      queryClient.setQueryData(queryKey, operator)
+      const next = { ...activeSession.current, operator }
+      activeSession.current = next
+      setSession(next)
+    },
+    [generation, queryClient],
+  )
 
   useEffect(restoreSession, [restoreSession])
 
@@ -300,6 +319,18 @@ export const App = ({
     if (target !== null) {
       navigateTo(history, target)
       setRoute(target)
+      return
+    }
+    const card = cardForRoute(route, session.operator?.cards ?? [])
+    if (card !== null) {
+      const cardRoute =
+        isCardEditRoute(route) || isLegacyCardSettingsRoute(route)
+          ? cardEditPath(card)
+          : cardSettingsPath(card)
+      if (cardRoute !== route) {
+        history.replaceState(null, '', cardRoute)
+        setRoute(cardRoute)
+      }
     }
   }, [published, route, session.operator, token])
 
@@ -565,6 +596,7 @@ export const App = ({
         return
       }
       updateOperator(apply(outcome.body))
+      setCardDraft(null)
       navigateTo(history, target)
       setRoute(target)
     }
@@ -703,20 +735,93 @@ export const App = ({
     [generation, operatorIo, replaceSession, token],
   )
 
+  const readCard = useCallback(
+    async (cardId: string) => {
+      const ticket = generation.capture()
+      const result = await operatorIo.readCard(token ?? '', cardId)
+      if (
+        !result.ok &&
+        result.status === 401 &&
+        generation.isCurrent(ticket) &&
+        activeToken.current === token
+      ) {
+        replaceSession(unauthorizedSession(activeSession.current))
+      }
+      return result
+    },
+    [generation, operatorIo, replaceSession, token],
+  )
+
+  const saveCard = useCallback(
+    async (cardId: string, body: Parameters<OperatorIo['updateCard']>[2]) => {
+      const ticket = generation.capture()
+      const save = Symbol(cardId)
+      latestCardSave.current.set(cardId, save)
+      const result = await operatorIo.updateCard(token ?? '', cardId, body)
+      if (!generation.isCurrent(ticket) || activeToken.current !== token) {
+        return result
+      }
+      if (!result.ok) {
+        if (result.status === 401) {
+          replaceSession(unauthorizedSession(activeSession.current))
+        }
+        return result
+      }
+      if (latestCardSave.current.get(cardId) !== save) {
+        return result
+      }
+      const { operator } = activeSession.current
+      if (operator !== null && operator.issuer !== null) {
+        updateOperator({
+          ...operator,
+          cards: operator.cards.map((card) => (card.id === cardId ? result.body.card : card)),
+        })
+      }
+      return result
+    },
+    [generation, operatorIo, replaceSession, token, updateOperator],
+  )
+
+  const loadPasses = useCallback(
+    async (query: Parameters<OperatorIo['listPasses']>[1]) => {
+      const ticket = generation.capture()
+      const result = await operatorIo.listPasses(token ?? '', query)
+      if (
+        !result.ok &&
+        result.status === 401 &&
+        generation.isCurrent(ticket) &&
+        activeToken.current === token
+      ) {
+        replaceSession(unauthorizedSession(activeSession.current))
+      }
+      return result
+    },
+    [generation, operatorIo, replaceSession, token],
+  )
+
   return (
     <AppView
       appearance={appearance}
       authError={session.authError}
+      cardDraft={cardDraft}
+      cardManagement={{ load: readCard, save: saveCard }}
+      loadPasses={loadPasses}
       copy={copy}
       createFailure={createFailure}
       creating={creating}
       graphEndpoint={GRAPH_RIGHTS_ENDPOINT}
       members={session.members}
+      onChangeCardDraft={setCardDraft}
       onCheckHandle={onCheckHandle}
       onCheckSlug={onCheckSlug}
       onCommitLogo={onCommitLogo}
       onCreate={onCreate}
       onCreateVenue={onCreateVenue}
+      onEditProfile={(form) => {
+        setCardDraft(form)
+        navigateTo(history, '/profile')
+        setRoute('/profile')
+      }}
       onUpdateVenue={onUpdateVenue}
       onIssue={async (body) =>
         context === null

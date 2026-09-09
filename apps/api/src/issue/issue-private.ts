@@ -56,6 +56,9 @@ export const issuePrivate = async (
     memberId: body.memberId ?? '',
     tier: body.tier,
     uid,
+    usageModel: body.usageModel,
+    validFrom: body.validFrom,
+    validUntil: body.validUntil,
   })
   return { announceTx, announced: true, level: 'private', uid }
 }

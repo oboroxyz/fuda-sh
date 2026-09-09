@@ -69,6 +69,9 @@ export interface MemberRowParams {
   cardId: string | null
   // the venue behind that card; it scopes member-number uniqueness
   issuerId: string | null
+  usageModel: number
+  validFrom: number
+  validUntil: number
 }
 
 // The members insert after a successful attest. The attestation is already on
@@ -89,6 +92,9 @@ export const insertMemberRow = async (ctx: IssueContext, row: MemberRowParams): 
       memberId: row.memberId,
       status: 'active',
       tier: row.tier,
+      usageModel: row.usageModel,
+      validFrom: row.validFrom,
+      validUntil: row.validUntil,
     })
   } catch (error) {
     // oxlint-disable-next-line no-console -- the orphaned attestation uid is the only trace of an on-chain right with no member row
@@ -118,6 +124,9 @@ export const attestRight = async (ctx: IssueContext, p: RightParams): Promise<Is
     memberId: p.memberId,
     tier: p.body.tier,
     uid,
+    usageModel: p.body.usageModel,
+    validFrom: p.body.validFrom,
+    validUntil: p.body.validUntil,
   })
   return { holder: p.holder, level: p.level, passUrls: passUrls(ctx.baseUrl, uid), qr: toQr(uid), uid }
 }

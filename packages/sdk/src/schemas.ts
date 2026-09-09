@@ -105,6 +105,40 @@ export const CardBody = v.pipe(
   ),
 )
 
+// Editing replaces the complete mutable Card state while preserving its id,
+// issuer, slug and creation time. Strictness makes those immutable fields (and
+// any future unknown field) a bad request instead of silently ignoring them.
+const CardUpdateFields = v.strictObject({
+  category: CardFields.entries.category,
+  claimFrom: v.nullable(unix),
+  claimUntil: v.nullable(unix),
+  description: v.pipe(v.string(), v.trim(), v.maxLength(CARD_DESCRIPTION_MAX_LENGTH)),
+  lockScreen: v.boolean(),
+  title: CardFields.entries.title,
+  validFrom: v.nullable(unix),
+  validUntil: v.nullable(unix),
+  validityDays: v.nullable(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(3650))),
+  venue: CardFields.entries.venue,
+})
+
+type CardUpdateFieldsOutput = v.InferOutput<typeof CardUpdateFields>
+
+export const CardUpdateBody = v.pipe(
+  CardUpdateFields,
+  v.check(
+    (card: CardUpdateFieldsOutput) => hasSingleValidityRule(card),
+    'a card expires either after N days or between two dates, not both',
+  ),
+  v.check(
+    (card: CardUpdateFieldsOutput) => isOrderedWindow(card.claimFrom, card.claimUntil),
+    'the claim window cannot end before it starts',
+  ),
+  v.check(
+    (card: CardUpdateFieldsOutput) => isOrderedWindow(card.validFrom, card.validUntil),
+    'the validity window cannot end before it starts',
+  ),
+)
+
 // POST /issuers — venue registration, validated identically in the dashboard
 // and the api. Cards are published separately after the venue claims its ENS
 // name. `handle` is checked by the shared rule; the api adds availability.
@@ -137,5 +171,6 @@ export type SignInChallengeRequest = v.InferOutput<typeof SignInChallengeBody>
 export type SignInVerifyRequest = v.InferOutput<typeof SignInVerifyBody>
 export type CardRequest = v.InferOutput<typeof CardBody>
 export type CardInput = v.InferInput<typeof CardBody>
+export type CardUpdateRequest = v.InferOutput<typeof CardUpdateBody>
 export type IssuerCreateRequest = v.InferOutput<typeof IssuerCreateBody>
 export type IssuerCreateInput = v.InferInput<typeof IssuerCreateBody>

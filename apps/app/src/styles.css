@@ -36,12 +36,6 @@
     @apply bg-transparent text-[var(--fuda-text)] hover:bg-[var(--fuda-border)];
   }
 
-  .input,
-  .select,
-  .textarea {
-    @apply min-h-11 min-w-0 rounded-xl border border-[var(--fuda-border)] bg-[var(--fuda-surface)] px-3 py-2.5 text-base text-[var(--fuda-text)];
-  }
-
   .alert {
     @apply rounded-xl border p-4 text-sm leading-relaxed [overflow-wrap:anywhere];
   }
@@ -52,5 +46,13 @@
 
   .alert-error {
     @apply border-red-200 bg-red-50 text-red-900;
+  }
+}
+
+@layer utilities {
+  .input,
+  .select,
+  .textarea {
+    @apply rounded-xl py-2.5 text-base;
   }
 }

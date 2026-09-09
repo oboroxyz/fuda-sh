@@ -17,6 +17,7 @@ import { EnsClaim } from './EnsClaim.tsx'
 import type { EnsClaimProps } from './EnsClaim.tsx'
 import { DEFAULT_OPERATOR_IO } from './operator-io.ts'
 import type { OperatorIo } from './operator-io.ts'
+import { membershipCard, passesResponse } from './test/management-fixtures.ts'
 import { findViewNodes, viewProps } from './test/test-view.ts'
 import { EMPTY_VENUE_FORM } from './venue.ts'
 
@@ -105,17 +106,183 @@ describe('dashboard query lifecycle', () => {
   })
 
   afterEach(async () => {
+    // Dispose session queries before unmount so queued effects cannot refresh
+    // an earlier test's controller into the shared AppView capture.
+    if (output.current !== null && output.current.session.token !== null) {
+      output.current.onSignOut()
+      await vi.waitUntil(() => view().session.token === null)
+    }
     removeMounted?.()
     await setTimeout(0)
-    root.replaceChildren()
+    render(null, root)
     root.remove()
     vi.restoreAllMocks()
+  })
+
+  it('updates the Card list after an edit and keeps the edit route selected', async () => {
+    const owned: IssuerMeResponse = { ...issuer, cards: [membershipCard] }
+    const card = { ...membershipCard, lockScreen: false, title: 'Updated title', venue: null }
+    const operator = {
+      ...operatorIo(),
+      issuerMe: vi.fn<OperatorIo['issuerMe']>().mockResolvedValue({ body: owned, ok: true }),
+      signIn: vi.fn<OperatorIo['signIn']>().mockResolvedValue({ issuer: owned, ok: true, token: 'session' }),
+      updateCard: vi.fn<OperatorIo['updateCard']>().mockResolvedValue({ body: { card }, ok: true }),
+    }
+    await start(operator)
+    view().onNavigate('/cards/membership/edit')
+    await vi.waitFor(() => {
+      expect(view().route).toBe('/cards/membership/edit')
+    })
+    await view().cardManagement.save('card-1', {
+      category: 'membership',
+      claimFrom: null,
+      claimUntil: null,
+      description: '',
+      lockScreen: false,
+      title: 'Updated title',
+      validFrom: null,
+      validUntil: null,
+      validityDays: null,
+    })
+    await vi.waitFor(() => {
+      expect(view().session.operator?.cards[0]?.title).toBe('Updated title')
+    })
+    expect(view().route).toBe('/cards/membership/edit')
+    expect(location.pathname).toBe('/cards/membership/edit')
+  })
+
+  it.each([
+    { outcome: 'success', token: 'session' },
+    { outcome: 'unauthorized', token: null },
+  ] as const)(
+    'handles a superseded Card save returning $outcome after a newer edit',
+    async ({ outcome, token }) => {
+      const pending = Promise.withResolvers<Awaited<ReturnType<OperatorIo['updateCard']>>>()
+      const owned: IssuerMeResponse = { ...issuer, cards: [membershipCard] }
+      const card = { ...membershipCard, lockScreen: false, title: 'New edit', venue: null }
+      const operator = {
+        ...operatorIo(),
+        issuerMe: vi.fn<OperatorIo['issuerMe']>().mockResolvedValue({ body: owned, ok: true }),
+        signIn: vi
+          .fn<OperatorIo['signIn']>()
+          .mockResolvedValue({ issuer: owned, ok: true, token: 'session' }),
+        updateCard: vi
+          .fn<OperatorIo['updateCard']>()
+          .mockReturnValueOnce(pending.promise)
+          .mockResolvedValue({ body: { card }, ok: true }),
+      }
+      await start(operator)
+      const body = {
+        category: 'membership' as const,
+        claimFrom: null,
+        claimUntil: null,
+        description: '',
+        lockScreen: false,
+        title: 'Old edit',
+        validFrom: null,
+        validUntil: null,
+        validityDays: null,
+      }
+      view().onNavigate('/cards/membership/edit')
+      await vi.waitFor(() => {
+        expect(view().route).toBe('/cards/membership/edit')
+      })
+      const old = view().cardManagement.save('card-1', body)
+      view().onNavigate('/cards')
+      await vi.waitFor(() => {
+        expect(view().route).toBe('/cards')
+      })
+      view().onNavigate('/cards/membership/edit')
+      await vi.waitFor(() => {
+        expect(view().route).toBe('/cards/membership/edit')
+      })
+      await view().cardManagement.save('card-1', { ...body, title: 'New edit' })
+      await vi.waitFor(() => {
+        expect(view().session.operator?.cards[0]?.title).toBe('New edit')
+      })
+      pending.resolve(
+        outcome === 'unauthorized'
+          ? expired
+          : {
+              body: { card: { ...card, title: 'Old edit' } },
+              ok: true,
+            },
+      )
+      await old
+      await setTimeout(0)
+      const expectedOperator = outcome === 'success' ? { ...owned, cards: [card] } : null
+      await vi.waitFor(() => {
+        expect(view().session.token).toBe(token)
+        expect(view().session.operator).toStrictEqual(expectedOperator)
+      })
+    },
+  )
+
+  it('discards a late Card update after sign-out', async () => {
+    const pending = Promise.withResolvers<Awaited<ReturnType<OperatorIo['updateCard']>>>()
+    const operator = {
+      ...operatorIo(),
+      updateCard: vi.fn<OperatorIo['updateCard']>().mockReturnValue(pending.promise),
+    }
+    await start(operator)
+    const result = view().cardManagement.save('card-1', {
+      category: 'membership',
+      claimFrom: null,
+      claimUntil: null,
+      description: '',
+      lockScreen: false,
+      title: 'Old edit',
+      validFrom: null,
+      validUntil: null,
+      validityDays: null,
+    })
+    view().onSignOut()
+    pending.resolve({
+      body: { card: { ...membershipCard, lockScreen: false, title: 'Old edit', venue: null } },
+      ok: true,
+    })
+    await result
+    await vi.waitFor(() => {
+      expect(view().session.token).toBeNull()
+    })
+    expect(view().session.operator).toBeNull()
+  })
+
+  it('invalidates an expired session from the pass list and ignores a replaced-session failure', async () => {
+    const pending = Promise.withResolvers<Awaited<ReturnType<OperatorIo['listPasses']>>>()
+    const listPasses = vi
+      .fn<OperatorIo['listPasses']>()
+      .mockReturnValueOnce(pending.promise)
+      .mockResolvedValueOnce({ body: passesResponse, ok: true })
+      .mockResolvedValue(expired)
+    const operator = { ...operatorIo(), listPasses }
+    await start(operator)
+    const old = view().loadPasses({ page: 1, pageSize: 25 })
+    view().onSignOut()
+    await vi.waitFor(() => {
+      expect(view().session.token).toBeNull()
+    })
+    view().onPasskey()
+    await vi.waitFor(() => {
+      expect(view().session.token).toBe('session')
+    })
+    pending.resolve(expired)
+    await old
+    expect(view().session.token).toBe('session')
+    await view().loadPasses({ page: 1, pageSize: 25 })
+    await view().loadPasses({ page: 1, pageSize: 25 })
+    await vi.waitFor(() => {
+      expect(view().session.token).toBeNull()
+    })
   })
 
   it('refreshes an active operator after focus without another passkey ceremony', async () => {
     const operator = operatorIo()
     await start(operator)
     refocus()
+    await vi.waitFor(() => {
+      expect(operator.issuerMe).toHaveBeenCalledWith('session')
+    })
     await vi.waitFor(() => {
       expect(view().session.operator?.publicUrl).toBe('https://fuda.sh/@new-coffee')
     })
@@ -131,6 +298,33 @@ describe('dashboard query lifecycle', () => {
       expect(view().session).toMatchObject({ authError: 'unauthorized', token: null })
     })
   })
+
+  it.each(['sign-out', 'unauthorized'])(
+    'discards the profile-return card draft after %s, even when the same token signs in again',
+    async (reason) => {
+      const operator = operatorIo()
+      await start(operator)
+      view().onEditProfile({ ...EMPTY_FORM, title: 'Previous session draft' })
+      await vi.waitFor(() => {
+        expect(view().cardDraft?.title).toBe('Previous session draft')
+      })
+      if (reason === 'sign-out') {
+        view().onSignOut()
+      } else {
+        operator.issuerMe.mockResolvedValue(expired)
+        refocus()
+      }
+      await vi.waitFor(() => {
+        expect(view().session.token).toBeNull()
+      })
+      operator.issuerMe.mockResolvedValue({ body: issuer, ok: true })
+      view().onPasskey()
+      await vi.waitFor(() => {
+        expect(view().session.token).toBe('session')
+      })
+      expect(view().cardDraft).toBeNull()
+    },
+  )
 
   it('keeps the operator visible when background revalidation fails', async () => {
     const operator = operatorIo()

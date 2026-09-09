@@ -3,6 +3,7 @@ import { setTimeout } from 'node:timers/promises'
 // @vitest-environment happy-dom
 /** @jsxImportSource hono/jsx/dom */
 import { render, useState } from 'hono/jsx/dom'
+import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DASH_COPY } from './copy.ts'
@@ -57,8 +58,7 @@ describe(StampSettings, () => {
   it('discards an old session load when the loader is replaced', async () => {
     const old = deferred<{ body: { dailyLimit: number; enabled: boolean; goal: number }; ok: true }>()
     let replace!: () => void
-    // oxlint-disable-next-line typescript/promise-function-async -- useState's lazy initializer returns the async loader rather than running it.
-    const Harness = () => {
+    const Harness = (): JSX.Element => {
       const [load, setLoad] = useState(() => async () => await old.promise)
       replace = () => {
         setLoad(

@@ -34,7 +34,7 @@ export const SignInView = ({
 }: SignInViewProps): JSX.Element => (
   <main class="dash-auth">
     <div class="flex justify-end">{appearance}</div>
-    <div class="card bg-base-200 mx-auto mt-16 flex max-w-md flex-col gap-4 p-6">
+    <div class="card bg-base-200 mx-auto mt-16 flex max-w-md flex-col gap-6 px-8 pt-12 pb-15">
       <div class="dash-auth-logo-intro">
         <svg aria-label="fuda." class="dash-auth-logo" fill="none" role="img" viewBox="0 0 260 260">
           <path
