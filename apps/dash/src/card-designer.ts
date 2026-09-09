@@ -10,8 +10,7 @@ import {
 import type { CardCategory, CardRequest, CardValidity, CardView, ClaimWindow } from '@fuda/sdk'
 import * as v from 'valibot'
 
-// The four presets the designer offers; any `#RRGGBB` may be typed instead.
-export const BRAND_SWATCHES = ['#6F4320', '#1F513F', '#1D3A6E', '#7A1F2B'] as const
+import { DEFAULT_BRAND_COLOR } from './brand-colors.ts'
 
 // The relative rule is a product choice, not a date picker: a number of days
 // counted from the moment each member claims the card.
@@ -107,7 +106,7 @@ const categoryWindows = (category: CardCategory): CategoryWindows => ({
 })
 
 export const EMPTY_FORM: DesignerForm = {
-  brandColor: '#6F4320',
+  brandColor: DEFAULT_BRAND_COLOR,
   category: 'membership',
   claimFrom: '',
   claimUntil: '',

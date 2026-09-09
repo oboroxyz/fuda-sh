@@ -51,6 +51,12 @@ describe('VerifyBody / RevokeBody', () => {
 })
 
 describe('IssuerCreateBody schema', () => {
+  it.each(['ab--cd', 'xn--coffee', '12--34'])('rejects an ENS-invalid handle %s', (handle) => {
+    expect(v.safeParse(IssuerCreateBody, { brandColor: '#6F4320', handle, name: 'Coffee' }).success).toBe(
+      false,
+    )
+  })
+
   it('accepts venue fields without requiring or returning card fields', () => {
     const out = v.parse(IssuerCreateBody, {
       brandColor: '#6f4320',

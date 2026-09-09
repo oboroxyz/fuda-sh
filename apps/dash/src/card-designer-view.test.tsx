@@ -71,8 +71,17 @@ describe(CardDesignerView, () => {
     expect(viewText(preview)).toContain('Wassie Coffee')
     expect(viewText(preview)).toContain('Membership')
     expect(viewText(preview)).toContain('Membership Card')
-    expect(viewProps(preview!).style).toStrictEqual({ background: '#1F513F' })
+    expect(viewProps(preview!).style).toStrictEqual({ background: '#1F513F', color: '#FFFFFF' })
   })
+
+  it.each(['#5CF794', '#0073EB', '#C389FF', '#777777'])(
+    'uses black preview text when it has better contrast on %s',
+    (brandColor) => {
+      const view = CardDesignerView(designer({ form: { ...filled, brandColor } }))
+      const preview = walkView(view).find((node) => node.props.class === 'dash-card-preview')
+      expect(viewProps(preview!).style).toMatchObject({ color: '#000000' })
+    },
+  )
 
   it('keeps venue colour controls out of the card form', () => {
     const view = CardDesignerView(designer({ form: { ...filled, brandColor: '#1D3A6E' } }))

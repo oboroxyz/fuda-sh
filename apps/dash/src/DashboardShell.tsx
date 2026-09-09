@@ -1,4 +1,5 @@
 /** @jsxImportSource hono/jsx/dom */
+import { cn } from 'cn'
 import { useEffect, useId, useRef, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
@@ -31,7 +32,7 @@ interface NavItem {
   route: DashRoute
 }
 
-export const DASH_DESKTOP_MEDIA_QUERY = '(min-width: 64rem)'
+export const DASH_DESKTOP_MEDIA_QUERY = '(min-width: 48rem)'
 
 export interface DesktopBreakpoint {
   addEventListener: (type: 'change', listener: (event: MediaQueryListEvent) => void) => void
@@ -103,7 +104,7 @@ const Navigation = ({
         <li key={item.route}>
           <a
             aria-current={route === item.route ? 'page' : undefined}
-            class={route === item.route ? 'menu-active' : ''}
+            class={cn('dash-menu-item', route === item.route && 'menu-active')}
             href={item.route}
             onClick={(event: MouseEvent): void => {
               if (!isPrimaryNavigation(event)) {
@@ -121,6 +122,29 @@ const Navigation = ({
       ))}
     </ul>
   </nav>
+)
+
+const Brand = ({ copy }: { copy: DashCopy['chrome'] }): JSX.Element => (
+  <div>
+    <p class="flex items-center gap-2 text-xl font-bold">
+      <svg
+        aria-hidden="true"
+        class="size-8 shrink-0"
+        fill="none"
+        viewBox="0 0 260 260"
+        stroke="currentColor"
+        stroke-width="15"
+      >
+        <path
+          d="m130 54 63 50v128h-126v-128z M119 98a11 11 0 1 0 22 0 11 11 0 1 0-22 0 M130 28v20"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+      <span>{copy.brand}</span>
+    </p>
+    <p class="mt-1 hidden text-sm opacity-70 md:block">{copy.subtitle}</p>
+  </div>
 )
 
 export const DashboardShell = ({
@@ -182,7 +206,7 @@ export const DashboardShell = ({
   }, [modal])
 
   return (
-    <div class="dash-app drawer lg:drawer-open">
+    <div class="dash-app drawer md:drawer-open min-h-svh bg-[var(--fuda-bg)] text-[var(--fuda-text)] print:block">
       <input
         id={drawerId}
         class="drawer-toggle"
@@ -196,12 +220,9 @@ export const DashboardShell = ({
           }
         }}
       />
-      <div class="drawer-content dash-workspace" inert={modal}>
-        <header class="dash-mobile-header">
-          <div>
-            <p class="font-bold">{copy.chrome.brand}</p>
-            <p class="text-xs opacity-70">{copy.chrome.subtitle}</p>
-          </div>
+      <div class="drawer-content min-w-0" inert={modal}>
+        <header class="sticky top-0 z-20 flex items-center gap-4 border-b border-[var(--fuda-border)] bg-[var(--fuda-surface)] px-4 py-2 md:hidden print:hidden!">
+          <Brand copy={copy.chrome} />
           <button
             ref={opener}
             aria-label={copy.chrome.openMenu}
@@ -216,9 +237,9 @@ export const DashboardShell = ({
             <span aria-hidden="true">☰</span>
           </button>
         </header>
-        <main class="dash-main">{children}</main>
+        <main class="mx-auto w-full max-w-6xl min-w-0 p-4 sm:p-6 lg:p-8 print:p-0">{children}</main>
       </div>
-      <div class="drawer-side z-30 lg:z-auto">
+      <div class="drawer-side z-30 md:z-auto">
         <label
           for={drawerId}
           class="drawer-overlay"
@@ -231,7 +252,7 @@ export const DashboardShell = ({
         <aside
           ref={sidebar}
           id={`${drawerId}-side`}
-          class="dash-sidebar"
+          class="dash-sidebar flex min-h-dvh w-64 flex-col gap-8 border-r border-[var(--fuda-border)] bg-[var(--fuda-surface)] py-6 print:hidden!"
           role={modal ? 'dialog' : undefined}
           aria-modal={modal ? 'true' : undefined}
           aria-label={copy.chrome.navigation}
@@ -267,13 +288,10 @@ export const DashboardShell = ({
             }
           }}
         >
-          <div class="flex items-start justify-between gap-2">
-            <div>
-              <p class="text-xl font-bold">{copy.chrome.brand}</p>
-              <p class="text-sm opacity-70">{copy.chrome.subtitle}</p>
-            </div>
+          <div class="flex items-start justify-between gap-2 px-5">
+            <Brand copy={copy.chrome} />
             <button
-              class="dash-drawer-close btn btn-ghost btn-square"
+              class="btn btn-ghost btn-square md:hidden!"
               aria-label={copy.chrome.closeMenu}
               type="button"
               onClick={closeDrawer}
@@ -294,8 +312,8 @@ export const DashboardShell = ({
             surface,
           })}
           <div class="mt-auto flex flex-col gap-3">
-            {onSignOut === null ? null : <SignOutButton copy={copy.auth} onSignOut={onSignOut} />}
-            {appearance}
+            {onSignOut === null ? null : <SignOutButton copy={copy.auth} onSignOut={onSignOut} menu />}
+            <div class="px-5">{appearance}</div>
           </div>
         </aside>
       </div>

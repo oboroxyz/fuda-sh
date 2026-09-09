@@ -1,9 +1,12 @@
 /** @jsxImportSource hono/jsx/dom */
+import { brandTextColor } from '@fuda/sdk'
 import type { IssuerView } from '@fuda/sdk'
+import { cn } from 'cn'
 import { useEffect, useRef, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
-import { BRAND_SWATCHES, handleStatusOf } from './card-designer.ts'
+import { BRAND_SWATCHES } from './brand-colors.ts'
+import { handleStatusOf } from './card-designer.ts'
 import type { CreateFailure, FieldStatus } from './card-designer.ts'
 import type { DashCopy } from './copy.ts'
 import { browserLogoTools, EMPTY_LOGO, generateLogoSet, withLogoResult } from './logo.ts'
@@ -39,6 +42,14 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
   const [logoBusy, setLogoBusy] = useState(false)
   const [logoFailed, setLogoFailed] = useState(false)
   const checkRevision = useRef(0)
+  const logoRevision = useRef(0)
+
+  useEffect(
+    () => () => {
+      logoRevision.current += 1
+    },
+    [],
+  )
 
   useEffect(() => {
     const previewUrl = logo.pick?.previewUrl
@@ -72,9 +83,46 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
   }, [form.handle])
 
   const pickLogo = (file: File): void => {
+    logoRevision.current += 1
+    const revision = logoRevision.current
+    setLogoBusy(true)
+    setLogoFailed(false)
     const run = async (): Promise<void> => {
       const result = await generateLogoSet(file, browserLogoTools)
+      if (revision !== logoRevision.current) {
+        return
+      }
       setLogo(withLogoResult(result, (blob) => URL.createObjectURL(blob)))
+      setLogoBusy(false)
+    }
+    void run()
+  }
+
+  const clearLogo = (): void => {
+    logoRevision.current += 1
+    setLogo(EMPTY_LOGO)
+    setLogoFailed(false)
+  }
+
+  const uploadLogo = (): void => {
+    if (logoBusy || logo.pick === null) {
+      return
+    }
+    const { variants } = logo.pick
+    const revision = logoRevision.current
+    setLogoBusy(true)
+    setLogoFailed(false)
+    const run = async (): Promise<void> => {
+      const ok = await props.onCommitLogo(variants).catch(() => false)
+      if (revision !== logoRevision.current) {
+        return
+      }
+      setLogoBusy(false)
+      if (ok) {
+        clearLogo()
+      } else {
+        setLogoFailed(true)
+      }
     }
     void run()
   }
@@ -99,28 +147,27 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
             <p>{props.issuer.tagline}</p>
             <div class="h-3 w-24 rounded-full" style={{ background: props.issuer.brandColor }} />
           </div>
-          <LogoField
-            busy={logoBusy}
-            copy={props.copy.logo}
-            id="change-logo"
-            label={props.copy.logo.change}
-            onClear={null}
-            onPick={(file) => {
-              setLogoBusy(true)
-              setLogoFailed(false)
-              const run = async (): Promise<void> => {
-                const result = await generateLogoSet(file, browserLogoTools)
-                const next = withLogoResult(result, (blob) => URL.createObjectURL(blob))
-                setLogo(next)
-                const variants = next.pick?.variants
-                const ok = variants === undefined ? false : await props.onCommitLogo(variants)
-                setLogoBusy(false)
-                setLogoFailed(!ok)
-              }
-              void run()
-            }}
-            state={logo}
-          />
+          <div class="flex flex-col gap-3">
+            <LogoField
+              busy={logoBusy}
+              copy={props.copy.logo}
+              id="change-logo"
+              label={props.copy.logo.change}
+              onClear={clearLogo}
+              onPick={pickLogo}
+              state={logo}
+            />
+            {logo.pick === null ? null : (
+              <button
+                class="btn btn-primary self-start"
+                disabled={logoBusy}
+                onClick={uploadLogo}
+                type="button"
+              >
+                {props.copy.logo.upload}
+              </button>
+            )}
+          </div>
           {logoFailed ? <p class="text-error text-sm sm:col-span-2">{props.copy.logo.updateFailed}</p> : null}
         </div>
         {props.ens ?? (
@@ -161,7 +208,14 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
         }}
       />
       {key === 'handle' && statusText(copy, status) !== null ? (
-        <span class="text-sm opacity-70">{statusText(copy, status)}</span>
+        <span
+          class={cn(
+            'text-sm',
+            status === 'available' || status === 'checking' ? 'text-moderate' : 'text-danger',
+          )}
+        >
+          {statusText(copy, status)}
+        </span>
       ) : null}
       {key === 'handle' ? <span class="text-sm opacity-70">{props.copy.venue.handleHint}</span> : null}
     </label>
@@ -185,23 +239,30 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
         {input('name', copy.nameLabel, copy.namePlaceholder)}
         {input('tagline', copy.taglineLabel, copy.taglinePlaceholder)}
         <fieldset class="fieldset">
-          <legend>{copy.colorLabel}</legend>
-          <div class="flex flex-wrap gap-2">
-            {BRAND_SWATCHES.map((color): JSX.Element => (
+          <legend class="text-base font-normal">{copy.colorLabel}</legend>
+          <div class="grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
+            {BRAND_SWATCHES.map(({ color, name }): JSX.Element => (
               <button
-                aria-label={color}
-                aria-pressed={form.brandColor.toUpperCase() === color}
-                class={`dash-swatch min-h-11 min-w-11 ${form.brandColor.toUpperCase() === color ? 'dash-swatch-selected' : ''}`}
-                style={{ background: color }}
+                key={name}
+                aria-label={`${copy.colorNames[name]} ${color}`}
+                aria-pressed={form.brandColor.toUpperCase() === color ? 'true' : 'false'}
+                class={cn('dash-swatch', form.brandColor.toUpperCase() === color && 'dash-swatch-selected')}
+                style={{ background: color, color: brandTextColor(color) }}
                 type="button"
                 onClick={() => {
                   update('brandColor', color)
                 }}
-              />
+              >
+                <span aria-hidden="true">Aa</span>
+              </button>
             ))}
+          </div>
+          <label class="mt-2 flex items-center gap-3">
+            <span>{copy.customColorLabel}</span>
             <input
-              aria-label={copy.colorHexLabel}
-              class="input w-32 font-mono"
+              aria-label={copy.customColorLabel}
+              class="h-11 w-16 cursor-pointer rounded-lg border border-[var(--fuda-border)] bg-white p-1"
+              type="color"
               value={form.brandColor}
               onInput={(event) => {
                 if (event.currentTarget instanceof HTMLInputElement) {
@@ -209,22 +270,20 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
                 }
               }}
             />
-          </div>
+          </label>
         </fieldset>
         <LogoField
-          busy={props.busy}
+          busy={props.busy || logoBusy}
           copy={props.copy.logo}
           id="venue-logo"
           label={props.copy.logo.label}
-          onClear={() => {
-            setLogo(EMPTY_LOGO)
-          }}
+          onClear={clearLogo}
           onPick={pickLogo}
           state={logo}
         />
         <button
           class="btn btn-primary sm:self-start"
-          disabled={props.busy || status === 'taken' || venueBodyFrom(form) === null}
+          disabled={props.busy || logoBusy || status === 'taken' || venueBodyFrom(form) === null}
           type="submit"
         >
           {props.busy ? props.copy.venue.registering : props.copy.venue.register}

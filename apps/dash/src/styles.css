@@ -21,25 +21,8 @@
   --fuda-accent: oklch(97% 0 0);
 }
 
-.dash-app {
-  @apply min-h-svh bg-[var(--fuda-bg)] text-[var(--fuda-text)];
-}
-
-.dash-sidebar {
-  @apply flex min-h-dvh w-64 flex-col gap-8 border-r border-[var(--fuda-border)] bg-[var(--fuda-surface)] px-5 py-6;
-}
-
-.dash-workspace,
-.dash-main {
-  @apply min-w-0;
-}
-
-.dash-main {
-  @apply mx-auto w-full max-w-6xl p-4 sm:p-6 lg:p-8;
-}
-
-.dash-mobile-header {
-  @apply sticky top-0 z-20 flex items-center gap-4 border-b border-[var(--fuda-border)] bg-[var(--fuda-surface)] px-4 py-3 lg:hidden;
+.dash-sidebar .dash-menu-item {
+  @apply m-2 flex min-h-12 items-center justify-start gap-3 rounded-none rounded-xl px-5 py-3 text-left text-sm;
 }
 
 .dash-app :focus-visible,
@@ -95,7 +78,7 @@
 @layer components {
   .dash-app .fuda-icon-button,
   .dash-auth .fuda-icon-button {
-    @apply rounded-full border border-[var(--fuda-border)] bg-[var(--fuda-surface)] p-0 text-[var(--fuda-text)] shadow-none;
+    @apply cursor-pointer rounded-full border border-current bg-transparent p-0 text-neutral-600 shadow-none hover:bg-neutral-200/60 dark:text-neutral-300 dark:hover:bg-neutral-800;
   }
 }
 
@@ -104,14 +87,8 @@
   @apply size-11 p-0;
 }
 
-@media (min-width: 64rem) {
-  .dash-drawer-close {
-    display: none !important;
-  }
-}
-
-.dash-app :where(.btn, .fuda-icon-button):hover:not(:disabled),
-.dash-auth :where(.btn, .fuda-icon-button):hover:not(:disabled) {
+.dash-app :where(.btn):hover:not(:disabled),
+.dash-auth :where(.btn):hover:not(:disabled) {
   background: color-mix(in srgb, var(--fuda-text) 8%, var(--fuda-surface));
 }
 
@@ -174,6 +151,10 @@
 
 .dash-overview-cards {
   @apply grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-4;
+}
+
+.dash-page-header {
+  @apply mb-4;
 }
 
 .dash-stat {
@@ -250,11 +231,11 @@
 }
 
 .dash-card-preview {
-  @apply flex min-w-0 flex-col gap-1 rounded-[0.875rem] p-5 text-white shadow-md;
+  @apply flex min-w-0 flex-col gap-1 rounded-[0.875rem] p-5 shadow-md;
 }
 
 .dash-card-preview-top {
-  @apply flex items-center justify-between text-[0.6875rem] tracking-[0.08em] uppercase opacity-85;
+  @apply flex items-center justify-between text-[0.6875rem] tracking-[0.08em] uppercase;
 }
 
 .dash-card-preview strong {
@@ -262,7 +243,12 @@
 }
 
 .dash-swatch {
-  @apply size-8 rounded-full border border-[var(--fuda-border)];
+  @apply flex min-h-11 min-w-0 cursor-pointer items-start justify-start rounded-lg border border-[var(--fuda-border)] p-2 text-xs font-normal;
+}
+
+.dash-logo-preview {
+  @apply size-24 rounded-lg border border-[var(--fuda-border)] object-contain;
+  background: conic-gradient(#e5e7eb 25%, #fff 0 50%, #e5e7eb 0 75%, #fff 0) 0 0 / 16px 16px;
 }
 
 .dash-swatch-selected {
@@ -286,19 +272,12 @@
    several cards prints one poster per card, and a card's own Print button
    narrows that to its poster alone. */
 @media print {
-  .dash-sidebar,
-  .dash-mobile-header,
   .dash-no-print {
     display: none !important;
   }
 
-  .dash-main {
-    @apply p-0;
-  }
-
   /* Forced breaks are unreliable inside flex and grid containers, so the
      printed page is a plain block flow. */
-  .dash-app,
   .dash-published {
     display: block;
   }

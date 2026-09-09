@@ -23,6 +23,9 @@ const STYLE = `
   .stamps{margin:12px 0;padding:12px;border-radius:12px;background:#0003}.stamps strong{font-size:22px;display:block}.stamps small{opacity:.8}
   .meta{color:#aaa;font-size:14px;line-height:1.6}.hint{color:#888;font-size:12px;margin-top:16px}code{word-break:break-all}
   .btn{display:inline-block;margin-top:12px;padding:10px 16px;border-radius:999px;background:#fff;color:#141414;font-weight:600;text-decoration:none}
+  .brand .venue,.brand .stamps small{opacity:1}
+  .brand .status,.brand .meta,.brand .hint{color:inherit}
+  .brand .stamps{background:transparent;border:1px solid currentColor}
 `
 
 // `uid` is the regex-validated attestation UID (isUid) — the only value this

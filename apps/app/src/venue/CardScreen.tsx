@@ -1,5 +1,5 @@
 /** @jsxImportSource hono/jsx/dom */
-import { cardBySlug, formatMemberNumber, passUrls, qrSvg, soleCard, toQr } from '@fuda/sdk'
+import { brandTextColor, cardBySlug, formatMemberNumber, passUrls, qrSvg, soleCard, toQr } from '@fuda/sdk'
 import type {
   CardCategory,
   CardView,
@@ -106,7 +106,10 @@ interface VenueBrand {
 // different URL; a client that assembled one from the handle would keep
 // showing the old mark out of cache.
 const brandCard = (venue: VenueBrand, body: JSX.Element): JSX.Element => (
-  <div class="venue-brand" style={{ backgroundColor: venue.brandColor }}>
+  <div
+    class="venue-brand"
+    style={{ backgroundColor: venue.brandColor, color: brandTextColor(venue.brandColor) }}
+  >
     <div class="flex items-center gap-3">
       {venue.logoUrl === null ? null : (
         <img
@@ -119,7 +122,7 @@ const brandCard = (venue: VenueBrand, body: JSX.Element): JSX.Element => (
           src={venue.logoUrl}
         />
       )}
-      <div class="text-xs font-semibold tracking-widest uppercase opacity-80">{venue.name}</div>
+      <div class="text-xs font-semibold tracking-widest uppercase">{venue.name}</div>
     </div>
     {body}
   </div>
@@ -130,7 +133,7 @@ const landingCard = (card: PublicCard): JSX.Element =>
     card,
     <>
       <h1 class="text-2xl font-bold">{card.card.title}</h1>
-      {card.tagline === '' ? null : <p class="text-sm opacity-90">{card.tagline}</p>}
+      {card.tagline === '' ? null : <p class="text-sm">{card.tagline}</p>}
     </>,
   )
 
@@ -140,9 +143,9 @@ const memberCard = (card: PublicCard, issued: IssuedCard): JSX.Element =>
     <>
       <div class="text-lg font-bold">{card.card.title}</div>
       <div class="flex flex-col gap-1">
-        <div class="text-xs tracking-widest uppercase opacity-80">{roleOf(card)}</div>
+        <div class="text-xs tracking-widest uppercase">{roleOf(card)}</div>
         <div class="font-mono text-xl">{formatMemberNumber(issued.memberNumber)}</div>
-        <div class="text-xs opacity-80">Issued {issueDateOf(issued.issuedAt)}</div>
+        <div class="text-xs">Issued {issueDateOf(issued.issuedAt)}</div>
       </div>
     </>,
   )

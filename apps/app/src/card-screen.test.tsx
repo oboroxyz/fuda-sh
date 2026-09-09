@@ -132,6 +132,15 @@ describe(CardScreenView, () => {
     expect(viewNodes(view).some(({ props }) => props.style !== undefined)).toBe(true)
     expect(viewNodes(view).find(({ props }) => props.style !== undefined)?.props.style).toStrictEqual({
       backgroundColor: '#1D4ED8',
+      color: '#FFFFFF',
+    })
+  })
+
+  it('uses black text on a light venue card', () => {
+    const view = render({ card: { ...card, brandColor: '#C389FF' }, kind: 'landing' })
+    expect(viewNodes(view).find(({ props }) => props.class === 'venue-brand')?.props.style).toStrictEqual({
+      backgroundColor: '#C389FF',
+      color: '#000000',
     })
   })
 

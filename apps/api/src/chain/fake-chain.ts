@@ -32,8 +32,8 @@ const lowerHex = (h: Hex): Hex => `0x${h.slice(2).toLowerCase()}`
 const checksum = (h: Hex): Hex => getAddress(h)
 
 // In-memory EAS + factory used by the workerd integration tests and by
-// `wrangler dev` without a signer. No network; deterministic within one
-// instance, with uids that differ between instances (see `counter`).
+// `wrangler dev` without a signer. Offline by default; local dev can supply a
+// read-only smart-wallet verifier. Uids differ between instances (see `counter`).
 export class FakeChain implements ChainClient {
   readonly attestations = new Map<Hex, RawAttestation>()
   readonly txs: Hex[] = []
@@ -48,6 +48,7 @@ export class FakeChain implements ChainClient {
   // oxlint-disable-next-line class-methods-use-this -- injectable clock; tests replace this field wholesale
   now: () => bigint = () => BigInt(Math.floor(Date.now() / 1000))
   private readonly signer: Hex | null
+  private readonly verifyOnChain: ChainClient['verifyMessage'] | undefined
   // `wrangler dev --local` keeps its D1 file across restarts while every isolate
   // starts a fresh FakeChain, so a counter from zero re-mints uids that are
   // already `members.attestation_uid` primary keys. A random per-instance start
@@ -61,9 +62,12 @@ export class FakeChain implements ChainClient {
   // deterministic within one instance and distinct across restarts.
   private txCounter = crypto.getRandomValues(new Uint32Array(1))[0] ?? 0
 
-  constructor(opts: { signer?: Hex | null; head?: number } = {}) {
+  constructor(
+    opts: { signer?: Hex | null; head?: number; verifyMessage?: ChainClient['verifyMessage'] } = {},
+  ) {
     const signer = opts.signer === undefined ? DEFAULT_SIGNER : opts.signer
     this.signer = signer === null ? null : checksum(signer)
+    this.verifyOnChain = opts.verifyMessage
     if (opts.head !== undefined) {
       this.head = opts.head
     }
@@ -191,11 +195,11 @@ export class FakeChain implements ChainClient {
     if (this.failReads) {
       throw new ChainError('rpc down')
     }
-    try {
-      return await recoverAndCompare({ address: p.address, message: p.message, signature: p.signature })
-    } catch {
-      return false
+    const validEoa = await recoverAndCompare(p).catch(() => false)
+    if (validEoa) {
+      return true
     }
+    return (await this.verifyOnChain?.(p)) ?? false
   }
 
   // viem decodes `bytes` event args as lower-case hex (and checksums addresses),

@@ -1,6 +1,6 @@
-import { getAddress } from 'viem'
+import { getAddress, verifyMessage } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { ChainError, NoSignerError, ZERO_UID } from './client.ts'
 import { FakeChain } from './fake-chain.ts'
@@ -214,6 +214,40 @@ describe('FakeChain announcements', () => {
 const KEY = `0x${'01'.repeat(32)}` as const
 
 describe('FakeChain.verifyMessage', () => {
+  it('checks smart-wallet signatures with the supplied verifier and preserves the challenge', async () => {
+    const owner = privateKeyToAccount(KEY)
+    const message = 'fuda.sh dashboard sign-in:local-challenge'
+    const signature = await owner.signMessage({ message })
+    // Model a contract wallet whose owner signs this challenge. The fallback
+    // must receive the contract address and the original signed payload.
+    const verifier = vi.fn<FakeChain['verifyMessage']>(async (input) =>
+      input.address === holder
+        ? await verifyMessage({ ...input, address: owner.address }).catch(() => false)
+        : false,
+    )
+    const chain = new FakeChain({ verifyMessage: verifier })
+    await expect(chain.verifyMessage({ address: holder, message, signature })).resolves.toBe(true)
+    expect(verifier).toHaveBeenCalledWith({ address: holder, message, signature })
+    await expect(
+      chain.verifyMessage({ address: holder, message: `${message}:changed`, signature }),
+    ).resolves.toBe(false)
+    await expect(chain.verifyMessage({ address: holder, message, signature: '0x1234' })).resolves.toBe(false)
+  })
+
+  it('keeps valid EOA signatures offline even when a smart-wallet verifier is supplied', async () => {
+    const owner = privateKeyToAccount(KEY)
+    const signature = await owner.signMessage({ message: 'local' })
+    const verifier = vi.fn<FakeChain['verifyMessage']>().mockRejectedValue(new ChainError('offline'))
+    const chain = new FakeChain({ verifyMessage: verifier })
+    await expect(chain.verifyMessage({ address: owner.address, message: 'local', signature })).resolves.toBe(
+      true,
+    )
+    expect(verifier).not.toHaveBeenCalled()
+    await expect(
+      chain.verifyMessage({ address: holder, message: 'local', signature }),
+    ).rejects.toBeInstanceOf(ChainError)
+  })
+
   it('accepts a signature made by the holder key', async () => {
     const account = privateKeyToAccount(KEY)
     const signature = await account.signMessage({ message: 'fuda-gate:x:y' })

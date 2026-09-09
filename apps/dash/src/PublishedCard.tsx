@@ -1,4 +1,5 @@
 /** @jsxImportSource hono/jsx/dom */
+import { brandTextColor } from '@fuda/sdk'
 import type { CardView, IssuerView } from '@fuda/sdk'
 import { cn } from 'cn'
 import { useEffect, useRef, useState } from 'hono/jsx/dom'
@@ -55,7 +56,10 @@ const cardEntry = (props: PublishedCardViewProps, card: CardView): JSX.Element =
   const asideForPrint = printSlug !== null && printSlug !== card.slug
   return (
     <article class="dash-published-card" key={card.slug}>
-      <div class="dash-card-preview dash-no-print" style={{ background: issuer.brandColor }}>
+      <div
+        class="dash-card-preview dash-no-print"
+        style={{ background: issuer.brandColor, color: brandTextColor(issuer.brandColor) }}
+      >
         <div class="dash-card-preview-top">
           <span>{issuer.name}</span>
           <span>{card.category === 'ticket' ? 'TICKET' : 'MEMBER'}</span>

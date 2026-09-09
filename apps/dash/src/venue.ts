@@ -2,6 +2,8 @@ import { IssuerCreateBody, normalizeBrandColor } from '@fuda/sdk'
 import type { IssuerCreateRequest } from '@fuda/sdk'
 import * as v from 'valibot'
 
+import { DEFAULT_BRAND_COLOR } from './brand-colors.ts'
+
 export interface VenueForm {
   brandColor: string
   handle: string
@@ -10,7 +12,7 @@ export interface VenueForm {
 }
 
 export const EMPTY_VENUE_FORM: VenueForm = {
-  brandColor: '#6F4320',
+  brandColor: DEFAULT_BRAND_COLOR,
   handle: '',
   name: '',
   tagline: '',

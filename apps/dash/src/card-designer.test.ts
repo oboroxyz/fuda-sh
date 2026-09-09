@@ -39,6 +39,7 @@ describe(handleStatusOf, () => {
   it('answers locally before the api is asked', () => {
     expect(handleStatusOf('')).toBe('idle')
     expect(handleStatusOf('Wassie')).toBe('format')
+    expect(handleStatusOf('ab--cd')).toBe('format')
     expect(handleStatusOf('api')).toBe('reserved')
     expect(handleStatusOf('wassie-coffee')).toBe('checking')
   })

@@ -1,7 +1,8 @@
 import type { Hex } from './constants.ts'
 
 // The issuer Handle (docs/specs/ens-naming.md): the `/@<handle>` slug and the
-// ENS issuer label, lowercase ASCII `[a-z0-9-]`, 1–63 bytes, no edge hyphen.
+// ENS issuer label, lowercase ASCII `[a-z0-9-]`, 1–63 bytes, no edge hyphen
+// or ENSIP-15 reserved hyphens at positions 3 and 4.
 const ISSUER_HANDLE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/u
 export const ISSUER_HANDLE_MAX_LENGTH = 63
 
@@ -37,8 +38,8 @@ export const RESERVED_ISSUER_HANDLES: ReadonlySet<string> = new Set([
 ])
 
 // Why a name was rejected, for a form to explain; null when it is usable.
-// Handles and card slugs share one character rule and differ only in which
-// names are reserved, so both are decided here.
+// Handles and card slugs share the ASCII character and length rules;
+// only handles add ENS label validation. Each has its own reserved names.
 export type NameProblem = 'empty' | 'format' | 'reserved'
 
 const nameProblem = (raw: string, maxLength: number, reserved: ReadonlySet<string>): NameProblem | null => {
@@ -51,8 +52,12 @@ const nameProblem = (raw: string, maxLength: number, reserved: ReadonlySet<strin
   return reserved.has(raw) ? 'reserved' : null
 }
 
+// ENSIP-15 forbids ASCII labels with hyphens in both the 3rd and 4th positions.
+// The character rule above already limits handles to normalized lowercase ASCII.
+// https://docs.ens.domains/ensip/15/#validate
 export const issuerHandleProblem = (raw: string): NameProblem | null =>
-  nameProblem(raw, ISSUER_HANDLE_MAX_LENGTH, RESERVED_ISSUER_HANDLES)
+  nameProblem(raw, ISSUER_HANDLE_MAX_LENGTH, RESERVED_ISSUER_HANDLES) ??
+  (raw.slice(2, 4) === '--' ? 'format' : null)
 
 export const isIssuerHandle = (raw: string): boolean => issuerHandleProblem(raw) === null
 

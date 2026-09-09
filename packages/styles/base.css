@@ -80,9 +80,9 @@
   --fuda-text: #20211f;
   --fuda-muted: #666963;
   --fuda-border: #d9dbd5;
-  --fuda-accent: #315f4c;
-  --fuda-danger: #a53d35;
-  --fuda-focus: #356fda;
+  --fuda-accent: #5c7065;
+  --fuda-danger: #956265;
+  --fuda-focus: #61718a;
 }
 
 :root.dark {
@@ -92,9 +92,9 @@
   --fuda-text: #f2f3ee;
   --fuda-muted: #b6bab1;
   --fuda-border: #3c4039;
-  --fuda-accent: #91c5ad;
-  --fuda-danger: #ef8f86;
-  --fuda-focus: #8db4ff;
+  --fuda-accent: #a3b5aa;
+  --fuda-danger: #cba3a5;
+  --fuda-focus: #a5b2c6;
 }
 
 @layer base {
@@ -140,6 +140,10 @@
     @apply text-neutral-600 dark:text-neutral-300;
   }
 
+  .text-danger {
+    @apply text-[var(--fuda-danger)];
+  }
+
   .border-outline {
     @apply border-neutral-900/50 dark:border-neutral-500/50;
   }
@@ -149,7 +153,7 @@
   }
 
   .fuda-icon-button svg {
-    @apply size-6 fill-none stroke-current [stroke-width:1.6] [stroke-linecap:round] [stroke-linejoin:round];
+    @apply size-6 fill-none stroke-current [stroke-width:1.5] [stroke-linecap:round] [stroke-linejoin:round];
   }
 
   .fuda-language-menu {
