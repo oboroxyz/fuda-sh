@@ -229,7 +229,7 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
       </header>
       {props.failure === null ? null : <p class="alert alert-error">{copy.failures[props.failure]}</p>}
       <form
-        class="card flex flex-col gap-5 p-5"
+        class="card flex flex-col gap-5 px-6 py-8"
         onSubmit={(event) => {
           event.preventDefault()
           props.onCreate(form, logo.pick?.variants ?? null)
