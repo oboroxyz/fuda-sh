@@ -96,10 +96,11 @@ export default defineConfig({
     semi: false,
     singleQuote: true,
     trailingComma: 'all',
-    // Markdown stays hand-formatted (proseWrap would rewrap prose):
+    // Markdown prose is one paragraph per line; the viewer soft-wraps it, so a
+    // reworded sentence diffs as one line rather than a reflowed block.
+    proseWrap: 'never',
     ignorePatterns: [
       ...(oxfmtPreset.ignorePatterns ?? []),
-      '**/*.md',
       'packages/subgraphs/rights/generated/**',
       'packages/subgraphs/rights/src/**',
       'packages/subgraphs/rights/tests/**',
