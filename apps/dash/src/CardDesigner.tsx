@@ -1,5 +1,5 @@
 /** @jsxImportSource hono/jsx/dom */
-import { brandTextColor } from '@fuda/sdk'
+import { brandTextColor, CARD_DESCRIPTION_MAX_LENGTH } from '@fuda/sdk'
 import type { CardCategory, IssuerView } from '@fuda/sdk'
 import { cn } from 'cn'
 import { useCallback, useEffect, useState } from 'hono/jsx/dom'
@@ -357,12 +357,23 @@ export const CardDesignerView = ({
         </select>
       </div>
 
-      {textField('perk', copy.perkLabel, form.perk, copy.perkPlaceholder, (next) => {
-        onField('perk', next)
-      })}
-      {textField('reward', copy.rewardLabel, form.reward, copy.rewardPlaceholder, (next) => {
-        onField('reward', next)
-      })}
+      <div class="flex flex-col gap-1">
+        <label for="card-description">{copy.cardDescriptionLabel}</label>
+        <textarea
+          class="textarea w-full"
+          id="card-description"
+          maxLength={CARD_DESCRIPTION_MAX_LENGTH}
+          onInput={(event) => {
+            if (event.currentTarget instanceof HTMLTextAreaElement) {
+              onField('description', event.currentTarget.value)
+            }
+          }}
+          placeholder={copy.cardDescriptionPlaceholder}
+          rows={4}
+          value={form.description}
+        />
+        <p class="text-moderate text-sm">{copy.cardDescriptionHint}</p>
+      </div>
 
       {claimSection(copy, form, onWindow)}
       {validitySection(copy, form, onValidityDays, onValidityMode, onWindow)}

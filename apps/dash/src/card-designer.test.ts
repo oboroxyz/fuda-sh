@@ -26,10 +26,9 @@ import type { DesignerForm, DesignerStatus } from './card-designer.ts'
 
 const filled: DesignerForm = {
   ...EMPTY_FORM,
+  description: 'Stamp card · 10 stamps\nFree drink of your choice',
   handle: 'wassie-coffee',
   name: 'Wassie Coffee',
-  perk: 'Stamp card · 10 stamps',
-  reward: 'Free drink of your choice',
   tagline: 'Omotesando · Coffee shop',
 }
 
@@ -256,9 +255,8 @@ describe(claimStateOf, () => {
     const card = {
       ...openCard,
       category: 'membership',
+      description: '',
       id: 'c',
-      perk: '',
-      reward: '',
       slug: 's',
       title: 'T',
     } as const

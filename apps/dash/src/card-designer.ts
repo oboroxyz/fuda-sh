@@ -67,8 +67,7 @@ export interface DesignerForm {
   handle: string
   lockScreen: boolean
   name: string
-  perk: string
-  reward: string
+  description: string
   slug: string
   // True once the operator typed a slug themselves; the title stops driving it.
   slugEdited: boolean
@@ -111,11 +110,10 @@ export const EMPTY_FORM: DesignerForm = {
   claimFrom: '',
   claimUntil: '',
   claimUntilEdited: false,
+  description: '',
   handle: '',
   lockScreen: false,
   name: '',
-  perk: '',
-  reward: '',
   slug: slugFromTitle(DEFAULT_TITLE),
   slugEdited: false,
   tagline: '',
@@ -233,9 +231,8 @@ export const cardBodyFrom = (form: DesignerForm): CardRequest | null => {
   const venue = form.lockScreen && form.venue !== null ? { venue: form.venue } : {}
   const parsed = v.safeParse(CardBody, {
     category: form.category,
+    description: form.description,
     lockScreen: form.lockScreen && form.venue !== null,
-    perk: form.perk,
-    reward: form.reward,
     slug: form.slug,
     title: form.title,
     ...windowsOf(form),

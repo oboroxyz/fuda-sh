@@ -65,6 +65,18 @@ const inputWithId = (props: CardDesignerViewProps, id: string): boolean =>
   walkView(CardDesignerView(props)).some((node) => node.props.id === id)
 
 describe(CardDesignerView, () => {
+  it('offers one multiline card description for onboarding', () => {
+    const view = CardDesignerView(designer({ form: { ...filled, description: 'First line\nSecond line' } }))
+    const [textarea] = findViewNodes(view, 'textarea')
+    expect(textarea?.props).toMatchObject({
+      id: 'card-description',
+      maxLength: 2000,
+      value: 'First line\nSecond line',
+    })
+    expect(inputWithId(designer(), 'perk')).toBe(false)
+    expect(inputWithId(designer(), 'reward')).toBe(false)
+  })
+
   it('previews the venue name, card type and title in the brand colour', () => {
     const view = CardDesignerView(designer({ form: { ...filled, brandColor: '#1F513F' } }))
     const preview = walkView(view).find((node) => node.props.class === 'dash-card-preview')
@@ -201,9 +213,8 @@ const membership: CardView = {
   claimFrom: null,
   claimUntil: null,
   claimable: true,
+  description: '',
   id: 'card-1',
-  perk: '',
-  reward: '',
   slug: 'membership-card',
   title: 'Membership Card',
   validFrom: null,
@@ -216,9 +227,8 @@ const summer: CardView = {
   claimFrom: null,
   claimUntil: null,
   claimable: true,
+  description: '',
   id: 'card-2',
-  perk: '',
-  reward: '',
   slug: 'summer',
   title: 'Summer Pass',
   validFrom: null,

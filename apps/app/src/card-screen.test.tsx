@@ -57,9 +57,8 @@ const card: PublicCard = {
     claimFrom: null,
     claimUntil: null,
     claimable: true,
+    description: 'Free refill on every visit\n10th coffee on the house',
     id: 'c1',
-    perk: 'Free refill on every visit',
-    reward: '10th coffee on the house',
     slug: 'regular',
     title: 'Regular',
     validFrom: null,
@@ -77,9 +76,8 @@ const gig = {
   claimFrom: null,
   claimUntil: null,
   claimable: true,
+  description: '',
   id: 'c2',
-  perk: '',
-  reward: '',
   slug: 'gig',
   title: 'Friday Gig',
   validFrom: null,
@@ -115,13 +113,22 @@ const render = (state: Parameters<typeof CardScreenView>[0]['state']): JSX.Eleme
   CardScreenView({ handle: card.handle, onIssue: noop, onReload: noop, state })
 
 describe(CardScreenView, () => {
-  it('shows the venue card, its perks and the free-card button on the landing', () => {
+  it('shows the onboarding description as multiline plain text', () => {
+    const description = 'First line\n<em>Second line</em>'
+    const view = render({ card: { ...card, card: { ...card.card, description } }, kind: 'landing' })
+    expect(viewText(view)).toContain(description)
+    expect(viewNodes(view).find((node) => node.props.children === description)?.props.class).toContain(
+      'whitespace-pre-wrap',
+    )
+  })
+
+  it('shows the venue card, its description and the free-card button on the landing', () => {
     const view = render({ card, kind: 'landing' })
     const text = viewText(view)
 
     expect(text).toContain('Wassie Coffee')
     expect(text).toContain('Regular')
-    expect(text).toMatch(/Free refill on every visit.*10th coffee on the house/u)
+    expect(text).toContain('Free refill on every visit\n10th coffee on the house')
     expect(text).toContain('Get your free membership card')
     expect(text).toContain('No sign-up · No app install')
   })
@@ -144,12 +151,14 @@ describe(CardScreenView, () => {
     })
   })
 
-  it('omits empty perks and disables the button while issuing', () => {
-    const bare: PublicCard = { ...card, card: { ...card.card, perk: '', reward: '' }, tagline: '' }
+  it('omits an empty description and disables the button while issuing', () => {
+    const bare: PublicCard = { ...card, card: { ...card.card, description: '' }, tagline: '' }
     const landing = render({ card: bare, kind: 'landing' })
     const issuing = render({ card, kind: 'issuing' })
 
-    expect(viewNodes(landing).some(({ props }) => props.class === 'flex flex-col gap-1 text-sm')).toBe(false)
+    expect(viewNodes(landing).some(({ props }) => String(props.class).includes('whitespace-pre-wrap'))).toBe(
+      false,
+    )
     expect(viewNodes(issuing).some(({ props }) => props.disabled === true)).toBe(true)
     expect(viewText(issuing)).toContain('Getting your card…')
   })
@@ -210,7 +219,7 @@ describe(CardScreenView, () => {
 // A venue publishing several cards cannot open one by itself, so /@<handle>
 // names the venue once and lists a row per card.
 describe('the card chooser', () => {
-  it('names the venue once and links a row per card with its type and perk', () => {
+  it('names the venue once and links a row per card with its type and description', () => {
     const view = render({ heldSlugs: [], kind: 'choose', venue })
     const text = viewText(view)
     const hrefs = viewNodes(view)

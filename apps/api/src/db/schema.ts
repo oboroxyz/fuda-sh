@@ -45,13 +45,12 @@ export const cards = sqliteTable(
     claimFrom: integer('claim_from'),
     claimUntil: integer('claim_until'),
     createdAt: integer('created_at').notNull(),
+    description: text('description').notNull().default(''),
     id: text('id').primaryKey(),
     issuerId: text('issuer_id')
       .notNull()
       .references(() => issuers.id),
     lockScreen: integer('lock_screen').notNull().default(0),
-    perk: text('perk').notNull().default(''),
-    reward: text('reward').notNull().default(''),
     slug: text('slug').notNull().default(''),
     title: text('title').notNull(),
     validFrom: integer('valid_from'),

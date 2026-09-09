@@ -93,9 +93,6 @@ const nounOf = (card: PublicCard): string => CATEGORY[card.card.category].noun
 
 const roleOf = (card: PublicCard): string => CATEGORY[card.card.category].role
 
-const perksOf = (card: PublicCard): string[] =>
-  [card.card.perk, card.card.reward].filter((text) => text !== '')
-
 interface VenueBrand {
   brandColor: string
   logoUrl: string | null
@@ -150,25 +147,10 @@ const memberCard = (card: PublicCard, issued: IssuedCard): JSX.Element =>
     </>,
   )
 
-const perkList = (card: PublicCard): JSX.Element | null => {
-  const perks = perksOf(card)
-  if (perks.length === 0) {
-    return null
-  }
-  return (
-    <section class="venue-benefits">
-      <h2 class="text-xs font-semibold tracking-widest uppercase">With this card</h2>
-      <ul class="mt-4 flex flex-col gap-3 text-sm">
-        {perks.map((perk): JSX.Element => (
-          <li class="flex gap-2" key={perk}>
-            <span aria-hidden="true">✓</span>
-            <span>{perk}</span>
-          </li>
-        ))}
-      </ul>
-    </section>
+const cardDescription = (card: PublicCard): JSX.Element | null =>
+  card.card.description === '' ? null : (
+    <p class="text-sm leading-relaxed wrap-anywhere whitespace-pre-wrap">{card.card.description}</p>
   )
-}
 
 // A card the member already holds is worth opening; one outside its claim
 // window is not, so it reads as closed rather than inviting a dead-end tap.
@@ -193,7 +175,11 @@ const chooserRow = (venue: PublicVenue, card: CardView, held: boolean): JSX.Elem
         <span class="min-w-0 font-bold [overflow-wrap:anywhere]">{card.title}</span>
         <span class="badge badge-sm badge-ghost shrink-0">{CATEGORY[card.category].label}</span>
       </div>
-      {card.perk === '' ? null : <span class="text-sm opacity-70">{card.perk}</span>}
+      {card.description === '' ? null : (
+        <span class="line-clamp-3 text-sm wrap-anywhere whitespace-pre-wrap opacity-70">
+          {card.description}
+        </span>
+      )}
       <span class="text-xs font-semibold opacity-80">{rowInvitation(card, held)}</span>
     </a>
   </li>
@@ -323,7 +309,7 @@ export const CardScreenView = ({ handle, onIssue, onReload, state }: CardScreenV
     return shell(
       <>
         {landingCard(state.card)}
-        {perkList(state.card)}
+        {cardDescription(state.card)}
         <p role="status" class="text-center text-sm opacity-70">
           {state.card.name} is not handing out this {nounOf(state.card)} right now.
         </p>
@@ -336,7 +322,7 @@ export const CardScreenView = ({ handle, onIssue, onReload, state }: CardScreenV
   return shell(
     <>
       {landingCard(state.card)}
-      {perkList(state.card)}
+      {cardDescription(state.card)}
       <div class="venue-primary">
         <button class="btn btn-primary w-full" type="button" disabled={busy} onClick={onIssue}>
           {busy ? 'Getting your card…' : `Get your free ${nounOf(state.card)}`}

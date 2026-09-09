@@ -418,3 +418,7 @@ Three kinds of state do not roll back with the code, and each needs its own trea
 **Chain state is append-only.** Schemas and attestations cannot be deleted. A root delegation attested by mistake is revoked, not removed, and revocation is what the gate reads: an Entitlement under a revoked delegation stops admitting without anything being rewritten. Because `EAS_SCHEMAS` accepts a set of versions, a schema registered in error is retired by removing it from that set rather than by touching the chain.
 
 **R2 objects are immutable under their prefix.** Rolling the api back does not un-write a logo, and it does not need to: the issuer row names the prefix, so restoring the previous row restores the previous mark, and the version in the public URL keeps caches honest either way.
+
+### Card description migration
+
+Apply `0012_card_description.sql` before deploying the updated Card API and frontends. It joins existing nonempty Perk and Reward text with a newline into `cards.description`, then drops the old columns; Card identities and related records are preserved. The API, dashboard and member app must be deployed together because Card requests and responses now use `description` instead of `perk` and `reward`. Use `pnpm migrate:local` for local development and the usual remote migration procedure for deployment. Retain a database backup before migration; reverting to the previous API requires restoring the old schema, not only rolling back Worker code.

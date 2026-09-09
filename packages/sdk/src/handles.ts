@@ -119,13 +119,14 @@ export interface CardValidity {
   validUntil: number | null
 }
 
+export const CARD_DESCRIPTION_MAX_LENGTH = 2000
+
 export interface CardView extends ClaimWindow, CardValidity {
   id: string
   slug: string
   title: string
   category: CardCategory
-  perk: string
-  reward: string
+  description: string
   // computed by the api against its own clock, because a member's device clock
   // is not authoritative for whether a card is being handed out
   claimable: boolean

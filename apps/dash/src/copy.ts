@@ -124,10 +124,9 @@ export interface DashCopy {
     categoryLabel: string
     membership: string
     ticket: string
-    perkLabel: string
-    perkPlaceholder: string
-    rewardLabel: string
-    rewardPlaceholder: string
+    cardDescriptionLabel: string
+    cardDescriptionPlaceholder: string
+    cardDescriptionHint: string
     expiryDays: string
     claimLabel: string
     claimHint: string
@@ -410,7 +409,7 @@ export const DASH_COPY = {
       },
     },
     venue: {
-      profileTitle: 'Venue profile',
+      profileTitle: 'Profile',
       profileDescription: 'Manage your venue details, logo and ENS name.',
       ensUnavailable:
         'ENS is not configured for this deployment. Card creation is unavailable until it is enabled.',
@@ -421,7 +420,7 @@ export const DASH_COPY = {
       register: 'Register venue',
       registering: 'Registering…',
       optional: '(optional)',
-      save: 'Save venue',
+      save: 'Save',
       saving: 'Saving…',
       saved: 'Venue saved.',
       saveFailed: 'Could not save the venue. Try again.',
@@ -500,10 +499,9 @@ export const DASH_COPY = {
       categoryLabel: 'Card type',
       membership: 'Membership',
       ticket: 'Ticket',
-      perkLabel: 'Perk',
-      perkPlaceholder: 'Stamp card · 10 stamps',
-      rewardLabel: 'Reward',
-      rewardPlaceholder: 'Free drink of your choice',
+      cardDescriptionLabel: 'Description (optional)',
+      cardDescriptionPlaceholder: 'Tell people what this card is for and how to use it.',
+      cardDescriptionHint: 'Shown on the card’s welcome page.',
       expiryDays: '{days} days',
       claimLabel: 'Claim window',
       claimHint: 'When the card is handed out. Leave both empty to keep it open.',
@@ -874,10 +872,9 @@ export const DASH_COPY = {
       categoryLabel: 'カードの種類',
       membership: '会員カード',
       ticket: 'チケット',
-      perkLabel: '特典',
-      perkPlaceholder: 'スタンプカード · 10 個',
-      rewardLabel: 'リワード',
-      rewardPlaceholder: 'お好きなドリンク 1 杯無料',
+      cardDescriptionLabel: '説明（任意）',
+      cardDescriptionPlaceholder: 'カードの内容や利用方法を入力してください。',
+      cardDescriptionHint: 'カードの受け取りページに表示されます。',
       expiryDays: '{days} 日',
       claimLabel: '受付期間',
       claimHint: 'カードを受け取れる期間です。両方とも空欄なら、いつでも受け取れます。',

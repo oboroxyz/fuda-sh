@@ -1,11 +1,33 @@
 import * as v from 'valibot'
 import { describe, expect, it } from 'vitest'
 
-import { deriveIssueKind, IssuerCreateBody, IssueBody, RevokeBody, VerifyBody } from './schemas.ts'
+import { CardBody, deriveIssueKind, IssuerCreateBody, IssueBody, RevokeBody, VerifyBody } from './schemas.ts'
 
 const addr = `0x${'11'.repeat(20)}`
 const uid = `0x${'ab'.repeat(32)}`
 const meta = `0x${'cd'.repeat(66)}`
+
+describe('Card description', () => {
+  const card = { category: 'membership', slug: 'coffee', title: 'Coffee' }
+
+  it('preserves multiline text and trims only the surrounding whitespace', () => {
+    const out = v.parse(CardBody, { ...card, description: '  First line\nSecond line  ' })
+    expect(out).toMatchObject({ description: 'First line\nSecond line' })
+    expect(out).not.toHaveProperty('perk')
+    expect(out).not.toHaveProperty('reward')
+  })
+
+  it('defaults an omitted description to empty text', () => {
+    expect(v.parse(CardBody, card)).toHaveProperty('description', '')
+  })
+
+  it.each([
+    { length: 2000, valid: true },
+    { length: 2001, valid: false },
+  ])('accepts description length $length: $valid', ({ length, valid }) => {
+    expect(v.safeParse(CardBody, { ...card, description: 'a'.repeat(length) }).success).toBe(valid)
+  })
+})
 
 describe('IssueBody schema', () => {
   it('bearer: memberId only, defaults tier 0 and usageModel 1', () => {

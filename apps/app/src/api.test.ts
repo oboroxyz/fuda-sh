@@ -90,9 +90,8 @@ describe(fetchVenue, () => {
       cards: [
         {
           category: 'membership',
+          description: '',
           id: 'c1',
-          perk: '',
-          reward: '',
           slug: 'regular',
           title: 'Regular',
           validityDays: null,

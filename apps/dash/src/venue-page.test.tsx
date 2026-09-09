@@ -168,9 +168,9 @@ describe('venue registration and details', () => {
     typeField('name', 'New Coffee')
     typeField('tagline', '')
     await vi.waitFor(() => {
-      expect(button('Save venue').disabled).toBe(false)
+      expect(button('Save').disabled).toBe(false)
     })
-    submitForm('Save venue')
+    submitForm('Save')
     await vi.waitFor(() => {
       expect(input.onUpdate).toHaveBeenCalledExactlyOnceWith({
         brandColor: '#5CF794',
@@ -189,14 +189,14 @@ describe('venue registration and details', () => {
     render(<VenuePage {...input} />, root)
     typeField('name', 'New Coffee')
     await vi.waitFor(() => {
-      expect(button('Save venue').disabled).toBe(false)
+      expect(button('Save').disabled).toBe(false)
     })
-    submitForm('Save venue')
+    submitForm('Save')
     await vi.waitFor(() => {
       expect(root.textContent).toContain('Could not save the venue.')
     })
     expect(field('name').value).toBe('New Coffee')
-    expect(button('Save venue').disabled).toBe(false)
+    expect(button('Save').disabled).toBe(false)
   })
 })
 
@@ -224,9 +224,9 @@ describe('venue logo preview', () => {
       expect(root.querySelector('img[src="blob:logo-preview"]')).not.toBeNull()
     })
     expect(input.onCommitLogo).not.toHaveBeenCalled()
-    expect(button('Save venue').disabled).toBe(false)
-    expect(root.querySelector('input[type=file]')?.closest('form')).toBe(button('Save venue').form)
-    submitForm('Save venue')
+    expect(button('Save').disabled).toBe(false)
+    expect(root.querySelector('input[type=file]')?.closest('form')).toBe(button('Save').form)
+    submitForm('Save')
     await vi.waitFor(() => {
       expect(input.onCommitLogo).toHaveBeenCalledExactlyOnceWith(variants)
     })
@@ -249,10 +249,10 @@ describe('venue logo preview', () => {
     await vi.waitFor(() => {
       expect(root.querySelector('img')?.getAttribute('src')).toBe('/saved-logo.png')
     })
-    expect(button('Save venue').disabled).toBe(true)
+    expect(button('Save').disabled).toBe(true)
   })
 
-  it('disables Save venue while preparing a replacement even if text has changed', async () => {
+  it('disables Save while preparing a replacement even if text has changed', async () => {
     const pending = Promise.withResolvers<Awaited<ReturnType<typeof logoTools.generateLogoSet>>>()
     vi.spyOn(logoTools, 'generateLogoSet').mockReturnValue(pending.promise)
     const input = props()
@@ -260,13 +260,13 @@ describe('venue logo preview', () => {
     typeField('name', 'New Coffee')
     pickImage()
     await vi.waitFor(() => {
-      expect(button('Save venue').disabled).toBe(true)
+      expect(button('Save').disabled).toBe(true)
     })
-    submitForm('Save venue')
+    submitForm('Save')
     expect(input.onUpdate).not.toHaveBeenCalled()
     pending.resolve({ ok: true, variants })
     await vi.waitFor(() => {
-      expect(button('Save venue').disabled).toBe(false)
+      expect(button('Save').disabled).toBe(false)
     })
   })
 
@@ -279,13 +279,13 @@ describe('venue logo preview', () => {
     await vi.waitFor(() => {
       expect(root.querySelector('img[src="blob:logo-preview"]')).not.toBeNull()
     })
-    submitForm('Save venue')
+    submitForm('Save')
     await vi.waitFor(() => {
       expect(root.textContent).toContain(DASH_COPY.en.venue.saveFailed)
     })
     expect(field('name').value).toBe('New Coffee')
     expect(input.onCommitLogo).toHaveBeenCalledOnce()
-    submitForm('Save venue')
+    submitForm('Save')
     await vi.waitFor(() => {
       expect(root.textContent).toContain(DASH_COPY.en.venue.saved)
     })
@@ -315,12 +315,12 @@ describe('venue logo preview', () => {
     await vi.waitFor(() => {
       expect(root.querySelector('img[src="blob:logo-preview"]')).not.toBeNull()
     })
-    submitForm('Save venue')
+    submitForm('Save')
     await vi.waitFor(() => {
       expect(root.textContent).toContain(DASH_COPY.en.logo.updateFailed)
     })
     expect(root.querySelector('img[src="blob:logo-preview"]')).not.toBeNull()
-    expect(button('Save venue').disabled).toBe(false)
+    expect(button('Save').disabled).toBe(false)
     expect(input.onUpdate).not.toHaveBeenCalled()
   })
 })

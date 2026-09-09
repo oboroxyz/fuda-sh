@@ -284,9 +284,8 @@ const cardLadder = async ({ handle, operatorHeaders }: CardContext): Promise<voi
   const created = await call<CardCreateResponse>('/issuers/cards', {
     body: JSON.stringify({
       category: 'membership',
+      description: 'Stamp card · 10 stamps\nFree drink',
       lockScreen: false,
-      perk: 'Stamp card · 10 stamps',
-      reward: 'Free drink',
       slug,
       title: 'Membership Card',
       validityDays: null,
