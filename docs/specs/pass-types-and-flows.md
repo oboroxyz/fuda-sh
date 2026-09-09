@@ -286,6 +286,19 @@ bound to the address, and expires with the gate's 300 s TTL; a wrong signature
 burns it. The admin token is not an operator identity and is not accepted on
 operator routes.
 
+**Member sign-in.** The member app uses one Base Account entry for new and
+returning members. `POST /auth/member/challenge { address }` returns
+`{ nonce, message }`, with `fuda.sh member sign-in\nnonce: <nonce>` as the message.
+`POST /auth/member/verify { address, nonce, signature }` returns `{ address, token }`.
+`GET /auth/member/me` validates the bearer and returns `{ address }`;
+`POST /auth/member/logout` deletes that session. Auth responses are not cacheable.
+The signature verification, nonce expiry, hashed token storage and 30-day lifetime
+match the operator flow. Challenges bind both address and audience. Member and
+operator challenges and tokens cannot be exchanged; existing sessions default to
+operator. A recognized member token is rejected before any operator-or-admin
+fallback, including when the deployment has no admin token configured. Member
+sessions have no issuer binding and do not create a member profile or transfer a Right.
+
 **Venue and cards.** One issuer per operator address; an issuer owns zero or
 more cards. Registration precedes ENS acquisition, which precedes card creation.
 `POST /issuers` (session) creates only the issuer and binds the session to it
@@ -599,7 +612,7 @@ current challenge for the Entitlement holder?
 | `api.fuda.sh`    | `apps/api`  | 8787     | the api                                                                                           |
 | `gate.fuda.sh`   | `apps/gate` | 5174     | scanner: uid preview, QR admission, verdict                                                       |
 | `dash.fuda.sh`   | `apps/dash` | 5175     | operator dashboard: passkey or admin-token sign-in; `/` overview from D1 member rows and client configuration, `/rights` D1 search/filter/revoke/pass links plus separate on-chain lookup, and `/issue` issuance; with a passkey session `/venue` venue registration, identity and ENS acquisition, `/new` card designer after ENS acquisition, and `/published` the venue's cards with their links and QR codes |
-| `app.fuda.sh`    | `apps/app`  | 5173     | member app: `/@<handle>` venue page and `/@<handle>/<slug>` card landing with one-tap issuance, `/signed` challenge-response, `/private` enrolment and discovery, `/rights` member pass list |
+| `app.fuda.sh`    | `apps/app`  | 5173     | member app: public `/` and `/signin`; public `/@<handle>` venue and `/@<handle>/<slug>` card issuance; authenticated `/rights`, `/signed`, `/private`, and `/settings` |
 | `fuda.sh` (apex) | Cloudflare zone | —     | `/@*` redirect to the same path on `app.fuda.sh`; other apex paths are outside this repository    |
 
 `GET /members` and `POST /revoke` accept either credential and answer according
@@ -632,14 +645,55 @@ suffix of `app.fuda.sh`; direct fixed-port local dev must set it to `localhost`,
 since a browser rejects an `rp.id` that is not a registrable suffix of the
 page's host.
 
+The app separates public venue pages from member navigation. Venue pages use a
+single mobile column, centered at up to 28 rem on desktop. Every home/back link
+stays at `/@<handle>`, including loading, missing and failed states. Invalid card
+suffixes under a valid venue handle remain in the venue's missing-card view. A saved card
+opens its Pass without another issuance; repeated clicks during issuance send
+one request. Wallet links appear only after availability checks, with the browser
+Pass as fallback. These pages require no member session and show no member Dock.
+
+The member top `/` and unified `/signin` are public. `/rights`, `/signed`,
+`/private`, and `/settings` require a server-validated member session and share a
+four-link Dock: Your passes, Enter, +Private, Settings. Content and Dock remain
+centered at up to 30 rem on desktop, with room for mobile safe areas. The Dock is
+absent from the top, sign-in and venue pages. Internal navigation retains session
+ownership and public read cache; browser history and modified clicks remain usable.
+Only recognized member-relative paths can be sign-in return destinations; other
+values default to `/rights`. Query-UID recovery survives the sign-in round trip.
+
+Member tokens persist separately from operator tokens and are scoped to the API
+deployment. Restoration calls `/auth/member/me` before showing protected content.
+A 401 clears the token; a network/server failure preserves it and offers retry.
+Stale restoration or sign-in work cannot install a session after replacement,
+sign-out, or departure from the sign-in route. A pending sign-in can be canceled
+locally, including when the wallet popup closes before loading. After cancellation,
+no subsequent challenge, signature prompt or verification step starts; an already
+submitted operation may finish. Blocked browser storage still permits an in-memory
+session, including navigation through the public top.
+
+Settings shows the verified address, shared theme control and sign-out confirmation.
+Cancel, Escape and backdrop dismissal preserve the session. Confirmation immediately
+clears member token, public read cache and transient wallet/private state, then goes
+to `/`; a failed logout request cannot restore local sign-in. Saved public Cards and
+Passes, passkey identity and appearance preferences remain. Base authentication is
+separate from Signed entry and the dedicated +Private PRF credential. Leaving
++Private discards derived keys and discovered associations; none enter shared caches
+or persistent storage. Leaving either entry screen stops subsequent prompts,
+key derivation, discovery, signatures and verification requests from its pending
+attempts. An already submitted operation may finish, but cannot start the next
+step or install a result after departure. Signing in does not activate, transfer
+or recover a Right.
+
 The member app and dashboard read on-chain views directly from the public
 rights subgraph configured by `VITE_GRAPH_RIGHTS_ENDPOINT`. The member list at
 `/rights` follows these rules:
 
-1. It derives public passes from connected or manually entered holder addresses;
-   it has no fuda account, server-side member list, or API write.
-2. A Base Account passkey or injected wallet supplies a holder address for this
-   public query and does not sign to read it.
+1. It defaults to the verified member Holder and includes passes saved on this
+   browser. Manual public-address lookup remains a secondary option; it does not
+   create a server-side member list.
+2. The member session requires a signature. Public graph/status reads themselves
+   do not require additional signatures and do not authorize entry.
 3. It retains a claimed or opened public pass's uid and holder in this browser,
    then re-reads its live status from `GET /verify/:uid`; losing that local
    memory loses the device-only row.
@@ -660,7 +714,8 @@ rows remain unavailable until the index recovers. Graph-only discovery on
 `/private` still reports that discovery is not configured and does not fall
 back to the API or D1.
 
-The member public pass list caches reads in memory for its mounted lifetime,
+The member public pass list caches reads in memory for the active session,
+retaining its scope across Dock transitions,
 with a separate identity for each API/graph deployment, holder set, and set of
 remembered passes. It refreshes live status every 30 seconds while visible and
 when returning to a stale page or reconnecting. Rows remain visible during a

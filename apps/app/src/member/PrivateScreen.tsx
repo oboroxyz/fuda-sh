@@ -1,16 +1,16 @@
 /** @jsxImportSource hono/jsx/dom */
 import { fetchAnnouncements } from '@fuda/sdk'
-import type { Hex } from '@fuda/sdk'
+import type { GraphAnnouncement, Hex } from '@fuda/sdk'
 import type { DiscoveredPass, StealthKeys } from '@fuda/stealth-address'
 import { short } from '@fuda/ui'
-import { useState } from 'hono/jsx/dom'
+import { useEffect, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
-import { challenge, verifySigned } from './api.ts'
-import { GRAPH_RIGHTS_ENDPOINT, RP_ID } from './config.ts'
-import type { PrfResult } from './passkey.ts'
-import { displayOf, enterSigned } from './signed-gate.ts'
-import type { SignedDisplay } from './signed-gate.ts'
+import { challenge, verifySigned } from '../api.ts'
+import { GRAPH_RIGHTS_ENDPOINT, RP_ID } from '../config.ts'
+import type { PrfResult } from '../passkey.ts'
+import { displayOf, enterSigned } from '../signed-gate.ts'
+import type { SignedDisplay } from '../signed-gate.ts'
 import { Verdict } from './Verdict.tsx'
 
 // Member-facing copy for the three ways a PRF ceremony ends without a secret.
@@ -22,11 +22,10 @@ const PRF_COPY = {
     'This passkey or device cannot derive a +Private key (no PRF support). Try a platform passkey on a recent phone or browser.',
 } as const
 
-// The stealth curve code and the WebAuthn ceremony are only ever needed once a
-// member is on this screen, and the same Worker serves the public apex landing:
-// both are fetched on demand so the landing bundle carries neither.
-const stealthKit = async () => await import('./private-member.ts')
-const passkeyKit = async () => await import('./passkey.ts')
+// The stealth curve code and the WebAuthn ceremony are fetched on demand once a
+// member opens this screen.
+const stealthKit = async () => await import('../private-member.ts')
+const passkeyKit = async () => await import('../passkey.ts')
 
 const COPY_LABEL = { done: 'Copied', failed: 'Copy failed', idle: 'Copy' } as const
 
@@ -75,20 +74,48 @@ const MetaAddress = ({
 
 // docs/specs/pass-types-and-flows.md#u2-privacy-first-issuance: (a) passkey → meta-address, (b) discover, (c) enter with the
 // recovered stealth key through the same challenge flow as Signed.
-export const PrivateScreen = (): JSX.Element => {
+interface PrivateScreenIo {
+  fetchRows: (endpoint: string, from: bigint) => Promise<GraphAnnouncement[]>
+  passkeys: () => Promise<{
+    createPasskey: (rpId: string, name: string) => Promise<PrfResult>
+    loadPasskey: (rpId: string) => Promise<PrfResult>
+  }>
+  stealth: typeof stealthKit
+}
+
+const DEFAULT_IO: PrivateScreenIo = {
+  fetchRows: fetchAnnouncements,
+  passkeys: passkeyKit,
+  stealth: stealthKit,
+}
+
+export const PrivateScreen = ({ io = DEFAULT_IO }: { io?: PrivateScreenIo }): JSX.Element => {
   const [keys, setKeys] = useState<StealthKeys | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
   const [passes, setPasses] = useState<DiscoveredPass[] | null>(null)
   const [state, setState] = useState<SignedDisplay | null>(null)
   const [busy, setBusy] = useState(false)
+  const [lifetime] = useState(() => new AbortController())
+  const { signal } = lifetime
+
+  useEffect(
+    () => () => {
+      lifetime.abort()
+    },
+    [lifetime],
+  )
 
   const settle = async (result: PrfResult): Promise<void> => {
+    signal.throwIfAborted()
     if (!result.ok) {
       setProblem(`${PRF_COPY[result.reason]} (${result.detail})`)
       return
     }
-    const { keysFromPrf } = await stealthKit()
-    setKeys(keysFromPrf(result.output))
+    const { keysFromPrf } = await io.stealth()
+    signal.throwIfAborted()
+    const nextKeys = keysFromPrf(result.output)
+    signal.throwIfAborted()
+    setKeys(nextKeys)
     setProblem(null)
   }
 
@@ -102,9 +129,14 @@ export const PrivateScreen = (): JSX.Element => {
     try {
       await fn()
     } catch (error) {
+      if (signal.aborted) {
+        return
+      }
       setProblem(error instanceof Error ? error.message : 'something went wrong')
     } finally {
-      setBusy(false)
+      if (!signal.aborted) {
+        setBusy(false)
+      }
     }
   }
 
@@ -112,17 +144,24 @@ export const PrivateScreen = (): JSX.Element => {
     if (GRAPH_RIGHTS_ENDPOINT === '') {
       throw new Error('Rights discovery is not configured.')
     }
-    const rows = await fetchAnnouncements(GRAPH_RIGHTS_ENDPOINT, 0n)
-    const { discover } = await stealthKit()
-    setPasses(discover(k, rows))
+    const rows = await io.fetchRows(GRAPH_RIGHTS_ENDPOINT, 0n)
+    signal.throwIfAborted()
+    const { discover } = await io.stealth()
+    signal.throwIfAborted()
+    const discovered = discover(k, rows)
+    signal.throwIfAborted()
+    setPasses(discovered)
   }
 
   const enter = async (pass: DiscoveredPass): Promise<void> => {
-    const { stealthSigner } = await stealthKit()
+    const { stealthSigner } = await io.stealth()
+    signal.throwIfAborted()
     const outcome = await enterSigned(
       { challenge, sign: stealthSigner(pass), verify: verifySigned },
       pass.uid,
+      signal,
     )
+    signal.throwIfAborted()
     setState(displayOf(outcome))
   }
 
@@ -140,8 +179,8 @@ export const PrivateScreen = (): JSX.Element => {
     <main class="member-page member-page-narrow flex flex-col items-center gap-6">
       <h1 class="member-heading">+Private</h1>
       <p class="text-center text-sm leading-relaxed text-[var(--fuda-muted)]">
-        Your passkey derives a meta-address. Give it to the Venue; your pass lands on a one-time address only
-        you can find.
+        Unlock your private rights with your fuda passkey. This is separate from the Base account you use to
+        sign in.
       </p>
       {keys === null ? (
         <div class="flex w-full flex-col gap-2 sm:flex-row sm:justify-center">
@@ -151,25 +190,27 @@ export const PrivateScreen = (): JSX.Element => {
             disabled={busy}
             onClick={() => {
               void run(async () => {
-                const { createPasskey } = await passkeyKit()
-                await settle(await createPasskey(RP_ID, 'fuda member'))
-              })
-            }}
-          >
-            Create passkey
-          </button>
-          <button
-            type="button"
-            class="btn"
-            disabled={busy}
-            onClick={() => {
-              void run(async () => {
-                const { loadPasskey } = await passkeyKit()
+                const { loadPasskey } = await io.passkeys()
+                signal.throwIfAborted()
                 await settle(await loadPasskey(RP_ID))
               })
             }}
           >
             Use existing passkey
+          </button>
+          <button
+            type="button"
+            class="btn btn-outline"
+            disabled={busy}
+            onClick={() => {
+              void run(async () => {
+                const { createPasskey } = await io.passkeys()
+                signal.throwIfAborted()
+                await settle(await createPasskey(RP_ID, 'fuda member'))
+              })
+            }}
+          >
+            Create passkey
           </button>
         </div>
       ) : (

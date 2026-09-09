@@ -9,17 +9,18 @@ import type {
   SelfServeIssueResponse,
 } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
-import { useCallback, useEffect, useState } from 'hono/jsx/dom'
+import { useCallback, useEffect, useRef, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
-import { cardFailureOf, fetchVenue, googleSaveUrl, issueCard } from './api.ts'
-import type { CardFailure } from './api.ts'
-import { cardKey, readCard, readCardMemory, rememberCard } from './card-memory.ts'
-import type { CardMemoryEntry } from './card-memory.ts'
-import { API_BASE_URL } from './config.ts'
-import { applePassAvailable } from './member-pass-list.ts'
-import { rememberPass } from './pass-memory.ts'
-import type { PassMemoryStorage } from './pass-memory.ts'
+import { cardFailureOf, fetchVenue, googleSaveUrl, issueCard } from '../api.ts'
+import type { CardFailure } from '../api.ts'
+import { cardKey, readCard, readCardMemory, rememberCard } from '../card-memory.ts'
+import type { CardMemoryEntry } from '../card-memory.ts'
+import { API_BASE_URL } from '../config.ts'
+import { applePassAvailable } from '../member-pass-list.ts'
+import { rememberPass } from '../pass-memory.ts'
+import type { PassMemoryStorage } from '../pass-memory.ts'
+import { VenueLayout } from './VenueLayout.tsx'
 
 // A card this device holds: the remembered record plus what the pass links
 // and QR are derived from. A fresh issue and a remembered card render alike.
@@ -55,6 +56,7 @@ export interface CardScreenIo {
 }
 
 export interface CardScreenViewProps {
+  handle: string
   onIssue: () => void
   onReload: () => void
   state: CardScreenState
@@ -104,13 +106,16 @@ interface VenueBrand {
 // different URL; a client that assembled one from the handle would keep
 // showing the old mark out of cache.
 const brandCard = (venue: VenueBrand, body: JSX.Element): JSX.Element => (
-  <div class="member-brand" style={{ background: venue.brandColor }}>
+  <div class="venue-brand" style={{ backgroundColor: venue.brandColor }}>
     <div class="flex items-center gap-3">
       {venue.logoUrl === null ? null : (
         <img
           alt=""
           class="size-10 flex-none rounded-xl bg-white/10 object-cover"
           loading="lazy"
+          onError={(event: Event & { currentTarget: HTMLImageElement }) => {
+            event.currentTarget.hidden = true
+          }}
           src={venue.logoUrl}
         />
       )}
@@ -148,14 +153,17 @@ const perkList = (card: PublicCard): JSX.Element | null => {
     return null
   }
   return (
-    <ul class="flex flex-col gap-1 text-sm">
-      {perks.map((perk): JSX.Element => (
-        <li class="flex gap-2" key={perk}>
-          <span aria-hidden="true">✓</span>
-          <span>{perk}</span>
-        </li>
-      ))}
-    </ul>
+    <section class="venue-benefits">
+      <h2 class="text-xs font-semibold tracking-widest uppercase">With this card</h2>
+      <ul class="mt-4 flex flex-col gap-3 text-sm">
+        {perks.map((perk): JSX.Element => (
+          <li class="flex gap-2" key={perk}>
+            <span aria-hidden="true">✓</span>
+            <span>{perk}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 
@@ -198,7 +206,7 @@ const chooser = (venue: PublicVenue, heldSlugs: readonly string[]): JSX.Element 
       </>,
     )}
     {venue.cards.length === 0 ? (
-      <p class="member-empty">{venue.name} has no cards to hand out right now.</p>
+      <p class="venue-empty">{venue.name} has no cards to hand out right now.</p>
     ) : (
       <ul class="flex flex-col gap-3">
         {venue.cards.map((card): JSX.Element => chooserRow(venue, card, heldSlugs.includes(card.slug)))}
@@ -254,7 +262,7 @@ const passActions = (
 )
 
 const qrBlock = (card: PublicCard, issued: IssuedCard): JSX.Element => (
-  <div class="member-qr flex justify-center">
+  <div class="venue-qr flex justify-center">
     <div
       role="img"
       aria-label={`Your ${nounOf(card)} QR code for ${card.name}`}
@@ -266,17 +274,11 @@ const qrBlock = (card: PublicCard, issued: IssuedCard): JSX.Element => (
   </div>
 )
 
-const shell = (children: JSX.Element): JSX.Element => (
-  <main class="member-page member-page-narrow flex flex-col gap-6">
-    <p class="text-xs font-semibold tracking-widest text-[var(--fuda-muted)] uppercase">fuda · Member</p>
-    {children}
-  </main>
-)
-
-export const CardScreenView = ({ onIssue, onReload, state }: CardScreenViewProps): JSX.Element => {
+export const CardScreenView = ({ handle, onIssue, onReload, state }: CardScreenViewProps): JSX.Element => {
+  const shell = (children: JSX.Element): JSX.Element => VenueLayout({ children, handle })
   if (state.kind === 'loading') {
     return shell(
-      <div class="member-panel flex min-h-44 items-center justify-center gap-3" role="status">
+      <div class="venue-panel flex min-h-44 items-center justify-center gap-3" role="status">
         <span class="loading loading-spinner loading-sm" aria-hidden="true" />
         <p class="text-sm text-[var(--fuda-muted)]">Loading card…</p>
       </div>,
@@ -332,12 +334,14 @@ export const CardScreenView = ({ onIssue, onReload, state }: CardScreenViewProps
     <>
       {landingCard(state.card)}
       {perkList(state.card)}
-      <button class="btn btn-primary" type="button" disabled={busy} onClick={onIssue}>
-        {busy ? 'Getting your card…' : `Get your free ${nounOf(state.card)}`}
-      </button>
-      <p role="status" aria-live="polite" class="text-center text-xs opacity-70">
-        {busy ? 'Getting your card…' : 'No sign-up · No app install'}
-      </p>
+      <div class="venue-primary">
+        <button class="btn btn-primary w-full" type="button" disabled={busy} onClick={onIssue}>
+          {busy ? 'Getting your card…' : `Get your free ${nounOf(state.card)}`}
+        </button>
+        <p role="status" aria-live="polite" class="text-center text-xs opacity-70">
+          {busy ? 'Please keep this page open.' : 'No sign-up · No app install'}
+        </p>
+      </div>
     </>,
   )
 }
@@ -372,6 +376,8 @@ export interface CardScreenProps {
 export const CardScreen = ({ handle, slug, io = defaultIo, storage }: CardScreenProps): JSX.Element => {
   const [state, setState] = useState<CardScreenState>({ kind: 'loading' })
   const [generation, setGeneration] = useState(0)
+  const issuing = useRef(false)
+  const lifecycle = useRef(0)
 
   // Both wallet buttons are progressive: each appears only once the api confirms
   // that platform's pass, so a deployment without Apple or Google credentials
@@ -396,6 +402,8 @@ export const CardScreen = ({ handle, slug, io = defaultIo, storage }: CardScreen
   )
 
   useEffect(() => {
+    lifecycle.current += 1
+    issuing.current = false
     let current = true
     setState({ kind: 'loading' })
     void (async () => {
@@ -433,13 +441,26 @@ export const CardScreen = ({ handle, slug, io = defaultIo, storage }: CardScreen
     })()
     return () => {
       current = false
+      lifecycle.current += 1
     }
   }, [generation, handle, io, showReady, slug, storage])
 
   const issue = async (card: PublicCard): Promise<void> => {
+    if (issuing.current) {
+      return
+    }
+    issuing.current = true
+    const ticket = lifecycle.current
     setState({ card, kind: 'issuing' })
     const result = await io.issueCard(handle, card.card.slug)
+    const current = ticket === lifecycle.current
+    if (current) {
+      issuing.current = false
+    }
     if (!result.ok) {
+      if (!current) {
+        return
+      }
       setState({ card, failure: cardFailureOf(result), kind: 'error' })
       return
     }
@@ -447,10 +468,15 @@ export const CardScreen = ({ handle, slug, io = defaultIo, storage }: CardScreen
     const issuedAt = Date.now()
     rememberCard(handle, card.card.slug, { holder, memberNumber, uid }, storage, issuedAt)
     rememberPass({ holder, uid }, storage, issuedAt)
+    // A submitted issuance belongs to its original venue even after navigation.
+    // Keep the public Pass, but never replace the next screen with this result.
+    if (!current) {
+      return
+    }
     await showReady(
       card,
       { holder, issuedAt, memberNumber, passUrls: result.body.passUrls, qr: result.body.qr, uid },
-      () => true,
+      () => ticket === lifecycle.current,
     )
   }
 
@@ -469,5 +495,5 @@ export const CardScreen = ({ handle, slug, io = defaultIo, storage }: CardScreen
     setGeneration((value) => value + 1)
   }
 
-  return <CardScreenView onIssue={onIssue} onReload={onReload} state={state} />
+  return <CardScreenView handle={handle} onIssue={onIssue} onReload={onReload} state={state} />
 }

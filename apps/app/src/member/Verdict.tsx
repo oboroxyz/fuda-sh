@@ -1,7 +1,7 @@
 /** @jsxImportSource hono/jsx/dom */
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
-import type { SignedDisplay } from './signed-gate.ts'
+import type { SignedDisplay } from '../signed-gate.ts'
 
 const TONE = {
   green: 'bg-success text-success-content',

@@ -1,4 +1,5 @@
 import { useQuery, useQueryScope } from '@fuda/libs/query'
+import type { QueryClient } from '@fuda/libs/query'
 /** @jsxImportSource hono/jsx/dom */
 import { asHex, fetchRightsByHolder, normalizeUid } from '@fuda/sdk'
 import type { GraphRight, Hex } from '@fuda/sdk'
@@ -6,21 +7,21 @@ import { short } from '@fuda/ui'
 import { useEffect, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
-import { verifyUid } from './api.ts'
-import { API_BASE_URL, GRAPH_RIGHTS_ENDPOINT } from './config.ts'
+import { verifyUid } from '../api.ts'
+import { API_BASE_URL, GRAPH_RIGHTS_ENDPOINT } from '../config.ts'
 import {
   applePassAvailable,
   connectMemberRail,
   googlePassHref,
   PrivatePassRecoveryError,
   withConnectedAddress,
-} from './member-pass-list.ts'
-import type { MemberPassListIo, MemberPassListResult, MemberPassRow } from './member-pass-list.ts'
-import { memberPassListQueryOptions, memberPassRecoveryQueryOptions } from './member-pass-query.ts'
-import { readPassMemory, rememberPass } from './pass-memory.ts'
-import type { PassMemoryEntry } from './pass-memory.ts'
-import { injectedProvider, requestAccount } from './wallet.ts'
-import type { Eip1193Provider } from './wallet.ts'
+} from '../member-pass-list.ts'
+import type { MemberPassListIo, MemberPassListResult, MemberPassRow } from '../member-pass-list.ts'
+import { memberPassListQueryOptions, memberPassRecoveryQueryOptions } from '../member-pass-query.ts'
+import { readPassMemory, rememberPass } from '../pass-memory.ts'
+import type { PassMemoryEntry } from '../pass-memory.ts'
+import { injectedProvider, requestAccount } from '../wallet.ts'
+import type { Eip1193Provider } from '../wallet.ts'
 
 export type RightsListState =
   | { kind: 'idle' }
@@ -133,7 +134,14 @@ const memberCard = (row: MemberPassRow): JSX.Element => {
           {status}
         </div>
         {row.graph === null ? <div class="badge badge-outline">Saved on this device</div> : null}
-        <div class="font-mono text-xs break-all">{row.uid}</div>
+        <h2 class="text-lg font-bold">Pass</h2>
+        <div class="text-sm text-[var(--fuda-muted)]">
+          UID <span class="font-mono">{short(row.uid)}</span>
+        </div>
+        <details class="text-xs text-[var(--fuda-muted)]">
+          <summary class="min-h-11 cursor-pointer py-3 font-semibold">Full UID</summary>
+          <div class="font-mono break-all">{row.uid}</div>
+        </details>
         {memberMetadata(row)}
         {memberPassLinks(row, publicPass)}
       </div>
@@ -170,7 +178,7 @@ export const RightsListView = ({ state }: { state: RightsListState | MemberListS
         ) : null}
         <div class="member-empty">
           <p class="font-semibold text-[var(--fuda-text)]">No passes found yet.</p>
-          <p class="mt-2">Open a card link from your venue, or connect the wallet that holds your passes.</p>
+          <p class="mt-2">Open a card link or scan a QR from your venue to get started.</p>
         </div>
       </>
     )
@@ -185,32 +193,45 @@ export const RightsListView = ({ state }: { state: RightsListState | MemberListS
   )
 }
 
-export const QueryRecoveryNotice = (): JSX.Element => (
+export const QueryRecoveryNotice = ({
+  onNavigate,
+}: { onNavigate?: (path: string) => void } = {}): JSX.Element => (
   <div class="alert alert-warning">
     This is a +Private pass. Open Private rights to recover it.{' '}
-    <a class="link" href="/private">
+    <a
+      class="link"
+      href="/private"
+      onClick={(event) => {
+        if (
+          onNavigate !== undefined &&
+          event.button === 0 &&
+          !event.altKey &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          !event.shiftKey
+        ) {
+          event.preventDefault()
+          onNavigate('/private')
+        }
+      }}
+    >
       Private rights
     </a>
   </div>
 )
 
-const problemNotice = (problem: Error | null): JSX.Element | null => {
+const problemNotice = (problem: Error | null, onNavigate?: (path: string) => void): JSX.Element | null => {
   if (problem === null) {
     return null
   }
   if (problem instanceof PrivatePassRecoveryError) {
-    return <QueryRecoveryNotice />
+    return <QueryRecoveryNotice onNavigate={onNavigate} />
   }
   return <div class="alert alert-error">{problem.message}</div>
 }
 
 const fieldValue = (target: EventTarget | null): string | null =>
   target instanceof HTMLInputElement ? target.value : null
-
-const passkeyRail = async (): Promise<Eip1193Provider> => {
-  const { baseAccountProvider } = await import('./base-account.ts')
-  return baseAccountProvider()
-}
 
 const defaultIo: MemberPassListIo = {
   appleAvailable: applePassAvailable,
@@ -220,10 +241,13 @@ const defaultIo: MemberPassListIo = {
 }
 
 interface RightsListProps {
+  initialAddress?: Hex
   io?: MemberPassListIo
   injected?: Eip1193Provider | null
   memory?: readonly PassMemoryEntry[]
+  queryClient?: QueryClient
   queryUid?: Hex | null
+  onNavigate?: (path: string) => void
 }
 
 const queryUidFromLocation = (): Hex | null => {
@@ -232,16 +256,21 @@ const queryUidFromLocation = (): Hex | null => {
 }
 
 export const RightsList = ({
+  initialAddress,
   io = defaultIo,
   injected: givenInjected,
   memory: givenMemory,
+  queryClient: givenQueryClient,
   queryUid,
+  onNavigate,
 }: RightsListProps): JSX.Element => {
-  const queryClient = useQueryScope()
+  const localQueryClient = useQueryScope()
+  const queryClient = givenQueryClient ?? localQueryClient
   const injected = givenInjected === undefined ? injectedProvider() : givenInjected
-  const [addresses, setAddresses] = useState<Hex[]>([])
+  const [addresses, setAddresses] = useState<Hex[]>(initialAddress === undefined ? [] : [initialAddress])
   const [memory, setMemory] = useState<PassMemoryEntry[]>(() => [...(givenMemory ?? readPassMemory())])
   const [manual, setManual] = useState('')
+  const [toolsOpen, setToolsOpen] = useState(false)
   const [problem, setProblem] = useState<Error | null>(null)
   const uid = queryUid === undefined ? queryUidFromLocation() : queryUid
   const listQuery = useQuery(
@@ -300,66 +329,61 @@ export const RightsList = ({
         <p class="text-xs font-semibold tracking-widest text-[var(--fuda-muted)] uppercase">fuda · Member</p>
         <h1 class="member-heading">Your passes</h1>
         <p class="text-sm leading-relaxed text-[var(--fuda-muted)]">
-          Connect a passkey or wallet to find public passes. Passes saved on this device appear here too. For
-          private discovery, use +Private.
-        </p>
-        <p class="text-xs leading-relaxed text-[var(--fuda-muted)]">
-          If you lose this device, this saved pass can disappear; activation makes your pass follow the owning
-          key.
+          Public passes held by your verified address appear here with passes saved on this device.
         </p>
       </header>
-      <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+      <section class="member-panel">
         <button
-          class="btn btn-primary"
+          aria-expanded={toolsOpen}
+          class="flex min-h-11 w-full items-center justify-between text-left text-sm font-semibold"
           type="button"
           onClick={() => {
-            void connect(passkeyRail)
+            setToolsOpen((open) => !open)
           }}
         >
-          Connect passkey
+          Look up another public address
+          <span aria-hidden="true">{toolsOpen ? '−' : '+'}</span>
         </button>
-        {injected === null ? null : (
-          <button
-            class="btn"
-            type="button"
-            onClick={() => {
-              void connect(async () => await Promise.resolve(injected))
-            }}
-          >
-            Use wallet
-          </button>
-        )}
-        <a class="btn btn-ghost" href="/private">
-          Private rights →
-        </a>
-      </div>
-      <details class="member-panel">
-        <summary class="cursor-pointer text-sm font-semibold">Look up another address</summary>
-        <form
-          class="mt-4 flex max-w-xl flex-col gap-2 sm:flex-row"
-          onSubmit={(event) => {
-            event.preventDefault()
-            lookup()
-          }}
-        >
-          <input
-            class="input input-bordered grow font-mono"
-            aria-label="Holder address"
-            placeholder="0x… holder address"
-            value={manual}
-            onInput={(event) => {
-              const value = fieldValue(event.currentTarget)
-              if (value !== null) {
-                setManual(value)
-              }
-            }}
-          />
-          <button class="btn" type="submit">
-            Look up
-          </button>
-        </form>
-      </details>
-      {problemNotice(problem ?? queryProblem)}
+        {toolsOpen ? (
+          <div class="mt-4 flex flex-col gap-4 border-t border-[var(--fuda-border)] pt-4">
+            {injected === null ? null : (
+              <button
+                class="btn"
+                type="button"
+                onClick={() => {
+                  void connect(async () => await Promise.resolve(injected))
+                }}
+              >
+                Use browser wallet
+              </button>
+            )}
+            <form
+              class="flex max-w-xl flex-col gap-2 sm:flex-row"
+              onSubmit={(event) => {
+                event.preventDefault()
+                lookup()
+              }}
+            >
+              <input
+                class="input input-bordered grow font-mono"
+                aria-label="Holder address"
+                placeholder="0x… holder address"
+                value={manual}
+                onInput={(event) => {
+                  const value = fieldValue(event.currentTarget)
+                  if (value !== null) {
+                    setManual(value)
+                  }
+                }}
+              />
+              <button class="btn" type="submit">
+                Look up
+              </button>
+            </form>
+          </div>
+        ) : null}
+      </section>
+      {problemNotice(problem ?? queryProblem, onNavigate)}
       <RightsListView state={state} />
     </main>
   )

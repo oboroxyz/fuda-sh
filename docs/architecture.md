@@ -185,8 +185,19 @@ values](./specs/attestation-model.md#configured-values). In outline:
 
 ## Member app responsibility
 
-`apps/app` is the member-owned public pass surface. Its `/rights` list unions
-public Graph rights for addresses the member connects or enters with pass UIDs
+`apps/app` serves two journeys from one Worker and origin. Public `/@handle/*`
+venue pages own their navigation and issuance flow without a member session.
+The public member top and `/signin` lead to server-verified Base Account login;
+`/rights`, `/signed`, `/private`, and `/settings` share a session and Dock.
+Member and operator credentials have separate server audiences and browser token
+stores; neither is authority for the other's endpoints. The shared
+`@fuda/libs/wallet` and `@fuda/libs/auth` modules own wallet validation, the
+challenge/signature sequence, token storage and stale-work generations. Product
+controllers own restoration, navigation and domain data. `@fuda/ui` shares the
+native confirmation dialog and appearance controls.
+
+`apps/app` is also the member-owned public pass surface. Its `/rights` list unions
+public Graph rights for the authenticated Holder or a manually entered public address with pass UIDs
 remembered by that browser, then treats `GET /verify/:uid` as the live source
 for each row's status and entitlement metadata. It can display degraded
 device-only rows when the public index is unavailable, but it neither writes a

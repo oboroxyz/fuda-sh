@@ -1,0 +1,40 @@
+@layer components {
+  .venue-panel {
+    @apply rounded-2xl border border-[var(--fuda-border)] bg-[var(--fuda-surface)] p-5;
+  }
+
+  .venue-empty {
+    @apply rounded-2xl border border-dashed border-[var(--fuda-border)] px-6 py-10 text-center text-sm leading-relaxed text-[var(--fuda-muted)];
+  }
+
+  .venue-page {
+    @apply mx-auto flex min-h-svh w-full max-w-md flex-col bg-[var(--fuda-surface)] [overflow-wrap:anywhere];
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .venue-header {
+    @apply flex items-center justify-between gap-3 border-b border-[var(--fuda-border)] px-5 py-2;
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+  }
+
+  .venue-content {
+    @apply flex flex-1 flex-col gap-6 px-5 py-6;
+  }
+
+  .venue-brand {
+    @apply flex min-h-56 flex-col justify-between gap-8 rounded-2xl p-6 text-white shadow-sm;
+    background-image: linear-gradient(#000a, #000a);
+  }
+
+  .venue-benefits {
+    @apply rounded-2xl border border-[var(--fuda-border)] bg-[var(--fuda-bg)] p-5;
+  }
+
+  .venue-primary {
+    @apply mt-auto flex flex-col gap-3 pt-6 pb-3;
+  }
+
+  .venue-qr svg {
+    @apply h-auto w-full max-w-60;
+  }
+}

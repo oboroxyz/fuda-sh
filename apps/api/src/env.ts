@@ -1,4 +1,4 @@
-import type { OperatorSession } from './auth/session.ts'
+import type { MemberSession, OperatorSession } from './auth/session.ts'
 import type { ChainClient } from './chain/client.ts'
 import type { Db } from './db/client.ts'
 import type { AdmitHook } from './verify/admit.ts'
@@ -64,6 +64,8 @@ export interface Variables {
   onAdmit: AdmitHook
   // set by operatorAuth(): the signed-in operator behind a session token
   operator: OperatorSession
+  // set by memberAuth(): a member wallet session, independent of issuer data
+  member: MemberSession
 }
 
 export interface AppEnv {

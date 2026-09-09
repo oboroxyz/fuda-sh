@@ -9,10 +9,13 @@ import type { AppEnv } from '../env.ts'
 export const operatorAuth = (): MiddlewareHandler<AppEnv> => async (c, next) => {
   const header = c.req.header('Authorization') ?? ''
   const token = header.startsWith('Bearer ') ? header.slice('Bearer '.length) : ''
-  const session = token === '' ? null : await resolveSession(c.get('db'), token, c.get('now')())
-  if (session === null) {
+  const resolved =
+    token === ''
+      ? { kind: 'invalid' as const }
+      : await resolveSession(c.get('db'), token, c.get('now')(), 'operator')
+  if (resolved.kind !== 'valid') {
     return c.json({ error: 'unauthorized' }, 401)
   }
-  c.set('operator', session)
+  c.set('operator', resolved.session)
   await next()
 }

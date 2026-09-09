@@ -1,0 +1,57 @@
+@layer components {
+  .member-page {
+    @apply mx-auto min-h-svh w-full max-w-5xl px-5 py-8 sm:px-8 sm:py-12;
+  }
+  .member-shell {
+    --member-dock-height: 4.5rem;
+    @apply mx-auto min-h-svh w-full max-w-[30rem];
+    padding-bottom: calc(var(--member-dock-height) + env(safe-area-inset-bottom));
+  }
+  .member-shell .member-page {
+    @apply max-w-[30rem];
+    min-height: calc(100svh - var(--member-dock-height) - env(safe-area-inset-bottom));
+  }
+  .member-page-narrow {
+    @apply max-w-[30rem];
+  }
+  .member-auth-page {
+    @apply mx-auto flex min-h-svh w-full max-w-[30rem] flex-col items-center justify-center gap-8 px-5 py-10 sm:px-8;
+  }
+  .member-heading {
+    @apply text-3xl leading-tight font-bold tracking-tight sm:text-4xl;
+  }
+  .member-panel {
+    @apply rounded-2xl border border-[var(--fuda-border)] bg-[var(--fuda-surface)] p-5 sm:p-6;
+  }
+  .member-pass {
+    @apply min-w-0 rounded-2xl border border-[var(--fuda-border)] bg-[var(--fuda-surface)];
+  }
+  .member-pass .card-body {
+    @apply gap-3 p-5 [overflow-wrap:anywhere] sm:p-6;
+  }
+  .member-pass-actions {
+    @apply mt-1 flex flex-wrap gap-x-4 gap-y-1 border-t border-[var(--fuda-border)] pt-3 text-sm;
+  }
+  .member-pass-actions a {
+    @apply inline-flex min-h-11 items-center font-semibold underline-offset-4;
+  }
+  .member-empty {
+    @apply rounded-2xl border border-dashed border-[var(--fuda-border)] px-6 py-10 text-center text-sm leading-relaxed text-[var(--fuda-muted)];
+  }
+  .member-dock {
+    @apply fixed right-0 bottom-0 left-0 z-30 mx-auto w-full max-w-[30rem] border-t border-[var(--fuda-border)] bg-[var(--fuda-surface)] shadow-lg;
+    height: calc(var(--member-dock-height) + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .member-dock a {
+    @apply min-h-11 text-[var(--fuda-muted)];
+  }
+  .member-dock a[aria-current='page'] {
+    @apply text-[var(--fuda-accent)];
+  }
+  .member-dock svg {
+    @apply size-5 fill-none stroke-current stroke-2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+}

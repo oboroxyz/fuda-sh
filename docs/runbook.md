@@ -95,6 +95,12 @@ depends on.
    pnpm --filter api migrate:remote
    ```
 
+Apply migration `0009_session_audience.sql` before deploying the member-login API.
+It adds the member/operator audience to existing session storage, preserving old
+operator sessions. Member login uses the same API and signature-verification chain
+configuration as dashboard login; no new Worker, domain or member database is needed.
+The app's Base Account sign-in is separate from its dedicated +Private PRF passkey.
+
 ### ENSv2 parent and hybrid resolver topology
 
 The D1 migrations create the `ens_names` mirror and `stealth_resolutions`

@@ -81,6 +81,12 @@ export interface SignInResponse {
   token: string
   issuer: IssuerView | null
 }
+export interface MemberSessionResponse {
+  address: Hex
+}
+export interface MemberSignInResponse extends MemberSessionResponse {
+  token: string
+}
 export interface HandleCheckResponse {
   handle: string
   valid: boolean

@@ -1,20 +1,20 @@
-import { isCardSlug, isIssuerHandle } from '@fuda/sdk'
+import { isIssuerHandle } from '@fuda/sdk'
 
 import { APP_ORIGIN } from './config.ts'
 
 export type Route =
-  | 'landing'
+  | 'top'
+  | 'signin'
   | 'signed'
   | 'private'
   | 'rights'
+  | 'settings'
   | { card: string; slug: string | null }
   | { redirect: string }
 
-// The fuda.sh apex and app.fuda.sh are one Worker (docs/specs/pass-types-and-flows.md#surfaces), so the path alone
-// does not say which surface the browser is on. The Signed gate must run on the
-// app origin: it is the only one the api's CORS list allows, so rendering it at
-// the apex would fail every /challenge with the network banner. The apex answers
-// the landing and hands /signed over to app.fuda.sh instead.
+// The member Worker runs at app.fuda.sh. The separately served apex may hand
+// older deep links to this router, so app-only paths retain an origin redirect.
+// The api's CORS policy likewise requires member actions to run on app.fuda.sh.
 
 // An origin is compared by what the URL parser makes of it, not by its spelling:
 // a VITE_APP_ORIGIN with a trailing slash or an upper-case host would otherwise
@@ -30,13 +30,22 @@ const originOf = (value: string): string | null => {
 
 // +Private is an extension of Signed, not a separate surface: /private answers
 // to the same origin rule as /signed.
-const APP_ONLY = new Set(['/signed', '/private', '/rights'])
+const MEMBER_PATHS = new Set(['/signin', '/signed', '/private', '/rights', '/settings'])
+const PROTECTED_MEMBER_PATHS = new Set(['/signed', '/private', '/rights', '/settings'])
 
-// A venue lives at /@<handle> and each of its cards at /@<handle>/<slug>. The
-// handle and slug rules are the sdk's, so a path the api would answer 404 for
-// (a reserved word like /@www, or a reserved slug like /cards) is not a card
-// route at all and falls through to the landing.
-const CARD_PATH = /^\/@(?<handle>[^/]+)(?:\/(?<slug>[^/]+))?$/u
+export const safeMemberReturn = (target: string | null): string => {
+  if (target === null || !target.startsWith('/') || target.startsWith('//')) {
+    return '/rights'
+  }
+  const queryAt = target.indexOf('?')
+  const path = queryAt === -1 ? target : target.slice(0, queryAt)
+  return PROTECTED_MEMBER_PATHS.has(path) ? target : '/rights'
+}
+
+// A venue owns its full /@<handle>/* prefix. The handle must be valid, while an
+// unmatched suffix still reaches CardScreen so its missing-card recovery stays
+// within the venue instead of falling through to the member top.
+const CARD_PATH = /^\/@(?<handle>[^/]+)(?:\/(?<slug>.+))?$/u
 
 export interface CardRoute {
   card: string
@@ -55,7 +64,7 @@ const cardRouteOf = (path: string): CardRoute | null => {
   if (slug === undefined) {
     return { card: handle, slug: null }
   }
-  return isCardSlug(slug) ? { card: handle, slug } : null
+  return { card: handle, slug }
 }
 
 export const routeFor = (origin: string, pathname: string, appOrigin: string = APP_ORIGIN): Route => {
@@ -65,8 +74,11 @@ export const routeFor = (origin: string, pathname: string, appOrigin: string = A
   const path = pathInput.length > 1 ? pathInput.replace(/\/+$/u, '') : pathInput
   const app = originOf(appOrigin)
   const card = cardRouteOf(path)
-  if ((card === null && !APP_ONLY.has(path)) || app === null) {
-    return 'landing'
+  if (path === '/') {
+    return 'top'
+  }
+  if ((card === null && !MEMBER_PATHS.has(path)) || app === null) {
+    return 'top'
   }
   if (originOf(origin) !== app) {
     return { redirect: `${app}${path}${query}` }
@@ -77,5 +89,11 @@ export const routeFor = (origin: string, pathname: string, appOrigin: string = A
   if (path === '/signed') {
     return 'signed'
   }
-  return path === '/private' ? 'private' : 'rights'
+  if (path === '/private') {
+    return 'private'
+  }
+  if (path === '/settings') {
+    return 'settings'
+  }
+  return path === '/signin' ? 'signin' : 'rights'
 }
