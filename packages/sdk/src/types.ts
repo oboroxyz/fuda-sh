@@ -1,5 +1,5 @@
 import type { ErrorCode, Hex, Level, Reason } from './constants.ts'
-import type { CardView, IssuerView } from './handles.ts'
+import type { CardCategory, CardView, IssuerView, OperatorCardView } from './handles.ts'
 
 export interface ErrorResponse {
   error: ErrorCode
@@ -97,6 +97,32 @@ export interface CardCreateResponse {
   card: CardView
   // the venue page; a card's own link is `${publicUrl}/${card.slug}`
   publicUrl: string
+}
+export interface CardUpdateResponse {
+  card: OperatorCardView
+}
+
+// Derived from the Issuer's local immutable issuance snapshot, revocation
+// marker and default slot. This is not a fresh chain verdict.
+export type IssuerPassStatus = 'active' | 'revoked' | 'expired' | 'not_yet_valid' | 'consumed' | 'unknown'
+
+export interface IssuerPassView {
+  uid: string
+  memberNumber: string
+  card: { id: string; slug: string; title: string; category: CardCategory } | null
+  holder: string | null
+  claimedAt: number
+  stamps: number
+  status: IssuerPassStatus
+  validFrom: number | null
+  validUntil: number | null
+}
+
+export interface IssuerPassesResponse {
+  passes: IssuerPassView[]
+  page: { number: number; size: number; total: number }
+  summary: { total: number; active: number; stamps: number; claimedLast30Days: number; unknown: number }
+  cardStats: { cardId: string; issued: number; active: number; unknown: number }[]
 }
 // The operator's own venue. `cards` is a list because an issuer owns 0..N
 // cards; venue registration precedes the first card.

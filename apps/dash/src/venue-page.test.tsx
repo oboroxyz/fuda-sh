@@ -30,6 +30,7 @@ const props = (): VenuePageProps => ({
   onCheckHandle: vi.fn<VenuePageProps['onCheckHandle']>().mockResolvedValue('available'),
   onCommitLogo: vi.fn<VenuePageProps['onCommitLogo']>().mockResolvedValue(true),
   onCreate: vi.fn<VenuePageProps['onCreate']>(),
+  onNavigate: vi.fn<VenuePageProps['onNavigate']>(),
   onUpdate: vi.fn<VenuePageProps['onUpdate']>().mockResolvedValue(true),
   publicUrl: 'https://fuda.test/@coffee',
 })
@@ -78,7 +79,33 @@ describe('venue registration and details', () => {
   it('links to the card list and designer from the profile', () => {
     render(<VenuePage {...props()} canCreateCard />, root)
     expect(root.querySelector('a[href="/cards"]')?.textContent).toBe('Your cards')
-    expect(root.querySelector('a[href="/cards/new"]')?.textContent).toBe('Add card')
+    expect(root.querySelector('a[href="/cards/new"]')?.textContent).toBe('+ Add card')
+  })
+
+  it.each([
+    { click: {}, intercepted: true, name: 'ordinary' },
+    { click: { ctrlKey: true }, intercepted: false, name: 'Control' },
+    { click: { metaKey: true }, intercepted: false, name: 'Command' },
+    { click: { shiftKey: true }, intercepted: false, name: 'Shift' },
+    { click: { altKey: true }, intercepted: false, name: 'Alt' },
+    { click: { button: 1 }, intercepted: false, name: 'middle button' },
+  ])('handles $name footer Card clicks without overriding browser gestures', ({ click, intercepted }) => {
+    const navigated: string[] = []
+    render(
+      <VenuePage
+        {...props()}
+        onNavigate={(route) => {
+          navigated.push(route)
+        }}
+      />,
+      root,
+    )
+    const cards = root.querySelector<HTMLAnchorElement>('a[href="/cards"]')!
+    const event = new MouseEvent('click', { bubbles: true, button: 0, cancelable: true, ...click })
+    cards.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(intercepted)
+    expect(navigated).toStrictEqual(intercepted ? ['/cards'] : [])
+    expect(cards.getAttribute('href')).toBe('/cards')
   })
 
   it('starts with only handle, name and optional tagline, with only an unobtrusive optional label', () => {

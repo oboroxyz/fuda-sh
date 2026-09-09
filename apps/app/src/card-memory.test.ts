@@ -50,6 +50,18 @@ describe(readCardMemory, () => {
 
   // A member may hold several cards from one venue, so two cards of the same
   // handle must sit side by side rather than replace one another.
+  it('retains a legacy new-slug card alongside other saved passes', () => {
+    const legacyKey = cardKey(HANDLE, 'new')
+    const entry = { holder, issuedAt: 100, memberNumber: MEMBER_NUMBER, uid }
+    const stored = { [KEY]: entry, [legacyKey]: { ...entry, uid: otherUid } }
+    const storage = writable(JSON.stringify(stored))
+    expect(readCardMemory(storage)).toStrictEqual(stored)
+    expect(rememberCard(HANDLE, 'new', entry, storage, 100)).toStrictEqual({
+      ...stored,
+      [legacyKey]: entry,
+    })
+  })
+
   it('keeps two cards of the same venue side by side', () => {
     const stored = {
       [KEY]: { holder, issuedAt: 100, memberNumber: MEMBER_NUMBER, uid },

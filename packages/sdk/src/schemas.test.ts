@@ -1,7 +1,15 @@
 import * as v from 'valibot'
 import { describe, expect, it } from 'vitest'
 
-import { CardBody, deriveIssueKind, IssuerCreateBody, IssueBody, RevokeBody, VerifyBody } from './schemas.ts'
+import {
+  CardBody,
+  CardUpdateBody,
+  deriveIssueKind,
+  IssuerCreateBody,
+  IssueBody,
+  RevokeBody,
+  VerifyBody,
+} from './schemas.ts'
 
 const addr = `0x${'11'.repeat(20)}`
 const uid = `0x${'ab'.repeat(32)}`
@@ -26,6 +34,55 @@ describe('Card description', () => {
     { length: 2001, valid: false },
   ])('accepts description length $length: $valid', ({ length, valid }) => {
     expect(v.safeParse(CardBody, { ...card, description: 'a'.repeat(length) }).success).toBe(valid)
+  })
+})
+
+describe('CardUpdateBody schema', () => {
+  const update = {
+    category: 'membership',
+    claimFrom: null,
+    claimUntil: null,
+    description: '  Updated membership  ',
+    lockScreen: true,
+    title: ' Updated Card ',
+    validFrom: null,
+    validUntil: null,
+    validityDays: 30,
+    venue: { lat: 35.6762, lng: 139.6503 },
+  }
+
+  it('normalizes the complete editable card state without a slug', () => {
+    expect(v.parse(CardUpdateBody, update)).toStrictEqual({
+      ...update,
+      description: 'Updated membership',
+      title: 'Updated Card',
+    })
+  })
+
+  it.each(['slug', 'issuerId'])('rejects immutable or tenant-controlled field %s', (field) => {
+    expect(v.safeParse(CardUpdateBody, { ...update, [field]: 'forbidden' }).success).toBe(false)
+  })
+
+  it('rejects a partial replacement that omits editable state', () => {
+    const { validityDays: _validityDays, ...partial } = update
+    expect(v.safeParse(CardUpdateBody, partial).success).toBe(false)
+  })
+
+  it('accepts an omitted venue as an instruction to clear coordinates', () => {
+    const { venue: _venue, ...withoutVenue } = update
+    expect(v.parse(CardUpdateBody, withoutVenue)).not.toHaveProperty('venue')
+  })
+
+  it('uses the create rules for coordinates and validity windows', () => {
+    expect(v.safeParse(CardUpdateBody, { ...update, venue: { lat: 91, lng: 0 } }).success).toBe(false)
+    expect(
+      v.safeParse(CardUpdateBody, {
+        ...update,
+        validFrom: 1,
+        validUntil: 2,
+        validityDays: 30,
+      }).success,
+    ).toBe(false)
   })
 })
 

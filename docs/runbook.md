@@ -293,6 +293,8 @@ Stop an existing API before starting a combined frontend/API command to avoid a 
 
 For SSH previews, Dash binds explicitly to IPv4 loopback (`127.0.0.1:5175`) so a tunnel targeting that address works even when the host resolves `localhost` to IPv6. In Moshi, select port 5175 from the browser-preview picker and use the URL it opens. With `VITE_API_BASE_URL` unset, Dash sends API requests to `/api` on the preview origin; Vite forwards them to `127.0.0.1:8787` on the host. Only port 5175 needs forwarding. An explicit `VITE_API_BASE_URL` overrides the proxy and must be reachable from the browser.
 
+In development mode with the `/api` proxy selected, Dash also displays saved logos from `http://localhost:8787/assets/...` through `/api/assets/...`, preserving the query string. This follows the browser connection, independently of FakeChain or whether the API reads a local or remote R2 bucket. Other asset URLs (including public R2, CDN and signed URLs), explicit API origins, and production builds retain their original URLs.
+
 ### Shared issuer-wallet signature probe
 
 Run the read-only MultiOwnable probe from the repository root:
@@ -422,3 +424,11 @@ Three kinds of state do not roll back with the code, and each needs its own trea
 ### Card description migration
 
 Apply `0012_card_description.sql` before deploying the updated Card API and frontends. It joins existing nonempty Perk and Reward text with a newline into `cards.description`, then drops the old columns; Card identities and related records are preserved. The API, dashboard and member app must be deployed together because Card requests and responses now use `description` instead of `perk` and `reward`. Use `pnpm migrate:local` for local development and the usual remote migration procedure for deployment. Retain a database backup before migration; reverting to the previous API requires restoring the old schema, not only rolling back Worker code.
+
+### Issuer Pass management migration
+
+Apply `0013_member_issuance_metadata.sql` before deploying the Card management and Pass-list API. Use `pnpm migrate:local` for development and the normal remote migration procedure for deployment. Deploy the matching dashboard with the API routes for Card editing and issuer Pass queries.
+
+The migration adds nullable issuance-time `valid_from`, `valid_until`, and `usage_model` fields to members, plus issuer lookup indexes. New issuance records all three values. Existing rows deliberately remain NULL because the current Card template cannot reconstruct historical entitlement settings. They appear as unconfirmed and are excluded from active counts; no backfill or reissuance is required. Never backfill these fields from current Card settings.
+
+The migration is additive. Older API code can still run, but any issuance it writes lacks these snapshots and will appear unconfirmed after upgrading again. Card edits preserve existing issuance snapshots. Smoke-check an owner Card GET/PUT, a foreign Card 404, the paginated Pass list, Membership Stamp saving, and Ticket Stamp rejection after deployment.

@@ -1,5 +1,5 @@
 import { isClaimable } from '@fuda/sdk'
-import type { CardView, IssuerView, PublicVenue } from '@fuda/sdk'
+import type { CardView, IssuerView, OperatorCardView, PublicVenue } from '@fuda/sdk'
 import type { Hex } from 'viem'
 
 import type { cards, issuers } from '../db/schema.ts'
@@ -36,6 +36,12 @@ export const cardView = (row: CardRow, now: number): CardView => ({
   validFrom: row.validFrom,
   validUntil: row.validUntil,
   validityDays: row.validityDays,
+})
+
+export const operatorCardView = (row: CardRow, now: number): OperatorCardView => ({
+  ...cardView(row, now),
+  lockScreen: row.lockScreen !== 0,
+  venue: row.venueLat === null || row.venueLng === null ? null : { lat: row.venueLat, lng: row.venueLng },
 })
 
 export const publicVenue = (

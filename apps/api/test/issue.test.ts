@@ -89,6 +89,9 @@ describe('POST /issue (bearer)', () => {
     const res = await post(appWith({ chain, now: () => NOW }), configuredEnv(del), {
       memberId: 'alice',
       tier: 2,
+      usageModel: 2,
+      validFrom: 12,
+      validUntil: 34,
     })
     const body = await issued(res)
     const rows = await getDb({ DB: env.DB }).select().from(members)
@@ -101,6 +104,9 @@ describe('POST /issue (bearer)', () => {
       memberId: 'alice',
       status: 'active',
       tier: 2,
+      usageModel: 2,
+      validFrom: 12,
+      validUntil: 34,
     })
   })
 

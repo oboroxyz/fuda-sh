@@ -11,6 +11,7 @@ describe('Dash copy', () => {
       issue: 'Issue',
       newCard: 'New card',
       overview: 'Overview',
+      passes: 'Passes',
       reception: 'Reception',
       rights: 'Rights',
       venue: 'Profile',
@@ -26,7 +27,7 @@ describe('Dash copy', () => {
     expect(copy.designer.slugStatus.taken).toBe('Already used')
     expect(copy.designer.slugStatus.reserved).toBe('This name is reserved.')
     expect(copy.designer.failures.slugTaken).toContain('already used')
-    expect(copy.published.addCard).toBe('Add card')
+    expect(copy.published.addCard).toBe('+ Add card')
   })
 
   it('names the two time windows and their three validity modes in English', () => {
@@ -54,6 +55,7 @@ describe('Dash copy', () => {
       issue: '発行',
       newCard: 'カードを作る',
       overview: '概要',
+      passes: 'パス一覧',
       reception: '受付',
       rights: '権利',
       venue: 'プロフィール',
@@ -67,8 +69,8 @@ describe('Dash copy', () => {
     const copy = pick(DASH_COPY, 'ja')
     expect(copy.designer.slugLabel).toBe('カードのリンク')
     expect(copy.designer.slugStatus.taken).toBe('すでに使われています')
-    expect(copy.published.addCard).toBe('カードを追加')
-    expect(copy.published.titleMany).toBe('公開中のカード')
+    expect(copy.published.addCard).toBe('+ カードを追加')
+    expect(copy.published.title).toBe('カード一覧')
     expect(copy.published.venueLabel).toBe('公開ページ')
   })
 

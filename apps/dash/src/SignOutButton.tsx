@@ -14,7 +14,7 @@ export const SignOutButton = ({
   menu?: boolean
 }): JSX.Element => (
   <ConfirmAction
-    class={menu ? 'dash-menu-item btn btn-ghost !border-0 font-normal shadow-none' : undefined}
+    class={menu ? 'dash-menu-item btn btn-ghost w-full !border-0 font-normal shadow-none' : undefined}
     icon={
       menu ? (
         <svg

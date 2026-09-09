@@ -9,6 +9,7 @@ import type { DashCopy } from './copy.ts'
 import { browserLogoTools, EMPTY_LOGO, generateLogoSet, withLogoResult } from './logo.ts'
 import type { LogoSet, LogoState } from './logo.ts'
 import { LogoField } from './LogoField.tsx'
+import type { DashRoute } from './router.ts'
 import { EMPTY_VENUE_FORM, venueBodyFrom } from './venue.ts'
 import type { VenueForm } from './venue.ts'
 import { VenueDetailsForm } from './VenueDetailsForm.tsx'
@@ -23,8 +24,10 @@ export interface VenuePageProps {
   issuer: IssuerView | null
   publicUrl: string | null
   onCheckHandle: (handle: string) => Promise<'available' | 'taken' | 'unknown'>
+  hasCardDraft?: boolean
   onCommitLogo: (logo: LogoSet) => Promise<boolean>
   onCreate: (form: VenueForm, logo: LogoSet | null) => void
+  onNavigate: (route: DashRoute) => void
   onUpdate: (body: IssuerUpdateRequest) => Promise<boolean>
 }
 
@@ -160,18 +163,29 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
           }}
         />
         <div class="dash-actions">
-          <a class="btn" href="/cards">
+          <a
+            class="btn"
+            href="/cards"
+            onClick={(event) => {
+              if (event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+                return
+              }
+              event.preventDefault()
+              props.onNavigate('/cards')
+            }}
+          >
             {props.copy.nav.card}
           </a>
-          {props.canCreateCard ? (
-            <a class="btn" href="/cards/new">
-              {props.copy.published.addCard}
-            </a>
-          ) : (
-            <button class="btn" disabled type="button">
-              {props.copy.published.addCard}
-            </button>
-          )}
+          {props.hasCardDraft !== true &&
+            (props.canCreateCard ? (
+              <a class="btn" href="/cards/new">
+                {props.copy.published.addCard}
+              </a>
+            ) : (
+              <button class="btn" disabled type="button">
+                {props.copy.published.addCard}
+              </button>
+            ))}
         </div>
       </section>
     )

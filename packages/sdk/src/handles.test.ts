@@ -88,6 +88,7 @@ describe('card slugs', () => {
     expect(cardSlugProblem('')).toBe('empty')
     expect(cardSlugProblem('-stamp')).toBe('format')
     expect(cardSlugProblem('settings')).toBe('reserved')
+    expect(cardSlugProblem('new')).toBe('reserved')
     expect(cardSlugProblem('stamp')).toBeNull()
   })
 

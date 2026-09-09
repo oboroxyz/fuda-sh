@@ -17,6 +17,7 @@ import type { DesignIo } from './app-actions.ts'
 import { ENS_PAYMASTER_URL } from './config.ts'
 import type { ClaimIo } from './ens-claim.ts'
 import { submitClaim } from './ens-submit.ts'
+import { listIssuerPasses, readOperatorCard, updateOperatorCard } from './management-api.ts'
 import { signInWithPasskey } from './operator-sign-in.ts'
 import type { SignInOutcome } from './operator-sign-in.ts'
 import { baseAccountProvider, personalSign, requestAccount } from './wallet.ts'
@@ -27,6 +28,9 @@ export interface OperatorIo {
   claim: (token: string) => ClaimIo
   design: DesignIo
   issuerMe: typeof issuerMe
+  listPasses: typeof listIssuerPasses
+  readCard: typeof readOperatorCard
+  updateCard: typeof updateOperatorCard
   readStampSettings: typeof readStampSettings
   receiveAtReception: typeof receiveAtReception
   signIn: () => Promise<SignInOutcome>
@@ -45,6 +49,8 @@ export const DEFAULT_OPERATOR_IO: OperatorIo = {
   }),
   design: DEFAULT_DESIGN_IO,
   issuerMe,
+  listPasses: listIssuerPasses,
+  readCard: readOperatorCard,
   readStampSettings,
   receiveAtReception,
   signIn: async () =>
@@ -57,6 +63,7 @@ export const DEFAULT_OPERATOR_IO: OperatorIo = {
       verify: signInVerify,
     }),
   signOut,
+  updateCard: updateOperatorCard,
   updateIssuer,
   updateStampSettings,
 }

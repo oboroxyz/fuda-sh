@@ -1,12 +1,14 @@
 import type { Copy } from '@fuda/i18n'
 
 import type { BrandColorName } from './brand-colors.ts'
+import { MANAGEMENT_COPY } from './management-copy.ts'
+import type { ManagementCopy } from './management-copy.ts'
 
 export interface DashCopy {
+  management: ManagementCopy
   chrome: {
     brand: string
     switchProfile: string
-    subtitle: string
     navigation: string
     openMenu: string
     closeMenu: string
@@ -23,6 +25,7 @@ export interface DashCopy {
     reception: string
     newCard: string
     card: string
+    passes: string
   }
   auth: {
     title: string
@@ -108,6 +111,9 @@ export interface DashCopy {
     title: string
     description: string
     preview: string
+    profileHint: string
+    editProfile: string
+    optional: string
     handleLabel: string
     handlePrefix: string
     handlePlaceholder: string
@@ -203,12 +209,8 @@ export interface DashCopy {
     settings: string
     createFirst: string
     manageVenue: string
-    emptyTitle: string
-    emptyDescription: string
     title: string
-    titleMany: string
     description: string
-    descriptionMany: string
     venueLabel: string
     addCard: string
     qrLabel: string
@@ -342,10 +344,10 @@ export interface DashCopy {
 /* oxlint-disable eslint/sort-keys -- translation objects follow the shared DashCopy UI grouping */
 export const DASH_COPY = {
   en: {
+    management: MANAGEMENT_COPY.en,
     chrome: {
       brand: 'fuda.',
       switchProfile: 'Switch profile',
-      subtitle: 'Dashboard',
       navigation: 'Dashboard navigation',
       openMenu: 'Open menu',
       closeMenu: 'Close menu',
@@ -362,6 +364,7 @@ export const DASH_COPY = {
       reception: 'Reception',
       newCard: 'New card',
       card: 'Your cards',
+      passes: 'Passes',
     },
     auth: {
       title: 'fuda. dashboard',
@@ -470,11 +473,14 @@ export const DASH_COPY = {
       title: 'Design the card',
       description: 'Your members see this card. You can run the whole programme from one link.',
       preview: 'Live preview',
+      profileHint: 'Name, description and logo are shared across your cards.',
+      editProfile: 'Edit profile',
+      optional: '(optional)',
       handleLabel: 'Link',
       handlePrefix: 'fuda.sh/@',
       handlePlaceholder: 'example-club',
       slugLabel: 'Card link',
-      slugPlaceholder: 'membership-card',
+      slugPlaceholder: 'membership',
       nameLabel: 'Name',
       namePlaceholder: 'Example Club',
       titleLabel: 'Card title',
@@ -499,7 +505,7 @@ export const DASH_COPY = {
       categoryLabel: 'Card type',
       membership: 'Membership',
       ticket: 'Ticket',
-      cardDescriptionLabel: 'Description (optional)',
+      cardDescriptionLabel: 'Description',
       cardDescriptionPlaceholder: 'Tell people what this card is for and how to use it.',
       cardDescriptionHint: 'Shown on the card’s welcome page.',
       expiryDays: '{days} days',
@@ -580,15 +586,10 @@ export const DASH_COPY = {
       settings: 'Card settings',
       createFirst: 'Create your first card',
       manageVenue: 'Go to profile',
-      emptyTitle: 'Create your first card',
-      emptyDescription: 'Your cards will appear here once you create them.',
-      title: 'Your card is live',
-      titleMany: 'Your cards are live',
-      description:
-        'Members can get this card through its link. Share it in print, by email or on social media.',
-      descriptionMany: 'Every card has its own link. Print it, mail it, or post it.',
+      title: 'Your Cards',
+      description: 'Manage your cards, track issuance, and share their links.',
       venueLabel: 'Public page',
-      addCard: 'Add card',
+      addCard: '+ Add card',
       qrLabel: 'QR code for your card link',
       print: 'Print QR poster',
       share: 'Share link',
@@ -717,10 +718,10 @@ export const DASH_COPY = {
     },
   },
   ja: {
+    management: MANAGEMENT_COPY.ja,
     chrome: {
       brand: 'fuda.',
       switchProfile: 'プロフィールを切り替え',
-      subtitle: 'Dashboard',
       navigation: 'ダッシュボードナビゲーション',
       openMenu: 'メニューを開く',
       closeMenu: 'メニューを閉じる',
@@ -737,6 +738,7 @@ export const DASH_COPY = {
       reception: '受付',
       newCard: 'カードを作る',
       card: 'カード',
+      passes: 'パス一覧',
     },
     auth: {
       title: 'fuda. dashboard',
@@ -844,11 +846,14 @@ export const DASH_COPY = {
       title: 'カードをデザイン',
       description: 'メンバーにはこのカードが表示されます。リンク 1 本で運用できます。',
       preview: 'プレビュー',
+      profileHint: '店舗名・説明・ロゴは',
+      editProfile: 'プロフィールで編集',
+      optional: '（任意）',
       handleLabel: 'リンク',
       handlePrefix: 'fuda.sh/@',
       handlePlaceholder: 'example-club',
       slugLabel: 'カードのリンク',
-      slugPlaceholder: 'membership-card',
+      slugPlaceholder: 'membership',
       nameLabel: '名前',
       namePlaceholder: 'Example Club',
       titleLabel: 'カード名',
@@ -873,7 +878,7 @@ export const DASH_COPY = {
       categoryLabel: 'カードの種類',
       membership: '会員カード',
       ticket: 'チケット',
-      cardDescriptionLabel: '説明（任意）',
+      cardDescriptionLabel: '説明',
       cardDescriptionPlaceholder: 'カードの内容や利用方法を入力してください。',
       cardDescriptionHint: 'カードの受け取りページに表示されます。',
       expiryDays: '{days} 日',
@@ -954,14 +959,10 @@ export const DASH_COPY = {
       settings: 'カード設定',
       createFirst: '最初のカードを作成',
       manageVenue: 'プロフィールへ',
-      emptyTitle: '最初のカードを作成',
-      emptyDescription: '作成したカードがここに表示されます。',
-      title: 'カードを公開しました',
-      titleMany: '公開中のカード',
-      description: 'このリンクからカードを受け取れます。印刷やメール、SNSで共有しましょう。',
-      descriptionMany: 'カードごとに専用のリンクがあります。印刷やメール、SNSで共有しましょう。',
+      title: 'カード一覧',
+      description: 'カードの設定や発行状況を確認し、公開リンクを共有できます。',
       venueLabel: '公開ページ',
-      addCard: 'カードを追加',
+      addCard: '+ カードを追加',
       qrLabel: 'カードのリンクの QR コード',
       print: 'QR ポスターを印刷',
       share: 'リンクを共有',

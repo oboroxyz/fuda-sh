@@ -73,13 +73,17 @@ export const normalizeBrandColor = (raw: string): string | null =>
 // (docs/specs/ens-naming.md).
 export const CARD_SLUG_MAX_LENGTH = 63
 
-// Reserved so a card can never shadow a future page under the venue.
-export const RESERVED_CARD_SLUGS: ReadonlySet<string> = new Set(['card', 'cards', 'issue', 'settings'])
+// Keep public pages and the dashboard's /cards/new creation route unambiguous.
+export const RESERVED_CARD_SLUGS: ReadonlySet<string> = new Set(['card', 'cards', 'issue', 'new', 'settings'])
 
 export const cardSlugProblem = (raw: string): NameProblem | null =>
   nameProblem(raw, CARD_SLUG_MAX_LENGTH, RESERVED_CARD_SLUGS)
 
 export const isCardSlug = (raw: string): boolean => cardSlugProblem(raw) === null
+
+// Allocation reserves "new", but existing Cards must keep their public links
+// and saved passes. Reading a reference still requires an actual matching Card.
+export const isCardSlugReference = (raw: string): boolean => raw === 'new' || isCardSlug(raw)
 
 // The slug a card title suggests, so an operator rarely types one by hand.
 // An empty result means the title carried nothing usable and the operator
@@ -130,6 +134,13 @@ export interface CardView extends ClaimWindow, CardValidity {
   // computed by the api against its own clock, because a member's device clock
   // is not authoritative for whether a card is being handed out
   claimable: boolean
+}
+
+// Operator-only card hydration includes the stored fields that are intentionally
+// absent from public CardView responses.
+export interface OperatorCardView extends CardView {
+  lockScreen: boolean
+  venue: { lat: number; lng: number } | null
 }
 
 // A card expires by days from issuance, or between two dates, or never — one

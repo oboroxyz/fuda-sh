@@ -57,7 +57,8 @@ describe(withTitle, () => {
   it('suggests the slug from the title until the operator writes one', () => {
     expect(withTitle(EMPTY_FORM, 'Coffee Club').slug).toBe('coffee-club')
     expect(withTitle(EMPTY_FORM, '会員カード').slug).toBe('')
-    expect(EMPTY_FORM.slug).toBe('membership-card')
+    expect(EMPTY_FORM.title).toBe('Membership')
+    expect(EMPTY_FORM.slug).toBe('membership')
   })
 
   it('stops following the title once the slug was edited by hand', () => {

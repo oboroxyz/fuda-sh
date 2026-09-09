@@ -1,6 +1,7 @@
 /** @jsxImportSource hono/jsx/dom */
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
+import { assetUrlForDisplay } from './config.ts'
 import type { DashCopy } from './copy.ts'
 import { SOURCE_ACCEPT } from './logo.ts'
 import type { LogoState } from './logo.ts'
@@ -58,7 +59,7 @@ export const LogoField = ({
       )}
       {previewUrl === null || previewUrl === undefined ? null : (
         <div class="mt-2 flex flex-col items-start gap-2">
-          <img alt={copy.previewAlt} class="dash-logo-preview" src={previewUrl} />
+          <img alt={copy.previewAlt} class="dash-logo-preview" src={assetUrlForDisplay(previewUrl)} />
           {onClear === null || state.pick === null ? null : (
             <button class="btn btn-ghost btn-sm" disabled={busy} onClick={onClear} type="button">
               {copy.remove}

@@ -85,6 +85,16 @@ describe('dashboard navigation', () => {
     expect(root.querySelector('a[href="https://fuda.test/@coffee"]')?.closest('[hidden]')).toBeNull()
   })
 
+  it('opens the venue pass list from operator navigation', async () => {
+    start()
+    const passes = root.querySelector<HTMLAnchorElement>('nav a[href="/passes"]')
+    expect(passes).not.toBeNull()
+    passes?.click()
+    await vi.waitFor(() => {
+      expect(passes?.getAttribute('aria-current')).toBe('page')
+    })
+  })
+
   it('closes profile actions on Escape before closing the mobile drawer', async () => {
     start()
     button('Open menu').click()
@@ -154,6 +164,39 @@ describe('dashboard navigation', () => {
     expect(document.activeElement).toBe(button('Open menu'))
   })
 
+  it('waits for drawer visibility before moving focus inside', async () => {
+    start()
+    const close = button('Close menu')
+    close.style.visibility = 'hidden'
+    const focus = vi.spyOn(close, 'focus')
+    button('Open menu').click()
+    await vi.waitFor(() => {
+      expect(root.querySelector('aside')?.getAttribute('role')).toBe('dialog')
+    })
+    expect(focus).not.toHaveBeenCalled()
+    close.style.visibility = 'visible'
+    await vi.waitFor(() => {
+      expect(document.activeElement).toBe(close)
+    })
+  })
+
+  it('cancels pending drawer focus when it closes before becoming visible', async () => {
+    start()
+    const close = button('Close menu')
+    close.style.visibility = 'hidden'
+    button('Open menu').click()
+    await vi.waitFor(() => {
+      expect(root.querySelector('aside')?.getAttribute('role')).toBe('dialog')
+    })
+    changeRoute?.('/passes')
+    await vi.waitFor(() => {
+      expect(document.activeElement).toBe(button('Open menu'))
+    })
+    close.style.visibility = 'visible'
+    await setTimeout(30)
+    expect(document.activeElement).toBe(button('Open menu'))
+  })
+
   it('closes the drawer when navigation changes externally', async () => {
     start('admin')
     button('Open menu').click()
@@ -208,7 +251,7 @@ describe('dashboard navigation', () => {
     (hasIssuer) => {
       start('operator', hasIssuer)
       expect([...root.querySelectorAll('nav a')].map((link) => link.getAttribute('href'))).toStrictEqual(
-        hasIssuer ? ['/profile', '/reception', '/cards', '/cards/new'] : ['/start'],
+        hasIssuer ? ['/profile', '/reception', '/cards', '/passes'] : ['/start'],
       )
     },
   )
@@ -217,7 +260,7 @@ describe('dashboard navigation', () => {
     start()
     button('Open menu').click()
     await setTimeout(0)
-    const lastLink = root.querySelector<HTMLAnchorElement>('nav a[href="/cards/new"]')!
+    const lastLink = root.querySelector<HTMLAnchorElement>('nav a[href="/passes"]')!
     lastLink.focus()
     lastLink.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Tab' }))
     expect(document.activeElement).toBe(button('Close menu'))

@@ -16,11 +16,16 @@ export const members = sqliteTable(
       .notNull()
       .default('active'),
     tier: integer('tier').notNull().default(0),
+    usageModel: integer('usage_model'),
+    validFrom: integer('valid_from'),
+    validUntil: integer('valid_until'),
   },
   (t) => [
     index('members_holder').on(t.holder),
     index('members_member_id').on(t.memberId),
     index('members_card_id').on(t.cardId),
+    index('members_issuer_created').on(t.issuerId, t.createdAt),
+    index('members_issuer_card_status').on(t.issuerId, t.cardId, t.status),
     // Per issuer, not per card: the member number is an ENS label under the
     // issuer (docs/specs/ens-naming.md#member-number).
     uniqueIndex('members_issuer_member').on(t.issuerId, t.memberId).where(isNotNull(t.issuerId)),

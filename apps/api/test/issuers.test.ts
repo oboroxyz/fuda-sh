@@ -212,6 +212,16 @@ describe('POST /issuers/:handle/issue', () => {
       usageModel: 0,
       validUntil: BigInt(NOW + 30 * 86_400),
     })
+    const stored = await env.DB.prepare(
+      'SELECT usage_model, valid_from, valid_until FROM members WHERE attestation_uid = ?1',
+    )
+      .bind(body.uid)
+      .first<{ usage_model: number | null; valid_from: number | null; valid_until: number | null }>()
+    expect(stored).toStrictEqual({
+      usage_model: 0,
+      valid_from: 0,
+      valid_until: NOW + 30 * 86_400,
+    })
   })
 
   it('answers 404 for an unknown handle, 400 without a client ip and 429 past the budget', async () => {
@@ -363,7 +373,7 @@ describe('a venue with several cards', () => {
     expect(body.publicUrl).toBe('https://fuda.test/@wassie-coffee')
   })
 
-  it('refuses a duplicate slug and an invalid one', async () => {
+  it.each(['cards', 'new'])('refuses a duplicate slug and reserved slug %s', async (slug) => {
     const app = appWith({ chain: fakeChain(), now: () => NOW })
     const bindings = publicEnv({ ENS_PARENT_NAME: 'fuda.eth' })
     const { token } = await signIn(app, bindings)
@@ -377,13 +387,7 @@ describe('a venue with several cards', () => {
     )
     expect(duplicate.status).toBe(409)
     await expect(duplicate.json()).resolves.toStrictEqual({ error: 'slug_taken' })
-    const reserved = await postJson(
-      app,
-      bindings,
-      '/v1/issuers/cards',
-      { ...SECOND_CARD, slug: 'cards' },
-      token,
-    )
+    const reserved = await postJson(app, bindings, '/v1/issuers/cards', { ...SECOND_CARD, slug }, token)
     await expect(reserved.json()).resolves.toStrictEqual({ error: 'bad_slug' })
   })
 
@@ -439,6 +443,28 @@ describe('a venue with several cards', () => {
     const rows = await getDb({ DB: env.DB }).select().from(members)
     expect(new Set(rows.map((row) => row.issuerId)).size).toBe(1)
     expect(new Set(rows.map((row) => row.cardId)).size).toBe(2)
+  })
+
+  it('continues issuing a pre-existing card whose slug is now reserved as new', async () => {
+    const chain = fakeChain({ signer: ROOT })
+    const del = seedRoot(chain)
+    const app = appWith({ chain, now: () => NOW })
+    const bindings = configuredEnv(del, {
+      API_BASE_URL: 'https://api.test',
+      ENS_PARENT_NAME: 'fuda.eth',
+      PUBLIC_BASE_URL: 'https://fuda.test',
+    })
+    const { token } = await signIn(app, bindings)
+    await registerVenueWithCard(app, bindings, CARD_INPUT, token)
+    await env.DB.prepare("UPDATE cards SET slug = 'new' WHERE slug = 'stamp'").run()
+    const response = await app.request(
+      '/v1/issuers/wassie-coffee/new/issue',
+      { headers: { 'CF-Connecting-IP': '203.0.113.32' }, method: 'POST' },
+      bindings,
+    )
+    expect(response.status).toBe(200)
+    const issued = await response.json<SelfServeIssued>()
+    expect(issued.memberNumber).toMatch(/^[a-z0-9]{13}$/u)
   })
 
   it('answers 404 for a slug the venue does not publish', async () => {

@@ -4,13 +4,17 @@ import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 import type { SessionState } from './app-state.ts'
 import type { CreateFailure, DesignerForm, DesignerMode } from './card-designer.ts'
 import { CardDesigner } from './CardDesigner.tsx'
-import { CardStampSettingsPage } from './CardStampSettingsPage.tsx'
-import type { CardStampSettingsPageProps } from './CardStampSettingsPage.tsx'
+import { CardDetailPage } from './CardDetailPage.tsx'
+import { CardEditPage } from './CardEditPage.tsx'
+import type { CardEditPageProps } from './CardEditPage.tsx'
+import type { CardStampIo } from './CardStampSettings.tsx'
 import { API_BASE_URL } from './config.ts'
 import type { DashCopy } from './copy.ts'
 import { DashboardShell } from './DashboardShell.tsx'
 import type { IssueFormProps } from './IssueForm.tsx'
 import { IssueForm } from './IssueForm.tsx'
+import type { PassesLoad } from './issuer-passes-state.ts'
+import { IssuerPassesPage } from './IssuerPassesPage.tsx'
 import type { LogoSet } from './logo.ts'
 import type { MembersState } from './members-state.ts'
 import type { SignInFailure } from './operator-sign-in.ts'
@@ -20,7 +24,13 @@ import { ReceptionPage } from './ReceptionPage.tsx'
 import type { ReceptionPageProps } from './ReceptionPage.tsx'
 import type { RightsPageProps } from './RightsPage.tsx'
 import { RightsPage } from './RightsPage.tsx'
-import { cardIdFromRoute, cardSettingsPath } from './router.ts'
+import {
+  cardForRoute,
+  cardEditPath,
+  isCardEditRoute,
+  isCardRoute,
+  isLegacyCardSettingsRoute,
+} from './router.ts'
 import type { DashRoute } from './router.ts'
 import { SignIn, signInErrorOf } from './SignIn.tsx'
 import { SignOutButton } from './SignOutButton.tsx'
@@ -31,6 +41,9 @@ import type { VenuePageProps } from './VenuePage.tsx'
 export interface AppViewProps {
   appearance: JSX.Element
   authError: 'unauthorized' | null
+  cardDraft: DesignerForm | null
+  cardManagement: Pick<CardEditPageProps, 'load' | 'save'>
+  loadPasses: PassesLoad
   // The venue's ENS section, already rendered; null while this deployment has no
   // ENS parent configured, in which case the dashboard says nothing about names.
   ens: JSX.Element | null
@@ -39,11 +52,13 @@ export interface AppViewProps {
   creating: boolean
   graphEndpoint: string
   members: MembersState
+  onChangeCardDraft: (form: DesignerForm) => void
   onCheckHandle: (handle: string) => Promise<'available' | 'taken' | 'unknown'>
   onCheckSlug: (slug: string) => Promise<'available' | 'taken' | 'unknown'>
   onCommitLogo: (variants: LogoSet) => Promise<boolean>
   onCreate: (mode: DesignerMode, form: DesignerForm, logo: LogoSet | null) => void
   onCreateVenue: (form: VenueForm, logo: LogoSet | null) => void
+  onEditProfile: (form: DesignerForm) => void
   onIssue: IssueFormProps['onIssue']
   onNavigate: (route: DashRoute) => void
   onPasskey: () => void
@@ -58,23 +73,28 @@ export interface AppViewProps {
   session: SessionState
   signInError: SignInFailure | null
   signingIn: boolean
-  stampSettings: CardStampSettingsPageProps['settings']
+  stampSettings: CardStampIo
 }
 
 export const AppView = ({
   appearance,
   ens,
   authError,
+  cardDraft,
+  cardManagement,
+  loadPasses,
   copy,
   createFailure,
   creating,
   graphEndpoint,
   members,
+  onChangeCardDraft,
   onCheckHandle,
   onCheckSlug,
   onCommitLogo,
   onCreate,
   onCreateVenue,
+  onEditProfile,
   onIssue,
   onNavigate,
   onPasskey,
@@ -102,7 +122,7 @@ export const AppView = ({
     return (
       <main class="dash-auth">
         <div class="flex justify-end">{appearance}</div>
-        <div class="card bg-base-200 mx-auto mt-16 flex max-w-md flex-col gap-4 p-6">
+        <div class="card mx-auto mt-32 flex max-w-md flex-col gap-6 p-8 py-12">
           <p role={restoreState === 'loading' ? 'status' : 'alert'}>
             {restoreState === 'loading' ? copy.auth.restoring : copy.auth.restoreFailed}
           </p>
@@ -149,6 +169,8 @@ export const AppView = ({
             onCheckHandle={onCheckHandle}
             onCommitLogo={onCommitLogo}
             onCreate={onCreateVenue}
+            hasCardDraft={cardDraft !== null}
+            onNavigate={onNavigate}
             onUpdate={onUpdateVenue}
           />
         )
@@ -168,38 +190,74 @@ export const AppView = ({
           </section>
         )
       }
-      const cardId = cardIdFromRoute(route)
-      if (operator.issuer !== null && cardId !== null) {
-        return (
-          <CardStampSettingsPage
-            card={operator.cards.find((card) => card.id === cardId) ?? null}
-            copy={copy}
-            onBack={() => {
-              onNavigate('/cards')
-            }}
-            settings={stampSettings}
-          />
-        )
+      const managementPage = (): JSX.Element | null => {
+        if (operator.issuer !== null && (isCardEditRoute(route) || isLegacyCardSettingsRoute(route))) {
+          return (
+            <CardEditPage
+              key={`${session.token}:${route}`}
+              card={cardForRoute(route, operator.cards)}
+              copy={copy}
+              issuer={operator.issuer}
+              load={cardManagement.load}
+              save={cardManagement.save}
+              onNavigate={onNavigate}
+              settings={stampSettings}
+            />
+          )
+        }
+        if (operator.issuer !== null && isCardRoute(route)) {
+          return (
+            <CardDetailPage
+              key={`${session.token}:${route}`}
+              card={cardForRoute(route, operator.cards)}
+              copy={copy}
+              publicUrl={operator.publicUrl}
+              onNavigate={onNavigate}
+            />
+          )
+        }
+        if (operator.issuer !== null && route === '/passes') {
+          return (
+            <IssuerPassesPage
+              key={session.token}
+              cards={operator.cards}
+              copy={copy.management}
+              load={loadPasses}
+            />
+          )
+        }
+        if (operator.issuer !== null && route === '/cards') {
+          return (
+            <PublishedCard
+              key={session.token}
+              canAddCard={operator.ens?.status === 'claimed'}
+              cards={operator.cards}
+              onSettings={(selectedId) => {
+                const selected = operator.cards.find((card) => card.id === selectedId)
+                if (selected !== undefined) {
+                  onNavigate(cardEditPath(selected))
+                }
+              }}
+              copy={copy.published}
+              managementCopy={copy.management}
+              loadPasses={loadPasses}
+              onNavigate={onNavigate}
+              issuer={operator.issuer}
+              onAddCard={() => {
+                onNavigate('/cards/new')
+              }}
+              onVenue={() => {
+                onNavigate('/profile')
+              }}
+              publicUrl={operator.publicUrl}
+            />
+          )
+        }
+        return null
       }
-      if (operator.issuer !== null && route === '/cards') {
-        return (
-          <PublishedCard
-            canAddCard={operator.ens?.status === 'claimed'}
-            cards={operator.cards}
-            onSettings={(selectedId) => {
-              onNavigate(cardSettingsPath(selectedId))
-            }}
-            copy={copy.published}
-            issuer={operator.issuer}
-            onAddCard={() => {
-              onNavigate('/cards/new')
-            }}
-            onVenue={() => {
-              onNavigate('/profile')
-            }}
-            publicUrl={operator.publicUrl}
-          />
-        )
+      const management = managementPage()
+      if (management !== null) {
+        return management
       }
       if (operator.issuer !== null && route === '/reception') {
         return <ReceptionPage copy={copy.reception} receive={receiveAtReception} />
@@ -216,6 +274,7 @@ export const AppView = ({
           onCheckHandle={onCheckHandle}
           onCommitLogo={onCommitLogo}
           onCreate={onCreateVenue}
+          onNavigate={onNavigate}
           onUpdate={onUpdateVenue}
         />
       ) : (
@@ -223,10 +282,13 @@ export const AppView = ({
           busy={creating}
           copy={copy.designer}
           failure={createFailure}
+          initialDraft={cardDraft}
           issuer={operator.issuer}
           logoCopy={copy.logo}
           onCheckHandle={onCheckHandle}
           onCheckSlug={onCheckSlug}
+          onDraftChange={onChangeCardDraft}
+          onEditProfile={onEditProfile}
           onSubmit={onCreate}
         />
       )

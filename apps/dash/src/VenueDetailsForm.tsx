@@ -84,6 +84,7 @@ export const VenueDetailsForm = ({
   return (
     <form
       class="card flex flex-col gap-5 px-6 py-8"
+      style={{ '--dash-logo-preview-background': form.brandColor }}
       onSubmit={(event) => {
         event.preventDefault()
         submit()

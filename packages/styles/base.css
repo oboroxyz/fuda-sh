@@ -136,6 +136,15 @@
   }
 }
 
+/* daisyUI controls live in the utilities layer; shared overrides must use it too. */
+@layer utilities {
+  .input,
+  .select,
+  .textarea {
+    @apply min-h-11 max-w-full min-w-0 rounded-lg border border-[var(--fuda-border)] bg-[var(--fuda-surface)] px-3 text-sm text-[var(--fuda-text)];
+  }
+}
+
 @layer components {
   .btn {
     @apply cursor-pointer rounded-full bg-neutral-900 font-semibold text-white hover:bg-neutral-700 dark:bg-white dark:text-black dark:hover:bg-neutral-200;

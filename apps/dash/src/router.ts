@@ -1,3 +1,6 @@
+import { isCardSlug, isCardSlugReference } from '@fuda/sdk'
+import type { CardView } from '@fuda/sdk'
+
 export const DASH_ROUTES = [
   '/',
   '/rights',
@@ -7,22 +10,51 @@ export const DASH_ROUTES = [
   '/reception',
   '/cards/new',
   '/cards',
+  '/passes',
 ] as const
 
 export type MainDashRoute = (typeof DASH_ROUTES)[number]
-export type CardSettingsRoute = `/cards/${string}/stamps`
+export type CardSettingsRoute = `/cards/${string}`
+export type CardEditRoute = `/cards/${string}/edit`
+type LegacyCardSettingsRoute = `/cards/${string}/stamps`
 export type DashRoute = MainDashRoute | CardSettingsRoute
 
-const isCardSettingsRoute = (value: string): value is CardSettingsRoute =>
+export const isLegacyCardSettingsRoute = (value: string): value is LegacyCardSettingsRoute =>
   /^\/cards\/[a-zA-Z0-9_-]+\/stamps$/u.test(value)
 
-export const cardSettingsPath = (cardId: string): CardSettingsRoute => `/cards/${cardId}/stamps`
+const isCardSettingsRoute = (value: string): value is CardSettingsRoute => {
+  const parts = value.split('/')
+  return parts.length === 3 && parts[1] === 'cards' && isCardSlug(parts[2] ?? '')
+}
 
-export const cardIdFromRoute = (route: DashRoute): string | null =>
-  isCardSettingsRoute(route) ? (route.split('/')[2] ?? null) : null
+export const cardSettingsPath = (card: Pick<CardView, 'id' | 'slug'>): CardSettingsRoute =>
+  // Cards created before "new" became reserved remain manageable at the old URL.
+  card.slug === 'new' ? `/cards/${card.id}/stamps` : `/cards/${card.slug}`
+
+export const cardEditPath = (card: Pick<CardView, 'slug'>): CardEditRoute => `/cards/${card.slug}/edit`
+
+export const isCardEditRoute = (value: string): value is CardEditRoute => {
+  const parts = value.split('/')
+  return (
+    parts.length === 4 && parts[1] === 'cards' && isCardSlugReference(parts[2] ?? '') && parts[3] === 'edit'
+  )
+}
+
+export const isCardRoute = (route: string): route is CardSettingsRoute =>
+  isCardSettingsRoute(route) || isLegacyCardSettingsRoute(route) || isCardEditRoute(route)
+
+export const cardForRoute = (route: DashRoute, cards: readonly CardView[]): CardView | null => {
+  const segment = route.split('/').at(2)
+  if (isLegacyCardSettingsRoute(route)) {
+    return cards.find((card) => card.id === segment) ?? null
+  }
+  return isCardSettingsRoute(route) || isCardEditRoute(route)
+    ? (cards.find((card) => card.slug === segment) ?? null)
+    : null
+}
 
 export const navigationRoute = (route: DashRoute): MainDashRoute =>
-  isCardSettingsRoute(route) ? '/cards' : route
+  DASH_ROUTES.find((candidate) => candidate === route) ?? '/cards'
 
 // The dashboard has two kinds of signed-in surface, and they do not overlap:
 // the admin token opens the operational console, a passkey session opens the
@@ -35,6 +67,7 @@ const OPERATOR_ROUTES: ReadonlySet<DashRoute> = new Set([
   '/reception',
   '/cards/new',
   '/cards',
+  '/passes',
 ])
 
 export const surfaceOf = (route: DashRoute): DashSurface =>
@@ -74,7 +107,7 @@ export interface RouteEvents {
 }
 
 const isDashRoute = (value: string): value is DashRoute =>
-  DASH_ROUTES.some((route) => route === value) || isCardSettingsRoute(value)
+  DASH_ROUTES.some((route) => route === value) || isCardRoute(value)
 
 export const routeFromPath = (pathname: string): DashRoute => {
   const raw = pathname.split(/[?#]/u, 1)[0] || '/'

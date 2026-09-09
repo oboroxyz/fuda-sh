@@ -1,5 +1,6 @@
 import {
   CardBody,
+  CardUpdateBody,
   cardSlugProblem,
   hasSingleValidityRule,
   isClaimable,
@@ -7,7 +8,15 @@ import {
   isOrderedWindow,
   slugFromTitle,
 } from '@fuda/sdk'
-import type { CardCategory, CardRequest, CardValidity, CardView, ClaimWindow } from '@fuda/sdk'
+import type {
+  CardCategory,
+  CardRequest,
+  CardUpdateRequest,
+  CardValidity,
+  CardView,
+  ClaimWindow,
+  OperatorCardView,
+} from '@fuda/sdk'
 import * as v from 'valibot'
 
 import { DEFAULT_BRAND_COLOR } from './brand-colors.ts'
@@ -15,7 +24,7 @@ import { DEFAULT_BRAND_COLOR } from './brand-colors.ts'
 // The relative rule is a product choice, not a date picker: a number of days
 // counted from the moment each member claims the card.
 export const EXPIRY_DAY_CHOICES = [30, 90, 365] as const
-export type ExpiryChoice = (typeof EXPIRY_DAY_CHOICES)[number] | null
+export type ExpiryChoice = number | null
 
 // How long the issued right lasts: never, N days from each claim, or between
 // two fixed instants. Exactly one rule reaches the api.
@@ -39,13 +48,13 @@ export const unixFromLocal = (local: string): number | null => {
 }
 
 // The inverse, to the minute `datetime-local` shows; seconds are dropped.
-export const localFromUnix = (seconds: number | null): string => {
+export const localFromUnix = (seconds: number | null, includeSeconds = false): string => {
   if (seconds === null) {
     return ''
   }
   const at = new Date(seconds * MS_PER_SECOND)
   const day = `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`
-  return `${day}T${pad(at.getHours())}:${pad(at.getMinutes())}`
+  return `${day}T${pad(at.getHours())}:${pad(at.getMinutes())}${includeSeconds ? `:${pad(at.getSeconds())}` : ''}`
 }
 
 // One instant as the published screen prints it: the same wall clock, no `T`.
@@ -83,7 +92,7 @@ export interface DesignerForm {
   windowEdited: boolean
 }
 
-const DEFAULT_TITLE = 'Membership Card'
+const DEFAULT_TITLE = 'Membership'
 const DEFAULT_DAYS = 30
 
 // What each card type means before the operator says otherwise: a membership
@@ -241,6 +250,49 @@ export const cardBodyFrom = (form: DesignerForm): CardRequest | null => {
   return parsed.success ? parsed.output : null
 }
 
+export const cardUpdateBodyFrom = (form: DesignerForm): CardUpdateRequest | null => {
+  const input: CardUpdateRequest = {
+    category: form.category,
+    description: form.description,
+    lockScreen: form.lockScreen,
+    title: form.title,
+    ...windowsOf(form),
+  }
+  if (form.venue !== null) {
+    input.venue = form.venue
+  }
+  const parsed = v.safeParse(CardUpdateBody, input)
+  return parsed.success ? parsed.output : null
+}
+
+const validityModeOf = (card: CardView): ValidityMode => {
+  if (card.validityDays !== null) {
+    return 'days'
+  }
+  return card.validFrom !== null || card.validUntil !== null ? 'fixed' : 'none'
+}
+
+// Issuance templates may have settings outside the creation form's presets.
+// Preserve them, and never regenerate an existing public slug from its title.
+export const formFromCard = (card: OperatorCardView): DesignerForm => ({
+  ...EMPTY_FORM,
+  category: card.category,
+  claimFrom: localFromUnix(card.claimFrom, true),
+  claimUntil: localFromUnix(card.claimUntil, true),
+  claimUntilEdited: true,
+  description: card.description,
+  lockScreen: card.lockScreen,
+  slug: card.slug,
+  slugEdited: true,
+  title: card.title,
+  validFrom: localFromUnix(card.validFrom, true),
+  validUntil: localFromUnix(card.validUntil, true),
+  validityDays: card.validityDays,
+  validityMode: validityModeOf(card),
+  venue: card.venue,
+  windowEdited: true,
+})
+
 // The venue-and-first-card body. The api validates the same schema, so a
 // disabled submit and a 400 agree. `logoUploadId` is the upload staged moments
 // earlier by the submit; a venue is created already wearing its mark.
@@ -252,14 +304,15 @@ export const canSubmit = (
   form: DesignerForm,
   status: DesignerStatus,
   busy: boolean,
+  editing = false,
 ): boolean => {
-  if (busy || blocks(status.slug)) {
+  if (busy || (!editing && blocks(status.slug))) {
     return false
   }
   if (windowProblemOf(form) !== null) {
     return false
   }
-  return cardBodyFrom(form) !== null
+  return (editing ? cardUpdateBodyFrom(form) : cardBodyFrom(form)) !== null
 }
 
 // Why a create failed, in the terms the form explains it.
