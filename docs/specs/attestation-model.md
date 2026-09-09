@@ -238,6 +238,8 @@ These codes are included in the `ErrorCode` union in `packages/sdk`.
 
 ### API versioning
 
+The unversioned `GET /` returns HTTP 200 with `Content-Type: text/plain; charset=UTF-8` and body `fuda. api\nhealth: ok\n`. Like `GET /health` (HTTP 200, JSON `{ "ok": true }`), it is a public liveness response; neither endpoint checks database or chain connectivity.
+
 Every route a program calls fuda for is served under `/v1`, so a breaking change can ship as `/v2` while `/v1` keeps answering. Paths in this document are written as the routes see them; the version prefix sits in front of each one.
 
 Four families are deliberately outside it, because each URL is held by someone fuda cannot reach to update:

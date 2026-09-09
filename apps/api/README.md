@@ -107,6 +107,7 @@ Use the rights-subgraph smoke query and member app for private discovery after G
 
 | Method | Path | Auth | Notes |
 | --- | --- | --- | --- |
+| GET | `/` | none | plain text: `fuda. api` and `health: ok` on separate lines |
 | GET | `/health` | none | liveness |
 | POST | `/issue` | Bearer (`ADMIN_TOKEN`) | `holder` → Signed; `memberId` → Bearer; `stealthMetaAddress` → +Private (`400 bad_meta_address` for a malformed or off-curve one) |
 | GET | `/verify/:uid` | none | read-only preview, no slot consumption |
