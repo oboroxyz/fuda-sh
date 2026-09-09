@@ -24,11 +24,10 @@ export const LogoField = ({ busy, copy, id, label, onClear, onPick, state }: Log
     <label for={id}>{label}</label>
     <div class="flex flex-wrap items-center gap-3">
       {state.pick === null ? null : (
-        <img
-          alt={copy.previewAlt}
-          class="border-base-300 rounded-box size-16 border object-cover"
-          src={state.pick.previewUrl}
-        />
+        <figure class="flex flex-col gap-1">
+          <img alt={copy.previewAlt} class="dash-logo-preview" src={state.pick.previewUrl} />
+          <figcaption class="text-xs opacity-70">{copy.previewAlt}</figcaption>
+        </figure>
       )}
       <input
         accept={SOURCE_ACCEPT}
@@ -51,7 +50,7 @@ export const LogoField = ({ busy, copy, id, label, onClear, onPick, state }: Log
         type="file"
       />
       {onClear === null || state.pick === null ? null : (
-        <button class="btn btn-ghost btn-sm" onClick={onClear} type="button">
+        <button class="btn btn-ghost btn-sm" disabled={busy} onClick={onClear} type="button">
           {copy.remove}
         </button>
       )}

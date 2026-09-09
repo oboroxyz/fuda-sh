@@ -1,5 +1,7 @@
 /** @jsxImportSource hono/jsx/dom */
+import { brandTextColor } from '@fuda/sdk'
 import type { CardCategory, IssuerView } from '@fuda/sdk'
+import { cn } from 'cn'
 import { useCallback, useEffect, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
@@ -204,13 +206,16 @@ const statusLabel = (labels: DashCopy['designer']['handleStatus'], status: Field
   status === 'idle' ? null : labels[status]
 
 const preview = (copy: DashCopy['designer'], form: DesignerForm): JSX.Element => (
-  <div class="dash-card-preview" style={{ background: form.brandColor }}>
+  <div
+    class="dash-card-preview"
+    style={{ background: form.brandColor, color: brandTextColor(form.brandColor) }}
+  >
     <div class="dash-card-preview-top">
       <span>{form.name === '' ? copy.namePlaceholder : form.name}</span>
       <span>{form.category === 'ticket' ? copy.ticket : copy.membership}</span>
     </div>
     <strong>{form.title}</strong>
-    {form.tagline === '' ? null : <span class="text-xs opacity-80">{form.tagline}</span>}
+    {form.tagline === '' ? null : <span class="text-xs">{form.tagline}</span>}
   </div>
 )
 
@@ -245,7 +250,7 @@ const prefixedField = (
   prefix: string,
   value: string,
   placeholder: string,
-  hint: string | null,
+  hint: { status: FieldStatus; text: string | null },
   onValue: (next: string) => void,
 ): JSX.Element => (
   <div class="flex flex-col gap-1">
@@ -265,7 +270,16 @@ const prefixedField = (
         value={value}
       />
     </div>
-    {hint === null ? null : <span class="text-sm opacity-70">{hint}</span>}
+    {hint.text === null ? null : (
+      <span
+        class={cn(
+          'text-sm',
+          hint.status === 'available' || hint.status === 'checking' ? 'text-moderate' : 'text-danger',
+        )}
+      >
+        {hint.text}
+      </span>
+    )}
   </div>
 )
 
@@ -322,7 +336,7 @@ export const CardDesignerView = ({
         `${copy.handlePrefix}${form.handle}/`,
         form.slug,
         copy.slugPlaceholder,
-        statusLabel(copy.slugStatus, status.slug),
+        { status: status.slug, text: statusLabel(copy.slugStatus, status.slug) },
         onSlug,
       )}
 

@@ -157,7 +157,7 @@ export const StampSettings = ({ copy, load, save }: StampSettingsProps): JSX.Ele
   return (
     <form
       noValidate
-      class="card flex flex-col gap-5 p-5"
+      class="card flex flex-col gap-5 px-6 py-8"
       onSubmit={(event) => {
         event.preventDefault()
         submit()

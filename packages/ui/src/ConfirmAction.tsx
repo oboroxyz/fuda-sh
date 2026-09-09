@@ -4,6 +4,7 @@ import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 export interface ConfirmActionProps {
   label: string
+  icon?: JSX.Element
   title: string
   description: string
   cancelLabel: string
@@ -15,6 +16,7 @@ export interface ConfirmActionProps {
 
 export const ConfirmAction = ({
   label,
+  icon,
   title,
   description,
   cancelLabel,
@@ -43,6 +45,7 @@ export const ConfirmAction = ({
           cancel.current?.focus()
         }}
       >
+        {icon}
         {label}
       </button>
       <dialog

@@ -12,7 +12,8 @@
     "migrate:remote": "wrangler d1 migrations apply fuda-beta --remote",
     "register-schemas": "tsx scripts/register-schemas.ts",
     "attest-root-delegation": "tsx scripts/attest-root-delegation.ts",
-    "smoke:live": "tsx scripts/smoke-live.ts"
+    "smoke:live": "tsx scripts/smoke-live.ts",
+    "probe:venue-wallet": "tsx scripts/probe-venue-wallet.ts"
   },
   "dependencies": {
     "@fuda/ens-contracts": "workspace:*",

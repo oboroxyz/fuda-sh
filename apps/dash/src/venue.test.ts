@@ -12,7 +12,7 @@ describe(venueBodyFrom, () => {
         tagline: 'Omotesando',
       }),
     ).toStrictEqual({
-      brandColor: '#6F4320',
+      brandColor: '#0073EB',
       handle: 'wassie-coffee',
       logoUploadId: null,
       name: 'Wassie Coffee',
@@ -22,5 +22,6 @@ describe(venueBodyFrom, () => {
 
   it('rejects an invalid venue without depending on card validity', () => {
     expect(venueBodyFrom({ ...EMPTY_VENUE_FORM, handle: 'Bad Handle', name: 'Venue' })).toBeNull()
+    expect(venueBodyFrom({ ...EMPTY_VENUE_FORM, handle: 'ab--cd', name: 'Venue' })).toBeNull()
   })
 })

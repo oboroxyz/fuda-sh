@@ -1,5 +1,7 @@
 import type { Copy } from '@fuda/i18n'
 
+import type { BrandColorName } from './brand-colors.ts'
+
 export interface DashCopy {
   chrome: {
     brand: string
@@ -48,6 +50,7 @@ export interface DashCopy {
     hint: string
     remove: string
     previewAlt: string
+    upload: string
     updating: string
     updateFailed: string
     rejections: {
@@ -60,6 +63,7 @@ export interface DashCopy {
     }
   }
   venue: {
+    profileTitle: string
     ensUnavailable: string
     handleLabel: string
     handleHint: string
@@ -67,6 +71,11 @@ export interface DashCopy {
     registerDescription: string
     register: string
     registering: string
+    optional: string
+    save: string
+    saving: string
+    saved: string
+    saveFailed: string
   }
   stamps: {
     title: string
@@ -107,7 +116,8 @@ export interface DashCopy {
     taglineLabel: string
     taglinePlaceholder: string
     colorLabel: string
-    colorHexLabel: string
+    customColorLabel: string
+    colorNames: Record<BrandColorName, string>
     categoryLabel: string
     membership: string
     ticket: string
@@ -328,8 +338,8 @@ export interface DashCopy {
 export const DASH_COPY = {
   en: {
     chrome: {
-      brand: 'fuda dash',
-      subtitle: 'Operator console',
+      brand: 'fuda.',
+      subtitle: 'Dashboard',
       navigation: 'Dashboard navigation',
       openMenu: 'Open menu',
       closeMenu: 'Close menu',
@@ -380,6 +390,7 @@ export const DASH_COPY = {
       hint: 'PNG, JPEG or WebP, at least 660×660. A square image works best.',
       remove: 'Remove',
       previewAlt: 'Logo preview',
+      upload: 'Upload logo',
       updating: 'Updating…',
       updateFailed: 'Could not update the logo. Try again.',
       rejections: {
@@ -392,14 +403,20 @@ export const DASH_COPY = {
       },
     },
     venue: {
+      profileTitle: 'Venue profile',
       ensUnavailable:
         'ENS is not configured for this deployment. Card creation is unavailable until it is enabled.',
       handleLabel: 'Venue handle',
-      handleHint: 'Used in your venue link and ENS name. This cannot be changed.',
+      handleHint: 'This cannot be changed after registration.',
       registerTitle: 'Register your venue',
       registerDescription: 'Set the identity members will recognise. You’ll claim its ENS name next.',
       register: 'Register venue',
       registering: 'Registering…',
+      optional: '(optional)',
+      save: 'Save venue',
+      saving: 'Saving…',
+      saved: 'Venue saved.',
+      saveFailed: 'Could not save the venue. Try again.',
     },
     stamps: {
       title: 'Stamp settings',
@@ -455,7 +472,21 @@ export const DASH_COPY = {
       taglineLabel: 'Tagline',
       taglinePlaceholder: 'Omotesando · Coffee shop',
       colorLabel: 'Brand colour',
-      colorHexLabel: 'Brand colour hex',
+      customColorLabel: 'Custom colour',
+      colorNames: {
+        mint: 'Mint',
+        steel: 'Steel',
+        apricot: 'Apricot',
+        rose: 'Rose',
+        lilac: 'Lilac',
+        lemon: 'Lemon',
+        cyan: 'Cyan',
+        teal: 'Teal',
+        coral: 'Coral',
+        navy: 'Navy',
+        plum: 'Plum',
+        charcoal: 'Charcoal',
+      },
       categoryLabel: 'Card type',
       membership: 'Membership',
       ticket: 'Ticket',
@@ -490,7 +521,8 @@ export const DASH_COPY = {
       handleStatus: {
         available: 'Available',
         checking: 'Checking…',
-        format: 'Use lowercase letters, digits and hyphens.',
+        format:
+          'Use 1–63 lowercase letters, digits or hyphens. No leading or trailing hyphens, or “--” at positions 3–4.',
         reserved: 'This name is reserved.',
         taken: 'Already taken',
         unknown: 'Could not check this link.',
@@ -674,8 +706,8 @@ export const DASH_COPY = {
   },
   ja: {
     chrome: {
-      brand: 'fuda ダッシュ',
-      subtitle: '運営コンソール',
+      brand: 'fuda.',
+      subtitle: 'Dashboard',
       navigation: 'ダッシュボードナビゲーション',
       openMenu: 'メニューを開く',
       closeMenu: 'メニューを閉じる',
@@ -726,6 +758,7 @@ export const DASH_COPY = {
       hint: 'PNG・JPEG・WebP に対応しています。660px 以上の正方形に近い画像がきれいに表示されます。',
       remove: '削除',
       previewAlt: 'ロゴのプレビュー',
+      upload: 'ロゴをアップロード',
       updating: '更新中…',
       updateFailed: 'ロゴを更新できませんでした。もう一度お試しください。',
       rejections: {
@@ -738,13 +771,19 @@ export const DASH_COPY = {
       },
     },
     venue: {
+      profileTitle: '店舗情報',
       ensUnavailable: 'この環境では ENS が設定されていません。有効になるまでカードを作成できません。',
       handleLabel: '店舗ハンドル',
-      handleHint: '店舗リンクと ENS 名に使われます。登録後は変更できません。',
+      handleHint: '登録後は変更できません。',
       registerTitle: '店舗を登録',
       registerDescription: 'メンバーに伝わる店舗情報を設定します。次に ENS 名を取得します。',
       register: '店舗を登録',
       registering: '登録中…',
+      optional: '（任意）',
+      save: '店舗情報を保存',
+      saving: '保存中…',
+      saved: '店舗情報を保存しました。',
+      saveFailed: '店舗情報を保存できませんでした。もう一度お試しください。',
     },
     stamps: {
       title: 'スタンプ設定',
@@ -800,7 +839,21 @@ export const DASH_COPY = {
       taglineLabel: '説明',
       taglinePlaceholder: '表参道 · コーヒーショップ',
       colorLabel: 'ブランドカラー',
-      colorHexLabel: 'ブランドカラーの16進数',
+      customColorLabel: 'カスタムカラー',
+      colorNames: {
+        mint: 'ミント',
+        steel: 'スチール',
+        apricot: 'アプリコット',
+        rose: 'ローズ',
+        lilac: 'ライラック',
+        lemon: 'レモン',
+        cyan: 'シアン',
+        teal: 'ティール',
+        coral: 'コーラル',
+        navy: 'ネイビー',
+        plum: 'プラム',
+        charcoal: 'チャコール',
+      },
       categoryLabel: 'カードの種類',
       membership: '会員カード',
       ticket: 'チケット',
@@ -835,7 +888,8 @@ export const DASH_COPY = {
       handleStatus: {
         available: '使えます',
         checking: '確認中…',
-        format: '小文字の英字、数字、ハイフンが使えます。',
+        format:
+          '小文字の英字・数字・ハイフンで1〜63文字にしてください。先頭・末尾のハイフンと、3・4文字目の連続ハイフンは使えません。',
         reserved: 'この名前は予約されています。',
         taken: 'すでに使われています',
         unknown: 'リンクを確認できませんでした。',

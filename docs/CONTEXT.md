@@ -54,6 +54,10 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Gate**: Whatever reads the chain and decides ADMIT or REJECT for a presented Right — fuda's api by default, but any verifier can be a Gate. _Avoid_: Scanner (that is the `apps/gate` device), verifier (in prose), door
 
+**Issuer wallet**: The Crypto wallet through which an Issuer controls its assets and authorizes operations. Its identity is distinct from the people or credentials controlling it, and from a service signer acting on the Issuer's behalf. _Avoid_: Operator wallet (when referring to the shared organization identity), staff wallet
+
+**Owner credential**: A key or wallet with full control of an Issuer wallet. Several owner credentials can control the same Issuer wallet; changing a credential does not create another Issuer. An Owner credential grants wallet control, not a limited operational role. _Avoid_: Operator (that is a person), Holder (that is the recipient of a Right)
+
 ### Entering
 
 **Entry path** (or **path**): How a given entry was made: `qr` (a Bearer QR was scanned) or `signature` (a challenge was signed). Level says what a Right _is_; path says how it _got in_. _Avoid_: Mode, method, flow

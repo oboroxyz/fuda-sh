@@ -124,6 +124,16 @@ export const IssuerCreateBody = v.object({
   tagline: shortText(120),
 })
 
+// Display fields can change after registration; identity and logo writes have
+// separate contracts. Reject extra keys so a handle change is never ignored.
+export const IssuerUpdateBody = v.strictObject({
+  brandColor: IssuerCreateBody.entries.brandColor,
+  name: IssuerCreateBody.entries.name,
+  tagline: IssuerCreateBody.entries.tagline,
+})
+
+export type IssuerUpdateRequest = v.InferOutput<typeof IssuerUpdateBody>
+
 export type SignInChallengeRequest = v.InferOutput<typeof SignInChallengeBody>
 export type SignInVerifyRequest = v.InferOutput<typeof SignInVerifyBody>
 export type CardRequest = v.InferOutput<typeof CardBody>

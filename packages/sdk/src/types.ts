@@ -109,6 +109,9 @@ export interface IssuerCardsResponse {
   ens: EnsClaimView | null
 }
 export type IssuerCreateResponse = IssuerCardsResponse
+export interface IssuerUpdateResponse {
+  issuer: IssuerView
+}
 export type IssuerMeResponse = IssuerCardsResponse | { issuer: null; cards: []; publicUrl: null; ens: null }
 
 // `unclaimed` covers both "never asked" and a voucher that was signed and never

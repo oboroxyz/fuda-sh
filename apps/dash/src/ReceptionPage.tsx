@@ -125,7 +125,7 @@ export const ReceptionPage = ({
         <h1 class="text-3xl font-bold">{copy.title}</h1>
         <p class="opacity-70">{copy.description}</p>
       </header>
-      <div class="card flex flex-col gap-5 p-5">
+      <div class="card flex flex-col gap-5 px-6 py-8">
         <label class="flex flex-col gap-2">
           <span>{copy.scannerLabel}</span>
           <input

@@ -285,11 +285,25 @@ After the initial setup above, start dashboard development from the repository r
 pnpm dev:dash-api
 ```
 
-Run `pnpm migrate:local` after pulling new database migrations. `dev:dash-api` starts the dashboard at http://localhost:5175 and its local API at http://localhost:8787 together. The example uses a fake chain; ENS acquisition requires the claim bindings documented above, and new cards remain unavailable until ENS is claimed.
+Run `pnpm migrate:local` after pulling new database migrations. `dev:dash-api` starts the dashboard at http://localhost:5175 and its local API at http://localhost:8787 together. The example simulates chain state and writes. EOA sign-in works offline; Base Account passkey sign-in uses read-only Base Sepolia RPC verification and requires network access. ENS acquisition requires the claim bindings documented above, and new cards remain unavailable until ENS is claimed.
 
 `pnpm dev` starts the whole local stack on the fixed ports below. A single surface starts with `pnpm dev:api`, `pnpm dev:app`, `pnpm dev:gate`, or `pnpm dev:dash`. Every frontend calls the api for its live data, so `pnpm dev:app+api`, `pnpm dev:gate+api`, and `pnpm dev:dash+api` start one frontend together with the api from a single terminal; a bare `dev:app`, `dev:gate`, or `dev:dash` needs `pnpm dev:api` running elsewhere.
 
 Stop an existing API before starting a combined frontend/API command to avoid a port conflict.
+
+For SSH previews, Dash binds explicitly to IPv4 loopback (`127.0.0.1:5175`) so a tunnel targeting that address works even when the host resolves `localhost` to IPv6. In Moshi, select port 5175 from the browser-preview picker and use the URL it opens. With `VITE_API_BASE_URL` unset, Dash sends API requests to `/api` on the preview origin; Vite forwards them to `127.0.0.1:8787` on the host. Only port 5175 needs forwarding. An explicit `VITE_API_BASE_URL` overrides the proxy and must be reachable from the browser.
+
+### Shared issuer-wallet signature probe
+
+Run the read-only MultiOwnable probe from the repository root:
+
+```sh
+pnpm --filter api probe:venue-wallet
+```
+
+It uses the public Base Sepolia RPC by default; an exported `BASE_RPC_URL` can select another Base Sepolia provider. It does not load `.dev.vars` or require any private-key setting. The RPC chain ID must be 84532. The probe generates two throwaway EOA owners and an undeployed Coinbase Smart Wallet v1 using fuda's current factory, then checks both owners' dashboard-challenge signatures through the API's actual chain verifier. It also rejects a changed challenge, an unregistered owner's wallet proof, and a raw personal signature. No transaction is submitted, no account is funded, and no D1 state is changed. ERC-6492 verification simulates deployment only inside `eth_call`; the probe checks that the wallet remains undeployed afterward.
+
+Success prints the public wallet/factory/owner addresses and six successful checks, and exits zero. A failed assertion or unavailable RPC exits nonzero. The probe allows only `eth_chainId`, `eth_call`, and `eth_getCode`, and records RPC failures even if the signature verifier would fold one into `false`. Any rejected RPC request, including an EVM revert, makes the run inconclusive and nonzero: these negative fixtures must produce completed validation responses. RPC URLs, keys and signatures are not printed. This verifies initial multiple-owner signing; it does not test adding owners to an existing wallet, Base Account popup discovery, passkey or nested-wallet owners, API sessions, or owner removal. See [ADR 0008](adr/0008-shared-issuer-wallet.md) for the future co-owner login and session-revocation requirements. The dashboard still has no owner-management UI.
 
 ### Venue reception demo
 
@@ -315,7 +329,7 @@ Reception records commit before the asynchronous Attendance and Google Wallet ef
 
 The frontends read the same `VITE_*` names as step 6, with different local values. They are baked in at build time, so changing one means restarting the dev server.
 
-- **`VITE_API_BASE_URL`** (gate, dash, app) — defaults to `http://localhost:8787`, so a local api needs no override.
+- **`VITE_API_BASE_URL`** (gate, dash, app) — Dash development defaults to the same-origin `/api` proxy; gate, app, and Dash builds default to `http://localhost:8787`. A local API needs no override.
 - **`VITE_GRAPH_RIGHTS_ENDPOINT`** (dash, app) — the public Graph endpoint the on-chain status views read; the member app also loads raw announcements from it before matching them locally. There is no local substitute; point it at a deployed rights subgraph.
 - **`VITE_APP_ORIGIN`** (app) — set it to `http://localhost:5173`, or the `/signed` gate bounces to the production origin (`https://app.fuda.sh`) instead of running locally. These routes render only on the configured app origin. The deployed app Worker owns `app.fuda.sh`; apex `/@*` redirects are managed separately at the zone.
 - **`VITE_RP_ID`** (app) — set it to `localhost`, or the browser refuses the production default (`fuda.sh`), which is not a registrable suffix of the dev host.

@@ -10,7 +10,7 @@ pnpm --filter api migrate:local
 pnpm --filter api dev
 ```
 
-With `USE_FAKE_CHAIN=1` set in `.dev.vars` (the default in the example file) and no `SIGNER_PRIVATE_KEY` / `BASE_RPC_URL`, the api runs against an in-memory `FakeChain` instead of Base Sepolia — no signer, no RPC, no funds needed. `src/index.ts` seeds a root `IssuerDelegation` on first request and logs the `ISSUER_ADDRESS` / `DELEGATION_UID` it used; `wrangler.jsonc`'s `env.local.vars` block already carries the matching (deterministic) values, and `pnpm --filter api dev` runs `wrangler dev --env local`, so the quick start above works as written. Both the top-level and the `env.local` D1 block name the same database, so `migrate:local` targets the same local database that `--env local` then serves; `--env local` reads `.dev.vars.local` when present and falls back to `.dev.vars` otherwise. Setting either `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL` always wins over `USE_FAKE_CHAIN` — the fake chain is never constructed in production, only under this explicit local opt-in. Either binding also arms the admin lock: set `ADMIN_TOKEN` in `.dev.vars` alongside it, or `/issue`, `/revoke` and `/members` answer `401` with `x-auth-mode: locked`.
+With `USE_FAKE_CHAIN=1` set in `.dev.vars` (the default in the example file) and no `SIGNER_PRIVATE_KEY` / `BASE_RPC_URL`, the api runs against an in-memory `FakeChain` instead of Base Sepolia for chain state and writes — no signer or funds needed. EOA signatures verify offline. Local smart-wallet signatures (including Base Account passkeys) use read-only verification against the default Base Sepolia RPC; they still require network access and a valid signature. Tests that construct `FakeChain` without a verifier remain offline. `src/index.ts` seeds a root `IssuerDelegation` on first request and logs the `ISSUER_ADDRESS` / `DELEGATION_UID` it used; `wrangler.jsonc`'s `env.local.vars` block already carries the matching (deterministic) values, and `pnpm --filter api dev` runs `wrangler dev --env local`, so the quick start above works as written. Both the top-level and the `env.local` D1 block name the same database, so `migrate:local` targets the same local database that `--env local` then serves; `--env local` reads `.dev.vars.local` when present and falls back to `.dev.vars` otherwise. Setting either `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL` always wins over `USE_FAKE_CHAIN` — the fake chain is never constructed in production, only under this explicit local opt-in. Either binding also arms the admin lock: set `ADMIN_TOKEN` in `.dev.vars` alongside it, or `/issue`, `/revoke` and `/members` answer `401` with `x-auth-mode: locked`.
 
 ## Attendance
 
@@ -107,6 +107,7 @@ Use the rights-subgraph smoke query and member app for private discovery after G
 
 | Method | Path | Auth | Notes |
 | --- | --- | --- | --- |
+| GET | `/` | none | plain text: `fuda. api` and `health: ok` on separate lines |
 | GET | `/health` | none | liveness |
 | POST | `/issue` | Bearer (`ADMIN_TOKEN`) | `holder` → Signed; `memberId` → Bearer; `stealthMetaAddress` → +Private (`400 bad_meta_address` for a malformed or off-curve one) |
 | GET | `/verify/:uid` | none | read-only preview, no slot consumption |

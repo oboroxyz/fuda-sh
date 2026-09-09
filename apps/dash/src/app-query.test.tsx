@@ -360,6 +360,72 @@ describe('dashboard query lifecycle', () => {
     expect(view().session.operator?.issuer?.logoUrl).toBe(changedIssuer.logoUrl)
   })
 
+  it('keeps a saved venue profile when an older issuer read finishes', async () => {
+    const operator = operatorIo()
+    const pending = Promise.withResolvers<Result<IssuerMeResponse>>()
+    const body = { brandColor: '#0073EB', name: 'New Coffee', tagline: 'New tagline' }
+    const changedIssuer = { ...issuer.issuer, ...body }
+    operator.issuerMe.mockReturnValue(pending.promise)
+    vi.spyOn(operator, 'updateIssuer').mockResolvedValue({
+      body: { issuer: changedIssuer },
+      ok: true,
+    })
+    await start(operator)
+    refocus()
+    await vi.waitFor(() => {
+      expect(operator.issuerMe).toHaveBeenCalledExactlyOnceWith('session')
+    })
+
+    await expect(view().onUpdateVenue(body)).resolves.toBe(true)
+    expect(operator.updateIssuer).toHaveBeenCalledExactlyOnceWith('session', body)
+    await vi.waitFor(() => {
+      expect(view().session.operator).toStrictEqual({ ...issuer, issuer: changedIssuer })
+    })
+    pending.resolve({ body: issuer, ok: true })
+    await setTimeout(25)
+    expect(view().session.operator?.issuer).toStrictEqual(changedIssuer)
+  })
+
+  it.each(['profile-first', 'logo-first'])('preserves both concurrent venue writes: %s', async (order) => {
+    const operator = operatorIo()
+    const profileWrite = Promise.withResolvers<Awaited<ReturnType<OperatorIo['updateIssuer']>>>()
+    const logoWrite = Promise.withResolvers<Awaited<ReturnType<OperatorIo['design']['commitLogo']>>>()
+    const body = { brandColor: '#0073EB', name: 'New Coffee', tagline: 'New tagline' }
+    const logoUrl = 'https://api.fuda.sh/logo/new'
+    vi.spyOn(operator, 'updateIssuer').mockReturnValue(profileWrite.promise)
+    operator.design = {
+      ...operator.design,
+      commitLogo: vi.fn<OperatorIo['design']['commitLogo']>().mockReturnValue(logoWrite.promise),
+      uploadLogo: vi.fn<OperatorIo['design']['uploadLogo']>().mockResolvedValue({
+        body: { expiresAt: 100, logoUploadId: 'upload' },
+        ok: true,
+      }),
+    }
+    await start(operator)
+    const savingProfile = view().onUpdateVenue(body)
+    const blob = new Blob(['logo'], { type: 'image/png' })
+    const savingLogo = view().onCommitLogo({ logo1x: blob, logo2x: blob, logo3x: blob, master: blob })
+    const resolveProfile = (): void => {
+      profileWrite.resolve({ body: { issuer: { ...issuer.issuer, ...body } }, ok: true })
+    }
+    const resolveLogo = (): void => {
+      logoWrite.resolve({ body: { issuer: { ...issuer.issuer, logoUrl } }, ok: true })
+    }
+    if (order === 'profile-first') {
+      resolveProfile()
+      await savingProfile
+      resolveLogo()
+    } else {
+      resolveLogo()
+      await savingLogo
+      resolveProfile()
+    }
+    await Promise.all([savingProfile, savingLogo])
+    await vi.waitFor(() => {
+      expect(view().session.operator?.issuer).toStrictEqual({ ...issuer.issuer, ...body, logoUrl })
+    })
+  })
+
   it.each(['success', 'failure'])('retains confirmed ENS state after issuer refresh $0', async (refresh) => {
     const operator = operatorIo()
     const tx = `0x${'aa'.repeat(32)}` as const

@@ -69,7 +69,7 @@ describe('dashboard navigation', () => {
 
   it('uses one responsive daisyUI drawer with icons before menu labels', () => {
     start('admin')
-    expect(root.querySelector('.drawer.lg\\:drawer-open')).not.toBeNull()
+    expect(root.querySelector('.drawer.md\\:drawer-open')).not.toBeNull()
     expect(root.querySelectorAll('nav')).toHaveLength(1)
     const links = [...root.querySelectorAll('nav a')]
     expect(links.map((link) => link.getAttribute('href'))).toStrictEqual(['/', '/rights', '/issue'])

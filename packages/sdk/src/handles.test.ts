@@ -38,6 +38,21 @@ describe('issuer handles', () => {
     expect(isIssuerHandle('cards')).toBe(false)
   })
 
+  it.each(['ab--cd', 'xn--coffee', '12--34', 'ab---cd'])(
+    'rejects the ENSIP-15 reserved hyphen positions in %s',
+    (handle) => {
+      expect(issuerHandleProblem(handle)).toBe('format')
+      expect(isIssuerHandle(handle)).toBe(false)
+    },
+  )
+
+  it.each(['a--bc', 'abc--de', 'ab-c', 'a-b'])(
+    'allows hyphens outside the ENSIP-15 reserved positions in %s',
+    (handle) => {
+      expect(isIssuerHandle(handle)).toBe(true)
+    },
+  )
+
   it('names the problem for a form', () => {
     expect(issuerHandleProblem('')).toBe('empty')
     expect(issuerHandleProblem('Wassie')).toBe('format')
@@ -64,6 +79,7 @@ describe('card slugs', () => {
   it('uses the handle character rule and keeps future venue pages free', () => {
     expect(isCardSlug('stamp')).toBe(true)
     expect(isCardSlug('summer-2026')).toBe(true)
+    expect(isCardSlug('ab--cd')).toBe(true)
     expect(isCardSlug('Stamp')).toBe(false)
     expect(isCardSlug('cards')).toBe(false)
   })

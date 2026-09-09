@@ -1,4 +1,4 @@
-import { asHex, CardBody, isCardSlug, isIssuerHandle, IssuerCreateBody } from '@fuda/sdk'
+import { asHex, CardBody, isCardSlug, isIssuerHandle, IssuerCreateBody, IssuerUpdateBody } from '@fuda/sdk'
 import type { EnsClaimView, IssuerMeResponse } from '@fuda/sdk'
 import { and, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
@@ -57,6 +57,29 @@ issuersRoutes.get('/issuers/me', operatorAuth(), async (c) => {
     publicUrl: publicUrlFor(c.env.PUBLIC_BASE_URL, found.issuer.handle),
   }
   return jsonResponse(c, body)
+})
+
+issuersRoutes.put('/issuers/me', operatorAuth(), async (c) => {
+  c.header('cache-control', 'no-store')
+  const body: unknown = await c.req.json().catch(() => null)
+  const parsed = v.safeParse(IssuerUpdateBody, body)
+  if (!parsed.success) {
+    return errorResponse(c, 'bad_input', 400)
+  }
+  const { issuerId } = c.get('operator')
+  if (issuerId === null) {
+    return errorResponse(c, 'not_found', 404)
+  }
+  const updated = await c
+    .get('db')
+    .update(issuers)
+    .set(parsed.output)
+    .where(eq(issuers.id, issuerId))
+    .returning()
+    .get()
+  return updated === undefined
+    ? errorResponse(c, 'not_found', 404)
+    : jsonResponse(c, { issuer: issuerView(updated, c.env.API_BASE_URL) })
 })
 
 // Session-gated so the handle space cannot be enumerated anonymously.

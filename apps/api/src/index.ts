@@ -20,8 +20,10 @@ export const isFakeChainEnabled = (env: FakeChainSignal): boolean =>
 
 // One FakeChain per isolate so `wrangler dev` keeps issued rights across requests.
 let devChain: FakeChain | null = null
-const createDevChain = (): FakeChain => {
-  const chain = new FakeChain()
+const createDevChain = (env: DevBindings): FakeChain => {
+  // Base Account passkeys need ERC-1271/6492 verification. Only this read uses
+  // Base Sepolia; attestations, delegation, and all writes remain simulated.
+  const chain = new FakeChain({ verifyMessage: createViemChain(env).verifyMessage })
   const uid = chain.seedRootDelegation(schemaUid(SCHEMA_STRINGS.issuerDelegation), DEV_DELEGATION_UID)
   // oxlint-disable-next-line no-console -- one-time dev bootstrap hint, printed once per isolate
   console.warn(
@@ -34,7 +36,7 @@ const createDevChain = (): FakeChain => {
 // network call — `createViemChain` never touches the network at construction.
 export const buildChain = (env: DevBindings): ChainClient => {
   if (isFakeChainEnabled(env)) {
-    devChain ??= createDevChain()
+    devChain ??= createDevChain(env)
     return devChain
   }
   return createViemChain(env)

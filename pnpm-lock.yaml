@@ -306,6 +306,9 @@ importers:
       '@fuda/styles':
         specifier: workspace:*
         version: link:../styles
+      cn:
+        specifier: 0.2.6
+        version: 0.2.6
       hono:
         specifier: ^4.13.5
         version: 4.13.5
