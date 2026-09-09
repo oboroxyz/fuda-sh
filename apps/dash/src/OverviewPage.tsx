@@ -52,8 +52,8 @@ export const OverviewPage = ({ apiBaseUrl, copy, graphEndpoint, state }: Overvie
 
   return (
     <section class="flex flex-col gap-6">
-      <header>
-        <h1 class="text-2xl font-bold">{copy.title}</h1>
+      <header class="dash-page-header">
+        <h1 class="dash-page-title">{copy.title}</h1>
         <p class="opacity-70">{copy.description}</p>
       </header>
 

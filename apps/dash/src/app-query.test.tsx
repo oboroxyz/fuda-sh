@@ -99,7 +99,7 @@ describe('dashboard query lifecycle', () => {
     output.current = null
     removeMounted = undefined
     window.localStorage.clear()
-    window.history.replaceState(null, '', '/published')
+    window.history.replaceState(null, '', '/cards')
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
     document.body.append(root)
   })
@@ -175,9 +175,8 @@ describe('dashboard query lifecycle', () => {
       claimFrom: null,
       claimUntil: null,
       claimable: true,
+      description: '',
       id: 'card-1',
-      perk: '',
-      reward: '',
       slug: 'membership-card',
       title: 'Membership',
       validFrom: null,
@@ -223,7 +222,7 @@ describe('dashboard query lifecycle', () => {
     view().onCreateVenue({ ...EMPTY_VENUE_FORM, handle: 'coffee', name: 'Coffee' }, null)
     await vi.waitFor(() => {
       expect(view().session.operator).toStrictEqual(registered)
-      expect(view().route).toBe('/venue')
+      expect(view().route).toBe('/profile')
     })
   })
 
@@ -281,9 +280,8 @@ describe('dashboard query lifecycle', () => {
       claimFrom: null,
       claimUntil: null,
       claimable: true,
+      description: '',
       id: `card-${index}`,
-      perk: '',
-      reward: '',
       slug,
       title: slug,
       validFrom: null,

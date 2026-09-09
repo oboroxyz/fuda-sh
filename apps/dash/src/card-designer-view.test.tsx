@@ -65,6 +65,18 @@ const inputWithId = (props: CardDesignerViewProps, id: string): boolean =>
   walkView(CardDesignerView(props)).some((node) => node.props.id === id)
 
 describe(CardDesignerView, () => {
+  it('offers one multiline card description for onboarding', () => {
+    const view = CardDesignerView(designer({ form: { ...filled, description: 'First line\nSecond line' } }))
+    const [textarea] = findViewNodes(view, 'textarea')
+    expect(textarea?.props).toMatchObject({
+      id: 'card-description',
+      maxLength: 2000,
+      value: 'First line\nSecond line',
+    })
+    expect(inputWithId(designer(), 'perk')).toBe(false)
+    expect(inputWithId(designer(), 'reward')).toBe(false)
+  })
+
   it('previews the venue name, card type and title in the brand colour', () => {
     const view = CardDesignerView(designer({ form: { ...filled, brandColor: '#1F513F' } }))
     const preview = walkView(view).find((node) => node.props.class === 'dash-card-preview')
@@ -201,9 +213,8 @@ const membership: CardView = {
   claimFrom: null,
   claimUntil: null,
   claimable: true,
+  description: '',
   id: 'card-1',
-  perk: '',
-  reward: '',
   slug: 'membership-card',
   title: 'Membership Card',
   validFrom: null,
@@ -216,9 +227,8 @@ const summer: CardView = {
   claimFrom: null,
   claimUntil: null,
   claimable: true,
+  description: '',
   id: 'card-2',
-  perk: '',
-  reward: '',
   slug: 'summer',
   title: 'Summer Pass',
   validFrom: null,
@@ -236,6 +246,7 @@ const published = (overrides: Partial<PublishedCardViewProps> = {}): PublishedCa
   onAddCard: vi.fn<() => void>(),
   onCopy: vi.fn<PublishedCardViewProps['onCopy']>(),
   onPrint: vi.fn<PublishedCardViewProps['onPrint']>(),
+  onSettings: vi.fn<PublishedCardViewProps['onSettings']>(),
   onShare: null,
   onVenue: vi.fn<PublishedCardViewProps['onVenue']>(),
   printSlug: null,
@@ -255,7 +266,7 @@ describe(PublishedCardView, () => {
   it('sends an empty venue to ENS until claimed, then offers the first card', () => {
     const view = PublishedCardView(published({ canAddCard: false, cards: [] }))
     expect(viewText(view)).toContain('Create your first card')
-    expect(viewText(view)).toContain('Go to venue and ENS')
+    expect(viewText(view)).toContain('Go to profile')
     expect(viewText(PublishedCardView(published({ cards: [] })))).toContain('Create your first card')
   })
 
@@ -270,7 +281,7 @@ describe(PublishedCardView, () => {
   it('keeps venue management out of the card list', () => {
     const view = PublishedCardView(published())
     expect(viewText(view)).toContain('Wassie Coffee')
-    expect(viewText(view)).not.toContain('Venue page')
+    expect(viewText(view)).not.toContain('Public page')
   })
 
   it('gives every card of a venue its own link and QR', () => {
@@ -286,7 +297,7 @@ describe(PublishedCardView, () => {
   })
 
   it('offers another card and share only where the browser supports it', () => {
-    expect(viewText(PublishedCardView(published()))).toContain('Add another card')
+    expect(viewText(PublishedCardView(published()))).toContain('Add card')
     expect(viewText(PublishedCardView(published()))).not.toContain('Share link')
     expect(viewText(PublishedCardView(published({ onShare: (): void => {} })))).toContain('Share link')
   })

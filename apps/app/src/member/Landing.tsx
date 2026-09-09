@@ -69,8 +69,8 @@ export const Landing = ({
           Ready at the door.
         </h1>
         <p class="max-w-xl text-base leading-relaxed text-[var(--fuda-muted)] sm:text-lg">
-          Receive a card from your venue, keep your pass close, and show it when you arrive. Sign in with Base
-          to open your passes and use your own key when entry needs it.
+          Get your card, keep your pass close, and show it when you arrive. Sign in with Base to open your
+          passes and use your own key when entry needs it.
         </p>
         <a
           class="btn btn-primary"
@@ -86,7 +86,7 @@ export const Landing = ({
       <section class="flex flex-col gap-4">
         <h2 class="text-xl font-bold">For your next visit</h2>
         <p class="max-w-xl text-sm leading-relaxed text-[var(--fuda-muted)]">
-          Start with a card link or QR from your venue to get your card.
+          Open a card link or scan a card QR code to get your card.
         </p>
         <div class="grid gap-4 md:grid-cols-3">
           {FEATURES.map((feature): JSX.Element => (

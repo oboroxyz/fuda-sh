@@ -44,7 +44,7 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Private-access Right** and **Persistent-value Right**: The two Rights a `private + loyalty` (U3) issuance creates. The Private-access Right (+Private, fresh stealth Holder) admits without exposing a stable identity; the Persistent-value Right (Bearer or Signed, stable Holder — a Claimable smart account or the member's wallet) retains Stamps, balance, and history. Never correlated at the Gate: presenting the Private-access Right must not fetch the other, and an Entry through it must not auto-credit value — value actions are a separate, explicit interaction. _Avoid_: Loyalty card (bare), value Right, companion Right, "the two passes"
 
-**Venue**: An organization that issues Rights to its members — the shop, club, or office as the member and its staff see it. The word for member-facing and operator-facing copy and for describing the business. Wherever the organization appears as a party in a spec, schema, column, EAS field, or ENS name, it is the Issuer: one Venue is one Issuer, and Venue never appears in the data model. From B1 it holds its own smart wallet and attests its Rights itself. _Avoid_: Issuer (in UI copy — say Venue), tenant, merchant, operator, shop
+**Venue**: An organization that issues Rights to its members — the shop, club, or office as the member and its staff see it. A business-domain term, not a required UI label. Member-facing and operator-facing copy uses context-specific labels such as Profile, Name, Handle and Public page so it also fits companies and communities. Wherever the organization appears as a party in a spec, schema, column, EAS field, or ENS name, it is the Issuer: one Venue is one Issuer, and Venue never appears in the data model. From B1 it holds its own smart wallet and attests its Rights itself. _Avoid_: Issuer or Venue as generic UI labels, tenant, merchant, operator, shop
 
 **Handle**: An Issuer's permanent identifier — the `/@handle` slug, shaped as a DNS/ENS label so it is also the Issuer's ENS label (`<issuer>.fuda.eth`) 1:1. _Avoid_: Slug, username, venue name, issuer name (that is the ENS name built from the Handle)
 
@@ -70,7 +70,7 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Entry**: One ADMIT of a Right at a Gate, recorded off-chain in the entry log. _Avoid_: Check-in, visit, scan
 
-**Stamp**: One unit of a Venue's loyalty count for a Right, awarded under the Venue's Stamp policy. An Entry does not necessarily earn a Stamp; redemption is a separate action. _Avoid_: Point, visit count, check-in
+**Stamp**: One unit of a Venue's loyalty count for a Right, awarded under the Stamp policy configured for its Card. An Entry does not necessarily earn a Stamp; redemption is a separate action. _Avoid_: Point, visit count, check-in
 
 **Member number**: The random label every Right receives at issuance: 13 characters from the 28-character alphabet `23456789acdefghjkmnpqrtuvwxy` — 12 random plus one check character — stored canonical lowercase with no separators (`qj2yxphepdrka`) and shown upper-cased in `4-4-5` groups (`QJ2Y-XPHE-PDRKA`) on the Pass and dashboard. One per Right (a `private + loyalty` member has two unrelated numbers), unique per Issuer, never sequential. It is the ENS member label (`<member-no>.<issuer>.fuda.eth`, see `docs/specs/ens-naming.md`) and is not the Member id, which groups a Member's several Rights. _Avoid_: Member id, serial (that is the Right's lineage field), sequence number
 

@@ -140,7 +140,12 @@ describe('issuer onboarding', () => {
     const res = await getJson(app, bindings, '/v1/issuers/wassie-coffee')
     expect(res.headers.get('cache-control')).toBe('no-store')
     const body = await res.json<{ brandColor: string; cards: { slug: string }[]; handle: string }>()
-    expect(body).toMatchObject({ brandColor: '#6F4320', handle: 'wassie-coffee', name: 'Wassie Coffee' })
+    expect(body).toMatchObject({
+      brandColor: '#6F4320',
+      cards: [{ description: 'Stamp card · 10 stamps\nFree drink of your choice' }],
+      handle: 'wassie-coffee',
+      name: 'Wassie Coffee',
+    })
     expect(body.cards.map((card) => card.slug)).toStrictEqual(['stamp'])
     expect(body).not.toHaveProperty('operatorAddress')
     expect(JSON.stringify(body)).not.toContain('operatorAddress')

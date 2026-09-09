@@ -20,6 +20,7 @@ export interface PublishedCardViewProps {
   issuer: IssuerView
   // The venue's own mark, refused by the api until there is one.
   onAddCard: () => void
+  onSettings: (cardId: string) => void
   onVenue: () => void
   onCopy: (slug: string) => void
   onPrint: (slug: string) => void
@@ -82,6 +83,15 @@ const cardEntry = (props: PublishedCardViewProps, card: CardView): JSX.Element =
       <div class="dash-actions dash-no-print">
         <button
           class="btn"
+          type="button"
+          onClick={() => {
+            props.onSettings(card.id)
+          }}
+        >
+          {copy.settings}
+        </button>
+        <button
+          class="btn"
           onClick={() => {
             onPrint(card.slug)
           }}
@@ -135,17 +145,27 @@ export const PublishedCardView = (props: PublishedCardViewProps): JSX.Element =>
     <section
       class={cn('dash-published flex max-w-2xl flex-col gap-6', printSlug !== null && 'dash-print-one')}
     >
-      <div class="dash-no-print flex flex-col gap-1">
-        <h1 class="text-2xl font-bold">{heading}</h1>
+      <header class="dash-page-header dash-no-print">
+        <h1 class="dash-page-title">{heading}</h1>
         <p class="opacity-70">{description}</p>
-      </div>
+      </header>
 
       {cards.map((card): JSX.Element => cardEntry(props, card))}
 
       <div class="dash-actions dash-no-print">
-        <button class="btn" onClick={props.canAddCard ? onAddCard : onVenue} type="button">
-          {actionLabel}
-        </button>
+        {props.canAddCard && cards.length > 0 ? (
+          <a class="link link-hover text-sm" href="/cards/new">
+            {actionLabel}
+          </a>
+        ) : (
+          <button
+            class={cn('btn', props.canAddCard && 'btn-primary')}
+            onClick={props.canAddCard ? onAddCard : onVenue}
+            type="button"
+          >
+            {actionLabel}
+          </button>
+        )}
       </div>
 
       <p class="dash-no-print text-sm opacity-70">{copy.hint}</p>

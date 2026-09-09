@@ -9,17 +9,22 @@ import { BRAND_SWATCHES } from './brand-colors.ts'
 import type { DashCopy } from './copy.ts'
 import { venueUpdateBodyFrom } from './venue.ts'
 import { VenueIdentityFields } from './VenueIdentityFields.tsx'
+import { VenueLinkIcon } from './VenueLinkIcon.tsx'
 
 interface VenueDetailsFormProps {
   copy: DashCopy
+  ens: JSX.Element
   issuer: IssuerView
+  logo: { field: JSX.Element; pending: boolean; busy: boolean }
   publicUrl: string | null
   onUpdate: (body: IssuerUpdateRequest) => Promise<boolean>
 }
 
 export const VenueDetailsForm = ({
   copy,
+  ens,
   issuer,
+  logo,
   publicUrl,
   onUpdate,
 }: VenueDetailsFormProps): JSX.Element => {
@@ -27,6 +32,11 @@ export const VenueDetailsForm = ({
   const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle')
   const saving = useRef(false)
   const revision = useRef(0)
+  useEffect(() => {
+    if (logo.pending) {
+      setState((current) => (current === 'saved' ? 'idle' : current))
+    }
+  }, [logo.pending])
   useEffect(
     () => () => {
       revision.current += 1
@@ -38,7 +48,10 @@ export const VenueDetailsForm = ({
   const body = venueUpdateBodyFrom(form)
   const changed =
     body !== null &&
-    (body.name !== issuer.name || body.tagline !== issuer.tagline || body.brandColor !== issuer.brandColor)
+    (logo.pending ||
+      body.name !== issuer.name ||
+      body.tagline !== issuer.tagline ||
+      body.brandColor !== issuer.brandColor)
   const update = (key: keyof IssuerUpdateRequest, value: string): void => {
     setDraft((current) => ({
       ...(current ?? { brandColor: issuer.brandColor, name: issuer.name, tagline: issuer.tagline }),
@@ -48,7 +61,7 @@ export const VenueDetailsForm = ({
   }
 
   const submit = (): void => {
-    if (body === null || !changed || saving.current) {
+    if (body === null || !changed || logo.busy || saving.current) {
       return
     }
     saving.current = true
@@ -76,19 +89,21 @@ export const VenueDetailsForm = ({
         submit()
       }}
     >
-      <div class="min-w-0 space-y-1">
-        <p class="font-semibold wrap-anywhere">{issuer.name}</p>
+      <header class="min-w-0 rounded-xl border border-[var(--fuda-border)] p-5 sm:p-6">
+        <h2 class="mb-3 text-2xl leading-tight font-bold tracking-tight wrap-anywhere">{issuer.name}</h2>
         {publicUrl === null ? null : (
           <a
-            class="link link-hover block text-xs wrap-anywhere opacity-70"
+            class="link link-hover flex items-start gap-2 text-sm text-[var(--fuda-muted)]"
             href={publicUrl}
             target="_blank"
             rel="noopener noreferrer"
           >
-            {publicUrl}
+            <VenueLinkIcon kind="globe" />
+            <span class="min-w-0 wrap-anywhere">{publicUrl}</span>
           </a>
         )}
-      </div>
+        {ens}
+      </header>
       <fieldset class="flex flex-col gap-5" disabled={state === 'saving'}>
         <VenueIdentityFields
           copy={copy}
@@ -134,6 +149,7 @@ export const VenueDetailsForm = ({
             />
           </label>
         </fieldset>
+        {logo.field}
       </fieldset>
       {state === 'failed' ? (
         <p class="text-danger text-sm" role="alert">
@@ -145,7 +161,11 @@ export const VenueDetailsForm = ({
           {copy.venue.saved}
         </p>
       ) : null}
-      <button class="btn btn-primary sm:self-start" disabled={!changed || state === 'saving'} type="submit">
+      <button
+        class="btn btn-primary sm:self-start"
+        disabled={!changed || logo.busy || state === 'saving'}
+        type="submit"
+      >
         {state === 'saving' ? copy.venue.saving : copy.venue.save}
       </button>
     </form>

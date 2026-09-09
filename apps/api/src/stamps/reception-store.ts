@@ -53,11 +53,14 @@ export const recordReception = async (binding: D1Database, db: Db, input: Recept
       SELECT ?1, e.uid, ?3,
         (SELECT COALESCE(MAX(ordinal), 0) + 1 FROM stamp_credits WHERE issuer_id = ?1 AND uid = e.uid AND day = ?3),
         ?4, ?5, e.id FROM entry_log e
+      LEFT JOIN members m ON m.attestation_uid = e.uid AND m.issuer_id = ?1
+      LEFT JOIN cards c ON c.id = m.card_id AND c.issuer_id = ?1
+      LEFT JOIN card_stamp_settings s ON s.card_id = c.id
       WHERE e.reception_id = ?2 AND e.decision = 'ADMIT'
         AND NOT EXISTS (SELECT 1 FROM reception_requests WHERE id = ?2)
-        AND COALESCE((SELECT enabled FROM stamp_settings WHERE issuer_id = ?1), 0) = 1
+        AND COALESCE(s.enabled, 0) = 1
         AND (SELECT COUNT(*) FROM stamp_credits WHERE issuer_id = ?1 AND uid = e.uid AND day = ?3)
-          < COALESCE((SELECT daily_limit FROM stamp_settings WHERE issuer_id = ?1), 1)
+          < COALESCE(s.daily_limit, 1)
       ON CONFLICT (entry_log_id) DO NOTHING
     `)
       .bind(issuerId, id, day, now, operatorAddress),
@@ -70,16 +73,20 @@ export const recordReception = async (binding: D1Database, db: Db, input: Recept
             'status', CASE
               WHEN e.decision = 'REJECT' THEN 'not_admitted'
               WHEN EXISTS (SELECT 1 FROM stamp_credits WHERE entry_log_id = e.id) THEN 'awarded'
-              WHEN COALESCE((SELECT enabled FROM stamp_settings WHERE issuer_id = ?2), 0) = 0 THEN 'disabled'
+              WHEN COALESCE(s.enabled, 0) = 0 THEN 'disabled'
               ELSE 'daily_limit' END,
             'summary', CASE WHEN ?5 = 1 THEN NULL ELSE json_object(
-              'enabled', json(CASE WHEN COALESCE((SELECT enabled FROM stamp_settings WHERE issuer_id = ?2), 0) = 1 THEN 'true' ELSE 'false' END),
-              'dailyLimit', COALESCE((SELECT daily_limit FROM stamp_settings WHERE issuer_id = ?2), 1),
-              'goal', COALESCE((SELECT goal FROM stamp_settings WHERE issuer_id = ?2), 10),
+              'enabled', json(CASE WHEN COALESCE(s.enabled, 0) = 1 THEN 'true' ELSE 'false' END),
+              'dailyLimit', COALESCE(s.daily_limit, 1),
+              'goal', COALESCE(s.goal, 10),
               'total', (SELECT COUNT(*) FROM stamp_credits WHERE issuer_id = ?2 AND uid = e.uid),
               'today', (SELECT COUNT(*) FROM stamp_credits WHERE issuer_id = ?2 AND uid = e.uid AND day = ?4)
             ) END))
-      FROM entry_log e WHERE e.reception_id = ?1
+      FROM entry_log e
+      LEFT JOIN members m ON m.attestation_uid = e.uid AND m.issuer_id = ?2
+      LEFT JOIN cards c ON c.id = m.card_id AND c.issuer_id = ?2
+      LEFT JOIN card_stamp_settings s ON s.card_id = c.id
+      WHERE e.reception_id = ?1
       ON CONFLICT (id) DO NOTHING
     `)
       .bind(id, issuerId, JSON.stringify(verdict), day, verdict.entitlement?.level === 2 ? 1 : 0),

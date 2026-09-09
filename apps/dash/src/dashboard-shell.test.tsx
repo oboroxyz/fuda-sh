@@ -19,7 +19,7 @@ const signOut = vi.fn<() => void>()
 const start = (surface: DashSurface = 'operator', hasIssuer = true): void => {
   const Harness = (): JSX.Element | null => {
     const [mounted, setMounted] = useState(true)
-    const [route, setRoute] = useState<DashRoute>(surface === 'operator' ? '/published' : '/')
+    const [route, setRoute] = useState<DashRoute>(surface === 'operator' ? '/cards' : '/')
     dispose = () => {
       setMounted(false)
     }
@@ -33,6 +33,11 @@ const start = (surface: DashSurface = 'operator', hasIssuer = true): void => {
         onSignOut={signOut}
         route={route}
         surface={surface}
+        venue={
+          surface === 'operator' && hasIssuer
+            ? { name: 'Fuda Coffee Roasters', publicUrl: 'https://fuda.test/@coffee' }
+            : null
+        }
       >
         <p>Page content</p>
       </DashboardShell>
@@ -67,6 +72,42 @@ describe('dashboard navigation', () => {
     vi.restoreAllMocks()
   })
 
+  it('opens profile actions while keeping the public URL independent', async () => {
+    start()
+    const trigger = button('Fuda Coffee Roasters')
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
+    trigger.click()
+    await vi.waitFor(() => {
+      expect(trigger.getAttribute('aria-expanded')).toBe('true')
+    })
+    expect(button('Switch profile').disabled).toBe(true)
+    expect(root.querySelector('nav a[href="/profile"]')?.textContent).toBe('Profile')
+    expect(root.querySelector('a[href="https://fuda.test/@coffee"]')?.closest('[hidden]')).toBeNull()
+  })
+
+  it('closes profile actions on Escape before closing the mobile drawer', async () => {
+    start()
+    button('Open menu').click()
+    button('Fuda Coffee Roasters').click()
+    await setTimeout(0)
+    button('Sign out').dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Escape' }))
+    await vi.waitFor(() => {
+      expect(button('Fuda Coffee Roasters').getAttribute('aria-expanded')).toBe('false')
+    })
+    expect(root.querySelector<HTMLInputElement>('.drawer-toggle')?.checked).toBe(true)
+    expect(document.activeElement).toBe(button('Fuda Coffee Roasters'))
+  })
+
+  it('closes profile actions on an outside press', async () => {
+    start()
+    button('Fuda Coffee Roasters').click()
+    await setTimeout(0)
+    root.querySelector('nav')!.dispatchEvent(new Event('pointerdown', { bubbles: true }))
+    await vi.waitFor(() => {
+      expect(button('Fuda Coffee Roasters').getAttribute('aria-expanded')).toBe('false')
+    })
+  })
+
   it('uses one responsive daisyUI drawer with icons before menu labels', () => {
     start('admin')
     expect(root.querySelector('.drawer.md\\:drawer-open')).not.toBeNull()
@@ -81,6 +122,8 @@ describe('dashboard navigation', () => {
 
   it('requires confirmation and cancels without ending the session', async () => {
     start()
+    button('Fuda Coffee Roasters').click()
+    await setTimeout(0)
     button('Sign out').click()
     expect(signOut).not.toHaveBeenCalled()
     await vi.waitFor(() => {
@@ -165,7 +208,7 @@ describe('dashboard navigation', () => {
     (hasIssuer) => {
       start('operator', hasIssuer)
       expect([...root.querySelectorAll('nav a')].map((link) => link.getAttribute('href'))).toStrictEqual(
-        hasIssuer ? ['/venue', '/reception', '/published', '/new'] : ['/venue'],
+        hasIssuer ? ['/profile', '/reception', '/cards', '/cards/new'] : ['/start'],
       )
     },
   )
@@ -174,10 +217,9 @@ describe('dashboard navigation', () => {
     start()
     button('Open menu').click()
     await setTimeout(0)
-    button('Sign out').focus()
-    button('Sign out').dispatchEvent(
-      new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Tab' }),
-    )
+    const lastLink = root.querySelector<HTMLAnchorElement>('nav a[href="/cards/new"]')!
+    lastLink.focus()
+    lastLink.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Tab' }))
     expect(document.activeElement).toBe(button('Close menu'))
   })
 })

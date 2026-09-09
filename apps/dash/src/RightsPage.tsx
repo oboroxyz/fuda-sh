@@ -143,9 +143,9 @@ export const RightsPage = ({ copy, graphEndpoint, members, onRevoke }: RightsPag
 
   return (
     <div class="flex flex-col gap-8">
-      <section class="flex flex-col gap-4" aria-labelledby="rights-title">
-        <header>
-          <h1 ref={headingRef} id="rights-title" class="text-2xl font-bold" tabIndex={-1}>
+      <section class="flex flex-col gap-6" aria-labelledby="rights-title">
+        <header class="dash-page-header">
+          <h1 ref={headingRef} id="rights-title" class="dash-page-title" tabIndex={-1}>
             {copy.rights.title}
           </h1>
           <p class="opacity-70">{copy.rights.description}</p>

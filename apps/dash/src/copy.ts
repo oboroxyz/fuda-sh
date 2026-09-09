@@ -5,6 +5,7 @@ import type { BrandColorName } from './brand-colors.ts'
 export interface DashCopy {
   chrome: {
     brand: string
+    switchProfile: string
     subtitle: string
     navigation: string
     openMenu: string
@@ -64,6 +65,7 @@ export interface DashCopy {
   }
   venue: {
     profileTitle: string
+    profileDescription: string
     ensUnavailable: string
     handleLabel: string
     handleHint: string
@@ -78,6 +80,8 @@ export interface DashCopy {
     saveFailed: string
   }
   stamps: {
+    back: string
+    cardNotFound: string
     title: string
     description: string
     enabled: string
@@ -91,7 +95,6 @@ export interface DashCopy {
     failures: { load: string; save: string; validation: string }
   }
   reception: {
-    eyebrow: string
     title: string
     description: string
     scannerLabel: string
@@ -121,10 +124,9 @@ export interface DashCopy {
     categoryLabel: string
     membership: string
     ticket: string
-    perkLabel: string
-    perkPlaceholder: string
-    rewardLabel: string
-    rewardPlaceholder: string
+    cardDescriptionLabel: string
+    cardDescriptionPlaceholder: string
+    cardDescriptionHint: string
     expiryDays: string
     claimLabel: string
     claimHint: string
@@ -178,6 +180,8 @@ export interface DashCopy {
     }
   }
   ens: {
+    requiredTitle: string
+    requiredDescription: string
     title: string
     description: string
     claim: string
@@ -196,6 +200,7 @@ export interface DashCopy {
     }
   }
   published: {
+    settings: string
     createFirst: string
     manageVenue: string
     emptyTitle: string
@@ -339,6 +344,7 @@ export const DASH_COPY = {
   en: {
     chrome: {
       brand: 'fuda.',
+      switchProfile: 'Switch profile',
       subtitle: 'Dashboard',
       navigation: 'Dashboard navigation',
       openMenu: 'Open menu',
@@ -352,7 +358,7 @@ export const DASH_COPY = {
       overview: 'Overview',
       rights: 'Rights',
       issue: 'Issue',
-      venue: 'Venue',
+      venue: 'Profile',
       reception: 'Reception',
       newCard: 'New card',
       card: 'Your cards',
@@ -374,7 +380,7 @@ export const DASH_COPY = {
       retry: 'Try again',
       signOut: 'Sign out',
       signOutTitle: 'Sign out of fuda?',
-      signOutDescription: 'You will need to sign in again to manage your venue.',
+      signOutDescription: 'You will need to sign in again to use the dashboard.',
       cancelSignOut: 'Cancel',
       failures: {
         network: 'Could not reach fuda. Check your connection and try again.',
@@ -403,24 +409,28 @@ export const DASH_COPY = {
       },
     },
     venue: {
-      profileTitle: 'Venue profile',
+      profileTitle: 'Profile',
+      profileDescription: 'Manage your name, logo and ENS name.',
       ensUnavailable:
         'ENS is not configured for this deployment. Card creation is unavailable until it is enabled.',
-      handleLabel: 'Venue handle',
+      handleLabel: 'Handle',
       handleHint: 'This cannot be changed after registration.',
-      registerTitle: 'Register your venue',
-      registerDescription: 'Set the identity members will recognise. You’ll claim its ENS name next.',
-      register: 'Register venue',
-      registering: 'Registering…',
+      registerTitle: 'Create your profile',
+      registerDescription: 'Choose the name and appearance members will see. Next, claim your ENS name.',
+      register: 'Create profile',
+      registering: 'Creating…',
       optional: '(optional)',
-      save: 'Save venue',
+      save: 'Save',
       saving: 'Saving…',
-      saved: 'Venue saved.',
-      saveFailed: 'Could not save the venue. Try again.',
+      saved: 'Saved.',
+      saveFailed: 'Could not save your changes. Try again.',
     },
     stamps: {
+      back: 'Back to cards',
+      cardNotFound: 'Card not found',
       title: 'Stamp settings',
-      description: 'Choose how many stamps each card can earn per Japan calendar day.',
+      description:
+        'Settings apply only to this card. Each issued pass earns stamps separately, with daily limits based on Japan time.',
       enabled: 'Award stamps at reception',
       dailyLimit: 'Daily limit (1–100)',
       goal: 'Stamp goal (1–1000)',
@@ -436,7 +446,6 @@ export const DASH_COPY = {
       },
     },
     reception: {
-      eyebrow: 'Reception',
       title: 'Scan member cards',
       description: 'Scan a fuda QR code. The scanner input stays ready for the next guest.',
       scannerLabel: 'QR scanner input',
@@ -446,7 +455,7 @@ export const DASH_COPY = {
       failures: {
         network: 'The result is uncertain because fuda could not be reached. Retry this scan safely.',
         rejected: 'The scan could not be processed. Check the QR code and try again.',
-        notFound: 'This QR code belongs to another venue or is unknown.',
+        notFound: 'This QR code is not recognised or belongs to another profile.',
         badQr: 'This is not a valid fuda QR code.',
         badInput: 'This scan could not be accepted. Scan the QR code again.',
       },
@@ -463,14 +472,14 @@ export const DASH_COPY = {
       preview: 'Live preview',
       handleLabel: 'Link',
       handlePrefix: 'fuda.sh/@',
-      handlePlaceholder: 'wassie-coffee',
+      handlePlaceholder: 'example-club',
       slugLabel: 'Card link',
       slugPlaceholder: 'membership-card',
-      nameLabel: 'Venue name',
-      namePlaceholder: 'Wassie Coffee',
+      nameLabel: 'Name',
+      namePlaceholder: 'Example Club',
       titleLabel: 'Card title',
       taglineLabel: 'Tagline',
-      taglinePlaceholder: 'Omotesando · Coffee shop',
+      taglinePlaceholder: 'A place to connect',
       colorLabel: 'Brand colour',
       customColorLabel: 'Custom colour',
       colorNames: {
@@ -490,10 +499,9 @@ export const DASH_COPY = {
       categoryLabel: 'Card type',
       membership: 'Membership',
       ticket: 'Ticket',
-      perkLabel: 'Perk',
-      perkPlaceholder: 'Stamp card · 10 stamps',
-      rewardLabel: 'Reward',
-      rewardPlaceholder: 'Free drink of your choice',
+      cardDescriptionLabel: 'Description (optional)',
+      cardDescriptionPlaceholder: 'Tell people what this card is for and how to use it.',
+      cardDescriptionHint: 'Shown on the card’s welcome page.',
       expiryDays: '{days} days',
       claimLabel: 'Claim window',
       claimHint: 'When the card is handed out. Leave both empty to keep it open.',
@@ -514,7 +522,7 @@ export const DASH_COPY = {
         validOrder: 'The validity cannot end before it starts.',
       },
       lockScreenLabel: 'Lock screen',
-      lockScreenHint: 'Show the card near the venue.',
+      lockScreenHint: 'Show the card near this location.',
       locationUnavailable: 'Location unavailable.',
       submit: 'Create card',
       submitting: 'Creating…',
@@ -536,7 +544,7 @@ export const DASH_COPY = {
         unknown: 'Could not check this link.',
       },
       failures: {
-        ensRequired: 'Claim your venue ENS name before creating a card.',
+        ensRequired: 'Claim your ENS name before creating a card.',
         ensUnavailable: 'Card creation is unavailable because ENS is not configured.',
         input: 'Some fields need a change before this card can be created.',
         logo: 'Could not upload the logo. Your card is still here — try again.',
@@ -548,7 +556,9 @@ export const DASH_COPY = {
       },
     },
     ens: {
-      title: 'Your venue name on ENS',
+      requiredTitle: 'Claim your ENS name first',
+      requiredDescription: 'Claim your ENS name to start creating cards.',
+      title: 'ENS name',
       description:
         'Claim {name} and the name is yours onchain. fuda covers the transaction fee — you never need a second wallet or any ETH.',
       claim: 'Claim this name',
@@ -557,7 +567,7 @@ export const DASH_COPY = {
       submitting: 'Confirm in your wallet…',
       confirming: 'Waiting for the chain…',
       claimedLabel: 'Claimed',
-      explorer: 'View the transaction',
+      explorer: 'View on Sepolia Etherscan',
       failures: {
         network: 'Could not reach fuda. Check your connection and try again.',
         rejected: 'The claim was not signed. Press the button to try again.',
@@ -567,16 +577,18 @@ export const DASH_COPY = {
       },
     },
     published: {
+      settings: 'Card settings',
       createFirst: 'Create your first card',
-      manageVenue: 'Go to venue and ENS',
+      manageVenue: 'Go to profile',
       emptyTitle: 'Create your first card',
-      emptyDescription: 'Your venue is ready. Add a card when its ENS name has been claimed.',
+      emptyDescription: 'Your cards will appear here once you create them.',
       title: 'Your card is live',
       titleMany: 'Your cards are live',
-      description: 'One link is the whole sign-up. Print it, mail it, or post it.',
+      description:
+        'Members can get this card through its link. Share it in print, by email or on social media.',
       descriptionMany: 'Every card has its own link. Print it, mail it, or post it.',
-      venueLabel: 'Venue page',
-      addCard: 'Add another card',
+      venueLabel: 'Public page',
+      addCard: 'Add card',
       qrLabel: 'QR code for your card link',
       print: 'Print QR poster',
       share: 'Share link',
@@ -707,6 +719,7 @@ export const DASH_COPY = {
   ja: {
     chrome: {
       brand: 'fuda.',
+      switchProfile: 'プロフィールを切り替え',
       subtitle: 'Dashboard',
       navigation: 'ダッシュボードナビゲーション',
       openMenu: 'メニューを開く',
@@ -720,7 +733,7 @@ export const DASH_COPY = {
       overview: '概要',
       rights: '権利',
       issue: '発行',
-      venue: '店舗',
+      venue: 'プロフィール',
       reception: '受付',
       newCard: 'カードを作る',
       card: 'カード',
@@ -742,7 +755,7 @@ export const DASH_COPY = {
       retry: '再試行',
       signOut: 'サインアウト',
       signOutTitle: 'サインアウトしますか？',
-      signOutDescription: 'Venueを管理するには、もう一度サインインする必要があります。',
+      signOutDescription: 'ダッシュボードを使うには、もう一度サインインしてください。',
       cancelSignOut: 'キャンセル',
       failures: {
         network: 'fuda に接続できませんでした。通信環境を確認して、もう一度お試しください。',
@@ -771,23 +784,27 @@ export const DASH_COPY = {
       },
     },
     venue: {
-      profileTitle: '店舗情報',
+      profileTitle: 'プロフィール',
+      profileDescription: '名前、ロゴ、ENS名を管理します。',
       ensUnavailable: 'この環境では ENS が設定されていません。有効になるまでカードを作成できません。',
-      handleLabel: '店舗ハンドル',
+      handleLabel: 'ハンドル',
       handleHint: '登録後は変更できません。',
-      registerTitle: '店舗を登録',
-      registerDescription: 'メンバーに伝わる店舗情報を設定します。次に ENS 名を取得します。',
-      register: '店舗を登録',
-      registering: '登録中…',
+      registerTitle: 'プロフィールを作成',
+      registerDescription: 'メンバーに表示する名前やデザインを設定します。次にENS名を取得します。',
+      register: 'プロフィールを作成',
+      registering: '作成中…',
       optional: '（任意）',
-      save: '店舗情報を保存',
+      save: '保存',
       saving: '保存中…',
-      saved: '店舗情報を保存しました。',
-      saveFailed: '店舗情報を保存できませんでした。もう一度お試しください。',
+      saved: '保存しました。',
+      saveFailed: '保存できませんでした。もう一度お試しください。',
     },
     stamps: {
+      back: 'カード一覧に戻る',
+      cardNotFound: 'カードが見つかりません',
       title: 'スタンプ設定',
-      description: '日本時間の1日あたりに、1枚のカードが獲得できるスタンプ数を設定します。',
+      description:
+        'このカードのスタンプを設定します。獲得数は発行済みパスごとに集計し、1日の上限は日本時間で判定します。',
       enabled: '受付でスタンプを付与',
       dailyLimit: '1日の上限（1〜100）',
       goal: 'ゴール（1〜1000）',
@@ -803,7 +820,6 @@ export const DASH_COPY = {
       },
     },
     reception: {
-      eyebrow: '受付',
       title: 'メンバーカードをスキャン',
       description: 'fuda の QR コードを読み取ります。読み取り後も次のお客さまの入力をすぐ受け付けます。',
       scannerLabel: 'QR スキャナー入力',
@@ -813,7 +829,7 @@ export const DASH_COPY = {
       failures: {
         network: 'fuda に接続できず、結果を確定できません。同じ読み取りを安全に再試行できます。',
         rejected: '読み取りを処理できませんでした。QR コードを確認してもう一度お試しください。',
-        notFound: 'この QR コードは別の店舗のものか、登録されていません。',
+        notFound: 'このQRコードは登録されていないか、別のプロフィールに属しています。',
         badQr: 'fuda の正しい QR コードではありません。',
         badInput: 'この読み取りは受け付けられませんでした。QR コードをもう一度読み取ってください。',
       },
@@ -830,14 +846,14 @@ export const DASH_COPY = {
       preview: 'プレビュー',
       handleLabel: 'リンク',
       handlePrefix: 'fuda.sh/@',
-      handlePlaceholder: 'wassie-coffee',
+      handlePlaceholder: 'example-club',
       slugLabel: 'カードのリンク',
       slugPlaceholder: 'membership-card',
-      nameLabel: '店舗名',
-      namePlaceholder: 'Wassie Coffee',
+      nameLabel: '名前',
+      namePlaceholder: 'Example Club',
       titleLabel: 'カード名',
       taglineLabel: '説明',
-      taglinePlaceholder: '表参道 · コーヒーショップ',
+      taglinePlaceholder: 'つながりが生まれる場所',
       colorLabel: 'ブランドカラー',
       customColorLabel: 'カスタムカラー',
       colorNames: {
@@ -857,10 +873,9 @@ export const DASH_COPY = {
       categoryLabel: 'カードの種類',
       membership: '会員カード',
       ticket: 'チケット',
-      perkLabel: '特典',
-      perkPlaceholder: 'スタンプカード · 10 個',
-      rewardLabel: 'リワード',
-      rewardPlaceholder: 'お好きなドリンク 1 杯無料',
+      cardDescriptionLabel: '説明（任意）',
+      cardDescriptionPlaceholder: 'カードの内容や利用方法を入力してください。',
+      cardDescriptionHint: 'カードの受け取りページに表示されます。',
       expiryDays: '{days} 日',
       claimLabel: '受付期間',
       claimHint: 'カードを受け取れる期間です。両方とも空欄なら、いつでも受け取れます。',
@@ -881,7 +896,7 @@ export const DASH_COPY = {
         validOrder: '終了日時は開始日時より後にしてください。',
       },
       lockScreenLabel: 'ロック画面',
-      lockScreenHint: '店舗の近くでカードを表示します。',
+      lockScreenHint: 'この場所の近くでカードを表示します。',
       locationUnavailable: '位置情報を取得できませんでした。',
       submit: 'カードを作成',
       submitting: '作成中…',
@@ -903,7 +918,7 @@ export const DASH_COPY = {
         unknown: 'リンクを確認できませんでした。',
       },
       failures: {
-        ensRequired: 'カードを作成する前に店舗の ENS 名を取得してください。',
+        ensRequired: 'カードを作成する前にENS名を取得してください。',
         ensUnavailable: 'ENS が設定されていないため、カードを作成できません。',
         input: '入力内容を確認してください。このままではカードを作成できません。',
         logo: 'ロゴをアップロードできませんでした。入力内容はそのままです。もう一度お試しください。',
@@ -915,7 +930,9 @@ export const DASH_COPY = {
       },
     },
     ens: {
-      title: 'ENS 上の店舗名',
+      requiredTitle: '先にENS名を取得してください',
+      requiredDescription: 'ENS名を取得すると、カードを作成できます。',
+      title: 'ENS名',
       description:
         '{name} を取得すると、この名前がオンチェーンであなたのものになります。手数料は fuda が負担するので、別のウォレットも ETH も要りません。',
       claim: 'この名前を取得する',
@@ -924,7 +941,7 @@ export const DASH_COPY = {
       submitting: 'ウォレットで承認してください…',
       confirming: 'チェーンの確認を待っています…',
       claimedLabel: '取得済み',
-      explorer: 'トランザクションを見る',
+      explorer: 'Sepolia Etherscanで確認',
       failures: {
         network: 'fuda に接続できませんでした。通信環境を確認してもう一度試してください。',
         rejected: '署名されませんでした。ボタンを押すとやり直せます。',
@@ -934,15 +951,16 @@ export const DASH_COPY = {
       },
     },
     published: {
+      settings: 'カード設定',
       createFirst: '最初のカードを作成',
-      manageVenue: '店舗と ENS を確認',
+      manageVenue: 'プロフィールへ',
       emptyTitle: '最初のカードを作成',
-      emptyDescription: '店舗の準備ができました。ENS 名を取得するとカードを作成できます。',
+      emptyDescription: '作成したカードがここに表示されます。',
       title: 'カードを公開しました',
       titleMany: '公開中のカード',
-      description: 'このリンク 1 本が入会導線になります。印刷しても、送っても、投稿してもかまいません。',
-      descriptionMany: 'カードごとにリンクがあります。印刷しても、送っても、投稿してもかまいません。',
-      venueLabel: '店舗ページ',
+      description: 'このリンクからカードを受け取れます。印刷やメール、SNSで共有しましょう。',
+      descriptionMany: 'カードごとに専用のリンクがあります。印刷やメール、SNSで共有しましょう。',
+      venueLabel: '公開ページ',
       addCard: 'カードを追加',
       qrLabel: 'カードのリンクの QR コード',
       print: 'QR ポスターを印刷',

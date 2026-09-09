@@ -4,6 +4,7 @@ import { ADDRESS_RE, META_ADDRESS_RE, NONCE_RE, QR_RE, SIGNATURE_RE, UID_RE } fr
 import {
   BRAND_COLOR_RE,
   CARD_CATEGORIES,
+  CARD_DESCRIPTION_MAX_LENGTH,
   hasSingleValidityRule,
   isCardSlug,
   isIssuerHandle,
@@ -73,10 +74,8 @@ const CardFields = v.object({
   category: v.picklist(CARD_CATEGORIES),
   claimFrom: unixOrNull,
   claimUntil: unixOrNull,
-  // eslint sort-keys compares the whole key list; `lockScreen` follows here.
+  description: shortText(CARD_DESCRIPTION_MAX_LENGTH),
   lockScreen: v.optional(v.boolean(), false),
-  perk: shortText(120),
-  reward: shortText(120),
   slug: v.pipe(v.string(), v.check(isCardSlug)),
   title: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(60)),
   validFrom: unixOrNull,

@@ -1,5 +1,5 @@
 /** @jsxImportSource hono/jsx/dom */
-import { brandTextColor } from '@fuda/sdk'
+import { brandTextColor, CARD_DESCRIPTION_MAX_LENGTH } from '@fuda/sdk'
 import type { CardCategory, IssuerView } from '@fuda/sdk'
 import { cn } from 'cn'
 import { useCallback, useEffect, useState } from 'hono/jsx/dom'
@@ -305,11 +305,11 @@ export const CardDesignerView = ({
   onWindow,
   status,
 }: CardDesignerViewProps): JSX.Element => (
-  <section class="flex max-w-2xl flex-col gap-5">
-    <div>
-      <h1 class="text-2xl font-bold">{copy.title}</h1>
+  <section class="flex max-w-2xl flex-col gap-6">
+    <header class="dash-page-header">
+      <h1 class="dash-page-title">{copy.title}</h1>
       <p class="opacity-70">{copy.description}</p>
-    </div>
+    </header>
 
     <div class="flex flex-col gap-2">
       <span class="text-xs tracking-widest uppercase opacity-70">{copy.preview}</span>
@@ -357,12 +357,23 @@ export const CardDesignerView = ({
         </select>
       </div>
 
-      {textField('perk', copy.perkLabel, form.perk, copy.perkPlaceholder, (next) => {
-        onField('perk', next)
-      })}
-      {textField('reward', copy.rewardLabel, form.reward, copy.rewardPlaceholder, (next) => {
-        onField('reward', next)
-      })}
+      <div class="flex flex-col gap-1">
+        <label for="card-description">{copy.cardDescriptionLabel}</label>
+        <textarea
+          class="textarea w-full"
+          id="card-description"
+          maxLength={CARD_DESCRIPTION_MAX_LENGTH}
+          onInput={(event) => {
+            if (event.currentTarget instanceof HTMLTextAreaElement) {
+              onField('description', event.currentTarget.value)
+            }
+          }}
+          placeholder={copy.cardDescriptionPlaceholder}
+          rows={4}
+          value={form.description}
+        />
+        <p class="text-moderate text-sm">{copy.cardDescriptionHint}</p>
+      </div>
 
       {claimSection(copy, form, onWindow)}
       {validitySection(copy, form, onValidityDays, onValidityMode, onWindow)}

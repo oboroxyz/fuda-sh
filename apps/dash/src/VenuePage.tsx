@@ -9,8 +9,6 @@ import type { DashCopy } from './copy.ts'
 import { browserLogoTools, EMPTY_LOGO, generateLogoSet, withLogoResult } from './logo.ts'
 import type { LogoSet, LogoState } from './logo.ts'
 import { LogoField } from './LogoField.tsx'
-import { StampSettings } from './StampSettings.tsx'
-import type { StampSettingsProps } from './StampSettings.tsx'
 import { EMPTY_VENUE_FORM, venueBodyFrom } from './venue.ts'
 import type { VenueForm } from './venue.ts'
 import { VenueDetailsForm } from './VenueDetailsForm.tsx'
@@ -27,9 +25,7 @@ export interface VenuePageProps {
   onCheckHandle: (handle: string) => Promise<'available' | 'taken' | 'unknown'>
   onCommitLogo: (logo: LogoSet) => Promise<boolean>
   onCreate: (form: VenueForm, logo: LogoSet | null) => void
-  onNewCard: () => void
   onUpdate: (body: IssuerUpdateRequest) => Promise<boolean>
-  stampSettings: Pick<StampSettingsProps, 'load' | 'save'>
 }
 
 export const VenuePage = (props: VenuePageProps): JSX.Element => {
@@ -101,92 +97,82 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
     setLogoFailed(false)
   }
 
-  const uploadLogo = (): void => {
-    if (logoBusy || logo.pick === null) {
-      return
+  const saveVenue = async (body: IssuerUpdateRequest): Promise<boolean> => {
+    if (logoBusy) {
+      return false
     }
-    const { variants } = logo.pick
-    const revision = logoRevision.current
-    setLogoBusy(true)
-    setLogoFailed(false)
-    const run = async (): Promise<void> => {
-      const ok = await props.onCommitLogo(variants).catch(() => false)
+    if (logo.pick !== null) {
+      const revision = logoRevision.current
+      setLogoBusy(true)
+      setLogoFailed(false)
+      const ok = await props.onCommitLogo(logo.pick.variants).catch(() => false)
       if (revision !== logoRevision.current) {
-        return
+        return false
       }
       setLogoBusy(false)
-      if (ok) {
-        clearLogo()
-      } else {
+      if (!ok) {
         setLogoFailed(true)
+        return false
       }
+      clearLogo()
     }
-    void run()
+    return await props.onUpdate(body)
   }
 
   if (props.issuer !== null) {
     return (
-      <section class="dash-page max-w-3xl">
+      <section class="dash-page flex max-w-3xl flex-col gap-6">
         <header class="dash-page-header">
-          <p class="dash-eyebrow">{props.copy.nav.venue}</p>
-          <h1 class="text-3xl font-bold">{props.copy.venue.profileTitle}</h1>
+          <h1 class="dash-page-title">{props.copy.venue.profileTitle}</h1>
+          <p class="opacity-70">{props.copy.venue.profileDescription}</p>
         </header>
         <VenueDetailsForm
           key={props.issuer.id}
           copy={props.copy}
+          ens={
+            props.ens ?? (
+              <p class="text-sm opacity-70" role="status">
+                {props.copy.venue.ensUnavailable}
+              </p>
+            )
+          }
           issuer={props.issuer}
           publicUrl={props.publicUrl}
-          onUpdate={props.onUpdate}
+          onUpdate={saveVenue}
+          logo={{
+            busy: logoBusy,
+            field: (
+              <section aria-label={props.copy.logo.label} class="flex flex-col gap-3">
+                <LogoField
+                  busy={logoBusy}
+                  copy={props.copy.logo}
+                  id="change-logo"
+                  label={props.copy.logo.label}
+                  onClear={clearLogo}
+                  onPick={pickLogo}
+                  savedUrl={props.issuer.logoUrl}
+                  state={logo}
+                />
+                {logoFailed ? <p class="text-error text-sm">{props.copy.logo.updateFailed}</p> : null}
+              </section>
+            ),
+            pending: logo.pick !== null,
+          }}
         />
-        <div class="card grid gap-5 p-5 sm:grid-cols-[1fr_auto] sm:items-start">
-          <div class="space-y-2">
-            {props.issuer.logoUrl === null ? null : (
-              <img
-                alt={props.copy.logo.previewAlt}
-                class="border-base-300 size-16 rounded-xl border object-cover"
-                src={props.issuer.logoUrl}
-              />
-            )}
-          </div>
-          <div class="flex flex-col gap-3">
-            <LogoField
-              busy={logoBusy}
-              copy={props.copy.logo}
-              id="change-logo"
-              label={props.copy.logo.change}
-              onClear={clearLogo}
-              onPick={pickLogo}
-              state={logo}
-            />
-            {logo.pick === null ? null : (
-              <button
-                class="btn btn-primary self-start"
-                disabled={logoBusy}
-                onClick={uploadLogo}
-                type="button"
-              >
-                {props.copy.logo.upload}
-              </button>
-            )}
-          </div>
-          {logoFailed ? <p class="text-error text-sm sm:col-span-2">{props.copy.logo.updateFailed}</p> : null}
-        </div>
-        {props.ens ?? (
-          <div class="alert" role="status">
-            {props.copy.venue.ensUnavailable}
-          </div>
-        )}
         <div class="dash-actions">
-          <button
-            class="btn btn-primary"
-            disabled={!props.canCreateCard}
-            onClick={props.onNewCard}
-            type="button"
-          >
-            {props.copy.published.addCard}
-          </button>
+          <a class="btn" href="/cards">
+            {props.copy.nav.card}
+          </a>
+          {props.canCreateCard ? (
+            <a class="btn" href="/cards/new">
+              {props.copy.published.addCard}
+            </a>
+          ) : (
+            <button class="btn" disabled type="button">
+              {props.copy.published.addCard}
+            </button>
+          )}
         </div>
-        <StampSettings copy={props.copy.stamps} {...props.stampSettings} />
       </section>
     )
   }
@@ -196,10 +182,9 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
     setForm((current) => ({ ...current, [key]: value }))
   }
   return (
-    <section class="dash-page max-w-2xl">
+    <section class="dash-page flex max-w-2xl flex-col gap-6">
       <header class="dash-page-header">
-        <p class="dash-eyebrow">{props.copy.nav.venue}</p>
-        <h1 class="text-3xl font-bold">{props.copy.venue.registerTitle}</h1>
+        <h1 class="dash-page-title">{props.copy.venue.registerTitle}</h1>
         <p class="opacity-70">{props.copy.venue.registerDescription}</p>
       </header>
       {props.failure === null ? null : <p class="alert alert-error">{copy.failures[props.failure]}</p>}

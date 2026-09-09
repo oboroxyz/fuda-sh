@@ -32,7 +32,9 @@ Voucher issuance, the naming mirror and revoke lifecycle integration are impleme
 
 ## Claiming a name, and what writes the mirror
 
-Dashboard onboarding registers the issuer without a card, then acquires its ENS name on `/venue`. Only a confirmed claim unlocks `POST /issuers/cards` and the `/new` card designer. A cancelled wallet prompt or failed confirmation leaves the issuer registered with zero cards and offers another claim attempt. Existing card reads and member issuance remain available independently of this new-card prerequisite. Deployments without ENS configured show an unavailable state instead of bypassing the acquisition step.
+Dashboard onboarding registers the issuer without a card, then acquires its ENS name on `/profile`. Only a confirmed claim unlocks `POST /issuers/cards` and the `/cards/new` card designer. Before confirmation, a registered operator can open `/cards/new` to see an explicit ENS prerequisite and a link to `/profile`, rather than being redirected or shown the venue form in place of the designer. A cancelled wallet prompt or failed confirmation leaves the issuer registered with zero cards and offers another claim attempt. Existing card reads and member issuance remain available independently of this new-card prerequisite. Deployments without ENS configured show an unavailable state instead of bypassing the acquisition step.
+
+The dashboard venue identity on `/profile` shows the ENS name alongside the venue name and public URL. A confirmed claim displays a verification mark; an unclaimed name offers a Claim button in the same area, with progress and retry feedback. The mark indicates a confirmed ENS claim, not independent verification of the business. The claimed ENS name links to the issuer owner address on Sepolia Etherscan in a new tab, even when the claim transaction hash is unavailable.
 
 An operator claims their venue's name from the dashboard in one press. fuda signs the voucher; the operator's own wallet submits it on Ethereum Sepolia, sponsored, so a venue owner needs neither that chain's native token nor a second wallet:
 

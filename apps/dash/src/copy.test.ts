@@ -13,7 +13,7 @@ describe('Dash copy', () => {
       overview: 'Overview',
       reception: 'Reception',
       rights: 'Rights',
-      venue: 'Venue',
+      venue: 'Profile',
     })
     expect(copy.auth.tokenLabel).toBe('Admin token')
     expect(copy.auth.title).toBe('fuda. dashboard')
@@ -26,7 +26,7 @@ describe('Dash copy', () => {
     expect(copy.designer.slugStatus.taken).toBe('Already used')
     expect(copy.designer.slugStatus.reserved).toBe('This name is reserved.')
     expect(copy.designer.failures.slugTaken).toContain('already used')
-    expect(copy.published.addCard).toBe('Add another card')
+    expect(copy.published.addCard).toBe('Add card')
   })
 
   it('names the two time windows and their three validity modes in English', () => {
@@ -56,7 +56,7 @@ describe('Dash copy', () => {
       overview: '概要',
       reception: '受付',
       rights: '権利',
-      venue: '店舗',
+      venue: 'プロフィール',
     })
     expect(copy.auth.tokenLabel).toBe('管理トークン')
     expect(copy.auth.title).toBe('fuda. dashboard')
@@ -69,7 +69,7 @@ describe('Dash copy', () => {
     expect(copy.designer.slugStatus.taken).toBe('すでに使われています')
     expect(copy.published.addCard).toBe('カードを追加')
     expect(copy.published.titleMany).toBe('公開中のカード')
-    expect(copy.published.venueLabel).toBe('店舗ページ')
+    expect(copy.published.venueLabel).toBe('公開ページ')
   })
 
   it('names the two time windows and the closed state in Japanese', () => {
