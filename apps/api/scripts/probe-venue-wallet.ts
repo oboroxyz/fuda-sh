@@ -10,10 +10,12 @@ import { baseSepolia } from 'viem/chains'
 
 import { signInMessage } from '../src/auth/sign-in.ts'
 import { createViemChain, DEFAULT_RPC } from '../src/chain/viem-chain.ts'
+import { observeProbeRpc } from './probe-rpc.ts'
 
 const probe = async (): Promise<void> => {
   const rpcUrl = process.env.BASE_RPC_URL ?? DEFAULT_RPC
-  const client = createPublicClient({ chain: baseSepolia, transport: http(rpcUrl) })
+  const rpc = observeProbeRpc(http(rpcUrl, { retryCount: 0, timeout: 15_000 }))
+  const client = createPublicClient({ chain: baseSepolia, transport: rpc.transport })
   assert.equal(await client.getChainId(), baseSepolia.id, 'RPC must be Base Sepolia (84532).')
 
   // These keys are generated for this run and never printed, persisted or funded.
@@ -32,12 +34,15 @@ const probe = async (): Promise<void> => {
 
   // Only verifyMessage is used. The EAS/announcer addresses are never queried;
   // no signer binding is supplied, so ChainClient cannot send transactions.
-  const chain = createViemChain({
-    ANNOUNCER_ADDRESS: zeroAddress,
-    BASE_RPC_URL: rpcUrl,
-    EAS_ADDRESS: zeroAddress,
-    FACTORY_ADDRESS: first.factory.address,
-  })
+  const chain = createViemChain(
+    {
+      ANNOUNCER_ADDRESS: zeroAddress,
+      BASE_RPC_URL: rpcUrl,
+      EAS_ADDRESS: zeroAddress,
+      FACTORY_ADDRESS: first.factory.address,
+    },
+    rpc.transport,
+  )
   const message = signInMessage('operator', generatePrivateKey())
   const [firstSignature, secondSignature] = await Promise.all([
     first.signMessage({ message }),
@@ -95,6 +100,8 @@ const probe = async (): Promise<void> => {
     'Probe must not deploy the wallet.',
   )
 
+  rpc.assertSucceeded()
+
   // oxlint-disable-next-line no-console -- CLI result contains public addresses and verification outcomes only
   console.log(
     JSON.stringify(
@@ -118,7 +125,9 @@ const probe = async (): Promise<void> => {
   )
 }
 
-await probe().catch((error: unknown) => {
+try {
+  await probe()
+} catch (error) {
   // RPC errors may contain an API key in their URL: print only our own assertions.
   // oxlint-disable-next-line no-console -- CLI failure must not expose RPC URLs, credentials or signature payloads
   console.error(
@@ -127,4 +136,4 @@ await probe().catch((error: unknown) => {
       : 'Venue wallet probe failed. Check Base Sepolia RPC connectivity and the installed smart-wallet SDK.',
   )
   process.exitCode = 1
-})
+}

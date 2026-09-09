@@ -8,7 +8,7 @@ import {
   RpcRequestError,
   TimeoutError,
 } from 'viem'
-import type { Hex } from 'viem'
+import type { Hex, Transport } from 'viem'
 import { nonceManager, privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
 
@@ -41,8 +41,10 @@ type ChainBindings = Pick<
   'ANNOUNCER_ADDRESS' | 'BASE_RPC_URL' | 'EAS_ADDRESS' | 'FACTORY_ADDRESS' | 'SIGNER_PRIVATE_KEY'
 >
 
-export const createViemChain = (env: ChainBindings): ChainClient => {
-  const transport = http(env.BASE_RPC_URL ?? DEFAULT_RPC)
+export const createViemChain = (
+  env: ChainBindings,
+  transport: Transport = http(env.BASE_RPC_URL ?? DEFAULT_RPC),
+): ChainClient => {
   const publicClient = createPublicClient({ chain: baseSepolia, transport })
   const eas = toHexAddress(env.EAS_ADDRESS)
   const factory = toHexAddress(env.FACTORY_ADDRESS)
