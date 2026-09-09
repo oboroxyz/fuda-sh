@@ -14,8 +14,14 @@ export type SignedOutcome =
 // The member-side flow (docs/specs/pass-types-and-flows.md#gate-protocol): mint → sign the exact challenge string →
 // verify. The wallet signs what the api minted, byte for byte; nothing here
 // reconstructs the message.
-export const enterSigned = async (io: SignedGateIo, uid: Hex): Promise<SignedOutcome> => {
+export const enterSigned = async (
+  io: SignedGateIo,
+  uid: Hex,
+  signal?: AbortSignal,
+): Promise<SignedOutcome> => {
+  signal?.throwIfAborted()
   const minted = await io.challenge(uid)
+  signal?.throwIfAborted()
   if (!minted.ok) {
     return { error: minted.error, kind: 'error', network: minted.network }
   }
@@ -23,6 +29,7 @@ export const enterSigned = async (io: SignedGateIo, uid: Hex): Promise<SignedOut
   try {
     signature = await io.sign(minted.body.challenge)
   } catch (error) {
+    signal?.throwIfAborted()
     // A refused prompt is the member's own choice, not an outage: no network banner.
     return {
       error: error instanceof Error ? error.message : 'signing failed',
@@ -30,7 +37,9 @@ export const enterSigned = async (io: SignedGateIo, uid: Hex): Promise<SignedOut
       network: false,
     }
   }
+  signal?.throwIfAborted()
   const verified = await io.verify({ nonce: minted.body.nonce, signature, uid })
+  signal?.throwIfAborted()
   if (!verified.ok) {
     return { error: verified.error, kind: 'error', network: verified.network }
   }

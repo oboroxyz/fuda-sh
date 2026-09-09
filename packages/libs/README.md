@@ -36,3 +36,13 @@ const Passes = () => {
 ```
 
 Use query keys for every input that changes the identity of returned data. Do not put session tokens, signing keys, PRF output, wallet credentials, or authentication UI state in query keys or cached result data. Clear or replace a scope when its authorization boundary changes. Write workflows remain explicit; after a successful write, update or invalidate the affected read query through the client.
+
+## `@fuda/libs/wallet`
+
+`baseAccountProvider({ appChainIds, appName?, paymasterUrls? })` lazily loads Base Account. The caller selects chains and sponsorship; member entry and venue ENS claims use different configuration. `requestAccount` validates and checksums the account, and `personalSign` validates the returned signature. `injectedProvider` reads an optional browser wallet. All providers implement `Eip1193Provider`.
+
+## `@fuda/libs/auth`
+
+`authenticateWallet(io, signal?)` runs account selection, server challenge, personal signature and verification, returning the caller's verified session or a wallet/network/rejected/unavailable failure. Product-specific reads and navigation stay with the caller. Aborting stops subsequent prompts and requests after the current step settles; controllers still invalidate their UI immediately and discard stale work. It does not cancel an already submitted wallet operation or HTTP request.
+
+`createTokenStore({ apiBaseUrl, audience, storage? })` isolates member and operator tokens by API origin. Its `clear(token)` removes only that token, preserving a newer replacement. Blocked browser storage does not prevent an in-memory session. `createSessionGeneration()` lets controllers invalidate outstanding async work; check captured tickets before installing a result or changing a replacement session.

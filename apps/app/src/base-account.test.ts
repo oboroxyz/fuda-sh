@@ -20,7 +20,7 @@ const { baseAccountProvider } = await import('./base-account.ts')
 
 describe(baseAccountProvider, () => {
   it('builds the SDK for Base Sepolia and forwards request to its provider', async () => {
-    const provider = baseAccountProvider()
+    const provider = await baseAccountProvider()
     expect(createBaseAccountSDK).toHaveBeenCalledWith({ appChainIds: [84_532], appName: 'fuda' })
     expect(getProvider).toHaveBeenCalledWith()
     await provider.request({ method: 'eth_requestAccounts' })

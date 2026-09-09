@@ -22,3 +22,5 @@ export {
   watchThemeMode,
 } from './theme.ts'
 export type { ThemeEnvironment, ThemeMode } from './theme.ts'
+export { ConfirmAction } from './ConfirmAction.tsx'
+export type { ConfirmActionProps } from './ConfirmAction.tsx'

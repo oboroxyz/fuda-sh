@@ -11,7 +11,6 @@
     "test": "vp test"
   },
   "dependencies": {
-    "@base-org/account": "2.5.10",
     "@fuda/ens-contracts": "workspace:*",
     "@fuda/i18n": "workspace:*",
     "@fuda/libs": "workspace:*",

@@ -11,7 +11,6 @@
     "test": "vp build && vp test"
   },
   "dependencies": {
-    "@base-org/account": "2.5.10",
     "@fuda/libs": "workspace:*",
     "@fuda/sdk": "workspace:*",
     "@fuda/stealth-address": "workspace:*",
@@ -21,6 +20,7 @@
     "viem": "^2.56.3"
   },
   "devDependencies": {
+    "@base-org/account": "2.5.10",
     "@cloudflare/workers-types": "^4.20250905.0",
     "@tailwindcss/vite": "4.3.3",
     "daisyui": "5.7.28",

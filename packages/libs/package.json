@@ -4,15 +4,19 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./query": "./src/query/index.ts"
+    "./query": "./src/query/index.ts",
+    "./auth": "./src/auth/index.ts",
+    "./wallet": "./src/wallet/index.ts"
   },
   "scripts": {
     "test": "vp test"
   },
   "dependencies": {
+    "@base-org/account": "2.5.10",
     "@fuda/sdk": "workspace:*",
     "@tanstack/query-core": "5.102.8",
-    "hono": "^4.13.5"
+    "hono": "^4.13.5",
+    "viem": "^2.56.3"
   },
   "devDependencies": {
     "vitest": "4.1.11"

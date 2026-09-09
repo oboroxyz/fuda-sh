@@ -3,8 +3,8 @@ import type { Hex, PublicCard, PublicVenue } from '@fuda/sdk'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 import { describe, expect, it } from 'vitest'
 
-import { CardScreenView, issueDateOf } from './CardScreen.tsx'
-import type { IssuedCard } from './CardScreen.tsx'
+import { CardScreenView, issueDateOf } from './venue/CardScreen.tsx'
+import type { IssuedCard } from './venue/CardScreen.tsx'
 
 interface ViewNode {
   props: {
@@ -112,7 +112,7 @@ const issued: IssuedCard = {
 const noop = (): void => {}
 
 const render = (state: Parameters<typeof CardScreenView>[0]['state']): JSX.Element =>
-  CardScreenView({ onIssue: noop, onReload: noop, state })
+  CardScreenView({ handle: card.handle, onIssue: noop, onReload: noop, state })
 
 describe(CardScreenView, () => {
   it('shows the venue card, its perks and the free-card button on the landing', () => {
@@ -131,7 +131,7 @@ describe(CardScreenView, () => {
 
     expect(viewNodes(view).some(({ props }) => props.style !== undefined)).toBe(true)
     expect(viewNodes(view).find(({ props }) => props.style !== undefined)?.props.style).toStrictEqual({
-      background: '#1D4ED8',
+      backgroundColor: '#1D4ED8',
     })
   })
 
@@ -211,7 +211,7 @@ describe('the card chooser', () => {
     expect(text).toContain('Wassie Coffee')
     expect(text).toContain('Slow coffee, fast wifi')
     expect(text).toMatch(/Regular.*Membership.*Free refill on every visit.*Friday Gig.*Ticket/su)
-    expect(hrefs).toStrictEqual(['/@wassie-coffee/regular', '/@wassie-coffee/gig'])
+    expect(hrefs).toStrictEqual(['/@wassie-coffee', '/@wassie-coffee/regular', '/@wassie-coffee/gig'])
   })
 
   it('offers a held card back instead of inviting a second claim', () => {
@@ -247,7 +247,7 @@ describe('the card chooser', () => {
     expect(viewText(unknown)).toMatch(/Wassie Coffee\s+has no card at this address/u)
     expect(viewNodes(unknown).map(({ props }) => props.href)).toContain('/@wassie-coffee')
     expect(viewText(bare)).toContain('There is no card at this address')
-    expect(viewNodes(bare).map(({ props }) => props.href)).not.toContain('/@wassie-coffee')
+    expect(viewNodes(bare).map(({ props }) => props.href)).toContain('/@wassie-coffee')
   })
 })
 
@@ -292,5 +292,23 @@ describe('the venue mark', () => {
       (node) => node.props.src !== undefined,
     )
     expect(marks).toStrictEqual([])
+  })
+})
+
+describe('venue-local navigation', () => {
+  it.each([
+    { kind: 'loading' },
+    { kind: 'not_found', venue: null },
+    { heldSlugs: [], kind: 'choose', venue },
+    { card, kind: 'landing' },
+    { card, kind: 'issuing' },
+    { card: null, failure: 'network', kind: 'error' },
+    { appleHref: null, card, googleHref: null, issued, kind: 'ready' },
+  ] satisfies Parameters<typeof CardScreenView>[0]['state'][])('keeps $kind within the venue', (state) => {
+    const nodes = viewNodes(render(state))
+    const hrefs = nodes.map(({ props }) => props.href)
+    expect(hrefs).toContain('/@wassie-coffee')
+    expect(hrefs).not.toContain('/')
+    expect(nodes.some(({ props }) => String(props.class).includes('dock'))).toBe(false)
   })
 })

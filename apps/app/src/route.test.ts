@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import { routeFor } from './route.ts'
+import { routeFor, safeMemberReturn } from './route.ts'
 
 const APEX = 'https://fuda.sh'
 const APP = 'https://app.fuda.sh'
 
 describe(routeFor, () => {
-  it('renders the landing at the root of either origin', () => {
-    expect(routeFor(APEX, '/', APP)).toBe('landing')
-    expect(routeFor(APP, '/', APP)).toBe('landing')
+  it('renders the public member top at the root of either origin', () => {
+    expect(routeFor(APEX, '/', APP)).toBe('top')
+    expect(routeFor(APP, '/', APP)).toBe('top')
   })
 
   // The api's CORS list has no entry for the apex, so the gate may never render
@@ -40,6 +40,12 @@ describe(routeFor, () => {
     expect(routeFor(APEX, '/rights', APP)).toStrictEqual({ redirect: 'https://app.fuda.sh/rights' })
   })
 
+  it('routes sign-in and settings without inventing a signup route', () => {
+    expect(routeFor(APP, '/signin', APP)).toBe('signin')
+    expect(routeFor(APP, '/settings', APP)).toBe('settings')
+    expect(routeFor(APP, '/signup', APP)).toBe('top')
+  })
+
   it('preserves a uid query when routing rights from the apex to the app origin', () => {
     const uid = `0x${'ab'.repeat(32)}`
     expect(routeFor(APEX, `/rights?uid=${uid}`, APP)).toStrictEqual({
@@ -48,8 +54,8 @@ describe(routeFor, () => {
   })
 
   it('sends an unknown path to the landing rather than into a redirect', () => {
-    expect(routeFor(APEX, '/nope', APP)).toBe('landing')
-    expect(routeFor(APP, '/signed/extra', APP)).toBe('landing')
+    expect(routeFor(APEX, '/nope', APP)).toBe('top')
+    expect(routeFor(APP, '/signed/extra', APP)).toBe('top')
   })
 
   // A VITE_APP_ORIGIN spelled with a trailing slash or an upper-case host is the
@@ -63,8 +69,8 @@ describe(routeFor, () => {
   })
 
   it('renders the landing rather than redirecting when the app origin is unusable', () => {
-    expect(routeFor(APEX, '/signed', 'not a url')).toBe('landing')
-    expect(routeFor(APEX, '/signed', 'app.fuda.sh')).toBe('landing')
+    expect(routeFor(APEX, '/signed', 'not a url')).toBe('top')
+    expect(routeFor(APEX, '/signed', 'app.fuda.sh')).toBe('top')
   })
 
   it('honours a dev app origin, so localhost renders the gate in place', () => {
@@ -108,17 +114,42 @@ describe(routeFor, () => {
   })
 
   it('sends an invalid or reserved handle to the landing rather than into a redirect', () => {
-    expect(routeFor(APP, '/@Wassie Coffee', APP)).toBe('landing')
-    expect(routeFor(APEX, '/@www', APP)).toBe('landing')
-    expect(routeFor(APP, '/@', APP)).toBe('landing')
+    expect(routeFor(APP, '/@Wassie Coffee', APP)).toBe('top')
+    expect(routeFor(APEX, '/@www', APP)).toBe('top')
+    expect(routeFor(APP, '/@', APP)).toBe('top')
   })
 
-  // A slug the sdk would refuse is not a card address, so it falls through to
-  // the landing exactly as a bad handle does.
-  it('sends an invalid, reserved or over-deep card slug to the landing', () => {
-    expect(routeFor(APP, '/@wassie-coffee/Regular Card', APP)).toBe('landing')
-    expect(routeFor(APP, '/@wassie-coffee/cards', APP)).toBe('landing')
-    expect(routeFor(APEX, '/@wassie-coffee/cards', APP)).toBe('landing')
-    expect(routeFor(APP, '/@wassie-coffee/regular/extra', APP)).toBe('landing')
+  it('keeps every nonempty suffix under a valid handle in the venue experience', () => {
+    expect(routeFor(APP, '/@wassie-coffee/Regular Card', APP)).toStrictEqual({
+      card: 'wassie-coffee',
+      slug: 'Regular Card',
+    })
+    expect(routeFor(APP, '/@wassie-coffee/cards', APP)).toStrictEqual({
+      card: 'wassie-coffee',
+      slug: 'cards',
+    })
+    expect(routeFor(APP, '/@wassie-coffee/regular/extra', APP)).toStrictEqual({
+      card: 'wassie-coffee',
+      slug: 'regular/extra',
+    })
+    expect(routeFor(APEX, '/@wassie-coffee/cards', APP)).toStrictEqual({
+      redirect: 'https://app.fuda.sh/@wassie-coffee/cards',
+    })
+  })
+})
+
+describe(safeMemberReturn, () => {
+  it('retains only protected member paths and their query strings', () => {
+    expect(safeMemberReturn('/rights?uid=0x123')).toBe('/rights?uid=0x123')
+    expect(safeMemberReturn('/signed')).toBe('/signed')
+    expect(safeMemberReturn('/private')).toBe('/private')
+    expect(safeMemberReturn('/settings')).toBe('/settings')
+  })
+
+  it('falls back to passes for public, external, and malformed targets', () => {
+    expect(safeMemberReturn('//outside.example/rights')).toBe('/rights')
+    expect(safeMemberReturn('https://outside.example/private')).toBe('/rights')
+    expect(safeMemberReturn('/signin')).toBe('/rights')
+    expect(safeMemberReturn('/signup')).toBe('/rights')
   })
 })

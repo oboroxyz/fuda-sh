@@ -64,6 +64,9 @@ export const cards = sqliteTable(
 
 export const sessions = sqliteTable('sessions', {
   address: text('address').notNull(),
+  audience: text('audience', { enum: ['member', 'operator'] })
+    .notNull()
+    .default('operator'),
   createdAt: integer('created_at').notNull(),
   expiresAt: integer('expires_at').notNull(),
   issuerId: text('issuer_id'),

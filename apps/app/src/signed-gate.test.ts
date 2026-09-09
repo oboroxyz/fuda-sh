@@ -3,7 +3,7 @@ import type { ChallengeResponse, Hex, VerifySignedResponse } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
 import { verifyMessage } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { displayOf, enterSigned } from './signed-gate.ts'
 import type { SignedGateIo } from './signed-gate.ts'
@@ -26,6 +26,59 @@ const io = (verify: SignedGateIo['verify']): SignedGateIo => ({
 })
 
 describe(enterSigned, () => {
+  it('does not sign when its screen leaves while the challenge is pending', async () => {
+    const pending = Promise.withResolvers<Result<ChallengeResponse>>()
+    const abort = new AbortController()
+    const sign = vi.fn<SignedGateIo['sign']>(async () => await Promise.resolve('0x00'))
+    const verify = vi.fn<SignedGateIo['verify']>(
+      async () =>
+        await Promise.resolve({
+          body: { decision: 'ADMIT', holder: account.address, path: 'signature', reason: 'OK' },
+          ok: true,
+        }),
+    )
+    const result = enterSigned(
+      { challenge: async () => await pending.promise, sign, verify },
+      UID,
+      abort.signal,
+    )
+
+    abort.abort()
+    pending.resolve(minted)
+
+    await expect(result).rejects.toMatchObject({ name: 'AbortError' })
+    expect(sign).not.toHaveBeenCalled()
+    expect(verify).not.toHaveBeenCalled()
+  })
+
+  it('does not verify when its screen leaves while signing is pending', async () => {
+    const pending = Promise.withResolvers<Hex>()
+    const abort = new AbortController()
+    const verify = vi.fn<SignedGateIo['verify']>(
+      async () =>
+        await Promise.resolve({
+          body: { decision: 'ADMIT', holder: account.address, path: 'signature', reason: 'OK' },
+          ok: true,
+        }),
+    )
+    const result = enterSigned(
+      {
+        challenge: async () => await Promise.resolve(minted),
+        sign: async () => await pending.promise,
+        verify,
+      },
+      UID,
+      abort.signal,
+    )
+    await Promise.resolve()
+
+    abort.abort()
+    pending.resolve('0x00')
+
+    await expect(result).rejects.toMatchObject({ name: 'AbortError' })
+    expect(verify).not.toHaveBeenCalled()
+  })
+
   it('signs exactly the challenge string and posts uid, nonce and signature', async () => {
     const seen: Parameters<SignedGateIo['verify']>[0][] = []
     const result = await enterSigned(

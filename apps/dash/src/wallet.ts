@@ -1,63 +1,19 @@
-import { asHex, SIGNATURE_RE } from '@fuda/sdk'
+import { baseAccountProvider as createProvider } from '@fuda/libs/wallet'
+import type { Eip1193Provider } from '@fuda/libs/wallet'
+import { asHex } from '@fuda/sdk'
 import type { Hex } from '@fuda/sdk'
 import * as v from 'valibot'
-import { getAddress, stringToHex } from 'viem'
 
-// The operator's passkey wallet, whichever rail: an EIP-1193 provider.
-export interface Eip1193Provider {
-  // oxlint-disable-next-line anti-slop/no-unknown-returns -- EIP-1193 is untyped JSON-RPC by contract; every response is parsed into a domain type below
-  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
-}
+export { personalSign, requestAccount } from '@fuda/libs/wallet'
+export type { Eip1193Provider } from '@fuda/libs/wallet'
 
-// A provider's responses are untyped by the EIP-1193 contract, so every value
-// coming back is re-validated here before it is handed on as Hex.
-export const requestAccount = async (p: Eip1193Provider): Promise<Hex> => {
-  const accounts = await p.request({ method: 'eth_requestAccounts' })
-  const first = Array.isArray(accounts) ? String(accounts[0]) : ''
-  const hex = asHex(first, 20)
-  if (hex === null) {
-    throw new Error('wallet returned no account')
-  }
-  return getAddress(hex)
-}
-
-// EIP-191 personal_sign over the UTF-8 sign-in message the api verifies
-// (docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route).
-// Params are [hex-encoded message, address] — the order every browser wallet expects.
-export const personalSign = async (p: Eip1193Provider, address: Hex, message: string): Promise<Hex> => {
-  const sig = String(await p.request({ method: 'personal_sign', params: [stringToHex(message), address] }))
-  if (!SIGNATURE_RE.test(sig)) {
-    throw new Error('wallet returned no signature')
-  }
-  // Annotated (not cast): SIGNATURE_RE guarantees the 0x prefix, so the template
-  // literal narrows to Hex. Case is preserved — a signature is opaque bytes.
-  const signature: Hex = `0x${sig.slice(2)}`
-  return signature
-}
-
-// Base Sepolia carries the rights; Ethereum Sepolia carries the ENS names, and a
-// venue owner holds no gas on either. Declaring both chains lets the same wallet
-// sign an ENS claim, and `paymasterUrls` is what makes fuda pay for it: the SDK
-// injects the ERC-7677 `paymasterService` capability for that chain on its own.
 const toChainIdHex = (chainId: number): string => `0x${chainId.toString(16)}`
-
-const ENS_CHAIN_ID = 11_155_111
-const BASE_SEPOLIA_CHAIN_ID = 84_532
-
-// The passkey smart-wallet rail. Imported dynamically by the caller so the
-// SDK stays out of the sign-in screen's first paint.
 export const baseAccountProvider = async (paymasterUrl = ''): Promise<Eip1193Provider> => {
-  const { createBaseAccountSDK } = await import('@base-org/account')
-  const chains = { appChainIds: [BASE_SEPOLIA_CHAIN_ID, ENS_CHAIN_ID], appName: 'fuda' }
-  // Without a paymaster the wallet asks the operator for gas it does not have,
-  // so an unconfigured deployment is better off never offering the claim at all.
+  const options = { appChainIds: [84_532, 11_155_111] }
   if (paymasterUrl === '') {
-    return createBaseAccountSDK(chains).getProvider()
+    return await createProvider(options)
   }
-  return createBaseAccountSDK({
-    ...chains,
-    paymasterUrls: { [ENS_CHAIN_ID]: paymasterUrl },
-  }).getProvider()
+  return await createProvider({ ...options, paymasterUrls: { 11_155_111: paymasterUrl } })
 }
 
 // EIP-5792 leaves both of these loose: an id may be a bare string or an object

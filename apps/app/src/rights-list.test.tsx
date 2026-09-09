@@ -12,7 +12,7 @@ import {
   withConnectedAddress,
 } from './member-pass-list.ts'
 import type { MemberPassListIo, MemberPassRow } from './member-pass-list.ts'
-import { QueryRecoveryNotice, RightsList, RightsListView } from './RightsList.tsx'
+import { QueryRecoveryNotice, RightsList, RightsListView } from './member/RightsList.tsx'
 import { requestAccount } from './wallet.ts'
 
 const RIGHT = `0x${'aa'.repeat(32)}` as const
@@ -383,15 +383,15 @@ describe('pass link availability', () => {
 })
 
 describe('member pass screen', () => {
-  it('introduces the member list rails, device-loss activation guidance, +Private link, manual disclosure, and empty discovery paths', () => {
+  it('uses the verified holder and keeps another public-address lookup secondary', () => {
     const view = RightsList({ injected: { request: async () => await Promise.resolve([HOLDER_A]) } })
     const text = viewText(view)
 
-    expect(text).toMatch(
-      /^(?=.*Your passes)(?=.*Connect passkey)(?=.*Use wallet)(?=.*Private rights →)(?=.*saved on this device)(?=.*If you lose this device, this saved pass can disappear; activation makes your pass follow the owning key\.)(?=.*\+Private)/u,
-    )
-    expect(viewNodes(view).some(({ props }) => props.href === '/private')).toBe(true)
-    expect(viewNodes(view).some(({ props }) => props.children === 'Look up another address')).toBe(true)
+    expect(text).toContain('Public passes held by your verified address')
+    expect(text).toContain('passes saved on this device')
+    expect(text).not.toContain('activation')
+    expect(text).not.toContain('Connect passkey')
+    expect(text).toContain('Look up another public address')
   })
 })
 
@@ -555,6 +555,8 @@ describe(RightsListView, () => {
     expect(viewText(graphView)).toContain('REVOKED')
     expect(viewText(graphView)).not.toContain('ACTIVE')
     expect(viewText(memoryView)).toContain('Saved on this device')
+    expect(viewText(memoryView)).toContain('Pass')
+    expect(viewText(memoryView)).toContain('UID')
   })
 
   it('does not render pass links for an unclassified memory-only row', () => {

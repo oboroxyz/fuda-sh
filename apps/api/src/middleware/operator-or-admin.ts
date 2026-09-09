@@ -17,14 +17,20 @@ import { adminAuth } from './admin-auth.ts'
 export const operatorOrAdmin = (): MiddlewareHandler<AppEnv> => async (c, next) => {
   const header = c.req.header('Authorization') ?? ''
   const token = header.startsWith('Bearer ') ? header.slice('Bearer '.length) : ''
-  const session = token === '' ? null : await resolveSession(c.get('db'), token, c.get('now')())
-  if (session === null) {
+  const resolved =
+    token === ''
+      ? { kind: 'invalid' as const }
+      : await resolveSession(c.get('db'), token, c.get('now')(), 'operator')
+  if (resolved.kind === 'wrong-audience') {
+    return c.json({ error: 'unauthorized' }, 401)
+  }
+  if (resolved.kind === 'invalid') {
     // `actingIssuer` is always set, so a route never has to ask whether the
     // middleware ran: null is "the admin token", which no venue owns.
     c.set('actingIssuer', null)
     return await adminAuth()(c, next)
   }
-  c.set('operator', session)
-  c.set('actingIssuer', session.issuerId)
+  c.set('operator', resolved.session)
+  c.set('actingIssuer', resolved.session.issuerId)
   await next()
 }

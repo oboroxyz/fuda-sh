@@ -10,8 +10,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { MemberPassListIo } from './member-pass-list.ts'
 import { memberPassListQueryOptions } from './member-pass-query.ts'
+import { RightsList } from './member/RightsList.tsx'
 import { PASS_MEMORY_KEY } from './pass-memory.ts'
-import { RightsList } from './RightsList.tsx'
 
 vi.mock(import('./config.ts'), () => ({
   API_BASE_URL: 'https://api.example',
@@ -77,6 +77,13 @@ const mount = (child: JSX.Element): void => {
 }
 
 const lookup = async (holder: Hex): Promise<void> => {
+  if (root.querySelector('input') === null) {
+    const disclosure = [...root.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('Look up another public address'),
+    )
+    disclosure?.click()
+    await setTimeout(0)
+  }
   const input = root.querySelector('input')
   const form = root.querySelector('form')
   if (input === null || form === null) {

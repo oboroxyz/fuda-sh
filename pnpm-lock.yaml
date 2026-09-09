@@ -89,9 +89,6 @@ importers:
 
   apps/app:
     dependencies:
-      '@base-org/account':
-        specifier: 2.5.10
-        version: 2.5.10(typescript@7.0.2)(zod@4.5.4)
       '@fuda/libs':
         specifier: workspace:*
         version: link:../../packages/libs
@@ -114,6 +111,9 @@ importers:
         specifier: ^2.56.3
         version: 2.56.3(typescript@7.0.2)(zod@4.5.4)
     devDependencies:
+      '@base-org/account':
+        specifier: 2.5.10
+        version: 2.5.10(typescript@7.0.2)(zod@4.5.4)
       '@cloudflare/workers-types':
         specifier: ^4.20250905.0
         version: 4.20260702.1
@@ -135,9 +135,6 @@ importers:
 
   apps/dash:
     dependencies:
-      '@base-org/account':
-        specifier: 2.5.10
-        version: 2.5.10(typescript@7.0.2)(zod@4.5.4)
       '@fuda/ens-contracts':
         specifier: workspace:*
         version: link:../../packages/ens-contracts
@@ -237,6 +234,9 @@ importers:
 
   packages/libs:
     dependencies:
+      '@base-org/account':
+        specifier: 2.5.10
+        version: 2.5.10(typescript@7.0.2)(zod@4.5.4)
       '@fuda/sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -246,6 +246,9 @@ importers:
       hono:
         specifier: ^4.13.5
         version: 4.13.5
+      viem:
+        specifier: ^2.56.3
+        version: 2.56.3(typescript@7.0.2)(zod@4.5.4)
     devDependencies:
       vitest:
         specifier: 4.1.11
