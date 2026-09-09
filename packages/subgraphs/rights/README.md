@@ -1,10 +1,8 @@
 # fuda rights subgraph
 
-This independently installed Graph package indexes fuda Entitlements, IssuerDelegations, Attendance records,
-revocations, and raw ERC-5564 announcements on Base Sepolia.
+This independently installed Graph package indexes fuda Entitlements, IssuerDelegations, Attendance records, revocations, and raw ERC-5564 announcements on Base Sepolia.
 
-Install this package independently with its committed lockfile, then run its
-lifecycle from the repository root (the root workspace install does not install it):
+Install this package independently with its committed lockfile, then run its lifecycle from the repository root (the root workspace install does not install it):
 
 ```sh
 pnpm --ignore-workspace --dir packages/subgraphs/rights install --frozen-lockfile
@@ -14,46 +12,26 @@ pnpm graph:test
 pnpm graph:build
 ```
 
-`graph:prepare` reads only the top-level production `EAS_SCHEMAS` and `ANNOUNCER_FROM_BLOCK` values from
-`apps/api/wrangler.jsonc`. It deliberately fails while schema sets are empty or the start block is zero. Populate
-those values from live deployment receipts before generating a deployable `subgraph.yaml`; fixture-generated
-manifests and schema constants must not be committed.
+`graph:prepare` reads only the top-level production `EAS_SCHEMAS` and `ANNOUNCER_FROM_BLOCK` values from `apps/api/wrangler.jsonc`. It deliberately fails while schema sets are empty or the start block is zero. Populate those values from live deployment receipts before generating a deployable `subgraph.yaml`; fixture-generated manifests and schema constants must not be committed.
 
-`subgraph.yaml`, `src/schema-uids.ts` and `generated/` are gitignored, so a
-fresh clone must run `graph:prepare` and `graph:codegen` before the mappings
-will compile.
+`subgraph.yaml`, `src/schema-uids.ts` and `generated/` are gitignored, so a fresh clone must run `graph:prepare` and `graph:codegen` before the mappings will compile.
 
-Generation retains every configured UID/version. The current Entitlement,
-IssuerDelegation, and Attendance wire codecs support version 1, matching the
-API. A future wire version requires a decoder/upcast before its events can
-index; configuring a positive version does not reinterpret it as v1.
+Generation retains every configured UID/version. The current Entitlement, IssuerDelegation, and Attendance wire codecs support version 1, matching the API. A future wire version requires a decoder/upcast before its events can index; configuring a positive version does not reinterpret it as v1.
 
-`Right.refUID` preserves the raw EAS reference. `Right.delegation` is nullable
-and resolves only when that reference names an already indexed, accepted
-Delegation. Zero, missing, and unaccepted references remain visible as Rights
-with `delegation: null`; they do not break nested rights queries. An unresolved
-reference requires reindexing if its Delegation was outside the indexed history.
-Deploy and reindex this schema before using SDK clients that require `refUID`.
+`Right.refUID` preserves the raw EAS reference. `Right.delegation` is nullable and resolves only when that reference names an already indexed, accepted Delegation. Zero, missing, and unaccepted references remain visible as Rights with `delegation: null`; they do not break nested rights queries. An unresolved reference requires reindexing if its Delegation was outside the indexed history. Deploy and reindex this schema before using SDK clients that require `refUID`.
 
-After creating a subgraph in Graph Studio, authenticate and deploy from this directory with the slug Studio
-provides:
+After creating a subgraph in Graph Studio, authenticate and deploy from this directory with the slug Studio provides:
 
 ```sh
 pnpm --ignore-workspace exec graph auth --studio <DEPLOY_KEY>
 pnpm --ignore-workspace exec graph deploy --studio <SUBGRAPH_SLUG>
 ```
 
-Use [`queries/smoke.graphql`](queries/smoke.graphql) with real right, delegation, and attendance UIDs. Compare the
-returned holders, metadata, relations, and revocation timestamps with their transaction receipts. The query also
-returns recent raw announcements so their bytes and transaction/log identity can be checked directly.
+Use [`queries/smoke.graphql`](queries/smoke.graphql) with real right, delegation, and attendance UIDs. Compare the returned holders, metadata, relations, and revocation timestamps with their transaction receipts. The query also returns recent raw announcements so their bytes and transaction/log identity can be checked directly.
 
 ## Building without production configuration
 
-Normally `graph:prepare` succeeds, because the production values are committed.
-When you deliberately want to build against explicit non-production UIDs — to
-prove the build does not depend on production configuration — use the exported
-preparation seam. It writes only ignored files and restores anything that was
-already there, even if a later command fails:
+Normally `graph:prepare` succeeds, because the production values are committed. When you deliberately want to build against explicit non-production UIDs — to prove the build does not depend on production configuration — use the exported preparation seam. It writes only ignored files and restores anything that was already there, even if a later command fails:
 
 ```sh
 export FUDA_GRAPH_FIXTURE="$(mktemp -d /tmp/fuda-rights-fixture.XXXXXX)"
@@ -116,6 +94,4 @@ restore_graph_inputs
 trap - EXIT INT TERM
 ```
 
-Those UIDs are the repository's deterministic test fixtures, not deployable
-configuration. Do not treat fixture-backed codegen, tests, or builds as proof
-that production configuration or deployment succeeds.
+Those UIDs are the repository's deterministic test fixtures, not deployable configuration. Do not treat fixture-backed codegen, tests, or builds as proof that production configuration or deployment succeeds.

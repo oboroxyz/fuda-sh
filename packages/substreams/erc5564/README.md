@@ -2,8 +2,7 @@
 
 This package extracts raw `Announcement` events from the canonical ERC-5564 Announcer. It does not decode announcement metadata or attempt viewing-key matching.
 
-`scheme_id` is emitted as the event topic's 32-byte big-endian `uint256`
-representation. No narrowing conversion is applied.
+`scheme_id` is emitted as the event topic's 32-byte big-endian `uint256` representation. No narrowing conversion is applied.
 
 The Announcer address is a module parameter. Its default is the canonical singleton address used across EVM chains:
 

@@ -42,82 +42,35 @@ If implementation or tests conflict with `docs/specs/`, do not silently choose o
 
 Choose the workflow before choosing the workspace:
 
-1. Inspect and triage the current checkout read-only. Determine whether the
-   task is routine direct work or has unresolved requirements, product
-   semantics, interfaces, architecture, or other design decisions.
-2. Read the `using-superpowers` skill and follow its applicability rules. Only
-   fully specified, local, reversible work skips it: make the edit directly in
-   the current checkout, preserve unrelated changes, and run a proportionate
-   targeted check. A file changing is not by itself a reason to create a
-   worktree or evaluate orchestration.
-3. When unresolved complexity exists, invoke the smallest applicable
-   Superpowers workflow. If brainstorming establishes that a persistent design
-   spec or implementation plan is needed, decide whether isolation is useful
-   **before** writing that artifact. A need for a spec or plan prompts the
-   worktree decision; it does not decide it automatically. Explicit user
-   preference wins.
-4. If isolation is selected, invoke `using-git-worktrees`, then write the
-   artifacts and perform implementation in that workspace. If isolation is not
-   selected, continue in the current checkout with the same artifact lifecycle.
+1. Inspect and triage the current checkout read-only. Determine whether the task is routine direct work or has unresolved requirements, product semantics, interfaces, architecture, or other design decisions.
+2. Read the `using-superpowers` skill and follow its applicability rules. Only fully specified, local, reversible work skips it: make the edit directly in the current checkout, preserve unrelated changes, and run a proportionate targeted check. A file changing is not by itself a reason to create a worktree or evaluate orchestration.
+3. When unresolved complexity exists, invoke the smallest applicable Superpowers workflow. If brainstorming establishes that a persistent design spec or implementation plan is needed, decide whether isolation is useful **before** writing that artifact. A need for a spec or plan prompts the worktree decision; it does not decide it automatically. Explicit user preference wins.
+4. If isolation is selected, invoke `using-git-worktrees`, then write the artifacts and perform implementation in that workspace. If isolation is not selected, continue in the current checkout with the same artifact lifecycle.
 
-When a feature branch is used, keep every temporary artifact and its deletion
-on that branch. Merge it with a merge commit or rebase, not squash, so that Git
-history remains the archive for the lifecycle below.
+When a feature branch is used, keep every temporary artifact and its deletion on that branch. Merge it with a merge commit or rebase, not squash, so that Git history remains the archive for the lifecycle below.
 
 ## Verification cadence
 
-Treat verification as fresh until the checked content changes, rather than
-rerunning the same commands at every workflow boundary. This repository policy
-overrides generic workflow steps that would repeat a full suite solely because
-work moved from implementation to review, completion, or integration.
+Treat verification as fresh until the checked content changes, rather than rerunning the same commands at every workflow boundary. This repository policy overrides generic workflow steps that would repeat a full suite solely because work moved from implementation to review, completion, or integration.
 
-- During implementation, run the narrowest test, type check, lint, or build
-  that exercises the changed behavior. Repeat targeted checks as the code
-  changes.
-- Before declaring a substantive change complete, run `pnpm check` and
-  `pnpm test` once against the final content. Record which commands ran and
-  their results in the handoff.
-- Reuse that final verification for review, commit, and pre-merge gates while
-  no tracked or untracked content has changed. A commit, rebase, or workflow
-  transition alone does not invalidate results when it preserves the checked
-  content.
-- After a local merge, reuse the result when the merged tree is identical to
-  the verified tree. If conflict resolution, upstream changes, generated
-  output, or any other content changes the tree, rerun checks proportionate to
-  the difference; use the full suite when the resulting interaction risk is
-  broad or unclear.
-- For documentation, ignore rules, and metadata-only changes, inspect the
-  exact diff and run only a narrow structural check such as
-  `git diff --check`. Run broader checks only when those files affect generated
-  output, executable configuration, or runtime behavior.
+- During implementation, run the narrowest test, type check, lint, or build that exercises the changed behavior. Repeat targeted checks as the code changes.
+- Before declaring a substantive change complete, run `pnpm check` and `pnpm test` once against the final content. Record which commands ran and their results in the handoff.
+- Reuse that final verification for review, commit, and pre-merge gates while no tracked or untracked content has changed. A commit, rebase, or workflow transition alone does not invalidate results when it preserves the checked content.
+- After a local merge, reuse the result when the merged tree is identical to the verified tree. If conflict resolution, upstream changes, generated output, or any other content changes the tree, rerun checks proportionate to the difference; use the full suite when the resulting interaction risk is broad or unclear.
+- For documentation, ignore rules, and metadata-only changes, inspect the exact diff and run only a narrow structural check such as `git diff --check`. Run broader checks only when those files affect generated output, executable configuration, or runtime behavior.
 
-A failed or stale result is never reusable. Review feedback or integration
-work that changes content starts a new targeted cycle and requires a new final
-verification before completion is claimed.
+A failed or stale result is never reusable. Review feedback or integration work that changes content starts a new targeted cycle and requires a new final verification before completion is claimed.
 
 ### Herdr controller/worker worktrees
 
-Evaluate `orchestrating-herdr-worktrees` only after both worktree isolation and
-Herdr delegation have been selected. Installation or availability alone does
-not trigger it, and it is never part of initial triage. Existing
-linked-worktree isolation still wins and never creates a nested worktree.
+Evaluate `orchestrating-herdr-worktrees` only after both worktree isolation and Herdr delegation have been selected. Installation or availability alone does not trigger it, and it is never part of initial triage. Existing linked-worktree isolation still wins and never creates a nested worktree.
 
-- If `command -v herdr` reports that `herdr` is absent from `PATH`, use the
-  ordinary Superpowers flow.
-- If `herdr` is installed but `HERDR_ENV` is not `1`, do not control another
-  Herdr session; use the ordinary flow and report the inactive context.
-- If Herdr is installed, active, reachable, and compatible, use
-  `orchestrating-herdr-worktrees`. Its controller performs creation,
-  supervision, adoption, integration, and cleanup; the worker never removes
-  its own workspace.
-- If Herdr is active but unreachable or incompatible, stop before mutation.
-  Do not silently fall back to an unmanaged Git worktree.
+- If `command -v herdr` reports that `herdr` is absent from `PATH`, use the ordinary Superpowers flow.
+- If `herdr` is installed but `HERDR_ENV` is not `1`, do not control another Herdr session; use the ordinary flow and report the inactive context.
+- If Herdr is installed, active, reachable, and compatible, use `orchestrating-herdr-worktrees`. Its controller performs creation, supervision, adoption, integration, and cleanup; the worker never removes its own workspace.
+- If Herdr is active but unreachable or incompatible, stop before mutation. Do not silently fall back to an unmanaged Git worktree.
 
-The Herdr adapter satisfies and overrides the creation portion of
-`using-git-worktrees` and the worktree-cleanup portion of
-`finishing-a-development-branch`. All other requirements of those skills,
-including existing-isolation detection, baseline verification, integration
-choices, dirty-worktree protection, and discard confirmation, still apply.
+The Herdr adapter satisfies and overrides the creation portion of `using-git-worktrees` and the worktree-cleanup portion of `finishing-a-development-branch`. All other requirements of those skills, including existing-isolation detection, baseline verification, integration choices, dirty-worktree protection, and discard confirmation, still apply.
 
 ## Artifact lifecycle
 
@@ -186,14 +139,9 @@ Do not create an ADR for routine implementation choices that can be understood d
 
 ## Small and bounded changes
 
-Handle fully specified, local, reversible changes directly without invoking a
-Superpowers workflow or seeking a design approval. Examples include exact
-configuration changes, typo corrections, and mechanical edits with clear
-acceptance criteria.
+Handle fully specified, local, reversible changes directly without invoking a Superpowers workflow or seeking a design approval. Examples include exact configuration changes, typo corrections, and mechanical edits with clear acceptance criteria.
 
-When brainstorming legitimately applies but classifies the remaining design
-question as bounded, handle it with an in-chat design and do not create
-persistent design or plan files.
+When brainstorming legitimately applies but classifies the remaining design question as bounded, handle it with an in-chat design and do not create persistent design or plan files.
 
 Prefer the smallest amount of documentation necessary for the scope of the change.
 
