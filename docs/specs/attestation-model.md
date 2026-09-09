@@ -537,8 +537,8 @@ row per operator address: `handle` UNIQUE, `name`, `tagline`, `brand_color`,
 `perk`, `reward`, `lock_screen`, `venue_lat`, `venue_lng`, the claim window
 `claim_from`/`claim_until`, and one validity rule — either `validity_days`
 (relative to the claim) or `valid_from`/`valid_until` (absolute), never both), `sessions` (`token_hash` PK — only the SHA-256 of the bearer
-token is stored — `address`, `issuer_id`, `created_at`, `expires_at` = created
-+ 30 days), and on `members` the nullable `card_id` and `issuer_id` of a
+token is stored — `address`, `issuer_id`, `created_at`, `expires_at` = created +
+30 days), and on `members` the nullable `card_id` and `issuer_id` of a
 self-serve right. A generated member number is unique per **issuer**: a partial
 unique index on `(issuer_id, member_id) WHERE issuer_id IS NOT NULL`, because
 the number is an ENS label under the issuer
