@@ -8,6 +8,8 @@ import type {
   IssuerCreateRequest,
   IssuerCreateResponse,
   IssuerMeResponse,
+  IssuerUpdateRequest,
+  IssuerUpdateResponse,
   IssuerView,
   IssueResponse,
   MembersResponse,
@@ -117,6 +119,16 @@ export const createIssuer = async (
   await apiFetch<IssuerCreateResponse>(API_BASE_URL, '/issuers', {
     body: JSON.stringify(body),
     method: 'POST',
+    token,
+  })
+
+export const updateIssuer = async (
+  token: string,
+  body: IssuerUpdateRequest,
+): Promise<Result<IssuerUpdateResponse>> =>
+  await apiFetch<IssuerUpdateResponse>(API_BASE_URL, '/issuers/me', {
+    body: JSON.stringify(body),
+    method: 'PUT',
     token,
   })
 

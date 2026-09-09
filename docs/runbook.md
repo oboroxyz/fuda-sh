@@ -293,6 +293,18 @@ Stop an existing API before starting a combined frontend/API command to avoid a 
 
 For SSH previews, Dash binds explicitly to IPv4 loopback (`127.0.0.1:5175`) so a tunnel targeting that address works even when the host resolves `localhost` to IPv6. In Moshi, select port 5175 from the browser-preview picker and use the URL it opens. With `VITE_API_BASE_URL` unset, Dash sends API requests to `/api` on the preview origin; Vite forwards them to `127.0.0.1:8787` on the host. Only port 5175 needs forwarding. An explicit `VITE_API_BASE_URL` overrides the proxy and must be reachable from the browser.
 
+### Shared issuer-wallet signature probe
+
+Run the read-only MultiOwnable probe from the repository root:
+
+```sh
+pnpm --filter api probe:venue-wallet
+```
+
+It uses the public Base Sepolia RPC by default; an exported `BASE_RPC_URL` can select another Base Sepolia provider. It does not load `.dev.vars` or require any private-key setting. The RPC chain ID must be 84532. The probe generates two throwaway EOA owners and an undeployed Coinbase Smart Wallet v1 using fuda's current factory, then checks both owners' dashboard-challenge signatures through the API's actual chain verifier. It also rejects a changed challenge, an unregistered owner's wallet proof, and a raw personal signature. No transaction is submitted, no account is funded, and no D1 state is changed. ERC-6492 verification simulates deployment only inside `eth_call`; the probe checks that the wallet remains undeployed afterward.
+
+Success prints the public wallet/factory/owner addresses and six successful checks, and exits zero. A failed assertion or unavailable RPC exits nonzero. RPC URLs, keys and signatures are not printed. This verifies initial multiple-owner signing; it does not test adding owners to an existing wallet, Base Account popup discovery, passkey or nested-wallet owners, API sessions, or owner removal. See [ADR 0008](adr/0008-shared-issuer-wallet.md) for the future co-owner login and session-revocation requirements. The dashboard still has no owner-management UI.
+
 ### Venue reception demo
 
 Apply migration `0010_reception_stamps.sql` before running the new reception API. Use `pnpm migrate:local` for local development; apply the normal remote migration procedure before deploying the updated API. The migration adds venue Stamp policies, credit records, request receipts and an optional reception ID on Entry logs. It does not award credits to existing Entries.

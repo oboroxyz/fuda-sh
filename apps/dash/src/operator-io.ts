@@ -9,6 +9,7 @@ import {
   signInChallenge,
   signInVerify,
   signOut,
+  updateIssuer,
   updateStampSettings,
 } from './api.ts'
 import { DEFAULT_DESIGN_IO } from './app-actions.ts'
@@ -30,6 +31,7 @@ export interface OperatorIo {
   receiveAtReception: typeof receiveAtReception
   signIn: () => Promise<SignInOutcome>
   signOut: typeof signOut
+  updateIssuer: typeof updateIssuer
   updateStampSettings: typeof updateStampSettings
 }
 
@@ -55,5 +57,6 @@ export const DEFAULT_OPERATOR_IO: OperatorIo = {
       verify: signInVerify,
     }),
   signOut,
+  updateIssuer,
   updateStampSettings,
 }

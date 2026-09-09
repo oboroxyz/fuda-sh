@@ -105,6 +105,7 @@ const props: AppViewProps = {
   onRevoke: vi.fn<AppViewProps['onRevoke']>(),
   onSignOut: vi.fn<AppViewProps['onSignOut']>(),
   onToken: vi.fn<AppViewProps['onToken']>(),
+  onUpdateVenue: vi.fn<AppViewProps['onUpdateVenue']>().mockResolvedValue(true),
   receiveAtReception: vi.fn<AppViewProps['receiveAtReception']>(),
   restoreState: null,
   route: '/',

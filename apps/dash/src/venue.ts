@@ -1,5 +1,5 @@
-import { IssuerCreateBody, normalizeBrandColor } from '@fuda/sdk'
-import type { IssuerCreateRequest } from '@fuda/sdk'
+import { IssuerCreateBody, IssuerUpdateBody, normalizeBrandColor } from '@fuda/sdk'
+import type { IssuerCreateRequest, IssuerUpdateRequest } from '@fuda/sdk'
 import * as v from 'valibot'
 
 import { DEFAULT_BRAND_COLOR } from './brand-colors.ts'
@@ -27,5 +27,10 @@ export const venueBodyFrom = (
     return null
   }
   const parsed = v.safeParse(IssuerCreateBody, { ...form, brandColor, logoUploadId })
+  return parsed.success ? parsed.output : null
+}
+
+export const venueUpdateBodyFrom = (form: IssuerUpdateRequest): IssuerUpdateRequest | null => {
+  const parsed = v.safeParse(IssuerUpdateBody, form)
   return parsed.success ? parsed.output : null
 }

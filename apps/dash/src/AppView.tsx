@@ -24,6 +24,7 @@ import { SignOutButton } from './SignOutButton.tsx'
 import type { StampSettingsProps } from './StampSettings.tsx'
 import type { VenueForm } from './venue.ts'
 import { VenuePage } from './VenuePage.tsx'
+import type { VenuePageProps } from './VenuePage.tsx'
 
 export interface AppViewProps {
   appearance: JSX.Element
@@ -49,6 +50,7 @@ export interface AppViewProps {
   onRevoke: RightsPageProps['onRevoke']
   onSignOut: () => void
   onToken: (token: string) => void
+  onUpdateVenue: VenuePageProps['onUpdate']
   receiveAtReception: ReceptionPageProps['receive']
   route: DashRoute
   session: SessionState
@@ -79,6 +81,7 @@ export const AppView = ({
   onRevoke,
   onSignOut,
   onToken,
+  onUpdateVenue,
   receiveAtReception,
   route,
   session,
@@ -139,14 +142,15 @@ export const AppView = ({
             copy={copy}
             ens={ens}
             failure={createFailure}
+            publicUrl={operator.publicUrl}
             issuer={operator.issuer}
             onCheckHandle={onCheckHandle}
             onCommitLogo={onCommitLogo}
             onCreate={onCreateVenue}
+            onUpdate={onUpdateVenue}
             onNewCard={() => {
               onNavigate('/new')
             }}
-            publicUrl={operator.publicUrl}
             stampSettings={stampSettings}
           />
         )
@@ -159,14 +163,15 @@ export const AppView = ({
             copy={copy}
             ens={ens}
             failure={createFailure}
+            publicUrl={operator.publicUrl}
             issuer={operator.issuer}
             onCheckHandle={onCheckHandle}
             onCommitLogo={onCommitLogo}
             onCreate={onCreateVenue}
+            onUpdate={onUpdateVenue}
             onNewCard={() => {
               onNavigate('/new')
             }}
-            publicUrl={operator.publicUrl}
             stampSettings={stampSettings}
           />
         )
@@ -199,13 +204,14 @@ export const AppView = ({
           ens={ens}
           failure={createFailure}
           issuer={null}
+          publicUrl={operator.publicUrl}
           onCheckHandle={onCheckHandle}
           onCommitLogo={onCommitLogo}
           onCreate={onCreateVenue}
+          onUpdate={onUpdateVenue}
           onNewCard={() => {
             onNavigate('/new')
           }}
-          publicUrl={null}
           stampSettings={stampSettings}
         />
       ) : (
@@ -242,6 +248,11 @@ export const AppView = ({
       appearance={appearance}
       copy={copy}
       hasIssuer={published}
+      venue={
+        operator === null || operator.issuer === null
+          ? null
+          : { name: operator.issuer.name, publicUrl: operator.publicUrl }
+      }
       onNavigate={onNavigate}
       onSignOut={operator === null ? null : onSignOut}
       route={route}

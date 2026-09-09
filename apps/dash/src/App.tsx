@@ -2,7 +2,12 @@
 import { isLocale, pick } from '@fuda/i18n'
 import { getLocale, setLocale } from '@fuda/i18n/browser'
 import { QueryError, readQueryResult, useQuery, useQueryScope } from '@fuda/libs/query'
-import type { CardCreateResponse, IssuerCreateResponse, IssuerMeResponse } from '@fuda/sdk'
+import type {
+  CardCreateResponse,
+  IssuerCreateResponse,
+  IssuerMeResponse,
+  IssuerUpdateRequest,
+} from '@fuda/sdk'
 import { LanguageSwitcher, saveThemeMode, ThemeToggle, watchThemeMode } from '@fuda/ui'
 import type { ThemeMode } from '@fuda/ui'
 import { useCallback, useEffect, useRef, useState } from 'hono/jsx/dom'
@@ -609,8 +614,39 @@ export const App = ({
     const { issuer } = outcome
     const current = activeSession.current.operator
     if (current !== null && current.issuer !== null) {
-      updateOperator({ ...current, issuer })
+      updateOperator({ ...current, issuer: { ...current.issuer, logoUrl: issuer.logoUrl } })
     }
+    return true
+  }
+
+  const onUpdateVenue = async (body: IssuerUpdateRequest): Promise<boolean> => {
+    if (token === null || (activeSession.current.operator?.issuer ?? null) === null) {
+      return false
+    }
+    const sessionToken = token
+    const ticket = generation.capture()
+    let result: Awaited<ReturnType<OperatorIo['updateIssuer']>>
+    try {
+      result = await operatorIo.updateIssuer(sessionToken, body)
+    } catch {
+      return false
+    }
+    if (!generation.isCurrent(ticket) || activeToken.current !== sessionToken) {
+      return false
+    }
+    if (!result.ok) {
+      if (result.status === 401) {
+        replaceSession(unauthorizedSession(activeSession.current))
+      }
+      return false
+    }
+    const current = activeSession.current.operator
+    if (current === null || current.issuer === null || current.issuer.id !== result.body.issuer.id) {
+      return false
+    }
+    const { brandColor, name, tagline } = result.body.issuer
+    // A concurrent logo commit owns logoUrl; a profile response only owns these fields.
+    updateOperator({ ...current, issuer: { ...current.issuer, brandColor, name, tagline } })
     return true
   }
 
@@ -677,6 +713,7 @@ export const App = ({
       onCommitLogo={onCommitLogo}
       onCreate={onCreate}
       onCreateVenue={onCreateVenue}
+      onUpdateVenue={onUpdateVenue}
       onIssue={async (body) =>
         context === null
           ? { error: 'unauthorized', network: false, ok: false, status: 401 }

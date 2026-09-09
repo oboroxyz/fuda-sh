@@ -1,11 +1,8 @@
 /** @jsxImportSource hono/jsx/dom */
-import { brandTextColor } from '@fuda/sdk'
-import type { IssuerView } from '@fuda/sdk'
-import { cn } from 'cn'
+import type { IssuerUpdateRequest, IssuerView } from '@fuda/sdk'
 import { useEffect, useRef, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
-import { BRAND_SWATCHES } from './brand-colors.ts'
 import { handleStatusOf } from './card-designer.ts'
 import type { CreateFailure, FieldStatus } from './card-designer.ts'
 import type { DashCopy } from './copy.ts'
@@ -16,6 +13,8 @@ import { StampSettings } from './StampSettings.tsx'
 import type { StampSettingsProps } from './StampSettings.tsx'
 import { EMPTY_VENUE_FORM, venueBodyFrom } from './venue.ts'
 import type { VenueForm } from './venue.ts'
+import { VenueDetailsForm } from './VenueDetailsForm.tsx'
+import { VenueIdentityFields } from './VenueIdentityFields.tsx'
 
 export interface VenuePageProps {
   busy: boolean
@@ -24,16 +23,14 @@ export interface VenuePageProps {
   ens: JSX.Element | null
   failure: CreateFailure | null
   issuer: IssuerView | null
+  publicUrl: string | null
   onCheckHandle: (handle: string) => Promise<'available' | 'taken' | 'unknown'>
   onCommitLogo: (logo: LogoSet) => Promise<boolean>
   onCreate: (form: VenueForm, logo: LogoSet | null) => void
   onNewCard: () => void
-  publicUrl: string | null
+  onUpdate: (body: IssuerUpdateRequest) => Promise<boolean>
   stampSettings: Pick<StampSettingsProps, 'load' | 'save'>
 }
-
-const statusText = (copy: DashCopy['designer'], status: FieldStatus): string | null =>
-  status === 'idle' ? null : copy.handleStatus[status]
 
 export const VenuePage = (props: VenuePageProps): JSX.Element => {
   const [form, setForm] = useState<VenueForm>(EMPTY_VENUE_FORM)
@@ -132,9 +129,15 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
       <section class="dash-page max-w-3xl">
         <header class="dash-page-header">
           <p class="dash-eyebrow">{props.copy.nav.venue}</p>
-          <h1 class="text-3xl font-bold">{props.issuer.name}</h1>
-          <p class="text-sm opacity-70">{props.publicUrl}</p>
+          <h1 class="text-3xl font-bold">{props.copy.venue.profileTitle}</h1>
         </header>
+        <VenueDetailsForm
+          key={props.issuer.id}
+          copy={props.copy}
+          issuer={props.issuer}
+          publicUrl={props.publicUrl}
+          onUpdate={props.onUpdate}
+        />
         <div class="card grid gap-5 p-5 sm:grid-cols-[1fr_auto] sm:items-start">
           <div class="space-y-2">
             {props.issuer.logoUrl === null ? null : (
@@ -144,8 +147,6 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
                 src={props.issuer.logoUrl}
               />
             )}
-            <p>{props.issuer.tagline}</p>
-            <div class="h-3 w-24 rounded-full" style={{ background: props.issuer.brandColor }} />
           </div>
           <div class="flex flex-col gap-3">
             <LogoField
@@ -194,32 +195,6 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
   const update = <K extends keyof VenueForm>(key: K, value: VenueForm[K]): void => {
     setForm((current) => ({ ...current, [key]: value }))
   }
-  const input = (key: 'handle' | 'name' | 'tagline', label: string, placeholder: string): JSX.Element => (
-    <label class="flex w-full flex-col gap-2">
-      <span>{label}</span>
-      <input
-        class="input"
-        value={form[key]}
-        placeholder={placeholder}
-        onInput={(event) => {
-          if (event.currentTarget instanceof HTMLInputElement) {
-            update(key, event.currentTarget.value)
-          }
-        }}
-      />
-      {key === 'handle' && statusText(copy, status) !== null ? (
-        <span
-          class={cn(
-            'text-sm',
-            status === 'available' || status === 'checking' ? 'text-moderate' : 'text-danger',
-          )}
-        >
-          {statusText(copy, status)}
-        </span>
-      ) : null}
-      {key === 'handle' ? <span class="text-sm opacity-70">{props.copy.venue.handleHint}</span> : null}
-    </label>
-  )
   return (
     <section class="dash-page max-w-2xl">
       <header class="dash-page-header">
@@ -232,58 +207,21 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
         class="card flex flex-col gap-5 px-6 py-8"
         onSubmit={(event) => {
           event.preventDefault()
-          props.onCreate(form, logo.pick?.variants ?? null)
+          if (!props.busy && status !== 'taken' && venueBodyFrom(form) !== null) {
+            props.onCreate(form, null)
+          }
         }}
       >
-        {input('handle', props.copy.venue.handleLabel, copy.handlePlaceholder)}
-        {input('name', copy.nameLabel, copy.namePlaceholder)}
-        {input('tagline', copy.taglineLabel, copy.taglinePlaceholder)}
-        <fieldset class="fieldset">
-          <legend class="text-base font-normal">{copy.colorLabel}</legend>
-          <div class="grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
-            {BRAND_SWATCHES.map(({ color, name }): JSX.Element => (
-              <button
-                key={name}
-                aria-label={`${copy.colorNames[name]} ${color}`}
-                aria-pressed={form.brandColor.toUpperCase() === color ? 'true' : 'false'}
-                class={cn('dash-swatch', form.brandColor.toUpperCase() === color && 'dash-swatch-selected')}
-                style={{ background: color, color: brandTextColor(color) }}
-                type="button"
-                onClick={() => {
-                  update('brandColor', color)
-                }}
-              >
-                <span aria-hidden="true">Aa</span>
-              </button>
-            ))}
-          </div>
-          <label class="mt-2 flex items-center gap-3">
-            <span>{copy.customColorLabel}</span>
-            <input
-              aria-label={copy.customColorLabel}
-              class="h-11 w-16 cursor-pointer rounded-lg border border-[var(--fuda-border)] bg-white p-1"
-              type="color"
-              value={form.brandColor}
-              onInput={(event) => {
-                if (event.currentTarget instanceof HTMLInputElement) {
-                  update('brandColor', event.currentTarget.value)
-                }
-              }}
-            />
-          </label>
-        </fieldset>
-        <LogoField
-          busy={props.busy || logoBusy}
-          copy={props.copy.logo}
-          id="venue-logo"
-          label={props.copy.logo.label}
-          onClear={clearLogo}
-          onPick={pickLogo}
-          state={logo}
+        <VenueIdentityFields
+          copy={props.copy}
+          handleStatus={status}
+          onChange={update}
+          registering
+          value={form}
         />
         <button
           class="btn btn-primary sm:self-start"
-          disabled={props.busy || logoBusy || status === 'taken' || venueBodyFrom(form) === null}
+          disabled={props.busy || status === 'taken' || venueBodyFrom(form) === null}
           type="submit"
         >
           {props.busy ? props.copy.venue.registering : props.copy.venue.register}

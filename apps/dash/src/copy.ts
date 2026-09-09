@@ -63,6 +63,7 @@ export interface DashCopy {
     }
   }
   venue: {
+    profileTitle: string
     ensUnavailable: string
     handleLabel: string
     handleHint: string
@@ -70,6 +71,11 @@ export interface DashCopy {
     registerDescription: string
     register: string
     registering: string
+    optional: string
+    save: string
+    saving: string
+    saved: string
+    saveFailed: string
   }
   stamps: {
     title: string
@@ -397,14 +403,20 @@ export const DASH_COPY = {
       },
     },
     venue: {
+      profileTitle: 'Venue profile',
       ensUnavailable:
         'ENS is not configured for this deployment. Card creation is unavailable until it is enabled.',
       handleLabel: 'Venue handle',
-      handleHint: 'Used in your venue link and ENS name. This cannot be changed.',
+      handleHint: 'This cannot be changed after registration.',
       registerTitle: 'Register your venue',
       registerDescription: 'Set the identity members will recognise. You’ll claim its ENS name next.',
       register: 'Register venue',
       registering: 'Registering…',
+      optional: '(optional)',
+      save: 'Save venue',
+      saving: 'Saving…',
+      saved: 'Venue saved.',
+      saveFailed: 'Could not save the venue. Try again.',
     },
     stamps: {
       title: 'Stamp settings',
@@ -759,13 +771,19 @@ export const DASH_COPY = {
       },
     },
     venue: {
+      profileTitle: '店舗情報',
       ensUnavailable: 'この環境では ENS が設定されていません。有効になるまでカードを作成できません。',
       handleLabel: '店舗ハンドル',
-      handleHint: '店舗リンクと ENS 名に使われます。登録後は変更できません。',
+      handleHint: '登録後は変更できません。',
       registerTitle: '店舗を登録',
       registerDescription: 'メンバーに伝わる店舗情報を設定します。次に ENS 名を取得します。',
       register: '店舗を登録',
       registering: '登録中…',
+      optional: '（任意）',
+      save: '店舗情報を保存',
+      saving: '保存中…',
+      saved: '店舗情報を保存しました。',
+      saveFailed: '店舗情報を保存できませんでした。もう一度お試しください。',
     },
     stamps: {
       title: 'スタンプ設定',

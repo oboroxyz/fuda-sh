@@ -22,7 +22,11 @@
 }
 
 .dash-sidebar .dash-menu-item {
-  @apply m-2 flex min-h-12 items-center justify-start gap-3 rounded-none rounded-xl px-5 py-3 text-left text-sm;
+  @apply mx-2 flex min-h-12 items-center justify-start gap-3 rounded-none rounded-xl px-5 py-3 text-left text-sm;
+}
+
+.menu-active {
+  @apply font-bold;
 }
 
 .dash-app :focus-visible,

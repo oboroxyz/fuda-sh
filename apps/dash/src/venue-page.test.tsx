@@ -24,13 +24,14 @@ const props = (): VenuePageProps => ({
     logoUrl: null,
     name: 'Coffee',
     operatorAddress: `0x${'ab'.repeat(20)}`,
-    tagline: '',
+    tagline: 'Fresh coffee',
   },
   onCheckHandle: vi.fn<VenuePageProps['onCheckHandle']>().mockResolvedValue('available'),
   onCommitLogo: vi.fn<VenuePageProps['onCommitLogo']>().mockResolvedValue(true),
   onCreate: vi.fn<VenuePageProps['onCreate']>(),
   onNewCard: vi.fn<VenuePageProps['onNewCard']>(),
-  publicUrl: null,
+  onUpdate: vi.fn<VenuePageProps['onUpdate']>().mockResolvedValue(true),
+  publicUrl: 'https://fuda.test/@coffee',
   stampSettings: {
     load: vi.fn<VenuePageProps['stampSettings']['load']>().mockResolvedValue({
       body: { dailyLimit: 1, enabled: false, goal: 10 },
@@ -52,6 +53,121 @@ const pickImage = (): void => {
 
 const button = (label: string): HTMLButtonElement =>
   [...root.querySelectorAll('button')].find((element) => element.textContent === label)!
+
+// Hono's form action listener reads detail on synthetic (untrusted) submissions.
+const submitForm = (label: string): void => {
+  button(label).form!.dispatchEvent(
+    new CustomEvent('submit', { bubbles: true, cancelable: true, detail: {} }),
+  )
+}
+
+const field = (name: string): HTMLInputElement =>
+  root.querySelector<HTMLInputElement>(`input[name="${name}"]`)!
+
+const typeField = (name: string, value: string): void => {
+  const input = field(name)
+  input.value = value
+  input.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
+describe('venue registration and details', () => {
+  beforeEach(() => {
+    root = document.createElement('div')
+    document.body.append(root)
+  })
+
+  afterEach(() => {
+    render(<></>, root)
+    root.remove()
+    vi.restoreAllMocks()
+  })
+
+  it('starts with only handle, name and optional tagline, with only an unobtrusive optional label', () => {
+    render(<VenuePage {...props()} issuer={null} />, root)
+
+    expect([...root.querySelectorAll('input')].map((input) => input.name)).toStrictEqual([
+      'handle',
+      'name',
+      'tagline',
+    ])
+    expect(['handle', 'name', 'tagline'].map((name) => field(name).required)).toStrictEqual([
+      true,
+      true,
+      false,
+    ])
+    expect(root.textContent).not.toContain('Required')
+    expect(field('tagline').closest('label')?.textContent).toContain('(optional)')
+    expect(button('Register venue').disabled).toBe(true)
+  })
+
+  it('registers without a tagline, custom colour or logo', async () => {
+    const input = props()
+    render(<VenuePage {...input} issuer={null} />, root)
+    typeField('handle', 'new-coffee')
+    typeField('name', 'New Coffee')
+    await vi.waitFor(() => {
+      expect(button('Register venue').disabled).toBe(false)
+    })
+    submitForm('Register venue')
+    expect(input.onCreate).toHaveBeenCalledExactlyOnceWith(
+      { brandColor: '#0073EB', handle: 'new-coffee', name: 'New Coffee', tagline: '' },
+      null,
+    )
+  })
+
+  it('shows the saved venue name and public link before editable name and tagline', () => {
+    render(<VenuePage {...props()} />, root)
+    expect(root.querySelector('input[name="handle"]')).toBeNull()
+    const form = field('name').closest('form')!
+    expect([form.querySelector('p')?.textContent, field('name').value]).toStrictEqual(['Coffee', 'Coffee'])
+    const link = form.querySelector('a')!
+    expect(link).toMatchObject({
+      href: 'https://fuda.test/@coffee',
+      rel: 'noopener noreferrer',
+      target: '_blank',
+      textContent: 'https://fuda.test/@coffee',
+    })
+    expect(form.textContent).not.toMatch(/Venue handle|cannot be changed|read.only/iu)
+    expect([field('name').required, field('tagline').required]).toStrictEqual([true, false])
+  })
+
+  it('saves the name and clears an optional tagline without sending the handle', async () => {
+    const input = props()
+    render(<VenuePage {...input} />, root)
+    typeField('name', 'New Coffee')
+    typeField('tagline', '')
+    await vi.waitFor(() => {
+      expect(button('Save venue').disabled).toBe(false)
+    })
+    submitForm('Save venue')
+    await vi.waitFor(() => {
+      expect(input.onUpdate).toHaveBeenCalledExactlyOnceWith({
+        brandColor: '#5CF794',
+        name: 'New Coffee',
+        tagline: '',
+      })
+    })
+    await vi.waitFor(() => {
+      expect(root.textContent).toContain('Venue saved.')
+    })
+  })
+
+  it('keeps unsaved text after a failed update and permits retry', async () => {
+    const input = props()
+    vi.spyOn(input, 'onUpdate').mockResolvedValue(false)
+    render(<VenuePage {...input} />, root)
+    typeField('name', 'New Coffee')
+    await vi.waitFor(() => {
+      expect(button('Save venue').disabled).toBe(false)
+    })
+    submitForm('Save venue')
+    await vi.waitFor(() => {
+      expect(root.textContent).toContain('Could not save the venue.')
+    })
+    expect(field('name').value).toBe('New Coffee')
+    expect(button('Save venue').disabled).toBe(false)
+  })
+})
 
 describe('venue logo preview', () => {
   beforeEach(() => {

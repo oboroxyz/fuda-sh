@@ -688,6 +688,54 @@ describe(App, () => {
     },
   )
 
+  it.each(['success', 'unauthorized'])(
+    'ignores a venue update finishing with %s after the session is replaced',
+    async (completion) => {
+      const io = fixture()
+      const pending = Promise.withResolvers<Awaited<ReturnType<OperatorIo['updateIssuer']>>>()
+      const body = { brandColor: '#0073EB', name: 'New Coffee', tagline: '' }
+      const operatorIo: OperatorIo = {
+        ...DEFAULT_OPERATOR_IO,
+        signIn: vi
+          .fn<OperatorIo['signIn']>()
+          .mockResolvedValue({ issuer: operatorIssuer, ok: true, token: 'old' }),
+        updateIssuer: async () => await pending.promise,
+      }
+      const view = await authenticateOperator(io, operatorIo)
+      const updating = view.onUpdateVenue(body)
+      render(io, 'system', operatorIo).onToken('replacement')
+      pending.resolve(
+        completion === 'unauthorized'
+          ? unauthorized
+          : { body: { issuer: { ...operatorIssuer.issuer, ...body } }, ok: true },
+      )
+      await expect(updating).resolves.toBe(false)
+      const replacement = render(io, 'system', operatorIo)
+      expect(replacement.session.operator).toBeNull()
+      expect(replacement.session.token).toBe('replacement')
+      expect(replacement.session.authError).toBeNull()
+    },
+  )
+
+  it('ends the current operator session when a venue update is unauthorized', async () => {
+    const io = fixture()
+    const operatorIo: OperatorIo = {
+      ...DEFAULT_OPERATOR_IO,
+      signIn: vi
+        .fn<OperatorIo['signIn']>()
+        .mockResolvedValue({ issuer: operatorIssuer, ok: true, token: 'session' }),
+      updateIssuer: vi.fn<OperatorIo['updateIssuer']>().mockResolvedValue(unauthorized),
+    }
+    const view = await authenticateOperator(io, operatorIo)
+    await expect(view.onUpdateVenue({ brandColor: '#0073EB', name: 'Coffee', tagline: '' })).resolves.toBe(
+      false,
+    )
+    const expired = render(io, 'system', operatorIo)
+    expect(expired.session.operator).toBeNull()
+    expect(expired.session.token).toBeNull()
+    expect(expired.session.authError).toBe('unauthorized')
+  })
+
   it('clears the local operator session before delayed remote sign-out completes', async () => {
     const io = fixture()
     const pending = Promise.withResolvers<Awaited<ReturnType<OperatorIo['signOut']>>>()

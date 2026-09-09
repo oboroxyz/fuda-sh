@@ -34,7 +34,14 @@ const wrap = async <T>(fn: () => Promise<T>): Promise<T> => {
   }
 }
 
-export const createViemChain = (env: Bindings): ChainClient => {
+// The chain client is also used by read-only Node probes. It needs no D1 or
+// Worker bindings beyond the addresses and credentials consumed here.
+type ChainBindings = Pick<
+  Bindings,
+  'ANNOUNCER_ADDRESS' | 'BASE_RPC_URL' | 'EAS_ADDRESS' | 'FACTORY_ADDRESS' | 'SIGNER_PRIVATE_KEY'
+>
+
+export const createViemChain = (env: ChainBindings): ChainClient => {
   const transport = http(env.BASE_RPC_URL ?? DEFAULT_RPC)
   const publicClient = createPublicClient({ chain: baseSepolia, transport })
   const eas = toHexAddress(env.EAS_ADDRESS)

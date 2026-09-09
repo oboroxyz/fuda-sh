@@ -9,6 +9,7 @@ import { SignOutButton } from './SignOutButton.tsx'
 
 export interface DashboardShellProps {
   appearance: JSX.Element
+  venue?: { name: string; publicUrl: string | null } | null
   children: JSX.Element
   copy: DashCopy
   hasIssuer: boolean
@@ -143,12 +144,13 @@ const Brand = ({ copy }: { copy: DashCopy['chrome'] }): JSX.Element => (
       </svg>
       <span>{copy.brand}</span>
     </p>
-    <p class="mt-1 hidden text-sm opacity-70 md:block">{copy.subtitle}</p>
+    <p class="font-display mt-2 hidden px-1.5 opacity-70 md:block">{copy.subtitle}</p>
   </div>
 )
 
 export const DashboardShell = ({
   appearance,
+  venue = null,
   children,
   copy,
   hasIssuer,
@@ -312,6 +314,21 @@ export const DashboardShell = ({
             surface,
           })}
           <div class="mt-auto flex flex-col gap-3">
+            {surface === 'operator' && venue !== null ? (
+              <div class="min-w-0 space-y-1 border-t px-5 pt-5">
+                <p class="font-semibold wrap-anywhere">{venue.name}</p>
+                {venue.publicUrl === null ? null : (
+                  <a
+                    class="link link-hover block text-xs wrap-anywhere opacity-70"
+                    href={venue.publicUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {venue.publicUrl}
+                  </a>
+                )}
+              </div>
+            ) : null}
             {onSignOut === null ? null : <SignOutButton copy={copy.auth} onSignOut={onSignOut} menu />}
             <div class="px-5">{appearance}</div>
           </div>

@@ -103,6 +103,15 @@
     color: var(--fuda-text);
   }
 
+  /* default border style */
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    @apply border-neutral-900/20 dark:border-neutral-500/20;
+  }
+
   :focus-visible {
     outline: 3px solid var(--fuda-focus);
     outline-offset: 2px;
@@ -137,7 +146,7 @@
   }
 
   .text-moderate {
-    @apply text-neutral-600 dark:text-neutral-300;
+    @apply text-neutral-500 dark:text-neutral-400;
   }
 
   .text-danger {
