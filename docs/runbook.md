@@ -475,8 +475,10 @@ pnpm test       # workspace tests and API script tests; independent packages are
 
 `pnpm dev` starts the whole local stack on the fixed ports below. A single
 surface starts with `pnpm dev:api`, `pnpm dev:app`, `pnpm dev:gate`, or
-`pnpm dev:dash`; a frontend on its own still needs `pnpm dev:api` running in
-another terminal for live api calls.
+`pnpm dev:dash`. Every frontend calls the api for its live data, so
+`pnpm dev:app+api`, `pnpm dev:gate+api`, and `pnpm dev:dash+api` start one
+frontend together with the api from a single terminal; a bare `dev:app`,
+`dev:gate`, or `dev:dash` needs `pnpm dev:api` running elsewhere.
 
 | Surface | Path | Dev |
 | --- | --- | --- |

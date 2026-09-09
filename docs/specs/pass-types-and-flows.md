@@ -610,10 +610,6 @@ rights. A uid belonging to another venue answers `404`, not `403`, so an
 operator cannot learn which uids exist outside their own. The admin token keeps
 the whole-deployment view on both routes.
 
-Root `pnpm dev` starts all four services on their fixed development ports. The
-selective `dev:api`, `dev:app`, `dev:gate`, and `dev:dash` commands start one
-service at a time on the same ports.
-
 Each Worker-backed production host is its Worker's custom domain. In local
 development, the frontends call the api cross-origin at
 `VITE_API_BASE_URL`, baked in at build time and defaulting to
