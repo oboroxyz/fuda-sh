@@ -319,6 +319,7 @@ export const App = ({
   const appearance = (
     <div class="dash-appearance">
       <LanguageSwitcher
+        class="h-9 w-9"
         current={locale}
         label={copy.chrome.language}
         options={[
@@ -333,6 +334,7 @@ export const App = ({
         }}
       />
       <ThemeToggle
+        class="h-9 w-9"
         labels={copy.chrome.theme}
         mode={theme}
         onChange={(mode) => {

@@ -87,14 +87,16 @@
   @apply min-h-11 max-w-full min-w-0 rounded-lg border border-[var(--fuda-border)] bg-[var(--fuda-surface)] px-3 text-sm text-[var(--fuda-text)];
 }
 
-.dash-app :where(.btn, .fuda-icon-button),
-.dash-auth :where(.btn, .fuda-icon-button) {
+.dash-app :where(.btn),
+.dash-auth :where(.btn) {
   @apply inline-flex h-auto min-h-11 min-w-11 items-center justify-center rounded-full border border-[var(--fuda-border)] bg-[var(--fuda-surface)] px-4 py-2 whitespace-normal text-[var(--fuda-text)] shadow-none;
 }
 
-.dash-app .fuda-icon-button,
-.dash-auth .fuda-icon-button {
-  @apply size-11 p-0;
+@layer components {
+  .dash-app .fuda-icon-button,
+  .dash-auth .fuda-icon-button {
+    @apply rounded-full border border-[var(--fuda-border)] bg-[var(--fuda-surface)] p-0 text-[var(--fuda-text)] shadow-none;
+  }
 }
 
 .dash-app .btn-square,

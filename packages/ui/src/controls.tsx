@@ -1,4 +1,5 @@
 /** @jsxImportSource hono/jsx/dom */
+import { cn } from 'cn'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import { IconButton } from './IconButton.tsx'
@@ -13,6 +14,7 @@ export interface ThemeControlLabels {
 }
 
 export interface ThemeToggleProps {
+  class?: string
   labels: ThemeControlLabels
   mode: ThemeMode
   onChange: (mode: ThemeMode) => void
@@ -24,6 +26,7 @@ export interface LanguageOption {
 }
 
 export interface LanguageSwitcherProps {
+  class?: string
   current: string
   label: string
   options: readonly LanguageOption[]
@@ -96,9 +99,10 @@ const languageOptions = (
   return elements
 }
 
-export const ThemeToggle = ({ labels, mode, onChange }: ThemeToggleProps): JSX.Element =>
+export const ThemeToggle = ({ class: className, labels, mode, onChange }: ThemeToggleProps): JSX.Element =>
   IconButton({
     children: ThemeIcon({ mode }),
+    class: className,
     label: `${labels.control}: ${labels[mode]}`,
     onClick: () => {
       onChange(nextThemeMode(mode))
@@ -106,13 +110,14 @@ export const ThemeToggle = ({ labels, mode, onChange }: ThemeToggleProps): JSX.E
   })
 
 export const LanguageSwitcher = ({
+  class: className,
   current,
   label,
   onChange,
   options,
 }: LanguageSwitcherProps): JSX.Element => (
   <details class="fuda-language-menu">
-    <summary aria-label={label} class="fuda-icon-button" title={label}>
+    <summary aria-label={label} class={cn('fuda-icon-button', className)} title={label}>
       {LanguageIcon()}
     </summary>
     <div class="fuda-language-menu-panel">{languageOptions(current, onChange, options)}</div>
