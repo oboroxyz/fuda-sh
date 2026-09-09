@@ -1,40 +1,31 @@
 # fuda
 
-**Membership as an on-chain right — issued in seconds, verified at the door
-with no server to trust.**
+**Membership as an on-chain right — issued in seconds, ready at the door, verifiable anywhere.**
+
+Our goal is a world where rights are verified on-chain — permissionless and open to anyone — while everyday use feels entirely off-chain.
 
 ## The problem
 
-Every venue and event hands its visitors a credential: a ticket, a pass, a
-membership card. Today those credentials sit in one of three bad places.
+Tickets, membership cards, access badges, and loyalty cards all represent the same basic thing: a right granted by one party to another.
 
-- **Plastic and paper** — easy to forget, easy to fake, impossible to verify
-  digitally.
-- **A custom app** — expensive to build, and the install step loses a large
-  share of visitors before they ever hold the credential.
-- **A SaaS account** — the credential is a row in a vendor's database, with no
-  portability and no way to verify it outside that vendor's API.
+Today, that right usually lives in the wrong place.
 
-Once the visitor is through the gate the relationship usually ends. The ticket
-becomes dead paper and the operator keeps no portable proof that the visit
-happened. Low-friction credentials are not portable; portable ones normally
-drag a crypto wallet into the queue at the door.
+- **Plastic or paper** — easy to lose or copy, and impossible to verify digitally.
+- **A custom app** — expensive to build, with an install step before the member can even carry the right.
+- **A SaaS database** — the right exists only as a vendor-controlled row, and cannot be verified without that vendor.
+
+The credential may be convenient, or it may be portable. It is rarely both.
 
 ## What fuda does
 
-fuda turns the cards a business gives its customers into on-chain rights,
-delivered straight to Apple Wallet or Google Wallet, with a browser-based pass
-for every other device.
+fuda makes the Right itself on-chain, then gives people familiar ways to carry and present it.
 
-- **No app to install** — a Bearer Right is saved to the phone's own wallet as
-  a Pass, and any other device gets the browser pass page.
-- **Portable and independently verifiable** — the Right outlives the platform,
-  because its validity lives on-chain rather than in fuda's database.
-- **Privacy where it is required** — +Private Rights use fresh, one-time
-  ERC-5564 stealth addresses, so a member and their other Rights stay
-  unlinkable on-chain.
-- **Backend included** — the operator never touches Apple certificates, the
-  Google Wallet API, or on-chain tooling.
+A Venue can issue a Right in seconds. A Member can keep its Pass in Apple Wallet, Google Wallet, or the browser. At the Gate, its validity comes from the chain rather than fuda's database.
+
+- **No app required for Bearer Rights** — save the Pass and present its QR.
+- **Independently verifiable** — a Right remains verifiable without a fuda account or API.
+- **Privacy when needed** — +Private Rights use fresh ERC-5564 stealth addresses so separate Rights cannot be linked by chain observers.
+- **Hosted rails included** — fuda handles passes, gate flows, and on-chain operations without making them the source of validity.
 
 Each Right is an [EAS](https://attest.org) `Entitlement` attestation on Base.
 Passes present it; the API reads the chain to decide admission.
