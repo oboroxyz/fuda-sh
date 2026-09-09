@@ -4,7 +4,9 @@ import { useEffect, useId, useRef, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import type { DashCopy } from './copy.ts'
-import type { DashRoute, DashSurface } from './router.ts'
+import { ProfileMenu } from './ProfileMenu.tsx'
+import { navigationRoute } from './router.ts'
+import type { DashRoute, DashSurface, MainDashRoute } from './router.ts'
 import { SignOutButton } from './SignOutButton.tsx'
 
 export interface DashboardShellProps {
@@ -30,7 +32,7 @@ interface NavigationProps {
 
 interface NavItem {
   label: string
-  route: DashRoute
+  route: MainDashRoute
 }
 
 export const DASH_DESKTOP_MEDIA_QUERY = '(min-width: 48rem)'
@@ -59,23 +61,24 @@ const navigationItems = (copy: DashCopy, surface: DashSurface, hasIssuer: boolea
   }
   return hasIssuer
     ? [
-        { label: copy.nav.venue, route: '/venue' },
+        { label: copy.nav.venue, route: '/profile' },
         { label: copy.nav.reception, route: '/reception' },
-        { label: copy.nav.card, route: '/published' },
-        { label: copy.nav.newCard, route: '/new' },
+        { label: copy.nav.card, route: '/cards' },
+        { label: copy.nav.newCard, route: '/cards/new' },
       ]
-    : [{ label: copy.nav.venue, route: '/venue' }]
+    : [{ label: copy.nav.venue, route: '/start' }]
 }
 
-const navigationIcon = (route: DashRoute): JSX.Element => {
+const navigationIcon = (route: MainDashRoute): JSX.Element => {
   const paths = {
     '/': 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',
+    '/cards': 'M3 7h18v13H3z M6 4h12 M3 11h18',
+    '/cards/new': 'M4 5h16v14H4z M8 12h8 M12 8v8',
     '/issue': 'M12 3v12 M7 10l5 5 5-5 M4 17v4h16v-4',
-    '/new': 'M4 5h16v14H4z M8 12h8 M12 8v8',
-    '/published': 'M3 7h18v13H3z M6 4h12 M3 11h18',
+    '/profile': 'M4 21V10l8-7 8 7v11 M9 21v-6h6v6',
     '/reception': 'M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 14h2v2h-2z M18 14h2v6h-6v-2',
     '/rights': 'M4 4h16v16H4z M8 8h8 M8 12h8 M8 16h5',
-    '/venue': 'M4 21V10l8-7 8 7v11 M9 21v-6h6v6',
+    '/start': 'M4 21V10l8-7 8 7v11 M9 21v-6h6v6',
   }
   return (
     <svg
@@ -104,8 +107,8 @@ const Navigation = ({
       {navigationItems(copy, surface, hasIssuer).map((item): JSX.Element => (
         <li key={item.route}>
           <a
-            aria-current={route === item.route ? 'page' : undefined}
-            class={cn('dash-menu-item', route === item.route && 'menu-active')}
+            aria-current={navigationRoute(route) === item.route ? 'page' : undefined}
+            class={cn('dash-menu-item', navigationRoute(route) === item.route && 'menu-active')}
             href={item.route}
             onClick={(event: MouseEvent): void => {
               if (!isPrimaryNavigation(event)) {
@@ -239,7 +242,9 @@ export const DashboardShell = ({
             <span aria-hidden="true">☰</span>
           </button>
         </header>
-        <main class="mx-auto w-full max-w-6xl min-w-0 p-4 sm:p-6 lg:p-8 print:p-0">{children}</main>
+        <main class="mx-auto w-full max-w-6xl min-w-0 p-4 sm:px-6 sm:py-8 lg:px-8 lg:py-10 print:p-0">
+          {children}
+        </main>
       </div>
       <div class="drawer-side z-30 md:z-auto">
         <label
@@ -301,6 +306,9 @@ export const DashboardShell = ({
               <span aria-hidden="true">×</span>
             </button>
           </div>
+          {surface === 'operator' && venue !== null ? (
+            <ProfileMenu key={route} copy={copy} venue={venue} onSignOut={onSignOut} />
+          ) : null}
           {Navigation({
             copy,
             hasIssuer,
@@ -314,22 +322,9 @@ export const DashboardShell = ({
             surface,
           })}
           <div class="mt-auto flex flex-col gap-3">
-            {surface === 'operator' && venue !== null ? (
-              <div class="min-w-0 space-y-1 border-t px-5 pt-5">
-                <p class="font-semibold wrap-anywhere">{venue.name}</p>
-                {venue.publicUrl === null ? null : (
-                  <a
-                    class="link link-hover block text-xs wrap-anywhere opacity-70"
-                    href={venue.publicUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {venue.publicUrl}
-                  </a>
-                )}
-              </div>
-            ) : null}
-            {onSignOut === null ? null : <SignOutButton copy={copy.auth} onSignOut={onSignOut} menu />}
+            {onSignOut === null || (surface === 'operator' && venue !== null) ? null : (
+              <SignOutButton copy={copy.auth} onSignOut={onSignOut} menu />
+            )}
             <div class="px-5">{appearance}</div>
           </div>
         </aside>

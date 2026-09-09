@@ -10,6 +10,7 @@ describe('D1 schema', () => {
       "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'd1_%' AND name NOT LIKE '_cf_%'",
     ).all<{ name: string }>()
     expect(rows.results.map((r) => r.name).toSorted()).toStrictEqual([
+      'card_stamp_settings',
       'cards',
       'challenges',
       'ens_names',

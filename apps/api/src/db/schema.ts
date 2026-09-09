@@ -121,6 +121,15 @@ export const stampSettings = sqliteTable('stamp_settings', {
     .references(() => issuers.id),
 })
 
+export const cardStampSettings = sqliteTable('card_stamp_settings', {
+  cardId: text('card_id')
+    .primaryKey()
+    .references(() => cards.id),
+  dailyLimit: integer('daily_limit').notNull().default(1),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(false),
+  goal: integer('goal').notNull().default(10),
+})
+
 export const stampCredits = sqliteTable(
   'stamp_credits',
   {

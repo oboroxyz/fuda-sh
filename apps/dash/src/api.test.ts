@@ -1,6 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { commitLogo, issueRight, listMembers, revokeRight, uploadLogo } from './api.ts'
+import {
+  commitLogo,
+  issueRight,
+  listMembers,
+  readStampSettings,
+  revokeRight,
+  updateStampSettings,
+  uploadLogo,
+} from './api.ts'
 
 const UID = `0x${'ab'.repeat(32)}`
 const TOKEN = 's3cret'
@@ -125,6 +133,21 @@ describe('committing a logo', () => {
       body: JSON.stringify({ logoUploadId: 'up_1' }),
       headers: HEADERS,
       method: 'POST',
+    })
+  })
+})
+
+describe('Card stamp policy requests', () => {
+  it('reads and saves the selected Card without using a venue-wide endpoint', async () => {
+    const settings = { dailyLimit: 2, enabled: true, goal: 12 }
+    const spy = stubFetch(() => json(settings, 200))
+    await expect(readStampSettings(TOKEN, 'card-1')).resolves.toStrictEqual({ body: settings, ok: true })
+    expect(spy).toHaveBeenLastCalledWith('/api/v1/issuers/me/cards/card-1/stamps', { headers: GET_HEADERS })
+    await updateStampSettings(TOKEN, 'card-2', settings)
+    expect(spy).toHaveBeenLastCalledWith('/api/v1/issuers/me/cards/card-2/stamps', {
+      body: JSON.stringify(settings),
+      headers: HEADERS,
+      method: 'PUT',
     })
   })
 })

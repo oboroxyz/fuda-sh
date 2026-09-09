@@ -10,13 +10,15 @@ import { viewProps, viewText, walkView } from './test/test-view.ts'
 
 const copy = pick(DASH_COPY, 'en').ens
 const NAME = 'wassie-coffee.fuda.eth'
+const OWNER = `0x${'12'.repeat(20)}` as const
 const TX = `0x${'ab'.repeat(32)}` as const
 
 const noop = (): void => {
   // the button's press is exercised by the state machine's own tests
 }
 
-const render = (state: ClaimState): JSX.Element => EnsClaim({ copy, name: NAME, onClaim: noop, state })
+const render = (state: ClaimState): JSX.Element =>
+  EnsClaim({ copy, name: NAME, onClaim: noop, ownerAddress: OWNER, state })
 
 describe(EnsClaim, () => {
   it('names the venue before it is claimed and offers the button', () => {
@@ -34,13 +36,16 @@ describe(EnsClaim, () => {
     expect(walkView(submitting).some((node) => viewProps(node).disabled === true)).toBe(true)
   })
 
-  it('shows the claimed name with its transaction and drops the button', () => {
-    const view = render({ claimTxHash: TX, kind: 'claimed', name: NAME })
+  it.each([TX, null])('links the claimed name to its owner with transaction %s', (claimTxHash) => {
+    const view = render({ claimTxHash, kind: 'claimed', name: NAME })
 
     expect(viewText(view)).toContain(copy.claimedLabel)
     expect(walkView(view).map((node) => viewProps(node).href)).toContain(
-      `https://sepolia.etherscan.io/tx/${TX}`,
+      `https://sepolia.etherscan.io/address/${OWNER}`,
     )
+    const link = walkView(view).find((node) => viewProps(node).href !== undefined)!
+    expect(viewText(link)).toBe(NAME)
+    expect(viewProps(link).target).toBe('_blank')
     expect(viewText(view)).not.toContain(copy.claim)
   })
 

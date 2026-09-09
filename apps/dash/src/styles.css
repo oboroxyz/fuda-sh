@@ -21,6 +21,14 @@
   --fuda-accent: oklch(97% 0 0);
 }
 
+.dash-page-header {
+  @apply flex flex-col gap-1;
+}
+
+.dash-page-title {
+  @apply text-3xl font-bold;
+}
+
 .dash-sidebar .dash-menu-item {
   @apply mx-2 flex min-h-12 items-center justify-start gap-3 rounded-none rounded-xl px-5 py-3 text-left text-sm;
 }
@@ -72,6 +80,23 @@
 .dash-auth :where(.input, .select),
 .dash-appearance select {
   @apply min-h-11 max-w-full min-w-0 rounded-lg border border-[var(--fuda-border)] bg-[var(--fuda-surface)] px-3 text-sm text-[var(--fuda-text)];
+}
+
+/* daisyUI themes are disabled; these controls still need their component tokens. */
+.dash-app :where(.file-input, .toggle) {
+  --color-base-100: var(--fuda-surface);
+  --color-base-200: var(--fuda-bg);
+  --color-base-content: var(--fuda-text);
+  --border: 1px;
+  --radius-field: 0.5rem;
+  --radius-selector: 1rem;
+  --depth: 0;
+  --noise: 0;
+  --fx-noise: none;
+}
+
+.dash-app .file-input {
+  @apply min-h-11 max-w-full text-[var(--fuda-text)];
 }
 
 .dash-app :where(.btn),
@@ -157,10 +182,6 @@
   @apply grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-4;
 }
 
-.dash-page-header {
-  @apply mb-4;
-}
-
 .dash-stat {
   @apply min-w-0 rounded-[0.875rem] border border-[var(--fuda-border)] bg-[var(--fuda-surface)] p-6;
 }
@@ -235,7 +256,7 @@
 }
 
 .dash-card-preview {
-  @apply flex min-w-0 flex-col gap-1 rounded-[0.875rem] p-5 shadow-md;
+  @apply flex aspect-[1.586/1] w-full min-w-0 flex-col gap-1 rounded-[0.875rem] p-5 shadow-md;
 }
 
 .dash-card-preview-top {

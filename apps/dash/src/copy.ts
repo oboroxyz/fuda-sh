@@ -5,6 +5,7 @@ import type { BrandColorName } from './brand-colors.ts'
 export interface DashCopy {
   chrome: {
     brand: string
+    switchProfile: string
     subtitle: string
     navigation: string
     openMenu: string
@@ -64,6 +65,7 @@ export interface DashCopy {
   }
   venue: {
     profileTitle: string
+    profileDescription: string
     ensUnavailable: string
     handleLabel: string
     handleHint: string
@@ -78,6 +80,8 @@ export interface DashCopy {
     saveFailed: string
   }
   stamps: {
+    back: string
+    cardNotFound: string
     title: string
     description: string
     enabled: string
@@ -91,7 +95,6 @@ export interface DashCopy {
     failures: { load: string; save: string; validation: string }
   }
   reception: {
-    eyebrow: string
     title: string
     description: string
     scannerLabel: string
@@ -178,6 +181,8 @@ export interface DashCopy {
     }
   }
   ens: {
+    requiredTitle: string
+    requiredDescription: string
     title: string
     description: string
     claim: string
@@ -196,6 +201,7 @@ export interface DashCopy {
     }
   }
   published: {
+    settings: string
     createFirst: string
     manageVenue: string
     emptyTitle: string
@@ -339,6 +345,7 @@ export const DASH_COPY = {
   en: {
     chrome: {
       brand: 'fuda.',
+      switchProfile: 'Switch profile',
       subtitle: 'Dashboard',
       navigation: 'Dashboard navigation',
       openMenu: 'Open menu',
@@ -352,7 +359,7 @@ export const DASH_COPY = {
       overview: 'Overview',
       rights: 'Rights',
       issue: 'Issue',
-      venue: 'Venue',
+      venue: 'Profile',
       reception: 'Reception',
       newCard: 'New card',
       card: 'Your cards',
@@ -404,6 +411,7 @@ export const DASH_COPY = {
     },
     venue: {
       profileTitle: 'Venue profile',
+      profileDescription: 'Manage your venue details, logo and ENS name.',
       ensUnavailable:
         'ENS is not configured for this deployment. Card creation is unavailable until it is enabled.',
       handleLabel: 'Venue handle',
@@ -419,8 +427,11 @@ export const DASH_COPY = {
       saveFailed: 'Could not save the venue. Try again.',
     },
     stamps: {
+      back: 'Back to cards',
+      cardNotFound: 'Card not found',
       title: 'Stamp settings',
-      description: 'Choose how many stamps each card can earn per Japan calendar day.',
+      description:
+        'Settings apply only to this card. Each issued pass earns stamps separately, with daily limits based on Japan time.',
       enabled: 'Award stamps at reception',
       dailyLimit: 'Daily limit (1–100)',
       goal: 'Stamp goal (1–1000)',
@@ -436,7 +447,6 @@ export const DASH_COPY = {
       },
     },
     reception: {
-      eyebrow: 'Reception',
       title: 'Scan member cards',
       description: 'Scan a fuda QR code. The scanner input stays ready for the next guest.',
       scannerLabel: 'QR scanner input',
@@ -548,6 +558,8 @@ export const DASH_COPY = {
       },
     },
     ens: {
+      requiredTitle: 'Claim your ENS name first',
+      requiredDescription: 'Your venue needs an ENS name before you can create a card.',
       title: 'Your venue name on ENS',
       description:
         'Claim {name} and the name is yours onchain. fuda covers the transaction fee — you never need a second wallet or any ETH.',
@@ -557,7 +569,7 @@ export const DASH_COPY = {
       submitting: 'Confirm in your wallet…',
       confirming: 'Waiting for the chain…',
       claimedLabel: 'Claimed',
-      explorer: 'View the transaction',
+      explorer: 'View on Sepolia Etherscan',
       failures: {
         network: 'Could not reach fuda. Check your connection and try again.',
         rejected: 'The claim was not signed. Press the button to try again.',
@@ -567,6 +579,7 @@ export const DASH_COPY = {
       },
     },
     published: {
+      settings: 'Card settings',
       createFirst: 'Create your first card',
       manageVenue: 'Go to venue and ENS',
       emptyTitle: 'Create your first card',
@@ -576,7 +589,7 @@ export const DASH_COPY = {
       description: 'One link is the whole sign-up. Print it, mail it, or post it.',
       descriptionMany: 'Every card has its own link. Print it, mail it, or post it.',
       venueLabel: 'Venue page',
-      addCard: 'Add another card',
+      addCard: 'Add card',
       qrLabel: 'QR code for your card link',
       print: 'Print QR poster',
       share: 'Share link',
@@ -707,6 +720,7 @@ export const DASH_COPY = {
   ja: {
     chrome: {
       brand: 'fuda.',
+      switchProfile: 'プロフィールを切り替え',
       subtitle: 'Dashboard',
       navigation: 'ダッシュボードナビゲーション',
       openMenu: 'メニューを開く',
@@ -720,7 +734,7 @@ export const DASH_COPY = {
       overview: '概要',
       rights: '権利',
       issue: '発行',
-      venue: '店舗',
+      venue: 'プロフィール',
       reception: '受付',
       newCard: 'カードを作る',
       card: 'カード',
@@ -772,6 +786,7 @@ export const DASH_COPY = {
     },
     venue: {
       profileTitle: '店舗情報',
+      profileDescription: '店舗の基本情報、ロゴ、ENS名を管理します。',
       ensUnavailable: 'この環境では ENS が設定されていません。有効になるまでカードを作成できません。',
       handleLabel: '店舗ハンドル',
       handleHint: '登録後は変更できません。',
@@ -786,8 +801,11 @@ export const DASH_COPY = {
       saveFailed: '店舗情報を保存できませんでした。もう一度お試しください。',
     },
     stamps: {
+      back: 'カード一覧に戻る',
+      cardNotFound: 'カードが見つかりません',
       title: 'スタンプ設定',
-      description: '日本時間の1日あたりに、1枚のカードが獲得できるスタンプ数を設定します。',
+      description:
+        'このカードのスタンプを設定します。獲得数は発行済みパスごとに集計し、1日の上限は日本時間で判定します。',
       enabled: '受付でスタンプを付与',
       dailyLimit: '1日の上限（1〜100）',
       goal: 'ゴール（1〜1000）',
@@ -803,7 +821,6 @@ export const DASH_COPY = {
       },
     },
     reception: {
-      eyebrow: '受付',
       title: 'メンバーカードをスキャン',
       description: 'fuda の QR コードを読み取ります。読み取り後も次のお客さまの入力をすぐ受け付けます。',
       scannerLabel: 'QR スキャナー入力',
@@ -915,6 +932,8 @@ export const DASH_COPY = {
       },
     },
     ens: {
+      requiredTitle: '先にENS名を取得してください',
+      requiredDescription: 'カードを作成するには、店舗のENS名を取得する必要があります。',
       title: 'ENS 上の店舗名',
       description:
         '{name} を取得すると、この名前がオンチェーンであなたのものになります。手数料は fuda が負担するので、別のウォレットも ETH も要りません。',
@@ -924,7 +943,7 @@ export const DASH_COPY = {
       submitting: 'ウォレットで承認してください…',
       confirming: 'チェーンの確認を待っています…',
       claimedLabel: '取得済み',
-      explorer: 'トランザクションを見る',
+      explorer: 'Sepolia Etherscanで確認',
       failures: {
         network: 'fuda に接続できませんでした。通信環境を確認してもう一度試してください。',
         rejected: '署名されませんでした。ボタンを押すとやり直せます。',
@@ -934,6 +953,7 @@ export const DASH_COPY = {
       },
     },
     published: {
+      settings: 'カード設定',
       createFirst: '最初のカードを作成',
       manageVenue: '店舗と ENS を確認',
       emptyTitle: '最初のカードを作成',

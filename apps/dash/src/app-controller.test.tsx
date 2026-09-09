@@ -360,11 +360,11 @@ describe(App, () => {
   })
 
   it.each([
-    { issuer: operatorIssuer, name: 'registered venue', path: '/published' },
+    { issuer: operatorIssuer, name: 'registered venue', path: '/cards' },
     {
       issuer: { cards: [], ens: null, issuer: null, publicUrl: null } as IssuerMeResponse,
       name: 'new operator',
-      path: '/venue',
+      path: '/start',
     },
   ])('restores a $name after reload without a new passkey ceremony', async ({ issuer, path }) => {
     const io = fixture()
@@ -572,7 +572,7 @@ describe(App, () => {
     await setTimeout(0)
     const view = render(io, 'system', operatorIo)
     expect(view.session.token).toBe('operator-token')
-    expect(view.route).toBe('/venue')
+    expect(view.route).toBe('/start')
     expect(io.listMembers).not.toHaveBeenCalled()
     expect(operatorIo.signIn).toHaveBeenCalledOnce()
   })
@@ -597,7 +597,7 @@ describe(App, () => {
     expect(view.session.token).toBe('replacement')
     expect(view.session.operator).toBeNull()
     expect(view.signingIn).toBe(false)
-    expect(view.route).not.toBe('/new')
+    expect(view.route).not.toBe('/cards/new')
   })
 
   it('does not let an old sign-in failure clear replacement busy state', async () => {

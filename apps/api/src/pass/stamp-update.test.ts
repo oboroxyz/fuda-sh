@@ -4,7 +4,7 @@ import type { Context } from 'hono'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getDb } from '../db/client.ts'
-import { issuers, members, stampSettings } from '../db/schema.ts'
+import { cards, cardStampSettings, issuers, members } from '../db/schema.ts'
 import type { AppEnv, Bindings } from '../env.ts'
 import { scheduleStampPassUpdate } from './stamp-update.ts'
 
@@ -35,8 +35,9 @@ const context = (kept: Promise<unknown>[], bindings: Partial<Bindings>): Context
 
 describe(scheduleStampPassUpdate, () => {
   beforeEach(async () => {
-    await db.delete(stampSettings)
+    await db.delete(cardStampSettings)
     await db.delete(members)
+    await db.delete(cards)
     await db.delete(issuers)
     await db.insert(issuers).values({
       brandColor: '#112233',
@@ -46,10 +47,23 @@ describe(scheduleStampPassUpdate, () => {
       name: 'Coffee',
       operatorAddress: `0x${'11'.repeat(20)}`,
     })
-    await db
-      .insert(members)
-      .values({ attestationUid: UID, createdAt: 1, issuerId: 'venue', level: 'bearer', memberId: 'member' })
-    await db.insert(stampSettings).values({ dailyLimit: 2, enabled: true, goal: 10, issuerId: 'venue' })
+    await db.insert(cards).values({
+      category: 'membership',
+      createdAt: 1,
+      id: 'card',
+      issuerId: 'venue',
+      slug: 'coffee',
+      title: 'Coffee',
+    })
+    await db.insert(members).values({
+      attestationUid: UID,
+      cardId: 'card',
+      createdAt: 1,
+      issuerId: 'venue',
+      level: 'bearer',
+      memberId: 'member',
+    })
+    await db.insert(cardStampSettings).values({ cardId: 'card', dailyLimit: 2, enabled: true, goal: 10 })
   })
 
   afterEach(() => vi.unstubAllGlobals())
@@ -66,7 +80,7 @@ describe(scheduleStampPassUpdate, () => {
         return Response.json({ textModulesData: [{ body: 'VIP', header: 'Tier', id: 'tier' }] })
       }
       if (requests.filter(({ method }) => method === 'PATCH').length === 1) {
-        await db.update(stampSettings).set({ goal: 12 }).where(eq(stampSettings.issuerId, 'venue'))
+        await db.update(cardStampSettings).set({ goal: 12 }).where(eq(cardStampSettings.cardId, 'card'))
       }
       return Response.json({})
     })

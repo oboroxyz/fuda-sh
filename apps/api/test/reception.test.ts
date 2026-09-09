@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { createSession } from '../src/auth/session.ts'
 import { getDb } from '../src/db/client.ts'
 import {
+  cards,
   entryLog,
   issuers,
   members,
@@ -39,8 +40,18 @@ const setup = async (level = 0, usageModel = 1) => {
     token,
   )
   const venue = await db.select().from(issuers).get()
+  const cardId = crypto.randomUUID()
+  await db.insert(cards).values({
+    category: 'membership',
+    createdAt: NOW,
+    id: cardId,
+    issuerId: venue!.id,
+    slug: 'coffee',
+    title: 'Coffee membership',
+  })
   await db.insert(members).values({
     attestationUid: uid,
+    cardId,
     createdAt: NOW,
     holder: HOLDER,
     issuerId: venue!.id,
@@ -49,7 +60,7 @@ const setup = async (level = 0, usageModel = 1) => {
   })
   const settings = async (enabled: boolean, dailyLimit = 1, goal = 10) =>
     await app.request(
-      '/v1/issuers/me/stamps',
+      `/v1/issuers/me/cards/${cardId}/stamps`,
       {
         body: JSON.stringify({ dailyLimit, enabled, goal }),
         headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
@@ -62,7 +73,9 @@ const setup = async (level = 0, usageModel = 1) => {
   return {
     app,
     bindings,
+    cardId,
     chain,
+    delegation,
     scan,
     setNow: (value: number) => {
       now = value
@@ -89,10 +102,12 @@ describe('venue reception stamps', () => {
     // Delete in dependency order; each fixture owns all rows in this test file.
     await env.DB.prepare('DELETE FROM stamp_credits').run()
     await env.DB.prepare('DELETE FROM reception_requests').run()
+    await env.DB.prepare('DELETE FROM card_stamp_settings').run()
     await env.DB.prepare('DELETE FROM stamp_settings').run()
     await db.delete(entryLog)
     await db.delete(slots)
     await db.delete(members)
+    await db.delete(cards)
     await db.delete(sessions)
     await db.delete(issuers)
   })
@@ -109,6 +124,87 @@ describe('venue reception stamps', () => {
       stamp: { status: 'daily_limit', summary: { today: 1, total: 1 } },
     })
     await expect(db.select().from(entryLog)).resolves.toHaveLength(2)
+  })
+
+  it('keeps membership and event ticket policies independent at reception', async () => {
+    const f = await setup()
+    await f.settings(true, 2, 12)
+    const ticketId = crypto.randomUUID()
+    const ticketUid = seedRight(f.chain, f.delegation, { usageModel: 0 })
+    await db.insert(cards).values({
+      category: 'ticket',
+      createdAt: NOW,
+      id: ticketId,
+      issuerId: f.venue.id,
+      slug: 'event',
+      title: 'Special event',
+    })
+    await db.insert(members).values({
+      attestationUid: ticketUid,
+      cardId: ticketId,
+      createdAt: NOW,
+      issuerId: f.venue.id,
+      level: 'bearer',
+      memberId: 'ticket-member',
+    })
+    await expect(
+      responseJson(getJson(f.app, f.bindings, `/v1/issuers/me/cards/${ticketId}/stamps`, f.token)),
+    ).resolves.toStrictEqual({
+      dailyLimit: 1,
+      enabled: false,
+      goal: 10,
+    })
+    await expect(responseJson(f.scan())).resolves.toMatchObject({
+      stamp: { status: 'awarded', summary: { dailyLimit: 2, enabled: true, goal: 12, total: 1 } },
+    })
+    await expect(responseJson(f.scan(crypto.randomUUID(), `fuda:v1:${ticketUid}`))).resolves.toMatchObject({
+      decision: 'ADMIT',
+      stamp: { status: 'disabled', summary: { enabled: false, total: 0 } },
+    })
+    await expect(responseJson(getJson(f.app, f.bindings, `/v1/stamps/${ticketUid}`))).resolves.toMatchObject({
+      enabled: false,
+      total: 0,
+    })
+  })
+
+  it('does not apply a card policy to a cardless Right', async () => {
+    const f = await setup()
+    await f.settings(true)
+    await db.update(members).set({ cardId: null }).where(eq(members.attestationUid, f.uid))
+    await expect(responseJson(f.scan())).resolves.toMatchObject({
+      stamp: { status: 'disabled', summary: { enabled: false, total: 0 } },
+    })
+    await expect(responseJson(getJson(f.app, f.bindings, `/v1/stamps/${f.uid}`))).resolves.toMatchObject({
+      enabled: false,
+      total: 0,
+    })
+  })
+
+  it('rejects foreign and missing Card settings and does not expose the old venue-wide route', async () => {
+    const f = await setup()
+    const otherToken = await createSession(db, {
+      address: HOLDER,
+      audience: 'operator',
+      issuerId: 'another-venue',
+      now: NOW,
+    })
+    const path = `/v1/issuers/me/cards/${f.cardId}/stamps`
+    const statuses = await Promise.all([
+      getJson(f.app, f.bindings, path),
+      getJson(f.app, f.bindings, path, otherToken),
+      getJson(f.app, f.bindings, '/v1/issuers/me/cards/missing/stamps', f.token),
+      getJson(f.app, f.bindings, '/v1/issuers/me/stamps', f.token),
+      f.app.request(
+        path,
+        {
+          body: JSON.stringify({ dailyLimit: 1, enabled: true, goal: 10 }),
+          headers: { authorization: `Bearer ${otherToken}`, 'content-type': 'application/json' },
+          method: 'PUT',
+        },
+        f.bindings,
+      ),
+    ])
+    expect(statuses.map((response) => response.status)).toStrictEqual([401, 404, 404, 404, 404])
   })
 
   it('uses Japan midnight and keeps accumulated stamps across days', async () => {
@@ -141,7 +237,7 @@ describe('venue reception stamps', () => {
   it('defaults disabled, retains stamps when disabled and does not reset at the goal', async () => {
     const f = await setup()
     await expect(
-      responseJson(getJson(f.app, f.bindings, '/v1/issuers/me/stamps', f.token)),
+      responseJson(getJson(f.app, f.bindings, `/v1/issuers/me/cards/${f.cardId}/stamps`, f.token)),
     ).resolves.toStrictEqual({ dailyLimit: 1, enabled: false, goal: 10 })
     await expect(responseJson(f.scan())).resolves.toMatchObject({
       stamp: { status: 'disabled', summary: { total: 0 } },

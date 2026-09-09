@@ -119,10 +119,9 @@ export const ReceptionPage = ({
   }
 
   return (
-    <section class="dash-page max-w-3xl">
+    <section class="dash-page flex max-w-3xl flex-col gap-6">
       <header class="dash-page-header">
-        <p class="dash-eyebrow">{copy.eyebrow}</p>
-        <h1 class="text-3xl font-bold">{copy.title}</h1>
+        <h1 class="dash-page-title">{copy.title}</h1>
         <p class="opacity-70">{copy.description}</p>
       </header>
       <div class="card flex flex-col gap-5 px-6 py-8">

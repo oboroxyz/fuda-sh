@@ -305,11 +305,11 @@ export const CardDesignerView = ({
   onWindow,
   status,
 }: CardDesignerViewProps): JSX.Element => (
-  <section class="flex max-w-2xl flex-col gap-5">
-    <div>
-      <h1 class="text-2xl font-bold">{copy.title}</h1>
+  <section class="flex max-w-2xl flex-col gap-6">
+    <header class="dash-page-header">
+      <h1 class="dash-page-title">{copy.title}</h1>
       <p class="opacity-70">{copy.description}</p>
-    </div>
+    </header>
 
     <div class="flex flex-col gap-2">
       <span class="text-xs tracking-widest uppercase opacity-70">{copy.preview}</span>

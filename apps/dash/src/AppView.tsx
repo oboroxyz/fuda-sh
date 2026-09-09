@@ -4,6 +4,8 @@ import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 import type { SessionState } from './app-state.ts'
 import type { CreateFailure, DesignerForm, DesignerMode } from './card-designer.ts'
 import { CardDesigner } from './CardDesigner.tsx'
+import { CardStampSettingsPage } from './CardStampSettingsPage.tsx'
+import type { CardStampSettingsPageProps } from './CardStampSettingsPage.tsx'
 import { API_BASE_URL } from './config.ts'
 import type { DashCopy } from './copy.ts'
 import { DashboardShell } from './DashboardShell.tsx'
@@ -18,10 +20,10 @@ import { ReceptionPage } from './ReceptionPage.tsx'
 import type { ReceptionPageProps } from './ReceptionPage.tsx'
 import type { RightsPageProps } from './RightsPage.tsx'
 import { RightsPage } from './RightsPage.tsx'
+import { cardIdFromRoute, cardSettingsPath } from './router.ts'
 import type { DashRoute } from './router.ts'
 import { SignIn, signInErrorOf } from './SignIn.tsx'
 import { SignOutButton } from './SignOutButton.tsx'
-import type { StampSettingsProps } from './StampSettings.tsx'
 import type { VenueForm } from './venue.ts'
 import { VenuePage } from './VenuePage.tsx'
 import type { VenuePageProps } from './VenuePage.tsx'
@@ -56,7 +58,7 @@ export interface AppViewProps {
   session: SessionState
   signInError: SignInFailure | null
   signingIn: boolean
-  stampSettings: Pick<StampSettingsProps, 'load' | 'save'>
+  stampSettings: CardStampSettingsPageProps['settings']
 }
 
 export const AppView = ({
@@ -134,7 +136,7 @@ export const AppView = ({
 
   const page = (): JSX.Element => {
     if (operator !== null) {
-      if (route === '/venue') {
+      if (route === '/profile') {
         return (
           <VenuePage
             busy={creating}
@@ -148,46 +150,52 @@ export const AppView = ({
             onCommitLogo={onCommitLogo}
             onCreate={onCreateVenue}
             onUpdate={onUpdateVenue}
-            onNewCard={() => {
-              onNavigate('/new')
-            }}
-            stampSettings={stampSettings}
           />
         )
       }
-      if (route === '/new' && operator.ens?.status !== 'claimed') {
+      if (route === '/cards/new' && operator.issuer !== null && operator.ens?.status !== 'claimed') {
         return (
-          <VenuePage
-            busy={creating}
-            canCreateCard={false}
+          <section class="dash-page flex max-w-3xl flex-col gap-6">
+            <header class="space-y-2">
+              <h1 class="text-3xl font-bold">{copy.ens.requiredTitle}</h1>
+              <p class="text-moderate">
+                {operator.ens === null ? copy.venue.ensUnavailable : copy.ens.requiredDescription}
+              </p>
+            </header>
+            <a class="btn btn-primary self-start" href="/profile">
+              {copy.published.manageVenue}
+            </a>
+          </section>
+        )
+      }
+      const cardId = cardIdFromRoute(route)
+      if (operator.issuer !== null && cardId !== null) {
+        return (
+          <CardStampSettingsPage
+            card={operator.cards.find((card) => card.id === cardId) ?? null}
             copy={copy}
-            ens={ens}
-            failure={createFailure}
-            publicUrl={operator.publicUrl}
-            issuer={operator.issuer}
-            onCheckHandle={onCheckHandle}
-            onCommitLogo={onCommitLogo}
-            onCreate={onCreateVenue}
-            onUpdate={onUpdateVenue}
-            onNewCard={() => {
-              onNavigate('/new')
+            onBack={() => {
+              onNavigate('/cards')
             }}
-            stampSettings={stampSettings}
+            settings={stampSettings}
           />
         )
       }
-      if (operator.issuer !== null && route === '/published') {
+      if (operator.issuer !== null && route === '/cards') {
         return (
           <PublishedCard
             canAddCard={operator.ens?.status === 'claimed'}
             cards={operator.cards}
+            onSettings={(selectedId) => {
+              onNavigate(cardSettingsPath(selectedId))
+            }}
             copy={copy.published}
             issuer={operator.issuer}
             onAddCard={() => {
-              onNavigate('/new')
+              onNavigate('/cards/new')
             }}
             onVenue={() => {
-              onNavigate('/venue')
+              onNavigate('/profile')
             }}
             publicUrl={operator.publicUrl}
           />
@@ -209,10 +217,6 @@ export const AppView = ({
           onCommitLogo={onCommitLogo}
           onCreate={onCreateVenue}
           onUpdate={onUpdateVenue}
-          onNewCard={() => {
-            onNavigate('/new')
-          }}
-          stampSettings={stampSettings}
         />
       ) : (
         <CardDesigner

@@ -236,6 +236,7 @@ const published = (overrides: Partial<PublishedCardViewProps> = {}): PublishedCa
   onAddCard: vi.fn<() => void>(),
   onCopy: vi.fn<PublishedCardViewProps['onCopy']>(),
   onPrint: vi.fn<PublishedCardViewProps['onPrint']>(),
+  onSettings: vi.fn<PublishedCardViewProps['onSettings']>(),
   onShare: null,
   onVenue: vi.fn<PublishedCardViewProps['onVenue']>(),
   printSlug: null,
@@ -286,7 +287,7 @@ describe(PublishedCardView, () => {
   })
 
   it('offers another card and share only where the browser supports it', () => {
-    expect(viewText(PublishedCardView(published()))).toContain('Add another card')
+    expect(viewText(PublishedCardView(published()))).toContain('Add card')
     expect(viewText(PublishedCardView(published()))).not.toContain('Share link')
     expect(viewText(PublishedCardView(published({ onShare: (): void => {} })))).toContain('Share link')
   })

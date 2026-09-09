@@ -4,17 +4,19 @@ import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 import type { DashCopy } from './copy.ts'
 import { claimIsBusy } from './ens-claim.ts'
 import type { ClaimState } from './ens-claim.ts'
+import { VenueLinkIcon } from './VenueLinkIcon.tsx'
 
 export interface EnsClaimProps {
   copy: DashCopy['ens']
   // The name the venue would claim, from its handle. Shown before the claim so
   // the operator sees what they are getting.
   name: string
+  ownerAddress: string
   onClaim: () => void
   state: ClaimState
 }
 
-const EXPLORER = 'https://sepolia.etherscan.io/tx/'
+const EXPLORER = 'https://sepolia.etherscan.io/address/'
 
 const progressLine = (copy: DashCopy['ens'], state: ClaimState): string | null => {
   if (state.kind === 'signing') {
@@ -26,43 +28,52 @@ const progressLine = (copy: DashCopy['ens'], state: ClaimState): string | null =
   return state.kind === 'confirming' ? copy.confirming : null
 }
 
-const claimedBlock = (copy: DashCopy['ens'], state: ClaimState): JSX.Element | null => {
-  if (state.kind !== 'claimed') {
-    return null
-  }
-  return (
-    <div class="flex flex-col gap-1">
-      <div class="flex items-center gap-2">
-        <span class="badge badge-success badge-sm">{copy.claimedLabel}</span>
-        <code class="font-mono text-sm">{state.name}</code>
-      </div>
-      {state.claimTxHash === null ? null : (
-        <a
-          class="link text-xs opacity-70"
-          href={`${EXPLORER}${state.claimTxHash}`}
-          rel="noreferrer"
-          target="_blank"
-        >
-          {copy.explorer}
-        </a>
-      )}
-    </div>
-  )
-}
-
-export const EnsClaim = ({ copy, name, onClaim, state }: EnsClaimProps): JSX.Element => {
+export const EnsClaim = ({ copy, name, onClaim, ownerAddress, state }: EnsClaimProps): JSX.Element => {
   const busy = claimIsBusy(state)
   const progress = progressLine(copy, state)
   const claimed = state.kind === 'claimed'
   return (
-    <section aria-label={copy.title} class="rounded-box border-base-300 flex flex-col gap-3 border p-4">
-      <header class="flex flex-col gap-1">
-        <h2 class="font-bold">{copy.title}</h2>
-        {claimed ? null : <p class="text-sm opacity-70">{copy.description.replace('{name}', name)}</p>}
-      </header>
-
-      {claimedBlock(copy, state)}
-
+    <section aria-label={copy.title} class="flex flex-col gap-2 pt-2">
+      <div class="flex flex-wrap items-center gap-2">
+        <VenueLinkIcon kind="link" />
+        {claimed ? (
+          <a
+            class="link link-hover text-sm wrap-anywhere"
+            href={`${EXPLORER}${ownerAddress}`}
+            rel="noopener noreferrer"
+            target="_blank"
+            title={copy.explorer}
+          >
+            {state.name}
+          </a>
+        ) : (
+          <span class="text-sm wrap-anywhere">{name}</span>
+        )}
+        {claimed ? (
+          <svg
+            aria-label={copy.claimedLabel}
+            class="text-primary size-4 shrink-0"
+            fill="currentColor"
+            role="img"
+            viewBox="0 0 24 24"
+          >
+            <title>{copy.claimedLabel}</title>
+            <path d="m12 2 2.6 1.8 3.2.2 1.2 3 2.5 2-.7 3.1.7 3.1-2.5 2-1.2 3-3.2.2L12 22l-2.6-1.8-3.2-.2-1.2-3-2.5-2 .7-3.1L2.5 8.8l2.5-2 1.2-3 3.2-.2L12 2Z" />
+            <path
+              d="m8 12 2.5 2.5L16 9"
+              fill="none"
+              stroke="white"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+            />
+          </svg>
+        ) : (
+          <button class="btn btn-primary btn-xs" disabled={busy} onClick={onClaim} type="button">
+            {state.kind === 'failed' ? copy.retry : copy.claim}
+          </button>
+        )}
+      </div>
       {state.kind === 'failed' ? (
         <p class="text-error text-sm" role="alert">
           {copy.failures[state.failure]}
@@ -70,12 +81,6 @@ export const EnsClaim = ({ copy, name, onClaim, state }: EnsClaimProps): JSX.Ele
       ) : null}
 
       {progress === null ? null : <p class="text-sm opacity-70">{progress}</p>}
-
-      {claimed ? null : (
-        <button class="btn btn-primary self-start" disabled={busy} onClick={onClaim} type="button">
-          {state.kind === 'failed' ? copy.retry : copy.claim}
-        </button>
-      )}
     </section>
   )
 }

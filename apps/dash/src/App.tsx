@@ -296,8 +296,7 @@ export const App = ({
       return
     }
     const surface = session.operator === null ? 'admin' : 'operator'
-    const confirmedEns = session.operator?.ens?.status === 'claimed'
-    const target = redirectFor(route, surface, published, confirmedEns)
+    const target = redirectFor(route, surface, published)
     if (target !== null) {
       navigateTo(history, target)
       setRoute(target)
@@ -354,11 +353,13 @@ export const App = ({
   // has a parent name, and the section is left out entirely in that case rather
   // than offering a button that could only fail.
   const ensName = session.operator?.ens?.name ?? null
+  const ensOwner = session.operator?.issuer?.operatorAddress ?? null
   const ensSection =
-    ensName === null || session.token === null ? null : (
+    ensName === null || ensOwner === null || session.token === null ? null : (
       <EnsClaim
         copy={copy.ens}
         name={ensName}
+        ownerAddress={ensOwner}
         onClaim={() => {
           const { token: sessionToken } = session
           if (sessionToken === null) {
@@ -574,7 +575,7 @@ export const App = ({
     runCreate(
       async (): Promise<CardCreateOutcome> => await submitCard(operatorIo.design, token ?? '', form),
       (body) => operatorWithCard(activeSession.current.operator, body),
-      '/published',
+      '/cards',
     )
   }
 
@@ -582,7 +583,7 @@ export const App = ({
     runCreate(
       async (): Promise<VenueCreateOutcome> => await submitVenue(operatorIo.design, token ?? '', form, logo),
       operatorWithVenue,
-      '/venue',
+      '/profile',
     )
   }
 
@@ -650,25 +651,28 @@ export const App = ({
     return true
   }
 
-  const readStamps = useCallback(async () => {
-    const sessionToken = token ?? ''
-    const ticket = generation.capture()
-    const result = await operatorIo.readStampSettings(sessionToken)
-    if (
-      !result.ok &&
-      result.status === 401 &&
-      generation.isCurrent(ticket) &&
-      activeToken.current === sessionToken
-    ) {
-      replaceSession(unauthorizedSession(activeSession.current))
-    }
-    return result
-  }, [generation, operatorIo, replaceSession, token])
-  const saveStamps = useCallback(
-    async (settings: Parameters<OperatorIo['updateStampSettings']>[1]) => {
+  const readStamps = useCallback(
+    async (cardId: string) => {
       const sessionToken = token ?? ''
       const ticket = generation.capture()
-      const result = await operatorIo.updateStampSettings(sessionToken, settings)
+      const result = await operatorIo.readStampSettings(sessionToken, cardId)
+      if (
+        !result.ok &&
+        result.status === 401 &&
+        generation.isCurrent(ticket) &&
+        activeToken.current === sessionToken
+      ) {
+        replaceSession(unauthorizedSession(activeSession.current))
+      }
+      return result
+    },
+    [generation, operatorIo, replaceSession, token],
+  )
+  const saveStamps = useCallback(
+    async (cardId: string, settings: Parameters<OperatorIo['updateStampSettings']>[2]) => {
+      const sessionToken = token ?? ''
+      const ticket = generation.capture()
+      const result = await operatorIo.updateStampSettings(sessionToken, cardId, settings)
       if (
         !result.ok &&
         result.status === 401 &&

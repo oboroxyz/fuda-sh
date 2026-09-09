@@ -78,14 +78,17 @@ export const signOut = async (token: string): Promise<Result<{ loggedOut: true }
 export const issuerMe = async (token: string): Promise<Result<IssuerMeResponse>> =>
   await apiFetch<IssuerMeResponse>(API_BASE_URL, '/issuers/me', { token })
 
-export const readStampSettings = async (token: string): Promise<Result<StampSettings>> =>
-  await apiFetch<StampSettings>(API_BASE_URL, '/issuers/me/stamps', { token })
+export const readStampSettings = async (token: string, cardId: string): Promise<Result<StampSettings>> =>
+  await apiFetch<StampSettings>(API_BASE_URL, `/issuers/me/cards/${encodeURIComponent(cardId)}/stamps`, {
+    token,
+  })
 
 export const updateStampSettings = async (
   token: string,
+  cardId: string,
   body: StampSettings,
 ): Promise<Result<StampSettings>> =>
-  await apiFetch<StampSettings>(API_BASE_URL, '/issuers/me/stamps', {
+  await apiFetch<StampSettings>(API_BASE_URL, `/issuers/me/cards/${encodeURIComponent(cardId)}/stamps`, {
     body: JSON.stringify(body),
     method: 'PUT',
     token,

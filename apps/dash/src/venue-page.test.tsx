@@ -4,6 +4,7 @@ import { render } from 'hono/jsx/dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DASH_COPY } from './copy.ts'
+import { EnsClaim } from './EnsClaim.tsx'
 import * as logoTools from './logo.ts'
 import { VenuePage } from './VenuePage.tsx'
 import type { VenuePageProps } from './VenuePage.tsx'
@@ -29,16 +30,8 @@ const props = (): VenuePageProps => ({
   onCheckHandle: vi.fn<VenuePageProps['onCheckHandle']>().mockResolvedValue('available'),
   onCommitLogo: vi.fn<VenuePageProps['onCommitLogo']>().mockResolvedValue(true),
   onCreate: vi.fn<VenuePageProps['onCreate']>(),
-  onNewCard: vi.fn<VenuePageProps['onNewCard']>(),
   onUpdate: vi.fn<VenuePageProps['onUpdate']>().mockResolvedValue(true),
   publicUrl: 'https://fuda.test/@coffee',
-  stampSettings: {
-    load: vi.fn<VenuePageProps['stampSettings']['load']>().mockResolvedValue({
-      body: { dailyLimit: 1, enabled: false, goal: 10 },
-      ok: true,
-    }),
-    save: vi.fn<VenuePageProps['stampSettings']['save']>(),
-  },
 })
 
 let root: HTMLDivElement
@@ -82,6 +75,12 @@ describe('venue registration and details', () => {
     vi.restoreAllMocks()
   })
 
+  it('links to the card list and designer from the profile', () => {
+    render(<VenuePage {...props()} canCreateCard />, root)
+    expect(root.querySelector('a[href="/cards"]')?.textContent).toBe('Your cards')
+    expect(root.querySelector('a[href="/cards/new"]')?.textContent).toBe('Add card')
+  })
+
   it('starts with only handle, name and optional tagline, with only an unobtrusive optional label', () => {
     render(<VenuePage {...props()} issuer={null} />, root)
 
@@ -119,7 +118,7 @@ describe('venue registration and details', () => {
     render(<VenuePage {...props()} />, root)
     expect(root.querySelector('input[name="handle"]')).toBeNull()
     const form = field('name').closest('form')!
-    expect([form.querySelector('p')?.textContent, field('name').value]).toStrictEqual(['Coffee', 'Coffee'])
+    expect([form.querySelector('h2')?.textContent, field('name').value]).toStrictEqual(['Coffee', 'Coffee'])
     const link = form.querySelector('a')!
     expect(link).toMatchObject({
       href: 'https://fuda.test/@coffee',
@@ -129,6 +128,38 @@ describe('venue registration and details', () => {
     })
     expect(form.textContent).not.toMatch(/Venue handle|cannot be changed|read.only/iu)
     expect([field('name').required, field('tagline').required]).toStrictEqual([true, false])
+  })
+
+  it.each([true, false])('shows ENS beside venue identity with claimed=%s', (claimed) => {
+    const input = props()
+    const onClaim = vi.fn<() => void>()
+    render(
+      <VenuePage
+        {...input}
+        ens={
+          <EnsClaim
+            copy={input.copy.ens}
+            name="coffee.fuda.eth"
+            onClaim={onClaim}
+            ownerAddress={input.issuer!.operatorAddress}
+            state={
+              claimed
+                ? { claimTxHash: null, kind: 'claimed', name: 'coffee.fuda.eth' }
+                : { kind: 'unclaimed' }
+            }
+          />
+        }
+      />,
+      root,
+    )
+    const identity = root.querySelector('a[href="https://fuda.test/@coffee"]')!.parentElement!
+    expect(identity.textContent).toContain('coffee.fuda.eth')
+    expect(identity.querySelector('[role="img"][aria-label="Claimed"]') !== null).toBe(claimed)
+    const claimButton = identity.querySelector('button')
+    expect(claimButton?.type ?? null).toBe(claimed ? null : 'button')
+    claimButton?.click()
+    expect(onClaim).toHaveBeenCalledTimes(claimed ? 0 : 1)
+    expect(input.onUpdate).not.toHaveBeenCalled()
   })
 
   it('saves the name and clears an optional tagline without sending the handle', async () => {
@@ -193,7 +224,9 @@ describe('venue logo preview', () => {
       expect(root.querySelector('img[src="blob:logo-preview"]')).not.toBeNull()
     })
     expect(input.onCommitLogo).not.toHaveBeenCalled()
-    button('Upload logo').click()
+    expect(button('Save venue').disabled).toBe(false)
+    expect(root.querySelector('input[type=file]')?.closest('form')).toBe(button('Save venue').form)
+    submitForm('Save venue')
     await vi.waitFor(() => {
       expect(input.onCommitLogo).toHaveBeenCalledExactlyOnceWith(variants)
     })
@@ -201,6 +234,63 @@ describe('venue logo preview', () => {
       expect(root.querySelector('img[src="blob:logo-preview"]')).toBeNull()
     })
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:logo-preview')
+  })
+
+  it('shows only one preview and restores the saved Logo when a replacement is removed', async () => {
+    const input = props()
+    render(<VenuePage {...input} issuer={{ ...input.issuer!, logoUrl: '/saved-logo.png' }} />, root)
+    expect(root.querySelectorAll('img')).toHaveLength(1)
+    pickImage()
+    await vi.waitFor(() => {
+      expect(root.querySelector('img')?.src).toBe('blob:logo-preview')
+    })
+    expect(root.querySelectorAll('img')).toHaveLength(1)
+    button('Remove').click()
+    await vi.waitFor(() => {
+      expect(root.querySelector('img')?.getAttribute('src')).toBe('/saved-logo.png')
+    })
+    expect(button('Save venue').disabled).toBe(true)
+  })
+
+  it('disables Save venue while preparing a replacement even if text has changed', async () => {
+    const pending = Promise.withResolvers<Awaited<ReturnType<typeof logoTools.generateLogoSet>>>()
+    vi.spyOn(logoTools, 'generateLogoSet').mockReturnValue(pending.promise)
+    const input = props()
+    render(<VenuePage {...input} />, root)
+    typeField('name', 'New Coffee')
+    pickImage()
+    await vi.waitFor(() => {
+      expect(button('Save venue').disabled).toBe(true)
+    })
+    submitForm('Save venue')
+    expect(input.onUpdate).not.toHaveBeenCalled()
+    pending.resolve({ ok: true, variants })
+    await vi.waitFor(() => {
+      expect(button('Save venue').disabled).toBe(false)
+    })
+  })
+
+  it('retains the profile draft after Logo success and retries without uploading twice', async () => {
+    const input = props()
+    vi.spyOn(input, 'onUpdate').mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+    render(<VenuePage {...input} />, root)
+    typeField('name', 'New Coffee')
+    pickImage()
+    await vi.waitFor(() => {
+      expect(root.querySelector('img[src="blob:logo-preview"]')).not.toBeNull()
+    })
+    submitForm('Save venue')
+    await vi.waitFor(() => {
+      expect(root.textContent).toContain(DASH_COPY.en.venue.saveFailed)
+    })
+    expect(field('name').value).toBe('New Coffee')
+    expect(input.onCommitLogo).toHaveBeenCalledOnce()
+    submitForm('Save venue')
+    await vi.waitFor(() => {
+      expect(root.textContent).toContain(DASH_COPY.en.venue.saved)
+    })
+    expect(input.onCommitLogo).toHaveBeenCalledOnce()
+    expect(input.onUpdate).toHaveBeenCalledTimes(2)
   })
 
   it('discards a replacement without uploading it', async () => {
@@ -225,11 +315,12 @@ describe('venue logo preview', () => {
     await vi.waitFor(() => {
       expect(root.querySelector('img[src="blob:logo-preview"]')).not.toBeNull()
     })
-    button('Upload logo').click()
+    submitForm('Save venue')
     await vi.waitFor(() => {
       expect(root.textContent).toContain(DASH_COPY.en.logo.updateFailed)
     })
     expect(root.querySelector('img[src="blob:logo-preview"]')).not.toBeNull()
-    expect(button('Upload logo').disabled).toBe(false)
+    expect(button('Save venue').disabled).toBe(false)
+    expect(input.onUpdate).not.toHaveBeenCalled()
   })
 })

@@ -97,8 +97,10 @@ export const IssueFormView = ({
         }
       }}
     >
-      <h1 class="text-2xl font-bold">{copy.title}</h1>
-      <p class="text-sm opacity-70">{copy.description}</p>
+      <header class="dash-page-header mb-3">
+        <h1 class="dash-page-title">{copy.title}</h1>
+        <p class="opacity-70">{copy.description}</p>
+      </header>
       <label for="issue-level">{copy.levelLabel}</label>
       <select
         id="issue-level"

@@ -138,7 +138,7 @@ export const StampSettings = ({ copy, load, save }: StampSettingsProps): JSX.Ele
     <label class="flex flex-col gap-2">
       <span>{label}</span>
       <input
-        class="input"
+        class="input w-full"
         type="number"
         min="1"
         max={max}
@@ -163,13 +163,13 @@ export const StampSettings = ({ copy, load, save }: StampSettingsProps): JSX.Ele
         submit()
       }}
     >
-      <div>
+      <div class="space-y-1">
         <h2 class="text-xl font-bold">{copy.title}</h2>
         <p class="text-sm opacity-70">{copy.description}</p>
       </div>
-      <label class="label cursor-pointer justify-start gap-3">
+      <label class="flex cursor-pointer items-center gap-3">
         <input
-          class="toggle"
+          class="toggle shrink-0"
           type="checkbox"
           checked={settings.enabled}
           disabled={busy}

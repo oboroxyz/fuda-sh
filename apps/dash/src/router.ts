@@ -1,41 +1,64 @@
-export const DASH_ROUTES = ['/', '/rights', '/issue', '/venue', '/reception', '/new', '/published'] as const
+export const DASH_ROUTES = [
+  '/',
+  '/rights',
+  '/issue',
+  '/start',
+  '/profile',
+  '/reception',
+  '/cards/new',
+  '/cards',
+] as const
 
-export type DashRoute = (typeof DASH_ROUTES)[number]
+export type MainDashRoute = (typeof DASH_ROUTES)[number]
+export type CardSettingsRoute = `/cards/${string}/stamps`
+export type DashRoute = MainDashRoute | CardSettingsRoute
+
+const isCardSettingsRoute = (value: string): value is CardSettingsRoute =>
+  /^\/cards\/[a-zA-Z0-9_-]+\/stamps$/u.test(value)
+
+export const cardSettingsPath = (cardId: string): CardSettingsRoute => `/cards/${cardId}/stamps`
+
+export const cardIdFromRoute = (route: DashRoute): string | null =>
+  isCardSettingsRoute(route) ? (route.split('/')[2] ?? null) : null
+
+export const navigationRoute = (route: DashRoute): MainDashRoute =>
+  isCardSettingsRoute(route) ? '/cards' : route
 
 // The dashboard has two kinds of signed-in surface, and they do not overlap:
 // the admin token opens the operational console, a passkey session opens the
 // venue's own card. Each kind is sent back to its own home on the other's route.
 export type DashSurface = 'admin' | 'operator'
 
-const OPERATOR_ROUTES: ReadonlySet<DashRoute> = new Set(['/venue', '/reception', '/new', '/published'])
+const OPERATOR_ROUTES: ReadonlySet<DashRoute> = new Set([
+  '/start',
+  '/profile',
+  '/reception',
+  '/cards/new',
+  '/cards',
+])
 
 export const surfaceOf = (route: DashRoute): DashSurface =>
-  OPERATOR_ROUTES.has(route) ? 'operator' : 'admin'
+  OPERATOR_ROUTES.has(navigationRoute(route)) ? 'operator' : 'admin'
 
 // Where a session belongs when it lands somewhere it cannot be: an operator
-// with a venue goes to its cards, one without to the designer.
+// with a venue goes to its cards, one without to initial registration.
 export const homeFor = (surface: DashSurface, hasIssuer: boolean): DashRoute => {
   if (surface === 'admin') {
     return '/'
   }
-  return hasIssuer ? '/published' : '/venue'
+  return hasIssuer ? '/cards' : '/start'
 }
 
 // null means the route is allowed as it stands.
-export const redirectFor = (
-  route: DashRoute,
-  surface: DashSurface,
-  hasIssuer: boolean,
-  hasConfirmedEns = false,
-): DashRoute | null => {
+export const redirectFor = (route: DashRoute, surface: DashSurface, hasIssuer: boolean): DashRoute | null => {
   if (surfaceOf(route) !== surface) {
     return homeFor(surface, hasIssuer)
   }
-  if (surface === 'operator' && !hasIssuer && route !== '/venue') {
-    return '/venue'
+  if (surface === 'operator' && !hasIssuer && route !== '/start') {
+    return '/start'
   }
-  if (surface === 'operator' && route === '/new' && !hasConfirmedEns) {
-    return '/venue'
+  if (surface === 'operator' && hasIssuer && route === '/start') {
+    return '/profile'
   }
   return null
 }
@@ -50,11 +73,21 @@ export interface RouteEvents {
   removeEventListener: (type: 'popstate', listener: () => void) => void
 }
 
-const isDashRoute = (value: string): value is DashRoute => DASH_ROUTES.some((route) => route === value)
+const isDashRoute = (value: string): value is DashRoute =>
+  DASH_ROUTES.some((route) => route === value) || isCardSettingsRoute(value)
 
 export const routeFromPath = (pathname: string): DashRoute => {
   const raw = pathname.split(/[?#]/u, 1)[0] || '/'
   const normalized = raw.length > 1 ? raw.replace(/\/+$/u, '') : raw
+  if (normalized === '/venue') {
+    return '/profile'
+  }
+  if (normalized === '/published') {
+    return '/cards'
+  }
+  if (normalized === '/new') {
+    return '/cards/new'
+  }
   return isDashRoute(normalized) ? normalized : '/'
 }
 

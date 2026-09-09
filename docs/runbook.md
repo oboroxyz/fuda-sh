@@ -98,7 +98,7 @@ Preflight and standalone verification are read-only. The parent commit, parent r
 
 Keep the parent key. It is the User Registry's root principal and the only way to rotate the voucher or gateway signer, so losing it is unrecoverable — a password manager, not just `packages/ens-contracts/.env`.
 
-After topology verification, configure the API with the five claim bindings in §3 alongside `ENS_PARENT_NAME=fuda.eth` and the shared resolver in `ENS_RESOLVER_ADDRESSES`. Every claim route answers `503 ens_not_configured` until all of them are present. The dashboard registers the venue first and then guides the operator through ENS acquisition on `/venue`; card creation requires the confirmed claim. When no ENS name is configured, `/venue` shows an unavailable state and new cards cannot be created. Configure these bindings before testing the complete onboarding flow. Existing cards and member issuance remain available. The issuer can be registered and restored with no cards, so an interrupted claim can be retried without registering again.
+After topology verification, configure the API with the five claim bindings in §3 alongside `ENS_PARENT_NAME=fuda.eth` and the shared resolver in `ENS_RESOLVER_ADDRESSES`. Every claim route answers `503 ens_not_configured` until all of them are present. The dashboard registers the venue first and then guides the operator through ENS acquisition on `/profile`; card creation requires the confirmed claim. When no ENS name is configured, `/profile` shows an unavailable state and new cards cannot be created. Configure these bindings before testing the complete onboarding flow. Existing cards and member issuance remain available. The issuer can be registered and restored with no cards, so an interrupted claim can be retried without registering again.
 
 The DNSSEC TXT value required to expose the `.eth` tree through `fuda.sh` is:
 
@@ -285,7 +285,7 @@ After the initial setup above, start dashboard development from the repository r
 pnpm dev:dash-api
 ```
 
-Run `pnpm migrate:local` after pulling new database migrations. `dev:dash-api` starts the dashboard at http://localhost:5175 and its local API at http://localhost:8787 together. The example simulates chain state and writes. EOA sign-in works offline; Base Account passkey sign-in uses read-only Base Sepolia RPC verification and requires network access. ENS acquisition requires the claim bindings documented above, and new cards remain unavailable until ENS is claimed.
+Run `pnpm migrate:local` after pulling new database migrations. `dev:dash-api` starts the dashboard at http://localhost:5175 and its local API at http://localhost:8787 together. The example simulates chain state and writes. EOA sign-in works offline; Base Account passkey sign-in uses read-only Base Sepolia RPC verification and requires network access. FakeChain does not simulate ENS acquisition. Real acquisition requires the claim bindings documented above; for UI-only work, use the local fixture below to exercise the flow after acquisition.
 
 `pnpm dev` starts the whole local stack on the fixed ports below. A single surface starts with `pnpm dev:api`, `pnpm dev:app`, `pnpm dev:gate`, or `pnpm dev:dash`. Every frontend calls the api for its live data, so `pnpm dev:app+api`, `pnpm dev:gate+api`, and `pnpm dev:dash+api` start one frontend together with the api from a single terminal; a bare `dev:app`, `dev:gate`, or `dev:dash` needs `pnpm dev:api` running elsewhere.
 
@@ -305,12 +305,44 @@ It uses the public Base Sepolia RPC by default; an exported `BASE_RPC_URL` can s
 
 Success prints the public wallet/factory/owner addresses and six successful checks, and exits zero. A failed assertion or unavailable RPC exits nonzero. The probe allows only `eth_chainId`, `eth_call`, and `eth_getCode`, and records RPC failures even if the signature verifier would fold one into `false`. Any rejected RPC request, including an EVM revert, makes the run inconclusive and nonzero: these negative fixtures must produce completed validation responses. RPC URLs, keys and signatures are not printed. This verifies initial multiple-owner signing; it does not test adding owners to an existing wallet, Base Account popup discovery, passkey or nested-wallet owners, API sessions, or owner removal. See [ADR 0008](adr/0008-shared-issuer-wallet.md) for the future co-owner login and session-revocation requirements. The dashboard still has no owner-management UI.
 
+### UI walkthrough with FakeChain
+
+For Card creation, issuance and reception UI work, keep `USE_FAKE_CHAIN=1` with `SIGNER_PRIVATE_KEY` and `BASE_RPC_URL` absent. The local chain simulates entitlement writes, but the ENS prerequisite is read from the local D1 mirror. An ENS fixture lets the existing Card creation flow run without claiming a name on Sepolia. This does not exercise wallet submission, sponsorship, ENS ownership or receipt verification; use the real testnets for those integration checks.
+
+Set `ENS_PARENT_NAME=fuda.eth` in `apps/api/.dev.vars`. After registering a local venue, the following example seeds the acquired state for `fuda-coffee`. Replace that handle with the venue being tested. It adds a row only when no ENS row exists for that name; it never overwrites an existing claim or pending attempt. Run from the repository root:
+
+```sh
+cat > /tmp/fuda-local-ui-ens.sql <<'SQL'
+INSERT INTO ens_names (
+  issuer_handle, name, kind, owner_address, target_address,
+  status, created_at, updated_at
+)
+SELECT handle, handle || '.fuda.eth', 'issuer', operator_address, operator_address,
+       'claimed', unixepoch(), unixepoch()
+FROM issuers
+WHERE handle = 'fuda-coffee'
+ON CONFLICT(name) DO NOTHING;
+
+SELECT name, status, claim_tx_hash, voucher_issued_at
+FROM ens_names WHERE name = 'fuda-coffee.fuda.eth' AND kind = 'issuer';
+SQL
+pnpm --filter api exec wrangler d1 execute fuda-beta --local --file /tmp/fuda-local-ui-ens.sql
+```
+
+The fixture reports `status = claimed` with no transaction hash or voucher timestamp. Reload Dash to refresh the operator state: the claim prompt disappears and Add another card becomes available. No API restart is needed if `ENS_PARENT_NAME` was already configured. Keep `--local`: this is simulated development state, not an onchain claim.
+
+To return this fixture to the unclaimed UI, delete only the synthetic row and reload Dash. Existing Cards and their Stamps remain intact:
+
+```sh
+pnpm --filter api exec wrangler d1 execute fuda-beta --local --command "DELETE FROM ens_names WHERE name = 'fuda-coffee.fuda.eth' AND kind = 'issuer' AND claim_tx_hash IS NULL AND voucher_issued_at IS NULL AND expiry IS NULL"
+```
+
 ### Venue reception demo
 
-Apply migration `0010_reception_stamps.sql` before running the new reception API. Use `pnpm migrate:local` for local development; apply the normal remote migration procedure before deploying the updated API. The migration adds venue Stamp policies, credit records, request receipts and an optional reception ID on Entry logs. It does not award credits to existing Entries.
+Apply migrations through `0011_card_stamp_settings.sql` before running the Card-scoped reception API. Use `pnpm migrate:local` for local development; apply the normal remote migration procedure before deploying the updated API. Migration `0010` adds credit records, request receipts and an optional reception ID on Entry logs. Migration `0011` adds Card Stamp policies and copies each existing venue policy to its existing Cards, preserving enabled state, limits and goals. It preserves all credits and receipts and does not award credits to existing Entries. Newly created Cards default to Stamps disabled. The legacy policy table remains for rollback compatibility but is not read by the new API. Deploy the API and dashboard together: settings now use `/v1/issuers/me/cards/:cardId/stamps`, and the old `/v1/issuers/me/stamps` endpoint is removed.
 
-1. Sign in to dash as the demo venue operator. On `/venue`, enable Stamps, set the daily limit to `1`, and set the goal to `10`.
-2. Prepare an active Bearer membership Right belonging to that venue. A ticket with SINGLE_USE is unsuitable for repeated-admission demos.
+1. Sign in to dash as the demo venue operator. On `/cards`, open the membership Card’s settings and enable Stamps, set the daily limit to `1`, and set the goal to `10`.
+2. Prepare an active Bearer Right issued from that membership Card. A ticket with SINGLE_USE is unsuitable for repeated-admission demos.
 3. Open `/reception`. Configure the QR reader as a keyboard input device with an Enter suffix and scan the Wallet or browser Pass's QR. The same flow can be exercised by pasting `fuda:v1:<uid>` and pressing Enter.
 4. The first scan shows ADMIT and a Stamp credit. A second scan on the same Japan calendar day also shows ADMIT, with the daily-limit result and no additional credit. A fresh day allows another credit; the total remains.
 5. Open the browser Pass or refresh the member-app Pass list to see progress. Browser Pass summaries refresh every 30 seconds. With Google Wallet configured, reception also attempts to update the saved Google object.

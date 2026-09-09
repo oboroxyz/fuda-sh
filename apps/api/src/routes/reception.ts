@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import * as v from 'valibot'
 
-import { members, stampSettings } from '../db/schema.ts'
+import { cards, cardStampSettings, members } from '../db/schema.ts'
 import type { AppEnv } from '../env.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { operatorAuth } from '../middleware/operator-auth.ts'
@@ -16,18 +16,36 @@ import { resolveVerdict, verdictBody, waitUntilOf } from './verify.ts'
 
 export const receptionRoutes = new Hono<AppEnv>()
 
-receptionRoutes.get('/issuers/me/stamps', operatorAuth(), async (c) => {
+receptionRoutes.get('/issuers/me/cards/:cardId/stamps', operatorAuth(), async (c) => {
   const { issuerId } = c.get('operator')
   if (issuerId === null) {
     return errorResponse(c, 'not_found', 404)
   }
+  const card = await c
+    .get('db')
+    .select({ id: cards.id })
+    .from(cards)
+    .where(and(eq(cards.id, c.req.param('cardId')), eq(cards.issuerId, issuerId)))
+    .get()
+  if (card === undefined) {
+    return errorResponse(c, 'not_found', 404)
+  }
   c.header('cache-control', 'no-store')
-  return jsonResponse(c, await readStampSettings(c.get('db'), issuerId))
+  return jsonResponse(c, await readStampSettings(c.get('db'), card.id))
 })
 
-receptionRoutes.put('/issuers/me/stamps', operatorAuth(), async (c) => {
+receptionRoutes.put('/issuers/me/cards/:cardId/stamps', operatorAuth(), async (c) => {
   const { issuerId } = c.get('operator')
   if (issuerId === null) {
+    return errorResponse(c, 'not_found', 404)
+  }
+  const card = await c
+    .get('db')
+    .select({ id: cards.id })
+    .from(cards)
+    .where(and(eq(cards.id, c.req.param('cardId')), eq(cards.issuerId, issuerId)))
+    .get()
+  if (card === undefined) {
     return errorResponse(c, 'not_found', 404)
   }
   const body: unknown = await c.req.json().catch(() => null)
@@ -37,9 +55,9 @@ receptionRoutes.put('/issuers/me/stamps', operatorAuth(), async (c) => {
   }
   await c
     .get('db')
-    .insert(stampSettings)
-    .values({ ...parsed.output, issuerId })
-    .onConflictDoUpdate({ set: parsed.output, target: stampSettings.issuerId })
+    .insert(cardStampSettings)
+    .values({ ...parsed.output, cardId: card.id })
+    .onConflictDoUpdate({ set: parsed.output, target: cardStampSettings.cardId })
   c.header('cache-control', 'no-store')
   return jsonResponse(c, parsed.output)
 })
