@@ -263,6 +263,8 @@ The query also includes +Private admissions, which intentionally have no Attenda
 
 ## 12. Local development
 
+Dependency resolution waits three days after a package version is published (`minimumReleaseAge: 4320` in `pnpm-workspace.yaml`). The specific versions listed in `minimumReleaseAgeExclude` are exempt.
+
 ```sh
 pnpm install --frozen-lockfile
 # Fresh checkout only; preserve existing local values when updating.

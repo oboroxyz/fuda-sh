@@ -24,6 +24,7 @@ overrides:
   oxlint: '=1.79.0'
   oxfmt: '=0.64.0'
   vite@*: npm:@voidzero-dev/vite-plus-core@0.3.0
+minimumReleaseAge: 4320
 minimumReleaseAgeExclude:
   - cn@0.2.6
   - miniflare@5.20260908.0-alpha
