@@ -228,6 +228,9 @@ docs/internal
 test-results/
 playwright-report/
 
+# Local screenshots and review evidence (not product assets)
+/artifacts/
+
 # Local Worker secrets (per-package)
 .dev.vars
 .dev.vars.*
