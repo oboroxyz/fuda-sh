@@ -4,7 +4,7 @@ Guidance for AI coding agents working in this repository. `CLAUDE.md` imports th
 
 ## Start of task
 
-Read `.agents/rules/start-of-task.md` before the first edit of any task. Agents that resolve `@`-imports load it via the line below.
+Read [.agents/rules/start-of-task.md](.agents/rules/start-of-task.md) during read-only triage, before editing files or choosing a branch or worktree. Agents that resolve `@`-imports load it via the line below; other agents must read that file directly.
 
 @.agents/rules/start-of-task.md
 
@@ -26,7 +26,7 @@ When handing off captures, provide their absolute paths and identify the viewpor
 
 ## Toolchain
 
-Vite+ (`vp`) drives development, builds, tests, linting, and formatting through `vite.config.ts`. Before changing lint rules, read that file's header and the comments beside the relevant configuration; they record the structural exceptions and dependency constraints.
+Vite+ (`vp`) drives frontend development and builds, workspace tests, linting, and formatting. Package-level `vite.config.ts` files configure app and test behavior; the root `vite.config.ts` holds shared lint and formatting policy. The API dev server uses Wrangler. Before changing lint rules, read the root file's header and the comments beside the relevant configuration; they record the structural exceptions and dependency constraints.
 
 - Use the root `package.json` scripts as entry points, including `pnpm lint`, `pnpm format`, and `pnpm check`. Install with `pnpm install --frozen-lockfile`; pnpm provisions the repository's Node version. These commands are entry points, not a requirement to run every command at every workflow checkpoint; follow the verification cadence in `.agents/rules/superpowers-policy.md`.
 - Keep lint strict. Suppress a rule only at the narrowest applicable line and include the reason: `// oxlint-disable-next-line <rule> -- <why>`.

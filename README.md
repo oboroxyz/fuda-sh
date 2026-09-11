@@ -1,41 +1,26 @@
 # fuda
 
-**Membership as an on-chain right — issued in seconds, ready at the door, verifiable anywhere.**
+**Your rights in your pocket.**
 
-Our goal is a world where rights are verified on-chain — permissionless and open to anyone — while everyday use feels entirely off-chain.
+fuda turns memberships, tickets, and loyalty cards into on-chain Rights that people carry as Passes in Apple Wallet, Google Wallet, or the browser. Start without an app install or member sign-up, and secure your Right with a passkey when you're ready.
+
+_Our goal: On-chain where trust matters. Invisible everywhere else._
 
 ## The problem
 
-Tickets, membership cards, access badges, and loyalty cards all represent the same basic thing: a right granted by one party to another.
+Membership usually ties a right to the app or system that serves it. Paper and plastic cards are hard to update or revoke; custom apps cost money to build and ask every member to install another app.
 
-Today, that right usually lives in the wrong place.
-
-- **Plastic or paper** — easy to lose or copy, and impossible to verify digitally.
-- **A custom app** — expensive to build, with an install step before the member can even carry the right.
-- **A SaaS database** — the right exists only as a vendor-controlled row, and cannot be verified without that vendor.
-
-The credential may be convenient, or it may be portable. It is rarely both.
+**The right should outlive the app.** Its validity should remain independently verifiable when the software around it changes.
 
 ## What fuda does
 
-fuda makes the Right itself on-chain, then gives people familiar ways to carry and present it.
+An Operator signs in with a passkey, sets up a Venue, designs a Card, and shares its link or QR. Members scan, save their Pass, and present it at the door or counter.
 
-A Venue can issue a Right in seconds. A Member can keep its Pass in Apple Wallet, Google Wallet, or the browser. At the Gate, its validity comes from the chain rather than fuda's database.
+- **Event passes** — claim from a link and save to Apple Wallet, Google Wallet, or the browser, with no member account required.
+- **Membership and loyalty cards** — publish a branded Card from the dashboard, then scan member Passes for entry and award Stamps under the Card's policy.
+- **Open verification** — each Right is an [EAS](https://attest.org) attestation on Base. Anyone can check its on-chain validity without a fuda account or API.
 
-- **No app required for Bearer Rights** — save the Pass and present its QR.
-- **Independently verifiable** — a Right remains verifiable without a fuda account or API.
-- **Privacy when needed** — +Private Rights use fresh ERC-5564 stealth addresses so separate Rights cannot be linked by chain observers.
-- **Hosted rails included** — fuda handles passes, gate flows, and on-chain operations without making them the source of validity.
-
-Each Right is an [EAS](https://attest.org) `Entitlement` attestation on Base. Passes present it; the API reads the chain to decide admission.
-
-An issuer picks one of three templates per use case:
-
-- **`standard`** — shop membership and stamp cards, retail loyalty, community and coworking spaces, gyms and clubs, event tickets, recurring venue passes.
-- **`private`** — employee badges, restricted offices, labs and data centres, backstage and crew access, privacy-sensitive memberships.
-- **`private + loyalty`** — a private club with loyalty, employee access plus a cafeteria balance, coworking plus credits, private events with member history. Two Rights that are never correlated at the Gate.
-
-[Pass types and flows](./docs/specs/pass-types-and-flows.md) has the onboarding steps and wallet roles behind each one.
+ENS gives issuers and Rights names; The Graph supports discovery and on-chain status views. Passkeys and smart accounts let Members take control of their Rights. See [Pass types and flows](./docs/specs/pass-types-and-flows.md) for onboarding, verification levels, and +Private access.
 
 ## How it fits together
 
@@ -89,7 +74,7 @@ sequenceDiagram
     end
 ```
 
-The gate app asks the API, which reads the Entitlement and its IssuerDelegation from EAS by `eth_call`. The hosted scanner trusts that API's verdict; an independent verifier can read the same records directly. D1 holds operational state — one-time challenges, single-use consumption, entry logs — and a failed chain read fails closed. So revoking on-chain turns the same QR red on the next scan, and anyone can run the same check against Base without a fuda account, which is the fallback the hosted rails rest on. Admissions are attested on-chain as best-effort Attendance, except for +Private Rights, where publishing a visit history would defeat the point.
+The gate app asks the API, which reads the Entitlement and its IssuerDelegation from EAS by `eth_call`. The hosted scanner trusts that API's verdict; an independent verifier can read the same records directly. D1 holds operational state — one-time challenges, single-use consumption, entry logs — and a failed chain read fails closed. Revoking on-chain turns the same QR red on the next scan. Anyone can check on-chain validity against Base without a fuda account; reproducing the hosted admission verdict also requires its operational state, including whether a single-use Right has already been consumed. Admissions are attested on-chain as best-effort Attendance, except for +Private Rights, where publishing a visit history would defeat the point.
 
 The principle behind that split is **decentralized at the core, hosted rails only for UX**. A Right's validity lives on-chain, ownable and verifiable by anyone; Apple, Google, and fuda's own Workers are rails that make it pleasant to use. Strip the rails away and every function still has a self-runnable fallback, with worse UX. See [UX and decentralization](./docs/architecture.md#ux-and-decentralization).
 
@@ -104,6 +89,7 @@ The principle behind that split is **decentralized at the core, hosted rails onl
 │   └── gate             scanner — camera QR → verdict screen
 ├── packages
 │   ├── sdk              shared types, validators, qrSvg
+│   ├── libs             shared query, wallet, and authentication integrations
 │   ├── stealth-address  ERC-5564 scheme-1 stealth address math
 │   ├── pass             Apple .pkpass and Google Wallet save-link builders
 │   ├── ui               shared web UI components
@@ -121,22 +107,23 @@ Stack: Cloudflare Workers (Hono, Drizzle, D1, R2), viem, valibot, `@noble` crypt
 
 ## Quick start
 
-See [Local development in the runbook](./docs/runbook.md#12-local-development).
+See [Local development](./docs/runbook.md#12-local-development) for setup and startup instructions.
 
 ## Documentation
 
 - **Architecture**
-  - [Architecture overview](./docs/architecture.md) — components, authority and trust boundaries, environments, configuration
-  - [Glossary](./docs/CONTEXT.md) — the one-name-per-concept vocabulary the specs, code, and UI share (level vs path, Right vs Pass, Device wallet vs Crypto wallet)
+    - [Architecture overview](./docs/architecture.md) — components, authority and trust boundaries, environments, configuration
+    - [Glossary](./docs/CONTEXT.md) — the one-name-per-concept vocabulary the specs, code, and UI share (level vs path, Right vs Pass, Device wallet vs Crypto wallet)
 - **Specifications** ([index](./docs/specs/README.md))
-  - [Attestation model](./docs/specs/attestation-model.md) — Entitlement, IssuerDelegation, Attendance, lifecycle, the EAS/D1 authority boundary
-  - [Pass types and flows](./docs/specs/pass-types-and-flows.md) — templates, wallet roles, activation, privacy-first issuance, the gate protocol
-  - [ENS naming](./docs/specs/ens-naming.md) — the name hierarchy, the member number, what a name resolves to, name lifecycle
-  - [Substreams packages](./docs/specs/substreams.md) — the optional push lane and its compatibility guarantees
+    - [Attestation model](./docs/specs/attestation-model.md) — Entitlement, IssuerDelegation, Attendance, lifecycle, the EAS/D1 authority boundary
+    - [Pass types and flows](./docs/specs/pass-types-and-flows.md) — templates, wallet roles, activation, privacy-first issuance, the gate protocol
+    - [ENS naming](./docs/specs/ens-naming.md) — the name hierarchy, the member number, what a name resolves to, name lifecycle
+    - [Substreams packages](./docs/specs/substreams.md) — the optional push lane and its compatibility guarantees
 - **Integrations**
-  - [The Graph](./docs/integrations/thegraph.md) — rights indexing, Substreams, and verification evidence
+    - [The Graph](./docs/integrations/thegraph.md) — rights indexing, Substreams, and verification evidence
 - **Operations**
-  - [Runbook](./docs/runbook.md) — local development, one-time Cloudflare and Base setup, secrets, deploy order
+    - [Runbook](./docs/runbook.md) — local development, one-time Cloudflare and Base setup, secrets, deploy order
+    - [Agent guidance](./AGENTS.md) — repository workflow and verification
 - **Records**
-  - [Decision records](./docs/adr/) — why the architecture is shaped this way
-  - [References](./docs/references.md) — the standards, prior art, and platform docs the design drew on
+    - [Decision records](./docs/adr/) — why the architecture is shaped this way
+    - [References](./docs/references.md) — the standards, prior art, and platform docs the design drew on
