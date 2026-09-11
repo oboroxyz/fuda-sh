@@ -5,6 +5,10 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
+    "ci:plan": "python3 .github/scripts/ci.py plan",
+    "ci:check": "python3 .github/scripts/ci.py check",
+    "ci:package": "python3 .github/scripts/ci.py package",
+    "ci:test": "python3 -m unittest discover -s .github/scripts -p 'test_*.py'",
     "dev": "pnpm --parallel --filter api --filter app --filter gate --filter dash run dev",
     "dev:api": "pnpm --filter api run dev",
     "dev:app": "pnpm --filter app run dev",

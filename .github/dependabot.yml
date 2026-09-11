@@ -1,0 +1,27 @@
+version: 2
+# npm updates remain manual until Dependabot supports pnpm 11.
+updates:
+  - package-ecosystem: cargo
+    directories:
+      - /packages/substreams/erc5564
+      - /packages/substreams/erc5564-eas-pipeline
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 3
+    open-pull-requests-limit: 3
+    groups:
+      substreams:
+        patterns: ['*']
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directories:
+      - /
+      - /.github/actions/setup
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 3
+    groups:
+      actions:
+        patterns: ['*']

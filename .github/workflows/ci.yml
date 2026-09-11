@@ -1,0 +1,142 @@
+name: PR checks
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Select packages and check code
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    outputs:
+      packages: ${{ steps.plan.outputs.packages }}
+      subgraph: ${{ steps.plan.outputs.subgraph }}
+      rust: ${{ steps.plan.outputs.rust }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Test CI selection
+        run: python3 -m unittest discover -s .github/scripts -p 'test_*.py'
+      - name: Select changed packages and consumers
+        id: plan
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ -n "$BASE_SHA" ]; then
+            python3 .github/scripts/ci.py plan "$BASE_SHA" > /tmp/ci-plan.json
+          else
+            python3 .github/scripts/ci.py plan > /tmp/ci-plan.json
+          fi
+          cat /tmp/ci-plan.json >> "$GITHUB_STEP_SUMMARY"
+      - uses: ./.github/actions/setup
+        with:
+          subgraph: ${{ steps.plan.outputs.subgraph }}
+      - name: Format
+        run: pnpm format:check
+      - name: Lint and type check affected packages
+        run: python3 .github/scripts/ci.py check /tmp/ci-plan.json
+
+  packages:
+    name: Test ${{ matrix.package }}
+    needs: checks
+    if: needs.checks.outputs.packages != '[]'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        package: ${{ fromJSON(needs.checks.outputs.packages) }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - name: Test and build
+        env:
+          PACKAGE_PATH: ${{ matrix.package }}
+        run: python3 .github/scripts/ci.py package "$PACKAGE_PATH"
+
+  subgraph:
+    name: Subgraph
+    needs: checks
+    if: needs.checks.outputs.subgraph == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          subgraph: 'true'
+      - run: pnpm graph:prepare
+      - run: pnpm graph:codegen
+      - run: pnpm graph:build
+      - name: Test manifest generation
+        run: pnpm --ignore-workspace --dir packages/subgraphs/rights exec vitest run scripts
+      - name: Install Matchstick runtime library
+        run: sudo apt-get update && sudo apt-get install -y libpq5
+      - run: pnpm graph:test --version 0.6.0
+
+  substreams:
+    name: Test ${{ matrix.package }}
+    needs: checks
+    if: needs.checks.outputs.rust != '[]'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.checks.outputs.rust) }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install protobuf compiler and Rust
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+          rustup toolchain install 1.96.1 --profile minimal --target wasm32-unknown-unknown
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ${{ matrix.package }}/target
+          key: rust-${{ runner.os }}-1.96.1-${{ matrix.package }}-${{ hashFiles('packages/substreams/**/Cargo.lock') }}
+      - name: Test and build WASM
+        env:
+          PACKAGE_PATH: ${{ matrix.package }}
+        run: |
+          cargo +1.96.1 test --locked --manifest-path "$PACKAGE_PATH/Cargo.toml"
+          cargo +1.96.1 build --locked --release --target wasm32-unknown-unknown --manifest-path "$PACKAGE_PATH/Cargo.toml"
+
+  ci:
+    name: CI
+    if: always()
+    needs: [checks, packages, subgraph, substreams]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 2
+    steps:
+      - name: Require every selected check to succeed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          results = json.loads(os.environ['RESULTS'])
+          assert results['checks']['result'] == 'success', results
+          assert all(job['result'] in ('success', 'skipped') for job in results.values()), results
+          PY

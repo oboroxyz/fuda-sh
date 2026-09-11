@@ -434,3 +434,26 @@ Apply `0013_member_issuance_metadata.sql` before deploying the Card management a
 The migration adds nullable issuance-time `valid_from`, `valid_until`, and `usage_model` fields to members, plus issuer lookup indexes. New issuance records all three values. Existing rows deliberately remain NULL because the current Card template cannot reconstruct historical entitlement settings. They appear as unconfirmed and are excluded from active counts; no backfill or reissuance is required. Never backfill these fields from current Card settings.
 
 The migration is additive. Older API code can still run, but any issuance it writes lacks these snapshots and will appear unconfirmed after upgrading again. Card edits preserve existing issuance snapshots. Smoke-check an owner Card GET/PUT, a foreign Card 404, the paginated Pass list, Membership Stamp saving, and Ticket Stamp rejection after deployment.
+
+## 14. Pull request checks and repository maintenance
+
+`.github/workflows/ci.yml` runs on every pull request and supports manual full runs with `workflow_dispatch`. It never deploys or uses chain-write credentials. The fixed `CI` job reports the overall result, including when individual lanes have no affected packages. Requiring PRs and `CI` on `main` is deferred until after the hackathon; this workflow does not impose a Ruleset.
+
+Formatting runs across the repository. Lint and type checking receive the affected workspace directories; type analysis may also read their imports. Tests run for changed packages and their transitive consumers, using dependency declarations from both the base and proposed trees so removals do not hide affected consumers. API checks include operational script tests, frontend checks include builds, and ENS contract checks include Solidity tests.
+
+Changes to root dependencies, lockfiles, common configuration, CI implementation, or unrecognized build inputs trigger all lanes. Markdown and files under documentation/agent-instruction directories do not select runtime tests. Subgraph changes and `apps/api/wrangler.jsonc` select manifest generation, codegen, build, and Matchstick tests. Shared Subgraph payload fixtures also select the API wire-compatibility tests. The two independent Substreams crates run Rust tests and WASM builds; changes to the ERC-5564 crate also select the pipeline that consumes its protobuf definition. Full checks also install the independent Subgraph dependencies, which its script type configuration requires. The Subgraph installation explicitly uses the same three-day release-age policy as the root workspace.
+
+Reproduce selection and checks from the repository root. For a full or Subgraph check, first install its dependencies with `pnpm --ignore-workspace --dir packages/subgraphs/rights install --frozen-lockfile --config.minimumReleaseAge=4320`:
+
+```sh
+pnpm --silent ci:plan origin/main > /tmp/fuda-ci-plan.json
+pnpm ci:check /tmp/fuda-ci-plan.json
+pnpm ci:package apps/dash
+pnpm ci:test
+```
+
+Selection compares the supplied base with the current tracked/indexed tree. Stage new files before inspecting a local plan. Omit the base to select every lane. `ci:check` covers lint and types; run `pnpm format:check` separately. Workflow validation can be run with `actionlint .github/workflows/ci.yml`.
+
+Dependabot checks Cargo and GitHub Actions weekly, with a three-day cooldown and grouped updates. npm updates remain manual until [Dependabot supports pnpm 11](https://github.com/dependabot/dependabot-core/issues/14794), including the independent Subgraph. Upgrade Vite+, its core alias, lint/format overrides, Vitest, and Ultracite together following the alignment comments in `pnpm-workspace.yaml`, then verify with `pnpm check` and `pnpm test`. Dependency update PRs remain subject to CI; automatic merging is not configured.
+
+GitHub Secret scanning and push protection are enabled in the repository's **Settings → Code security**. Keep them enabled independently of CI; they protect supported secret patterns and do not replace the `.gitignore` rules for local key material.
