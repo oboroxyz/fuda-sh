@@ -26,3 +26,5 @@ overrides:
   vite@*: npm:@voidzero-dev/vite-plus-core@0.3.0
 minimumReleaseAgeExclude:
   - cn@0.2.6
+  - miniflare@5.20260908.0-alpha
+  - wrangler@4.130.0
