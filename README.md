@@ -1,5 +1,7 @@
 # fuda
 
+[![CI](https://github.com/oboroxyz/fuda-sh/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/oboroxyz/fuda-sh/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/github/license/oboroxyz/fuda-sh)](./LICENSE) [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/oboroxyz/fuda-sh)
+
 **Your rights in your pocket.**
 
 fuda turns memberships, tickets, and loyalty cards into on-chain Rights that people carry as Passes in Apple Wallet, Google Wallet, or the browser. Start without an app install or member sign-up, and secure your Right with a passkey when you're ready.
