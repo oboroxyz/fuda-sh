@@ -34,50 +34,55 @@ export const SignInView = ({
   value,
 }: SignInViewProps): JSX.Element => (
   <main class="dash-auth">
-    <div class="flex justify-end">{appearance}</div>
-    <div class="card bg-base-200 mx-auto mt-16 flex max-w-md flex-col gap-6 px-8 pt-12 pb-15">
-      <div class="dash-auth-logo-intro">{FudaMark({ class: 'dash-auth-logo' })}</div>
-      <h1 class="dash-auth-title">{copy.title}</h1>
-      {error === null ? null : (
-        <p role="alert" class="alert alert-error">
-          {error}
-        </p>
-      )}
+    <div class="dash-auth-appearance">{appearance}</div>
+    <div class="mx-auto flex w-full max-w-[30rem] flex-col gap-8 px-5 py-8 sm:px-8 sm:py-12">
+      <header class="flex flex-col items-center gap-4 border-b border-[var(--fuda-border)] pb-5">
+        <div class="dash-auth-logo-intro">{FudaMark({ class: 'dash-auth-logo' })}</div>
+        <span class="font-display text-3xl font-bold">fuda</span>
+      </header>
+      <section class="flex flex-col items-start gap-6 py-4">
+        <h1 class="dash-auth-title">{copy.title}</h1>
+        <p class="text-base leading-relaxed text-[var(--fuda-muted)]">{copy.passkeyHint}</p>
+        {error === null ? null : (
+          <p role="alert" class="alert alert-error">
+            {error}
+          </p>
+        )}
 
-      <button class="btn btn-primary" disabled={pending} onClick={onPasskey} type="button">
-        <FingerprintSimple />
-        {pending ? copy.signingIn : copy.passkey}
-      </button>
-      <p class="text-center text-sm opacity-70">{copy.passkeyHint}</p>
+        <button class="btn btn-primary w-full gap-2" disabled={pending} onClick={onPasskey} type="button">
+          <FingerprintSimple />
+          {pending ? copy.signingIn : copy.passkey}
+        </button>
 
-      <details class="dash-auth-admin">
-        <summary>{copy.adminSection}</summary>
-        <form
-          class="mt-3 flex flex-col gap-3"
-          onSubmit={(e) => {
-            e.preventDefault()
-            onToken(value.trim())
-          }}
-        >
-          <p class="text-sm opacity-70">{copy.description}</p>
-          <label for="admin-token">{copy.tokenLabel}</label>
-          <input
-            id="admin-token"
-            class="input w-full"
-            type="password"
-            placeholder={copy.tokenPlaceholder}
-            value={value}
-            onInput={(e) => {
-              if (e.currentTarget instanceof HTMLInputElement) {
-                onValue(e.currentTarget.value)
-              }
+        <details class="dash-auth-admin w-full">
+          <summary>{copy.adminSection}</summary>
+          <form
+            class="mt-3 flex flex-col gap-3"
+            onSubmit={(e) => {
+              e.preventDefault()
+              onToken(value.trim())
             }}
-          />
-          <button class="btn" type="submit">
-            {copy.continue}
-          </button>
-        </form>
-      </details>
+          >
+            <p class="text-sm opacity-70">{copy.description}</p>
+            <label for="admin-token">{copy.tokenLabel}</label>
+            <input
+              id="admin-token"
+              class="input w-full"
+              type="password"
+              placeholder={copy.tokenPlaceholder}
+              value={value}
+              onInput={(e) => {
+                if (e.currentTarget instanceof HTMLInputElement) {
+                  onValue(e.currentTarget.value)
+                }
+              }}
+            />
+            <button class="btn" type="submit">
+              {copy.continue}
+            </button>
+          </form>
+        </details>
+      </section>
     </div>
   </main>
 )

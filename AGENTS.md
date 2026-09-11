@@ -18,6 +18,12 @@ When changing product behavior or protocol contracts, read the relevant [canonic
 
 Author code, specifications, and designs from scratch within this repository's build window. Treat other repositories, including sibling projects on this machine, as out of scope for copying.
 
+## Local verification artifacts
+
+Save screenshots, recordings, and review evidence under `artifacts/<YYYY-MM-DD>-<task>/` at the repository root. This directory is Git-ignored: leave its contents local and exclude them from commits and merges unless the user explicitly requests otherwise. Use `/tmp` for disposable capture scripts, browser profiles, downloads, and intermediate logs.
+
+When handing off captures, provide their absolute paths and identify the viewport, locale, theme, and any fictional data. Keep application assets, reusable tests, and canonical documentation in their normal tracked locations; do not make builds or tests depend on `artifacts/` or `/tmp`. The separate `.superpowers/` lifecycle below still applies to design specs and implementation plans.
+
 ## Toolchain
 
 Vite+ (`vp`) drives development, builds, tests, linting, and formatting through `vite.config.ts`. Before changing lint rules, read that file's header and the comments beside the relevant configuration; they record the structural exceptions and dependency constraints.

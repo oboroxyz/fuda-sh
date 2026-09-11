@@ -48,7 +48,13 @@
 }
 
 .dash-auth {
-  @apply min-h-svh p-4 sm:p-6;
+  @apply min-h-svh bg-[var(--fuda-bg)] text-[var(--fuda-text)];
+}
+
+.dash-auth-appearance {
+  @apply sticky top-0 z-40 mx-auto flex w-full max-w-[30rem] items-center justify-end bg-[var(--fuda-bg)] px-5;
+  height: calc(3.5rem + env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top);
 }
 
 .dash-auth-logo-intro {
@@ -65,7 +71,7 @@
 }
 
 .dash-auth-title {
-  @apply mt-1 mb-2 text-center text-[clamp(2rem,8vw,3rem)] leading-[1.05] font-bold;
+  @apply text-4xl leading-[1.1] font-bold tracking-tight;
 }
 
 .dash-auth .dash-appearance {
