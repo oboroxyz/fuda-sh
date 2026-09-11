@@ -80,25 +80,105 @@ describe('member app controller', () => {
     vi.restoreAllMocks()
   })
 
-  it('shows one public Base sign-in action without the signed-in Dock', () => {
+  it('changes language without dropping the session or a public-address draft', async () => {
+    localStorage.setItem('fuda:app:member:http://localhost:8787', TOKEN)
+    history.replaceState(null, '', '/settings')
+    const me = vi.fn<MemberAppIo['me']>(io().me)
+    mount(io({ me }))
+    await vi.waitFor(() => {
+      expect(root.textContent).toContain('Look up another public address')
+    })
+    click('Look up another public address')
+    await vi.waitFor(() => {
+      expect(root.querySelector('input')).not.toBeNull()
+    })
+    const input = root.querySelector('input')!
+    input.value = '0x123'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    root
+      .querySelector('form')!
+      .dispatchEvent(new CustomEvent('submit', { bubbles: true, cancelable: true, detail: {} }))
+    await vi.waitFor(() => {
+      expect(root.textContent).toContain('Enter a valid holder address.')
+    })
+    const language = root.querySelector('select[aria-label="Change language"]')
+    if (!(language instanceof HTMLSelectElement)) {
+      throw new Error('Missing language selector')
+    }
+    language.value = 'ja'
+    language.dispatchEvent(new Event('input', { bubbles: true }))
+    await vi.waitFor(() => {
+      expect([
+        document.documentElement.lang,
+        root.querySelector('h1')?.textContent,
+        root.textContent?.includes('有効な保有者のアドレスを入力してください。'),
+      ]).toStrictEqual(['ja', '設定', true])
+    })
+    expect(root.querySelector('input')?.value).toBe('0x123')
+    expect([
+      localStorage.getItem('fuda:locale'),
+      localStorage.getItem('fuda:app:member:http://localhost:8787'),
+      me.mock.calls.length,
+    ]).toStrictEqual(['ja', TOKEN, 1])
+  })
+
+  it('changes theme from Settings without ending the session', async () => {
+    localStorage.setItem('fuda:app:member:http://localhost:8787', TOKEN)
+    history.replaceState(null, '', '/settings')
+    mount()
+    await vi.waitFor(() => {
+      expect(root.querySelector('select')).not.toBeNull()
+    })
+    const theme = root.querySelector('select[aria-label="Change theme"]')
+    if (!(theme instanceof HTMLSelectElement)) {
+      throw new Error('Missing theme selector')
+    }
+    theme.value = 'dark'
+    theme.dispatchEvent(new Event('input', { bubbles: true }))
+    await vi.waitFor(() => {
+      expect(document.documentElement.classList.contains('dark')).toBe(true)
+    })
+    expect([
+      localStorage.getItem('fuda:theme'),
+      localStorage.getItem('fuda:app:member:http://localhost:8787'),
+      location.pathname,
+    ]).toStrictEqual(['dark', TOKEN, '/settings'])
+    expect(root.querySelector('[aria-label="Appearance"]')).toBeNull()
+  })
+
+  it('persists the shared theme choice from the public top', async () => {
+    localStorage.setItem('fuda:theme', 'light')
+    mount()
+    await vi.waitFor(() => {
+      expect(root.querySelector('button[aria-label="Theme: Light"]')).not.toBeNull()
+    })
+    root.querySelector<HTMLButtonElement>('button[aria-label="Theme: Light"]')!.click()
+    await vi.waitFor(() => {
+      expect(document.documentElement.classList.contains('dark')).toBe(true)
+    })
+    expect(localStorage.getItem('fuda:theme')).toBe('dark')
+    expect(location.pathname).toBe('/')
+  })
+
+  it('shows one public passkey sign-in action without the signed-in Dock', () => {
     mount()
 
-    expect(root.textContent).toContain('Sign in with Base')
+    expect(root.textContent).toContain('Sign in with Passkey')
     expect(root.querySelector('[aria-label="Member navigation"]')).toBeNull()
-    expect(root.querySelectorAll('button')).toHaveLength(0)
+    expect(root.querySelectorAll('main button')).toHaveLength(0)
   })
 
   it('gates a protected route and returns there after verified sign-in', async () => {
     history.replaceState(null, '', '/settings')
     mount()
 
-    expect(root.textContent).toContain('Sign in with Base')
+    expect(root.textContent).toContain('Sign in with Passkey')
     expect(root.querySelector('[aria-label="Member navigation"]')).toBeNull()
-    click('Sign in with Base')
+    click('Sign in with Passkey')
 
     await vi.waitFor(() => {
       expect(location.pathname).toBe('/settings')
-      expect(root.textContent).toContain(ADDRESS)
+      expect(root.querySelector('select[aria-label="Change theme"]')).not.toBeNull()
     })
     expect(root.querySelector('[aria-label="Member navigation"]')).not.toBeNull()
     expect(localStorage.getItem('fuda:app:member:http://localhost:8787')).toBe(TOKEN)
@@ -113,7 +193,7 @@ describe('member app controller', () => {
     expect(root.textContent).toContain('Checking your session')
     pending.resolve(unauthorized)
     await vi.waitFor(() => {
-      expect(root.textContent).toContain('Sign in with Base')
+      expect(root.textContent).toContain('Sign in with Passkey')
     })
     expect(localStorage.getItem('fuda:app:member:http://localhost:8787')).toBeNull()
   })
@@ -145,7 +225,7 @@ describe('member app controller', () => {
     await setTimeout(20)
 
     expect(location.pathname).toBe('/')
-    expect(root.textContent).toContain('Sign in with Base')
+    expect(root.textContent).toContain('Sign in with Passkey')
     expect(root.querySelector('[aria-label="Member navigation"]')).toBeNull()
   })
 
@@ -159,14 +239,14 @@ describe('member app controller', () => {
     pending.resolve(ok({ address: ADDRESS }))
     await setTimeout(20)
 
-    expect(root.textContent).toContain('Sign in with Base')
+    expect(root.textContent).toContain('Sign in with Passkey')
     expect(root.textContent).not.toContain(ADDRESS)
   })
 
   it('validates the sign-in return query before navigating', async () => {
     history.replaceState(null, '', '/signin?return=%2Fsettings')
     mount()
-    click('Sign in with Base')
+    click('Sign in with Passkey')
     await vi.waitFor(() => {
       expect(location.pathname).toBe('/settings')
     })
@@ -175,7 +255,7 @@ describe('member app controller', () => {
     localStorage.clear()
     history.replaceState(null, '', '/signin?return=%2F%2Foutside.example%2Fprivate')
     mount()
-    click('Sign in with Base')
+    click('Sign in with Passkey')
     await vi.waitFor(() => {
       expect(location.pathname).toBe('/rights')
     })
@@ -187,10 +267,10 @@ describe('member app controller', () => {
     })
     history.replaceState(null, '', '/settings')
     mount()
-    click('Sign in with Base')
+    click('Sign in with Passkey')
 
     await vi.waitFor(() => {
-      expect(root.textContent).toContain(ADDRESS)
+      expect(root.querySelector('select[aria-label="Change theme"]')).not.toBeNull()
     })
     expect(root.querySelector('[aria-label="Member navigation"]')).not.toBeNull()
   })
@@ -234,7 +314,7 @@ describe('member app controller', () => {
       expect(location.pathname).toBe('/private')
       expect(root.textContent).toContain('Unlock your private rights')
     })
-    expect(root.textContent).not.toContain('Sign in with Base')
+    expect(root.textContent).not.toContain('Sign in with Passkey')
   })
 
   it('returns a restored session from sign-in to its validated destination', async () => {
@@ -251,9 +331,9 @@ describe('member app controller', () => {
   it('keeps the session through Dock navigation and browser history', async () => {
     history.replaceState(null, '', '/settings')
     mount()
-    click('Sign in with Base')
+    click('Sign in with Passkey')
     await vi.waitFor(() => {
-      expect(root.textContent).toContain(ADDRESS)
+      expect(root.querySelector('select[aria-label="Change theme"]')).not.toBeNull()
     })
 
     const passes = root.querySelector<HTMLAnchorElement>('a[href="/rights"]')
@@ -265,7 +345,7 @@ describe('member app controller', () => {
     history.replaceState(null, '', '/settings')
     window.dispatchEvent(new PopStateEvent('popstate'))
     await vi.waitFor(() => {
-      expect(root.textContent).toContain(ADDRESS)
+      expect(root.querySelector('select[aria-label="Change theme"]')).not.toBeNull()
     })
   })
 
@@ -274,7 +354,7 @@ describe('member app controller', () => {
     const signInPath = '/signin?return=%2Fsettings'
     history.replaceState(null, '', signInPath)
     mount(io({ verify: async () => await pending.promise }))
-    click('Sign in with Base')
+    click('Sign in with Passkey')
     await vi.waitFor(() => {
       expect(root.textContent).toContain('Signing in')
     })
@@ -308,7 +388,7 @@ describe('member app controller', () => {
     }
     history.replaceState(null, '', `/rights?uid=${uidA}`)
     mount(io(), memberPassIo)
-    click('Sign in with Base')
+    click('Sign in with Passkey')
     await vi.waitFor(() => {
       expect(verify).toHaveBeenCalledWith(uidA)
     })
@@ -332,14 +412,14 @@ describe('member app controller', () => {
     const memberIo = io({ provider: async () => await provider.promise })
     history.replaceState(null, '', '/signin')
     mount(memberIo)
-    click('Sign in with Base')
+    click('Sign in with Passkey')
     await vi.waitFor(() => {
       expect(root.textContent).toContain('Cancel')
     })
     click('Cancel')
 
     await vi.waitFor(() => {
-      expect(root.textContent).toContain('Sign in with Base')
+      expect(root.textContent).toContain('Sign in with Passkey')
     })
     provider.resolve({ request: async () => await Promise.resolve([]) })
     await setTimeout(20)
@@ -362,15 +442,15 @@ describe('member app controller', () => {
     history.replaceState(null, '', signInPath)
     mount(io({ challenge, provider, requestAccount }))
 
-    click('Sign in with Base')
+    click('Sign in with Passkey')
     await vi.waitFor(() => {
       expect(root.textContent).toContain('Cancel')
     })
     click('Cancel')
     await vi.waitFor(() => {
-      expect(root.textContent).toContain('Sign in with Base')
+      expect(root.textContent).toContain('Sign in with Passkey')
     })
-    click('Sign in with Base')
+    click('Sign in with Passkey')
     expect(provider).toHaveBeenCalledTimes(2)
     providerA.resolve({ request: async () => await Promise.resolve([]) })
     await setTimeout(20)
@@ -396,9 +476,9 @@ describe('member app controller', () => {
     })
     history.replaceState(null, '', '/settings')
     mount()
-    click('Sign in with Base')
+    click('Sign in with Passkey')
     await vi.waitFor(() => {
-      expect(root.textContent).toContain(ADDRESS)
+      expect(root.querySelector('select[aria-label="Change theme"]')).not.toBeNull()
     })
 
     history.pushState(null, '', '/')
@@ -421,7 +501,7 @@ describe('member app controller', () => {
     history.replaceState(null, '', '/@wassie-coffee')
     mount()
 
-    expect(root.textContent).not.toContain('Sign in with Base')
+    expect(root.textContent).not.toContain('Sign in with Passkey')
     expect(root.querySelector('[aria-label="Member navigation"]')).toBeNull()
   })
 })

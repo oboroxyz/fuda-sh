@@ -1,7 +1,7 @@
 import { soleCard } from '@fuda/sdk'
 import type { Hex, PublicCard, PublicVenue } from '@fuda/sdk'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { CardScreenView, issueDateOf } from './venue/CardScreen.tsx'
 import type { IssuedCard } from './venue/CardScreen.tsx'
@@ -168,24 +168,33 @@ describe(CardScreenView, () => {
     const text = viewText(view)
     const qr = viewNodes(view).find(({ props }) => props.role === 'img')
 
-    expect(text).toContain('Your card is ready')
+    expect(text).toContain('Regular')
     expect(text).toContain('MEMBER')
     expect(text).toContain('QJ2Y-XPHE-PDRKA')
     expect(text).toContain('Sep 7, 2026')
     expect(qr?.props['aria-label']).toBe('Your membership card QR code for Wassie Coffee')
   })
 
-  it('links the browser pass always, and hides each wallet button until its pass exists', () => {
-    const hidden = render({ appleHref: null, card, googleHref: null, issued, kind: 'ready' })
-    const hrefs = (view: unknown): unknown[] => viewNodes(view).map(({ props }) => props.href)
+  it.each(['iPhone', 'Android', 'unknown'])(
+    'keeps the browser fallback until the wallet is available on %s',
+    (userAgent) => {
+      vi.stubGlobal('navigator', { userAgent })
+      const hidden = render({ appleHref: null, card, googleHref: null, issued, kind: 'ready' })
+      const hrefs = (view: unknown): unknown[] => viewNodes(view).map(({ props }) => props.href)
 
-    expect(hrefs(hidden)).toContain(issued.passUrls.web)
-    expect(hrefs(hidden)).not.toContain(issued.passUrls.apple)
-    expect(viewText(hidden)).not.toContain('Add to Apple Wallet')
-    expect(viewText(hidden)).not.toContain('Add to Google Wallet')
-  })
+      expect(hrefs(hidden)).toContain(issued.passUrls.web)
+      expect(hrefs(hidden)).not.toContain(issued.passUrls.apple)
+      expect(viewText(hidden)).not.toContain('Add to Apple Wallet')
+      expect(viewText(hidden)).not.toContain('Add to Google Wallet')
+    },
+  )
 
-  it('shows each wallet button once its pass is confirmed', () => {
+  it.each([
+    ['iPhone', issued.passUrls.apple],
+    ['Android', 'https://pay.google.com/gp/v/save'],
+    ['Windows NT 10.0', issued.passUrls.web],
+  ])('shows only the available destination for %s', (userAgent, expectedHref) => {
+    vi.stubGlobal('navigator', { userAgent })
     const shown = render({
       appleHref: issued.passUrls.apple,
       card,
@@ -195,8 +204,9 @@ describe(CardScreenView, () => {
     })
     const hrefs = viewNodes(shown).map(({ props }) => props.href)
 
-    expect(hrefs).toContain(issued.passUrls.apple)
-    expect(hrefs).toContain('https://pay.google.com/gp/v/save')
+    expect(hrefs.filter((href) => href !== '/@wassie-coffee' && href !== undefined)).toStrictEqual([
+      expectedHref,
+    ])
     expect(viewText(shown)).toContain('No name or contact details required')
   })
 

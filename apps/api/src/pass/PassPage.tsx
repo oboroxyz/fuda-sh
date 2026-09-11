@@ -1,6 +1,8 @@
 /** @jsxImportSource hono/jsx */
 import { rgbCss, textOn } from '@fuda/pass'
 import { qrSvg } from '@fuda/sdk'
+import type { PassPlatform } from '@fuda/sdk'
+import { walletButton as renderWalletButton } from '@fuda/ui/wallet-button'
 import { html, raw } from 'hono/html'
 import type { HtmlEscapedString } from 'hono/utils/html'
 
@@ -22,17 +24,78 @@ const STYLE = `
   .status{font-size:22px;font-weight:700;margin:12px 0}.status[data-ok=true]{color:#22c55e}.status[data-ok=false]{color:#ef4444}.status[data-ok=unknown]{color:#eab308}
   .stamps{margin:12px 0;padding:12px;border-radius:12px;background:#0003}.stamps strong{font-size:22px;display:block}.stamps small{opacity:.8}
   .meta{color:#aaa;font-size:14px;line-height:1.6}.hint{color:#888;font-size:12px;margin-top:16px}code{word-break:break-all}
-  .btn{display:inline-block;margin-top:12px;padding:10px 16px;border-radius:999px;background:#fff;color:#141414;font-weight:600;text-decoration:none}
+.fuda-wallet-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 8px;
+  padding: 0;
+  align-self: center;
+  box-sizing: border-box;
+  max-width: 100%;
+  text-decoration: none;
+  font:
+    500 16px/1.3 system-ui,
+    sans-serif;
+  vertical-align: middle;
+}
+.fuda-wallet-button[hidden] {
+  display: none;
+}
+.fuda-wallet-button img {
+  display: block;
+  flex-shrink: 0;
+  height: 48px;
+  width: auto;
+}
+.fuda-wallet-button:focus-visible {
+  outline: 3px solid #0073eb;
+  outline-offset: 3px;
+}
+.fuda-wallet-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
   .brand .venue,.brand .stamps small{opacity:1}
   .brand .status,.brand .meta,.brand .hint{color:inherit}
   .brand .stamps{background:transparent;border:1px solid currentColor}
 `
 
+// Only the UA-selected wallet is queried. The QR remains the web fallback.
+const walletScript = (uid: string, platform: PassPlatform): string => {
+  if (platform === 'apple') {
+    return `const aw=document.getElementById('aw');
+      fetch('/pass/${uid}/apple.pkpass',{method:'HEAD'}).then(r=>{if(!r.ok)return;aw.href='/pass/${uid}/apple.pkpass';aw.hidden=false}).catch(()=>{});`
+  }
+  if (platform === 'google') {
+    return `const gw=document.getElementById('gw');
+      fetch('/pass/${uid}/google').then(async r=>{if(!r.ok)return;const j=await r.json();gw.href=j.saveUrl;gw.hidden=false}).catch(()=>{});`
+  }
+  return ''
+}
+
+const walletButton = (platform: PassPlatform): HtmlEscapedString | Promise<HtmlEscapedString> => {
+  if (platform === 'apple') {
+    return renderWalletButton({ hidden: true, id: 'aw', label: 'Add to Apple Wallet', platform: 'apple' })
+  }
+  if (platform === 'google') {
+    return renderWalletButton({ hidden: true, id: 'gw', label: 'Add to Google Wallet', platform: 'google' })
+  }
+  return html``
+}
+
 // `uid` is the regex-validated attestation UID (isUid) — the only value this
 // script interpolates, so no untrusted text ever reaches the markup.
-// The wallet button is progressive: it stays hidden unless /pass/:uid/google
-// answers 200, so an unconfigured deployment simply shows the web pass.
-const refreshScript = (uid: string): string => `
+// Wallet buttons stay hidden until their platform endpoints succeed, so an
+// unconfigured deployment simply shows the web pass.
+const refreshScript = (uid: string, platform: PassPlatform): string => `
   const el=document.getElementById('status');
   const paint=(s,ok)=>{el.textContent=s;el.dataset.ok=ok};
   const tick=async()=>{try{const r=await fetch('/verify/${uid}');if(!r.ok){paint('UNKNOWN','unknown');return}
@@ -44,8 +107,7 @@ const refreshScript = (uid: string): string => `
   const stampTick=async()=>{try{const r=await fetch('/v1/stamps/${uid}');if(!r.ok)return;const j=await r.json();
     stamps.hidden=!j.enabled;if(j.enabled){stampCount.textContent=j.total+' / '+j.goal+' stamps';stampToday.textContent=j.today+' / '+j.dailyLimit+' today'}}catch{}};
   stampTick();setInterval(stampTick,30000);
-  const gw=document.getElementById('gw');
-  fetch('/pass/${uid}/google').then(async r=>{if(!r.ok)return;const j=await r.json();gw.href=j.saveUrl;gw.hidden=false}).catch(()=>{});
+  ${walletScript(uid, platform)}
 `
 
 const okAttr = (status: PassView['status']): string => {
@@ -106,6 +168,7 @@ const stampProgress = (view: PassView): HtmlEscapedString | Promise<HtmlEscapedS
 
 export const PassPage = (
   view: PassView,
+  platform: PassPlatform = 'web',
 ): HtmlEscapedString | Promise<HtmlEscapedString> => html`<!doctype html>
   <html lang="en">
     <head>
@@ -125,7 +188,7 @@ export const PassPage = (
           <div id="status" class="status" data-ok="${okAttr(view.status)}">${view.status}</div>
           ${stampProgress(view)}
           <div class="meta">${memberLine(view)}<br />Level ${view.level}<br /><code>${view.uid}</code></div>
-          <a id="gw" class="btn" hidden>Add to Google Wallet</a>
+          ${walletButton(platform)}
           <div class="hint">
             Add this page to your home screen to keep the pass handy. The status re-checks the chain every 30
             s.
@@ -133,7 +196,7 @@ export const PassPage = (
         </div>
       </main>
       <script>
-        ${raw(refreshScript(view.uid))}
+        ${raw(refreshScript(view.uid, platform))}
       </script>
     </body>
   </html>`

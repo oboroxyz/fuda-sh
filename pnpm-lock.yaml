@@ -55,6 +55,9 @@ importers:
       '@fuda/stealth-address':
         specifier: workspace:*
         version: link:../../packages/stealth-address
+      '@fuda/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@cloudflare/workers-types@4.20260702.1)
@@ -89,6 +92,9 @@ importers:
 
   apps/app:
     dependencies:
+      '@fuda/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
       '@fuda/libs':
         specifier: workspace:*
         version: link:../../packages/libs

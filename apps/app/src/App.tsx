@@ -1,9 +1,19 @@
 /** @jsxImportSource hono/jsx/dom */
+import { isLocale, pick } from '@fuda/i18n'
+import type { Locale } from '@fuda/i18n'
+import { getLocale, setLocale } from '@fuda/i18n/browser'
 import { createSessionGeneration, createTokenStore } from '@fuda/libs/auth'
 import { useQueryScope } from '@fuda/libs/query'
 import { normalizeUid } from '@fuda/sdk'
 import type { Hex } from '@fuda/sdk'
-import { applyThemeMode, readThemeMode, saveThemeMode, watchThemeMode } from '@fuda/ui'
+import {
+  applyThemeMode,
+  LanguageSwitcher,
+  readThemeMode,
+  saveThemeMode,
+  ThemeToggle,
+  watchThemeMode,
+} from '@fuda/ui'
 import type { ThemeMode } from '@fuda/ui'
 import { useCallback, useEffect, useRef, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
@@ -12,6 +22,7 @@ import { API_BASE_URL } from './config.ts'
 import type { MemberPassListIo } from './member-pass-list.ts'
 import { DEFAULT_MEMBER_IO, signInMember } from './member/auth.ts'
 import type { MemberAppIo } from './member/auth.ts'
+import { MEMBER_COPY } from './member/copy.ts'
 import { Landing } from './member/Landing.tsx'
 import { MemberLayout } from './member/MemberLayout.tsx'
 import type { MemberRoute } from './member/MemberLayout.tsx'
@@ -47,37 +58,51 @@ const isCardRoute = (route: Route): route is { card: string; slug: string | null
   typeof route === 'object' && 'card' in route
 
 const MemberScreen = ({
+  locale,
   address,
   onSignOut,
-  onTheme,
+  onLocaleChange,
+  onThemeChange,
+  theme,
   passIo,
   queryClient,
   queryUid,
   route,
-  theme,
   onNavigate,
 }: {
+  locale: Locale
   address: Hex
   onSignOut: () => void
-  onTheme: (mode: ThemeMode) => void
+  onLocaleChange: (locale: Locale) => void
+  onThemeChange: (theme: ThemeMode) => void
+  theme: ThemeMode
   passIo?: MemberPassListIo
   queryClient: ReturnType<typeof useQueryScope>
   queryUid: Hex | null
   route: MemberRoute
-  theme: ThemeMode
   onNavigate: (path: string) => void
 }): JSX.Element => {
   if (route === 'signed') {
-    return <SignedGate />
+    return <SignedGate locale={locale} />
   }
   if (route === 'private') {
-    return <PrivateScreen />
+    return <PrivateScreen locale={locale} />
   }
   if (route === 'settings') {
-    return <Settings address={address} theme={theme} onSignOut={onSignOut} onTheme={onTheme} />
+    return (
+      <Settings
+        locale={locale}
+        theme={theme}
+        onLocaleChange={onLocaleChange}
+        onThemeChange={onThemeChange}
+        onSignOut={onSignOut}
+        passIo={passIo}
+      />
+    )
   }
   return (
     <RightsList
+      locale={locale}
       initialAddress={address}
       io={passIo}
       onNavigate={onNavigate}
@@ -112,11 +137,22 @@ const uidFromLocation = (key: string): Hex | null => {
   return raw === null ? null : normalizeUid(raw)
 }
 
-export const App = ({
-  initialTheme = readThemeMode(),
+const MemberApp = ({
+  locale,
+  theme,
+  onLocaleChange,
+  onThemeChange,
+  appearance,
   memberIo = DEFAULT_MEMBER_IO,
   memberPassIo,
-}: AppProps): JSX.Element => {
+}: Omit<AppProps, 'initialTheme'> & {
+  locale: Locale
+  theme: ThemeMode
+  onLocaleChange: (locale: Locale) => void
+  onThemeChange: (theme: ThemeMode) => void
+  appearance: JSX.Element
+}): JSX.Element => {
+  const copy = pick(MEMBER_COPY, locale)
   const queryClient = useQueryScope()
   const [page, setPage] = useState<LocationState>(readLocation)
   const { key: locationKey, route } = page
@@ -125,7 +161,6 @@ export const App = ({
   const [restore, setRestore] = useState<RestoreState>(savedToken === null ? null : 'loading')
   const [signingIn, setSigningIn] = useState(false)
   const [failure, setFailure] = useState<SignInFailure | null>(null)
-  const [theme, setTheme] = useState(initialTheme)
   const [generation] = useState(createSessionGeneration)
   const activeToken = useRef<string | null>(savedToken)
   const requestedReturn = useRef(initialReturn())
@@ -229,10 +264,6 @@ export const App = ({
   }, [generation, queryClient])
   useEffect(restoreSession, [restoreSession])
   useEffect(() => {
-    applyThemeMode(theme)
-    return watchThemeMode(theme)
-  }, [theme])
-  useEffect(() => {
     if (session !== null && route === 'signin') {
       history.replaceState(null, '', requestedReturn.current)
       setPage(readLocation())
@@ -241,13 +272,25 @@ export const App = ({
 
   if (isRedirectRoute(route)) {
     location.replace(route.redirect)
-    return <div class="p-6">Taking you to fuda…</div>
+    return <div class="p-6">{copy.auth.redirecting}</div>
   }
   if (isCardRoute(route)) {
-    return <CardScreen key={`${route.card}/${route.slug ?? ''}`} handle={route.card} slug={route.slug} />
+    return (
+      <CardScreen
+        key={`${route.card}/${route.slug ?? ''}`}
+        handle={route.card}
+        slug={route.slug}
+        locale={locale}
+      />
+    )
   }
   if (route === 'top') {
-    return <Landing signedIn={session !== null} onNavigate={navigate} />
+    return (
+      <div class="app-top">
+        {appearance}
+        <Landing locale={locale} signedIn={session !== null} onNavigate={navigate} />
+      </div>
+    )
   }
 
   const protectedRoute = route !== 'signin'
@@ -258,20 +301,18 @@ export const App = ({
     return (
       <main class="member-auth-page">
         <section class="member-panel flex w-full flex-col gap-4" role="status">
-          <h1 class="member-heading">
-            {restore === 'loading' ? 'Checking your session…' : 'Could not check your session'}
-          </h1>
+          <h1 class="member-heading">{restore === 'loading' ? copy.auth.checking : copy.auth.failed}</h1>
           {restore === 'failed' ? (
-            <p class="text-sm text-[var(--fuda-muted)]">Your saved session is still on this device.</p>
+            <p class="text-sm text-[var(--fuda-muted)]">{copy.auth.preserved}</p>
           ) : null}
           <div class="flex flex-col gap-2 sm:flex-row">
             {restore === 'failed' ? (
               <button class="btn btn-primary" type="button" onClick={restoreSession}>
-                Retry
+                {copy.common.retry}
               </button>
             ) : null}
             <button class="btn btn-ghost" type="button" onClick={signOut}>
-              Sign out locally
+              {copy.auth.signOutLocal}
             </button>
           </div>
         </section>
@@ -281,6 +322,7 @@ export const App = ({
   if (session === null) {
     return (
       <SignIn
+        locale={locale}
         busy={signingIn}
         failure={failure}
         onCancel={() => {
@@ -342,22 +384,70 @@ export const App = ({
 
   const memberRoute = route === 'signin' ? 'rights' : route
   return (
-    <MemberLayout navigate={navigate} route={memberRoute}>
+    <MemberLayout locale={locale} navigate={navigate} route={memberRoute}>
       <MemberScreen
         key={locationKey}
+        locale={locale}
         address={session.address}
         passIo={memberPassIo}
         queryClient={queryClient}
         queryUid={uidFromLocation(locationKey)}
         route={memberRoute}
         onNavigate={navigate}
-        theme={theme}
         onSignOut={signOut}
-        onTheme={(mode) => {
-          saveThemeMode(mode)
-          setTheme(mode)
-        }}
+        theme={theme}
+        onThemeChange={onThemeChange}
+        onLocaleChange={onLocaleChange}
       />
     </MemberLayout>
+  )
+}
+
+export const App = ({ initialTheme = readThemeMode(), memberIo, memberPassIo }: AppProps): JSX.Element => {
+  const [locale, updateLocale] = useState(getLocale)
+  const [theme, setTheme] = useState(initialTheme)
+  const copy = pick(MEMBER_COPY, locale)
+  useEffect(() => {
+    setLocale(locale)
+  }, [locale])
+  useEffect(() => {
+    applyThemeMode(theme)
+    return watchThemeMode(theme)
+  }, [theme])
+  const changeTheme = (mode: ThemeMode): void => {
+    saveThemeMode(mode)
+    setTheme(mode)
+  }
+  const appearance = (
+    <div class="app-appearance" role="group" aria-label={copy.settings.appearance}>
+      <LanguageSwitcher
+        class="h-9 w-9"
+        current={locale}
+        label={copy.chrome.language}
+        options={[
+          { label: 'English', value: 'en' },
+          { label: '日本語', value: 'ja' },
+        ]}
+        onChange={(value) => {
+          if (isLocale(value)) {
+            updateLocale(value)
+          }
+        }}
+      />
+      <ThemeToggle class="h-9 w-9" labels={copy.chrome.theme} mode={theme} onChange={changeTheme} />
+    </div>
+  )
+  return (
+    <div class="app-frame">
+      <MemberApp
+        locale={locale}
+        memberIo={memberIo}
+        memberPassIo={memberPassIo}
+        appearance={appearance}
+        theme={theme}
+        onLocaleChange={updateLocale}
+        onThemeChange={changeTheme}
+      />
+    </div>
   )
 }

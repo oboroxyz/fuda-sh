@@ -11,6 +11,7 @@
     "test": "vp build && vp test"
   },
   "dependencies": {
+    "@fuda/i18n": "workspace:*",
     "@fuda/libs": "workspace:*",
     "@fuda/sdk": "workspace:*",
     "@fuda/stealth-address": "workspace:*",

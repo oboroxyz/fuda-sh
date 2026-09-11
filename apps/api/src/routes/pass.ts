@@ -1,5 +1,6 @@
 import { buildGoogleSaveUrl, googleConfigFrom } from '@fuda/pass'
 import type { AppleLogo } from '@fuda/pass/apple'
+import { passPlatform } from '@fuda/sdk'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 
@@ -55,7 +56,9 @@ passRoutes.get('/pass/:uid', async (c) => {
   const outcome: PassOutcome = resolved.ok
     ? { decision: resolved.out.decision, reason: resolved.out.reason }
     : null
-  return await c.html(PassPage(passView(found.row, outcome, stamps)))
+  return await c.html(
+    PassPage(passView(found.row, outcome, stamps), passPlatform(c.req.header('user-agent') ?? '')),
+  )
 })
 
 // Wallet-pass builders live in @fuda/pass; an unconfigured platform answers 501.

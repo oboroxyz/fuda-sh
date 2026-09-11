@@ -28,12 +28,36 @@ describe('GET /pass/:uid', () => {
     const uid = seedRight(chain, del, { tier: 2 })
     await insertMember(uid)
     const res = await appWith({ chain, now: () => NOW }).request(`/pass/${uid}`, {}, configuredEnv(del))
-    expect(res.status).toBe(200)
-    expect(res.headers.get('content-type')).toContain('text/html')
+    expect([res.status, res.headers.get('content-type')]).toStrictEqual([
+      200,
+      expect.stringContaining('text/html'),
+    ])
     const body = await res.text()
     expect(body).toContain('<svg xmlns="http://www.w3.org/2000/svg"')
     expect(body).toContain('data-ok="true">VALID<')
     expect(body).toContain('VIP')
+  })
+
+  it.each([
+    ['iPhone', true, false],
+    ['Android', false, true],
+    ['Windows NT 10.0', false, false],
+  ])('offers only the device wallet selected by the %s UA', async (userAgent, apple, google) => {
+    const chain = fakeChain()
+    const del = seedRoot(chain)
+    const uid = seedRight(chain, del)
+    await insertMember(uid)
+    const res = await appWith({ chain, now: () => NOW }).request(
+      `/pass/${uid}`,
+      { headers: { 'user-agent': userAgent } },
+      configuredEnv(del),
+    )
+    const body = await res.text()
+    expect([body.includes('Add to Apple Wallet'), body.includes('Add to Google Wallet')]).toStrictEqual([
+      apple,
+      google,
+    ])
+    expect(body).toContain(`fuda:v1:${uid}`)
   })
 
   it('carries the QR payload and loads no external assets', async () => {
@@ -137,7 +161,11 @@ describe('GET /pass/:uid', () => {
     const del = seedRoot(chain)
     const uid = seedRight(chain, del)
     await insertMember(uid)
-    const res = await appWith({ chain, now: () => NOW }).request(`/pass/${uid}`, {}, configuredEnv(del))
+    const res = await appWith({ chain, now: () => NOW }).request(
+      `/pass/${uid}`,
+      { headers: { 'user-agent': 'Android' } },
+      configuredEnv(del),
+    )
     await expect(res.text()).resolves.toContain('id="gw"')
   })
 })

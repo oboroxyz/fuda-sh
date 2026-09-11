@@ -10,3 +10,8 @@ export const isLocale = (value: unknown): value is Locale => value === 'en' || v
 export const resolveLocale = (stored: string | null): Locale => (isLocale(stored) ? stored : DEFAULT_LOCALE)
 
 export const pick = <T>(copy: Copy<T>, locale: Locale): T => copy[locale] ?? copy[DEFAULT_LOCALE]
+
+export const AUTH_COPY = {
+  en: { signInWithPasskey: 'Sign in with Passkey', signingIn: 'Signing in…' },
+  ja: { signInWithPasskey: 'パスキーでサインイン', signingIn: 'サインイン中…' },
+} satisfies Copy<{ signInWithPasskey: string; signingIn: string }>
