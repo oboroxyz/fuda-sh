@@ -27,5 +27,11 @@ overrides:
 minimumReleaseAge: 4320
 minimumReleaseAgeExclude:
   - cn@0.2.6
-  - miniflare@5.20260908.0-alpha
-  - wrangler@4.130.0
+  - miniflare@5.20260908.0-alpha || 5.20260910.0-alpha
+  - wrangler@4.130.0 || 4.131.0
+  - workerd@1.20260910.1
+  - '@cloudflare/workerd-darwin-64@1.20260910.1'
+  - '@cloudflare/workerd-darwin-arm64@1.20260910.1'
+  - '@cloudflare/workerd-linux-64@1.20260910.1'
+  - '@cloudflare/workerd-linux-arm64@1.20260910.1'
+  - '@cloudflare/workerd-windows-64@1.20260910.1'
