@@ -4,9 +4,9 @@
 
 fuda turns memberships, tickets, and loyalty cards into on-chain Rights that people carry as Passes in Apple Wallet, Google Wallet, or the browser. Start without an app install or member sign-up, and secure your Right with a passkey when you're ready.
 
-_Our goal: On-chain where trust matters. Invisible everywhere else._
+## Our goal
 
-## The problem
+_**On-chain where trust matters. Invisible everywhere else**._
 
 Membership usually ties a right to the app or system that serves it. Paper and plastic cards are hard to update or revoke; custom apps cost money to build and ask every member to install another app.
 
@@ -112,18 +112,18 @@ See [Local development](./docs/runbook.md#12-local-development) for setup and st
 ## Documentation
 
 - **Architecture**
-    - [Architecture overview](./docs/architecture.md) — components, authority and trust boundaries, environments, configuration
-    - [Glossary](./docs/CONTEXT.md) — the one-name-per-concept vocabulary the specs, code, and UI share (level vs path, Right vs Pass, Device wallet vs Crypto wallet)
+  - [Architecture overview](./docs/architecture.md) — components, authority and trust boundaries, environments, configuration
+  - [Glossary](./docs/CONTEXT.md) — the one-name-per-concept vocabulary the specs, code, and UI share (level vs path, Right vs Pass, Device wallet vs Crypto wallet)
 - **Specifications** ([index](./docs/specs/README.md))
-    - [Attestation model](./docs/specs/attestation-model.md) — Entitlement, IssuerDelegation, Attendance, lifecycle, the EAS/D1 authority boundary
-    - [Pass types and flows](./docs/specs/pass-types-and-flows.md) — templates, wallet roles, activation, privacy-first issuance, the gate protocol
-    - [ENS naming](./docs/specs/ens-naming.md) — the name hierarchy, the member number, what a name resolves to, name lifecycle
-    - [Substreams packages](./docs/specs/substreams.md) — the optional push lane and its compatibility guarantees
+  - [Attestation model](./docs/specs/attestation-model.md) — Entitlement, IssuerDelegation, Attendance, lifecycle, the EAS/D1 authority boundary
+  - [Pass types and flows](./docs/specs/pass-types-and-flows.md) — templates, wallet roles, activation, privacy-first issuance, the gate protocol
+  - [ENS naming](./docs/specs/ens-naming.md) — the name hierarchy, the member number, what a name resolves to, name lifecycle
+  - [Substreams packages](./docs/specs/substreams.md) — the optional push lane and its compatibility guarantees
 - **Integrations**
-    - [The Graph](./docs/integrations/thegraph.md) — rights indexing, Substreams, and verification evidence
+  - [The Graph](./docs/integrations/thegraph.md) — rights indexing, Substreams, and verification evidence
 - **Operations**
-    - [Runbook](./docs/runbook.md) — local development, one-time Cloudflare and Base setup, secrets, deploy order
-    - [Agent guidance](./AGENTS.md) — repository workflow and verification
+  - [Runbook](./docs/runbook.md) — local development, one-time Cloudflare and Base setup, secrets, deploy order
+  - [Agent guidance](./AGENTS.md) — repository workflow and verification
 - **Records**
-    - [Decision records](./docs/adr/) — why the architecture is shaped this way
-    - [References](./docs/references.md) — the standards, prior art, and platform docs the design drew on
+  - [Decision records](./docs/adr/) — why the architecture is shaped this way
+  - [References](./docs/references.md) — the standards, prior art, and platform docs the design drew on
