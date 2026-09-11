@@ -233,6 +233,15 @@ playwright-report/
 .dev.vars.*
 !.dev.vars.example
 
+# Signing key material. The Apple Pass Type ID certificate, its private key and
+# the WWDR intermediate belong outside this repository entirely — they are read
+# straight from their stored location into `wrangler secret put`. These patterns
+# are a backstop against a stray copy, not a storage location.
+*.pem
+*.p12
+*.cer
+*.certSigningRequest
+
 # wrangler local state
 .wrangler/
 
