@@ -1,4 +1,27 @@
 @layer components {
+  .app-frame {
+    --app-toolbar-height: 0px;
+  }
+  .app-top {
+    --app-toolbar-height: calc(3.5rem + env(safe-area-inset-top));
+  }
+  .app-appearance {
+    @apply sticky top-0 z-40 mx-auto flex w-full max-w-[30rem] items-center justify-end gap-3 bg-[var(--fuda-bg)] px-5;
+    height: var(--app-toolbar-height);
+    padding-top: env(safe-area-inset-top);
+  }
+  .app-frame .member-page,
+  .app-frame .member-auth-page,
+  .app-frame .member-shell,
+  .app-frame .venue-page {
+    min-height: calc(100svh - var(--app-toolbar-height));
+  }
+  .app-frame .member-shell .member-page {
+    min-height: calc(
+      100svh - var(--app-toolbar-height) - var(--member-dock-height) - env(safe-area-inset-bottom)
+    );
+  }
+
   .member-page {
     @apply mx-auto min-h-svh w-full max-w-5xl px-5 py-8 sm:px-8 sm:py-12;
   }
@@ -29,14 +52,38 @@
   .member-pass .card-body {
     @apply gap-3 p-5 [overflow-wrap:anywhere] sm:p-6;
   }
-  .member-pass-actions {
-    @apply mt-1 flex flex-wrap gap-x-4 gap-y-1 border-t border-[var(--fuda-border)] pt-3 text-sm;
+  .member-pass-preview {
+    @apply flex aspect-[1.586] min-w-0 flex-col justify-between gap-6 rounded-xl bg-[#496a80] p-5 [overflow-wrap:anywhere] text-white;
   }
+  .member-pass-preview[data-palette='1'] {
+    @apply bg-[#805c68];
+  }
+  .member-pass-preview[data-palette='2'] {
+    @apply bg-[#796344];
+  }
+  .member-pass-actions {
+    @apply flex min-h-14 items-center justify-between gap-4 text-sm;
+  }
+
   .member-pass-actions a {
     @apply inline-flex min-h-11 items-center font-semibold underline-offset-4;
   }
   .member-empty {
     @apply rounded-2xl border border-dashed border-[var(--fuda-border)] px-6 py-10 text-center text-sm leading-relaxed text-[var(--fuda-muted)];
+  }
+  .member-settings-row {
+    @apply relative flex min-h-16 w-full items-center gap-3 border-b border-[var(--fuda-border)] px-4 py-4 text-left text-base;
+  }
+  .member-settings-row:focus-within {
+    outline: 2px solid var(--fuda-focus);
+    outline-offset: -2px;
+  }
+  .member-logo-intro {
+    @apply animate-swing mx-auto w-18;
+    animation-delay: 0.6s;
+  }
+  .member-logo-intro svg:hover {
+    @apply animate-swing;
   }
   .member-dock {
     @apply fixed right-0 bottom-0 left-0 z-30 mx-auto w-full max-w-[30rem] border-t border-[var(--fuda-border)] bg-[var(--fuda-surface)] shadow-lg;
@@ -53,5 +100,22 @@
     @apply size-5 fill-none stroke-current stroke-2;
     stroke-linecap: round;
     stroke-linejoin: round;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .member-logo-intro,
+  .member-logo-intro svg:hover {
+    animation: none;
+  }
+}
+
+/* daisyUI controls and shared input padding are in the utilities layer. */
+@layer utilities {
+  .member-pass-search.input {
+    @apply pl-11;
+  }
+  .member-pass-actions .badge {
+    @apply h-auto min-h-6 min-w-0 shrink-0 rounded-md px-2.5 py-1 text-[10px] leading-tight font-medium tracking-wide text-wrap break-words;
   }
 }

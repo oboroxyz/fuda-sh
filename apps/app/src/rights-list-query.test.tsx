@@ -39,8 +39,8 @@ const publicPreview: Result<VerifyResponse> = {
   },
   ok: true,
 }
-const right = (id: Hex, holder: Hex): GraphRight => ({
-  delegation: { active: true, id: uidA, issuer: holderB, name: 'root', revokedAt: null },
+const right = (id: Hex, holder: Hex, name = 'root'): GraphRight => ({
+  delegation: { active: true, id: uidA, issuer: holderB, name, revokedAt: null },
   holder,
   id,
   issuer: holderB,
@@ -162,6 +162,37 @@ describe('member pass query lifecycle', () => {
     expect(root.textContent).not.toContain('ACTIVE')
   })
 
+  it.each(['ＣＯＦＦＥＥ', '0xaaaa'])('filters loaded passes by %s without another fetch', async (search) => {
+    const io = fixture()
+    io.fetchRights.mockResolvedValue([
+      right(uidA, holderA, 'Coffee & Co.'),
+      right(uidB, holderA, 'Weekend Club'),
+    ])
+    mount(<RightsList initialAddress={holderA} injected={null} io={io} memory={[]} queryUid={null} />)
+    await vi.waitFor(() => {
+      expect(root.querySelectorAll('a[target="_blank"]')).toHaveLength(2)
+    })
+    const input = root.querySelector<HTMLInputElement>('input[type="search"]')!
+    input.value = search
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    await vi.waitFor(() => {
+      expect(
+        [...root.querySelectorAll('a[target="_blank"]')].map((link) => link.getAttribute('href')),
+      ).toStrictEqual([`https://api.example/pass/${uidA}`])
+    })
+    input.value = 'not-a-pass'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    await vi.waitFor(() => {
+      expect(root.textContent).toContain('No matching passes.')
+    })
+    input.value = ''
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    await vi.waitFor(() => {
+      expect(root.querySelectorAll('a[target="_blank"]')).toHaveLength(2)
+    })
+    expect(io.fetchRights).toHaveBeenCalledOnce()
+  })
+
   it('does not replace the current holder set with an older pending list', async () => {
     const io = fixture()
     const pending = Promise.withResolvers<GraphRight[]>()
@@ -170,19 +201,19 @@ describe('member pass query lifecycle', () => {
       .mockImplementation(
         async (holder) => await Promise.resolve(holder === holderB ? [right(uidB, holderB)] : []),
       )
-    mount(<RightsList injected={null} io={io} memory={[]} queryUid={null} />)
+    mount(<RightsList variant="lookup" injected={null} io={io} memory={[]} queryUid={null} />)
     await lookup(holderA)
     await vi.waitFor(() => {
       expect(io.fetchRights).toHaveBeenCalledWith(holderA)
     })
     await lookup(holderB)
     await vi.waitFor(() => {
-      expect(root.textContent).toContain(uidB)
+      expect(root.querySelector(`a[href$="/pass/${uidB}"]`)).not.toBeNull()
     })
     pending.resolve([right(uidA, holderA)])
     await setTimeout(25)
-    expect(root.textContent).toContain(uidB)
-    expect(root.textContent).not.toContain(uidA)
+    expect(root.querySelector(`a[href$="/pass/${uidB}"]`)).not.toBeNull()
+    expect(root.querySelector(`a[href$="/pass/${uidA}"]`)).toBeNull()
   })
 
   it('does not remember a query pass whose recovery finishes after unmount', async () => {

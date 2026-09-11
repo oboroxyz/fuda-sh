@@ -1,4 +1,5 @@
 /** @jsxImportSource hono/jsx/dom */
+import { FingerprintSimple, FudaMark } from '@fuda/ui'
 import { useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
@@ -35,31 +36,7 @@ export const SignInView = ({
   <main class="dash-auth">
     <div class="flex justify-end">{appearance}</div>
     <div class="card bg-base-200 mx-auto mt-16 flex max-w-md flex-col gap-6 px-8 pt-12 pb-15">
-      <div class="dash-auth-logo-intro">
-        <svg aria-label="fuda." class="dash-auth-logo" fill="none" role="img" viewBox="0 0 260 260">
-          <path
-            d="m130 54 63 50v128h-126v-128z"
-            stroke="currentColor"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="15"
-          />
-          <path
-            d="m119 98a11 11 0 1 0 22 0 11 11 0 1 0-22 0"
-            stroke="currentColor"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="15"
-          />
-          <path
-            d="m130 28v20"
-            stroke="currentColor"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="15"
-          />
-        </svg>
-      </div>
+      <div class="dash-auth-logo-intro">{FudaMark({ class: 'dash-auth-logo' })}</div>
       <h1 class="dash-auth-title">{copy.title}</h1>
       {error === null ? null : (
         <p role="alert" class="alert alert-error">
@@ -68,6 +45,7 @@ export const SignInView = ({
       )}
 
       <button class="btn btn-primary" disabled={pending} onClick={onPasskey} type="button">
+        <FingerprintSimple />
         {pending ? copy.signingIn : copy.passkey}
       </button>
       <p class="text-center text-sm opacity-70">{copy.passkeyHint}</p>

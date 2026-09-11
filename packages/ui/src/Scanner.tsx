@@ -4,9 +4,27 @@ import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import { createQrDetector } from './barcode.ts'
 
+interface ScannerLabels {
+  cameraUnavailable: string
+  placeholder: string
+  check: string
+}
+
+const DEFAULT_LABELS: ScannerLabels = {
+  cameraUnavailable: 'camera unavailable — paste below',
+  check: 'Check',
+  placeholder: 'paste fuda:v1:… or 0x…',
+}
+
 // Camera loop: one detect() per animation frame while the video plays. The
 // paste box is always present so a device without BarcodeDetector still works.
-export const Scanner = ({ onInput }: { onInput: (text: string) => void }): JSX.Element => {
+export const Scanner = ({
+  onInput,
+  labels = DEFAULT_LABELS,
+}: {
+  onInput: (text: string) => void
+  labels?: ScannerLabels
+}): JSX.Element => {
   const video = useRef<HTMLVideoElement>(null)
   const [camera, setCamera] = useState<'idle' | 'on' | 'unavailable'>('idle')
   const [pasted, setPasted] = useState('')
@@ -77,9 +95,7 @@ export const Scanner = ({ onInput }: { onInput: (text: string) => void }): JSX.E
   return (
     <div class="flex flex-col items-center gap-4 p-4">
       <video ref={video} class="rounded-box bg-base-300 w-full max-w-md" playsinline muted />
-      {camera === 'unavailable' ? (
-        <div class="badge badge-warning">camera unavailable — paste below</div>
-      ) : null}
+      {camera === 'unavailable' ? <div class="badge badge-warning">{labels.cameraUnavailable}</div> : null}
       <form
         class="join w-full max-w-md"
         onSubmit={(e) => {
@@ -89,7 +105,8 @@ export const Scanner = ({ onInput }: { onInput: (text: string) => void }): JSX.E
       >
         <input
           class="input join-item w-full"
-          placeholder="paste fuda:v1:… or 0x…"
+          placeholder={labels.placeholder}
+          aria-label={labels.placeholder}
           value={pasted}
           onInput={(e) => {
             if (e.currentTarget instanceof HTMLInputElement) {
@@ -98,7 +115,7 @@ export const Scanner = ({ onInput }: { onInput: (text: string) => void }): JSX.E
           }}
         />
         <button type="submit" class="btn btn-primary join-item">
-          Check
+          {labels.check}
         </button>
       </form>
     </div>

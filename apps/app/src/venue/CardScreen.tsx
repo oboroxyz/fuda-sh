@@ -1,14 +1,19 @@
 /** @jsxImportSource hono/jsx/dom */
-import { brandTextColor, cardBySlug, formatMemberNumber, passUrls, qrSvg, soleCard, toQr } from '@fuda/sdk'
-import type {
-  CardCategory,
-  CardView,
-  PassUrls,
-  PublicCard,
-  PublicVenue,
-  SelfServeIssueResponse,
+import { DEFAULT_LOCALE, pick } from '@fuda/i18n'
+import type { Locale } from '@fuda/i18n'
+import {
+  brandTextColor,
+  cardBySlug,
+  formatMemberNumber,
+  passPlatform,
+  passUrls,
+  qrSvg,
+  soleCard,
+  toQr,
 } from '@fuda/sdk'
+import type { CardView, PassUrls, PublicCard, PublicVenue, SelfServeIssueResponse } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
+import { CardsThree, WalletButton } from '@fuda/ui'
 import { useCallback, useEffect, useRef, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
@@ -20,6 +25,8 @@ import { API_BASE_URL } from '../config.ts'
 import { applePassAvailable } from '../member-pass-list.ts'
 import { rememberPass } from '../pass-memory.ts'
 import type { PassMemoryStorage } from '../pass-memory.ts'
+import { VENUE_COPY } from './copy.ts'
+import type { VenueCopy } from './copy.ts'
 import { VenueLayout } from './VenueLayout.tsx'
 
 // A card this device holds: the remembered record plus what the pass links
@@ -57,31 +64,19 @@ export interface CardScreenIo {
 
 export interface CardScreenViewProps {
   handle: string
+  locale?: Locale
   onIssue: () => void
   onReload: () => void
   state: CardScreenState
 }
 
-const ISSUE_DATE = new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeZone: 'UTC' })
+const ISSUE_DATE = {
+  en: new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeZone: 'UTC' }),
+  ja: new Intl.DateTimeFormat('ja', { dateStyle: 'medium', timeZone: 'UTC' }),
+}
 
-export const issueDateOf = (issuedAt: number): string => ISSUE_DATE.format(new Date(issuedAt))
-
-const FAILURE_MESSAGE = {
-  // The card closed between loading the page and tapping the button.
-  card_closed: 'This card is no longer being handed out.',
-  chain_error: 'Cards cannot be issued right now. Please try again later.',
-  network: 'Could not reach fuda. Check your connection and try again.',
-  no_signer: 'Cards cannot be issued right now. Please try again later.',
-  not_found: 'This card is no longer available.',
-  rate_limited: 'Too many cards were requested from this device. Please try again later.',
-} satisfies Record<CardFailure, string>
-
-// One table per card type: the heading, the sentence noun, and the role the
-// card face carries.
-const CATEGORY = {
-  membership: { label: 'Membership', noun: 'membership card', role: 'MEMBER' },
-  ticket: { label: 'Ticket', noun: 'ticket', role: 'TICKET' },
-} satisfies Record<CardCategory, { label: string; noun: string; role: string }>
+export const issueDateOf = (issuedAt: number, locale: Locale = DEFAULT_LOCALE): string =>
+  ISSUE_DATE[locale].format(new Date(issuedAt))
 
 // The venue's own address, so a member who followed a card link can go back to
 // everything else the venue publishes.
@@ -89,9 +84,7 @@ export const venueHref = (handle: string): string => `/@${handle}`
 
 export const cardHref = (handle: string, slug: string): string => `/@${handle}/${slug}`
 
-const nounOf = (card: PublicCard): string => CATEGORY[card.card.category].noun
-
-const roleOf = (card: PublicCard): string => CATEGORY[card.card.category].role
+const nounOf = (card: PublicCard, copy: VenueCopy): string => copy.category[card.card.category].noun
 
 interface VenueBrand {
   brandColor: string
@@ -134,15 +127,15 @@ const landingCard = (card: PublicCard): JSX.Element =>
     </>,
   )
 
-const memberCard = (card: PublicCard, issued: IssuedCard): JSX.Element =>
+const memberCard = (card: PublicCard, issued: IssuedCard, copy: VenueCopy, locale: Locale): JSX.Element =>
   brandCard(
     card,
     <>
-      <div class="text-lg font-bold">{card.card.title}</div>
+      <h1 class="text-lg font-bold">{card.card.title}</h1>
       <div class="flex flex-col gap-1">
-        <div class="text-xs tracking-widest uppercase">{roleOf(card)}</div>
+        <div class="text-xs tracking-widest uppercase">{copy.category[card.card.category].role}</div>
         <div class="font-mono text-xl">{formatMemberNumber(issued.memberNumber)}</div>
-        <div class="text-xs">Issued {issueDateOf(issued.issuedAt)}</div>
+        <div class="text-xs">{copy.issued(issueDateOf(issued.issuedAt, locale))}</div>
       </div>
     </>,
   )
@@ -154,14 +147,14 @@ const cardDescription = (card: PublicCard): JSX.Element | null =>
 
 // A card the member already holds is worth opening; one outside its claim
 // window is not, so it reads as closed rather than inviting a dead-end tap.
-const rowInvitation = (card: CardView, held: boolean): string => {
+const rowInvitation = (card: CardView, held: boolean, copy: VenueCopy): string => {
   if (held) {
-    return 'You have this card · Show it'
+    return copy.heldCard
   }
-  return card.claimable ? `Get this ${CATEGORY[card.category].noun}` : 'Not being handed out right now'
+  return card.claimable ? copy.getCard(copy.category[card.category].noun) : copy.notHandingOut
 }
 
-const chooserRow = (venue: PublicVenue, card: CardView, held: boolean): JSX.Element => (
+const chooserRow = (venue: PublicVenue, card: CardView, held: boolean, copy: VenueCopy): JSX.Element => (
   <li key={card.slug}>
     <a
       class={
@@ -173,54 +166,78 @@ const chooserRow = (venue: PublicVenue, card: CardView, held: boolean): JSX.Elem
     >
       <div class="flex items-center justify-between gap-3">
         <span class="min-w-0 font-bold [overflow-wrap:anywhere]">{card.title}</span>
-        <span class="badge badge-sm badge-ghost shrink-0">{CATEGORY[card.category].label}</span>
+        <span class="badge badge-sm badge-ghost shrink-0">{copy.category[card.category].label}</span>
       </div>
       {card.description === '' ? null : (
         <span class="line-clamp-3 text-sm wrap-anywhere whitespace-pre-wrap opacity-70">
           {card.description}
         </span>
       )}
-      <span class="text-xs font-semibold opacity-80">{rowInvitation(card, held)}</span>
+      <span class="text-xs font-semibold opacity-80">{rowInvitation(card, held, copy)}</span>
     </a>
   </li>
 )
 
-const chooser = (venue: PublicVenue, heldSlugs: readonly string[]): JSX.Element => (
+const chooser = (venue: PublicVenue, heldSlugs: readonly string[], copy: VenueCopy): JSX.Element => (
   <>
     {brandCard(
       venue,
       <>
-        <h1 class="text-2xl font-bold">Pick a card</h1>
+        <h1 class="text-2xl font-bold">{copy.pickCard}</h1>
         {venue.tagline === '' ? null : <p class="text-sm opacity-90">{venue.tagline}</p>}
       </>,
     )}
     {venue.cards.length === 0 ? (
-      <p class="venue-empty">{venue.name} has no cards to hand out right now.</p>
+      <p class="venue-empty">{copy.noCards(venue.name)}</p>
     ) : (
       <ul class="flex flex-col gap-3">
-        {venue.cards.map((card): JSX.Element => chooserRow(venue, card, heldSlugs.includes(card.slug)))}
+        {venue.cards.map((card): JSX.Element => chooserRow(venue, card, heldSlugs.includes(card.slug), copy))}
       </ul>
     )}
   </>
 )
 
-const notFound = (venue: PublicVenue | null): JSX.Element => {
+const notFound = (venue: PublicVenue | null, copy: VenueCopy): JSX.Element => {
   if (venue === null || venue.cards.length === 0) {
     return (
       <>
-        <h1 class="text-xl font-bold">No card here</h1>
-        <p class="text-sm opacity-70">There is no card at this address. Check the link you were given.</p>
+        <h1 class="text-xl font-bold">{copy.noCard}</h1>
+        <p class="text-sm opacity-70">{copy.notFound}</p>
       </>
     )
   }
   return (
     <>
-      <h1 class="text-xl font-bold">No card here</h1>
-      <p class="text-sm opacity-70">{venue.name} has no card at this address.</p>
+      <h1 class="text-xl font-bold">{copy.noCard}</h1>
+      <p class="text-sm opacity-70">{copy.noCardAtAddress(venue.name)}</p>
       <a class="btn btn-primary" href={venueHref(venue.handle)}>
-        See all cards from {venue.name}
+        {copy.seeAllCards(venue.name)}
       </a>
     </>
+  )
+}
+
+const passAction = (
+  issued: IssuedCard,
+  googleHref: string | null,
+  appleHref: string | null,
+  copy: VenueCopy,
+  locale: Locale,
+): JSX.Element => {
+  const platform = passPlatform(globalThis.navigator?.userAgent ?? '')
+  if (platform === 'apple' && appleHref !== null) {
+    return <WalletButton platform="apple" href={appleHref} label={copy.appleWallet} locale={locale} />
+  }
+  if (platform === 'google' && googleHref !== null) {
+    return (
+      <WalletButton platform="google" href={googleHref} label={copy.googleWallet} locale={locale} newTab />
+    )
+  }
+  return (
+    <a class="btn btn-neutral" href={issued.passUrls.web} target="_blank" rel="noreferrer">
+      <CardsThree />
+      {copy.browserPass}
+    </a>
   )
 }
 
@@ -229,32 +246,20 @@ const passActions = (
   issued: IssuedCard,
   googleHref: string | null,
   appleHref: string | null,
+  copy: VenueCopy,
+  locale: Locale,
 ): JSX.Element => (
   <div class="flex flex-col gap-2">
-    {appleHref === null ? null : (
-      <a class="btn btn-neutral" href={appleHref}>
-        Add to Apple Wallet
-      </a>
-    )}
-    {googleHref === null ? null : (
-      <a class="btn btn-neutral" href={googleHref} target="_blank" rel="noreferrer">
-        Add to Google Wallet
-      </a>
-    )}
-    <a class="btn btn-ghost" href={issued.passUrls.web} target="_blank" rel="noreferrer">
-      Open pass in browser
-    </a>
-    <p class="text-center text-xs opacity-70">
-      No name or contact details required. This {nounOf(card)} is saved on this device.
-    </p>
+    {passAction(issued, googleHref, appleHref, copy, locale)}
+    <p class="text-center text-xs opacity-70">{copy.savedOnDevice(nounOf(card, copy))}</p>
   </div>
 )
 
-const qrBlock = (card: PublicCard, issued: IssuedCard): JSX.Element => (
+const qrBlock = (card: PublicCard, issued: IssuedCard, copy: VenueCopy): JSX.Element => (
   <div class="venue-qr flex justify-center">
     <div
       role="img"
-      aria-label={`Your ${nounOf(card)} QR code for ${card.name}`}
+      aria-label={copy.qrLabel(card.name, nounOf(card, copy))}
       class="rounded-box w-64 max-w-full bg-white p-2"
       // The markup is built locally by qrSvg from the right's uid — no remote or
       // venue-entered content reaches it.
@@ -263,31 +268,38 @@ const qrBlock = (card: PublicCard, issued: IssuedCard): JSX.Element => (
   </div>
 )
 
-export const CardScreenView = ({ handle, onIssue, onReload, state }: CardScreenViewProps): JSX.Element => {
-  const shell = (children: JSX.Element): JSX.Element => VenueLayout({ children, handle })
+export const CardScreenView = ({
+  handle,
+  locale = DEFAULT_LOCALE,
+  onIssue,
+  onReload,
+  state,
+}: CardScreenViewProps): JSX.Element => {
+  const copy = pick(VENUE_COPY, locale)
+  const shell = (children: JSX.Element): JSX.Element => VenueLayout({ children, handle, locale })
   if (state.kind === 'loading') {
     return shell(
       <div class="venue-panel flex min-h-44 items-center justify-center gap-3" role="status">
         <span class="loading loading-spinner loading-sm" aria-hidden="true" />
-        <p class="text-sm text-[var(--fuda-muted)]">Loading card…</p>
+        <p class="text-sm text-[var(--fuda-muted)]">{copy.loading}</p>
       </div>,
     )
   }
   if (state.kind === 'not_found') {
-    return shell(notFound(state.venue))
+    return shell(notFound(state.venue, copy))
   }
   if (state.kind === 'choose') {
-    return shell(chooser(state.venue, state.heldSlugs))
+    return shell(chooser(state.venue, state.heldSlugs, copy))
   }
   if (state.kind === 'error') {
     return shell(
       <>
         {state.card === null ? null : landingCard(state.card)}
         <div role="alert" class="alert alert-error">
-          {FAILURE_MESSAGE[state.failure]}
+          {copy.failure[state.failure]}
         </div>
         <button class="btn" type="button" onClick={state.card === null ? onReload : onIssue}>
-          Try again
+          {copy.tryAgain}
         </button>
       </>,
     )
@@ -295,10 +307,9 @@ export const CardScreenView = ({ handle, onIssue, onReload, state }: CardScreenV
   if (state.kind === 'ready') {
     return shell(
       <>
-        <h1 class="text-xl font-bold">Your card is ready</h1>
-        {memberCard(state.card, state.issued)}
-        {qrBlock(state.card, state.issued)}
-        {passActions(state.card, state.issued, state.googleHref, state.appleHref)}
+        {memberCard(state.card, state.issued, copy, locale)}
+        {qrBlock(state.card, state.issued, copy)}
+        {passActions(state.card, state.issued, state.googleHref, state.appleHref, copy, locale)}
       </>,
     )
   }
@@ -311,10 +322,10 @@ export const CardScreenView = ({ handle, onIssue, onReload, state }: CardScreenV
         {landingCard(state.card)}
         {cardDescription(state.card)}
         <p role="status" class="text-center text-sm opacity-70">
-          {state.card.name} is not handing out this {nounOf(state.card)} right now.
+          {copy.closedCard(state.card.name, nounOf(state.card, copy))}
         </p>
         <a class="btn" href={venueHref(state.card.handle)}>
-          See all cards from {state.card.name}
+          {copy.seeAllCards(state.card.name)}
         </a>
       </>,
     )
@@ -325,10 +336,10 @@ export const CardScreenView = ({ handle, onIssue, onReload, state }: CardScreenV
       {cardDescription(state.card)}
       <div class="venue-primary">
         <button class="btn btn-primary w-full" type="button" disabled={busy} onClick={onIssue}>
-          {busy ? 'Getting your card…' : `Get your free ${nounOf(state.card)}`}
+          {busy ? copy.gettingCard : copy.getFreeCard(nounOf(state.card, copy))}
         </button>
         <p role="status" aria-live="polite" class="text-center text-xs opacity-70">
-          {busy ? 'Please keep this page open.' : 'No sign-up · No app install'}
+          {busy ? copy.keepOpen : copy.noSignUp}
         </p>
       </div>
     </>,
@@ -357,27 +368,32 @@ const heldSlugsOf = (venue: PublicVenue, storage?: PassMemoryStorage): string[] 
 
 export interface CardScreenProps {
   handle: string
+  locale?: Locale
   slug: string | null
   io?: CardScreenIo
   storage?: PassMemoryStorage
 }
 
-export const CardScreen = ({ handle, slug, io = defaultIo, storage }: CardScreenProps): JSX.Element => {
+export const CardScreen = ({
+  handle,
+  locale = DEFAULT_LOCALE,
+  slug,
+  io = defaultIo,
+  storage,
+}: CardScreenProps): JSX.Element => {
   const [state, setState] = useState<CardScreenState>({ kind: 'loading' })
   const [generation, setGeneration] = useState(0)
   const issuing = useRef(false)
   const lifecycle = useRef(0)
 
-  // Both wallet buttons are progressive: each appears only once the api confirms
-  // that platform's pass, so a deployment without Apple or Google credentials
-  // shows the browser pass alone rather than a button that opens an error.
+  // Only probe the device's platform. The browser pass remains available until
+  // its wallet is confirmed, and remains the fallback if it is not configured.
   const showReady = useCallback(
     async (card: PublicCard, issued: IssuedCard, isCurrent: () => boolean): Promise<void> => {
       setState({ appleHref: null, card, googleHref: null, issued, kind: 'ready' })
-      const [googleHref, appleReady] = await Promise.all([
-        io.googleSaveUrl(issued.passUrls.google),
-        io.appleAvailable(issued.passUrls.apple),
-      ])
+      const platform = passPlatform(globalThis.navigator?.userAgent ?? '')
+      const googleHref = platform === 'google' ? await io.googleSaveUrl(issued.passUrls.google) : null
+      const appleReady = platform === 'apple' && (await io.appleAvailable(issued.passUrls.apple))
       const appleHref = appleReady ? issued.passUrls.apple : null
       if ((googleHref !== null || appleHref !== null) && isCurrent()) {
         setState((previous) =>
@@ -484,5 +500,7 @@ export const CardScreen = ({ handle, slug, io = defaultIo, storage }: CardScreen
     setGeneration((value) => value + 1)
   }
 
-  return <CardScreenView handle={handle} onIssue={onIssue} onReload={onReload} state={state} />
+  return (
+    <CardScreenView handle={handle} locale={locale} onIssue={onIssue} onReload={onReload} state={state} />
+  )
 }

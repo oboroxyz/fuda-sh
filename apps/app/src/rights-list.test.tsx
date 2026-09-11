@@ -391,15 +391,14 @@ describe('pass link availability', () => {
 })
 
 describe('member pass screen', () => {
-  it('uses the verified holder and keeps another public-address lookup secondary', () => {
+  it('keeps public-address tools out of the main pass list', () => {
     const view = RightsList({ injected: { request: async () => await Promise.resolve([HOLDER_A]) } })
     const text = viewText(view)
 
-    expect(text).toContain('Public passes held by your verified address')
-    expect(text).toContain('passes saved on this device')
+    expect(text).toContain('Your passes')
     expect(text).not.toContain('activation')
     expect(text).not.toContain('Connect passkey')
-    expect(text).toContain('Look up another public address')
+    expect(text).not.toContain('Look up another public address')
   })
 })
 
@@ -565,6 +564,21 @@ describe(RightsListView, () => {
     expect(viewText(memoryView)).toContain('Saved on this device')
     expect(viewText(memoryView)).toContain('Pass')
     expect(viewText(memoryView)).toContain('UID')
+  })
+
+  it('opens the individual pass without offering device wallet saves in the list', () => {
+    const row = memberRow({
+      appleHref: 'https://api.test/apple',
+      googleHref: 'https://api.test/google',
+      graph: right(RIGHT, null),
+    })
+    const view = RightsListView({
+      state: { kind: 'ready', result: { indexUnavailable: false, rows: [row] } },
+    })
+    const hrefs = viewNodes(view).map(({ props }) => props.href)
+    expect(hrefs).toContain(row.passes.web)
+    expect(hrefs).not.toContain(row.appleHref)
+    expect(hrefs).not.toContain(row.googleHref)
   })
 
   it('does not render pass links for an unclassified memory-only row', () => {

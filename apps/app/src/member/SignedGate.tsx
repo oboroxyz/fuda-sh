@@ -1,4 +1,6 @@
 /** @jsxImportSource hono/jsx/dom */
+import { DEFAULT_LOCALE, pick } from '@fuda/i18n'
+import type { Locale } from '@fuda/i18n'
 import { normalizeUid, parseQr } from '@fuda/sdk'
 import type { Hex } from '@fuda/sdk'
 import { Scanner, short } from '@fuda/ui'
@@ -10,6 +12,7 @@ import { displayOf, enterSigned } from '../signed-gate.ts'
 import type { SignedDisplay } from '../signed-gate.ts'
 import { injectedProvider, personalSign, requestAccount } from '../wallet.ts'
 import type { Eip1193Provider } from '../wallet.ts'
+import { ENTRY_COPY } from './entry-copy.ts'
 import { Verdict } from './Verdict.tsx'
 
 const uidOf = (text: string): Hex | null => {
@@ -28,7 +31,14 @@ const passkeyRail = async (): Promise<Eip1193Provider> => {
 // wallet → verify → full-screen verdict. The rail is any EIP-1193 provider —
 // either a browser-injected wallet or the Base Account passkey wallet, which
 // the member picks once a pass uid is on screen.
-export const SignedGate = ({ provider }: { provider?: Eip1193Provider | null }): JSX.Element => {
+export const SignedGate = ({
+  provider,
+  locale = DEFAULT_LOCALE,
+}: {
+  provider?: Eip1193Provider | null
+  locale?: Locale
+}): JSX.Element => {
+  const c = pick(ENTRY_COPY, locale)
   const [uid, setUid] = useState<Hex | null>(null)
   const [state, setState] = useState<SignedDisplay | null>(null)
   const [busy, setBusy] = useState(false)
@@ -77,6 +87,7 @@ export const SignedGate = ({ provider }: { provider?: Eip1193Provider | null }):
   if (state !== null) {
     return (
       <Verdict
+        locale={locale}
         state={state}
         onDone={() => {
           setState(null)
@@ -86,11 +97,10 @@ export const SignedGate = ({ provider }: { provider?: Eip1193Provider | null }):
   }
   return (
     <main class="member-page member-page-narrow flex flex-col items-center gap-6">
-      <h1 class="member-heading text-center">Enter with your wallet</h1>
-      <p class="text-center text-sm leading-relaxed text-[var(--fuda-muted)]">
-        Scan or paste your pass, then confirm entry with your wallet.
-      </p>
+      <h1 class="member-heading text-center">{c.signedTitle}</h1>
+      <p class="text-center text-sm leading-relaxed text-[var(--fuda-muted)]">{c.signedIntro}</p>
       <Scanner
+        labels={c.scanner}
         onInput={(text) => {
           const u = uidOf(text)
           if (u !== null) {
@@ -108,7 +118,7 @@ export const SignedGate = ({ provider }: { provider?: Eip1193Provider | null }):
               void enter(uid, passkeyRail)
             }}
           >
-            {busy ? 'Signing…' : `Passkey wallet: sign for ${short(uid)}`}
+            {busy ? c.signing : c.passkeyWallet(short(uid))}
           </button>
           {injected === null ? null : (
             <button
@@ -119,7 +129,7 @@ export const SignedGate = ({ provider }: { provider?: Eip1193Provider | null }):
                 void enter(uid, async () => await Promise.resolve(injected))
               }}
             >
-              {busy ? 'Signing…' : `Use browser wallet for ${short(uid)}`}
+              {busy ? c.signing : c.browserWallet(short(uid))}
             </button>
           )}
         </div>

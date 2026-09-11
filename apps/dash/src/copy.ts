@@ -1,3 +1,4 @@
+import { AUTH_COPY } from '@fuda/i18n'
 import type { Copy } from '@fuda/i18n'
 
 import type { BrandColorName } from './brand-colors.ts'
@@ -374,7 +375,7 @@ export const DASH_COPY = {
       tokenPlaceholder: 'ADMIN_TOKEN',
       continue: 'Continue',
       unauthorized: 'Unauthorized. Check the admin token.',
-      passkey: 'Continue with a passkey',
+      passkey: AUTH_COPY.en.signInWithPasskey,
       passkeyHint: 'No email, no password. Your passkey is the whole account.',
       adminSection: 'Sign in with an admin token instead',
       signingIn: 'Waiting for your passkey…',
@@ -748,7 +749,7 @@ export const DASH_COPY = {
       tokenPlaceholder: 'ADMIN_TOKEN',
       continue: '続ける',
       unauthorized: '認証できませんでした。管理トークンを確認してください。',
-      passkey: 'パスキーで続ける',
+      passkey: AUTH_COPY.ja.signInWithPasskey,
       passkeyHint: 'メールアドレスもパスワードも不要です。パスキーがそのままアカウントになります。',
       adminSection: '管理トークンでサインインする',
       signingIn: 'パスキーの操作を待っています…',

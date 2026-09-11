@@ -1,4 +1,6 @@
 /** @jsxImportSource hono/jsx/dom */
+import { DEFAULT_LOCALE, pick } from '@fuda/i18n'
+import type { Locale } from '@fuda/i18n'
 import { fetchAnnouncements } from '@fuda/sdk'
 import type { GraphAnnouncement, Hex } from '@fuda/sdk'
 import type { DiscoveredPass, StealthKeys } from '@fuda/stealth-address'
@@ -11,37 +13,34 @@ import { GRAPH_RIGHTS_ENDPOINT, RP_ID } from '../config.ts'
 import type { PrfResult } from '../passkey.ts'
 import { displayOf, enterSigned } from '../signed-gate.ts'
 import type { SignedDisplay } from '../signed-gate.ts'
+import { ENTRY_COPY, entryMessage } from './entry-copy.ts'
 import { Verdict } from './Verdict.tsx'
 
-// Member-facing copy for the three ways a PRF ceremony ends without a secret.
-const PRF_COPY = {
-  cancelled:
-    'The passkey prompt was dismissed. If this device already holds your fuda passkey, choose "Use existing passkey" — creating a second one would give you a second meta-address.',
-  error: 'The passkey ceremony failed.',
-  unsupported:
-    'This passkey or device cannot derive a +Private key (no PRF support). Try a platform passkey on a recent phone or browser.',
-} as const
+type PrivateProblem =
+  | { kind: 'error'; detail: string }
+  | (Extract<PrfResult, { ok: false }> & { kind: 'prf' })
 
 // The stealth curve code and the WebAuthn ceremony are fetched on demand once a
 // member opens this screen.
 const stealthKit = async () => await import('../private-member.ts')
 const passkeyKit = async () => await import('../passkey.ts')
 
-const COPY_LABEL = { done: 'Copied', failed: 'Copy failed', idle: 'Copy' } as const
-
 const MetaAddress = ({
   keys,
   onDiscover,
   busy,
+  locale,
 }: {
   keys: StealthKeys
   onDiscover: () => void
   busy: boolean
+  locale: Locale
 }): JSX.Element => {
+  const c = pick(ENTRY_COPY, locale)
   // The clipboard is denied outright in some browsers when the document is not
   // focused, so the button reports the failure instead of rejecting silently:
   // the meta-address is on screen and can still be selected by hand.
-  const [copied, setCopied] = useState<keyof typeof COPY_LABEL>('idle')
+  const [copied, setCopied] = useState<'done' | 'failed' | 'idle'>('idle')
   const copy = async (value: Hex): Promise<void> => {
     try {
       await navigator.clipboard.writeText(value)
@@ -52,7 +51,7 @@ const MetaAddress = ({
   }
   return (
     <div class="flex w-full max-w-md flex-col gap-2">
-      <div class="text-sm font-bold">Your meta-address</div>
+      <div class="text-sm font-bold">{c.metaAddress}</div>
       <div class="font-mono text-xs break-all">{keys.metaAddress}</div>
       <div class="flex gap-2">
         <button
@@ -62,10 +61,10 @@ const MetaAddress = ({
             void copy(keys.metaAddress)
           }}
         >
-          {COPY_LABEL[copied]}
+          {c.copy[copied]}
         </button>
         <button type="button" class="btn btn-sm btn-primary" disabled={busy} onClick={onDiscover}>
-          Discover my passes
+          {c.discover}
         </button>
       </div>
     </div>
@@ -89,9 +88,16 @@ const DEFAULT_IO: PrivateScreenIo = {
   stealth: stealthKit,
 }
 
-export const PrivateScreen = ({ io = DEFAULT_IO }: { io?: PrivateScreenIo }): JSX.Element => {
+export const PrivateScreen = ({
+  io = DEFAULT_IO,
+  locale = DEFAULT_LOCALE,
+}: {
+  io?: PrivateScreenIo
+  locale?: Locale
+}): JSX.Element => {
+  const c = pick(ENTRY_COPY, locale)
   const [keys, setKeys] = useState<StealthKeys | null>(null)
-  const [problem, setProblem] = useState<string | null>(null)
+  const [problem, setProblem] = useState<PrivateProblem | null>(null)
   const [passes, setPasses] = useState<DiscoveredPass[] | null>(null)
   const [state, setState] = useState<SignedDisplay | null>(null)
   const [busy, setBusy] = useState(false)
@@ -108,7 +114,7 @@ export const PrivateScreen = ({ io = DEFAULT_IO }: { io?: PrivateScreenIo }): JS
   const settle = async (result: PrfResult): Promise<void> => {
     signal.throwIfAborted()
     if (!result.ok) {
-      setProblem(`${PRF_COPY[result.reason]} (${result.detail})`)
+      setProblem({ ...result, kind: 'prf' })
       return
     }
     const { keysFromPrf } = await io.stealth()
@@ -132,7 +138,7 @@ export const PrivateScreen = ({ io = DEFAULT_IO }: { io?: PrivateScreenIo }): JS
       if (signal.aborted) {
         return
       }
-      setProblem(error instanceof Error ? error.message : 'something went wrong')
+      setProblem({ detail: error instanceof Error ? error.message : 'something went wrong', kind: 'error' })
     } finally {
       if (!signal.aborted) {
         setBusy(false)
@@ -168,6 +174,7 @@ export const PrivateScreen = ({ io = DEFAULT_IO }: { io?: PrivateScreenIo }): JS
   if (state !== null) {
     return (
       <Verdict
+        locale={locale}
         state={state}
         onDone={() => {
           setState(null)
@@ -178,10 +185,7 @@ export const PrivateScreen = ({ io = DEFAULT_IO }: { io?: PrivateScreenIo }): JS
   return (
     <main class="member-page member-page-narrow flex flex-col items-center gap-6">
       <h1 class="member-heading">+Private</h1>
-      <p class="text-center text-sm leading-relaxed text-[var(--fuda-muted)]">
-        Unlock your private rights with your fuda passkey. This is separate from the Base account you use to
-        sign in.
-      </p>
+      <p class="text-center text-sm leading-relaxed text-[var(--fuda-muted)]">{c.privateIntro}</p>
       {keys === null ? (
         <div class="flex w-full flex-col gap-2 sm:flex-row sm:justify-center">
           <button
@@ -196,7 +200,7 @@ export const PrivateScreen = ({ io = DEFAULT_IO }: { io?: PrivateScreenIo }): JS
               })
             }}
           >
-            Use existing passkey
+            {c.usePasskey}
           </button>
           <button
             type="button"
@@ -210,11 +214,12 @@ export const PrivateScreen = ({ io = DEFAULT_IO }: { io?: PrivateScreenIo }): JS
               })
             }}
           >
-            Create passkey
+            {c.createPasskey}
           </button>
         </div>
       ) : (
         <MetaAddress
+          locale={locale}
           keys={keys}
           busy={busy}
           onDiscover={() => {
@@ -224,17 +229,23 @@ export const PrivateScreen = ({ io = DEFAULT_IO }: { io?: PrivateScreenIo }): JS
           }}
         />
       )}
-      {problem === null ? null : <div class="alert alert-error text-sm">{problem}</div>}
+      {problem === null ? null : (
+        <div class="alert alert-error text-sm">
+          {problem.kind === 'prf'
+            ? `${c.prf[problem.reason]} (${entryMessage(problem.detail, locale)})`
+            : entryMessage(problem.detail, locale)}
+        </div>
+      )}
       {passes === null ? null : (
         <ul class="flex w-full max-w-md flex-col gap-2">
-          {passes.length === 0 ? (
-            <li class="text-sm opacity-70">No pass announced to this meta-address yet.</li>
-          ) : null}
+          {passes.length === 0 ? <li class="text-sm opacity-70">{c.noPasses}</li> : null}
           {passes.map((pass): JSX.Element => (
             <li class="card bg-base-200" key={pass.uid}>
               <div class="card-body gap-2">
                 <div class="font-mono text-xs break-all">{pass.uid}</div>
-                <div class="text-xs opacity-70">stealth address {short(pass.stealthAddress)}</div>
+                <div class="text-xs opacity-70">
+                  {c.stealthAddress} {short(pass.stealthAddress)}
+                </div>
                 <button
                   type="button"
                   class="btn btn-primary btn-sm"
@@ -245,7 +256,7 @@ export const PrivateScreen = ({ io = DEFAULT_IO }: { io?: PrivateScreenIo }): JS
                     })
                   }}
                 >
-                  Enter
+                  {c.enter}
                 </button>
               </div>
             </li>

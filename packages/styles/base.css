@@ -1,3 +1,4 @@
+@import './wallet-button.css';
 @custom-variant dark (&:where(.dark, .dark *));
 
 @plugin "daisyui" {
