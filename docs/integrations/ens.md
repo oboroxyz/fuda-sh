@@ -90,7 +90,7 @@ sequenceDiagram
         C->>G: the same request, verbatim
         G-->>C: signed answer, short expiry
         C->>R: resolveWithProof
-        Note over R: verify signer, target and expiry;<br/>re-run the request; require an identical envelope
+        Note over R: verify signer, target and expiry,<br/>re-run the request, require an identical envelope
         R-->>C: address
     end
 ```
