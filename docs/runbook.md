@@ -106,7 +106,7 @@ The DNSSEC TXT value required to expose the `.eth` tree through `fuda.sh` is:
 ENS1 0x005a3bf1d92ebe4b1e1641a0c6fa49f38e1762a6 sh eth
 ```
 
-This value is documented only. The `fuda.sh` zone was not changed, and the alias must not be treated as live until DNSSEC and scratch resolution are verified operationally.
+This value is documented only. The `fuda.sh` zone is DNSSEC-signed and currently carries a _production-ENS_ alias record (`ENS1 dnsalias.ens.eth sh eth`), which is not this resolver; the hackathon record above has not been set, so the alias must not be treated as live until it is set and scratch resolution is verified operationally.
 
 ## 3. Secrets
 
