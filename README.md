@@ -123,6 +123,7 @@ See [Local development](./docs/runbook.md#12-local-development) for setup and st
   - [Substreams packages](./docs/specs/substreams.md) — the optional push lane and its compatibility guarantees
 - **Integrations**
   - [The Graph](./docs/integrations/thegraph.md) — rights indexing, Substreams, and verification evidence
+  - [ENS](./docs/integrations/ens.md) — venue and member names on the ENSv2 Sepolia deployment, the sponsored claim, and live resolution evidence
 - **Operations**
   - [Runbook](./docs/runbook.md) — local development, one-time Cloudflare and Base setup, secrets, deploy order
   - [Agent guidance](./AGENTS.md) — repository workflow and verification
