@@ -5,7 +5,6 @@ import type { CardFailure } from '../api.ts'
 
 export interface VenueCopy {
   appleWallet: string
-  backToCards: string
   browserPass: string
   category: Record<CardCategory, { label: string; noun: string; role: string }>
   closedCard: (name: string, noun: string) => string
@@ -36,7 +35,6 @@ export interface VenueCopy {
 export const VENUE_COPY = {
   en: {
     appleWallet: 'Add to Apple Wallet',
-    backToCards: 'Back to cards',
     browserPass: 'Open pass in browser',
     category: {
       membership: { label: 'Membership', noun: 'membership card', role: 'MEMBER' },
@@ -75,7 +73,6 @@ export const VENUE_COPY = {
   },
   ja: {
     appleWallet: 'Apple Walletに追加',
-    backToCards: 'カード一覧に戻る',
     browserPass: 'ブラウザーでパスを開く',
     category: {
       membership: { label: '会員証', noun: '会員証', role: '会員' },

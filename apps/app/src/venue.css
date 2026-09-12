@@ -26,12 +26,12 @@
   }
 
   .venue-page {
-    @apply mx-auto flex min-h-svh w-full max-w-md flex-col bg-[var(--fuda-surface)] [overflow-wrap:anywhere] sm:my-10 sm:min-h-[min(48rem,calc(100svh-5rem))] sm:rounded-[2rem] sm:border sm:border-[var(--fuda-border)];
+    @apply mx-auto flex min-h-svh w-full max-w-md flex-col [overflow-wrap:anywhere];
     padding-bottom: env(safe-area-inset-bottom);
   }
 
   .venue-header {
-    @apply flex items-center justify-between gap-3 px-6 py-3;
+    @apply flex items-center justify-end gap-3 px-6 py-3;
     padding-top: max(0.75rem, env(safe-area-inset-top));
   }
 

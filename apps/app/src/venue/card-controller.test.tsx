@@ -50,16 +50,16 @@ describe('venue controller', () => {
     localStorage.clear()
   })
 
-  it('keeps the venue return link alongside an accessible fuda icon', () => {
+  it('shows an accessible fuda icon and no return link', () => {
     const host = document.createElement('div')
     render(
-      <VenueLayout handle="garden-cafe">
+      <VenueLayout>
         <p>Card content</p>
       </VenueLayout>,
       host,
     )
     expect(host.querySelector('header svg[role="img"]')?.getAttribute('aria-label')).toBe('fuda.')
-    expect(host.querySelector('header a')?.getAttribute('href')).toBe('/@garden-cafe?cards=all')
+    expect(host.querySelector('header a')).toBeNull()
     render(<></>, host)
   })
 
@@ -78,7 +78,6 @@ describe('venue controller', () => {
       expect(host.querySelector('.venue-qr [role="img"]')).not.toBeNull()
     })
     expect(deps.issueCard).not.toHaveBeenCalled()
-    expect(host.querySelector('a[href="/@garden-cafe?cards=all"]')).not.toBeNull()
     expect(host.querySelector('a[href="/"]')).toBeNull()
     render(<></>, host)
   })
@@ -197,7 +196,6 @@ describe('venue controller', () => {
     })
     expect(host.querySelector<HTMLButtonElement>('main button')?.disabled).toBe(true)
     expect(host.textContent).toContain('A cup on your birthday')
-    expect(host.textContent).toContain('カード一覧に戻る')
     pending.resolve({ error: 'offline', network: true, ok: false, status: 0 })
     await vi.waitFor(() => {
       expect(host.querySelector('[role="alert"]')?.textContent).toContain('fudaに接続できませんでした')

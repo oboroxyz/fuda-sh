@@ -90,7 +90,6 @@ export const VenueScreen = ({
       : state
   return (
     <CardScreenView
-      handle={handle}
       locale={locale}
       state={view}
       onIssue={noop}

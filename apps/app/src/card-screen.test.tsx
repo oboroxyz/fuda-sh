@@ -110,7 +110,7 @@ const issued: IssuedCard = {
 const noop = (): void => {}
 
 const render = (state: Parameters<typeof CardScreenView>[0]['state']): JSX.Element =>
-  CardScreenView({ handle: card.handle, onIssue: noop, onReload: noop, state })
+  CardScreenView({ onIssue: noop, onReload: noop, state })
 
 describe(CardScreenView, () => {
   it('shows the onboarding description as multiline plain text', () => {
@@ -204,9 +204,7 @@ describe(CardScreenView, () => {
     })
     const hrefs = viewNodes(shown).map(({ props }) => props.href)
 
-    expect(hrefs.filter((href) => href !== '/@wassie-coffee?cards=all' && href !== undefined)).toStrictEqual([
-      expectedHref,
-    ])
+    expect(hrefs.filter((href) => href !== undefined)).toStrictEqual([expectedHref])
     expect(viewText(shown)).toContain('No name or contact details required')
   })
 
@@ -239,11 +237,7 @@ describe('the card chooser', () => {
     expect(text).toContain('Wassie Coffee')
     expect(text).toContain('Slow coffee, fast wifi')
     expect(text).toMatch(/Regular.*Membership.*Free refill on every visit.*Friday Gig.*Ticket/su)
-    expect(hrefs).toStrictEqual([
-      '/@wassie-coffee?cards=all',
-      '/@wassie-coffee/regular',
-      '/@wassie-coffee/gig',
-    ])
+    expect(hrefs).toStrictEqual(['/@wassie-coffee/regular', '/@wassie-coffee/gig'])
   })
 
   it('offers a held card back instead of inviting a second claim', () => {
@@ -279,7 +273,7 @@ describe('the card chooser', () => {
     expect(viewText(unknown)).toMatch(/Wassie Coffee\s+has no card at this address/u)
     expect(viewNodes(unknown).map(({ props }) => props.href)).toContain('/@wassie-coffee?cards=all')
     expect(viewText(bare)).toContain('There is no card at this address')
-    expect(viewNodes(bare).map(({ props }) => props.href)).toContain('/@wassie-coffee?cards=all')
+    expect(viewNodes(bare).map(({ props }) => props.href)).not.toContain('/')
   })
 })
 
@@ -339,7 +333,6 @@ describe('venue-local navigation', () => {
   ] satisfies Parameters<typeof CardScreenView>[0]['state'][])('keeps $kind within the venue', (state) => {
     const nodes = viewNodes(render(state))
     const hrefs = nodes.map(({ props }) => props.href)
-    expect(hrefs).toContain('/@wassie-coffee?cards=all')
     expect(hrefs).not.toContain('/')
     expect(nodes.some(({ props }) => String(props.class).includes('dock'))).toBe(false)
   })

@@ -64,7 +64,6 @@ export interface CardScreenIo {
 }
 
 export interface CardScreenViewProps {
-  handle: string
   locale?: Locale
   onIssue: () => void
   onReload: () => void
@@ -283,15 +282,15 @@ const qrBlock = (card: PublicCard, issued: IssuedCard, copy: VenueCopy): JSX.Ele
   </div>
 )
 
+const shell = (children: JSX.Element): JSX.Element => VenueLayout({ children })
+
 export const CardScreenView = ({
-  handle,
   locale = DEFAULT_LOCALE,
   onIssue,
   onReload,
   state,
 }: CardScreenViewProps): JSX.Element => {
   const copy = pick(VENUE_COPY, locale)
-  const shell = (children: JSX.Element): JSX.Element => VenueLayout({ children, handle, locale })
   if (state.kind === 'loading') {
     return shell(
       <div class="venue-panel flex min-h-44 items-center justify-center gap-3" role="status">
@@ -527,7 +526,5 @@ export const CardScreen = ({
     setGeneration((value) => value + 1)
   }
 
-  return (
-    <CardScreenView handle={handle} locale={locale} onIssue={onIssue} onReload={onReload} state={state} />
-  )
+  return <CardScreenView locale={locale} onIssue={onIssue} onReload={onReload} state={state} />
 }

@@ -230,7 +230,7 @@ export const StorePreview = (): JSX.Element => {
   }, [state.kind])
 
   return (
-    <div class="[&_.venue-page]:min-h-[calc(100svh-2.75rem)] sm:[&_.venue-page]:min-h-[48rem]">
+    <div class="[&_.venue-page]:min-h-[calc(100svh-2.75rem)]">
       <aside
         class="mx-auto flex max-w-md flex-col gap-2 px-6 py-3 text-center text-[0.6875rem] leading-5 text-[var(--fuda-muted)]"
         aria-label="Preview notice"
@@ -243,7 +243,6 @@ export const StorePreview = (): JSX.Element => {
         <StoreHome venue={venue} locale={locale} origin={location.origin} requested={params.get('card')} />
       ) : (
         <CardScreenView
-          handle={venue.handle}
           locale={locale}
           onIssue={() => {
             if (card !== null && state.kind !== 'issuing') {
