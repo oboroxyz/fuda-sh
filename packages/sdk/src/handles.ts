@@ -74,16 +74,24 @@ export const normalizeBrandColor = (raw: string): string | null =>
 export const CARD_SLUG_MAX_LENGTH = 63
 
 // Keep public pages and the dashboard's /cards/new creation route unambiguous.
-export const RESERVED_CARD_SLUGS: ReadonlySet<string> = new Set(['card', 'cards', 'issue', 'new', 'settings'])
+export const RESERVED_CARD_SLUGS: ReadonlySet<string> = new Set([
+  'card',
+  'cards',
+  'home',
+  'issue',
+  'new',
+  'settings',
+])
 
 export const cardSlugProblem = (raw: string): NameProblem | null =>
   nameProblem(raw, CARD_SLUG_MAX_LENGTH, RESERVED_CARD_SLUGS)
 
 export const isCardSlug = (raw: string): boolean => cardSlugProblem(raw) === null
 
-// Allocation reserves "new", but existing Cards must keep their public links
+// Allocation reserves route names, but existing Cards must keep their public links
 // and saved passes. Reading a reference still requires an actual matching Card.
-export const isCardSlugReference = (raw: string): boolean => raw === 'new' || isCardSlug(raw)
+export const isCardSlugReference = (raw: string): boolean =>
+  raw === 'home' || raw === 'new' || isCardSlug(raw)
 
 // The slug a card title suggests, so an operator rarely types one by hand.
 // An empty result means the title carried nothing usable and the operator
@@ -178,6 +186,8 @@ export interface IssuerView {
   brandColor: string
   operatorAddress: Hex
   createdAt: number
+  // Optional while clients may still talk to an older API deployment.
+  defaultCardSlug?: string | null
   // Built by the api and carrying the stored version, so replacing a logo
   // changes the URL. Null when the venue has no mark. Never assembled by a
   // client: a handle-only URL would be served from cache after a change.
@@ -191,6 +201,8 @@ export interface PublicVenue {
   name: string
   tagline: string
   brandColor: string
+  // Optional while clients may still talk to an older API deployment.
+  defaultCardSlug?: string | null
   cards: CardView[]
   logoUrl: string | null
 }

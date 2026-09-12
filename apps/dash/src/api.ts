@@ -135,6 +135,24 @@ export const updateIssuer = async (
     token,
   })
 
+export interface DefaultCardUpdateRequest {
+  slug: string | null
+}
+
+export interface DefaultCardUpdateResponse {
+  issuer: IssuerView
+}
+
+export const updateDefaultCard = async (
+  token: string,
+  body: DefaultCardUpdateRequest,
+): Promise<Result<DefaultCardUpdateResponse>> =>
+  await apiFetch<DefaultCardUpdateResponse>(API_BASE_URL, '/issuers/me/default-card', {
+    body: JSON.stringify(body),
+    method: 'PUT',
+    token,
+  })
+
 // One more card for the venue this session already owns.
 export const createCard = async (token: string, body: CardRequest): Promise<Result<CardCreateResponse>> =>
   await apiFetch<CardCreateResponse>(API_BASE_URL, '/issuers/cards', {

@@ -7,6 +7,7 @@ import {
   hasSingleValidityRule,
   isCardCategory,
   isCardSlug,
+  isCardSlugReference,
   isClaimable,
   isIssuerHandle,
   isOrderedWindow,
@@ -84,12 +85,21 @@ describe('card slugs', () => {
     expect(isCardSlug('cards')).toBe(false)
   })
 
+  it('reserves home for the store while retaining legacy Card references', () => {
+    expect(isCardSlug('home')).toBe(false)
+    expect(isCardSlugReference('home')).toBe(true)
+  })
+
   it('names the problem for a form', () => {
     expect(cardSlugProblem('')).toBe('empty')
     expect(cardSlugProblem('-stamp')).toBe('format')
     expect(cardSlugProblem('settings')).toBe('reserved')
     expect(cardSlugProblem('new')).toBe('reserved')
     expect(cardSlugProblem('stamp')).toBeNull()
+  })
+
+  it('reports the store route as a reserved Card slug', () => {
+    expect(cardSlugProblem('home')).toBe('reserved')
   })
 
   it('suggests a slug from the card title', () => {

@@ -1,4 +1,12 @@
-import { asHex, CardBody, isCardSlug, isIssuerHandle, IssuerCreateBody, IssuerUpdateBody } from '@fuda/sdk'
+import {
+  asHex,
+  CardBody,
+  DefaultCardBody,
+  isCardSlug,
+  isIssuerHandle,
+  IssuerCreateBody,
+  IssuerUpdateBody,
+} from '@fuda/sdk'
 import type { EnsClaimView, IssuerMeResponse } from '@fuda/sdk'
 import { and, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
@@ -81,6 +89,39 @@ issuersRoutes.put('/issuers/me', operatorAuth(), async (c) => {
     ? errorResponse(c, 'not_found', 404)
     : jsonResponse(c, { issuer: issuerView(updated, c.env.API_BASE_URL) })
 })
+
+issuersRoutes.put(
+  '/issuers/me/default-card',
+  async (c, next) => {
+    c.header('cache-control', 'no-store')
+    await next()
+  },
+  operatorAuth(),
+  async (c) => {
+    const body: unknown = await c.req.json().catch(() => null)
+    const parsed = v.safeParse(DefaultCardBody, body)
+    if (!parsed.success) {
+      return errorResponse(c, 'bad_input', 400)
+    }
+    const found = await ownedVenue(c.get('db'), c.get('operator').issuerId)
+    if (
+      found === null ||
+      (parsed.output.slug !== null && !found.cards.some((card) => card.slug === parsed.output.slug))
+    ) {
+      return errorResponse(c, 'not_found', 404)
+    }
+    const updated = await c
+      .get('db')
+      .update(issuers)
+      .set({ defaultCardSlug: parsed.output.slug })
+      .where(eq(issuers.id, found.issuer.id))
+      .returning()
+      .get()
+    return updated === undefined
+      ? errorResponse(c, 'not_found', 404)
+      : jsonResponse(c, { issuer: issuerView(updated, c.env.API_BASE_URL) })
+  },
+)
 
 // Session-gated so the handle space cannot be enumerated anonymously.
 issuersRoutes.get('/issuers/check', operatorAuth(), async (c) => {

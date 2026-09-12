@@ -14,6 +14,7 @@ export const issuerView = (row: IssuerRow, baseUrl: string): IssuerView => {
   return {
     brandColor: row.brandColor,
     createdAt: row.createdAt,
+    defaultCardSlug: row.defaultCardSlug,
     handle: row.handle,
     id: row.id,
     logoUrl: logoUrlFor(baseUrl, row.handle, row.logoPrefix),
@@ -52,6 +53,7 @@ export const publicVenue = (
 ): PublicVenue => ({
   brandColor: issuer.brandColor,
   cards: cards.map((card) => cardView(card, now)),
+  defaultCardSlug: issuer.defaultCardSlug,
   handle: issuer.handle,
   logoUrl: logoUrlFor(baseUrl, issuer.handle, issuer.logoPrefix),
   name: issuer.name,

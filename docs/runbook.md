@@ -297,6 +297,24 @@ For SSH previews, Dash binds explicitly to IPv4 loopback (`127.0.0.1:5175`) so a
 
 In development mode with the `/api` proxy selected, Dash also displays saved logos from `http://localhost:8787/assets/...` through `/api/assets/...`, preserving the query string. This follows the browser connection, independently of FakeChain or whether the API reads a local or remote R2 bucket. Other asset URLs (including public R2, CDN and signed URLs), explicit API origins, and production builds retain their original URLs.
 
+### Public Card UI preview
+
+For a UI-only walkthrough without an API, start the member app with fictional Wassie Coffee data:
+
+```sh
+VITE_STORE_PREVIEW=1 pnpm dev:app -- --host 127.0.0.1 --port 5183
+```
+
+Open `http://127.0.0.1:5183/@wassie-coffee`; it opens the default Membership Card. `/@wassie-coffee/home` shows the store display. The normal Card view and shared Wallet buttons render with sample data. The claim action simulates a pending state and then opens the acquired Card; its `scene=ready` URL survives reload. This preview does not exercise the live controller, issue a Right, use saved member data, or save a Wallet pass. The Wassie Coffee logo is the unchanged image requested from the onboarding mockup, stored under `apps/app/src/venue/preview-assets/` and imported only by the development preview. Production logos continue to come from the API. The acquired Card QR encodes a preview notice rather than a valid admission payload; the store display QR links to a local Card preview. A notice remains visible stating that nothing is issued or saved.
+
+Use the links below the page, or set `scene=landing|ready|choose|closed|error|loading`, `lang=en|ja`, and `theme=light|dark`. The fixture publishes two Cards with Membership as the default; `cards=single` reduces it to one. `default=none|tasting|closed|missing` exercises the default-selection branches. The bare Handle with `?cards=all` or `?scene=choose` always opens the chooser. `/@wassie-coffee/tasting` previews the Ticket; `/@wassie-coffee/membership` opens the Membership directly. Missing slugs keep the venue's recovery link. Card navigation retains the preview language, theme and card-count settings. Device detection uses the same existing user-agent classifier as the app: iPhone/iPad show Apple Wallet, Android shows Google Wallet, and desktop shows the browser action. Those actions open clearly labeled preview notices, not external Wallet services. Use browser device emulation to inspect both mobile badges. `/home` remains a store display on every device; `?card=tasting` selects the second Card initially. Print hides the preview notices and display controls.
+
+The preview is opt-in and development-only; production builds exclude its entry and fixture even when the variable is set. Restart without `VITE_STORE_PREVIEW` to use the normal app. Do not use preview screenshots as evidence that issuance, scanning, Wallet delivery, Stamps or redemption work end to end.
+
+### Default Card migration
+
+Apply migrations through `0014_issuer_default_card.sql` before deploying the default-Card API. It adds nullable `issuers.default_card_slug`; existing issuers start unset. Use `pnpm migrate:local` for local development and the normal remote migration procedure for production. Deploy the API before the new Dash controls; the member app tolerates an omitted default field from an older API, but the new endpoint requires migration 0014. No default is backfilled automatically. In Dash, open Cards, set the desired default, and verify the bare public Handle opens that Card. Use “Open store display” for iPad or print; test that its QR links to the selected Card rather than the bare Handle.
+
 ### Shared issuer-wallet signature probe
 
 Run the read-only MultiOwnable probe from the repository root:

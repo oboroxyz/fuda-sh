@@ -1,4 +1,22 @@
 @layer components {
+  .store-home {
+    @apply flex min-h-svh w-full items-center justify-center px-6 py-10 text-center [overflow-wrap:anywhere];
+    padding-top: max(2.5rem, env(safe-area-inset-top));
+    padding-bottom: max(2.5rem, env(safe-area-inset-bottom));
+  }
+
+  .store-home-content {
+    @apply flex w-full max-w-lg flex-col items-center gap-8 sm:gap-10;
+  }
+
+  .store-home-qr {
+    @apply w-full max-w-72 rounded-3xl bg-white p-4 text-black shadow-[0_12px_40px_-16px_#0005] sm:max-w-80 sm:p-5;
+  }
+
+  .store-home-qr svg {
+    @apply block h-auto w-full;
+  }
+
   .venue-panel {
     @apply rounded-2xl border border-[var(--fuda-border)] bg-[var(--fuda-surface)] p-5;
   }
@@ -8,32 +26,98 @@
   }
 
   .venue-page {
-    @apply mx-auto flex min-h-svh w-full max-w-md flex-col bg-[var(--fuda-surface)] [overflow-wrap:anywhere];
+    @apply mx-auto flex min-h-svh w-full max-w-md flex-col bg-[var(--fuda-surface)] [overflow-wrap:anywhere] sm:my-10 sm:min-h-[min(48rem,calc(100svh-5rem))] sm:rounded-[2rem] sm:border sm:border-[var(--fuda-border)];
     padding-bottom: env(safe-area-inset-bottom);
   }
 
   .venue-header {
-    @apply flex items-center justify-between gap-3 border-b border-[var(--fuda-border)] px-5 py-2;
-    padding-top: max(0.5rem, env(safe-area-inset-top));
+    @apply flex items-center justify-between gap-3 px-6 py-3;
+    padding-top: max(0.75rem, env(safe-area-inset-top));
   }
 
   .venue-content {
-    @apply flex flex-1 flex-col gap-6 px-5 py-6;
+    @apply flex flex-1 flex-col gap-6 px-6 pt-3 pb-8;
   }
 
   .venue-brand {
-    @apply flex min-h-56 flex-col justify-between gap-8 rounded-2xl p-6 shadow-sm;
+    @apply flex min-h-52 flex-col justify-between gap-7 rounded-[1.25rem] p-6 shadow-[0_8px_24px_-12px_#0005];
   }
 
-  .venue-benefits {
-    @apply rounded-2xl border border-[var(--fuda-border)] bg-[var(--fuda-bg)] p-5;
+  .venue-description {
+    @apply px-1 text-[var(--fuda-muted)];
+  }
+
+  .venue-choice {
+    @apply flex flex-col gap-2 rounded-2xl border border-[var(--fuda-border)] bg-[var(--fuda-surface)] p-5 transition-colors;
   }
 
   .venue-primary {
-    @apply mt-auto flex flex-col gap-3 pt-6 pb-3;
+    @apply mt-auto flex flex-col gap-3 pt-8;
+  }
+
+  .venue-primary .btn {
+    @apply min-h-13 rounded-full;
+  }
+
+  .venue-held-card {
+    @apply overflow-hidden rounded-[1.25rem] border border-[var(--fuda-border)] bg-[var(--fuda-surface)] shadow-[0_8px_24px_-16px_#0004];
+  }
+
+  .venue-held-card .venue-brand {
+    @apply rounded-b-none shadow-none;
+  }
+
+  .venue-qr {
+    @apply flex flex-col items-center gap-2 border-t border-dashed border-[var(--fuda-border)] px-5 pt-4 pb-5;
+  }
+
+  .venue-pass-actions {
+    @apply flex flex-col gap-3;
+  }
+
+  .venue-pass-actions .btn {
+    @apply min-h-13 rounded-full;
   }
 
   .venue-qr svg {
     @apply h-auto w-full max-w-60;
+  }
+}
+
+/* daisyUI emits tabs in utilities; match that layer for brand overrides. */
+@layer utilities {
+  .store-home-tabs {
+    @apply flex w-full max-w-full flex-wrap justify-center gap-1 rounded-2xl bg-black/10 p-1.5 text-inherit;
+  }
+
+  .store-home-tabs .tab {
+    @apply h-auto min-h-11 max-w-full flex-1 rounded-xl px-4 py-2 text-sm leading-snug whitespace-normal text-inherit;
+  }
+
+  .store-home-tabs .tab[aria-selected='true'] {
+    @apply bg-white text-black shadow-sm;
+  }
+}
+
+@media print {
+  .store-home {
+    min-height: 100vh;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .store-home-tabs,
+  .store-home-footer button,
+  .store-home-receive,
+  [aria-label='Preview notice'],
+  [aria-label='Preview scenarios'] {
+    display: none !important;
+  }
+
+  .store-home-qr {
+    width: 75mm;
+    max-width: 75mm;
+    box-shadow: none;
+    break-inside: avoid;
   }
 }

@@ -219,6 +219,13 @@ export interface DashCopy {
     share: string
     copy: string
     copied: string
+    storeDisplay: string
+    defaultBadge: string
+    setDefault: string
+    clearDefault: string
+    defaultSaving: string
+    defaultSaved: string
+    defaultSaveFailed: string
     hint: string
     claimStates: {
       closed: string
@@ -596,6 +603,13 @@ export const DASH_COPY = {
       share: 'Share link',
       copy: 'Copy link',
       copied: 'Copied',
+      storeDisplay: 'Open store display',
+      defaultBadge: 'Default',
+      setDefault: 'Set as default',
+      clearDefault: 'Clear default',
+      defaultSaving: 'Saving…',
+      defaultSaved: 'Default card updated.',
+      defaultSaveFailed: 'Could not update the default card. Try again.',
       hint: 'Anyone who scans gets a card — no app on their side either.',
       claimStates: {
         closed: 'Closed',
@@ -969,6 +983,13 @@ export const DASH_COPY = {
       share: 'リンクを共有',
       copy: 'リンクをコピー',
       copied: 'コピーしました',
+      storeDisplay: 'ストア表示を開く',
+      defaultBadge: 'デフォルト',
+      setDefault: 'デフォルトに設定',
+      clearDefault: 'デフォルトを解除',
+      defaultSaving: '保存中…',
+      defaultSaved: 'デフォルトカードを更新しました。',
+      defaultSaveFailed: 'デフォルトカードを更新できませんでした。もう一度お試しください。',
       hint: 'スキャンした人は誰でもカードを受け取れます。相手にもアプリは要りません。',
       claimStates: {
         closed: '受付終了',

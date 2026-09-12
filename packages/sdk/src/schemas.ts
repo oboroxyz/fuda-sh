@@ -7,6 +7,7 @@ import {
   CARD_DESCRIPTION_MAX_LENGTH,
   hasSingleValidityRule,
   isCardSlug,
+  isCardSlugReference,
   isIssuerHandle,
   isOrderedWindow,
   normalizeBrandColor,
@@ -166,6 +167,12 @@ export const IssuerUpdateBody = v.strictObject({
 })
 
 export type IssuerUpdateRequest = v.InferOutput<typeof IssuerUpdateBody>
+
+export const DefaultCardBody = v.strictObject({
+  slug: v.nullable(v.pipe(v.string(), v.check(isCardSlugReference))),
+})
+
+export type DefaultCardRequest = v.InferOutput<typeof DefaultCardBody>
 
 export type SignInChallengeRequest = v.InferOutput<typeof SignInChallengeBody>
 export type SignInVerifyRequest = v.InferOutput<typeof SignInVerifyBody>

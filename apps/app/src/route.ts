@@ -10,6 +10,7 @@ export type Route =
   | 'rights'
   | 'settings'
   | { card: string; slug: string | null }
+  | { home: string }
   | { redirect: string }
 
 // The member Worker runs at app.fuda.sh. The separately served apex may hand
@@ -84,6 +85,12 @@ export const routeFor = (origin: string, pathname: string, appOrigin: string = A
     return { redirect: `${app}${path}${query}` }
   }
   if (card !== null) {
+    if (card.slug === 'home') {
+      return { home: card.card }
+    }
+    if (card.slug === 'card/home') {
+      return { card: card.card, slug: 'home' }
+    }
     return card
   }
   if (path === '/signed') {

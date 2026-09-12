@@ -356,8 +356,10 @@ export const createFailureOf = (status: number, network: boolean, error: string)
 export const displayUrl = (publicUrl: string): string =>
   publicUrl.replace(/^https?:\/\//u, '').replace(/\/$/u, '')
 
-// One card's own link under the venue page.
-export const cardUrl = (publicUrl: string, slug: string): string => `${publicUrl.replace(/\/$/u, '')}/${slug}`
+// One card's own link under the venue page. `home` predates the store display,
+// so its explicit compatibility route keeps that Card reachable.
+export const cardUrl = (publicUrl: string, slug: string): string =>
+  `${publicUrl.replace(/\/$/u, '')}/${slug === 'home' ? 'card/home' : slug}`
 
 // How a published card reads to a member right now. `claimable` is the api's
 // answer against its own clock and is never second-guessed here; the local

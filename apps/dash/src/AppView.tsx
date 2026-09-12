@@ -58,6 +58,7 @@ export interface AppViewProps {
   onCommitLogo: (variants: LogoSet) => Promise<boolean>
   onCreate: (mode: DesignerMode, form: DesignerForm, logo: LogoSet | null) => void
   onCreateVenue: (form: VenueForm, logo: LogoSet | null) => void
+  onDefaultCard: (slug: string | null) => Promise<boolean>
   onEditProfile: (form: DesignerForm) => void
   onIssue: IssueFormProps['onIssue']
   onNavigate: (route: DashRoute) => void
@@ -94,6 +95,7 @@ export const AppView = ({
   onCommitLogo,
   onCreate,
   onCreateVenue,
+  onDefaultCard,
   onEditProfile,
   onIssue,
   onNavigate,
@@ -238,6 +240,7 @@ export const AppView = ({
                   onNavigate(cardEditPath(selected))
                 }
               }}
+              onDefaultCard={onDefaultCard}
               copy={copy.published}
               managementCopy={copy.management}
               loadPasses={loadPasses}

@@ -138,6 +138,10 @@ describe(cardUrl, () => {
     expect(cardUrl('https://fuda.sh/@wassie-coffee', 'summer')).toBe('https://fuda.sh/@wassie-coffee/summer')
     expect(cardUrl('https://fuda.sh/@wassie-coffee/', 'summer')).toBe('https://fuda.sh/@wassie-coffee/summer')
   })
+
+  it('keeps an existing home Card claimable without colliding with the store display', () => {
+    expect(cardUrl('https://fuda.sh/@wassie-coffee', 'home')).toBe('https://fuda.sh/@wassie-coffee/card/home')
+  })
 })
 
 // A whole minute, because `datetime-local` has no seconds to round-trip.

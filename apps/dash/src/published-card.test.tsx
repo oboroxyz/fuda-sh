@@ -27,6 +27,7 @@ const props = (): PublishedCardProps => ({
   loadPasses: vi.fn<PublishedCardProps['loadPasses']>().mockResolvedValue({ body: passesResponse, ok: true }),
   managementCopy: DASH_COPY.en.management,
   onAddCard: vi.fn<PublishedCardProps['onAddCard']>(),
+  onDefaultCard: vi.fn<PublishedCardProps['onDefaultCard']>().mockResolvedValue(true),
   onNavigate: vi.fn<PublishedCardProps['onNavigate']>(),
   onSettings: vi.fn<PublishedCardProps['onSettings']>(),
   onVenue: vi.fn<PublishedCardProps['onVenue']>(),
@@ -68,6 +69,90 @@ describe('Card list', () => {
     expect(root.querySelector('a[href="https://fuda.sh/@coffee/membership"]')?.getAttribute('target')).toBe(
       '_blank',
     )
+  })
+
+  it('links to the store display while keeping the existing home Card on its explicit claim route', () => {
+    const p = props()
+    render(<PublishedCard {...p} cards={[{ ...membershipCard, id: 'home-card', slug: 'home' }]} />, root)
+
+    expect(root.querySelector('a[href="https://fuda.sh/@coffee/home"]')?.textContent).toBe(
+      'Open store display',
+    )
+    expect(root.querySelector('a[href="https://fuda.sh/@coffee/card/home"]')).not.toBeNull()
+  })
+
+  it('marks the default Card and clears it with pending feedback', async () => {
+    const pending = Promise.withResolvers<boolean>()
+    const p = props()
+    const onDefaultCard = vi.fn<PublishedCardProps['onDefaultCard']>().mockReturnValue(pending.promise)
+    p.issuer = { ...p.issuer, defaultCardSlug: membershipCard.slug }
+    p.onDefaultCard = onDefaultCard
+    render(<PublishedCard {...p} />, root)
+
+    expect(rows()[0]?.textContent).toContain('Default')
+    const clear = [...rows()[0].querySelectorAll('button')].find(
+      (node) => node.textContent === 'Clear default',
+    )!
+    clear.click()
+    await vi.waitFor(() => {
+      expect(clear.disabled).toBe(true)
+      expect(clear.textContent).toBe('Saving…')
+    })
+    expect(onDefaultCard).toHaveBeenCalledExactlyOnceWith(null)
+    pending.resolve(true)
+    await vi.waitFor(() => {
+      expect(root.querySelector('[role=status]')?.textContent).toContain('Default card updated')
+    })
+  })
+
+  it('serializes the default action state for assistive technology', () => {
+    const p = props()
+    p.issuer = { ...p.issuer, defaultCardSlug: membershipCard.slug }
+    render(<PublishedCard {...p} />, root)
+
+    const pressed = [...root.querySelectorAll('button[aria-pressed]')]
+    expect(pressed).toHaveLength(2)
+    expect(pressed[0]?.getAttribute('aria-pressed')).toBe('true')
+    expect(pressed[1]?.getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('starts only one default save when the action is clicked twice immediately', async () => {
+    const pending = Promise.withResolvers<boolean>()
+    const p = props()
+    const onDefaultCard = vi.fn<PublishedCardProps['onDefaultCard']>().mockReturnValue(pending.promise)
+    p.onDefaultCard = onDefaultCard
+    render(<PublishedCard {...p} />, root)
+    const setDefault = [...rows()[1].querySelectorAll('button')].find(
+      (node) => node.textContent === 'Set as default',
+    )!
+
+    setDefault.click()
+    setDefault.click()
+
+    expect(onDefaultCard).toHaveBeenCalledExactlyOnceWith(ticketCard.slug)
+    pending.resolve(true)
+    await vi.waitFor(() => {
+      expect(root.querySelector('[role=status]')?.textContent).toContain('Default card updated')
+    })
+  })
+
+  it('sets a default Card and reports a failed save without changing the marker', async () => {
+    const p = props()
+    const onDefaultCard = vi.fn<PublishedCardProps['onDefaultCard']>().mockResolvedValue(false)
+    p.issuer = { ...p.issuer, defaultCardSlug: null }
+    p.onDefaultCard = onDefaultCard
+    render(<PublishedCard {...p} />, root)
+
+    const setDefault = [...rows()[1].querySelectorAll('button')].find(
+      (node) => node.textContent === 'Set as default',
+    )!
+    setDefault.click()
+
+    await vi.waitFor(() => {
+      expect(onDefaultCard).toHaveBeenCalledExactlyOnceWith(ticketCard.slug)
+      expect(root.querySelector('[role=alert]')?.textContent).toContain('Could not update the default card')
+    })
+    expect(root.textContent).not.toContain('Default card updated')
   })
 
   it('filters by type and name, and offers a reset after no matches', async () => {
