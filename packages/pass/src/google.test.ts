@@ -99,6 +99,7 @@ describe(buildGenericObject, () => {
       type: 'QR_CODE',
       value: `fuda:v1:${UID}`,
     })
+    expect(obj.smartTapRedemptionValue).toBe(obj.barcode.value)
   })
 
   it('shows the tier as the header and repeats tier and member as text modules', () => {

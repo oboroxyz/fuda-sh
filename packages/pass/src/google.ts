@@ -64,6 +64,7 @@ export interface GoogleGenericObject {
   hexBackgroundColor?: string
   id: string
   logo?: WalletImage
+  smartTapRedemptionValue: string
   state: string
   subheader?: LocalizedString
   textModulesData: TextModule[]
@@ -91,6 +92,7 @@ export const buildGenericObject = (cfg: GoogleConfig, input: GooglePassInput): G
     barcode: { alternateText: input.uid.slice(0, 10), type: 'QR_CODE', value: input.qr },
     classId: cfg.classId,
     id: `${cfg.issuerId}.${input.uid.slice(2)}`,
+    smartTapRedemptionValue: input.qr,
     state: 'ACTIVE',
   }
   const branding = input.branding ?? null
