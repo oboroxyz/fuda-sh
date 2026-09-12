@@ -165,7 +165,10 @@ const RpcId = v.union([v.string(), v.number(), v.null()])
 const PaymasterBody = v.object({
   id: v.optional(RpcId, null),
   method: v.picklist(['pm_getPaymasterStubData', 'pm_getPaymasterData']),
-  params: v.tupleWithRest([v.object({ callData: v.string() })], v.unknown()),
+  // `looseObject`, not `object`: the wallet's user operation is forwarded to the
+  // vendor as it arrived, and valibot's `object` strips every field but the one
+  // named here — Alchemy then sees `{ callData }` alone and refuses it.
+  params: v.tupleWithRest([v.looseObject({ callData: v.string() })], v.unknown()),
 })
 
 type RpcIdValue = v.InferOutput<typeof RpcId>
@@ -193,6 +196,11 @@ ensClaimRoutes.post('/ens/paymaster', rateLimit({ budget: PAYMASTER_BUDGET }), a
   const { id, method, params } = parsed.output
   const [userOperation, ...rest] = params
   if (!sponsorable(userOperation.callData, config.registrar)) {
+    // Logged so `wrangler tail` shows what a wallet tried to get paid for.
+    console.warn('ens paymaster: call not sponsored', {
+      method,
+      selector: userOperation.callData.slice(0, 10),
+    })
     return c.json(rpcError(id, -32_602, 'call not sponsored'), 400)
   }
   // The policy id is injected here rather than sent by the browser: Alchemy
@@ -207,5 +215,10 @@ ensClaimRoutes.post('/ens/paymaster', rateLimit({ budget: PAYMASTER_BUDGET }), a
     return c.json(rpcError(id, -32_603, 'paymaster unavailable'), 502)
   }
   const answer = v.parse(v.unknown(), await upstream.json())
+  if (!upstream.ok) {
+    // The vendor's reason is the only diagnostic there is: the wallet just falls
+    // back to charging the user, so surface it where `wrangler tail` can see it.
+    console.error('ens paymaster: upstream refused', { answer, method, status: upstream.status })
+  }
   return c.json(answer, upstream.ok ? 200 : 502)
 })

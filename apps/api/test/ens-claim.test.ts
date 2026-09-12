@@ -80,7 +80,14 @@ const receipt = (logs: unknown[], status: '0x0' | '0x1' = '0x1') => ({
 // from, and the vendor the paymaster proxy forwards to.
 const rpcAnswer = (result: unknown): Response => Response.json({ id: 1, jsonrpc: '2.0', result })
 
-const stubChain = (options: { logs?: unknown[]; receiptStatus?: '0x0' | '0x1'; upstream?: unknown } = {}) => {
+const stubChain = (
+  options: {
+    logs?: unknown[]
+    receiptStatus?: '0x0' | '0x1'
+    upstream?: unknown
+    upstreamStatus?: number
+  } = {},
+) => {
   const calls: { body: { method?: string; params?: unknown[] }; url: string }[] = []
   vi.stubGlobal(
     'fetch',
@@ -89,7 +96,11 @@ const stubChain = (options: { logs?: unknown[]; receiptStatus?: '0x0' | '0x1'; u
       const body = JSON.parse(init?.body ?? '{}') as { method?: string; params?: unknown[] }
       calls.push({ body, url })
       if (url === UPSTREAM) {
-        return await Promise.resolve(rpcAnswer(options.upstream ?? { paymasterAndData: '0xfeed' }))
+        return await Promise.resolve(
+          options.upstreamStatus === undefined
+            ? rpcAnswer(options.upstream ?? { paymasterAndData: '0xfeed' })
+            : Response.json(options.upstream, { status: options.upstreamStatus }),
+        )
       }
       if (body.method === 'eth_getTransactionReceipt') {
         return await Promise.resolve(
@@ -321,7 +332,7 @@ describe('issuer ENS claim', () => {
         },
         `0x${'5f'.repeat(20)}`,
         '0xaa36a7',
-      ],
+      ] as const,
     })
 
     const send = async (bindings: Bindings, body: unknown) =>
@@ -343,6 +354,48 @@ describe('issuer ENS claim', () => {
       expect(response.status).toBe(200)
       const forwarded = calls.find((call) => call.url === UPSTREAM)
       expect(forwarded?.body.params?.[3]).toStrictEqual({ policyId: 'policy-1' })
+    })
+
+    it('forwards the whole user operation, not only the call data it inspected', async () => {
+      const calls = stubChain()
+      const body = sponsoredBody(REGISTRAR)
+      const [operation, ...rest] = body.params
+      const fields = {
+        callGasLimit: '0x5208',
+        initCode: '0x',
+        nonce: '0x1',
+        sender: `0x${'ab'.repeat(20)}`,
+        signature: '0x',
+      }
+
+      const response = await send(configured(), { ...body, params: [{ ...operation, ...fields }, ...rest] })
+
+      expect(response.status).toBe(200)
+      const forwarded = calls.find((call) => call.url === UPSTREAM)
+      expect(forwarded?.body.params?.[0]).toMatchObject(fields)
+    })
+
+    it('passes the vendor’s refusal through as 502 (and logs it for `wrangler tail`)', async () => {
+      const error = vi.spyOn(console, 'error').mockReturnValue()
+      const refusal = { error: { code: -32_602, message: 'Invalid User Operation' }, id: 1, jsonrpc: '2.0' }
+      stubChain({ upstream: refusal, upstreamStatus: 400 })
+
+      const response = await send(configured(), sponsoredBody(REGISTRAR))
+      error.mockRestore()
+
+      expect(response.status).toBe(502)
+      await expect(response.json()).resolves.toStrictEqual(refusal)
+    })
+
+    it('answers a refused call with the JSON-RPC error the wallet expects', async () => {
+      const warn = vi.spyOn(console, 'warn').mockReturnValue()
+      stubChain()
+
+      const response = await send(configured(), sponsoredBody(`0x${'aa'.repeat(20)}`))
+      warn.mockRestore()
+
+      expect(response.status).toBe(400)
+      await expect(response.json()).resolves.toMatchObject({ error: { message: 'call not sponsored' } })
     })
 
     it('refuses a call to any other contract without contacting the vendor', async () => {
