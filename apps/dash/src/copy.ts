@@ -383,7 +383,7 @@ export const DASH_COPY = {
       continue: 'Continue',
       unauthorized: 'Unauthorized. Check the admin token.',
       passkey: AUTH_COPY.en.signInWithPasskey,
-      passkeyHint: 'No email, no password. Your passkey is the whole account.',
+      passkeyHint: 'Sign in with a passkey. Coinbase may ask for an email to recover your account.',
       adminSection: 'Sign in with an admin token instead',
       signingIn: 'Waiting for your passkey…',
       restoring: 'Restoring your session…',
@@ -764,7 +764,8 @@ export const DASH_COPY = {
       continue: '続ける',
       unauthorized: '認証できませんでした。管理トークンを確認してください。',
       passkey: AUTH_COPY.ja.signInWithPasskey,
-      passkeyHint: 'メールアドレスもパスワードも不要です。パスキーがそのままアカウントになります。',
+      passkeyHint:
+        'パスキーでサインインします。アカウント復旧のため、Coinbaseからメールアドレスを求められることがあります。',
       adminSection: '管理トークンでサインインする',
       signingIn: 'パスキーの操作を待っています…',
       restoring: 'ログイン状態を確認しています…',
