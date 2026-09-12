@@ -27,6 +27,7 @@ import { rememberPass } from '../pass-memory.ts'
 import type { PassMemoryStorage } from '../pass-memory.ts'
 import { VENUE_COPY } from './copy.ts'
 import type { VenueCopy } from './copy.ts'
+import { cardClaimHref } from './entry.ts'
 import { VenueLayout } from './VenueLayout.tsx'
 
 // A card this device holds: the remembered record plus what the pass links
@@ -43,7 +44,7 @@ export interface IssuedCard extends CardMemoryEntry {
 export type CardScreenState =
   | { kind: 'loading' }
   | { kind: 'not_found'; venue: PublicVenue | null }
-  | { kind: 'choose'; venue: PublicVenue; heldSlugs: readonly string[] }
+  | { kind: 'choose'; venue: PublicVenue; heldSlugs: readonly string[]; defaultUnavailable?: boolean }
   | { kind: 'landing'; card: PublicCard }
   | { kind: 'issuing'; card: PublicCard }
   | {
@@ -80,9 +81,9 @@ export const issueDateOf = (issuedAt: number, locale: Locale = DEFAULT_LOCALE): 
 
 // The venue's own address, so a member who followed a card link can go back to
 // everything else the venue publishes.
-export const venueHref = (handle: string): string => `/@${handle}`
+export const venueHref = (handle: string): string => `/@${handle}?cards=all`
 
-export const cardHref = (handle: string, slug: string): string => `/@${handle}/${slug}`
+export const cardHref = cardClaimHref
 
 const nounOf = (card: PublicCard, copy: VenueCopy): string => copy.category[card.card.category].noun
 
@@ -112,7 +113,7 @@ const brandCard = (venue: VenueBrand, body: JSX.Element): JSX.Element => (
           src={venue.logoUrl}
         />
       )}
-      <div class="text-xs font-semibold tracking-widest uppercase">{venue.name}</div>
+      <div class="min-w-0 text-sm font-semibold">{venue.name}</div>
     </div>
     {body}
   </div>
@@ -122,8 +123,10 @@ const landingCard = (card: PublicCard): JSX.Element =>
   brandCard(
     card,
     <>
-      <h1 class="text-2xl font-bold">{card.card.title}</h1>
-      {card.tagline === '' ? null : <p class="text-sm">{card.tagline}</p>}
+      <div class="flex flex-col gap-2">
+        <h1 class="text-[1.75rem] leading-tight font-semibold tracking-tight">{card.card.title}</h1>
+        {card.tagline === '' ? null : <p class="text-sm leading-relaxed">{card.tagline}</p>}
+      </div>
     </>,
   )
 
@@ -131,18 +134,22 @@ const memberCard = (card: PublicCard, issued: IssuedCard, copy: VenueCopy, local
   brandCard(
     card,
     <>
-      <h1 class="text-lg font-bold">{card.card.title}</h1>
-      <div class="flex flex-col gap-1">
-        <div class="text-xs tracking-widest uppercase">{copy.category[card.card.category].role}</div>
-        <div class="font-mono text-xl">{formatMemberNumber(issued.memberNumber)}</div>
-        <div class="text-xs">{copy.issued(issueDateOf(issued.issuedAt, locale))}</div>
+      <h1 class="text-2xl leading-tight font-semibold tracking-tight">{card.card.title}</h1>
+      <div class="flex flex-col gap-2">
+        <div class="text-[0.625rem] font-semibold tracking-[0.16em] uppercase">
+          {copy.category[card.card.category].role}
+        </div>
+        <div class="font-mono text-lg tracking-wide">{formatMemberNumber(issued.memberNumber)}</div>
+        <div class="text-[0.6875rem]">{copy.issued(issueDateOf(issued.issuedAt, locale))}</div>
       </div>
     </>,
   )
 
 const cardDescription = (card: PublicCard): JSX.Element | null =>
   card.card.description === '' ? null : (
-    <p class="text-sm leading-relaxed wrap-anywhere whitespace-pre-wrap">{card.card.description}</p>
+    <p class="venue-description text-sm leading-7 wrap-anywhere whitespace-pre-wrap">
+      {card.card.description}
+    </p>
   )
 
 // A card the member already holds is worth opening; one outside its claim
@@ -158,9 +165,7 @@ const chooserRow = (venue: PublicVenue, card: CardView, held: boolean, copy: Ven
   <li key={card.slug}>
     <a
       class={
-        card.claimable || held
-          ? 'rounded-box border-base-300 bg-base-100 hover:border-base-content/30 flex flex-col gap-1 border p-4 transition'
-          : 'rounded-box border-base-300 bg-base-100 flex flex-col gap-1 border p-4 opacity-60'
+        card.claimable || held ? 'venue-choice hover:border-base-content/40' : 'venue-choice border-dashed'
       }
       href={cardHref(venue.handle, card.slug)}
     >
@@ -173,7 +178,14 @@ const chooserRow = (venue: PublicVenue, card: CardView, held: boolean, copy: Ven
           {card.description}
         </span>
       )}
-      <span class="text-xs font-semibold opacity-80">{rowInvitation(card, held, copy)}</span>
+      <span class="mt-2 flex items-center justify-between gap-3 text-xs font-semibold text-[var(--fuda-muted)]">
+        {rowInvitation(card, held, copy)}
+        {card.claimable || held ? (
+          <span aria-hidden="true" class="text-lg">
+            ↗
+          </span>
+        ) : null}
+      </span>
     </a>
   </li>
 )
@@ -249,22 +261,25 @@ const passActions = (
   copy: VenueCopy,
   locale: Locale,
 ): JSX.Element => (
-  <div class="flex flex-col gap-2">
+  <div class="venue-pass-actions">
     {passAction(issued, googleHref, appleHref, copy, locale)}
-    <p class="text-center text-xs opacity-70">{copy.savedOnDevice(nounOf(card, copy))}</p>
+    <p class="mx-auto max-w-64 text-center text-xs leading-5 text-[var(--fuda-muted)]">
+      {copy.savedOnDevice(nounOf(card, copy))}
+    </p>
   </div>
 )
 
 const qrBlock = (card: PublicCard, issued: IssuedCard, copy: VenueCopy): JSX.Element => (
-  <div class="venue-qr flex justify-center">
+  <div class="venue-qr">
     <div
       role="img"
       aria-label={copy.qrLabel(card.name, nounOf(card, copy))}
-      class="rounded-box w-64 max-w-full bg-white p-2"
+      class="w-44 max-w-full bg-white p-3"
       // The markup is built locally by qrSvg from the right's uid — no remote or
       // venue-entered content reaches it.
       dangerouslySetInnerHTML={{ __html: qrSvg(issued.qr, { modulePx: 120 }) }}
     />
+    <p class="text-center text-xs leading-5 text-[var(--fuda-muted)]">{copy.showQr}</p>
   </div>
 )
 
@@ -289,7 +304,16 @@ export const CardScreenView = ({
     return shell(notFound(state.venue, copy))
   }
   if (state.kind === 'choose') {
-    return shell(chooser(state.venue, state.heldSlugs, copy))
+    return shell(
+      <>
+        {state.defaultUnavailable === true ? (
+          <p class="alert alert-soft" role="status">
+            {copy.defaultUnavailable}
+          </p>
+        ) : null}
+        {chooser(state.venue, state.heldSlugs, copy)}
+      </>,
+    )
   }
   if (state.kind === 'error') {
     return shell(
@@ -307,8 +331,10 @@ export const CardScreenView = ({
   if (state.kind === 'ready') {
     return shell(
       <>
-        {memberCard(state.card, state.issued, copy, locale)}
-        {qrBlock(state.card, state.issued, copy)}
+        <section class="venue-held-card">
+          {memberCard(state.card, state.issued, copy, locale)}
+          {qrBlock(state.card, state.issued, copy)}
+        </section>
         {passActions(state.card, state.issued, state.googleHref, state.appleHref, copy, locale)}
       </>,
     )
@@ -336,6 +362,7 @@ export const CardScreenView = ({
       {cardDescription(state.card)}
       <div class="venue-primary">
         <button class="btn btn-primary w-full" type="button" disabled={busy} onClick={onIssue}>
+          {busy ? <span class="loading loading-spinner loading-xs" aria-hidden="true" /> : <CardsThree />}
           {busy ? copy.gettingCard : copy.getFreeCard(nounOf(state.card, copy))}
         </button>
         <p role="status" aria-live="polite" class="text-center text-xs opacity-70">
@@ -359,7 +386,7 @@ const issuedFrom = (entry: CardMemoryEntry): IssuedCard => ({
   qr: toQr(entry.uid),
 })
 
-const heldSlugsOf = (venue: PublicVenue, storage?: PassMemoryStorage): string[] => {
+export const heldSlugsOf = (venue: PublicVenue, storage?: PassMemoryStorage): string[] => {
   const memory = readCardMemory(storage)
   return venue.cards
     .filter((card) => Object.hasOwn(memory, cardKey(venue.handle, card.slug)))

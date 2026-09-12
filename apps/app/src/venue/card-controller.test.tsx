@@ -10,6 +10,7 @@ import { readCard, rememberCard } from '../card-memory.ts'
 import { readPassMemory } from '../pass-memory.ts'
 import { CardScreen } from './CardScreen.tsx'
 import type { CardScreenIo } from './CardScreen.tsx'
+import { VenueLayout } from './VenueLayout.tsx'
 
 const venue: PublicVenue = {
   brandColor: '#ffffff',
@@ -49,6 +50,19 @@ describe('venue controller', () => {
     localStorage.clear()
   })
 
+  it('keeps the venue return link alongside an accessible fuda icon', () => {
+    const host = document.createElement('div')
+    render(
+      <VenueLayout handle="garden-cafe">
+        <p>Card content</p>
+      </VenueLayout>,
+      host,
+    )
+    expect(host.querySelector('header svg[role="img"]')?.getAttribute('aria-label')).toBe('fuda.')
+    expect(host.querySelector('header a')?.getAttribute('href')).toBe('/@garden-cafe?cards=all')
+    render(<></>, host)
+  })
+
   it('opens a saved card without issuing again', async () => {
     rememberCard(
       venue.handle,
@@ -61,10 +75,10 @@ describe('venue controller', () => {
     const deps = io()
     render(<CardScreen handle={venue.handle} slug={null} io={deps} storage={localStorage} />, host)
     await vi.waitFor(() => {
-      expect(host.querySelector('[role="img"]')).not.toBeNull()
+      expect(host.querySelector('.venue-qr [role="img"]')).not.toBeNull()
     })
     expect(deps.issueCard).not.toHaveBeenCalled()
-    expect(host.querySelector('a[href="/@garden-cafe"]')).not.toBeNull()
+    expect(host.querySelector('a[href="/@garden-cafe?cards=all"]')).not.toBeNull()
     expect(host.querySelector('a[href="/"]')).toBeNull()
     render(<></>, host)
   })
@@ -125,15 +139,15 @@ describe('venue controller', () => {
     await vi.waitFor(() => {
       expect(host.textContent).toContain('Issued Jan 31, 2026')
     })
-    const qr = host.querySelector('[role="img"]')?.innerHTML
+    const qr = host.querySelector('.venue-qr [role="img"]')?.innerHTML
     host.querySelector<HTMLButtonElement>('[data-locale]')!.click()
     await vi.waitFor(() => {
       expect(host.textContent).toContain('発行日 2026/01/31')
     })
     expect(host.textContent).toMatch(/QJ2Y-XPHE-PDRKA.*発行日 2026\/01\/31/u)
     expect({
-      label: host.querySelector('[role="img"]')?.getAttribute('aria-label'),
-      markup: host.querySelector('[role="img"]')?.innerHTML,
+      label: host.querySelector('.venue-qr [role="img"]')?.getAttribute('aria-label'),
+      markup: host.querySelector('.venue-qr [role="img"]')?.innerHTML,
     }).toStrictEqual({ label: 'Garden Cafeの会員証のQRコード', markup: qr })
     wallet.resolve(true)
     await vi.waitFor(() => {

@@ -6,6 +6,7 @@ import {
   listMembers,
   readStampSettings,
   revokeRight,
+  updateDefaultCard,
   updateStampSettings,
   uploadLogo,
 } from './api.ts'
@@ -135,6 +136,34 @@ describe('committing a logo', () => {
       method: 'POST',
     })
   })
+})
+
+describe('default Card requests', () => {
+  it.each(['membership', null] as const)(
+    'PUTs slug %s to the authenticated issuer endpoint',
+    async (slug) => {
+      const issuer = {
+        brandColor: '#0073EB',
+        createdAt: 1,
+        defaultCardSlug: slug,
+        handle: 'coffee',
+        id: 'issuer',
+        logoUrl: null,
+        name: 'Coffee',
+        operatorAddress: `0x${'ab'.repeat(20)}`,
+        tagline: '',
+      }
+      const spy = stubFetch(() => json({ issuer }, 200))
+
+      await updateDefaultCard(TOKEN, { slug })
+
+      expect(spy).toHaveBeenCalledWith('/api/v1/issuers/me/default-card', {
+        body: JSON.stringify({ slug }),
+        headers: HEADERS,
+        method: 'PUT',
+      })
+    },
+  )
 })
 
 describe('Card stamp policy requests', () => {

@@ -204,7 +204,7 @@ describe(CardScreenView, () => {
     })
     const hrefs = viewNodes(shown).map(({ props }) => props.href)
 
-    expect(hrefs.filter((href) => href !== '/@wassie-coffee' && href !== undefined)).toStrictEqual([
+    expect(hrefs.filter((href) => href !== '/@wassie-coffee?cards=all' && href !== undefined)).toStrictEqual([
       expectedHref,
     ])
     expect(viewText(shown)).toContain('No name or contact details required')
@@ -239,7 +239,11 @@ describe('the card chooser', () => {
     expect(text).toContain('Wassie Coffee')
     expect(text).toContain('Slow coffee, fast wifi')
     expect(text).toMatch(/Regular.*Membership.*Free refill on every visit.*Friday Gig.*Ticket/su)
-    expect(hrefs).toStrictEqual(['/@wassie-coffee', '/@wassie-coffee/regular', '/@wassie-coffee/gig'])
+    expect(hrefs).toStrictEqual([
+      '/@wassie-coffee?cards=all',
+      '/@wassie-coffee/regular',
+      '/@wassie-coffee/gig',
+    ])
   })
 
   it('offers a held card back instead of inviting a second claim', () => {
@@ -273,9 +277,9 @@ describe('the card chooser', () => {
     const bare = render({ kind: 'not_found', venue: null })
 
     expect(viewText(unknown)).toMatch(/Wassie Coffee\s+has no card at this address/u)
-    expect(viewNodes(unknown).map(({ props }) => props.href)).toContain('/@wassie-coffee')
+    expect(viewNodes(unknown).map(({ props }) => props.href)).toContain('/@wassie-coffee?cards=all')
     expect(viewText(bare)).toContain('There is no card at this address')
-    expect(viewNodes(bare).map(({ props }) => props.href)).toContain('/@wassie-coffee')
+    expect(viewNodes(bare).map(({ props }) => props.href)).toContain('/@wassie-coffee?cards=all')
   })
 })
 
@@ -291,7 +295,7 @@ describe('a card outside its claim window', () => {
 
   it('offers the way back to the venue page', () => {
     const back = viewNodes(render({ card: closed, kind: 'landing' })).find(
-      (node) => node.props.href === `/@${closed.handle}`,
+      (node) => node.props.href === `/@${closed.handle}?cards=all`,
     )
     expect(back).toBeDefined()
   })
@@ -335,7 +339,7 @@ describe('venue-local navigation', () => {
   ] satisfies Parameters<typeof CardScreenView>[0]['state'][])('keeps $kind within the venue', (state) => {
     const nodes = viewNodes(render(state))
     const hrefs = nodes.map(({ props }) => props.href)
-    expect(hrefs).toContain('/@wassie-coffee')
+    expect(hrefs).toContain('/@wassie-coffee?cards=all')
     expect(hrefs).not.toContain('/')
     expect(nodes.some(({ props }) => String(props.class).includes('dock'))).toBe(false)
   })

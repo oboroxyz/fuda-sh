@@ -35,6 +35,7 @@ export const members = sqliteTable(
 export const issuers = sqliteTable('issuers', {
   brandColor: text('brand_color').notNull(),
   createdAt: integer('created_at').notNull(),
+  defaultCardSlug: text('default_card_slug'),
   handle: text('handle').notNull().unique(),
   id: text('id').primaryKey(),
   logoPrefix: text('logo_prefix'),

@@ -151,6 +151,101 @@ describe('dashboard query lifecycle', () => {
     expect(location.pathname).toBe('/cards/membership/edit')
   })
 
+  it.each(['membership', null] as const)(
+    'saves default Card %s into the active issuer cache',
+    async (slug) => {
+      const changedIssuer = { ...issuer.issuer, defaultCardSlug: slug }
+      const save = vi
+        .fn<OperatorIo['updateDefaultCard']>()
+        .mockResolvedValue({ body: { issuer: changedIssuer }, ok: true })
+      const operator = { ...operatorIo(), updateDefaultCard: save } as OperatorIo
+      await start(operator)
+
+      await expect(view().onDefaultCard(slug)).resolves.toBe(true)
+
+      expect(save).toHaveBeenCalledExactlyOnceWith('session', { slug })
+      await vi.waitFor(() => {
+        expect(view().session.operator?.issuer).toStrictEqual(changedIssuer)
+      })
+    },
+  )
+
+  it.each(['default-first', 'profile-first'])(
+    'preserves concurrent default Card and profile writes: %s',
+    async (order) => {
+      const defaultWrite = Promise.withResolvers<{
+        body: { issuer: typeof issuer.issuer & { defaultCardSlug: string } }
+        ok: true
+      }>()
+      const profileWrite = Promise.withResolvers<Awaited<ReturnType<OperatorIo['updateIssuer']>>>()
+      const profile = { brandColor: '#0073EB', name: 'New Coffee', tagline: 'New tagline' }
+      const save = vi.fn<OperatorIo['updateDefaultCard']>().mockReturnValue(defaultWrite.promise)
+      const operator = { ...operatorIo(), updateDefaultCard: save } as OperatorIo
+      vi.spyOn(operator, 'updateIssuer').mockReturnValue(profileWrite.promise)
+      await start(operator)
+
+      const savingDefault = view().onDefaultCard('membership')
+      const savingProfile = view().onUpdateVenue(profile)
+      const resolveDefault = (): void => {
+        defaultWrite.resolve({
+          body: { issuer: { ...issuer.issuer, defaultCardSlug: 'membership' } },
+          ok: true,
+        })
+      }
+      const resolveProfile = (): void => {
+        profileWrite.resolve({ body: { issuer: { ...issuer.issuer, ...profile } }, ok: true })
+      }
+      if (order === 'default-first') {
+        resolveDefault()
+        await savingDefault
+        resolveProfile()
+      } else {
+        resolveProfile()
+        await savingProfile
+        resolveDefault()
+      }
+      await Promise.all([savingDefault, savingProfile])
+
+      await vi.waitFor(() => {
+        expect(view().session.operator?.issuer).toStrictEqual({
+          ...issuer.issuer,
+          ...profile,
+          defaultCardSlug: 'membership',
+        })
+      })
+    },
+  )
+
+  it('ends an expired session and ignores a default Card response after sign-out', async () => {
+    const late = Promise.withResolvers<{
+      body: { issuer: typeof issuer.issuer & { defaultCardSlug: string } }
+      ok: true
+    }>()
+    const save = vi
+      .fn<OperatorIo['updateDefaultCard']>()
+      .mockResolvedValueOnce(expired)
+      .mockReturnValueOnce(late.promise)
+    const operator = { ...operatorIo(), updateDefaultCard: save } as OperatorIo
+    await start(operator)
+
+    await expect(view().onDefaultCard('membership')).resolves.toBe(false)
+    await vi.waitFor(() => {
+      expect(view().session.token).toBeNull()
+    })
+    view().onPasskey()
+    await vi.waitFor(() => {
+      expect(view().session.token).toBe('session')
+    })
+    const saving = view().onDefaultCard('membership')
+    view().onSignOut()
+    late.resolve({
+      body: { issuer: { ...issuer.issuer, defaultCardSlug: 'membership' } },
+      ok: true,
+    })
+    await expect(saving).resolves.toBe(false)
+    expect(view().session.operator).toBeNull()
+  })
+
   it.each([
     { outcome: 'success', token: 'session' },
     { outcome: 'unauthorized', token: null },

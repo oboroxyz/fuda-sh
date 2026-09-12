@@ -102,6 +102,7 @@ export const App = ({
   const [generation] = useState(createSessionGeneration)
   const latestMembersLoad = useRef(0)
   const latestCardSave = useRef(new Map<string, symbol>())
+  const latestDefaultSave = useRef<symbol | null>(null)
   const activeSession = useRef(session)
   activeSession.current = session
   const { token } = session
@@ -113,6 +114,7 @@ export const App = ({
     (next: SessionState): void => {
       generation.invalidate()
       latestCardSave.current.clear()
+      latestDefaultSave.current = null
       queryClient.clear()
       if (next.operator === null) {
         clearOperatorToken(activeToken.current ?? restoringToken.current)
@@ -683,6 +685,45 @@ export const App = ({
     return true
   }
 
+  const onDefaultCard = async (slug: string | null): Promise<boolean> => {
+    if (token === null || (activeSession.current.operator?.issuer ?? null) === null) {
+      return false
+    }
+    const sessionToken = token
+    const ticket = generation.capture()
+    const save = Symbol('default-card')
+    latestDefaultSave.current = save
+    let result: Awaited<ReturnType<OperatorIo['updateDefaultCard']>>
+    try {
+      result = await operatorIo.updateDefaultCard(sessionToken, { slug })
+    } catch {
+      return false
+    }
+    if (!generation.isCurrent(ticket) || activeToken.current !== sessionToken) {
+      return false
+    }
+    if (!result.ok) {
+      if (result.status === 401) {
+        replaceSession(unauthorizedSession(activeSession.current))
+      }
+      return false
+    }
+    if (latestDefaultSave.current !== save || result.body.issuer.defaultCardSlug === undefined) {
+      return false
+    }
+    const current = activeSession.current.operator
+    if (current === null || current.issuer === null || current.issuer.id !== result.body.issuer.id) {
+      return false
+    }
+    // This response owns only the default selection. Concurrent profile and
+    // logo writes keep their fields from the freshest active issuer snapshot.
+    updateOperator({
+      ...current,
+      issuer: { ...current.issuer, defaultCardSlug: result.body.issuer.defaultCardSlug },
+    })
+    return true
+  }
+
   const readStamps = useCallback(
     async (cardId: string) => {
       const sessionToken = token ?? ''
@@ -822,6 +863,7 @@ export const App = ({
         navigateTo(history, '/profile')
         setRoute('/profile')
       }}
+      onDefaultCard={onDefaultCard}
       onUpdateVenue={onUpdateVenue}
       onIssue={async (body) =>
         context === null

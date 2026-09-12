@@ -1,6 +1,6 @@
 /** @jsxImportSource hono/jsx/dom */
 import type { CardCategory, CardView, IssuerView } from '@fuda/sdk'
-import { useState } from 'hono/jsx/dom'
+import { useRef, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import { cardUrl, displayUrl } from './card-designer.ts'
@@ -22,6 +22,7 @@ export interface PublishedCardProps {
   issuer: IssuerView
   loadPasses: PassesLoad
   onAddCard: () => void
+  onDefaultCard: (slug: string | null) => Promise<boolean>
   onSettings: (cardId: string) => void
   onVenue: () => void
   onNavigate: (route: DashRoute) => void
@@ -40,6 +41,10 @@ export const PublishedCard = ({
   const { state, refresh } = useIssuerPasses(loadPasses, { page: 1, pageSize: 1 })
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState<CardCategory | 'all'>('all')
+  const [defaultSave, setDefaultSave] = useState<
+    { kind: 'idle' } | { kind: 'saving'; slug: string | null } | { kind: 'saved' } | { kind: 'failed' }
+  >({ kind: 'idle' })
+  const defaultSavePending = useRef(false)
   const clipboard = useCopyText()
   const needle = search.trim().toLocaleLowerCase()
   const filtered = cards.filter(
@@ -51,6 +56,25 @@ export const PublishedCard = ({
   const clear = (): void => {
     setSearch('')
     setCategory('all')
+  }
+  const storeUrl = `${props.publicUrl.replace(/\/$/u, '')}/home`
+  const saveDefault = (slug: string | null): void => {
+    if (defaultSavePending.current) {
+      return
+    }
+    defaultSavePending.current = true
+    setDefaultSave({ kind: 'saving', slug })
+    const run = async (): Promise<void> => {
+      let saved = false
+      try {
+        saved = await props.onDefaultCard(slug)
+      } catch {
+        saved = false
+      }
+      defaultSavePending.current = false
+      setDefaultSave(saved ? { kind: 'saved' } : { kind: 'failed' })
+    }
+    void run()
   }
   return (
     <section class="dash-page flex min-w-0 flex-col gap-6">
@@ -74,6 +98,14 @@ export const PublishedCard = ({
           ) : null}
         </div>
         <p class="text-[var(--fuda-muted)]">{copy.description}</p>
+        <a
+          class="link link-hover inline-flex min-h-11 items-center self-start text-sm"
+          href={storeUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {copy.storeDisplay}
+        </a>
       </header>
       <ManagementSummary state={state} copy={labels} />
       {state.kind === 'failed' ? (
@@ -167,6 +199,13 @@ export const PublishedCard = ({
                 <tbody>
                   {filtered.map((card): JSX.Element => {
                     const url = cardUrl(props.publicUrl, card.slug)
+                    const isDefault = props.issuer.defaultCardSlug === card.slug
+                    const nextDefault = isDefault ? null : card.slug
+                    const savingThisCard = defaultSave.kind === 'saving' && defaultSave.slug === nextDefault
+                    let defaultAction = isDefault ? copy.clearDefault : copy.setDefault
+                    if (savingThisCard) {
+                      defaultAction = copy.defaultSaving
+                    }
                     const stats =
                       state.kind === 'ready'
                         ? (state.data.cardStats.find((entry) => entry.cardId === card.id) ?? {
@@ -196,6 +235,11 @@ export const PublishedCard = ({
                           >
                             {card.title || card.id}
                           </a>
+                          {isDefault ? (
+                            <span class="badge badge-primary mt-2 whitespace-nowrap">
+                              {copy.defaultBadge}
+                            </span>
+                          ) : null}
                           <p class="mt-1 font-mono text-xs text-[var(--fuda-muted)]">{card.slug}</p>
                         </th>
                         <td class="text-right tabular-nums">{stats?.issued.toLocaleString() ?? '—'}</td>
@@ -229,25 +273,38 @@ export const PublishedCard = ({
                           </button>
                         </td>
                         <td>
-                          <a
-                            class="link link-hover inline-flex min-h-11 items-center"
-                            href={cardEditPath(card)}
-                            onClick={(event) => {
-                              if (
-                                event.button !== 0 ||
-                                event.altKey ||
-                                event.ctrlKey ||
-                                event.metaKey ||
-                                event.shiftKey
-                              ) {
-                                return
-                              }
-                              event.preventDefault()
-                              props.onSettings(card.id)
-                            }}
-                          >
-                            {labels.edit}
-                          </a>
+                          <div class="flex min-w-28 flex-col items-start gap-1">
+                            <a
+                              class="link link-hover inline-flex min-h-11 items-center"
+                              href={cardEditPath(card)}
+                              onClick={(event) => {
+                                if (
+                                  event.button !== 0 ||
+                                  event.altKey ||
+                                  event.ctrlKey ||
+                                  event.metaKey ||
+                                  event.shiftKey
+                                ) {
+                                  return
+                                }
+                                event.preventDefault()
+                                props.onSettings(card.id)
+                              }}
+                            >
+                              {labels.edit}
+                            </a>
+                            <button
+                              aria-pressed={isDefault ? 'true' : 'false'}
+                              class="link link-hover inline-flex min-h-11 items-center text-left"
+                              disabled={defaultSave.kind === 'saving'}
+                              type="button"
+                              onClick={() => {
+                                saveDefault(nextDefault)
+                              }}
+                            >
+                              {defaultAction}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     )
@@ -272,6 +329,16 @@ export const PublishedCard = ({
           </button>
         </div>
       )}
+      {defaultSave.kind === 'saved' ? (
+        <p class="text-sm" role="status">
+          {copy.defaultSaved}
+        </p>
+      ) : null}
+      {defaultSave.kind === 'failed' ? (
+        <p class="text-error text-sm" role="alert">
+          {copy.defaultSaveFailed}
+        </p>
+      ) : null}
       {clipboard.failed === null ? null : (
         <p class="text-error text-sm" role="alert">
           {labels.copyFailed}

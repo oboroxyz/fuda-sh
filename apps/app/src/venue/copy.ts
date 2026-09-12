@@ -9,6 +9,7 @@ export interface VenueCopy {
   browserPass: string
   category: Record<CardCategory, { label: string; noun: string; role: string }>
   closedCard: (name: string, noun: string) => string
+  defaultUnavailable: string
   failure: Record<CardFailure, string>
   getCard: (noun: string) => string
   getFreeCard: (noun: string) => string
@@ -28,6 +29,7 @@ export interface VenueCopy {
   qrLabel: (name: string, noun: string) => string
   savedOnDevice: (noun: string) => string
   seeAllCards: (name: string) => string
+  showQr: string
   tryAgain: string
 }
 
@@ -41,6 +43,7 @@ export const VENUE_COPY = {
       ticket: { label: 'Ticket', noun: 'ticket', role: 'TICKET' },
     },
     closedCard: (name, noun) => `${name} is not handing out this ${noun} right now.`,
+    defaultUnavailable: 'The featured card is not available right now. You can check the other cards below.',
     failure: {
       card_closed: 'This card is no longer being handed out.',
       chain_error: 'Cards cannot be issued right now. Please try again later.',
@@ -67,6 +70,7 @@ export const VENUE_COPY = {
     qrLabel: (name, noun) => `Your ${noun} QR code for ${name}`,
     savedOnDevice: (noun) => `No name or contact details required. This ${noun} is saved on this device.`,
     seeAllCards: (name) => `See all cards from ${name}`,
+    showQr: 'Show this code when you use your card.',
     tryAgain: 'Try again',
   },
   ja: {
@@ -78,6 +82,7 @@ export const VENUE_COPY = {
       ticket: { label: 'チケット', noun: 'チケット', role: 'チケット' },
     },
     closedCard: (name, noun) => `${name}は現在この${noun}を配布していません。`,
+    defaultUnavailable: 'おすすめのカードは現在配布していません。ほかのカードは下の一覧で確認できます。',
     failure: {
       card_closed: 'このカードの配布は終了しました。',
       chain_error: '現在カードを発行できません。しばらくしてからもう一度お試しください。',
@@ -105,6 +110,7 @@ export const VENUE_COPY = {
     qrLabel: (name, noun) => `${name}の${noun}のQRコード`,
     savedOnDevice: (noun) => `氏名や連絡先は不要です。この${noun}はこの端末に保存されています。`,
     seeAllCards: (name) => `${name}のカードをすべて見る`,
+    showQr: 'カードを使うときに、このコードを提示してください。',
     tryAgain: 'もう一度試す',
   },
 } satisfies Copy<VenueCopy>

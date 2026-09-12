@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
   CardBody,
   CardUpdateBody,
+  DefaultCardBody,
   deriveIssueKind,
   IssuerCreateBody,
   IssueBody,
@@ -84,6 +85,21 @@ describe('CardUpdateBody schema', () => {
       }).success,
     ).toBe(false)
   })
+})
+
+describe('DefaultCardBody schema', () => {
+  it('accepts one existing-card reference or null', () => {
+    expect(v.parse(DefaultCardBody, { slug: 'stamp' })).toStrictEqual({ slug: 'stamp' })
+    expect(v.parse(DefaultCardBody, { slug: 'home' })).toStrictEqual({ slug: 'home' })
+    expect(v.parse(DefaultCardBody, { slug: null })).toStrictEqual({ slug: null })
+  })
+
+  it.each([{}, { slug: 1 }, { slug: 'Stamp' }, { extra: true, slug: null }])(
+    'rejects malformed or extra fields: %j',
+    (input) => {
+      expect(v.safeParse(DefaultCardBody, input).success).toBe(false)
+    },
+  )
 })
 
 describe('IssueBody schema', () => {

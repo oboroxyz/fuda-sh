@@ -6,6 +6,17 @@ const APEX = 'https://fuda.sh'
 const APP = 'https://app.fuda.sh'
 
 describe(routeFor, () => {
+  it('separates the store display from claims and preserves a legacy home card', () => {
+    expect(routeFor(APP, '/@wassie-coffee/home', APP)).toStrictEqual({ home: 'wassie-coffee' })
+    expect(routeFor(APP, '/@wassie-coffee/card/home', APP)).toStrictEqual({
+      card: 'wassie-coffee',
+      slug: 'home',
+    })
+    expect(routeFor(APEX, '/@wassie-coffee/home?card=tasting', APP)).toStrictEqual({
+      redirect: 'https://app.fuda.sh/@wassie-coffee/home?card=tasting',
+    })
+  })
+
   it('renders the public member top at the root of either origin', () => {
     expect(routeFor(APEX, '/', APP)).toBe('top')
     expect(routeFor(APP, '/', APP)).toBe('top')

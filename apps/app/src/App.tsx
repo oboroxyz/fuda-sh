@@ -34,6 +34,7 @@ import { SignIn } from './member/SignIn.tsx'
 import { routeFor, safeMemberReturn } from './route.ts'
 import type { Route } from './route.ts'
 import { CardScreen } from './venue/CardScreen.tsx'
+import { VenueScreen } from './venue/VenueScreen.tsx'
 
 interface MemberSession {
   address: Hex
@@ -56,6 +57,8 @@ const isRedirectRoute = (route: Route): route is { redirect: string } =>
 // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Route is an internal parsed union; this narrows its two object variants.
 const isCardRoute = (route: Route): route is { card: string; slug: string | null } =>
   typeof route === 'object' && 'card' in route
+// oxlint-disable-next-line anti-slop/no-runtime-typeof -- Route is an internal parsed union; narrow the store display variant.
+const isHomeRoute = (route: Route): route is { home: string } => typeof route === 'object' && 'home' in route
 
 const MemberScreen = ({
   locale,
@@ -274,7 +277,13 @@ const MemberApp = ({
     location.replace(route.redirect)
     return <div class="p-6">{copy.auth.redirecting}</div>
   }
+  if (isHomeRoute(route)) {
+    return <VenueScreen key={`${route.home}/home`} handle={route.home} mode="home" locale={locale} />
+  }
   if (isCardRoute(route)) {
+    if (route.slug === null) {
+      return <VenueScreen key={route.card} handle={route.card} mode="entry" locale={locale} />
+    }
     return (
       <CardScreen
         key={`${route.card}/${route.slug ?? ''}`}

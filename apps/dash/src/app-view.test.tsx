@@ -107,6 +107,7 @@ const props: AppViewProps = {
   onCommitLogo: vi.fn<AppViewProps['onCommitLogo']>().mockResolvedValue(true),
   onCreate: vi.fn<AppViewProps['onCreate']>(),
   onCreateVenue: vi.fn<AppViewProps['onCreateVenue']>(),
+  onDefaultCard: vi.fn<AppViewProps['onDefaultCard']>().mockResolvedValue(true),
   onEditProfile: vi.fn<AppViewProps['onEditProfile']>(),
   onIssue: vi.fn<AppViewProps['onIssue']>(),
   onNavigate: vi.fn<AppViewProps['onNavigate']>(),
@@ -216,6 +217,7 @@ describe(AppView, () => {
     expect(viewProps(findViewNodes(view, PublishedCard)[0])).toMatchObject({
       cards: [card],
       issuer,
+      onDefaultCard: props.onDefaultCard,
       publicUrl: 'https://fuda.sh/@wassie-coffee',
     })
     expect(findViewNodes(view, CardDesigner)).toHaveLength(0)
