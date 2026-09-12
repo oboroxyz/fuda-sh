@@ -1,6 +1,7 @@
 import type { Hex, StampSummary } from '@fuda/sdk'
 
 import { base64urlBytes, base64urlText } from './base64url.ts'
+import { issuedDayText, roleLabel } from './branding.ts'
 import type { PassBranding } from './branding.ts'
 import { pemToDer } from './pem.ts'
 
@@ -111,8 +112,10 @@ export const buildGenericObject = (cfg: GoogleConfig, input: GooglePassInput): G
     }
   }
   // A venue card: the venue is the title, the card title the header, the
-  // member number the subheader, and the brand colour the card. The logo is a
-  // URL Google fetches, so it is omitted rather than empty when unset.
+  // member number the subheader, and the brand colour the card. The detail
+  // modules read like the app's card page (role label, issue day); tier is a
+  // fuda detail the card page never shows. The logo is a URL Google fetches,
+  // so it is omitted rather than empty when unset.
   const logo = branding.logoUrl === null ? {} : { logo: { sourceUri: { uri: branding.logoUrl } } }
   return {
     ...base,
@@ -123,8 +126,8 @@ export const buildGenericObject = (cfg: GoogleConfig, input: GooglePassInput): G
     subheader: localized(branding.memberNumber),
     textModulesData: mergeStampModules(
       [
-        { body: branding.memberNumber, header: 'Member number', id: 'member' },
-        { body: input.tierLabel, header: 'Tier', id: 'tier' },
+        { body: branding.memberNumber, header: roleLabel(branding.category), id: 'member' },
+        { body: issuedDayText(branding.issuedAt), header: 'ISSUED', id: 'issued' },
       ],
       input.stamps ?? null,
     ),

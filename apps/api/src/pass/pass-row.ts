@@ -27,6 +27,7 @@ const cardBrandingOf = async (
   db: Db,
   cardId: string | null,
   memberId: string,
+  issuedAt: number,
   baseUrl: string,
 ): Promise<CardBranding> => {
   if (cardId === null) {
@@ -35,6 +36,7 @@ const cardBrandingOf = async (
   const found = await db
     .select({
       brandColor: issuers.brandColor,
+      category: cards.category,
       handle: issuers.handle,
       lockScreen: cards.lockScreen,
       logoPrefix: issuers.logoPrefix,
@@ -58,6 +60,8 @@ const cardBrandingOf = async (
     branding: {
       brandColor: found.brandColor,
       cardTitle: found.title,
+      category: found.category,
+      issuedAt,
       issuerName: found.name,
       // Absolute and versioned, because Google Wallet fetches it and caches it,
       // and a saved pass outlives the request that made it.
@@ -96,6 +100,7 @@ export const loadPassRow = async (c: Context<AppEnv>, rawUid: string): Promise<P
     c.get('db'),
     row.cardId,
     row.memberId,
+    row.createdAt,
     c.env.API_BASE_URL,
   )
   return {

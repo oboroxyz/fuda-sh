@@ -1,6 +1,6 @@
 import type { Hex, StampSummary } from '@fuda/sdk'
 
-import { hexToRgb, rgbCss, textOn } from '../branding.ts'
+import { hexToRgb, issuedDayIso, rgbCss, roleLabel, textOn } from '../branding.ts'
 import type { PassBranding } from '../branding.ts'
 
 export interface AppleConfig {
@@ -48,8 +48,13 @@ export interface ApplePassInput {
 
 interface PassField {
   key: string
-  label: string
+  // omitted (not empty) for a value that stands on its own, such as the card title
+  label?: string
   value: string
+  // set together for a date value: Wallet formats it in the device locale
+  dateStyle?: 'PKDateStyleMedium'
+  timeStyle?: 'PKDateStyleNone'
+  ignoresTimeZone?: boolean
 }
 
 export interface PassJson {
@@ -62,11 +67,14 @@ export interface PassJson {
   foregroundColor: string
   backgroundColor: string
   labelColor: string
+  // beside the logo; the venue name on a branded pass
+  logoText?: string
   barcodes: { format: string; message: string; messageEncoding: string }[]
   locations?: { latitude: number; longitude: number; relevantText: string }[]
   storeCard: {
     primaryFields: PassField[]
     secondaryFields: PassField[]
+    auxiliaryFields?: PassField[]
     backFields: PassField[]
   }
 }
@@ -110,9 +118,12 @@ export const passJson = (cfg: AppleConfig, input: ApplePassInput): PassJson => {
       },
     }
   }
-  // A venue card: brand colour with readable text, the member number up front,
-  // and — when the card asks for it — the venue location so Wallet surfaces
-  // the pass on the lock screen nearby.
+  // A venue card, laid out like the card page in the app: the venue name
+  // beside the logo, the card title large, then the member number under its
+  // role label and the issue day. Tier is a fuda detail the card page never
+  // shows, so it goes on the back; an enabled stamp count takes the row below.
+  // The venue location, when the card asks for it, has Wallet surface the pass
+  // on the lock screen nearby.
   const { label, text } = textOn(branding.brandColor)
   const stamps = input.stamps?.enabled === true ? input.stamps : null
   const locations =
@@ -127,6 +138,10 @@ export const passJson = (cfg: AppleConfig, input: ApplePassInput): PassJson => {
             },
           ],
         }
+  const auxiliary =
+    stamps === null
+      ? {}
+      : { auxiliaryFields: [{ key: 'stamps', label: 'STAMPS', value: `${stamps.total} / ${stamps.goal}` }] }
   return {
     ...base,
     ...locations,
@@ -134,23 +149,27 @@ export const passJson = (cfg: AppleConfig, input: ApplePassInput): PassJson => {
     description: branding.cardTitle,
     foregroundColor: rgbCss(text),
     labelColor: rgbCss(label),
+    logoText: branding.issuerName,
     organizationName: branding.issuerName,
     storeCard: {
+      ...auxiliary,
       backFields: [
+        { key: 'tier', label: 'Tier', value: input.tierLabel },
         { key: 'holder', label: 'Holder', value: input.holderShort },
         { key: 'uid', label: 'Attestation', value: input.uid },
       ],
-      primaryFields:
-        stamps === null
-          ? [{ key: 'member', label: 'MEMBER NO.', value: branding.memberNumber }]
-          : [{ key: 'stamps', label: 'STAMPS', value: `${stamps.total} / ${stamps.goal}` }],
-      secondaryFields:
-        stamps === null
-          ? [{ key: 'tier', label: 'TIER', value: input.tierLabel }]
-          : [
-              { key: 'member', label: 'MEMBER NO.', value: branding.memberNumber },
-              { key: 'tier', label: 'TIER', value: input.tierLabel },
-            ],
+      primaryFields: [{ key: 'title', value: branding.cardTitle }],
+      secondaryFields: [
+        { key: 'member', label: roleLabel(branding.category), value: branding.memberNumber },
+        {
+          dateStyle: 'PKDateStyleMedium',
+          ignoresTimeZone: true,
+          key: 'issued',
+          label: 'ISSUED',
+          timeStyle: 'PKDateStyleNone',
+          value: issuedDayIso(branding.issuedAt),
+        },
+      ],
     },
   }
 }

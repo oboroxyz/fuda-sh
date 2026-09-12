@@ -4,6 +4,9 @@ import { describe, expect, it } from 'vitest'
 import { appleConfigFrom, passJson } from './pass-json.ts'
 import type { AppleConfig, AppleEnv } from './pass-json.ts'
 
+// 2026-09-12T00:00:00Z, the issue day the fixtures show
+const ISSUED_AT = 1_789_171_200
+
 const UID: Hex = `0x${'ab'.repeat(32)}`
 
 const CFG: AppleConfig = {
@@ -91,6 +94,8 @@ const branded = () =>
       branding: {
         brandColor: '#6F4320',
         cardTitle: 'Membership Card',
+        category: 'membership',
+        issuedAt: ISSUED_AT,
         issuerName: 'Wassie Coffee',
         logoUrl: null,
         memberNumber: 'QJ2Y-XPHE-PDRKA',
@@ -112,23 +117,41 @@ describe('branded pass.json', () => {
     expect(json.foregroundColor).toBe('rgb(255,255,255)')
   })
 
-  it('puts the member number up front and the venue in locations', () => {
+  it('lays the face out like the card page: venue by the logo, title large, member number and issue day below', () => {
     const json = branded()
-    expect(json.storeCard.primaryFields).toStrictEqual([
-      { key: 'member', label: 'MEMBER NO.', value: 'QJ2Y-XPHE-PDRKA' },
+    expect(json.logoText).toBe('Wassie Coffee')
+    expect(json.storeCard.primaryFields).toStrictEqual([{ key: 'title', value: 'Membership Card' }])
+    expect(json.storeCard.secondaryFields).toStrictEqual([
+      { key: 'member', label: 'MEMBER', value: 'QJ2Y-XPHE-PDRKA' },
+      {
+        dateStyle: 'PKDateStyleMedium',
+        ignoresTimeZone: true,
+        key: 'issued',
+        label: 'ISSUED',
+        timeStyle: 'PKDateStyleNone',
+        value: '2026-09-12T00:00:00Z',
+      },
     ])
+    expect(json.storeCard.auxiliaryFields).toBeUndefined()
+  })
+
+  it('keeps the tier off the face and puts the venue in locations', () => {
+    const json = branded()
+    expect(json.storeCard.backFields[0]).toStrictEqual({ key: 'tier', label: 'Tier', value: 'FREE' })
     expect(json.locations).toStrictEqual([
       { latitude: 35.665, longitude: 139.712, relevantText: 'Wassie Coffee' },
     ])
   })
 
-  it('puts an enabled stamp snapshot ahead of branded member details', () => {
+  it('adds an enabled stamp snapshot below the member details', () => {
     const json = passJson(
       { certPem: '', keyPem: '', passTypeId: 'pass.sh.fuda', teamId: 'TEAM', wwdrPem: '' },
       {
         branding: {
           brandColor: '#6F4320',
           cardTitle: 'Membership Card',
+          category: 'membership',
+          issuedAt: ISSUED_AT,
           issuerName: 'Wassie Coffee',
           logoUrl: null,
           memberNumber: 'QJ2Y-XPHE-PDRKA',
@@ -141,11 +164,14 @@ describe('branded pass.json', () => {
         uid: UID,
       },
     )
-    expect(json.storeCard.primaryFields).toStrictEqual([{ key: 'stamps', label: 'STAMPS', value: '4 / 10' }])
+    expect(json.storeCard.primaryFields).toStrictEqual([{ key: 'title', value: 'Membership Card' }])
     expect(json.storeCard.secondaryFields[0]).toStrictEqual({
       key: 'member',
-      label: 'MEMBER NO.',
+      label: 'MEMBER',
       value: 'QJ2Y-XPHE-PDRKA',
     })
+    expect(json.storeCard.auxiliaryFields).toStrictEqual([
+      { key: 'stamps', label: 'STAMPS', value: '4 / 10' },
+    ])
   })
 })

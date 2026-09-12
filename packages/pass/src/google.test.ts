@@ -14,6 +14,9 @@ import {
   patchGoogleGenericObject,
 } from './google.ts'
 
+// 2026-09-12T00:00:00Z, the issue day the fixtures show
+const ISSUED_AT = 1_789_171_200
+
 const UID: Hex = `0x${'ab'.repeat(32)}`
 const INPUT: GooglePassInput = {
   holderShort: '0x1111…1111',
@@ -176,6 +179,8 @@ describe('branded generic object', () => {
         branding: {
           brandColor: '#6F4320',
           cardTitle: 'Membership Card',
+          category: 'membership',
+          issuedAt: ISSUED_AT,
           issuerName: 'Wassie Coffee',
           logoUrl: null,
           memberNumber: 'QJ2Y-XPHE-PDRKA',
@@ -191,11 +196,10 @@ describe('branded generic object', () => {
     expect(obj.header.defaultValue.value).toBe('Membership Card')
     expect(obj.subheader?.defaultValue.value).toBe('QJ2Y-XPHE-PDRKA')
     expect(obj.hexBackgroundColor).toBe('#6F4320')
-    expect(obj.textModulesData[0]).toStrictEqual({
-      body: 'QJ2Y-XPHE-PDRKA',
-      header: 'Member number',
-      id: 'member',
-    })
+    expect(obj.textModulesData).toStrictEqual([
+      { body: 'QJ2Y-XPHE-PDRKA', header: 'MEMBER', id: 'member' },
+      { body: 'Sep 12, 2026', header: 'ISSUED', id: 'issued' },
+    ])
   })
 })
 
