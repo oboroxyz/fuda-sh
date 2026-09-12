@@ -387,6 +387,22 @@ describe('issuer ENS claim', () => {
       await expect(response.json()).resolves.toStrictEqual(refusal)
     })
 
+    it('passes a JSON-RPC refusal through untouched even when the vendor answers 200', async () => {
+      const error = vi.spyOn(console, 'error').mockReturnValue()
+      const refusal = {
+        error: { code: -32_602, message: 'Unsupported Policy Type: BUNDLER_SPONSORSHIP' },
+        id: 1,
+        jsonrpc: '2.0',
+      }
+      stubChain({ upstream: refusal, upstreamStatus: 200 })
+
+      const response = await send(configured(), sponsoredBody(REGISTRAR))
+      error.mockRestore()
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toStrictEqual(refusal)
+    })
+
     it('answers a refused call with the JSON-RPC error the wallet expects', async () => {
       const warn = vi.spyOn(console, 'warn').mockReturnValue()
       stubChain()

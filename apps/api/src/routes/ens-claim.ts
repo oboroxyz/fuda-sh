@@ -173,6 +173,9 @@ const PaymasterBody = v.object({
 
 type RpcIdValue = v.InferOutput<typeof RpcId>
 
+// The shape of a vendor refusal, whether it arrives on HTTP 200 or 4xx.
+const RpcRefusal = v.object({ error: v.object({ code: v.number(), message: v.string() }) })
+
 const rpcError = (id: RpcIdValue, code: number, message: string) => ({
   error: { code, message },
   id,
@@ -215,9 +218,10 @@ ensClaimRoutes.post('/ens/paymaster', rateLimit({ budget: PAYMASTER_BUDGET }), a
     return c.json(rpcError(id, -32_603, 'paymaster unavailable'), 502)
   }
   const answer = v.parse(v.unknown(), await upstream.json())
-  if (!upstream.ok) {
-    // The vendor's reason is the only diagnostic there is: the wallet just falls
-    // back to charging the user, so surface it where `wrangler tail` can see it.
+  // A JSON-RPC refusal rides on HTTP 200, so the body is checked as well as the
+  // status. The vendor's reason is the only diagnostic there is: the wallet just
+  // falls back to charging the user, so surface it where `wrangler tail` can see it.
+  if (!upstream.ok || v.safeParse(RpcRefusal, answer).success) {
     console.error('ens paymaster: upstream refused', { answer, method, status: upstream.status })
   }
   return c.json(answer, upstream.ok ? 200 : 502)
