@@ -117,6 +117,7 @@ Use the rights-subgraph smoke query and member app for private discovery after G
 | POST | `/revoke` | Bearer (`ADMIN_TOKEN`) | revokes the entitlement attestation |
 | GET | `/members` | Bearer (`ADMIN_TOKEN`) | lists issued entitlements |
 | GET | `/pass/:uid` | none | browser-based pass page; `404 not_found` if fuda never issued that uid, or if the row is +Private |
+| GET | `/pass/:uid/card` | none | `{ card }`: the venue card behind the pass (`issuerName`, `cardTitle`, `category`, `brandColor`, `logoUrl`, `memberNumber`) for a client drawing it in the venue's look, or `card: null` for an admin-issued right; `404 not_found` for an unknown uid or a +Private row |
 | GET | `/pass/:uid/google` | none | `{ saveUrl }`, a signed Google Wallet save link; `501 google_not_configured` unless all four `GOOGLE_*` secrets are set; `404 not_found` first for an unknown uid or a +Private row |
 | GET | `/pass/:uid/apple.pkpass` | none | the `.pkpass` bundle; `501 apple_not_configured` unless all five `APPLE_*` secrets are set; `404 not_found` first for an unknown uid or a +Private row |
 | POST | `/ens/gateway` | none, per-IP budget (120/h) | EIP-3668 `{ sender, data }`; disabled with 503 until all four `ENS_*` bindings are configured; success `{ data }`, errors `{ message }`, always `Cache-Control: no-store` |

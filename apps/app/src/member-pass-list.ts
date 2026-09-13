@@ -1,5 +1,5 @@
 import { passUrls } from '@fuda/sdk'
-import type { GraphRight, Hex, PassUrls, StampSummary, VerifyResponse } from '@fuda/sdk'
+import type { GraphRight, Hex, PassCardView, PassUrls, StampSummary, VerifyResponse } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
 
 import { API_BASE_URL } from './config.ts'
@@ -14,6 +14,8 @@ export interface MemberPassRow {
   googleHref: string | null
   appleHref: string | null
   stamps: StampSummary | null
+  // the venue card the pass was issued under; null keeps the plain fuda look
+  card: PassCardView | null
 }
 
 export interface MemberPassListInput {
@@ -28,6 +30,7 @@ export interface MemberPassListIo {
   googleHref: (url: string) => Promise<string | null>
   appleAvailable: (url: string) => Promise<boolean>
   stampSummary: (uid: Hex) => Promise<StampSummary | null>
+  card: (uid: Hex) => Promise<PassCardView | null>
 }
 
 export interface MemberPassListResult {
@@ -258,11 +261,11 @@ export const loadMemberPassList = async (
         isPublicLevel(seed.graph?.level) || isPublicPreview(preview)
           ? await linksOf(seed.uid, io)
           : unlinkedPassesOf(seed.uid)
-      const stamps =
-        isPublicLevel(seed.graph?.level) || isPublicPreview(preview)
-          ? await settledValue(io.stampSummary(seed.uid))
-          : null
-      return { ...seed, ...links, preview, stamps }
+      const publicRow = isPublicLevel(seed.graph?.level) || isPublicPreview(preview)
+      const [stamps, card] = publicRow
+        ? await Promise.all([settledValue(io.stampSummary(seed.uid)), settledValue(io.card(seed.uid))])
+        : [null, null]
+      return { ...seed, ...links, card, preview, stamps }
     }),
   )
   const rows = rowsWithPrivateFiltered.filter((row): row is MemberPassRow => row !== null)

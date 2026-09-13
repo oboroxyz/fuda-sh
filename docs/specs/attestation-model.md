@@ -246,7 +246,7 @@ Four families are deliberately outside it, because each URL is held by someone f
 
 | Path | Held by |
 | --- | --- |
-| `/pass/:uid`, `/pass/:uid/google`, `/pass/:uid/apple.pkpass` | the member's Apple or Google Wallet, and their home screen |
+| `/pass/:uid`, `/pass/:uid/card`, `/pass/:uid/google`, `/pass/:uid/apple.pkpass` | the member's Apple or Google Wallet, and their home screen |
 | `/assets/:handle/logo/:variant` | pages and passes that already carry the mark |
 | `/ens/gateway` | the deployed `FudaResolver`, which stores the URL on chain |
 | `/health` | whatever monitors the deployment |

@@ -49,12 +49,13 @@ const headersFor = (
 // Every 5xx and every transport failure is a network condition (the gate fails
 // closed on it); a 4xx carries the api's error code; a 2xx that is not
 // JSON is a bad response, not an outage.
-export const apiFetch = async <T>(base: string, path: string, init: ApiInit = {}): Promise<Result<T>> => {
+// One request against a URL that stands on its own — a family outside the
+// prefix, built by `passUrls` (`/pass/<uid>/card`). `apiFetch` below is the
+// same contract with the prefix added.
+export const fetchJson = async <T>(url: string, init: ApiInit = {}): Promise<Result<T>> => {
   const { headers, token, ...rest } = init
   try {
-    // `path` is written as the route sees it (`/verify`), and the prefix is
-    // added here so no call site has to remember it.
-    const res = await fetch(`${base.replace(/\/$/u, '')}${API_VERSION_PREFIX}${path}`, {
+    const res = await fetch(url, {
       ...rest,
       headers: headersFor(headers, token, rest.body !== undefined && rest.body !== null),
     })
@@ -85,3 +86,8 @@ export const apiFetch = async <T>(base: string, path: string, init: ApiInit = {}
     }
   }
 }
+
+export const apiFetch = async <T>(base: string, path: string, init: ApiInit = {}): Promise<Result<T>> =>
+  // `path` is written as the route sees it (`/verify`), and the prefix is
+  // added here so no call site has to remember it.
+  await fetchJson<T>(`${base.replace(/\/$/u, '')}${API_VERSION_PREFIX}${path}`, init)

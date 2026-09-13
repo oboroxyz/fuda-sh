@@ -42,6 +42,8 @@ const EN = {
     address: 'Holder address',
     browserWallet: 'Use browser wallet',
     connectionFailed: 'Could not connect wallet.',
+    // the member number's label on a venue card, by card type
+    holder: { membership: 'MEMBER', ticket: 'TICKET' },
     idle: 'Enter a holder address to read its on-chain rights.',
     indexUnavailable: 'index unavailable; showing passes saved on this device',
     invalidAddress: 'Enter a valid holder address.',
@@ -125,6 +127,7 @@ export const MEMBER_COPY = {
       address: '保有者のアドレス',
       browserWallet: 'ブラウザのウォレットを使う',
       connectionFailed: 'ウォレットに接続できませんでした。',
+      holder: { membership: '会員', ticket: 'チケット' },
       idle: '保有者のアドレスを入力すると、オンチェーンの権利を確認できます。',
       indexUnavailable: '一覧を取得できないため、この端末に保存したパスを表示しています。',
       invalidAddress: '有効な保有者のアドレスを入力してください。',

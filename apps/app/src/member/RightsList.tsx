@@ -3,13 +3,13 @@ import type { Locale } from '@fuda/i18n'
 import { useQuery, useQueryScope } from '@fuda/libs/query'
 import type { QueryClient } from '@fuda/libs/query'
 /** @jsxImportSource hono/jsx/dom */
-import { asHex, fetchRightsByHolder, normalizeUid } from '@fuda/sdk'
-import type { GraphRight, Hex } from '@fuda/sdk'
+import { asHex, brandTextColor, fetchRightsByHolder, normalizeUid } from '@fuda/sdk'
+import type { GraphRight, Hex, PassCardView } from '@fuda/sdk'
 import { short } from '@fuda/ui'
 import { useEffect, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
-import { fetchStampSummary, verifyUid } from '../api.ts'
+import { fetchPassCard, fetchStampSummary, verifyUid } from '../api.ts'
 import { API_BASE_URL, GRAPH_RIGHTS_ENDPOINT } from '../config.ts'
 import {
   applePassAvailable,
@@ -114,22 +114,62 @@ const memberPassLinks = (
 const hasPublicPass = (row: MemberPassRow): boolean =>
   [row.preview?.entitlement?.level, row.graph?.level].some((level) => level === 0 || level === 1)
 
+// The plain fuda face: an admin-issued right, or a card the api could not
+// describe right now. The palette is drawn from the uid so the list stays
+// varied without a venue behind it.
+const plainFace = (row: MemberPassRow, copy: MemberCopy['passes']): JSX.Element => {
+  const name = row.preview?.delegation?.name ?? row.graph?.delegation?.name ?? ''
+  return (
+    <div class="member-pass-preview" data-palette={Number.parseInt(row.uid.slice(2, 4), 16) % 3}>
+      <div class="flex items-center justify-between gap-4">
+        <span class="font-display text-xl font-bold">fuda</span>
+        <span class="text-xs font-semibold tracking-widest uppercase">{copy.pass}</span>
+      </div>
+      <div class="flex flex-col gap-2">
+        <h2 class="text-2xl leading-tight font-bold">{name === '' ? copy.pass : name}</h2>
+        <span class="font-mono text-xs">UID {short(row.uid)}</span>
+      </div>
+    </div>
+  )
+}
+
+// The venue's face: the same colour, mark, title and member number as the
+// card page and the wallet passes. Inline colours override the palette classes.
+const venueFace = (card: PassCardView, copy: MemberCopy['passes']): JSX.Element => (
+  <div
+    class="member-pass-preview"
+    style={{ backgroundColor: card.brandColor, color: brandTextColor(card.brandColor) }}
+  >
+    <div class="flex items-center gap-3">
+      {card.logoUrl === null ? null : (
+        <img
+          alt=""
+          class="size-10 flex-none rounded-xl bg-white/10 object-cover"
+          loading="lazy"
+          onError={(event: Event & { currentTarget: HTMLImageElement }) => {
+            event.currentTarget.hidden = true
+          }}
+          src={card.logoUrl}
+        />
+      )}
+      <span class="min-w-0 text-sm font-semibold">{card.issuerName}</span>
+    </div>
+    <div class="flex flex-col gap-2">
+      <h2 class="text-2xl leading-tight font-bold">{card.cardTitle}</h2>
+      <div class="text-[0.625rem] font-semibold tracking-[0.16em] uppercase">
+        {copy.holder[card.category]}
+      </div>
+      <span class="font-mono text-lg tracking-wide">{card.memberNumber}</span>
+    </div>
+  </div>
+)
+
 const memberCard = (row: MemberPassRow, locale: Locale, copy: MemberCopy['passes']): JSX.Element => {
   const publicPass = hasPublicPass(row)
   const status = memberStatus(row, locale, copy)
-  const name = row.preview?.delegation?.name ?? row.graph?.delegation?.name ?? ''
   return (
     <li class="min-w-0" key={row.uid}>
-      <div class="member-pass-preview" data-palette={Number.parseInt(row.uid.slice(2, 4), 16) % 3}>
-        <div class="flex items-center justify-between gap-4">
-          <span class="font-display text-xl font-bold">fuda</span>
-          <span class="text-xs font-semibold tracking-widest uppercase">{copy.pass}</span>
-        </div>
-        <div class="flex flex-col gap-2">
-          <h2 class="text-2xl leading-tight font-bold">{name === '' ? copy.pass : name}</h2>
-          <span class="font-mono text-xs">UID {short(row.uid)}</span>
-        </div>
-      </div>
+      {row.card === null ? plainFace(row, copy) : venueFace(row.card, copy)}
       <div class="member-pass-actions">
         <div class={row.preview?.decision === 'ADMIT' ? 'badge badge-success' : 'badge badge-error'}>
           {status}
@@ -274,6 +314,7 @@ const fieldValue = (target: EventTarget | null): string | null =>
 
 const defaultIo: MemberPassListIo = {
   appleAvailable: applePassAvailable,
+  card: fetchPassCard,
   fetchRights: async (holder) => await fetchRightsByHolder(GRAPH_RIGHTS_ENDPOINT, holder),
   googleHref: googlePassHref,
   stampSummary: fetchStampSummary,

@@ -1,13 +1,16 @@
+import { passUrls } from '@fuda/sdk'
 import type {
   ChallengeResponse,
   Hex,
+  PassCardResponse,
+  PassCardView,
   PublicVenue,
   SelfServeIssueResponse,
   StampSummary,
   VerifyResponse,
   VerifySignedResponse,
 } from '@fuda/sdk'
-import { apiFetch } from '@fuda/sdk/http'
+import { apiFetch, fetchJson } from '@fuda/sdk/http'
 import type { Result } from '@fuda/sdk/http'
 
 import { API_BASE_URL } from './config.ts'
@@ -35,6 +38,17 @@ export const verifyUid = async (uid: Hex): Promise<Result<VerifyResponse>> =>
 export const fetchStampSummary = async (uid: Hex): Promise<StampSummary | null> => {
   const result = await apiFetch<StampSummary>(API_BASE_URL, `/stamps/${uid}`, { method: 'GET' })
   return result.ok ? result.body : null
+}
+
+// The venue card behind a pass, so the list can draw it in the venue's look.
+// It lives beside the pass itself, outside /v1, so it is reached by that URL
+// rather than through the prefix. A pass without a venue card, or one that
+// cannot be read right now, keeps the plain fuda look.
+export const fetchPassCard = async (uid: Hex): Promise<PassCardView | null> => {
+  const result = await fetchJson<PassCardResponse>(`${passUrls(API_BASE_URL, uid).web}/card`, {
+    method: 'GET',
+  })
+  return result.ok ? result.body.card : null
 }
 
 // The venue behind /@<handle> and every card it publishes: what a member sees

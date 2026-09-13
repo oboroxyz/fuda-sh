@@ -4,7 +4,7 @@ import type { Hex } from 'viem'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { getDb } from '../src/db/client.ts'
-import { members } from '../src/db/schema.ts'
+import { cards, issuers, members } from '../src/db/schema.ts'
 import type { Bindings } from '../src/env.ts'
 import { appWith, fakeChain } from './env.ts'
 import { configuredEnv, HOLDER, NOW, seedRight, seedRoot } from './fixtures.ts'
@@ -356,5 +356,87 @@ describe('GET /pass/:uid/google', () => {
     expect([google.status, apple.status]).toStrictEqual([404, 404])
     await expect(google.json()).resolves.toStrictEqual({ error: 'not_found' })
     await expect(apple.json()).resolves.toStrictEqual({ error: 'not_found' })
+  })
+})
+
+describe('GET /pass/:uid/card', () => {
+  beforeEach(async () => {
+    await db().delete(members)
+    await db().delete(cards)
+    await db().delete(issuers)
+  })
+
+  it('answers the venue card behind a self-serve right, in display form', async () => {
+    const chain = fakeChain()
+    const del = seedRoot(chain)
+    const uid = seedRight(chain, del)
+    await db().insert(issuers).values({
+      brandColor: '#112233',
+      createdAt: NOW,
+      handle: 'coffee',
+      id: 'venue',
+      logoPrefix: 'coffee/abc',
+      name: 'Wassie Coffee',
+      operatorAddress: HOLDER,
+    })
+    await db().insert(cards).values({
+      category: 'membership',
+      createdAt: NOW,
+      id: 'card',
+      issuerId: 'venue',
+      slug: 'members',
+      title: 'Members',
+    })
+    await db().insert(members).values({
+      attestationUid: uid,
+      cardId: 'card',
+      createdAt: NOW,
+      holder: HOLDER,
+      issuerId: 'venue',
+      level: 'bearer',
+      memberId: 'qj2yxphepdrka',
+      tier: 0,
+    })
+    const res = await appWith({ chain, now: () => NOW }).request(`/pass/${uid}/card`, {}, configuredEnv(del))
+    expect([res.status, res.headers.get('cache-control')]).toStrictEqual([200, 'no-store'])
+    await expect(res.json()).resolves.toStrictEqual({
+      card: {
+        brandColor: '#112233',
+        cardTitle: 'Members',
+        category: 'membership',
+        issuerName: 'Wassie Coffee',
+        logoUrl: 'https://api.fuda.sh/assets/coffee/logo/master?v=/abc',
+        memberNumber: 'QJ2Y-XPHE-PDRKA',
+      },
+    })
+  })
+
+  it('answers card: null for an admin-issued right, which keeps the plain look', async () => {
+    const chain = fakeChain()
+    const del = seedRoot(chain)
+    const uid = seedRight(chain, del)
+    await insertMember(uid)
+    const res = await appWith({ chain, now: () => NOW }).request(`/pass/${uid}/card`, {}, configuredEnv(del))
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toStrictEqual({ card: null })
+  })
+
+  it('answers 404 for a private row and for a uid fuda never issued', async () => {
+    const chain = fakeChain()
+    const del = seedRoot(chain)
+    const uid: Hex = `0x${'77'.repeat(32)}`
+    await db().insert(members).values({
+      attestationUid: uid,
+      createdAt: NOW,
+      holder: null,
+      level: 'private',
+      memberId: '',
+      status: 'active',
+      tier: 0,
+    })
+    const app = appWith({ chain, now: () => NOW })
+    const hidden = await app.request(`/pass/${uid}/card`, {}, configuredEnv(del))
+    const missing = await app.request(`/pass/0x${'cd'.repeat(32)}/card`, {}, configuredEnv(del))
+    expect([hidden.status, missing.status]).toStrictEqual([404, 404])
   })
 })

@@ -20,7 +20,7 @@ const DELEGATION = `0x${'bb'.repeat(32)}` as const
 
 interface ViewNode {
   tag?: unknown
-  props: { children?: unknown; class?: unknown; href?: unknown }
+  props: { children?: unknown; class?: unknown; href?: unknown; src?: unknown; style?: unknown }
 }
 
 const isViewNode = (value: unknown): value is ViewNode => {
@@ -119,6 +119,7 @@ const privateAdmitted = (holder: Hex): Result<VerifyResponse> => admittedAtLevel
 
 const memberIo = (fetchRights: MemberPassListIo['fetchRights']): MemberPassListIo => ({
   appleAvailable: async () => await Promise.resolve(false),
+  card: async () => await Promise.resolve(null),
   fetchRights,
   googleHref: async () => await Promise.resolve(null),
   stampSummary: async () => await Promise.resolve(null),
@@ -127,6 +128,7 @@ const memberIo = (fetchRights: MemberPassListIo['fetchRights']): MemberPassListI
 
 const memberRow = (overrides: Partial<MemberPassRow>): MemberPassRow => ({
   appleHref: null,
+  card: null,
   googleHref: null,
   graph: null,
   memory: null,
@@ -165,6 +167,25 @@ describe(loadMemberPassList, () => {
     expect(fetchRights).toHaveBeenCalledTimes(2)
     expect(result.indexUnavailable).toBe(false)
     expect(result.rows.map(({ uid }) => uid)).toStrictEqual([RIGHT, UID_C, UID_B])
+  })
+
+  it('carries the venue card of a public pass into its row', async () => {
+    const card = {
+      brandColor: '#112233',
+      cardTitle: 'Members',
+      category: 'membership' as const,
+      issuerName: 'Wassie Coffee',
+      logoUrl: null,
+      memberNumber: 'QJ2Y-XPHE-PDRKA',
+    }
+    const io = memberIo(async () => await Promise.resolve([]))
+
+    const result = await loadMemberPassList(
+      { addresses: [], graphConfigured: true, memory: [{ addedAt: 20, holder: HOLDER_A, uid: RIGHT }] },
+      { ...io, card: async () => await Promise.resolve(card) },
+    )
+
+    expect(result.rows.map((row) => row.card)).toStrictEqual([card])
   })
 
   it('keeps successful Graph and memory rows when another holder query rejects', async () => {
@@ -214,6 +235,7 @@ describe(loadMemberPassList, () => {
       { addresses: [HOLDER_A], graphConfigured: true, memory: [] },
       {
         appleAvailable,
+        card: async () => await Promise.resolve(null),
         fetchRights: async () => await Promise.resolve([{ ...right(RIGHT, null), level: 2 }]),
         googleHref,
         stampSummary: async () => await Promise.resolve(null),
@@ -234,6 +256,7 @@ describe(loadMemberPassList, () => {
       { addresses: [], graphConfigured: true, memory: [{ addedAt: 1, holder: HOLDER_A, uid: RIGHT }] },
       {
         appleAvailable: async () => await Promise.resolve(false),
+        card: async () => await Promise.resolve(null),
         fetchRights,
         googleHref: async () => await Promise.resolve(null),
         stampSummary: async () => await Promise.resolve(null),
@@ -254,6 +277,7 @@ describe(loadMemberPassList, () => {
       { addresses: [], graphConfigured: true, memory: [{ addedAt: 1, holder: HOLDER_A, uid: RIGHT }] },
       {
         appleAvailable,
+        card: async () => await Promise.resolve(null),
         fetchRights,
         googleHref,
         stampSummary: async () => await Promise.resolve(null),
@@ -277,6 +301,7 @@ describe(loadMemberPassList, () => {
       { addresses: [], graphConfigured: true, memory: [{ addedAt: 1, holder: HOLDER_A, uid: RIGHT }] },
       {
         appleAvailable,
+        card: async () => await Promise.resolve(null),
         fetchRights,
         googleHref,
         stampSummary: async () => await Promise.resolve(null),
@@ -310,6 +335,7 @@ describe(loadMemberPassList, () => {
       },
       {
         appleAvailable,
+        card: async () => await Promise.resolve(null),
         fetchRights: async () => await Promise.resolve([{ ...right(RIGHT, null), level: 2 }]),
         googleHref,
         stampSummary: async () => await Promise.resolve(null),
@@ -331,6 +357,7 @@ describe('pass link availability', () => {
       { addresses: [], graphConfigured: false, memory: [{ addedAt: 1, holder: HOLDER_A, uid: RIGHT }] },
       {
         appleAvailable: async () => await Promise.resolve(true),
+        card: async () => await Promise.resolve(null),
         fetchRights: async () => await Promise.resolve([]),
         googleHref: async () => await Promise.resolve(google),
         stampSummary: async () => await Promise.resolve(null),
@@ -610,5 +637,40 @@ describe(RightsListView, () => {
     })
     expect(viewText(view)).toContain('4 / 10 stamps')
     expect(viewText(view)).toContain('1 / 2 today')
+  })
+
+  it('draws a venue card in its own colour, mark, title and member number', () => {
+    const view = RightsListView({
+      state: {
+        kind: 'ready',
+        result: {
+          indexUnavailable: false,
+          rows: [
+            memberRow({
+              card: {
+                brandColor: '#112233',
+                cardTitle: 'Members',
+                category: 'membership',
+                issuerName: 'Wassie Coffee',
+                logoUrl: 'https://api.example.test/assets/coffee/logo/master?v=1',
+                memberNumber: 'QJ2Y-XPHE-PDRKA',
+              },
+            }),
+          ],
+        },
+      },
+    })
+    const text = viewText(view)
+    const shown = ['Wassie Coffee', 'Members', 'MEMBER', 'QJ2Y-XPHE-PDRKA', 'UID'].map((part) =>
+      text.includes(part),
+    )
+    expect(shown).toStrictEqual([true, true, true, true, false])
+    const face = viewNodes(view).find((node) => node.props.class === 'member-pass-preview')
+    expect(face?.props.style).toStrictEqual({ backgroundColor: '#112233', color: '#FFFFFF' })
+    expect(
+      viewNodes(view).some(
+        (node) => node.props.src === 'https://api.example.test/assets/coffee/logo/master?v=1',
+      ),
+    ).toBe(true)
   })
 })

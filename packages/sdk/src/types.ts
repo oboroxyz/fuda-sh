@@ -11,6 +11,25 @@ export interface PassUrls {
   apple: string
 }
 
+// The venue card behind a public pass, for a client that draws the pass in the
+// venue's own look (GET /pass/<uid>/card). `card` is null for an admin-issued
+// right, which keeps the plain fuda look.
+export interface PassCardView {
+  issuerName: string
+  cardTitle: string
+  category: CardCategory
+  // `#RRGGBB`
+  brandColor: string
+  // absolute and versioned, as the wallet passes link it; null for a venue without a mark
+  logoUrl: string | null
+  // display form (`QJ2Y-XPHE-PDRKA`)
+  memberNumber: string
+}
+
+export interface PassCardResponse {
+  card: PassCardView | null
+}
+
 export type IssueResponse =
   | { uid: Hex; level: 'bearer' | 'signed'; holder: Hex; qr: string; passUrls: PassUrls }
   | { uid: Hex; level: 'private'; announced: true; announceTx: Hex }

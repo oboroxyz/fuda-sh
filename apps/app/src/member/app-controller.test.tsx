@@ -44,6 +44,7 @@ const io = (overrides: Partial<MemberAppIo> = {}): MemberAppIo => ({
 
 const passIo = (): MemberPassListIo => ({
   appleAvailable: async () => await Promise.resolve(false),
+  card: async () => await Promise.resolve(null),
   fetchRights: async () => await Promise.resolve([]),
   googleHref: async () => await Promise.resolve(null),
   stampSummary: async () => await Promise.resolve(null),
@@ -283,6 +284,7 @@ describe('member app controller', () => {
     })
     mount(io(), {
       appleAvailable: async () => await Promise.resolve(false),
+      card: async () => await Promise.resolve(null),
       fetchRights: async () => await Promise.resolve([]),
       googleHref: async () => await Promise.resolve(null),
       stampSummary: async () => await Promise.resolve(null),
@@ -381,6 +383,7 @@ describe('member app controller', () => {
     })
     const memberPassIo: MemberPassListIo = {
       appleAvailable: async () => await Promise.resolve(false),
+      card: async () => await Promise.resolve(null),
       fetchRights: async () => await Promise.resolve([]),
       googleHref: async () => await Promise.resolve(null),
       stampSummary: async () => await Promise.resolve(null),

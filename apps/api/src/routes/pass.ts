@@ -1,6 +1,7 @@
 import { buildGoogleSaveUrl, googleConfigFrom } from '@fuda/pass'
 import type { AppleLogo } from '@fuda/pass/apple'
 import { passPlatform } from '@fuda/sdk'
+import type { PassCardResponse } from '@fuda/sdk'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 
@@ -59,6 +60,32 @@ passRoutes.get('/pass/:uid', async (c) => {
   return await c.html(
     PassPage(passView(found.row, outcome, stamps), passPlatform(c.req.header('user-agent') ?? '')),
   )
+})
+
+// The venue's look behind a pass, as JSON, for a client that lists passes in
+// that look (the member app). Same lookup and same 400 → 404 → 404-for-+Private
+// contract as the page. An admin-issued right answers `card: null`: it has no
+// venue card and keeps the plain fuda look.
+passRoutes.get('/pass/:uid/card', async (c) => {
+  const found = await loadPassRow(c, c.req.param('uid'))
+  if (!found.ok) {
+    return found.res
+  }
+  const { branding } = found.row
+  const body: PassCardResponse = {
+    card:
+      branding === null
+        ? null
+        : {
+            brandColor: branding.brandColor,
+            cardTitle: branding.cardTitle,
+            category: branding.category,
+            issuerName: branding.issuerName,
+            logoUrl: branding.logoUrl,
+            memberNumber: branding.memberNumber,
+          },
+  }
+  return jsonResponse(c, body)
 })
 
 // Wallet-pass builders live in @fuda/pass; an unconfigured platform answers 501.

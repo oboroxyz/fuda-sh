@@ -57,6 +57,7 @@ const right = (id: Hex, holder: Hex, name = 'root'): GraphRight => ({
 })
 const fixture = () => ({
   appleAvailable: vi.fn<MemberPassListIo['appleAvailable']>().mockResolvedValue(false),
+  card: vi.fn<MemberPassListIo['card']>().mockResolvedValue(null),
   fetchRights: vi.fn<MemberPassListIo['fetchRights']>().mockResolvedValue([]),
   googleHref: vi.fn<MemberPassListIo['googleHref']>().mockResolvedValue(null),
   stampSummary: vi.fn<MemberPassListIo['stampSummary']>().mockResolvedValue(null),
