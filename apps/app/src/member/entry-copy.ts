@@ -2,6 +2,17 @@ import { pick } from '@fuda/i18n'
 import type { Copy, Locale } from '@fuda/i18n'
 
 interface EntryCopy {
+  privateUi: {
+    close: string
+    metaDetails: string
+    rightDetails: string
+    rightId: string
+    rights: string
+    signHint: string
+    signVerify: string
+    verified: string
+    verifying: string
+  }
   privateIntro: string
   usePasskey: string
   createPasskey: string
@@ -43,6 +54,17 @@ export const ENTRY_COPY = {
     },
     privateIntro:
       'Unlock your private rights with your fuda passkey. This is separate from the Base account you use to sign in.',
+    privateUi: {
+      close: 'Close',
+      metaDetails: 'Meta-address details',
+      rightDetails: 'Right details',
+      rightId: 'Right ID',
+      rights: 'Private rights',
+      signHint: 'Sign & verify to check access.',
+      signVerify: 'Sign & verify',
+      verified: 'Access verified',
+      verifying: 'Signing & verifying…',
+    },
     scanner: {
       cameraUnavailable: 'camera unavailable — paste below',
       check: 'Check',
@@ -75,6 +97,17 @@ export const ENTRY_COPY = {
     },
     privateIntro:
       'fudaのパスキーで非公開の権利を確認します。サインインに使うBaseアカウントとは別のパスキーです。',
+    privateUi: {
+      close: '閉じる',
+      metaDetails: 'メタアドレスの詳細',
+      rightDetails: '権利の詳細',
+      rightId: '権利ID',
+      rights: '非公開の権利',
+      signHint: 'ペンのボタンで署名し、利用可否を確認します。',
+      signVerify: '署名して確認',
+      verified: '利用できることを確認しました',
+      verifying: '署名・確認中…',
+    },
     scanner: {
       cameraUnavailable: 'カメラを利用できません。下の欄に貼り付けてください',
       check: '確認',

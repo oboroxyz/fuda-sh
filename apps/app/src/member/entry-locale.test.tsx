@@ -82,11 +82,17 @@ describe('entry locale changes', () => {
     click('Use existing passkey')
     await setTimeout(0)
     const metaAddress = root.querySelector('.font-mono')?.textContent
-    expect(metaAddress).toBe(stealth.keysFromPrf(output).metaAddress)
+    expect(metaAddress).toBeTruthy()
+    click('Meta-address details')
+    await setTimeout(0)
+    expect(root.querySelector('dialog')?.textContent).toContain(stealth.keysFromPrf(output).metaAddress)
     click('Language')
     await setTimeout(0)
     expect(root.textContent).toContain('自分の権利を探す')
-    expect(root.querySelector('.font-mono')?.textContent).toBe(metaAddress)
+    expect({
+      compact: root.querySelector('.font-mono')?.textContent,
+      full: root.querySelector('dialog dd')?.textContent?.includes(stealth.keysFromPrf(output).metaAddress),
+    }).toStrictEqual({ compact: metaAddress, full: true })
     expect(root.textContent).not.toContain('既存のパスキーを使う')
   })
 
