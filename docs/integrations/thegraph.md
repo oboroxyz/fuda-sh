@@ -1,8 +1,8 @@
 # The Graph in fuda
 
-**What fuda does.** A membership, a ticket or an event badge is normally a row in some vendor's database. fuda makes it a revocable on-chain record instead: a venue issues a right, the member keeps it in Apple Wallet, Google Wallet or a browser pass, and a scanner at a real door decides admission by reading the chain — not by asking fuda whether this person is a customer.
+**What fuda does.** A membership, a ticket or an event badge is normally a row in some vendor's database. fuda makes it a revocable on-chain record instead: a venue issues a right, a standard pass can be saved to Apple Wallet, Google Wallet or a browser, and the hosted scanner asks the fuda API to check EAS and enforce admission state in D1. +Private uses the member app's discovery and signature flow instead of Wallet delivery. Anyone can independently check on-chain validity; the hosted admission flow still uses fuda's API.
 
-**Where The Graph sits.** On the read path of two of the four surfaces. The member app queries a subgraph to discover rights it cannot see any other way; the operator dashboard queries the same subgraph for on-chain status. When that landed, the API's own cache was deleted, so there is no fuda-hosted fallback behind either screen. The gate never touches it — admission reads EAS directly and fails closed.
+**Where The Graph sits.** On the read path of two of the four surfaces. The member app queries a subgraph to discover rights it cannot see any other way; the operator dashboard queries the same subgraph for on-chain status. When that landed, the API's announcement cache was deleted, so +Private has no fallback announcement index. Graph-backed queries report failures explicitly; device-remembered standard passes can still use API status checks. The gate never touches The Graph: its API checks EAS and fails closed.
 
 **Why Substreams as well.** The events fuda cares about belong to two public standards, not to fuda. Packaging the extraction as a reusable Substreams module and composing fuda's own events on top makes that separation real: the standard's half is importable by anyone, and stopping the whole lane changes nothing about the product — which is what makes the claim checkable rather than rhetorical.
 
@@ -32,10 +32,11 @@ flowchart LR
     SG ==> DASH["Operator dashboard<br/>On-chain status"]
     M3 -. "evidence · reuse<br/>no product surface reads this" .-> ANYONE["Any importer"]
 
-    EAS ==>|"eth_call, fail-closed"| GATE["Gate admission"]
+    GATE["Gate admission"] ==> API["fuda API<br/>D1 admission state"]
+    API ==>|"eth_call, fail-closed"| EAS
 ```
 
-Bold is required, dotted is optional: **stop the subgraph and the app and dashboard fail explicitly**; **stop the Substreams lane and nothing in the product changes at all**; **the gate never goes through The Graph** in either case.
+Bold is required, dotted is optional: **stop the subgraph and +Private discovery and Graph-backed on-chain queries become unavailable**; **stop the Substreams lane and nothing in the product changes at all**; **the gate never goes through The Graph** in either case. Standard Wallet delivery and QR verification are Graph-independent; `/rights` can retain device-remembered passes with API status checks.
 
 |  |  |
 | --- | --- |
@@ -57,11 +58,13 @@ Everything here reads two contracts, and both are **singletons deployed at the s
 | [ERC-5564](https://eips.ethereum.org/EIPS/eip-5564) Announcer | `0x55649E01B5Df198D18D95b5cc5051630cfD45564` | same on every EVM chain |
 | [EAS](https://attest.org) | `0x4200000000000000000000000000000000000021` | same on every OP Stack chain |
 
-**ERC-5564 — stealth addresses.** A stealth address is a one-time address that only the intended recipient can recognise and spend from, and that nobody else can link back to them. The sender derives it from the recipient's published _meta-address_, sends to it, and posts an `Announcement` to a single canonical contract — the **Announcer** — carrying the ephemeral public key and a one-byte view tag. The recipient scans announcements with a private viewing key to find the ones meant for them. The Announcer holds no index and takes no position on who anything belongs to; it is a public log, and that is the entire design. fuda uses it for **+Private** rights, so a member's rights are not linkable to each other or to them on-chain.
+**ERC-5564 — stealth addresses.** fuda creates a fresh stealth address **per issued right** from the recipient's public _stealth meta-address_. The issuer attests the EAS right to that address and posts an `Announcement` to the canonical **Announcer**, including the ephemeral public key, a one-byte view tag and the right UID in metadata. The recipient scans the raw announcements with a private viewing key to find their rights and recover the corresponding stealth signing keys. The Announcer is a public log; it does not decide ownership or admission.
+
+For **+Private**, the member first creates or unlocks a separate fuda WebAuthn PRF passkey. Its PRF output derives viewing and spending keys and the meta-address locally. The passkey must be prepared before issuance; the issuer creates the fresh per-right address. Private issuance currently uses the admin API, and the public card-claim UI is not connected. This avoids reusing a holder address across rights; it does not hide the issuer's recipient mapping or repeated presentations of the same UID from the gate. The address is not regenerated on each visit.
 
 The standard is in production use beyond fuda: [**Fluidkey**](https://docs.fluidkey.com/technical-documentation/technical-walkthrough/) is a stealth-address wallet built on it, and fuda borrowed two ideas from their published design — deriving stealth keys deterministically from a root secret so a user can re-enumerate their own addresses without the operator's server (their [stealth-account-kit](https://github.com/fluidkey/fluidkey-stealth-account-kit) is open source), and letting a stable public name resolve to a _fresh_ stealth address per query rather than a durable one.
 
-**EAS — attestations as the source of truth.** [EAS](https://attest.org) is a public contract for signed, schema-typed, revocable statements on-chain. Register a _schema_ — a field list — once, and anyone can attest against it; each attestation gets a UID, records its attester and recipient, and can be revoked later by the attester. No application logic, no permission system: a neutral place to put a claim so anyone can check it. fuda puts three kinds there — a right (`Entitlement`), a venue's authority to issue rights (`IssuerDelegation`), and a visit (`Attendance`). The gate resolves the first two by `eth_call` and fails closed, which is what makes "revoke on-chain and the same QR turns red on the next scan" true without fuda being in the loop. Live UIDs and schemas are in [Evidence](#evidence); the model is specified in [`attestation-model.md`](../specs/attestation-model.md).
+**EAS — attestations as the source of truth.** [EAS](https://attest.org) is a public contract for signed, schema-typed, revocable statements on-chain. Register a _schema_ — a field list — once, and anyone can attest against it; each attestation gets a UID, records its attester and recipient, and can be revoked later by the attester. No application logic, no permission system: a neutral place to put a claim so anyone can check it. fuda puts three kinds there — a right (`Entitlement`), a venue's authority to issue rights (`IssuerDelegation`), and a visit (`Attendance`). The hosted gate uses the API to resolve the first two by `eth_call` and enforce admission with D1 state. Revoked rights are rejected on the next verification; the subgraph is not the authority for admission. Non-private admission schedules Attendance asynchronously on a best-effort basis; private admission does not emit public Attendance. Live UIDs and schemas are in [Evidence](#evidence); the model is specified in [`attestation-model.md`](../specs/attestation-model.md).
 
 ## What was built
 
@@ -116,21 +119,21 @@ The package boundary is the point: everything inside `fuda_erc5564` is the stand
 
 [`packages/subgraphs/rights/`](../../packages/subgraphs/rights)
 
-An AssemblyScript subgraph with two `ethereum/events` sources (EAS `Attested`/`Revoked`, Announcer `Announcement`) producing `Right`, `Delegation`, `Attendance` and `Announcement` entities. Deployed to Subgraph Studio, and the subject of the next section.
+An AssemblyScript subgraph with two `ethereum/events` sources (EAS `Attested`/`Revoked`, Announcer `Announcement`) producing `Right`, `Delegation`, `Attendance` and `Announcement` entities. It indexes the contracts directly, independently of the Substreams output. Deployed to Subgraph Studio, and the subject of the next section.
 
 ## On the product's read path
 
-The subgraph is not a side exhibit. When it landed, the API's own D1 announcement crawl and its `GET /announcements` route were **deleted** (migration [`0001_drop_announcement_cache.sql`](../../apps/api/migrations/0001_drop_announcement_cache.sql)), so there is no fuda-hosted fallback behind these screens.
+The subgraph is not a side exhibit. When it landed, the API's own D1 announcement crawl and its `GET /announcements` route were **deleted** (migration [`0001_drop_announcement_cache.sql`](../../apps/api/migrations/0001_drop_announcement_cache.sql)), so there is no fuda-hosted fallback announcement index for +Private discovery. This does not remove device-saved standard passes or their API status checks.
 
 | Surface | What it reads from the Graph | Code |
 | --- | --- | --- |
-| Member app `/private` | Every raw `Announcement`, paged by a `(blockNumber, id)` cursor, matched locally against the passkey-derived viewing key. | [`PrivateScreen.tsx`](../../apps/app/src/PrivateScreen.tsx) → [`private-member.ts`](../../apps/app/src/private-member.ts) |
-| Member app `/rights` | Public rights by holder, combined with device memory and live API status checks. | [`RightsList.tsx`](../../apps/app/src/RightsList.tsx) |
+| Member app `/private` | Every raw `Announcement`, paged by a `(blockNumber, id)` cursor, matched locally against the passkey-derived viewing key. | [`PrivateScreen.tsx`](../../apps/app/src/member/PrivateScreen.tsx) → [`private-member.ts`](../../apps/app/src/private-member.ts) |
+| Member app `/rights` | Public rights by holder, combined with device memory and live API status checks. | [`RightsList.tsx`](../../apps/app/src/member/RightsList.tsx) |
 | Operator dashboard, "On-chain status" | Rights by holder, Attendance by right, IssuerDelegation by issuer — shown next to the operator's own rows, never merged with them. | [`on-chain-status.ts`](../../apps/dash/src/on-chain-status.ts), [`OnChainStatus.tsx`](../../apps/dash/src/OnChainStatus.tsx) |
 | Shared SDK | The only Graph client: four typed fetchers with full response validation, GraphQL errors taking precedence, integer scalars kept as `bigint`. | [`graph.ts`](../../packages/sdk/src/graph.ts) |
 | Config | `VITE_GRAPH_RIGHTS_ENDPOINT`, baked in at build time for both apps. Empty → private discovery and on-chain status report missing configuration; `/rights` explicitly falls back to device-remembered passes. | [`app/config.ts`](../../apps/app/src/config.ts), [`dash/config.ts`](../../apps/dash/src/config.ts) |
 
-Gate admission and issuance are deliberately absent from that table: the gate reads EAS directly, and issuance writes EAS and D1.
+Gate admission and issuance are deliberately absent from that table: the gate calls the API, which checks EAS and maintains admission state in D1; issuance writes EAS and D1.
 
 The most demanding path is +Private discovery, and it is the one that explains why the indexer stays dumb:
 
@@ -141,14 +144,21 @@ sequenceDiagram
     participant API as fuda API
     participant EAS as EAS (Base)
 
+    Note over App: Unlock fuda PRF passkey; derive viewing/spending keys<br/>and meta-address (prepared before API issuance)
     App->>SG: fetchAnnouncements (every announcement, paged)
     SG-->>App: raw ERC-5564 announcements
     Note over App: matchAnnouncements with the passkey-derived<br/>viewing key — on the device, never sent anywhere
-    App->>API: signed challenge for a matched right
-    API->>EAS: eth_call to verify, fail-closed
+    App->>API: request challenge for selected right
+    API-->>App: challenge
+    Note over App: Sign with recovered stealth key
+    App->>API: submit signed challenge
+    API->>EAS: eth_call to check current validity, fail-closed
+    Note over API: Reject revoked rights; validate holder signature<br/>and enforce D1 challenge/admission state for valid rights
+    API-->>App: ADMIT or REJECT with reason
+    Note over App: Display verdict in Sign & verify modal
 ```
 
-The indexer is asked for _everything_ and told nothing. Filtering per issuer or per member would let it learn which announcements belong to whom, shrinking the anonymity set to whatever it indexed for you — which is why [ADR 0003](../adr/0003-graph-push-query-lanes.md) preserves this privacy invariant from the superseded API-cache decision in ADR 0002. Anything that looks like _matching_ belongs to the member's device; anything that looks like _state_ ("is this right valid right now?") belongs to the gate reading EAS directly.
+The app requests every indexed announcement without a viewing key or member-specific filter. Matching stays on the device; this does not hide ordinary request metadata from the Graph provider. Filtering per issuer or per member would let it learn which announcements belong to whom, shrinking the anonymity set to whatever it indexed for you — which is why [ADR 0003](../adr/0003-graph-push-query-lanes.md) preserves this privacy invariant from the superseded API-cache decision in ADR 0002. Anything that looks like _matching_ belongs to the member's device; anything that looks like _state_ ("is this right valid right now?") belongs to the API checking EAS and enforcing admission state. Revoked announcements remain discoverable: finding a right is not proof that it is currently valid. Unlocking uses the passkey ceremony; each Sign & verify action signs with the recovered stealth key without a new biometric prompt.
 
 ## Evidence
 
@@ -166,7 +176,7 @@ The identifiers and results below record prior captures. They are not a fresh he
 | `erc5564-eas-pipeline-v0.1.0.spkg` sha256 | `408a25bc9be646f7e84ccfbd3f1b024aaaf0509bed5a93f9a89e1b50a4829dba` |
 | Attester for every capture below | `0xAA64E3814A88f4bA4588787EB04e5eACBabcd77E` |
 
-The `.spkg` files are built locally and not committed — build and pack them with the commands in each package's README. The checksums identify the artifacts used for every capture here; see [Reproduce it](#reproduce-it) for what they do and do not guarantee.
+The `.spkg` files are built locally and not committed — build and pack them with the commands in each package's README. The checksums identify the artifacts used for the historical Substreams captures; see [Reproduce it](#reproduce-it) for what they do and do not guarantee.
 
 ### Captured from the live stream
 
@@ -182,9 +192,34 @@ On the query side, [`queries/smoke.graphql`](../../packages/subgraphs/rights/que
 
 The second chain is [The cross-chain proof](#the-cross-chain-proof).
 
+### Real-device +Private follow-up — 2026-09-13
+
+Real iPhone captures from `app.fuda.sh`, with the UI deployed from commit
+[`9755bd9`](https://github.com/oboroxyz/fuda-sh/commit/9755bd9), show discovered
+rights with distinct stealth holders and the Sign & verify modal results:
+
+| Right | EAS UID | Stealth holder | Captured result |
+| --- | --- | --- | --- |
+| Active MULTI_USE right A | [`0xf9e9c1bf…fb025c`](https://base-sepolia.easscan.org/attestation/view/0xf9e9c1bf7df42097c29048b4497a857c4c8a966ef4d870c2ead1b6fbc3fb025c) | `0x805b27f19749Ff0F47733ab57eEcE2bE9a1c9674` | ADMIT through Sign & verify |
+| Previously revoked right | [`0xf0250f47…e04a08`](https://base-sepolia.easscan.org/attestation/view/0xf0250f47ba19f66e1870a46cff2d3c2b476efa87270d8cc3db7a2086d3e04a08) | `0x119446ABE91613BC1159ADA7fb83e28687C6823E` | REJECT / REVOKED |
+
+At 08:12:25 UTC, Studio returned A's scheme-1 announcement at block
+46759404 with the expected holder and UID metadata. `_meta` reported block
+46759427 and `hasIndexingErrors: false`. The announcement transaction was
+[`0xefa2f4bd…260b3`](https://sepolia.basescan.org/tx/0xefa2f4bdd75bb09a02c7851c38c8ae4b858dec4e503cb457aa6069105e3260b3).
+These are dated observations, not a fresh health check.
+
+These two verdicts concern **different rights**, not one right revoked during
+the capture. The stills establish the member UI results; an unlocked-list
+screenshot alone does not show the OS passkey ceremony. The result appears
+in the member app, not a paired physical gate. A short video insert is being
+prepared; its final URL and timestamp are pending. This adds evidence for the
+**subgraph query lane**, not a new Substreams composition or cross-chain run.
+The earlier stream capture above remains separate evidence. Private ENS rotation was verified separately through [live viem queries](./ens.md#live-private-name-resolution) against a manually provisioned name; it is not established by these phone captures.
+
 ### Verify it independently
 
-None of this requires trusting this page, this repository, or any fuda service. The same attestations check out three ways: on a third-party EAS explorer, in the subgraph, and in the composed stream above.
+None of this requires trusting this page, this repository, or any fuda service. The 9/6 attestations listed below check out three ways: on a third-party EAS explorer, in the subgraph, and in the earlier composed stream capture. The 9/13 device follow-up uses separate UIDs.
 
 | What | UID on the Base Sepolia EAS explorer | Schema |
 | --- | --- | --- |
