@@ -144,7 +144,7 @@ sequenceDiagram
     participant API as fuda API
     participant EAS as EAS (Base)
 
-    Note over App: Unlock fuda PRF passkey; derive viewing/spending keys<br/>and meta-address (prepared before API issuance)
+    Note over App: Unlock fuda PRF passkey, derive viewing/spending keys<br/>and meta-address (prepared before API issuance)
     App->>SG: fetchAnnouncements (every announcement, paged)
     SG-->>App: raw ERC-5564 announcements
     Note over App: matchAnnouncements with the passkey-derived<br/>viewing key — on the device, never sent anywhere
@@ -153,7 +153,7 @@ sequenceDiagram
     Note over App: Sign with recovered stealth key
     App->>API: submit signed challenge
     API->>EAS: eth_call to check current validity, fail-closed
-    Note over API: Reject revoked rights; validate holder signature<br/>and enforce D1 challenge/admission state for valid rights
+    Note over API: Reject revoked rights, validate holder signature<br/>and enforce D1 challenge/admission state for valid rights
     API-->>App: ADMIT or REJECT with reason
     Note over App: Display verdict in Sign & verify modal
 ```
