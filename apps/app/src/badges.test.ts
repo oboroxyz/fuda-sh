@@ -89,13 +89,37 @@ describe(requestHumanBadge, () => {
     await expect(statesOf(io)).resolves.toStrictEqual(['idle', 'opening', 'waiting', 'taken'])
   })
 
-  it('maps a user cancellation to idle and submits nothing', async () => {
+  it.each(['user_rejected', 'cancelled'])('maps the %s cancellation to idle and submits nothing', async (error) => {
     const io = fakeIo({
-      open: vi.fn<HumanBadgeIo['open']>(
-        async () => await Promise.resolve({ error: 'user_rejected', success: false }),
-      ),
+      open: vi.fn<HumanBadgeIo['open']>(async () => await Promise.resolve({ error, success: false })),
     })
     await expect(statesOf(io)).resolves.toStrictEqual(['idle', 'opening', 'waiting', 'idle'])
+    expect(io.submit).not.toHaveBeenCalled()
+  })
+
+  // The likelier path to "already verified" than the api's 409: a 4.0 nullifier
+  // is stable and the protocol treats a second uniqueness proof of the same
+  // action as a replay, so World App usually refuses before a proof exists to
+  // submit. The member must see the same answer either way, not a generic
+  // failure.
+  it.each(['nullifier_replayed', 'max_verifications_reached'])(
+    'maps the %s answer from World App to taken, and submits nothing',
+    async (error) => {
+      const io = fakeIo({
+        open: vi.fn<HumanBadgeIo['open']>(async () => await Promise.resolve({ error, success: false })),
+      })
+      await expect(statesOf(io)).resolves.toStrictEqual(['idle', 'opening', 'waiting', 'taken'])
+      expect(io.submit).not.toHaveBeenCalled()
+    },
+  )
+
+  it('maps any other World App failure to error', async () => {
+    const io = fakeIo({
+      open: vi.fn<HumanBadgeIo['open']>(
+        async () => await Promise.resolve({ error: 'world_id_4_not_available', success: false }),
+      ),
+    })
+    await expect(statesOf(io)).resolves.toStrictEqual(['idle', 'opening', 'waiting', 'error'])
     expect(io.submit).not.toHaveBeenCalled()
   })
 

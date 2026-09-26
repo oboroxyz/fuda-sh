@@ -2,30 +2,37 @@ import type { BadgeView, Hex } from '@fuda/sdk'
 import { normalizeUid } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
 import { apiFetch } from '@fuda/sdk/http'
-import { IDKit, isInWorldApp, orbLegacy } from '@worldcoin/idkit-core'
+import { IDKit, isInWorldApp, proofOfHuman } from '@worldcoin/idkit-core'
 import type { RpContext } from '@worldcoin/idkit-core'
 
 import { API_BASE_URL } from './config.ts'
 
 // The whole point of this badge is that one human badges only one pass, which
 // needs the same person verifying the same action twice to produce the same
-// nullifier. World's own docs disagree on which credential gives that: see
-// .superpowers/2026-09-26-world-spike-notes.md section 7 ("Step 6 — nullifier
-// stability"), still an open item pending the user's phone measurement.
-// Under the docs read so far, `orbLegacy` is the option credited with a
-// stable per-(app_id, action) nullifier, so it is the current choice. These
-// two constants must change together — if the measurement later favours
-// `proofOfHuman`, swap both in one edit; never mix a 4.0 preset with a legacy
-// `allow_legacy_proofs` value or the reverse.
+// nullifier. World ID 4.0 gives exactly that: "the same person verifying the
+// same action always produces the same nullifier", and the protocol's own type
+// calls a nullifier "derived from (user, rpId, action)". The 4.0 migration
+// guide's "one-time-use" wording is about not reusing a nullifier as a
+// persistent cross-action identity — store the used ones — not about the value
+// varying between requests; sessions randomise their action precisely *because*
+// the nullifier is a function of it. Sources, all primary, in
+// docs/research/world-id-2026-09-26.md Q3.
+//
+// So `proofOfHuman` ships, and legacy 3.0 proofs are refused. These two
+// constants must change together and only together: a 4.0 preset with
+// `allow_legacy_proofs: true` would let one person hold a 3.0 nullifier and a
+// distinct 4.0 nullifier for the same action, and badge a pass with each — the
+// vendor's own type says "you must track both v3 and v4 nullifiers to prevent
+// double-claims". Exactly one family ships.
 //
 // This choice is not enforceable from here: a client can ask for any preset it
 // likes with the same server-issued `rp_context`, which the RP signature does
 // not cover. The api makes the same choice again and refuses anything else —
-// `PROTOCOL_VERSION` and `HUMAN_IDENTIFIERS` in
+// `PROTOCOL_VERSION` and `HUMAN_SCHEMA_ID` in
 // apps/api/src/badges/providers/world.ts. A change here without the matching
 // change there rejects every proof this page produces.
-const HUMAN_PRESET = orbLegacy
-const ALLOW_LEGACY_PROOFS = true
+const HUMAN_PRESET = proofOfHuman
+const ALLOW_LEGACY_PROOFS = false
 
 // Explicit, not left to idkit-core's default: the vendor's own integration
 // guide has the client set this and the backend assert it ("Check that the
@@ -92,6 +99,20 @@ export interface HumanBadgeIo {
 // returns the member to where they started.
 const CANCELLATION_ERRORS = new Set(['user_rejected', 'cancelled'])
 
+// A member trying to badge a second pass is likelier to be stopped by World App
+// than by fuda's 409: the nullifier is stable *and* 4.0 treats a second
+// uniqueness proof of the same action as a replay, so the attempt usually ends
+// in `nullifier_replayed` — "Nullifier was already used for this action. Treat
+// as an already-verified outcome; do not retry the same action as a new
+// verification" — before a proof ever exists to submit.
+// `max_verifications_reached` is its sibling: "Action already verified the
+// maximum allowed number of times. Treat as terminal business-rule outcome",
+// which for an action that allows one verification per person is the same
+// already-verified answer. Both belong on `taken`, the state whose copy says a
+// pass of theirs is already verified, rather than on a generic failure. See
+// docs/research/world-id-2026-09-26.md Q3 and Q7.
+const ALREADY_VERIFIED_ERRORS = new Set(['nullifier_replayed', 'max_verifications_reached'])
+
 // Both badge routes answer the same way on a config gap and on a repeat
 // verification; the client tells them apart by status and error code alone,
 // the same pattern `cardFailureOf` in api.ts already uses for the card routes.
@@ -101,6 +122,19 @@ const failureKind = (result: { error: string; status: number }): 'error' | 'take
   }
   if (result.status === 501) {
     return 'unavailable'
+  }
+  return 'error'
+}
+
+// The three outcomes a failed World App answer can mean to the member: a
+// cancellation is not a failure at all, an already-verified answer is the same
+// thing the api's 409 would have said, and anything else is a real error.
+const completionFailureKind = (error: string): 'error' | 'idle' | 'taken' => {
+  if (CANCELLATION_ERRORS.has(error)) {
+    return 'idle'
+  }
+  if (ALREADY_VERIFIED_ERRORS.has(error)) {
+    return 'taken'
   }
   return 'error'
 }
@@ -158,7 +192,7 @@ export const requestHumanBadge = async (
     onState({ connectorUri, kind: 'waiting' })
   })
   if (!completion.success) {
-    onState({ kind: CANCELLATION_ERRORS.has(completion.error) ? 'idle' : 'error' })
+    onState({ kind: completionFailureKind(completion.error) })
     return
   }
   const submitted = await io.submit(lowerUid, completion.result)
