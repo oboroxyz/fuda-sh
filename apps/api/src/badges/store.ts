@@ -1,7 +1,8 @@
 import type { BadgeKind, BadgeView, Hex } from '@fuda/sdk'
 import { BADGE_KINDS } from '@fuda/sdk'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 
+import { bindChunks } from '../db/bind-chunks.ts'
 import type { Db } from '../db/client.ts'
 import { badges } from '../db/schema.ts'
 
@@ -36,26 +37,61 @@ const buildBadgeView = (row: {
   return { at: row.verifiedAt, expiresAt: row.expiresAt, kind: row.kind, verifier: row.verifier }
 }
 
-export const readBadges = async (db: Db, uid: Hex): Promise<BadgeView[]> => {
-  const rows = await db.select().from(badges).where(eq(badges.uid, uid))
-  const views: BadgeView[] = []
-  for (const row of rows) {
-    // Defensive: validate kind against schema to guard against drift or manual writes.
-    // Badges are advisory and must not break reads, so unrecognized kinds are skipped.
-    if (!isBadgeKind(row.kind)) {
-      continue
-    }
-    // SAFETY: isBadgeKind check above narrows row.kind to BadgeKind
-    views.push(
-      buildBadgeView({
+// What a read needs off a badge row. The stored row carries more (subject key,
+// scope, credential) and none of it may leave the api.
+interface BadgeRow {
+  uid: string
+  kind: string
+  verifier: string
+  verifiedAt: number
+  expiresAt: number | null
+}
+
+// One row as a view, or null when this build does not recognize its kind.
+// Defensive: validate kind against the schema to guard against drift or manual
+// writes. Badges are advisory and must not break reads, so an unrecognized kind
+// is skipped rather than reported.
+const badgeViewOf = (row: BadgeRow): BadgeView | null =>
+  // SAFETY: isBadgeKind narrows row.kind to BadgeKind
+  isBadgeKind(row.kind)
+    ? buildBadgeView({
         expiresAt: row.expiresAt,
         kind: row.kind,
         verifiedAt: row.verifiedAt,
         verifier: row.verifier,
-      }),
-    )
+      })
+    : null
+
+export const readBadges = async (db: Db, uid: Hex): Promise<BadgeView[]> => {
+  const rows = await db.select().from(badges).where(eq(badges.uid, uid))
+  return rows.map(badgeViewOf).filter((view): view is BadgeView => view !== null)
+}
+
+// The Badges held by a page of Rights, as one query per batch of uids rather
+// than one per Right. The uid list is the statement's only bound parameter, so
+// a batch may bind D1's whole allowance; a page longer than that becomes
+// several statements whose rows are merged here.
+//
+// A uid with no recognized Badge is absent from the map rather than mapped to an
+// empty list, which is what lets a caller leave the field off the row entirely.
+export const readBadgesByUid = async (db: Db, uids: readonly Hex[]): Promise<Map<string, BadgeView[]>> => {
+  const batches = await Promise.all(
+    bindChunks(uids).map(async (batch) => await db.select().from(badges).where(inArray(badges.uid, batch))),
+  )
+  const byUid = new Map<string, BadgeView[]>()
+  for (const row of batches.flat()) {
+    const view = badgeViewOf(row)
+    if (view === null) {
+      continue
+    }
+    const held = byUid.get(row.uid)
+    if (held === undefined) {
+      byUid.set(row.uid, [view])
+    } else {
+      held.push(view)
+    }
   }
-  return views
+  return byUid
 }
 
 // A repeat verification is the normal case — a member taps the button twice —

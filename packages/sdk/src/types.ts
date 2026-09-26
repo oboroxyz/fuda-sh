@@ -92,6 +92,12 @@ export interface MemberRow {
   tier: number
   status: 'active' | 'revoked'
   createdAt: number
+  // The Badges this Right carries, for an operator surface that shows the fact
+  // of a Badge beside the Right. An array rather than a `human` flag, for the
+  // same reason `VerifyResponse.badges` is one: a second kind must not be a
+  // breaking change. Absent, never empty, when the Right carries none, so a
+  // row keeps the exact shape it had before Badges existed.
+  badges?: BadgeView[]
 }
 export interface MembersResponse {
   members: MemberRow[]
