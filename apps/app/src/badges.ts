@@ -99,7 +99,11 @@ export type BadgeState =
   | { kind: 'done' }
   | { kind: 'taken' }
   | { kind: 'unavailable' }
-  | { kind: 'error' }
+  // `detail` is the vendor's own code for the refusal — `credential_unavailable`,
+  // `nullifier_replayed`, an api error name. The member's copy stays generic; the
+  // code is shown beside it because the alternative, on a phone with no console,
+  // is a member and an operator staring at a button that silently does nothing.
+  | { kind: 'error'; detail?: string }
 
 // The three vendor-facing steps, injected so `requestHumanBadge` never talks
 // to the real World SDK or network directly. `open` covers both opening World
@@ -219,6 +223,11 @@ export const defaultHumanBadgeIo: HumanBadgeIo = {
     }),
 }
 
+// Only the real-error state carries the code: a cancellation is not a failure,
+// and 'taken' and 'unavailable' already say exactly what happened.
+const failedState = (kind: 'error' | 'idle' | 'taken' | 'unavailable', detail: string): BadgeState =>
+  kind === 'error' ? { detail, kind } : { kind }
+
 // Drives one verify-and-badge attempt, reporting each state to `onState` as
 // it happens. `uid` is normalized to lowercase once here so the context call,
 // the proof's signal, and the submitted body all agree with each other and
@@ -233,7 +242,7 @@ export const requestHumanBadge = async (
   onState({ kind: 'opening' })
   const context = await io.context()
   if (!context.ok) {
-    onState({ kind: failureKind(context) })
+    onState(failedState(failureKind(context), context.error))
     return
   }
   onState({ connectorUri: null, kind: 'waiting' })
@@ -241,12 +250,12 @@ export const requestHumanBadge = async (
     onState({ connectorUri, kind: 'waiting' })
   })
   if (!completion.success) {
-    onState({ kind: completionFailureKind(completion.error) })
+    onState(failedState(completionFailureKind(completion.error), completion.error))
     return
   }
   const submitted = await io.submit(lowerUid, completion.result)
   if (!submitted.ok) {
-    onState({ kind: failureKind(submitted) })
+    onState(failedState(failureKind(submitted), submitted.error))
     return
   }
   onState({ kind: 'done' })

@@ -328,10 +328,17 @@ const humanBadgeControl = (
   }
   const busy = badge.kind === 'opening' || badge.kind === 'waiting'
   return (
-    <button class="btn btn-outline btn-sm" type="button" disabled={busy} onClick={onVerifyHuman}>
-      {busy ? <span class="loading loading-spinner loading-xs" aria-hidden="true" /> : null}
-      {busy ? copy.verifyingHuman : copy.verifyHuman}
-    </button>
+    <div class="flex flex-col items-center gap-2">
+      <button class="btn btn-outline btn-sm" type="button" disabled={busy} onClick={onVerifyHuman}>
+        {busy ? <span class="loading loading-spinner loading-xs" aria-hidden="true" /> : null}
+        {busy ? copy.verifyingHuman : copy.verifyHuman}
+      </button>
+      {badge.kind === 'error' && badge.detail !== undefined ? (
+        <p role="status" class="text-center font-mono text-[0.6875rem] text-[var(--fuda-muted)]">
+          {badge.detail}
+        </p>
+      ) : null}
+    </div>
   )
 }
 
