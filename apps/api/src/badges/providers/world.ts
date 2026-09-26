@@ -44,6 +44,7 @@ const configOf = (env: Bindings): WorldConfig | null => {
 // hash is a proof bound to nothing, which is exactly the proof-theft the
 // signal exists to prevent. A missing hash therefore fails this parse.
 const ProofPayload = v.looseObject({
+  environment: v.string(),
   protocol_version: v.string(),
   responses: v.array(v.looseObject({ identifier: v.string(), signal_hash: v.string() })),
 })
@@ -57,6 +58,19 @@ const ProofPayload = v.looseObject({
 // nullifiers to prevent double-claims"). The client preset and this constant
 // change together or not at all.
 const PROTOCOL_VERSION = '3.0'
+
+// The one environment this deployment accepts. idkit-core's own type also
+// allows 'staging' and 'sandbox' (its test and demo modes), and every proof
+// result carries whichever one produced it. World's own integration guide
+// prescribes exactly this check ("Check that the verify response's
+// `environment` matches your backend's expected environment (assert
+// 'production' for production integrations)"), because `environment:
+// 'staging'` is how its own simulator is requested — a staging or sandbox
+// proof is not backed by a real Orb verification, so accepting one would make
+// the one-human-one-pass claim this feature exists to make meaningless. The
+// client sets the matching `environment: 'production'` on its request; see
+// `WORLD_ENVIRONMENT` in apps/app/src/badges.ts.
+const WORLD_ENVIRONMENT = 'production'
 
 // Which credentials count as "one verified human" in the 3.0 family. World App
 // reports the Orb credential as `orb` over the native transport (idkit maps
@@ -148,6 +162,9 @@ export const worldVerifier: BadgeVerifier = {
       return { error: 'bad_input' }
     }
     if (parsedPayload.output.protocol_version !== PROTOCOL_VERSION) {
+      return { error: 'bad_proof' }
+    }
+    if (parsedPayload.output.environment !== WORLD_ENVIRONMENT) {
       return { error: 'bad_proof' }
     }
     if (!responses.every((response) => HUMAN_IDENTIFIERS.has(response.identifier))) {

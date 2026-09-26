@@ -27,6 +27,16 @@ import { API_BASE_URL } from './config.ts'
 const HUMAN_PRESET = orbLegacy
 const ALLOW_LEGACY_PROOFS = true
 
+// Explicit, not left to idkit-core's default: the vendor's own integration
+// guide has the client set this and the backend assert it ("Check that the
+// verify response's `environment` matches your backend's expected
+// environment (assert 'production' for production integrations)"), because
+// `environment: 'staging'` is how its own simulator is requested. Written
+// here beside the other two so a reader sees the client request and the
+// server's `WORLD_ENVIRONMENT` assertion (world.ts) as one decision, not two
+// unrelated defaults that happen to agree.
+const WORLD_ENVIRONMENT = 'production'
+
 // The RP-signed context POST /v1/badges/human/context hands back, opaque
 // beyond the fields IDKit.request() itself needs.
 export interface HumanBadgeContext {
@@ -99,9 +109,11 @@ export const defaultHumanBadgeIo: HumanBadgeIo = {
   context: async () =>
     await apiFetch<HumanBadgeContext>(API_BASE_URL, '/badges/human/context', { method: 'POST' }),
   open: async (context, uid, onConnect) => {
-    const request = await IDKit.request({ ...context, allow_legacy_proofs: ALLOW_LEGACY_PROOFS }).preset(
-      HUMAN_PRESET({ signal: uid }),
-    )
+    const request = await IDKit.request({
+      ...context,
+      allow_legacy_proofs: ALLOW_LEGACY_PROOFS,
+      environment: WORLD_ENVIRONMENT,
+    }).preset(HUMAN_PRESET({ signal: uid }))
     // Inside World App the native transport completes without a hand-off.
     // Everywhere else the page must survive the hand-off: `pollUntilCompletion()`
     // below only resolves while this document is alive, and `connectorURI` is an

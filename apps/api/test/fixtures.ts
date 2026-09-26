@@ -94,9 +94,9 @@ export const signChallenge = async (message: string): Promise<Hex> => await sign
 // adapter against an assumption instead of against the vendor.
 export const worldProof = (
   uid: string,
-  overrides: { identifier?: string; protocolVersion?: string } = {},
+  overrides: { identifier?: string; protocolVersion?: string; environment?: string } = {},
 ) => ({
-  environment: 'production',
+  environment: overrides.environment ?? 'production',
   nonce: '0x01',
   protocol_version: overrides.protocolVersion ?? '3.0',
   responses: [

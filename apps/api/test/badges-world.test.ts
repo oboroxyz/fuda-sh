@@ -76,6 +76,8 @@ describe('world verifier', () => {
     ['a proof that binds no signal at all', unboundProof(), 'bad_input'],
     ['a payload that is not shaped like a proof', { signal: UID }, 'bad_input'],
     ['a proof from the other protocol family', proofFor(UID, { protocolVersion: '4.0' }), 'bad_proof'],
+    ['a staging proof', proofFor(UID, { environment: 'staging' }), 'bad_proof'],
+    ['a sandbox proof', proofFor(UID, { environment: 'sandbox' }), 'bad_proof'],
     ['a selfie credential', proofFor(UID, { identifier: 'selfie' }), 'bad_proof'],
     ['a device credential', proofFor(UID, { identifier: 'device' }), 'bad_proof'],
     ['a passport credential', proofFor(UID, { identifier: 'passport' }), 'bad_proof'],
