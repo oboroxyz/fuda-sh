@@ -1,3 +1,4 @@
+import { hashSignal } from '@worldcoin/idkit-core/hashing'
 import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
@@ -84,3 +85,27 @@ export const signer = privateKeyToAccount(SIGNER_KEY)
 export const OTHER_KEY = `0x${'5b'.repeat(32)}` as const
 export const other = privateKeyToAccount(OTHER_KEY)
 export const signChallenge = async (message: string): Promise<Hex> => await signer.signMessage({ message })
+
+// A World proof payload shaped like the `IDKitResultV3` the vendor actually
+// returns for the shipped `orbLegacy` preset. The signal is not carried as a
+// field: it reaches the server only as `responses[].signal_hash`, derived with
+// the same `hashSignal` World App uses, which is why the adapter compares a
+// hash rather than a uid. Hand-built `{ signal }` fixtures would test the
+// adapter against an assumption instead of against the vendor.
+export const worldProof = (
+  uid: string,
+  overrides: { identifier?: string; protocolVersion?: string } = {},
+): unknown => ({
+  environment: 'production',
+  nonce: '0x01',
+  protocol_version: overrides.protocolVersion ?? '3.0',
+  responses: [
+    {
+      identifier: overrides.identifier ?? 'orb',
+      merkle_root: '0xroot',
+      nullifier: '0xdead',
+      proof: '0xproof',
+      signal_hash: hashSignal(uid),
+    },
+  ],
+})

@@ -17,6 +17,13 @@ import { API_BASE_URL } from './config.ts'
 // two constants must change together — if the measurement later favours
 // `proofOfHuman`, swap both in one edit; never mix a 4.0 preset with a legacy
 // `allow_legacy_proofs` value or the reverse.
+//
+// This choice is not enforceable from here: a client can ask for any preset it
+// likes with the same server-issued `rp_context`, which the RP signature does
+// not cover. The api makes the same choice again and refuses anything else —
+// `PROTOCOL_VERSION` and `HUMAN_IDENTIFIERS` in
+// apps/api/src/badges/providers/world.ts. A change here without the matching
+// change there rejects every proof this page produces.
 const HUMAN_PRESET = orbLegacy
 const ALLOW_LEGACY_PROOFS = true
 

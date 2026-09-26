@@ -6,7 +6,7 @@ import { getDb } from '../src/db/client.ts'
 import { badges } from '../src/db/schema.ts'
 import type { Bindings } from '../src/env.ts'
 import { appWith, fakeChain } from './env.ts'
-import { configuredEnv, NOW, seedRight, seedRoot } from './fixtures.ts'
+import { configuredEnv, NOW, seedRight, seedRoot, worldProof as proofFor } from './fixtures.ts'
 
 const db = () => getDb({ DB: env.DB })
 const worldEnv = (bindings: ReturnType<typeof configuredEnv>) => ({
@@ -130,7 +130,7 @@ describe('badge routes', () => {
       stubPortal({ nullifier: '0xdead', success: true })
       const res = await post(
         '/v1/badges/human',
-        { payload: { signal: unknownUid }, uid: unknownUid },
+        { payload: proofFor(unknownUid), uid: unknownUid },
         worldEnv(configuredEnv(del)),
         chain,
       )
@@ -145,7 +145,7 @@ describe('badge routes', () => {
       stubPortal({ nullifier: '0xdead', success: true })
       const res = await post(
         '/v1/badges/human',
-        { payload: { signal: otherUid }, uid },
+        { payload: proofFor(otherUid), uid },
         worldEnv(configuredEnv(del)),
         chain,
       )
@@ -160,7 +160,7 @@ describe('badge routes', () => {
       const bindings = worldEnv(configuredEnv(del))
 
       stubPortal({ nullifier: '0xdead', success: true })
-      const res = await post('/v1/badges/human', { payload: { signal: uid }, uid }, bindings, chain)
+      const res = await post('/v1/badges/human', { payload: proofFor(uid), uid }, bindings, chain)
       expect(res.status).toBe(200)
       await expect(db().select().from(badges)).resolves.toHaveLength(1)
     })
@@ -172,11 +172,11 @@ describe('badge routes', () => {
       const bindings = worldEnv(configuredEnv(del))
 
       stubPortal({ nullifier: '0xdead', success: true })
-      const first = await post('/v1/badges/human', { payload: { signal: uid }, uid }, bindings, chain)
+      const first = await post('/v1/badges/human', { payload: proofFor(uid), uid }, bindings, chain)
       const firstBody: unknown = await first.json()
 
       stubPortal({ nullifier: '0xdead', success: true })
-      const repeat = await post('/v1/badges/human', { payload: { signal: uid }, uid }, bindings, chain)
+      const repeat = await post('/v1/badges/human', { payload: proofFor(uid), uid }, bindings, chain)
       expect(repeat.status).toBe(200)
       await expect(repeat.json()).resolves.toStrictEqual(firstBody)
       await expect(db().select().from(badges)).resolves.toHaveLength(1)
@@ -190,10 +190,10 @@ describe('badge routes', () => {
       const bindings = worldEnv(configuredEnv(del))
 
       stubPortal({ nullifier: '0xdead', success: true })
-      await post('/v1/badges/human', { payload: { signal: uid1 }, uid: uid1 }, bindings, chain)
+      await post('/v1/badges/human', { payload: proofFor(uid1), uid: uid1 }, bindings, chain)
 
       stubPortal({ nullifier: '0xdead', success: true })
-      const res = await post('/v1/badges/human', { payload: { signal: uid2 }, uid: uid2 }, bindings, chain)
+      const res = await post('/v1/badges/human', { payload: proofFor(uid2), uid: uid2 }, bindings, chain)
       expect(res.status).toBe(409)
       await expect(res.json()).resolves.toStrictEqual({ error: 'already_badged' })
     })
@@ -205,10 +205,10 @@ describe('badge routes', () => {
       const bindings = worldEnv(configuredEnv(del))
 
       stubPortal({ nullifier: '0xdead', success: true })
-      await post('/v1/badges/human', { payload: { signal: uid }, uid }, bindings, chain)
+      await post('/v1/badges/human', { payload: proofFor(uid), uid }, bindings, chain)
 
       stubPortal({ nullifier: '0xbeef', success: true })
-      const res = await post('/v1/badges/human', { payload: { signal: uid }, uid }, bindings, chain)
+      const res = await post('/v1/badges/human', { payload: proofFor(uid), uid }, bindings, chain)
       expect(res.status).toBe(409)
       await expect(res.json()).resolves.toStrictEqual({ error: 'pass_already_badged' })
     })

@@ -1,5 +1,10 @@
-import { normalizeUid } from '@fuda/sdk'
-import type { Hex } from '@fuda/sdk'
+// The `/hashing` subpath on purpose: it is pure TypeScript over @noble/hashes,
+// while the package root pulls in idkit's wasm bundle, which has no business in
+// a Worker. `hashSignal` is the same function World App itself uses to derive
+// the `signal_hash` carried in a proof — its wasm and JS implementations were
+// compared byte for byte over 0x-prefixed hex, plain strings and invalid hex
+// before this adapter was written to depend on their agreement.
+import { hashSignal } from '@worldcoin/idkit-core/hashing'
 import { signRequest } from '@worldcoin/idkit-server'
 import * as v from 'valibot'
 
@@ -28,17 +33,50 @@ const configOf = (env: Bindings): WorldConfig | null => {
   return { action: WORLD_ACTION, appId: WORLD_APP_ID, rpId: WORLD_RP_ID, signingKeyHex: WORLD_RP_SIGNING_KEY }
 }
 
-// The proof payload's only field this adapter cares about at the I/O boundary:
-// the signal the client bound into the proof. Everything else is opaque and
-// forwarded to the portal as-is.
-const PayloadSignal = v.looseObject({ signal: v.string() })
+// The proof payload as the vendor actually ships it: `IDKitResult` from
+// @worldcoin/idkit-core, forwarded verbatim by the client. There is no
+// top-level `signal` field anywhere in that type — the signal reaches the
+// server only as `responses[].signal_hash`, so that is what this adapter
+// checks. Everything else is opaque and goes to the portal as-is.
+//
+// `signal_hash` is optional in the vendor's type ("included if signal was
+// provided in request") but required here: a response item carrying no signal
+// hash is a proof bound to nothing, which is exactly the proof-theft the
+// signal exists to prevent. A missing hash therefore fails this parse.
+const ProofPayload = v.looseObject({
+  protocol_version: v.string(),
+  responses: v.array(v.looseObject({ identifier: v.string(), signal_hash: v.string() })),
+})
 
-// The signal, in the one canonical form both sides agree on. A checksummed or
-// upper-cased uid here reads like a bad proof.
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- this *is* the I/O boundary: `payload` is an opaque, vendor-shaped proof and `PayloadSignal` is the parser that decodes it
-const signalOf = (payload: unknown): Hex | null => {
-  const parsed = v.safeParse(PayloadSignal, payload)
-  return parsed.success ? normalizeUid(parsed.output.signal) : null
+// The one protocol family this deployment accepts, and the server-side half of
+// the choice made once in apps/app/src/badges.ts (`HUMAN_PRESET`). `orbLegacy`
+// "only returns World ID 3.0 proofs" per its own vendor JSDoc, so 3.0 is the
+// family. Accepting 4.0 as well would let one person obtain a second,
+// unrelated nullifier for the same action and badge a second pass — the vendor
+// says as much on `allow_legacy_proofs` ("you must track both v3 and v4
+// nullifiers to prevent double-claims"). The client preset and this constant
+// change together or not at all.
+const PROTOCOL_VERSION = '3.0'
+
+// Which credentials count as "one verified human" in the 3.0 family. World App
+// reports the Orb credential as `orb` over the native transport (idkit maps
+// `verification_level` through unchanged), while the vendor's own
+// `ResponseItemV3` doc gives `proof_of_human` as an example identifier and the
+// bridge transport builds that field inside the wasm, where it cannot be read.
+// Both spellings of the same credential are accepted for that reason; nothing
+// else is. `device`, `document`, `secure_document`, `face`/`selfie`,
+// `passport`, `mnc` and `eid` are different credentials with different
+// uniqueness strength, and a payload carrying one means the client asked for a
+// preset this feature did not ship.
+const HUMAN_IDENTIFIERS = new Set(['orb', 'proof_of_human'])
+
+// Both sides of the comparison in one form, so a 0x prefix or an upper-cased
+// digit cannot read as a different signal. `hashSignal` returns 0x-prefixed
+// lowercase hex, padded to 32 bytes, on both the JS and the wasm side; this
+// only guards the payload half, which arrives from a client.
+const sameHash = (a: string, b: string): boolean => {
+  const bare = (hash: string): string => hash.replace(/^0x/iu, '').toLowerCase()
+  return bare(a) === bare(b)
 }
 
 // The one field of the portal's verify response this adapter reads. PROVISIONAL:
@@ -89,8 +127,32 @@ export const worldVerifier: BadgeVerifier = {
       // Implements the contract documented on `BadgeVerifier.verify`.
       throw new Error('world verifier: verify() called while unconfigured')
     }
-    if (signalOf(input.payload) !== input.uid) {
+    // Everything checkable from the payload alone is checked here, before the
+    // portal is called at all: a proof bound to another Right, or of another
+    // protocol family or credential, is refused without spending a round trip.
+    const parsedPayload = v.safeParse(ProofPayload, input.payload)
+    if (!parsedPayload.success) {
       return { error: 'bad_input' }
+    }
+    const responses = parsedPayload.output.responses
+    const first = responses[0]
+    if (first === undefined) {
+      return { error: 'bad_input' }
+    }
+    // Every response item must be bound to this Right, not just one: the
+    // shipped preset returns exactly one item, so "every" and "at least one"
+    // coincide today, and requiring every item keeps the binding complete if a
+    // multi-credential preset is ever used. An item bound elsewhere would be a
+    // proof someone else's page could have obtained.
+    const expectedHash = hashSignal(input.uid)
+    if (!responses.every((response) => sameHash(response.signal_hash, expectedHash))) {
+      return { error: 'bad_input' }
+    }
+    if (parsedPayload.output.protocol_version !== PROTOCOL_VERSION) {
+      return { error: 'bad_proof' }
+    }
+    if (!responses.every((response) => HUMAN_IDENTIFIERS.has(response.identifier))) {
+      return { error: 'bad_proof' }
     }
     const res = await fetch(`${VERIFY_BASE}/${config.rpId}`, {
       body: JSON.stringify(input.payload),
@@ -106,9 +168,17 @@ export const worldVerifier: BadgeVerifier = {
       return { error: 'bad_proof' }
     }
     return {
-      credential: 'orb',
+      // The credential the proof actually carries, not an assumption about it.
+      // Every item was checked against HUMAN_IDENTIFIERS above, so the first
+      // one names the credential the whole payload attests.
+      credential: first.identifier,
       expiresAt: null,
-      scope: config.action,
+      // A nullifier is scoped to (app_id, action), so the stored scope must be
+      // too. With the action alone, re-registering the app under an unchanged
+      // action would hand the same person a fresh nullifier inside an unchanged
+      // scope, and the unique index would stop catching them: one human, two
+      // badged passes. This is not retrofittable once rows exist.
+      scope: `${config.appId}:${config.action}`,
       subjectKey: parsed.output.nullifier.toLowerCase(),
     } satisfies VerifiedSubject
   },
