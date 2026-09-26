@@ -108,6 +108,10 @@ describe('world verifier', () => {
     // nullifier is bound to a randomised action. It must be refused as a proof
     // of the wrong kind, not merely tripped up by a missing field.
     ['a session proof', worldSessionProof(UID), 'bad_proof'],
+    // `session_id` is read as an optional unknown, so a null one is still
+    // *present*: the refusal is an explicit `!== undefined`, not a truthiness
+    // test that a null would slip through.
+    ['a uniqueness proof carrying a null session id', { ...proofFor(UID), session_id: null }, 'bad_proof'],
     ['a proof from the other protocol family', proofFor(UID, { protocolVersion: '3.0' }), 'bad_proof'],
     ['a staging proof', proofFor(UID, { environment: 'staging' }), 'bad_proof'],
     ['a sandbox proof', proofFor(UID, { environment: 'sandbox' }), 'bad_proof'],

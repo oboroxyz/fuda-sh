@@ -247,27 +247,45 @@ export const worldVerifier: BadgeVerifier = {
     // than its 3.0 predecessor: a hash that is present must match, and a hash
     // that is absent is not on its own treated as a forgery.
     //
-    // Absence is legitimate. `ResponseItemV4.signal_hash` is optional in the
-    // vendor's type, genuinely omitted from the JSON when unset (`Option` plus
-    // `skip_serializing_if` in the Rust source of truth), and the portal
-    // supplies a default for it, so failing closed on absence is stricter than
-    // the contract (docs/research/world-id-2026-09-26.md Q6). That research
-    // recommends conditioning the check on whether a signal was *requested*,
-    // which on this path would mean always requiring one — but idkit's own code
-    // shows why that is not safe: the bridge returns no signal hashes, so idkit
-    // reattaches them, and its 4.0 branch is
+    // What closes the replay this field exists to stop is not the comparison
+    // below — it is the proof itself. 4.0 feeds `signal_hash` into the Verifier
+    // contract as a circuit public input (`signalHash: BigInt(item.signal_hash)`
+    // in the portal's verify-v4), and the portal's request schema defaults an
+    // absent one to `0x0`. Strip the field off a proof bound to Right A and the
+    // public input becomes 0, on-chain verification fails, and that item comes
+    // back failed — so the field cannot be deleted to escape this check, nor
+    // swapped for the hash of another uid (docs/research/world-id-2026-09-26.md
+    // Q6). The comparison below is therefore a pre-flight: it refuses a
+    // mismatched hash before a round trip is spent, and reports it as
+    // `bad_input` rather than waiting for the portal's `bad_proof`.
+    //
+    // Absence is legitimate, so failing closed on it is stricter than the
+    // contract. `ResponseItemV4.signal_hash` is `Option` plus
+    // `skip_serializing_if` in the Rust source of truth — genuinely omitted
+    // from the JSON, not sent empty — and the portal supplies the default
+    // above. idkit can produce such an item: the bridge returns no signal
+    // hashes, so idkit reattaches them from the request, and its 4.0 lookup is
     // `signal_hashes.get(normalized).or_else(get(incoming)).cloned()`, an
     // `Option` with no fallback, where its 3.0 branch ends in
     // `unwrap_or_else(|| cached_signal_hashes.legacy())` and therefore always
-    // has one (worldcoin/idkit, rust/core/src/bridge.rs). A 4.0 item whose
-    // identifier does not match a cached key arrives with no hash at all, and
-    // requiring one would reject a valid proof.
+    // has one (worldcoin/idkit, rust/core/src/bridge.rs).
     //
-    // What is given up: with no hash, this adapter cannot tell that the human
-    // who verified meant this Right rather than another. What still holds the
-    // line:
-    //   - a hash that *is* present must match, so a captured proof cannot be
-    //     re-pointed at a second Right — the replay the signal exists to stop;
+    // How far that looseness is load-bearing on *this* path is not yet
+    // measured, and the honest reading is narrower than "a valid proof would be
+    // rejected". This path always requests a signal;
+    // `CachedSignalHashes::compute` keys the map on the *requested* credential
+    // type; and `normalize_response_identifier` rewrites only `face` →
+    // `selfie`. So a `proof_of_human` item reaches this line without a hash only
+    // if World App echoes the identifier under some other spelling — `orb`,
+    // the one HUMAN_SCHEMA_ID above records having seen, being the candidate.
+    // Whether a real proof carries the hash is the open question the device
+    // test settles; until it is taken, accepting absence is the choice that
+    // does not rest the demo on a spelling nobody here has measured.
+    //
+    // What accepting absence gives up: a proof minted against this deployment's
+    // public context with no signal at all can be pointed at any
+    // ADMIT-eligible uid, and this adapter cannot tell that the human who
+    // verified meant that Right. What still holds the line:
     //   - `action` is checked above, so a proof obtained for another action or
     //     another relying party is refused outright;
     //   - the Right must exist and be ADMIT-eligible (routes/badges.ts), so an
@@ -278,7 +296,11 @@ export const worldVerifier: BadgeVerifier = {
     // The countable claim therefore survives an unbound proof: spending one on
     // someone else's Right consumes the only one that person has, so the number
     // of humans and the number of badged passes still move together. What an
-    // unbound proof can cost is attribution, not the count.
+    // unbound proof can cost is attribution, not the count — and that cost is
+    // not newly introduced here: a uid is a bearer value, this route never
+    // proves the caller holds the Right, and a hostile client picks its own
+    // signal, so a present-and-matching hash never defended against a requester
+    // who chose someone else's uid up front.
     const expectedHash = hashSignal(input.uid)
     const bound = (signalHash: string | undefined): boolean =>
       signalHash === undefined || sameHash(signalHash, expectedHash)
