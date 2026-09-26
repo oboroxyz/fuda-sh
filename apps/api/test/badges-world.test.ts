@@ -1,4 +1,3 @@
-import { hashSignal } from '@worldcoin/idkit-core/hashing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { worldVerifier } from '../src/badges/providers/world.ts'
@@ -170,10 +169,7 @@ describe('world verifier', () => {
     const portal = vi.fn<() => Response>(() => Response.json({ nullifier: '0xdead', success: true }))
     vi.stubGlobal('fetch', portal)
     await expect(
-      worldVerifier.verify(configured, {
-        payload: proofFor(UID, { signalHash: hashSignal(`0x${'b2'.repeat(32)}`) }),
-        uid: UID,
-      }),
+      worldVerifier.verify(configured, { payload: proofFor(`0x${'b2'.repeat(32)}`), uid: UID }),
     ).resolves.toStrictEqual({ error: 'bad_input' })
     expect(portal).not.toHaveBeenCalled()
   })
