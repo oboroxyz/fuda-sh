@@ -110,7 +110,7 @@ const issued: IssuedCard = {
 const noop = (): void => {}
 
 const render = (state: Parameters<typeof CardScreenView>[0]['state']): JSX.Element =>
-  CardScreenView({ onIssue: noop, onReload: noop, state })
+  CardScreenView({ onIssue: noop, onReload: noop, onVerifyHuman: noop, state })
 
 describe(CardScreenView, () => {
   it('shows the onboarding description as multiline plain text', () => {
@@ -164,7 +164,14 @@ describe(CardScreenView, () => {
   })
 
   it('renders the ready card with the formatted member number, issue date and QR', () => {
-    const view = render({ appleHref: null, card, googleHref: null, issued, kind: 'ready' })
+    const view = render({
+      appleHref: null,
+      badge: { kind: 'idle' },
+      card,
+      googleHref: null,
+      issued,
+      kind: 'ready',
+    })
     const text = viewText(view)
     const qr = viewNodes(view).find(({ props }) => props.role === 'img')
 
@@ -179,7 +186,14 @@ describe(CardScreenView, () => {
     'keeps the browser fallback until the wallet is available on %s',
     (userAgent) => {
       vi.stubGlobal('navigator', { userAgent })
-      const hidden = render({ appleHref: null, card, googleHref: null, issued, kind: 'ready' })
+      const hidden = render({
+        appleHref: null,
+        badge: { kind: 'idle' },
+        card,
+        googleHref: null,
+        issued,
+        kind: 'ready',
+      })
       const hrefs = (view: unknown): unknown[] => viewNodes(view).map(({ props }) => props.href)
 
       expect(hrefs(hidden)).toContain(issued.passUrls.web)
@@ -197,6 +211,7 @@ describe(CardScreenView, () => {
     vi.stubGlobal('navigator', { userAgent })
     const shown = render({
       appleHref: issued.passUrls.apple,
+      badge: { kind: 'idle' },
       card,
       googleHref: 'https://pay.google.com/gp/v/save',
       issued,
@@ -329,7 +344,7 @@ describe('venue-local navigation', () => {
     { card, kind: 'landing' },
     { card, kind: 'issuing' },
     { card: null, failure: 'network', kind: 'error' },
-    { appleHref: null, card, googleHref: null, issued, kind: 'ready' },
+    { appleHref: null, badge: { kind: 'idle' }, card, googleHref: null, issued, kind: 'ready' },
   ] satisfies Parameters<typeof CardScreenView>[0]['state'][])('keeps $kind within the venue', (state) => {
     const nodes = viewNodes(render(state))
     const hrefs = nodes.map(({ props }) => props.href)

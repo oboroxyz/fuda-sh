@@ -30,10 +30,15 @@ export interface VenueCopy {
   seeAllCards: (name: string) => string
   showQr: string
   tryAgain: string
+  verifyHuman: string
+  verifyingHuman: string
+  verifiedHuman: string
+  alreadyVerifiedHuman: string
 }
 
 export const VENUE_COPY = {
   en: {
+    alreadyVerifiedHuman: 'This person already has a verified pass',
     appleWallet: 'Add to Apple Wallet',
     browserPass: 'Open pass in browser',
     category: {
@@ -70,8 +75,12 @@ export const VENUE_COPY = {
     seeAllCards: (name) => `See all cards from ${name}`,
     showQr: 'Show this code when you use your card.',
     tryAgain: 'Try again',
+    verifiedHuman: 'Verified Human',
+    verifyHuman: "Verify you're human",
+    verifyingHuman: 'Verifying…',
   },
   ja: {
+    alreadyVerifiedHuman: 'この方はすでに確認済みのパスをお持ちです',
     appleWallet: 'Apple Walletに追加',
     browserPass: 'ブラウザーでパスを開く',
     category: {
@@ -109,5 +118,8 @@ export const VENUE_COPY = {
     seeAllCards: (name) => `${name}のカードをすべて見る`,
     showQr: 'カードを使うときに、このコードを提示してください。',
     tryAgain: 'もう一度試す',
+    verifiedHuman: '本人確認済み',
+    verifyHuman: '本人確認する',
+    verifyingHuman: '確認中…',
   },
 } satisfies Copy<VenueCopy>

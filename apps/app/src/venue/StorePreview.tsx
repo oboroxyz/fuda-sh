@@ -113,7 +113,14 @@ const card = slug === null ? null : cardBySlug(venue, slug)
 const ready = (): CardScreenState =>
   card === null
     ? { kind: 'not_found', venue }
-    : { appleHref: issued.passUrls.apple, card, googleHref: issued.passUrls.google, issued, kind: 'ready' }
+    : {
+        appleHref: issued.passUrls.apple,
+        badge: { kind: 'idle' },
+        card,
+        googleHref: issued.passUrls.google,
+        issued,
+        kind: 'ready',
+      }
 
 const initialState = (): CardScreenState => {
   if (!/^\/@wassie-coffee(?:\/[^/]+)?\/?$/u.test(location.pathname)) {
@@ -251,6 +258,9 @@ export const StorePreview = (): JSX.Element => {
           }}
           onReload={() => {
             setState(initialState())
+          }}
+          onVerifyHuman={() => {
+            /* UI preview only: no vendor round trip. */
           }}
           state={state}
         />
