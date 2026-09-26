@@ -29,6 +29,28 @@ identity, no wallet link on World's side, no biometric. The nullifier is scoped 
 `app_id + action`, so it does not correlate this badge with the same person's activity in
 any other application.
 
+### The preset is chosen empirically, and nullifier stability decides it
+
+The whole uniqueness claim rests on one property: **the same person verifying the same
+action twice must produce the same nullifier.** The published documentation does not say
+this consistently. `world-id/concepts.md` defines a nullifier as "a unique identifier for a
+combination of a user, `app_id`, and `action`", which is the stable behaviour this design
+needs. `world-id/4-0-migration.md` states that in 4.0 "nullifiers are one-time-use, and
+`session_id` is the stable link across requests", which is not.
+
+Both cannot hold. Resolve it by measurement, not by reading: in the first task, verify
+**twice on the same phone with the same action** and compare the two nullifiers.
+
+- Identical → use the 4.0 preset, `allow_legacy_proofs: false`.
+- Different → use the legacy Orb preset (`orbLegacy`) whose per-`(app_id, action)`
+  nullifier is stable, and keep `allow_legacy_proofs` on only as far as that preset needs.
+
+**Exactly one preset ships.** Accepting both 4.0 and legacy proofs would let one person
+produce two different nullifiers and badge two passes, which is precisely the property this
+feature claims to provide. If neither preset yields a stable nullifier, the uniqueness
+claim is withdrawn and the feature is re-scoped to "this pass was verified by a human"
+without the one-per-human guarantee — say so in the submission rather than overstating it.
+
 ## Scope
 
 **In scope (the event-period feature):**
@@ -102,7 +124,9 @@ edge, the same rule `normalizeUid` already follows for UIDs.
 - `action` is fixed per event (`badge:ethtokyo2026`), so a nullifier counts a person once.
 - `signal` is the **Entitlement UID**, so a proof generated for pass A cannot badge pass B.
   The backend re-asserts this binding after verification rather than trusting the client's
-  `uid` field alone.
+  `uid` field alone. Both sides use the canonical lowercase form from `normalizeUid`: a
+  checksummed or upper-cased uid on either side produces a mismatch that reads like a bad
+  proof and is expensive to diagnose.
 - `rp_context` is signed server-side with `WORLD_RP_SIGNING_KEY` (a Worker secret) and
   carries its own nonce and expiry; the client never mints it.
 
@@ -126,8 +150,9 @@ insert the badge row.
 | Outcome | Status | Body |
 | --- | --- | --- |
 | Verified, badge stored | 200 | `{ humanVerified: { at, credential } }` |
-| Same human, same pass, repeated | 200 | identical body (idempotent) |
+| Same human, same pass, repeated | 200 | identical body — idempotent **only** when the stored nullifier equals the new one |
 | Same human, different pass | 409 | `already_badged` |
+| Different human, pass already badged | 409 | `pass_already_badged` |
 | Signal does not match `uid` | 400 | `bad_input` |
 | Proof rejected by World | 400 | `bad_proof` |
 | Right unknown or revoked | 404 / 409 | existing codes |
@@ -149,9 +174,16 @@ verdict. Nothing else in the system changes.
 throws, the field is omitted and the decision is unchanged, matching how the Attendance
 hook is already prevented from affecting an admission.
 
-`apps/gate/src/Verdict.tsx` renders a chip when the field is present. The walletmate
-daemon (`GET /verify/:uid` → GREEN/RED) needs no change; the added field is ignored by a
-client that does not read it.
+`apps/gate/src/Verdict.tsx` renders a chip when the field is present.
+
+**walletmate** (the Raspberry Pi scanner and GREEN/RED LED) needs **no code change**: it
+calls the same `GET /verify/:uid` and ignores an added response field. Pointing it at the
+deployed API is configuration. What it cannot do is show a badge — two LEDs have no way to
+say "admitted, and verified human". So walletmate demonstrates the unchanged admission
+path, and the badge is read on the `apps/gate` screen beside it. Only stretch **S1** makes
+the badge meaningful on the device itself: with a `requiresHuman` card, an unbadged pass
+turns the LED red. If walletmate is to carry the demonstration alone, S1 stops being
+optional.
 
 ## Failure and alternative paths
 
