@@ -19,15 +19,45 @@ export interface SaveBadgeInput {
 // 'pass'    — this Right already carries a badge of this kind, from someone else.
 export type SaveBadgeResult = { ok: true; badge: BadgeView } | { ok: false; conflict: 'subject' | 'pass' }
 
-const view = (row: typeof badges.$inferSelect): BadgeView => ({
-  at: row.verifiedAt,
-  kind: row.kind as BadgeKind,
-  verifier: row.verifier,
-  ...(row.expiresAt === null ? {} : { expiresAt: row.expiresAt }),
-})
+// Type guard to narrow string to BadgeKind, validating against schema.
+// SAFETY: check that value matches a known BadgeKind. Currently only 'human' exists;
+// when a new kind is added, add it to this check.
+const isBadgeKind = (value: string): value is BadgeKind => value === 'human'
 
-export const readBadges = async (db: Db, uid: Hex): Promise<BadgeView[]> =>
-  (await db.select().from(badges).where(eq(badges.uid, uid))).map(view)
+// Build a BadgeView from database row, with kind already validated as BadgeKind.
+const buildBadgeView = (row: {
+  verifiedAt: number
+  kind: BadgeKind
+  verifier: string
+  expiresAt: number | null
+}): BadgeView => {
+  if (row.expiresAt === null) {
+    return { at: row.verifiedAt, kind: row.kind, verifier: row.verifier }
+  }
+  return { at: row.verifiedAt, expiresAt: row.expiresAt, kind: row.kind, verifier: row.verifier }
+}
+
+export const readBadges = async (db: Db, uid: Hex): Promise<BadgeView[]> => {
+  const rows = await db.select().from(badges).where(eq(badges.uid, uid))
+  const views: BadgeView[] = []
+  for (const row of rows) {
+    // Defensive: validate kind against schema to guard against drift or manual writes.
+    // Badges are advisory and must not break reads, so unrecognized kinds are skipped.
+    if (!isBadgeKind(row.kind)) {
+      continue
+    }
+    // SAFETY: isBadgeKind check above narrows row.kind to BadgeKind
+    views.push(
+      buildBadgeView({
+        expiresAt: row.expiresAt,
+        kind: row.kind,
+        verifiedAt: row.verifiedAt,
+        verifier: row.verifier,
+      }),
+    )
+  }
+  return views
+}
 
 // A repeat verification is the normal case — a member taps the button twice —
 // so an existing row with the same subject answers success rather than an error.
@@ -38,8 +68,20 @@ export const saveBadge = async (db: Db, input: SaveBadgeInput): Promise<SaveBadg
     .where(and(eq(badges.uid, input.uid), eq(badges.kind, input.kind)))
     .get()
   if (existing !== undefined) {
+    if (!isBadgeKind(existing.kind)) {
+      throw new Error(`Invariant violation: badge kind not in BADGE_KINDS: ${existing.kind}`)
+    }
+    // SAFETY: isBadgeKind check above narrows existing.kind to BadgeKind
     return existing.subjectKey === input.subjectKey
-      ? { badge: view(existing), ok: true }
+      ? {
+          badge: buildBadgeView({
+            expiresAt: existing.expiresAt,
+            kind: existing.kind,
+            verifiedAt: existing.verifiedAt,
+            verifier: existing.verifier,
+          }),
+          ok: true,
+        }
       : { conflict: 'pass', ok: false }
   }
   const held = await db
@@ -73,5 +115,5 @@ export const saveBadge = async (db: Db, input: SaveBadgeInput): Promise<SaveBadg
   } catch {
     return await saveBadge(db, input)
   }
-  return { badge: view(row), ok: true }
+  return { badge: buildBadgeView(row), ok: true }
 }
