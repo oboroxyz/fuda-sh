@@ -28,27 +28,35 @@ describe('badge store', () => {
 
   it('stores a badge and reads it back', async () => {
     const saved = await saveBadge(db(), input(UID_A, '0xdead'))
-    expect(saved).toEqual({ badge: { at: NOW, kind: 'human', verifier: 'world' }, ok: true })
-    expect(await readBadges(db(), UID_A)).toEqual([{ at: NOW, kind: 'human', verifier: 'world' }])
+    expect(saved).toStrictEqual({ badge: { at: NOW, kind: 'human', verifier: 'world' }, ok: true })
+    await expect(readBadges(db(), UID_A)).resolves.toStrictEqual([
+      { at: NOW, kind: 'human', verifier: 'world' },
+    ])
   })
 
   it('is idempotent for the same subject on the same right', async () => {
     await saveBadge(db(), input(UID_A, '0xdead'))
     const again = await saveBadge(db(), { ...input(UID_A, '0xdead'), verifiedAt: NOW + 60 })
-    expect(again).toEqual({ badge: { at: NOW, kind: 'human', verifier: 'world' }, ok: true })
+    expect(again).toStrictEqual({ badge: { at: NOW, kind: 'human', verifier: 'world' }, ok: true })
   })
 
   it('rejects the same subject badging a second right', async () => {
     await saveBadge(db(), input(UID_A, '0xdead'))
-    expect(await saveBadge(db(), input(UID_B, '0xdead'))).toEqual({ conflict: 'subject', ok: false })
+    await expect(saveBadge(db(), input(UID_B, '0xdead'))).resolves.toStrictEqual({
+      conflict: 'subject',
+      ok: false,
+    })
   })
 
   it('rejects a different subject on an already badged right', async () => {
     await saveBadge(db(), input(UID_A, '0xdead'))
-    expect(await saveBadge(db(), input(UID_A, '0xbeef'))).toEqual({ conflict: 'pass', ok: false })
+    await expect(saveBadge(db(), input(UID_A, '0xbeef'))).resolves.toStrictEqual({
+      conflict: 'pass',
+      ok: false,
+    })
   })
 
   it('reads an empty list for an unbadged right', async () => {
-    expect(await readBadges(db(), UID_B)).toEqual([])
+    await expect(readBadges(db(), UID_B)).resolves.toStrictEqual([])
   })
 })
