@@ -109,8 +109,8 @@ const WORLD_ENVIRONMENT = 'production'
 // Which credentials count as "one verified human", and what a badge row records
 // for each. Pinned on the number rather than on the `identifier` string beside
 // it: `ResponseItemV4.issuer_schema_id` is documented as "1=proof_of_human,
-// 9303=passport, 9310=mnc, 11=selfie" and `SelfieCheckResponseItemV4` fixes it
-// at 11, so the number *is* the credential's identity, while `identifier` is a
+// 9303=passport, 9310=mnc" and `SelfieCheckResponseItemV4` fixes it at 11, so
+// the number *is* the credential's identity, while `identifier` is a
 // spelling this adapter cannot pin — World App reported the Orb credential as
 // both `orb` and `proof_of_human` depending on transport. A number cannot be
 // spelled two ways.
