@@ -1,4 +1,5 @@
 import type { BadgeKind, BadgeView, Hex } from '@fuda/sdk'
+import { BADGE_KINDS } from '@fuda/sdk'
 import { and, eq } from 'drizzle-orm'
 
 import type { Db } from '../db/client.ts'
@@ -19,10 +20,8 @@ export interface SaveBadgeInput {
 // 'pass'    — this Right already carries a badge of this kind, from someone else.
 export type SaveBadgeResult = { ok: true; badge: BadgeView } | { ok: false; conflict: 'subject' | 'pass' }
 
-// Type guard to narrow string to BadgeKind, validating against schema.
-// SAFETY: check that value matches a known BadgeKind. Currently only 'human' exists;
-// when a new kind is added, add it to this check.
-const isBadgeKind = (value: string): value is BadgeKind => value === 'human'
+// Type guard to narrow string to BadgeKind, validating against BADGE_KINDS.
+const isBadgeKind = (value: string): value is BadgeKind => BADGE_KINDS.some((kind) => kind === value)
 
 // Build a BadgeView from database row, with kind already validated as BadgeKind.
 const buildBadgeView = (row: {
