@@ -76,6 +76,8 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Qualification**: The external fact that makes a Member eligible for a Right (registered for the event, on the roster, paid) — read from a Qualification source before issuance is triggered. _Avoid_: Eligibility, entitlement (that is the Right), registration (one kind of Qualification)
 
+**Badge**: A verified fact about the Member holding a Right, attached after issuance and naming the verifier that attested it. Advisory: a missing or failed Badge lookup never changes a gate decision. _Avoid_: Stamp (that is a loyalty credit, not a verified fact), Qualification (that is pre-issuance), credential
+
 **Attendance**: The on-chain evidence of a public Right’s Entry. +Private Entries have no Attendance, so their visit history stays offchain. _Avoid_: Entry record, stamp, proof of attendance
 
 ### Changing a right

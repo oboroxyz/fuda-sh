@@ -258,6 +258,23 @@ After the challenge is consumed the signature is verified (`BAD_SIGNATURE` — a
 
 Identical to Signed. The member recovers the stealth address's private key client-side and signs the same challenge; `holder` in the verdict is the stealth address. There is no separate +Private gate machinery.
 
+### Badges
+
+A Right can carry a **Badge**: a verified fact about the Member holding it, attached after issuance and naming the verifier that attested it (see the [glossary](../CONTEXT.md)). Badges are additive to issuance and admission, which are otherwise unchanged: a Right with no Badge answers exactly as it did before Badges existed — the verdict body carries no `badges` key at all.
+
+`POST /badges/:kind/context` returns the verifier's request context; `POST /badges/:kind { "uid", "payload" }` submits a proof and, once it verifies, records the Badge. Both answer `404 not_found` for a uid that is not currently `ADMIT`-eligible, and `501 badges_not_configured` when the verifier's binding is absent. Routes are named after the claim (`human`), never the vendor behind it.
+
+Saving a Badge enforces two different conflict rules:
+
+- **One Badge per (Right, kind).** A Right can carry at most one Badge of a given kind. A second attempt to badge it, verified as a different person than the one already on file, answers `409 pass_already_badged`. A repeat verification by the same person is not a conflict — it answers success, matching the record already saved.
+- **One verified person, one badged Right, per (verifier, scope).** A person who already holds a Badge on a different Right in that verifier's scope answers `409 already_badged` when trying to badge a second one.
+
+The Badge lookup on `GET /verify/:uid` and `POST /verify` is advisory: a failed or missing lookup omits the `badges` field silently and never changes the ADMIT/REJECT decision or fails a scan. Each entry in `badges` is `{ kind, verifier, at, expiresAt? }`. `apps/gate` renders a "verified human" chip when a `human` Badge is present.
+
+**Privacy.** fuda stores only a subject key already scoped to `(verifier, scope)` for a Badge — never a raw identity, never a globally-stable identifier, never the proof itself.
+
+**Uniqueness caveat.** The one-person-one-Badge guarantee depends on the verifier returning the same subject key for the same person verifying the same action twice. For the shipped World ID adapter this is not yet confirmed by a device measurement — it rests on a reading of World's documentation, which is not fully consistent on the point.
+
 ## Venue reception and Stamps
 
 The dashboard's `/reception` is a venue-scoped, operator-authenticated reception for a keyboard-wedge reader. The reader sends `fuda:v1:<uid>` followed by Enter. The input stays ready for the next presentation, shows a pending state during verification, and displays admission separately from Stamp credit. Camera and Signed reception are not part of this screen. The existing `gate.fuda.sh` scanner remains admission-only.
