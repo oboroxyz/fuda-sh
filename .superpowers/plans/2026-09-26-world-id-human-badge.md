@@ -67,10 +67,12 @@ Stretch S1/S2 are attempted only after Task 8 is fully done.
 **Not TDD.** This is a measurement task. Its output is knowledge, recorded in a file, that every later task depends on. Do not start Task 2 before it is finished.
 
 **Files:**
+
 - Create: `apps/api/scripts/world-spike.ts`
 - Create: `.superpowers/2026-09-26-world-spike-notes.md`
 
 **Interfaces:**
+
 - Produces: the answers later tasks consume — package name for server-side signing, the exact v4 request/response field names, whether the nullifier is stable, which preset ships, and the four env var values.
 
 - [ ] **Step 1: Register the RP in the Developer Portal**
@@ -114,14 +116,11 @@ const signed = signRequest({ signingKeyHex, action })
 console.log(JSON.stringify({ action, app_id: process.env.WORLD_APP_ID, rp_context: signed }, null, 2))
 ```
 
-Run: `pnpm --filter api exec tsx scripts/world-spike.ts`
-Expected: a JSON object containing a signature, a nonce and an expiry.
+Run: `pnpm --filter api exec tsx scripts/world-spike.ts` Expected: a JSON object containing a signature, a nonce and an expiry.
 
 - [ ] **Step 5: Produce a proof on the real phone and verify it**
 
-Build the smallest possible page (a scratch HTML file outside the repo, or a temporary route) that feeds the printed context to
-`IDKit.request({ app_id, action, rp_context }).preset(<preset>({ signal: '0x' + '11'.repeat(32) }))`
-and opens World App. Forward the result verbatim:
+Build the smallest possible page (a scratch HTML file outside the repo, or a temporary route) that feeds the printed context to `IDKit.request({ app_id, action, rp_context }).preset(<preset>({ signal: '0x' + '11'.repeat(32) }))` and opens World App. Forward the result verbatim:
 
 ```bash
 curl -sS -X POST "https://developer.world.org/api/v4/verify/$WORLD_RP_ID" \
@@ -156,6 +155,7 @@ git commit -m "spike: verify a World ID proof end to end and record the findings
 ### Task 2: The badges table and its store
 
 **Files:**
+
 - Create: `apps/api/migrations/0015_badges.sql`
 - Modify: `apps/api/src/db/schema.ts`
 - Create: `apps/api/src/badges/store.ts`
@@ -163,14 +163,13 @@ git commit -m "spike: verify a World ID proof end to end and record the findings
 - Modify: `packages/sdk/src/constants.ts`, `packages/sdk/src/types.ts`
 
 **Interfaces:**
+
 - Consumes: nothing from Task 1 except the confirmed subject-key format (hex string).
 - Produces:
   - `BADGE_KINDS`, `type BadgeKind = 'human'` (sdk)
   - `interface BadgeView { kind: BadgeKind; verifier: string; at: number; expiresAt?: number }` (sdk)
   - `readBadges(db: Db, uid: Hex): Promise<BadgeView[]>`
-  - `saveBadge(db: Db, input: SaveBadgeInput): Promise<SaveBadgeResult>` where
-    `SaveBadgeInput = { uid: Hex; kind: BadgeKind; verifier: string; scope: string; subjectKey: string; credential: string; verifiedAt: number; expiresAt: number | null }`
-    and `SaveBadgeResult = { ok: true; badge: BadgeView } | { ok: false; conflict: 'subject' | 'pass' }`
+  - `saveBadge(db: Db, input: SaveBadgeInput): Promise<SaveBadgeResult>` where `SaveBadgeInput = { uid: Hex; kind: BadgeKind; verifier: string; scope: string; subjectKey: string; credential: string; verifiedAt: number; expiresAt: number | null }` and `SaveBadgeResult = { ok: true; badge: BadgeView } | { ok: false; conflict: 'subject' | 'pass' }`
 
 - [ ] **Step 1: Add the sdk types**
 
@@ -308,8 +307,7 @@ describe('badge store', () => {
 
 - [ ] **Step 5: Run the tests and watch them fail**
 
-Run: `pnpm --filter api test badges-store`
-Expected: FAIL — `../src/badges/store.ts` does not exist.
+Run: `pnpm --filter api test badges-store` Expected: FAIL — `../src/badges/store.ts` does not exist.
 
 - [ ] **Step 6: Implement the store**
 
@@ -397,8 +395,7 @@ export const saveBadge = async (db: Db, input: SaveBadgeInput): Promise<SaveBadg
 
 - [ ] **Step 7: Run the tests until green**
 
-Run: `pnpm --filter api test badges-store`
-Expected: 5 passed.
+Run: `pnpm --filter api test badges-store` Expected: 5 passed.
 
 - [ ] **Step 8: Commit**
 
@@ -413,12 +410,14 @@ git commit -m "feat(api): add the badges table and its store"
 ### Task 3: The verifier seam and the World adapter
 
 **Files:**
+
 - Create: `apps/api/src/badges/verifier.ts`
 - Create: `apps/api/src/badges/providers/world.ts`
 - Create: `apps/api/test/badges-world.test.ts`
 - Modify: `apps/api/src/env.ts`
 
 **Interfaces:**
+
 - Consumes: `SaveBadgeInput` field names from Task 2; the verify request/response shape recorded in Task 1's notes.
 - Produces:
   - `interface VerifiedSubject { subjectKey: string; credential: string; scope: string; expiresAt: number | null }`
@@ -489,14 +488,20 @@ describe('world verifier', () => {
 
   it('rejects a proof whose signal is not the requested right', async () => {
     const other = `0x${'b2'.repeat(32)}`
-    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ nullifier: '0xdead', success: true })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ nullifier: '0xdead', success: true })),
+    )
     expect(await worldVerifier.verify(configured, { payload: { signal: other }, uid: UID })).toEqual({
       error: 'bad_input',
     })
   })
 
   it('rejects when the portal refuses the proof', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ code: 'invalid_proof' }, { status: 400 })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ code: 'invalid_proof' }, { status: 400 })),
+    )
     expect(await worldVerifier.verify(configured, { payload: { signal: UID }, uid: UID })).toEqual({
       error: 'bad_proof',
     })
@@ -508,8 +513,7 @@ describe('world verifier', () => {
 
 - [ ] **Step 3: Run the tests and watch them fail**
 
-Run: `pnpm --filter api test badges-world`
-Expected: FAIL — modules do not exist.
+Run: `pnpm --filter api test badges-world` Expected: FAIL — modules do not exist.
 
 - [ ] **Step 4: Implement the seam**
 
@@ -611,8 +615,7 @@ export const worldVerifier: BadgeVerifier = {
 
 - [ ] **Step 5: Run the tests until green**
 
-Run: `pnpm --filter api test badges-world`
-Expected: 5 passed.
+Run: `pnpm --filter api test badges-world` Expected: 5 passed.
 
 - [ ] **Step 6: Commit**
 
@@ -627,11 +630,13 @@ git commit -m "feat(api): add the badge verifier seam and the World adapter"
 ### Task 4: The badge routes
 
 **Files:**
+
 - Create: `apps/api/src/routes/badges.ts`
 - Create: `apps/api/test/badges-routes.test.ts`
 - Modify: `apps/api/src/app.ts`
 
 **Interfaces:**
+
 - Consumes: `verifierFor`, `worldVerifier` (Task 3); `saveBadge` (Task 2); `verifyUid` from `../verify/verify-uid.ts`; `rateLimit` from `../middleware/rate-limit.ts`; `errorResponse` / `jsonResponse` from `../json.ts`.
 - Produces: `badgeRoutes` (a `Hono<AppEnv>`), mounted under `/v1`.
 
@@ -683,7 +688,11 @@ describe('POST /v1/badges/human', () => {
   })
 
   it('rejects an unknown kind', async () => {
-    const res = await post('/v1/badges/nonsense', { payload: {}, uid: `0x${'a1'.repeat(32)}` }, worldEnv(configuredEnv()))
+    const res = await post(
+      '/v1/badges/nonsense',
+      { payload: {}, uid: `0x${'a1'.repeat(32)}` },
+      worldEnv(configuredEnv()),
+    )
     expect(res.status).toBe(404)
   })
 
@@ -701,8 +710,7 @@ describe('POST /v1/badges/human', () => {
 
 - [ ] **Step 2: Run the tests and watch them fail**
 
-Run: `pnpm --filter api test badges-routes`
-Expected: FAIL — 404 for every route (nothing mounted).
+Run: `pnpm --filter api test badges-routes` Expected: FAIL — 404 for every route (nothing mounted).
 
 - [ ] **Step 3: Implement the routes**
 
@@ -789,8 +797,7 @@ In `apps/api/src/app.ts`, import `badgeRoutes` from `./routes/badges.ts` and add
 
 - [ ] **Step 6: Run the tests until green**
 
-Run: `pnpm --filter api test badges`
-Expected: all badge suites pass.
+Run: `pnpm --filter api test badges` Expected: all badge suites pass.
 
 - [ ] **Step 7: Commit**
 
@@ -804,10 +811,12 @@ git commit -m "feat(api): serve the badge context and accept a proof"
 ### Task 5: Badges in the verdict
 
 **Files:**
+
 - Modify: `apps/api/src/routes/verify.ts`
 - Create/extend: `apps/api/test/badges-verdict.test.ts`
 
 **Interfaces:**
+
 - Consumes: `readBadges` (Task 2), `VerifyResponse.badges` (Task 2).
 - Produces: every `/verify` and `/verify/:uid` response carries `badges` when the Right has any.
 
@@ -817,8 +826,7 @@ git commit -m "feat(api): serve the badge context and accept a proof"
 
 - [ ] **Step 2: Run and watch them fail**
 
-Run: `pnpm --filter api test badges-verdict`
-Expected: FAIL — no `badges` in the body.
+Run: `pnpm --filter api test badges-verdict` Expected: FAIL — no `badges` in the body.
 
 - [ ] **Step 3: Fill the field**
 
@@ -840,8 +848,7 @@ and in `verdictBody`, append `...(badges.length === 0 ? {} : { badges })`.
 
 - [ ] **Step 4: Run the tests until green**
 
-Run: `pnpm --filter api test`
-Expected: the whole api suite passes — the existing verdict tests must be untouched by this change.
+Run: `pnpm --filter api test` Expected: the whole api suite passes — the existing verdict tests must be untouched by this change.
 
 - [ ] **Step 5: Commit**
 
@@ -855,10 +862,12 @@ git commit -m "feat(api): carry badges in the gate verdict"
 ### Task 6: The member action
 
 **Files:**
+
 - Create: `apps/app/src/badges.ts`, `apps/app/src/badges.test.ts`
 - Modify: `apps/app/src/venue/CardScreen.tsx`, `apps/app/src/venue/copy.ts`
 
 **Interfaces:**
+
 - Consumes: `POST /v1/badges/human/context` and `POST /v1/badges/human` (Task 4).
 - Produces: `badgeState` transitions and `requestHumanBadge(io, uid)` used by `CardScreen`.
 
@@ -868,21 +877,13 @@ git commit -m "feat(api): carry badges in the gate verdict"
 
 - [ ] **Step 2: Run and watch them fail**
 
-Run: `pnpm --filter app test badges`
-Expected: FAIL — module missing.
+Run: `pnpm --filter app test badges` Expected: FAIL — module missing.
 
 - [ ] **Step 3: Implement the controller**
 
-`apps/app/src/badges.ts` holds the state union
-`{ kind: 'idle' | 'opening' | 'waiting' | 'done' | 'taken' | 'unavailable' | 'error' }`,
-and `requestHumanBadge` which: fetches the context; calls
-`IDKit.request({ app_id, action, rp_context }).preset(<the preset Task 1 chose>({ signal: uid }))`;
-opens World App; awaits `pollUntilCompletion()`; posts `{ uid, payload }` to `/v1/badges/human`; maps
-409 `already_badged` → `taken`, 501 → `unavailable`, anything else → `error`. Keep every World import
-inside this module so no other file knows the vendor.
+`apps/app/src/badges.ts` holds the state union `{ kind: 'idle' | 'opening' | 'waiting' | 'done' | 'taken' | 'unavailable' | 'error' }`, and `requestHumanBadge` which: fetches the context; calls `IDKit.request({ app_id, action, rp_context }).preset(<the preset Task 1 chose>({ signal: uid }))`; opens World App; awaits `pollUntilCompletion()`; posts `{ uid, payload }` to `/v1/badges/human`; maps 409 `already_badged` → `taken`, 501 → `unavailable`, anything else → `error`. Keep every World import inside this module so no other file knows the vendor.
 
-If Task 1 Step 7 found the poll dies across the World App round-trip, resume it on
-`document.addEventListener('visibilitychange', …)` and re-poll once on return.
+If Task 1 Step 7 found the poll dies across the World App round-trip, resume it on `document.addEventListener('visibilitychange', …)` and re-poll once on return.
 
 - [ ] **Step 4: Run until green**
 
@@ -890,11 +891,7 @@ Run: `pnpm --filter app test badges`
 
 - [ ] **Step 5: Wire it into the card screen**
 
-In `CardScreen.tsx`'s `ready` state, below the wallet buttons, render a button labelled from
-`copy.ts` (en: "Verify you're human", ja: "本人確認する") that calls `requestHumanBadge`. Render the
-resulting state: `done` → a "Verified Human" chip, `taken` → "This person already has a verified
-pass", `unavailable` → hide the control entirely. Add both locales to `venue/copy.ts` — en and ja
-come from one structure, never two.
+In `CardScreen.tsx`'s `ready` state, below the wallet buttons, render a button labelled from `copy.ts` (en: "Verify you're human", ja: "本人確認する") that calls `requestHumanBadge`. Render the resulting state: `done` → a "Verified Human" chip, `taken` → "This person already has a verified pass", `unavailable` → hide the control entirely. Add both locales to `venue/copy.ts` — en and ja come from one structure, never two.
 
 - [ ] **Step 6: Build and commit**
 
@@ -910,10 +907,12 @@ git commit -m "feat(app): let a member add a Verified Human badge to a pass"
 ### Task 7: The gate chip
 
 **Files:**
+
 - Modify: `apps/gate/src/verdict.ts`, `apps/gate/src/Verdict.tsx`
 - Modify: `apps/gate/src/verdict.test.ts`
 
 **Interfaces:**
+
 - Consumes: `VerifyResponse.badges` (Task 2).
 
 - [ ] **Step 1: Extend the verdict test**
@@ -926,9 +925,7 @@ Run: `pnpm --filter gate test`
 
 - [ ] **Step 3: Implement**
 
-Add `human: boolean` to `DisplayState`, set from `badges?.some((b) => b.kind === 'human') ?? false`. In
-`Verdict.tsx`, when `state.human` is true, render `<div class="badge badge-neutral">verified human</div>`
-above the title, alongside the existing network-error badge.
+Add `human: boolean` to `DisplayState`, set from `badges?.some((b) => b.kind === 'human') ?? false`. In `Verdict.tsx`, when `state.human` is true, render `<div class="badge badge-neutral">verified human</div>` above the title, alongside the existing network-error badge.
 
 - [ ] **Step 4: Run until green and commit**
 
@@ -944,10 +941,7 @@ git commit -m "feat(gate): show the verified-human badge in a verdict"
 
 - [ ] **Step 1: Apply the migration to production D1 first**
 
-Run: `pnpm --filter api run migrate:remote`
-Expected: `0015_badges.sql` applied. **Before** the Worker deploy — `verdictBody` reads `badges` on
-every scan, and a deployed Worker against a missing table would rely on the advisory catch for every
-request.
+Run: `pnpm --filter api run migrate:remote` Expected: `0015_badges.sql` applied. **Before** the Worker deploy — `verdictBody` reads `badges` on every scan, and a deployed Worker against a missing table would rely on the advisory catch for every request.
 
 - [ ] **Step 2: Set the four secrets**
 
@@ -956,8 +950,7 @@ cd apps/api
 wrangler secret put WORLD_RP_SIGNING_KEY
 ```
 
-`WORLD_APP_ID`, `WORLD_RP_ID` and `WORLD_ACTION` go in `wrangler.jsonc` vars (they are not secrets);
-the signing key is a secret and never enters the repo.
+`WORLD_APP_ID`, `WORLD_RP_ID` and `WORLD_ACTION` go in `wrangler.jsonc` vars (they are not secrets); the signing key is a secret and never enters the repo.
 
 - [ ] **Step 3: Deploy and smoke-test**
 
@@ -981,20 +974,14 @@ Capture each as a short clip as it starts working. Do not wait for the final edi
 
 - [ ] **Step 5: Update the documentation**
 
-- `docs/CONTEXT.md` — add **Badge** next to Stamp and Qualification: a verified fact about the Member
-  holding a Right, attached after issuance, naming the Verifier that attested it. _Avoid_: Stamp,
-  Qualification (that is pre-issuance), credential.
+- `docs/CONTEXT.md` — add **Badge** next to Stamp and Qualification: a verified fact about the Member holding a Right, attached after issuance, naming the Verifier that attested it. _Avoid_: Stamp, Qualification (that is pre-issuance), credential.
 - `docs/specs/pass-types-and-flows.md` — a short section on the badge flow and the two conflict rules.
 - `README.md` — one line, if the badge is part of the headline story.
 - Delete `apps/api/scripts/world-spike.ts`.
 
 - [ ] **Step 6: Write the submission material**
 
-A page separating pre-existing from event-period work (the table is in the spec), and the **integration
-debrief** the prize requires: time to first successful verification (from the spike notes), the friction
-actually hit (the v2→v4 documentation gap; the React-only widget against a hono/jsx/dom app; the
-nullifier-stability contradiction between `concepts.md` and `4-0-migration.md`), the missing capability,
-and the single highest-impact improvement.
+A page separating pre-existing from event-period work (the table is in the spec), and the **integration debrief** the prize requires: time to first successful verification (from the spike notes), the friction actually hit (the v2→v4 documentation gap; the React-only widget against a hono/jsx/dom app; the nullifier-stability contradiction between `concepts.md` and `4-0-migration.md`), the missing capability, and the single highest-impact improvement.
 
 If the uniqueness claim was withdrawn in Task 1 Step 6, say so here plainly.
 
@@ -1010,32 +997,16 @@ git commit -m "docs: record the badge model and the World ID integration debrief
 
 ### Stretch S1 (only after Task 8): cards that require a badge
 
-Add `requires_human INTEGER NOT NULL DEFAULT 0` to `cards` in a new migration; add `HUMAN_REQUIRED` to
-`REASONS` in `packages/sdk/src/constants.ts`; in the admission path, when the Right's card requires it
-and `readBadges` returns no `human` badge, return `REJECT` / `HUMAN_REQUIRED`. Test the four
-combinations (required×badged, required×unbadged, not-required×badged, not-required×unbadged). For the
-demo, set the column by SQL and **disclose that it is demo configuration**, not a shipped operator
-workflow. This is what makes walletmate meaningful on its own: an unbadged pass turns the LED red.
+Add `requires_human INTEGER NOT NULL DEFAULT 0` to `cards` in a new migration; add `HUMAN_REQUIRED` to `REASONS` in `packages/sdk/src/constants.ts`; in the admission path, when the Right's card requires it and `readBadges` returns no `human` badge, return `REJECT` / `HUMAN_REQUIRED`. Test the four combinations (required×badged, required×unbadged, not-required×badged, not-required×unbadged). For the demo, set the column by SQL and **disclose that it is demo configuration**, not a shipped operator workflow. This is what makes walletmate meaningful on its own: an unbadged pass turns the LED red.
 
 ### Stretch S2 (only after S1, or instead of it if time allows only one): the badge on chain
 
-Add `badge: 'bytes32 rightUID,address holder,string kind,string verifier,uint64 verifiedAt'` to
-`SCHEMA_STRINGS`, a codec beside `encodeAttendanceV1`, and a best-effort attest mirroring
-`recordAttendance` — `refUID` = the Right, recipient = the holder, every failure swallowed. Register the
-schema with `pnpm --filter api run register-schemas` and add the UID to `EAS_SCHEMAS`. **The subject key
-is never published on chain**: it is fuda's dedupe key, not evidence anyone else needs.
+Add `badge: 'bytes32 rightUID,address holder,string kind,string verifier,uint64 verifiedAt'` to `SCHEMA_STRINGS`, a codec beside `encodeAttendanceV1`, and a best-effort attest mirroring `recordAttendance` — `refUID` = the Right, recipient = the holder, every failure swallowed. Register the schema with `pnpm --filter api run register-schemas` and add the UID to `EAS_SCHEMAS`. **The subject key is never published on chain**: it is fuda's dedupe key, not evidence anyone else needs.
 
 ---
 
 ## Self-review
 
-**Spec coverage.** Trust moment and credential choice → Tasks 1 and 8 Step 6. Generalised data model →
-Task 2. Privacy rule → Task 3 (`VerifiedSubject` contract) and Task 2 (no evidence column). Verifier seam
-→ Task 3. Routes named after the claim → Task 4. Config gate → Tasks 3 and 4, tested. Verdict array →
-Tasks 2 and 5. Alternative paths → Task 4 tests and Task 8 Step 4. walletmate → Task 8 Step 4 and S1.
-Naming → Task 8 Step 5. Nullifier-stability risk → Task 1 Step 6. Stretches → S1, S2.
+**Spec coverage.** Trust moment and credential choice → Tasks 1 and 8 Step 6. Generalised data model → Task 2. Privacy rule → Task 3 (`VerifiedSubject` contract) and Task 2 (no evidence column). Verifier seam → Task 3. Routes named after the claim → Task 4. Config gate → Tasks 3 and 4, tested. Verdict array → Tasks 2 and 5. Alternative paths → Task 4 tests and Task 8 Step 4. walletmate → Task 8 Step 4 and S1. Naming → Task 8 Step 5. Nullifier-stability risk → Task 1 Step 6. Stretches → S1, S2.
 
-**Known looseness, deliberate.** Task 3's field names and Task 6's preset call are the plan's best guess
-from published documentation; Task 1 replaces them with measured fact. Every such place says so inline.
-Task 4 Step 4 and Task 6 Step 1 describe tests rather than printing them in full because their fixtures
-must match `apps/api/test/fixtures.ts` and the io shape from Task 6 Step 3 — read those files first.
+**Known looseness, deliberate.** Task 3's field names and Task 6's preset call are the plan's best guess from published documentation; Task 1 replaces them with measured fact. Every such place says so inline. Task 4 Step 4 and Task 6 Step 1 describe tests rather than printing them in full because their fixtures must match `apps/api/test/fixtures.ts` and the io shape from Task 6 Step 3 — read those files first.
