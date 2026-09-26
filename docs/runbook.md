@@ -359,6 +359,12 @@ To return this fixture to the unclaimed UI, delete only the synthetic row and re
 pnpm --filter api exec wrangler d1 execute fuda-beta --local --command "DELETE FROM ens_names WHERE name = 'fuda-coffee.fuda.eth' AND kind = 'issuer' AND claim_tx_hash IS NULL AND voucher_issued_at IS NULL AND expiry IS NULL"
 ```
 
+### Gate station with a USB QR reader
+
+The gate accepts a keyboard-wedge QR reader on any device, with no configuration: it scans into the page, and the payload is read whether or not a field has focus, so a scan lands while a previous verdict is still displayed. Set the reader's terminator to CR, and set the **host's** hardware-keyboard layout to U.S. — the reader sends US-layout keystrokes, and a JIS layout turns the `:` in `fuda:v1:` into `+`, which the gate then reports as "not a fuda pass". A bare uid (`0x…`) contains no `:` and still resolves, but only as a preview: no slot consumed, no Entry logged.
+
+`gate.fuda.sh/?camera=off` runs the gate as a reader-only station: no camera, no paste box, one waiting line. Use it on a device whose browser has no `BarcodeDetector` — every WebKit browser, so every iPad and iPhone — where the camera can only report failure. The parameter is per-device, so one deployment serves both a laptop that scans with its camera and a tablet that only reads the USB reader. Without the parameter the camera is used when available. The paste box is part of the camera view, so the reader-only station has no manual fallback: keep a plain `gate.fuda.sh` tab for that.
+
 ### Venue reception demo
 
 Apply migrations through `0011_card_stamp_settings.sql` before running the Card-scoped reception API. Use `pnpm migrate:local` for local development; apply the normal remote migration procedure before deploying the updated API. Migration `0010` adds credit records, request receipts and an optional reception ID on Entry logs. Migration `0011` adds Card Stamp policies and copies each existing venue policy to its existing Cards, preserving enabled state, limits and goals. It preserves all credits and receipts and does not award credits to existing Entries. Newly created Cards default to Stamps disabled. The legacy policy table remains for rollback compatibility but is not read by the new API. Deploy the API and dashboard together: settings now use `/v1/issuers/me/cards/:cardId/stamps`, and the old `/v1/issuers/me/stamps` endpoint is removed.

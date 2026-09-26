@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import { admitQr, previewUid } from './api.ts'
+import { cameraMode } from './config.ts'
 import { classifyInput, displayState, unreadableInput } from './verdict.ts'
 import type { DisplayState } from './verdict.ts'
 import { Verdict } from './Verdict.tsx'
@@ -66,6 +67,7 @@ export const App = (): JSX.Element => {
       {state === null ? (
         <Scanner
           autoFocus
+          cameraMode={cameraMode(window.location.search)}
           onInput={(t) => {
             void onInput(t)
           }}

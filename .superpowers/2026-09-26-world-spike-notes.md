@@ -113,7 +113,16 @@ Exit code 0 — the file is gitignored. Not created, read, or modified in this t
 **TODO (user):** Requires a Developer Portal `app_id`/`rp_id`/RP signing key (Step 1) and a physical Orb-verified phone with World App installed. To produce it:
 
 1. Put the four values from Step 1 into `apps/api/.dev.vars` (`WORLD_APP_ID`, `WORLD_RP_ID`, `WORLD_ACTION=ethtokyo2026-human`, `WORLD_RP_SIGNING_KEY`).
-2. Run `pnpm --filter api exec tsx scripts/world-spike.ts` with those vars loaded (e.g. `set -a; source apps/api/.dev.vars; set +a` first, or export them manually) and copy the printed `{ action, app_id, rp_context }` JSON.
+2. Run the script **with that file loaded** — `.dev.vars` is read by `wrangler dev` and the workerd test pool, never by `tsx`, so the plain command fails with the "Missing one of …" message even when all four values are sitting in the file. Measured working form, and it needs no shell-specific dotenv syntax (`set -a; source …` is bash/zsh only):
+
+   ```bash
+   pnpm --filter api exec tsx --env-file=.dev.vars scripts/world-spike.ts
+   ```
+
+   `pnpm --filter api exec` runs in `apps/api`, so the relative path resolves there. Copy the printed `{ action, app_id, rp_context }` JSON.
+
+   **The context expires in 300 seconds** (`DEFAULT_TTL_SEC` in `@worldcoin/idkit-server`; `ttl` is an option on `signRequest`). Generate it immediately before the phone flow, not in advance.
+
 3. Build the smallest possible page (scratch HTML outside the repo, or a temporary route) that calls `IDKit.request({ app_id, action, rp_context, allow_legacy_proofs: <your Step 6 choice> }).preset(proofOfHuman({ signal: '0x' + '11'.repeat(32) }))` (or `orbLegacy(...)` if Step 6 lands on the legacy preset) and opens World App from your phone.
 4. After the phone completes the flow and the page's `pollUntilCompletion()` resolves, save the full result object as `proof.json`, then run:
    ```bash
