@@ -29,10 +29,10 @@ ENS gives issuers and Rights names; The Graph supports discovery and on-chain st
 ```mermaid
 flowchart TB
     DASH[Operator dashboard] -->|issue and revoke| API[fuda API]
-    APP[Member app] -->|claim and sign| API
+    APP[Member app] -->|claim, sign, submit a proof| API
     GATE[Gate scanner] -->|verify| API
     API <-->|rights and delegation checks| EAS[(EAS on Base)]
-    API <-->|challenges, single-use slots, entry logs| D1[(D1)]
+    API <-->|challenges, slots, entry logs, badges| D1[(D1)]
     API <-->|venue logos| R2[(R2)]
     API -->|build and deliver| PASS[Apple, Google, and browser passes]
     PASS -->|present QR| GATE
@@ -42,9 +42,14 @@ flowchart TB
     APP -->|discover rights| INDEX
     DASH -->|read on-chain status| INDEX
     ENS[ENS resolver] <-->|name lookup via CCIP Read| API
+    APP -. "badge a right you hold" .-> WID[World ID app]
+    WID -. proof .-> APP
+    API -. "verify the proof, server-side" .-> WORLD[World ID · developer portal]
 ```
 
 The rights index supports discovery and status views; ENS supplies names and address resolution. Gate admission uses EAS and D1. See the [architecture overview](./docs/architecture.md) for component responsibilities and trust boundaries.
+
+**The dashed path is what this event added**: a member who already holds a Right can attach a Verified Human badge to it. Note where the dashes stop. The gate never reaches World — admission still reads EAS and D1 and nothing else — and a Right with no badge answers exactly as it did before the feature existed. See [World ID](./docs/integrations/worldid.md).
 
 ### From issuance to entry
 
