@@ -152,6 +152,10 @@ export interface IssuerPassView {
   status: IssuerPassStatus
   validFrom: number | null
   validUntil: number | null
+  // The Badges this Right carries, on the same terms as `MemberRow.badges`: a
+  // list rather than a `human` flag, and absent rather than empty when the Right
+  // carries none, so a row keeps the shape it had before Badges existed.
+  badges?: BadgeView[]
 }
 
 export interface IssuerPassesResponse {

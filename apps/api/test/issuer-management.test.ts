@@ -1,11 +1,13 @@
-import type { CardView, IssuerPassesResponse, OperatorCardView } from '@fuda/sdk'
+import type { CardView, Hex, IssuerPassesResponse, OperatorCardView } from '@fuda/sdk'
 import { env } from 'cloudflare:test'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { createSession } from '../src/auth/session.ts'
+import { saveBadge } from '../src/badges/store.ts'
 import { getDb } from '../src/db/client.ts'
 import {
+  badges,
   cards,
   cardStampSettings,
   challenges,
@@ -40,6 +42,7 @@ const putJson = async (
 
 const clearManagementTables = async (): Promise<void> => {
   const database = db()
+  await database.delete(badges)
   await database.delete(receptionRequests)
   await database.delete(stampCredits)
   await database.delete(entryLog)
@@ -94,9 +97,9 @@ interface SeedPass {
   validUntil: number | null
 }
 
-const uidFor = (number: number): string => `0x${number.toString(16).padStart(64, '0')}`
+const uidFor = (number: number): Hex => `0x${number.toString(16).padStart(64, '0')}`
 
-const seedPass = async (pass: SeedPass): Promise<string> => {
+const seedPass = async (pass: SeedPass): Promise<Hex> => {
   const uid = uidFor(pass.uidNumber)
   await env.DB.prepare(
     `INSERT INTO members (
@@ -727,6 +730,50 @@ describe('GET /issuers/me/passes', () => {
     expect(body.cardStats).toStrictEqual([{ active: 205, cardId: card.id, issued: 205, unknown: 0 }])
   })
 
+  // What the dashboard's Verified human column reads: the badged pass carries the
+  // fact of the Badge, the rest carry no key at all.
+  it('carries a badge on the badged pass and no badges key on the rest', async () => {
+    const { app, card, token } = await createOwnedCard()
+    const badgedUid = await seedPass({
+      cardId: card.id,
+      createdAt: 990,
+      issuerId: card.issuerId,
+      memberNumber: 'badged',
+      uidNumber: 11,
+      usageModel: 1,
+      validFrom: 0,
+      validUntil: 0,
+    })
+    const plainUid = await seedPass({
+      cardId: card.id,
+      createdAt: 989,
+      issuerId: card.issuerId,
+      memberNumber: 'plain',
+      uidNumber: 12,
+      usageModel: 1,
+      validFrom: 0,
+      validUntil: 0,
+    })
+    await saveBadge(db(), {
+      credential: 'orb',
+      expiresAt: null,
+      kind: 'human',
+      scope: 'issuer-passes',
+      subjectKey: '0xsubject-passes',
+      uid: badgedUid,
+      verifiedAt: NOW,
+      verifier: 'world',
+    })
+
+    const response = await getJson(app, bindings(), '/v1/issuers/me/passes', token)
+
+    expect(response.status).toBe(200)
+    const body = await response.json<IssuerPassesResponse>()
+    const rows = new Map(body.passes.map((pass) => [pass.uid, pass]))
+    expect(rows.get(badgedUid)?.badges).toStrictEqual([{ at: NOW, kind: 'human', verifier: 'world' }])
+    expect(rows.get(plainUid)).not.toHaveProperty('badges')
+  })
+
   it.each([
     'page=0',
     'page=1.5',
@@ -740,5 +787,28 @@ describe('GET /issuers/me/passes', () => {
     const response = await getJson(app, bindings(), `/v1/issuers/me/passes?${query}`, token)
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toStrictEqual({ error: 'bad_input' })
+  })
+
+  // Last in the file: dropping the table is not undone for the tests after it.
+  it('still lists passes when the badge store is missing, only without badges', async () => {
+    const { app, card, token } = await createOwnedCard()
+    const uid = await seedPass({
+      cardId: card.id,
+      createdAt: 990,
+      issuerId: card.issuerId,
+      memberNumber: 'badgeless',
+      uidNumber: 21,
+      usageModel: 1,
+      validFrom: 0,
+      validUntil: 0,
+    })
+    await env.DB.exec('DROP TABLE badges')
+
+    const response = await getJson(app, bindings(), '/v1/issuers/me/passes', token)
+
+    expect(response.status).toBe(200)
+    const body = await response.json<IssuerPassesResponse>()
+    expect(body.passes.map((pass) => pass.uid)).toStrictEqual([uid])
+    expect(body.passes[0]).not.toHaveProperty('badges')
   })
 })

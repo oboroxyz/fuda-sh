@@ -1,9 +1,10 @@
-import { CardUpdateBody } from '@fuda/sdk'
+import { asHex, CardUpdateBody } from '@fuda/sdk'
 import type { IssuerPassStatus } from '@fuda/sdk'
 import { and, eq, inArray } from 'drizzle-orm'
 import { Hono } from 'hono'
 import * as v from 'valibot'
 
+import { badgesByUid, withBadges } from '../badges/advisory.ts'
 import { cards, cardStampSettings } from '../db/schema.ts'
 import type { AppEnv } from '../env.ts'
 import { readIssuerPasses } from '../issuers/passes.ts'
@@ -116,14 +117,22 @@ issuerManagementRoutes.get('/issuers/me/passes', operatorAuth(), async (c) => {
   if (issuerId === null) {
     return errorResponse(c, 'not_found', 404)
   }
-  return jsonResponse(
-    c,
-    await readIssuerPasses(c.env.DB, issuerId, c.get('now')(), {
-      cardId: rawCardId === '' ? null : rawCardId,
-      page,
-      pageSize,
-      q,
-      status,
+  const listed = await readIssuerPasses(c.env.DB, issuerId, c.get('now')(), {
+    cardId: rawCardId === '' ? null : rawCardId,
+    page,
+    pageSize,
+    q,
+    status,
+  })
+  // One badge read for the page, so the operator's own list shows the same fact
+  // of a Badge that /members carries. A uid that fails validation is malformed
+  // and is left out of the read rather than reported.
+  const held = await badgesByUid(
+    c.get('db'),
+    listed.passes.flatMap((pass) => {
+      const uid = asHex(pass.uid, 32)
+      return uid === null ? [] : [uid]
     }),
   )
+  return jsonResponse(c, { ...listed, passes: withBadges(listed.passes, held) })
 })
