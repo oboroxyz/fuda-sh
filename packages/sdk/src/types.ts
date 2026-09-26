@@ -1,4 +1,4 @@
-import type { ErrorCode, Hex, Level, Reason } from './constants.ts'
+import type { BadgeKind, ErrorCode, Hex, Level, Reason } from './constants.ts'
 import type { CardCategory, CardView, IssuerView, OperatorCardView } from './handles.ts'
 
 export interface ErrorResponse {
@@ -50,11 +50,22 @@ export interface DelegationView {
   name: string
 }
 
+// A verified fact about the Member holding a Right, attached after issuance
+// (docs/CONTEXT.md: Badge). An array from the first version: this type is
+// public and a second kind must not be a breaking change.
+export interface BadgeView {
+  kind: BadgeKind
+  verifier: string
+  at: number
+  expiresAt?: number
+}
+
 export interface VerifyResponse {
   decision: 'ADMIT' | 'REJECT'
   reason: Reason
   entitlement?: EntitlementView
   delegation?: DelegationView
+  badges?: BadgeView[]
 }
 
 export interface ChallengeResponse {
