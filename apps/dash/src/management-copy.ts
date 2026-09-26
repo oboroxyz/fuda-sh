@@ -51,6 +51,7 @@ export interface ManagementCopy {
   address: string
   expires: string
   notRecorded: string
+  verifiedHuman: string
   noExpiry: string
   noPasses: string
   noPassesMatch: string
@@ -131,6 +132,7 @@ export const MANAGEMENT_COPY = {
     unknownHint: '{count} passes have no recorded validity and are excluded from the active count.',
     url: 'Public URL',
     validity: 'Claim & validity',
+    verifiedHuman: 'Verified human',
   },
   ja: {
     actions: '操作',
@@ -200,5 +202,6 @@ export const MANAGEMENT_COPY = {
     unknownHint: '{count}件は発行時の期限が未記録のため、有効数に含めていません。',
     url: '公開URL',
     validity: '取得期間・有効期限',
+    verifiedHuman: '人間であることを確認済み',
   },
 } satisfies Record<'en' | 'ja', ManagementCopy>

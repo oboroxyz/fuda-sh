@@ -4,6 +4,7 @@ import type { CardView, IssuerPassStatus, IssuerPassView } from '@fuda/sdk'
 import { useEffect, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
+import { hasHumanBadge } from './badges-view.ts'
 import { formatInstant } from './card-designer.ts'
 import { useIssuerPasses } from './issuer-passes-state.ts'
 import type { PassesLoad } from './issuer-passes-state.ts'
@@ -29,9 +30,19 @@ const expiryText = (pass: IssuerPassView, copy: ManagementCopy): string => {
   return pass.validUntil === 0 ? copy.noExpiry : formatInstant(pass.validUntil)
 }
 
+// The fact of a `human` Badge, on the same terms as the /rights column: a neutral
+// chip when the pass carries one, the table's own em dash when it does not. The
+// operator never sees more than the fact — no subject, no scope, no credential.
+const humanBadge = (pass: IssuerPassView, copy: ManagementCopy): JSX.Element =>
+  hasHumanBadge(pass.badges) ? (
+    <span class="badge badge-neutral whitespace-nowrap">{copy.verifiedHuman}</span>
+  ) : (
+    <span class="opacity-50">—</span>
+  )
+
 const PassTable = ({ passes, copy }: { passes: IssuerPassView[]; copy: ManagementCopy }): JSX.Element => (
   <div class="dash-management-table overflow-x-auto" role="region" aria-label={copy.passesTitle} tabIndex={0}>
-    <table class="table w-full min-w-210 text-sm">
+    <table class="table w-full min-w-250 text-sm">
       <thead>
         <tr>
           <th scope="col">{copy.member}</th>
@@ -41,6 +52,7 @@ const PassTable = ({ passes, copy }: { passes: IssuerPassView[]; copy: Managemen
             {copy.stamps}
           </th>
           <th scope="col">{copy.status}</th>
+          <th scope="col">{copy.verifiedHuman}</th>
           <th scope="col">{copy.expires}</th>
           <th scope="col">{copy.address}</th>
         </tr>
@@ -64,6 +76,7 @@ const PassTable = ({ passes, copy }: { passes: IssuerPassView[]; copy: Managemen
             <td>
               <span class="badge badge-ghost whitespace-nowrap">{copy.statuses[pass.status]}</span>
             </td>
+            <td>{humanBadge(pass, copy)}</td>
             <td class="min-w-32 text-xs whitespace-nowrap">{expiryText(pass, copy)}</td>
             <td class="max-w-56 min-w-40">
               <code class="text-xs">{pass.holder ?? copy.notRecorded}</code>

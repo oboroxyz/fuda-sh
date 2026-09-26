@@ -2,14 +2,15 @@ import { passUrls, TIER_LABEL, toQr } from '@fuda/sdk'
 import type { Hex, Level, MemberRow, PassUrls } from '@fuda/sdk'
 import { short } from '@fuda/ui'
 
+import { hasHumanBadge } from './badges-view.ts'
+
 export interface MemberRowView {
   uid: Hex
   memberId: string
   holder: Hex | null
   holderShort: string | null
-  // Whether the Right carries a `human` Badge. Derived here rather than read off
-  // the wire as a flag: the api sends the Badge list, and a view that asks its
-  // own question of it gains a second kind without a protocol change.
+  // Whether the Right carries a `human` Badge, asked of the Badge list the api
+  // sends (see `hasHumanBadge`).
   human: boolean
   level: Level
   tier: string
@@ -25,7 +26,7 @@ export interface MemberRowView {
 export const memberRowView = (row: MemberRow, apiBase: string): MemberRowView => ({
   holder: row.holder,
   holderShort: row.holder === null ? null : short(row.holder),
-  human: row.badges?.some((badge) => badge.kind === 'human') ?? false,
+  human: hasHumanBadge(row.badges),
   level: row.level,
   memberId: row.memberId,
   passUrls: row.level === 'private' ? null : passUrls(apiBase, row.uid),
