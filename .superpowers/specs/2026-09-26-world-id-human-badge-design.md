@@ -213,7 +213,7 @@ insert the badge row.
 | Signal does not match `uid` | 400 | `bad_input` |
 | Proof rejected by World | 400 | `bad_proof` |
 | Right unknown or revoked | 404 / 409 | existing codes |
-| Feature not configured | 501 | `world_not_configured` |
+| Feature not configured | 501 | `badges_not_configured` |
 
 ### Configuration gate
 
