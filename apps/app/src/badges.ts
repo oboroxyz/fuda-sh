@@ -2,8 +2,8 @@ import type { BadgeView, Hex } from '@fuda/sdk'
 import { normalizeUid } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
 import { apiFetch } from '@fuda/sdk/http'
-import { IDKit, isInWorldApp, proofOfHuman } from '@worldcoin/idkit-core'
-import type { RpContext } from '@worldcoin/idkit-core'
+import { any, CredentialRequest, IDKit, isInWorldApp } from '@worldcoin/idkit-core'
+import type { ConstraintNode, CredentialType, RpContext } from '@worldcoin/idkit-core'
 
 import { API_BASE_URL } from './config.ts'
 
@@ -18,21 +18,46 @@ import { API_BASE_URL } from './config.ts'
 // the nullifier is a function of it. Sources, all primary, in
 // docs/research/world-id-2026-09-26.md Q3.
 //
-// So `proofOfHuman` ships, and legacy 3.0 proofs are refused. These two
-// constants must change together and only together: a 4.0 preset with
-// `allow_legacy_proofs: true` would let one person hold a 3.0 nullifier and a
-// distinct 4.0 nullifier for the same action, and badge a pass with each — the
-// vendor's own type says "you must track both v3 and v4 nullifiers to prevent
-// double-claims". Exactly one family ships.
+// Which credential proved it does not enter that derivation. The nullifier is
+// `Poseidon2(DS_N, query, oprf_response)` over `query =
+// oprf_query_digest(leaf_index, action, scope)` — the authenticator's merkle leaf
+// index, the action and the rp id — while `issuer_schema_id` is mixed into a
+// different OPRF module entirely (`CredentialBlindingFactor`). So asking for
+// either of two credentials does not hand one person two nullifiers, which is
+// what makes the request below safe to widen. Sources: world-id-protocol
+// `crates/proof/src/oprf_query.rs` and
+// `circom/client_side_proofs/oprf_nullifier.circom`.
 //
-// This choice is not enforceable from here: a client can ask for any preset it
+// Two credentials are requested, not one. The event this ships for is in Japan,
+// where many attendees hold the My Number Card credential and have never been to
+// an Orb; requesting proof of human alone refuses them outright. `any()` is an
+// OR whose order is priority order, so proof of human is offered first and My
+// Number Card is the fallback. Adding passport later is one entry here and one
+// in the api's own set.
+//
+// Legacy 3.0 proofs stay refused, and that is the constant that must not move
+// alongside the credentials: `allow_legacy_proofs: true` would let one person
+// hold a 3.0 nullifier and a distinct 4.0 nullifier for the same action, and
+// badge a pass with each — the vendor's own type says "you must track both v3
+// and v4 nullifiers to prevent double-claims". Exactly one family ships.
+//
+// None of this is enforceable from here: a client can ask for any credential it
 // likes with the same server-issued `rp_context`, which the RP signature does
 // not cover. The api makes the same choice again and refuses anything else —
-// `PROTOCOL_VERSION` and `HUMAN_SCHEMA_ID` in
+// `PROTOCOL_VERSION` and `HUMAN_CREDENTIALS` in
 // apps/api/src/badges/providers/world.ts. A change here without the matching
 // change there rejects every proof this page produces.
-const HUMAN_PRESET = proofOfHuman
+const HUMAN_CREDENTIALS: readonly CredentialType[] = ['proof_of_human', 'mnc']
 const ALLOW_LEGACY_PROOFS = false
+
+// A constraint tree rather than a preset, because a preset names exactly one
+// credential: `proofOfHuman()` returns `{ type: 'ProofOfHuman' }`, which is not
+// a `ConstraintNode` and cannot be combined with another. `CredentialRequest`
+// is the node form, and each node carries the signal, so both credentials bind
+// to the same Right — idkit keys its cached signal hashes on the requested
+// credential type, so whichever one answers has a hash to reattach.
+const humanConstraints = (uid: Hex): ConstraintNode =>
+  any(...HUMAN_CREDENTIALS.map((credential) => CredentialRequest(credential, { signal: uid })))
 
 // Explicit, not left to idkit-core's default: the vendor's own integration
 // guide has the client set this and the backend assert it ("Check that the
@@ -143,11 +168,23 @@ export const defaultHumanBadgeIo: HumanBadgeIo = {
   context: async () =>
     await apiFetch<HumanBadgeContext>(API_BASE_URL, '/badges/human/context', { method: 'POST' }),
   open: async (context, uid, onConnect) => {
+    // `.constraints()` has no World App v1 fallback where `.preset()` had one:
+    // inside a World App whose verify transport predates v2 it rejects with
+    // "verify v2 is not supported by this World App version". Nothing above
+    // awaits `requestHumanBadge`, so an escaping rejection would leave the
+    // member watching a wait that never ends; reported as a completion failure
+    // it lands on the error state with its copy, like any other failure to
+    // reach the verifier.
     const request = await IDKit.request({
       ...context,
       allow_legacy_proofs: ALLOW_LEGACY_PROOFS,
       environment: WORLD_ENVIRONMENT,
-    }).preset(HUMAN_PRESET({ signal: uid }))
+    })
+      .constraints(humanConstraints(uid))
+      .catch(() => null)
+    if (request === null) {
+      return { error: 'constraints_unsupported', success: false }
+    }
     // Inside World App the native transport completes without a hand-off.
     // Everywhere else the page must survive the hand-off: `pollUntilCompletion()`
     // below only resolves while this document is alive, and `connectorURI` is an
