@@ -3,7 +3,7 @@ import { normalizeUid } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
 import { apiFetch } from '@fuda/sdk/http'
 import { any, CredentialRequest, IDKit, isInWorldApp } from '@worldcoin/idkit-core'
-import type { ConstraintNode, CredentialType, RpContext } from '@worldcoin/idkit-core'
+import type { ConstraintNode, CredentialType, IDKitRequest, RpContext } from '@worldcoin/idkit-core'
 
 import { API_BASE_URL } from './config.ts'
 
@@ -170,18 +170,30 @@ export const defaultHumanBadgeIo: HumanBadgeIo = {
   open: async (context, uid, onConnect) => {
     // `.constraints()` has no World App v1 fallback where `.preset()` had one:
     // inside a World App whose verify transport predates v2 it rejects with
-    // "verify v2 is not supported by this World App version". Nothing above
-    // awaits `requestHumanBadge`, so an escaping rejection would leave the
-    // member watching a wait that never ends; reported as a completion failure
-    // it lands on the error state with its copy, like any other failure to
-    // reach the verifier.
-    const request = await IDKit.request({
-      ...context,
-      allow_legacy_proofs: ALLOW_LEGACY_PROOFS,
-      environment: WORLD_ENVIRONMENT,
-    })
-      .constraints(humanConstraints(uid))
-      .catch(() => null)
+    // "verify v2 is not supported by this World App version". That is only one
+    // of several ways this can reject — an expired or clock-skewed
+    // `rp_context`, a rotated signing secret (`invalid_rp_signature`,
+    // `unknown_rp`), a WASM init failure, or a bridge blocked by venue wifi all
+    // land here too, and look identical to the member. `IDKit.request(...)` is
+    // inside the same try as `.constraints()` so a synchronous throw there is
+    // caught as well, instead of escaping and hanging the wait the way an
+    // un-awaited rejection would. Reported as a completion failure it lands on
+    // the error state with its copy, like any other failure to reach the
+    // verifier. The rejection reason never reaches the member — only an
+    // operator reading logs — so it is logged here rather than folded into the
+    // member-facing state.
+    let request: IDKitRequest | null
+    try {
+      request = await IDKit.request({
+        ...context,
+        allow_legacy_proofs: ALLOW_LEGACY_PROOFS,
+        environment: WORLD_ENVIRONMENT,
+      }).constraints(humanConstraints(uid))
+    } catch (error) {
+      // oxlint-disable-next-line no-console -- venue debugging needs the real rejection reason; the member never sees it, only the generic 'constraints_unsupported' state below
+      console.error('[fuda-app] World ID verification request failed', error)
+      request = null
+    }
     if (request === null) {
       return { error: 'constraints_unsupported', success: false }
     }
