@@ -25,6 +25,11 @@ export interface PassBranding {
   // web pass link to it; the Apple builder is handed the bytes separately,
   // because a .pkpass embeds its images rather than fetching them.
   logoUrl: string | null
+  // the member's page for this Right, so a saved wallet pass leads back to what
+  // only fuda can do with it — adding a badge, above all. Optional because a
+  // Right issued without a card has no venue page to return to, and because a
+  // caller that predates the link simply omits it.
+  manageUrl?: string | null
 }
 
 // The label over the member number, as the venue card page prints it.

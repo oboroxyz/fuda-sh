@@ -135,6 +135,39 @@ describe('branded pass.json', () => {
     expect(json.storeCard.auxiliaryFields).toBeUndefined()
   })
 
+  it('puts the member page on the back as a tappable link, when there is one', () => {
+    const json = passJson(
+      { certPem: '', keyPem: '', passTypeId: 'pass.sh.fuda', teamId: 'TEAM', wwdrPem: '' },
+      {
+        branding: {
+          brandColor: '#6F4320',
+          cardTitle: 'Membership Card',
+          category: 'membership',
+          issuedAt: ISSUED_AT,
+          issuerName: 'Wassie Coffee',
+          logoUrl: null,
+          manageUrl: 'https://fuda.sh/@wassie-coffee/members',
+          memberNumber: 'QJ2Y-XPHE-PDRKA',
+          venue: null,
+        },
+        holderShort: '0x1234…abcd',
+        qr: `fuda:v1:0x${'ab'.repeat(32)}`,
+        tierLabel: 'FREE',
+        uid: `0x${'ab'.repeat(32)}`,
+      },
+    )
+    expect(json.storeCard.backFields.at(-1)).toStrictEqual({
+      attributedValue: '<a href="https://fuda.sh/@wassie-coffee/members">Open in fuda</a>',
+      key: 'manage',
+      label: 'fuda',
+      value: 'https://fuda.sh/@wassie-coffee/members',
+    })
+  })
+
+  it('leaves the back unchanged for a right with no member page', () => {
+    expect(branded().storeCard.backFields.map(({ key }) => key)).toStrictEqual(['tier', 'holder', 'uid'])
+  })
+
   it('keeps the tier off the face and puts the venue in locations', () => {
     const json = branded()
     expect(json.storeCard.backFields[0]).toStrictEqual({ key: 'tier', label: 'Tier', value: 'FREE' })

@@ -53,6 +53,9 @@ export interface ApplePassInput {
 
 interface PassField {
   key: string
+  // Wallet renders a small subset of HTML here and makes an anchor tappable;
+  // `value` stays the plain text a client without it falls back to.
+  attributedValue?: string
   // omitted (not empty) for a value that stands on its own, such as the card title
   label?: string
   value: string
@@ -83,6 +86,21 @@ export interface PassJson {
     backFields: PassField[]
   }
 }
+
+// The way back to fuda's own page, where badging and everything else a wallet
+// cannot host happens. An anchor because a bare URL is only sometimes tappable,
+// and last on the back because it is an action, not a fact about the Right.
+const manageFields = (manageUrl: string | null | undefined): PassField[] =>
+  manageUrl === null || manageUrl === undefined
+    ? []
+    : [
+        {
+          attributedValue: `<a href="${manageUrl}">Open in fuda</a>`,
+          key: 'manage',
+          label: 'fuda',
+          value: manageUrl,
+        },
+      ]
 
 // The fact of each badge, as a front-of-pass auxiliary row — the family the
 // stamp count already uses, so the member reads it without flipping the pass,
@@ -183,6 +201,7 @@ export const passJson = (cfg: AppleConfig, input: ApplePassInput): PassJson => {
         { key: 'tier', label: 'Tier', value: input.tierLabel },
         { key: 'holder', label: 'Holder', value: input.holderShort },
         { key: 'uid', label: 'Attestation', value: input.uid },
+        ...manageFields(branding.manageUrl),
       ],
       primaryFields: [{ key: 'title', value: branding.cardTitle }],
       secondaryFields: [

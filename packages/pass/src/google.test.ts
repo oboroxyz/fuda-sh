@@ -107,6 +107,34 @@ describe(buildGenericObject, () => {
     expect(obj.smartTapRedemptionValue).toBe(obj.barcode.value)
   })
 
+  it('links back to the member page when the branding carries one', () => {
+    const obj = buildGenericObject(
+      { classId: 'c', issuerId: '338', saEmail: 'e', saKeyPem: 'p' },
+      {
+        ...INPUT,
+        branding: {
+          brandColor: '#6F4320',
+          cardTitle: 'Membership Card',
+          category: 'membership',
+          issuedAt: ISSUED_AT,
+          issuerName: 'Wassie Coffee',
+          logoUrl: null,
+          manageUrl: 'https://fuda.sh/@wassie-coffee/members',
+          memberNumber: 'QJ2Y-XPHE-PDRKA',
+          venue: null,
+        },
+      },
+    )
+    expect(obj.linksModuleData?.uris).toStrictEqual([
+      { description: 'Open in fuda', id: 'fuda-manage', uri: 'https://fuda.sh/@wassie-coffee/members' },
+    ])
+  })
+
+  it('carries no links module for a right with no member page', () => {
+    const obj = buildGenericObject({ classId: 'c', issuerId: '338', saEmail: 'e', saKeyPem: 'p' }, INPUT)
+    expect(obj.linksModuleData).toBeUndefined()
+  })
+
   it('shows the tier as the header and repeats tier and member as text modules', () => {
     const obj = buildGenericObject({ classId: 'c', issuerId: '338', saEmail: 'e', saKeyPem: 'p' }, INPUT)
     expect(obj.cardTitle.defaultValue.value).toBe('fuda membership')

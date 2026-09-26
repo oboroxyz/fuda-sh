@@ -62,6 +62,12 @@ interface WalletImage {
   sourceUri: { uri: string }
 }
 
+// Wallet renders each uri as a row on the saved object. One entry, one id, so a
+// later patch can replace it by id the way the stamp and badge modules are.
+export interface LinksModule {
+  uris: { description: string; id: string; uri: string }[]
+}
+
 export interface GoogleGenericObject {
   barcode: { alternateText: string; type: string; value: string }
   cardTitle: LocalizedString
@@ -69,6 +75,7 @@ export interface GoogleGenericObject {
   header: LocalizedString
   hexBackgroundColor?: string
   id: string
+  linksModuleData?: LinksModule
   logo?: WalletImage
   smartTapRedemptionValue: string
   state: string
@@ -77,6 +84,10 @@ export interface GoogleGenericObject {
 }
 
 const localized = (value: string): LocalizedString => ({ defaultValue: { language: 'en-US', value } })
+
+// Names the destination, not the action: the same saved pass is read before and
+// after a badge, and Wallet has no way to re-render this row when that changes.
+const MANAGE_LABEL = 'Open in fuda'
 
 const STAMP_IDS = new Set(['fuda-stamps', 'fuda-stamps-today'])
 
@@ -148,9 +159,21 @@ export const buildGenericObject = (cfg: GoogleConfig, input: GooglePassInput): G
   // fuda detail the card page never shows. The logo is a URL Google fetches,
   // so it is omitted rather than empty when unset.
   const logo = branding.logoUrl === null ? {} : { logo: { sourceUri: { uri: branding.logoUrl } } }
+  // The way back. A saved pass is the surface the member keeps, but badging and
+  // every other action live on fuda's own page, which the wallet cannot host.
+  // Omitted rather than empty when the Right has no card to return to.
+  const links =
+    branding.manageUrl === null || branding.manageUrl === undefined
+      ? {}
+      : {
+          linksModuleData: {
+            uris: [{ description: MANAGE_LABEL, id: 'fuda-manage', uri: branding.manageUrl }],
+          },
+        }
   return {
     ...base,
     ...logo,
+    ...links,
     cardTitle: localized(branding.issuerName),
     header: localized(branding.cardTitle),
     hexBackgroundColor: branding.brandColor,
