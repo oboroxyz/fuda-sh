@@ -9,22 +9,29 @@ const TONE = {
   yellow: 'bg-warning text-warning-content',
 } as const
 
-// What was presented, under the verdict word: the venue that issued it, what
-// kind of right it is, how long it lasts, and the holder. Each line is omitted
-// when the api did not report it, so a NOT_FOUND stays a bare REJECT.
+// What was presented, under the verdict word: what kind of right it is, how long
+// it lasts, and the holder. Each line is omitted when the api did not report it,
+// so a NOT_FOUND stays a bare REJECT.
+//
+// The delegation comes last and small. It is the chain of authority the Right was
+// issued under — fuda's own root for every Right this deployment signs — so it
+// reads as provenance. Given the top line it would be mistaken for the venue,
+// which is not in a verdict at all.
 const Facts = ({ facts }: { facts: VerdictFacts }): JSX.Element | null => {
   const grade = [facts.tier, facts.usage].filter((part) => part !== null).join(' · ')
-  if (facts.venue === null && grade === '' && facts.validUntil === null && facts.holder === null) {
+  if (facts.delegation === null && grade === '' && facts.validUntil === null && facts.holder === null) {
     return null
   }
   return (
     <div class="flex flex-col items-center gap-1 px-6 text-center">
-      {facts.venue === null ? null : <div class="text-2xl font-semibold">{facts.venue}</div>}
-      {grade === '' ? null : <div class="text-xl">{grade}</div>}
+      {grade === '' ? null : <div class="text-2xl font-semibold">{grade}</div>}
       {facts.validUntil === null ? null : (
         <div class="text-base opacity-80">valid until {facts.validUntil}</div>
       )}
       {facts.holder === null ? null : <div class="font-mono text-sm opacity-70">{facts.holder}</div>}
+      {facts.delegation === null ? null : (
+        <div class="text-xs opacity-60">issued under {facts.delegation}</div>
+      )}
     </div>
   )
 }

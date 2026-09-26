@@ -24,7 +24,12 @@ const USAGE_LABEL = ['single-use', 'multi-use', 'metered'] as const
 // nullable because a verdict can arrive without an entitlement (NOT_FOUND,
 // WRONG_SCHEMA) or without a delegation, and a transport failure has neither.
 export interface VerdictFacts {
-  venue: string | null
+  // The delegation the Right was issued under, which is fuda's own root for
+  // every Right this deployment signs — "fuda root", not the venue. The venue
+  // is not in a verdict at all: it is a D1 record behind the uid, and the gate
+  // does not read it. Named for what it is so the view cannot present it as a
+  // venue name.
+  delegation: string | null
   tier: string | null
   usage: string | null
   validUntil: string | null
@@ -56,7 +61,7 @@ export type DisplayState =
       badge: VerdictBadge | null
     }
 
-const NO_FACTS: VerdictFacts = { holder: null, tier: null, usage: null, validUntil: null, venue: null }
+const NO_FACTS: VerdictFacts = { delegation: null, holder: null, tier: null, usage: null, validUntil: null }
 
 const two = (n: number): string => String(n).padStart(2, '0')
 
@@ -74,17 +79,18 @@ const localMinute = (unix: number): string => {
 
 const factsOf = (body: VerifyResponse): VerdictFacts => {
   const e = body.entitlement
-  const venue = body.delegation?.name
+  const name = body.delegation?.name
+  const delegation = name === undefined || name === '' ? null : name
   if (e === undefined) {
-    return { ...NO_FACTS, venue: venue === undefined || venue === '' ? null : venue }
+    return { ...NO_FACTS, delegation }
   }
   return {
+    delegation,
     holder: short(e.holder),
     tier: TIER_LABEL[e.tier] ?? `TIER ${e.tier}`,
     usage: USAGE_LABEL[e.usageModel] ?? `usage ${e.usageModel}`,
     // An unset end means "does not expire" (docs/specs/pass-types-and-flows.md#validity-windows), never 1970.
     validUntil: e.validUntil === 0 ? null : localDate(e.validUntil),
-    venue: venue === undefined || venue === '' ? null : venue,
   }
 }
 

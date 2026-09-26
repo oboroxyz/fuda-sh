@@ -15,7 +15,7 @@ const ent = (level: number, validUntil = 0): EntitlementView => ({
   validUntil,
 })
 
-const del = { active: true, issuer: `0x${'f0'.repeat(20)}` as const, name: 'Wassie Coffee' }
+const del = { active: true, issuer: `0x${'f0'.repeat(20)}` as const, name: 'fuda root' }
 
 describe(classifyInput, () => {
   it('routes a bare uid to preview and a fuda:v1 payload to admit', () => {
@@ -40,12 +40,12 @@ describe(displayState, () => {
     expect(s.facts).toMatchObject({ holder: '0x1111…1111', tier: 'REGULAR', usage: 'multi-use' })
   })
 
-  it('reports the venue name and the validity end when the api sends them', () => {
+  it('reports the delegation it was issued under and the validity end', () => {
     const s = displayState('admit', {
       body: { decision: 'ADMIT', delegation: del, entitlement: ent(0, 1_790_467_200), reason: 'OK' },
       ok: true,
     })
-    expect(s.facts.venue).toBe('Wassie Coffee')
+    expect(s.facts.delegation).toBe('fuda root')
     expect(s.facts.validUntil).toMatch(/^\d{4}-\d{2}-\d{2}$/u)
   })
 
@@ -63,7 +63,7 @@ describe(displayState, () => {
       ok: true,
     })
     expect(s).toMatchObject({ detail: 'REVOKED', tone: 'red' })
-    expect(s.facts).toMatchObject({ tier: 'REGULAR', venue: 'Wassie Coffee' })
+    expect(s.facts).toMatchObject({ delegation: 'fuda root', tier: 'REGULAR' })
   })
 
   it('is YELLOW for a preview ADMIT of a level >= 1 right, never GREEN', () => {
@@ -155,7 +155,13 @@ describe(displayState, () => {
   it('has no badge and no facts when the request itself failed', () => {
     const s = displayState('admit', { error: 'fetch failed', network: true, ok: false, status: 0 })
     expect(s.badge).toBeNull()
-    expect(s.facts).toStrictEqual({ holder: null, tier: null, usage: null, validUntil: null, venue: null })
+    expect(s.facts).toStrictEqual({
+      delegation: null,
+      holder: null,
+      tier: null,
+      usage: null,
+      validUntil: null,
+    })
   })
 })
 
@@ -164,7 +170,7 @@ describe(unreadableInput, () => {
     expect(unreadableInput()).toStrictEqual({
       badge: null,
       detail: 'not a fuda pass',
-      facts: { holder: null, tier: null, usage: null, validUntil: null, venue: null },
+      facts: { delegation: null, holder: null, tier: null, usage: null, validUntil: null },
       title: 'REJECT',
       tone: 'red',
     })
