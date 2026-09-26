@@ -13,6 +13,14 @@ import type { BadgeVerifier, VerifiedSubject } from '../verifier.ts'
 
 const VERIFY_BASE = 'https://developer.world.org/api/v4/verify'
 
+// Workers' fetch sends no `user-agent`, and the portal's edge answers a request
+// without one with `403 Forbidden` and an nginx HTML body — not a JSON error
+// code, so nothing in the documented error surface describes it. Measured on
+// 2026-09-27 against the live endpoint: identical POST, 403 without this header
+// and a JSON `validation_error` with it. Naming fuda also gives the vendor
+// something to identify if it ever needs to.
+const VERIFY_USER_AGENT = 'fuda/1.0 (+https://fuda.sh)'
+
 const set = (value: string | undefined): value is string => value !== undefined && value !== ''
 
 // The four World bindings, all-or-nothing. Read once here so `configured()`
@@ -173,6 +181,23 @@ const canonicalNullifier = (value: string): string | null => {
   return NULLIFIER_HEX.test(bare) ? `0x${bare.padStart(64, '0')}` : null
 }
 
+// Every refusal above is a 400 to the member, whose copy cannot name a cause
+// without leaking what the proof contained. The operator needs the cause: the
+// World ID app can complete a verification that this deployment still refuses
+// (a session proof, another action, an unaccepted credential), and without the
+// reason that is indistinguishable from the page losing the answer. The text
+// names the decision, never the proof's contents beyond the identifiers the
+// Developer Portal itself shows.
+interface Refusal {
+  error: 'bad_proof' | 'bad_input'
+}
+
+const refuse = (error: Refusal['error'], why: string): Refusal => {
+  // oxlint-disable-next-line no-console -- a refused badge must be visible in wrangler tail
+  console.error(`[fuda-api] world badge refused (${error}): ${why}`)
+  return { error }
+}
+
 export const worldVerifier: BadgeVerifier = {
   configured: (env) => configOf(env) !== null,
   context: async (env) => {
@@ -218,25 +243,25 @@ export const worldVerifier: BadgeVerifier = {
     // is refused without spending a round trip.
     const envelope = v.safeParse(ProofEnvelope, input.payload)
     if (!envelope.success) {
-      return { error: 'bad_input' }
+      return refuse('bad_input', 'envelope did not parse')
     }
     // A session proof, refused deliberately and first: see `ProofEnvelope`.
     if (envelope.output.session_id !== undefined) {
-      return { error: 'bad_proof' }
+      return refuse('bad_proof', 'session proof, not a uniqueness proof')
     }
     if (envelope.output.protocol_version !== PROTOCOL_VERSION) {
-      return { error: 'bad_proof' }
+      return refuse('bad_proof', `protocol_version ${envelope.output.protocol_version}`)
     }
     if (envelope.output.environment !== WORLD_ENVIRONMENT) {
-      return { error: 'bad_proof' }
+      return refuse('bad_proof', `environment ${envelope.output.environment}`)
     }
     const parsedProof = v.safeParse(UniquenessProof, input.payload)
     if (!parsedProof.success) {
-      return { error: 'bad_input' }
+      return refuse('bad_input', 'uniqueness proof did not parse')
     }
     const { action, responses } = parsedProof.output
     if (responses.length === 0) {
-      return { error: 'bad_input' }
+      return refuse('bad_input', 'no credential responses')
     }
     // The proof was made for *this* deployment's action, not another one. 4.0
     // makes this checkable for the first time — `action` is optional on a 3.0
@@ -245,7 +270,7 @@ export const worldVerifier: BadgeVerifier = {
     // carrying a different action carries a nullifier from a different domain
     // than the scope this adapter is about to store.
     if (action !== config.action) {
-      return { error: 'bad_proof' }
+      return refuse('bad_proof', `action ${action} is not ${config.action}`)
     }
     // One pass over the items: every credential must be one this deployment
     // accepts, and the label the badge row records comes from the same lookup
@@ -253,7 +278,7 @@ export const worldVerifier: BadgeVerifier = {
     const credentials = responses.map((response) => HUMAN_CREDENTIALS.get(response.issuer_schema_id))
     const credential = credentials.at(0)
     if (credential === undefined || credentials.includes(undefined)) {
-      return { error: 'bad_proof' }
+      return refuse('bad_proof', `credential schema ${responses.map((r) => r.issuer_schema_id).join(',')}`)
     }
     // More than one item means World App satisfied the request with more than
     // one credential at once, and every one of them must name the same person.
@@ -350,15 +375,16 @@ export const worldVerifier: BadgeVerifier = {
     const bound = (signalHash: string | undefined): boolean =>
       signalHash === undefined || sameHash(signalHash, expectedHash)
     if (!responses.every((response) => bound(response.signal_hash))) {
-      return { error: 'bad_input' }
+      return refuse('bad_input', 'signal hash does not match the uid')
     }
     const res = await fetch(`${VERIFY_BASE}/${config.rpId}`, {
       body: JSON.stringify(input.payload),
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'user-agent': VERIFY_USER_AGENT },
       method: 'POST',
     })
     if (!res.ok) {
-      return { error: 'bad_proof' }
+      const detail = await res.text()
+      return refuse('bad_proof', `portal ${res.status}: ${detail.slice(0, 300)}`)
     }
     const body: unknown = await res.json()
     // `success: true` is required by this parse, not merely a 2xx: the portal
@@ -367,11 +393,11 @@ export const worldVerifier: BadgeVerifier = {
     // person (docs/research/world-id-2026-09-26.md Q5).
     const parsed = v.safeParse(VerifyResponse, body)
     if (!parsed.success) {
-      return { error: 'bad_proof' }
+      return refuse('bad_proof', `portal answered ${JSON.stringify(body).slice(0, 300)}`)
     }
     const subjectKey = canonicalNullifier(parsed.output.nullifier)
     if (subjectKey === null) {
-      return { error: 'bad_proof' }
+      return refuse('bad_proof', 'nullifier is not canonical')
     }
     return {
       // Which credential this person actually used, read from the proof's own

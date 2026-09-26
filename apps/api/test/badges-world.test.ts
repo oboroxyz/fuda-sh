@@ -139,6 +139,24 @@ describe('world verifier', () => {
     expect(portal).not.toHaveBeenCalled()
   })
 
+  // Measured against the live endpoint on 2026-09-27: the same POST answers
+  // `403 Forbidden` with an nginx HTML body when no user agent is sent, and
+  // reaches the API (a JSON `validation_error`) when one is. Workers' fetch
+  // sends none by default, so the header is the difference between a working
+  // integration and every proof failing as `bad_proof`.
+  it('names itself to the portal, which refuses a request with no user agent', async () => {
+    let sent: Record<string, string> = {}
+    const portal = vi.fn<(url: string, init: { headers: Record<string, string> }) => Response>(
+      (_url, init) => {
+        sent = init.headers
+        return Response.json({ nullifier: '0xdead', success: true })
+      },
+    )
+    vi.stubGlobal('fetch', portal)
+    await worldVerifier.verify(configured, { payload: proofFor(UID), uid: UID })
+    expect(sent['user-agent']).toMatch(/fuda/iu)
+  })
+
   // The pin is the number, not the spelling beside it: World App has reported
   // the same credential as `orb` and as `proof_of_human` depending on transport,
   // and a payload may carry either without meaning a different credential.
