@@ -124,6 +124,7 @@ See [Local development](./docs/runbook.md#12-local-development) for setup and st
 - **Integrations**
   - [The Graph](./docs/integrations/thegraph.md) — rights indexing, Substreams, and verification evidence
   - [ENS](./docs/integrations/ens.md) — venue and member names on the ENSv2 Sepolia deployment, the sponsored claim, and live resolution evidence
+  - [World ID](./docs/integrations/worldid.md) — the Verified Human badge: where it sits, what the proof must satisfy, and what the vendor's edge does undocumented
 - **Operations**
   - [Runbook](./docs/runbook.md) — local development, one-time Cloudflare and Base setup, secrets, deploy order
   - [Agent guidance](./AGENTS.md) — repository workflow and verification
