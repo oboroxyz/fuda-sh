@@ -88,4 +88,25 @@ describe(displayState, () => {
     expect(s).toMatchObject({ detail: 'bad_uid', title: 'REJECT', tone: 'red' })
     expect(s.tone === 'red' ? s.banner : 'network').toBeUndefined()
   })
+
+  it('is human: true when the response carries a human badge', () => {
+    const s = displayState('admit', {
+      body: {
+        badges: [{ at: 1, kind: 'human', verifier: 'world' }],
+        decision: 'ADMIT',
+        entitlement: ent(0),
+        reason: 'OK',
+      },
+      ok: true,
+    })
+    expect(s.human).toBe(true)
+  })
+
+  it('is human: false when the response carries no badges', () => {
+    const s = displayState('admit', {
+      body: { decision: 'ADMIT', entitlement: ent(0), reason: 'OK' },
+      ok: true,
+    })
+    expect(s.human).toBe(false)
+  })
 })

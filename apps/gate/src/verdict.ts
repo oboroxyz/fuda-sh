@@ -18,9 +18,9 @@ export const classifyInput = (text: string): InputKind => {
 export type ApiResult = Result<VerifyResponse>
 
 export type DisplayState =
-  | { tone: 'green'; title: 'ADMIT'; detail: string }
-  | { tone: 'yellow'; title: 'VALID — signature required'; detail: string }
-  | { tone: 'red'; title: 'REJECT'; detail: string; banner?: 'network' }
+  | { tone: 'green'; title: 'ADMIT'; detail: string; human: boolean }
+  | { tone: 'yellow'; title: 'VALID — signature required'; detail: string; human: boolean }
+  | { tone: 'red'; title: 'REJECT'; detail: string; banner?: 'network'; human: boolean }
 
 const summary = (body: VerifyResponse): string => {
   const e = body.entitlement
@@ -34,13 +34,15 @@ export const displayState = (kind: 'preview' | 'admit', result: ApiResult): Disp
     return {
       banner: result.network ? 'network' : undefined,
       detail: result.error,
+      human: false,
       title: 'REJECT',
       tone: 'red',
     }
   }
   const { body } = result
+  const human = body.badges?.some((b) => b.kind === 'human') ?? false
   if (body.decision === 'REJECT') {
-    return { detail: body.reason, title: 'REJECT', tone: 'red' }
+    return { detail: body.reason, human, title: 'REJECT', tone: 'red' }
   }
   // Fail closed on a preview whose entitlement the api did not report: an
   // unknown level may be Signed/+Private, and green would wave it through.
@@ -48,9 +50,10 @@ export const displayState = (kind: 'preview' | 'admit', result: ApiResult): Disp
   if (kind === 'preview' && (e === undefined || e.level >= 1)) {
     return {
       detail: e === undefined ? 'level unknown — signature required' : summary(body),
+      human,
       title: 'VALID — signature required',
       tone: 'yellow',
     }
   }
-  return { detail: summary(body), title: 'ADMIT', tone: 'green' }
+  return { detail: summary(body), human, title: 'ADMIT', tone: 'green' }
 }

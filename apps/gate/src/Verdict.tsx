@@ -20,6 +20,7 @@ export const Verdict = ({ state, onDone }: { state: DisplayState; onDone: () => 
     {state.tone === 'red' && state.banner === 'network' ? (
       <div class="badge badge-neutral">network error — gate fails closed</div>
     ) : null}
+    {state.human ? <div class="badge badge-neutral">verified human</div> : null}
     <div class="px-6 text-center text-5xl font-black">{state.title}</div>
     <div class="px-6 text-center text-xl">{state.detail}</div>
     <div class="text-sm opacity-70">tap to scan again</div>

@@ -19,7 +19,7 @@ export const App = (): JSX.Element => {
       }
       const input = classifyInput(text)
       if (input.kind === 'invalid') {
-        setState({ detail: 'not a fuda pass', title: 'REJECT', tone: 'red' })
+        setState({ detail: 'not a fuda pass', human: false, title: 'REJECT', tone: 'red' })
         return
       }
       setBusy(true)
