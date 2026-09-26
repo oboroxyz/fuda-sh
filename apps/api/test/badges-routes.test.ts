@@ -7,13 +7,16 @@ import { getDb } from '../src/db/client.ts'
 import { badges, cards, challenges, issuers, sessions } from '../src/db/schema.ts'
 import type { Bindings } from '../src/env.ts'
 import { appWith, fakeChain, testEnv } from './env.ts'
-import { configuredEnv, NOW, seedRight, seedRoot, worldProof as proofFor } from './fixtures.ts'
+import { configuredEnv, NOW, seedRight, seedRoot, WORLD_ACTION, worldProof as proofFor } from './fixtures.ts'
 import { CARD_INPUT, getJson, registerVenueWithCard, signIn } from './operator.ts'
 
 const db = () => getDb({ DB: env.DB })
+// The action comes from the fixture module rather than a literal: a 4.0 proof
+// carries the action it was made for and the adapter checks it against this
+// binding, so the two must not be able to drift apart.
 const worldEnv = (bindings: ReturnType<typeof configuredEnv>) => ({
   ...bindings,
-  WORLD_ACTION: 'ethtokyo2026-human',
+  WORLD_ACTION,
   WORLD_APP_ID: 'app_test',
   WORLD_RP_ID: 'rp_test',
   WORLD_RP_SIGNING_KEY: `0x${'11'.repeat(32)}`,

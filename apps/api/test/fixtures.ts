@@ -86,26 +86,68 @@ export const OTHER_KEY = `0x${'5b'.repeat(32)}` as const
 export const other = privateKeyToAccount(OTHER_KEY)
 export const signChallenge = async (message: string): Promise<Hex> => await signer.signMessage({ message })
 
-// A World proof payload shaped like the `IDKitResultV3` the vendor actually
-// returns for the shipped `orbLegacy` preset. The signal is not carried as a
-// field: it reaches the server only as `responses[].signal_hash`, derived with
-// the same `hashSignal` World App uses, which is why the adapter compares a
-// hash rather than a uid. Hand-built `{ signal }` fixtures would test the
-// adapter against an assumption instead of against the vendor.
+// The action the World bindings are configured with in every suite that
+// exercises the badge routes or the adapter. A 4.0 uniqueness proof carries the
+// action it was made for and the adapter checks it against this binding, so the
+// fixture and the test environment must name the same one or every proof is
+// refused as made for something else.
+export const WORLD_ACTION = 'ethtokyo2026-human'
+
+// A World proof payload shaped like the `IDKitResultV4` the vendor actually
+// returns for the shipped `proofOfHuman` preset. Three things about the shape
+// matter to the adapter and are therefore real here rather than invented:
+// the signal is not a field of its own — it reaches the server only as
+// `responses[].signal_hash`, derived with the same `hashSignal` World App uses,
+// which is why the adapter compares a hash rather than a uid; the credential is
+// named by the numeric `issuer_schema_id` (1 = proof of human) and not by the
+// `identifier` string beside it; and `action` is a required top-level field on a
+// 4.0 uniqueness proof. `signalHash: null` drops the field entirely, the way a
+// 4.0 item with no reattached hash arrives.
 export const worldProof = (
   uid: string,
-  overrides: { identifier?: string; protocolVersion?: string; environment?: string } = {},
-) => ({
-  environment: overrides.environment ?? 'production',
+  overrides: {
+    identifier?: string
+    issuerSchemaId?: number
+    protocolVersion?: string
+    environment?: string
+    action?: string
+    signalHash?: string | null
+  } = {},
+) => {
+  const signalHash = overrides.signalHash === undefined ? hashSignal(uid) : overrides.signalHash
+  const item = {
+    expires_at_min: 4_102_444_800,
+    identifier: overrides.identifier ?? 'proof_of_human',
+    issuer_schema_id: overrides.issuerSchemaId ?? 1,
+    nullifier: '0xdead',
+    proof: ['0x01', '0x02', '0x03', '0x04', '0xroot'],
+  }
+  return {
+    action: overrides.action ?? WORLD_ACTION,
+    environment: overrides.environment ?? 'production',
+    nonce: '0x01',
+    protocol_version: overrides.protocolVersion ?? '4.0',
+    responses: [signalHash === null ? item : { ...item, signal_hash: signalHash }],
+  }
+}
+
+// A 4.0 *session* proof, the one shape the adapter must refuse outright: its
+// nullifier is bound to a randomised action, so it says nothing about
+// uniqueness. Shaped like `IDKitResultSession` — `session_id` present, no
+// top-level `action`, and `session_nullifier` in place of `nullifier`.
+export const worldSessionProof = (uid: string) => ({
+  environment: 'production',
   nonce: '0x01',
-  protocol_version: overrides.protocolVersion ?? '3.0',
+  protocol_version: '4.0',
   responses: [
     {
-      identifier: overrides.identifier ?? 'orb',
-      merkle_root: '0xroot',
-      nullifier: '0xdead',
-      proof: '0xproof',
+      expires_at_min: 4_102_444_800,
+      identifier: 'proof_of_human',
+      issuer_schema_id: 1,
+      proof: ['0x01', '0x02', '0x03', '0x04', '0xroot'],
+      session_nullifier: ['0xdead', '0xbeef'],
       signal_hash: hashSignal(uid),
     },
   ],
+  session_id: 'session_abc',
 })
