@@ -33,8 +33,15 @@ Both cannot hold. Resolve it by measurement, not by reading: in the first task, 
 2. A badge record binding one human to one pass, enforced by a unique nullifier.
 3. An opt-in "verify you are human" action on the member's pass screen.
 4. `humanVerified` surfaced in the gate verdict and rendered by `apps/gate`.
+5. The badge rendered on the wallet passes that can carry it (see the scope change below).
 
-**Explicitly out of scope:** changing how passes are issued; requiring World ID to claim a pass; World ID anywhere on the admission path; new tenant/operator workflows; Private-level rights; Wallet-pass (Apple/Google) badge rendering.
+**Explicitly out of scope:** changing how passes are issued; requiring World ID to claim a pass; World ID anywhere on the admission path; new tenant/operator workflows; Private-level rights; pushing an update to an already-installed Apple pass.
+
+**Scope change — wallet-pass badge rendering.** Item 5 began as an explicit exclusion here, on the reading that a wallet pass is a snapshot taken when the pass is saved and a badge arrives afterwards, so no wallet could ever show one. The user asked for it directly mid-build, and it is in scope from that point.
+
+The original reading was wrong for two of the three surfaces. A Google generic object is a live server-side record, so a saved pass can be patched once a badge is saved. And both the Google save link and the Apple `.pkpass` are generated per request, so a pass added _after_ a badge carries the badge from the start — the same way an enabled Stamp count already travels into both. What survives as an exclusion is the part the original line was really about, and it is now stated as such: updating a pass already installed on a device needs a `webServiceURL` and APNs, which this repo does not have, so an Apple pass installed before the badge shows it only when the member adds it again (a re-add replaces the installed pass in place, since the serial number is the Right's uid).
+
+Neither invariant moves. The rendering carries only the fact of the badge — never the subject key, the scope, the credential, or the verifier's name — so privacy is unchanged; and a pass is not a decision surface, so a wallet that fails to render or fails to update still cannot change an admission decision.
 
 **Stretch, in this order, only if the four items above are finished and deployed:**
 
