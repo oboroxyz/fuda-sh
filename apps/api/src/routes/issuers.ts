@@ -266,13 +266,7 @@ issuersRoutes.get('/issuers/:handle', async (c) => {
   }
   return jsonResponse(
     c,
-    publicVenue(
-      found.issuer,
-      found.cards,
-      c.get('now')(),
-      c.env.API_BASE_URL,
-      configuredBadgeKinds(c.env),
-    ),
+    publicVenue(found.issuer, found.cards, c.get('now')(), c.env.API_BASE_URL, configuredBadgeKinds(c.env)),
   )
 })
 

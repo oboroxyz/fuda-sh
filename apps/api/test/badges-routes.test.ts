@@ -222,11 +222,10 @@ describe('badge routes', () => {
 // control appear and vanish after a 501.
 describe('GET /v1/issuers/:handle badge availability', () => {
   beforeEach(async () => {
-    const db = getDb({ DB: env.DB })
-    await db.delete(challenges)
-    await db.delete(sessions)
-    await db.delete(cards)
-    await db.delete(issuers)
+    await db().delete(challenges)
+    await db().delete(sessions)
+    await db().delete(cards)
+    await db().delete(issuers)
   })
 
   it('lists a kind only where its verifier is configured', async () => {

@@ -9,12 +9,13 @@ const UID = `0x${'a1'.repeat(32)}` as const
 
 // The shipped payload with the signal binding removed entirely: the field is
 // optional in the vendor's type, and a proof carrying no binding must not pass.
-const unboundProof = (): unknown => ({
+const unboundProof = () => ({
   environment: 'production',
   nonce: '0x01',
   protocol_version: '3.0',
   responses: [{ identifier: 'orb', merkle_root: '0xroot', nullifier: '0xdead', proof: '0xproof' }],
 })
+
 const configured = {
   WORLD_ACTION: 'ethtokyo2026-human',
   WORLD_APP_ID: 'app_test',
@@ -66,42 +67,28 @@ describe('world verifier', () => {
     })
   })
 
-  // Every rejection below must be decided from the payload alone, so a stubbed
-  // portal that would have said yes is never even called.
-  const rejects = async (payload: unknown, error: string): Promise<void> => {
-    const portal = vi.fn(() => Response.json({ nullifier: '0xdead', success: true }))
+  // Every rejection is decided from the payload alone, so a portal stubbed to
+  // say yes is never even called. The credential rows are the other half of the
+  // one-preset rule: only the human credential is a verified human, and the
+  // family check above closes the second nullifier family.
+  it.each([
+    ['a proof bound to a different right', proofFor(`0x${'b2'.repeat(32)}`), 'bad_input'],
+    ['a proof that binds no signal at all', unboundProof(), 'bad_input'],
+    ['a payload that is not shaped like a proof', { signal: UID }, 'bad_input'],
+    ['a proof from the other protocol family', proofFor(UID, { protocolVersion: '4.0' }), 'bad_proof'],
+    ['a selfie credential', proofFor(UID, { identifier: 'selfie' }), 'bad_proof'],
+    ['a device credential', proofFor(UID, { identifier: 'device' }), 'bad_proof'],
+    ['a passport credential', proofFor(UID, { identifier: 'passport' }), 'bad_proof'],
+    ['an mnc credential', proofFor(UID, { identifier: 'mnc' }), 'bad_proof'],
+    ['a document credential', proofFor(UID, { identifier: 'document' }), 'bad_proof'],
+  ])('rejects %s, without calling the portal', async (_name, payload, error) => {
+    const portal = vi.fn<() => Response>(() => Response.json({ nullifier: '0xdead', success: true }))
     vi.stubGlobal('fetch', portal)
     await expect(worldVerifier.verify(configured, { payload, uid: UID })).resolves.toStrictEqual({
       error,
     })
     expect(portal).not.toHaveBeenCalled()
-  }
-
-  it('rejects a proof bound to a different right', async () => {
-    await rejects(proofFor(`0x${'b2'.repeat(32)}`), 'bad_input')
   })
-
-  it('rejects a proof that binds no signal at all', async () => {
-    await rejects(unboundProof(), 'bad_input')
-  })
-
-  it('rejects a payload that is not shaped like a proof', async () => {
-    await rejects({ signal: UID }, 'bad_input')
-  })
-
-  // The client ships exactly one preset, and the RP signature does not cover
-  // that choice — so the server makes it again. Accepting both families would
-  // let one person hold two nullifiers for the same action.
-  it('rejects a proof from the other protocol family', async () => {
-    await rejects(proofFor(UID, { protocolVersion: '4.0' }), 'bad_proof')
-  })
-
-  it.each(['selfie', 'device', 'passport', 'mnc', 'document'])(
-    'rejects a %s credential, which is not a verified human',
-    async (identifier) => {
-      await rejects(proofFor(UID, { identifier }), 'bad_proof')
-    },
-  )
 
   it('accepts either spelling of the human credential and records the one it saw', async () => {
     vi.stubGlobal(

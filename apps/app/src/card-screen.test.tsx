@@ -202,9 +202,7 @@ describe(CardScreenView, () => {
     expect(link?.props.target).toBe('_blank')
     expect(viewText(view)).toContain('Continue verification')
     expect(viewText(view)).toContain('Please keep this page open.')
-    expect(nodes.some(({ props }) => props['aria-label'] === 'QR code to continue verification')).toBe(
-      true,
-    )
+    expect(nodes.some(({ props }) => props['aria-label'] === 'QR code to continue verification')).toBe(true)
   })
 
   it('offers no badge control at all where the verifier is not configured', () => {

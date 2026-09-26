@@ -74,10 +74,9 @@ const HUMAN_IDENTIFIERS = new Set(['orb', 'proof_of_human'])
 // digit cannot read as a different signal. `hashSignal` returns 0x-prefixed
 // lowercase hex, padded to 32 bytes, on both the JS and the wasm side; this
 // only guards the payload half, which arrives from a client.
-const sameHash = (a: string, b: string): boolean => {
-  const bare = (hash: string): string => hash.replace(/^0x/iu, '').toLowerCase()
-  return bare(a) === bare(b)
-}
+const bareHash = (hash: string): string => hash.replace(/^0x/iu, '').toLowerCase()
+
+const sameHash = (a: string, b: string): boolean => bareHash(a) === bareHash(b)
 
 // The one field of the portal's verify response this adapter reads. PROVISIONAL:
 // the verify response shape is not shipped by either World package (only the
@@ -134,8 +133,8 @@ export const worldVerifier: BadgeVerifier = {
     if (!parsedPayload.success) {
       return { error: 'bad_input' }
     }
-    const responses = parsedPayload.output.responses
-    const first = responses[0]
+    const { responses } = parsedPayload.output
+    const [first] = responses
     if (first === undefined) {
       return { error: 'bad_input' }
     }

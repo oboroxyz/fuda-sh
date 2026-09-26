@@ -311,12 +311,7 @@ const humanBadgeControl = (
   if (badge.kind === 'waiting' && badge.connectorUri !== null) {
     return (
       <div class="flex flex-col items-center gap-3">
-        <a
-          class="btn btn-outline btn-sm"
-          href={badge.connectorUri}
-          target="_blank"
-          rel="noreferrer noopener"
-        >
+        <a class="btn btn-outline btn-sm" href={badge.connectorUri} target="_blank" rel="noreferrer noopener">
           {copy.continueVerification}
         </a>
         <div

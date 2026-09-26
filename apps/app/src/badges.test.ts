@@ -70,13 +70,7 @@ describe(requestHumanBadge, () => {
     await requestHumanBadge(io, UID, (state) => {
       seen.push(state)
     })
-    expect(seen.map((state) => state.kind)).toStrictEqual([
-      'idle',
-      'opening',
-      'waiting',
-      'waiting',
-      'done',
-    ])
+    expect(seen.map((state) => state.kind)).toStrictEqual(['idle', 'opening', 'waiting', 'waiting', 'done'])
     expect(seen.at(2)).toStrictEqual({ connectorUri: null, kind: 'waiting' })
     expect(seen.at(3)).toStrictEqual({
       connectorUri: 'https://world.org/verify?t=wld&i=abc',
