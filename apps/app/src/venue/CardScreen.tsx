@@ -297,6 +297,33 @@ const humanBadgeControl = (
       </p>
     )
   }
+  // The hand-off, once there is a target for it. The link opens in its own tab
+  // so this page stays alive: it is the page still waiting for the answer, and
+  // navigating away from it loses a verification the member has completed. The
+  // code carries the same target for a member reading this on a desktop.
+  if (badge.kind === 'waiting' && badge.connectorUri !== null) {
+    return (
+      <div class="flex flex-col items-center gap-3">
+        <a
+          class="btn btn-outline btn-sm"
+          href={badge.connectorUri}
+          target="_blank"
+          rel="noreferrer noopener"
+        >
+          {copy.continueVerification}
+        </a>
+        <div
+          role="img"
+          aria-label={copy.verificationQrLabel}
+          class="w-36 max-w-full bg-white p-2"
+          // qrSvg builds the markup locally from the URI; the URI only decides
+          // which modules are dark, and never reaches the document as markup.
+          dangerouslySetInnerHTML={{ __html: qrSvg(badge.connectorUri, { modulePx: 144 }) }}
+        />
+        <p class="text-center text-xs leading-5 text-[var(--fuda-muted)]">{copy.keepOpen}</p>
+      </div>
+    )
+  }
   const busy = badge.kind === 'opening' || badge.kind === 'waiting'
   return (
     <button class="btn btn-outline btn-sm" type="button" disabled={busy} onClick={onVerifyHuman}>

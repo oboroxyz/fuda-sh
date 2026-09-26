@@ -16,6 +16,7 @@ interface ViewNode {
     role?: unknown
     src?: unknown
     style?: unknown
+    target?: unknown
   }
 }
 
@@ -180,6 +181,42 @@ describe(CardScreenView, () => {
     expect(text).toContain('QJ2Y-XPHE-PDRKA')
     expect(text).toContain('Sep 7, 2026')
     expect(qr?.props['aria-label']).toBe('Your membership card QR code for Wassie Coffee')
+  })
+
+  // The page is the one waiting for the verifier's answer, so the hand-off must
+  // not replace it: a link in its own tab, plus the same target as a code for a
+  // member reading this on a desktop.
+  it('offers the verification hand-off as a new-tab link and a code while it waits', () => {
+    const connectorUri = 'https://world.org/verify?t=wld&i=abc123'
+    const view = render({
+      appleHref: null,
+      badge: { connectorUri, kind: 'waiting' },
+      card,
+      googleHref: null,
+      issued,
+      kind: 'ready',
+    })
+    const nodes = viewNodes(view)
+    const link = nodes.find(({ props }) => props.href === connectorUri)
+
+    expect(link?.props.target).toBe('_blank')
+    expect(viewText(view)).toContain('Continue verification')
+    expect(viewText(view)).toContain('Please keep this page open.')
+    expect(nodes.some(({ props }) => props['aria-label'] === 'QR code to continue verification')).toBe(
+      true,
+    )
+  })
+
+  it('offers no badge control at all where the verifier is not configured', () => {
+    const view = render({
+      appleHref: null,
+      badge: { kind: 'unavailable' },
+      card,
+      googleHref: null,
+      issued,
+      kind: 'ready',
+    })
+    expect(viewText(view)).not.toContain("Verify you're human")
   })
 
   it.each(['iPhone', 'Android', 'unknown'])(

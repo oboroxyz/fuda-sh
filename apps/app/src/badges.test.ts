@@ -53,7 +53,35 @@ describe(requestHumanBadge, () => {
     const io = fakeIo()
     await requestHumanBadge(io, UID, () => {})
     expect(io.context).toHaveBeenCalledWith()
-    expect(io.open).toHaveBeenCalledWith(CONTEXT, LOWER_UID)
+    expect(io.open).toHaveBeenCalledWith(CONTEXT, LOWER_UID, expect.any(Function))
+    expect(io.submit).toHaveBeenCalledWith(LOWER_UID, PROOF)
+  })
+
+  // The page must be able to render the hand-off while it keeps polling: this
+  // is the whole reason `open` reports the connector URI instead of navigating.
+  it('reports the connector URI on the waiting state, without ending the wait', async () => {
+    const io = fakeIo({
+      open: vi.fn<HumanBadgeIo['open']>(async (_context, _uid, onConnect) => {
+        onConnect('https://world.org/verify?t=wld&i=abc')
+        return await Promise.resolve({ result: PROOF, success: true })
+      }),
+    })
+    const seen: BadgeState[] = []
+    await requestHumanBadge(io, UID, (state) => {
+      seen.push(state)
+    })
+    expect(seen.map((state) => state.kind)).toStrictEqual([
+      'idle',
+      'opening',
+      'waiting',
+      'waiting',
+      'done',
+    ])
+    expect(seen.at(2)).toStrictEqual({ connectorUri: null, kind: 'waiting' })
+    expect(seen.at(3)).toStrictEqual({
+      connectorUri: 'https://world.org/verify?t=wld&i=abc',
+      kind: 'waiting',
+    })
     expect(io.submit).toHaveBeenCalledWith(LOWER_UID, PROOF)
   })
 

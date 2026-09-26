@@ -46,10 +46,14 @@ export interface HumanBadgeSubmission {
 // to this type as-is.
 export type HumanBadgeCompletion = { success: true; result: unknown } | { success: false; error: string }
 
+// `waiting` carries the connector URI once there is one: the target the member
+// opens to answer the request, which the page shows as a QR and as a link
+// rather than navigating to it. It stays null inside World App, where the
+// native transport needs no hand-off.
 export type BadgeState =
   | { kind: 'idle' }
   | { kind: 'opening' }
-  | { kind: 'waiting' }
+  | { kind: 'waiting'; connectorUri: string | null }
   | { kind: 'done' }
   | { kind: 'taken' }
   | { kind: 'unavailable' }
@@ -61,7 +65,15 @@ export type BadgeState =
 // one wait, not two round trips it needs to know about separately.
 export interface HumanBadgeIo {
   context: () => Promise<Result<HumanBadgeContext>>
-  open: (context: HumanBadgeContext, uid: Hex) => Promise<HumanBadgeCompletion>
+  // `onConnect` receives the connector URI as soon as the request exists and
+  // before the wait for an answer begins, so the page can show the member how
+  // to reach the verifier while it keeps polling. It is not called where the
+  // transport completes on the device without a hand-off.
+  open: (
+    context: HumanBadgeContext,
+    uid: Hex,
+    onConnect: (connectorUri: string) => void,
+  ) => Promise<HumanBadgeCompletion>
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- `payload` is the opaque, vendor-shaped proof from `open`; the api is the one place that parses it, this seam only forwards it
   submit: (uid: Hex, payload: unknown) => Promise<Result<HumanBadgeSubmission>>
 }
@@ -86,14 +98,22 @@ const failureKind = (result: { error: string; status: number }): 'error' | 'take
 export const defaultHumanBadgeIo: HumanBadgeIo = {
   context: async () =>
     await apiFetch<HumanBadgeContext>(API_BASE_URL, '/badges/human/context', { method: 'POST' }),
-  open: async (context, uid) => {
+  open: async (context, uid, onConnect) => {
     const request = await IDKit.request({ ...context, allow_legacy_proofs: ALLOW_LEGACY_PROOFS }).preset(
       HUMAN_PRESET({ signal: uid }),
     )
-    // Inside World App the native transport completes without a redirect;
-    // everywhere else the connector URI is the deep link/QR target that opens it.
+    // Inside World App the native transport completes without a hand-off.
+    // Everywhere else the page must survive the hand-off: `pollUntilCompletion()`
+    // below only resolves while this document is alive, and `connectorURI` is an
+    // ordinary https URL, not a custom scheme — assigning it to location.href
+    // replaces the page on a desktop, and on any phone that does not claim that
+    // URL, so a verification the member already completed is lost with nothing
+    // shown. So the URI is handed to the page, which renders it as a QR and as a
+    // link. A link the member taps is also a real user activation, which a
+    // programmatic navigation is not, and it is what makes the mobile hand-off
+    // reach World App at all.
     if (!isInWorldApp()) {
-      globalThis.location.href = request.connectorURI
+      onConnect(request.connectorURI)
     }
     return await request.pollUntilCompletion()
   },
@@ -121,8 +141,10 @@ export const requestHumanBadge = async (
     onState({ kind: failureKind(context) })
     return
   }
-  onState({ kind: 'waiting' })
-  const completion = await io.open(context.body, lowerUid)
+  onState({ connectorUri: null, kind: 'waiting' })
+  const completion = await io.open(context.body, lowerUid, (connectorUri) => {
+    onState({ connectorUri, kind: 'waiting' })
+  })
   if (!completion.success) {
     onState({ kind: CANCELLATION_ERRORS.has(completion.error) ? 'idle' : 'error' })
     return
