@@ -7,6 +7,7 @@ import { verifierFor } from '../badges/verifier.ts'
 import type { AppEnv } from '../env.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { rateLimit } from '../middleware/rate-limit.ts'
+import { scheduleBadgePassUpdate } from '../pass/badge-update.ts'
 import { resolveVerdict } from './verify.ts'
 
 // The route names the claim, not the vendor: replacing the verifier behind a
@@ -74,5 +75,8 @@ badgeRoutes.post('/badges/:kind', rateLimit({ budget: BADGE_BUDGET }), async (c)
   if (!saved.ok) {
     return errorResponse(c, saved.conflict === 'subject' ? 'already_badged' : 'pass_already_badged', 409)
   }
+  // Best-effort only, after the badge is durably saved: never on a 409 or any
+  // earlier error path, and it cannot change this response either way.
+  scheduleBadgePassUpdate(c, uid)
   return jsonResponse(c, { badge: saved.badge })
 })

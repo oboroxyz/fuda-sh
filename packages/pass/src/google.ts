@@ -1,4 +1,5 @@
-import type { Hex, StampSummary } from '@fuda/sdk'
+import type { BadgeKind, BadgeView, Hex, StampSummary } from '@fuda/sdk'
+import { BADGE_KINDS } from '@fuda/sdk'
 
 import { base64urlBytes, base64urlText } from './base64url.ts'
 import { issuedDayText, roleLabel } from './branding.ts'
@@ -84,6 +85,31 @@ export const mergeStampModules = (
     return preserved
   }
   return [...preserved, { body: `${stamps.total} / ${stamps.goal}`, header: 'Stamps', id: 'fuda-stamps' }]
+}
+
+// One id per BadgeKind, so a future kind gets its own row instead of
+// overwriting `human`'s. Only 'human' ships today; the label names the claim
+// ("verified human", matching the gate chip and the app), never the vendor.
+const badgeModuleId = (kind: BadgeKind): string => `fuda-badge-${kind}`
+
+const BADGE_LABELS = { human: 'Verified human' } satisfies Record<BadgeKind, string>
+
+const BADGE_IDS = new Set(BADGE_KINDS.map(badgeModuleId))
+
+// Symmetric with mergeStampModules: filters only the badge-kind ids it owns
+// and preserves every other module (stamps included), so patching one never
+// deletes the other's rows.
+export const mergeBadgeModules = (
+  modules: readonly TextModule[],
+  badges: readonly BadgeView[],
+): TextModule[] => {
+  const preserved = modules.filter(({ id }) => !BADGE_IDS.has(id))
+  const added = badges.map((badge): TextModule => ({
+    body: BADGE_LABELS[badge.kind],
+    header: 'Badge',
+    id: badgeModuleId(badge.kind),
+  }))
+  return [...preserved, ...added]
 }
 
 // docs/specs/pass-types-and-flows.md#passes. The object id is issuer-scoped and must be unique per pass, so the
@@ -247,6 +273,42 @@ const textModulesFrom = (value: unknown): TextModule[] => {
 }
 /* oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, anti-slop/require-safety-comment-for-type-assertion */
 
+// Shared read-modify-write for both stamps and badges: GET the saved object,
+// hand its current text modules to `transform`, then PATCH the result back.
+//
+// A 404 on the GET means this member has no saved Google object — most don't:
+// every iOS member, every browser-only member, and anyone who tapped "Add to
+// Google Wallet" but never finished. Google creates the object only when the
+// save completes (see buildGoogleSaveUrl's comment), so fuda cannot know in
+// advance which members have one. That is the normal case, not a failure, so
+// it returns quietly with nothing patched and nothing logged. Any other
+// non-ok status (auth failure, a real API error) still throws, via `checked`,
+// exactly as before.
+const patchTextModules = async (
+  cfg: GoogleConfig,
+  uid: Hex,
+  accessToken: string,
+  transform: (modules: readonly TextModule[]) => TextModule[],
+  request: PassRequest = globalThis.fetch,
+): Promise<void> => {
+  const objectId = `${cfg.issuerId}.${uid.slice(2)}`
+  const url = `https://walletobjects.googleapis.com/walletobjects/v1/genericObject/${objectId}`
+  const headers = { authorization: `Bearer ${accessToken}` }
+  const getResponse = await request(url, { headers })
+  if (getResponse.status === 404) {
+    return
+  }
+  const current: unknown = await checked(getResponse).json()
+  const modules = textModulesFrom(current)
+  await checked(
+    await request(url, {
+      body: JSON.stringify({ textModulesData: transform(modules) }),
+      headers: { ...headers, 'content-type': 'application/json' },
+      method: 'PATCH',
+    }),
+  ).json()
+}
+
 export const patchGoogleGenericObject = async (
   cfg: GoogleConfig,
   uid: Hex,
@@ -254,18 +316,17 @@ export const patchGoogleGenericObject = async (
   accessToken: string,
   request: PassRequest = globalThis.fetch,
 ): Promise<void> => {
-  const objectId = `${cfg.issuerId}.${uid.slice(2)}`
-  const url = `https://walletobjects.googleapis.com/walletobjects/v1/genericObject/${objectId}`
-  const headers = { authorization: `Bearer ${accessToken}` }
-  const current: unknown = await checked(await request(url, { headers })).json()
-  const modules = textModulesFrom(current)
-  await checked(
-    await request(url, {
-      body: JSON.stringify({ textModulesData: mergeStampModules(modules, stamps) }),
-      headers: { ...headers, 'content-type': 'application/json' },
-      method: 'PATCH',
-    }),
-  ).json()
+  await patchTextModules(cfg, uid, accessToken, (modules) => mergeStampModules(modules, stamps), request)
+}
+
+export const patchGoogleBadgeModules = async (
+  cfg: GoogleConfig,
+  uid: Hex,
+  badges: readonly BadgeView[],
+  accessToken: string,
+  request: PassRequest = globalThis.fetch,
+): Promise<void> => {
+  await patchTextModules(cfg, uid, accessToken, (modules) => mergeBadgeModules(modules, badges), request)
 }
 
 export const GOOGLE_SAVE_BASE = 'https://pay.google.com/gp/v/save/'
