@@ -7,7 +7,7 @@ import { Scanner } from './Scanner.tsx'
 
 // happy-dom has no BarcodeDetector, so every render here takes the
 // camera-unavailable branch — the same one a keyboard-wedge scanner runs in.
-const mount = (props: { autoFocus?: boolean }): HTMLElement => {
+const mount = (props: { autoFocus?: boolean; cameraMode?: 'auto' | 'off' }): HTMLElement => {
   const host = document.createElement('div')
   document.body.append(host)
   render(<Scanner onInput={() => {}} {...props} />, host)
@@ -44,6 +44,33 @@ describe(Scanner, () => {
     expect(document.activeElement).not.toBe(input)
     host.querySelector('form')!.parentElement!.click()
     expect(document.activeElement).toBe(input)
+  })
+
+  it('shows only a waiting line with the camera off — no field, no warning', async () => {
+    const host = mount({ cameraMode: 'off' })
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain('present your pass')
+    })
+    expect(host.querySelector('input')).toBeNull()
+    expect(host.querySelector('form')).toBeNull()
+    expect(host.querySelector('video')).toBeNull()
+    expect(host.querySelector('.badge')).toBeNull()
+  })
+
+  it('takes the waiting line from the supplied labels', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    render(
+      <Scanner
+        cameraMode="off"
+        labels={{ cameraUnavailable: 'x', check: 'y', placeholder: 'z', ready: 'パスをかざしてください' }}
+        onInput={() => {}}
+      />,
+      host,
+    )
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain('パスをかざしてください')
+    })
   })
 
   it('drops the dead video frame when no camera can be used', async () => {

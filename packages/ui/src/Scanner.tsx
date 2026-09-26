@@ -8,12 +8,18 @@ interface ScannerLabels {
   cameraUnavailable: string
   placeholder: string
   check: string
+  ready?: string
 }
+
+// In `cameraMode: 'off'` this line is the whole screen, so it is stated as an
+// instruction to the person presenting, not as a status.
+const READY = 'present your pass'
 
 const DEFAULT_LABELS: ScannerLabels = {
   cameraUnavailable: 'camera unavailable — paste below',
   check: 'Check',
   placeholder: 'paste fuda:v1:… or 0x…',
+  ready: READY,
 }
 
 // Camera loop: one detect() per animation frame while the video plays. The
@@ -24,14 +30,23 @@ const DEFAULT_LABELS: ScannerLabels = {
 // take it back after a stray click. It is opt-in because the member app renders
 // this same component on a phone, where focusing a text input raises the
 // on-screen keyboard over the page.
+//
+// `cameraMode: 'off'` is for a reader-only station on a device without
+// BarcodeDetector — every WebKit browser, so every iPad and iPhone. There the
+// camera branch can only ever end in failure, and a warning badge above a paste
+// box is the wrong thing to show a queue. This mode renders one waiting line
+// instead: no camera, no field, nothing focused. The scan then arrives through
+// the caller's own document-level listener, which must be wired before use.
 export const Scanner = ({
   onInput,
   labels = DEFAULT_LABELS,
   autoFocus = false,
+  cameraMode = 'auto',
 }: {
   onInput: (text: string) => void
   labels?: ScannerLabels
   autoFocus?: boolean
+  cameraMode?: 'auto' | 'off'
 }): JSX.Element => {
   const video = useRef<HTMLVideoElement>(null)
   const box = useRef<HTMLInputElement>(null)
@@ -51,6 +66,9 @@ export const Scanner = ({
   latest.current = onInput
 
   useEffect(() => {
+    if (cameraMode === 'off') {
+      return
+    }
     const detector = createQrDetector()
     const el = video.current
     if (detector === null || el === null) {
@@ -105,7 +123,15 @@ export const Scanner = ({
         track.stop()
       }
     }
-  }, [])
+  }, [cameraMode])
+
+  if (cameraMode === 'off') {
+    return (
+      <div class="flex min-h-[60vh] flex-col items-center justify-center p-8">
+        <div class="text-center text-3xl font-semibold opacity-80">{labels.ready ?? READY}</div>
+      </div>
+    )
+  }
 
   return (
     <div
