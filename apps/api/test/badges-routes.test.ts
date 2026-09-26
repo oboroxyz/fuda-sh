@@ -1,12 +1,14 @@
+import type { PublicVenue } from '@fuda/sdk'
 import { env } from 'cloudflare:test'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { FakeChain } from '../src/chain/fake-chain.ts'
 import { getDb } from '../src/db/client.ts'
-import { badges } from '../src/db/schema.ts'
+import { badges, cards, challenges, issuers, sessions } from '../src/db/schema.ts'
 import type { Bindings } from '../src/env.ts'
-import { appWith, fakeChain } from './env.ts'
+import { appWith, fakeChain, testEnv } from './env.ts'
 import { configuredEnv, NOW, seedRight, seedRoot, worldProof as proofFor } from './fixtures.ts'
+import { CARD_INPUT, getJson, registerVenueWithCard, signIn } from './operator.ts'
 
 const db = () => getDb({ DB: env.DB })
 const worldEnv = (bindings: ReturnType<typeof configuredEnv>) => ({
@@ -212,5 +214,31 @@ describe('badge routes', () => {
       expect(res.status).toBe(409)
       await expect(res.json()).resolves.toStrictEqual({ error: 'pass_already_badged' })
     })
+  })
+})
+
+// The member page decides whether to offer the action from this list alone, so
+// an unconfigured deployment must publish an empty one rather than let the
+// control appear and vanish after a 501.
+describe('GET /v1/issuers/:handle badge availability', () => {
+  beforeEach(async () => {
+    const db = getDb({ DB: env.DB })
+    await db.delete(challenges)
+    await db.delete(sessions)
+    await db.delete(cards)
+    await db.delete(issuers)
+  })
+
+  it('lists a kind only where its verifier is configured', async () => {
+    const app = appWith({ chain: fakeChain(), now: () => NOW })
+    const bindings = testEnv()
+    const { token } = await signIn(app, bindings)
+    await registerVenueWithCard(app, bindings, CARD_INPUT, token)
+
+    const unset = await getJson(app, bindings, '/v1/issuers/wassie-coffee')
+    await expect(unset.json<PublicVenue>()).resolves.toMatchObject({ badges: [] })
+
+    const set = await getJson(app, worldEnv(bindings), '/v1/issuers/wassie-coffee')
+    await expect(set.json<PublicVenue>()).resolves.toMatchObject({ badges: ['human'] })
   })
 })

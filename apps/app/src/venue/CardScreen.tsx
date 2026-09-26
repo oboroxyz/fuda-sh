@@ -272,6 +272,13 @@ const passActions = (
   </div>
 )
 
+// Where the api publishes no `human` verifier, the control starts hidden
+// instead of appearing until the first tap earns a 501: an unconfigured
+// deployment must look like the feature does not exist. The list rides on the
+// venue payload this screen already fetched, so this costs no request.
+export const humanBadgeStateOf = (card: PublicCard): BadgeState =>
+  card.badges?.includes('human') === true ? { kind: 'idle' } : { kind: 'unavailable' }
+
 // `unavailable` (the api has no verifier configured) hides the control
 // entirely, so an unconfigured deployment looks like the feature does not
 // exist rather than like it is broken.
@@ -485,7 +492,14 @@ export const CardScreen = ({
   // its wallet is confirmed, and remains the fallback if it is not configured.
   const showReady = useCallback(
     async (card: PublicCard, issued: IssuedCard, isCurrent: () => boolean): Promise<void> => {
-      setState({ appleHref: null, badge: { kind: 'idle' }, card, googleHref: null, issued, kind: 'ready' })
+      setState({
+        appleHref: null,
+        badge: humanBadgeStateOf(card),
+        card,
+        googleHref: null,
+        issued,
+        kind: 'ready',
+      })
       const platform = passPlatform(globalThis.navigator?.userAgent ?? '')
       const googleHref = platform === 'google' ? await io.googleSaveUrl(issued.passUrls.google) : null
       const appleReady = platform === 'apple' && (await io.appleAvailable(issued.passUrls.apple))

@@ -1,5 +1,5 @@
 import { isClaimable } from '@fuda/sdk'
-import type { CardView, IssuerView, OperatorCardView, PublicVenue } from '@fuda/sdk'
+import type { BadgeKind, CardView, IssuerView, OperatorCardView, PublicVenue } from '@fuda/sdk'
 import type { Hex } from 'viem'
 
 import type { cards, issuers } from '../db/schema.ts'
@@ -50,7 +50,9 @@ export const publicVenue = (
   cards: CardRow[],
   now: number,
   baseUrl: string,
+  badges: readonly BadgeKind[],
 ): PublicVenue => ({
+  badges,
   brandColor: issuer.brandColor,
   cards: cards.map((card) => cardView(card, now)),
   defaultCardSlug: issuer.defaultCardSlug,

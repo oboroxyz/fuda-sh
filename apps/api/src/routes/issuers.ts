@@ -13,6 +13,7 @@ import { Hono } from 'hono'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 
+import { configuredBadgeKinds } from '../badges/verifier.ts'
 import { cards, issuers } from '../db/schema.ts'
 import { issuerEnsName } from '../ens/names.ts'
 import { ensNames } from '../ens/schema.ts'
@@ -263,7 +264,16 @@ issuersRoutes.get('/issuers/:handle', async (c) => {
   if (found === null) {
     return errorResponse(c, 'not_found', 404)
   }
-  return jsonResponse(c, publicVenue(found.issuer, found.cards, c.get('now')(), c.env.API_BASE_URL))
+  return jsonResponse(
+    c,
+    publicVenue(
+      found.issuer,
+      found.cards,
+      c.get('now')(),
+      c.env.API_BASE_URL,
+      configuredBadgeKinds(c.env),
+    ),
+  )
 })
 
 issuersRoutes.route('/', selfServeIssueRoutes)

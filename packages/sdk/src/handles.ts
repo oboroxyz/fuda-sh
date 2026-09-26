@@ -1,4 +1,4 @@
-import type { Hex } from './constants.ts'
+import type { BadgeKind, Hex } from './constants.ts'
 
 // The issuer Handle (docs/specs/ens-naming.md): the `/@<handle>` slug and the
 // ENS issuer label, lowercase ASCII `[a-z0-9-]`, 1–63 bytes, no edge hyphen
@@ -203,6 +203,11 @@ export interface PublicVenue {
   brandColor: string
   // Optional while clients may still talk to an older API deployment.
   defaultCardSlug?: string | null
+  // Which Badge kinds this deployment can verify at all. A client offers the
+  // action only for a kind listed here, so a deployment with no verifier
+  // configured looks like the feature does not exist rather than failing on the
+  // member's first tap. Absent from an older API: treat it as none.
+  badges?: readonly BadgeKind[]
   cards: CardView[]
   logoUrl: string | null
 }

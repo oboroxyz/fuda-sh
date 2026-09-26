@@ -1,3 +1,4 @@
+import { BADGE_KINDS } from '@fuda/sdk'
 import type { BadgeKind, Hex } from '@fuda/sdk'
 
 import type { Bindings } from '../env.ts'
@@ -32,3 +33,9 @@ export interface BadgeVerifier {
 // One kind, one verifier. A registry is not needed until a second kind exists.
 export const verifierFor = (kind: string): BadgeVerifier | null =>
   kind === worldVerifier.kind ? worldVerifier : null
+
+// Which kinds this deployment can actually verify. Published on the venue
+// payload a member page already fetches, so a client can decline to offer an
+// action that would only answer 501 — without a request of its own.
+export const configuredBadgeKinds = (env: Bindings): BadgeKind[] =>
+  BADGE_KINDS.filter((kind) => verifierFor(kind)?.configured(env) === true)

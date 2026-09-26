@@ -3,7 +3,7 @@ import type { Hex, PublicCard, PublicVenue } from '@fuda/sdk'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 import { describe, expect, it, vi } from 'vitest'
 
-import { CardScreenView, issueDateOf } from './venue/CardScreen.tsx'
+import { CardScreenView, humanBadgeStateOf, issueDateOf } from './venue/CardScreen.tsx'
 import type { IssuedCard } from './venue/CardScreen.tsx'
 
 interface ViewNode {
@@ -387,5 +387,15 @@ describe('venue-local navigation', () => {
     const hrefs = nodes.map(({ props }) => props.href)
     expect(hrefs).not.toContain('/')
     expect(nodes.some(({ props }) => String(props.class).includes('dock'))).toBe(false)
+  })
+})
+
+// The control must be hidden before the first tap, not after it: an api with no
+// verifier configured should look like the feature does not exist.
+describe(humanBadgeStateOf, () => {
+  it('starts idle only when the api lists the kind it would verify', () => {
+    expect(humanBadgeStateOf({ ...card, badges: ['human'] })).toStrictEqual({ kind: 'idle' })
+    expect(humanBadgeStateOf({ ...card, badges: [] })).toStrictEqual({ kind: 'unavailable' })
+    expect(humanBadgeStateOf(card)).toStrictEqual({ kind: 'unavailable' })
   })
 })
