@@ -10,6 +10,7 @@ const rows: readonly MemberRowView[] = [
   {
     holder: HOLDER,
     holderShort: '0x1111…1111',
+    human: false,
     level: 'bearer',
     memberId: 'alice',
     passUrls: null,
@@ -21,6 +22,7 @@ const rows: readonly MemberRowView[] = [
   {
     holder: `0x${'22'.repeat(20)}`,
     holderShort: '0x2222…2222',
+    human: false,
     level: 'signed',
     memberId: 'bob',
     passUrls: null,
@@ -32,6 +34,7 @@ const rows: readonly MemberRowView[] = [
   {
     holder: null,
     holderShort: null,
+    human: false,
     level: 'private',
     memberId: 'carol',
     passUrls: null,

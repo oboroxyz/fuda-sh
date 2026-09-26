@@ -66,6 +66,25 @@ describe(memberRowView, () => {
     expect(v.passUrls?.web).toBe(`https://api.fuda.sh/pass/${UID}`)
   })
 
+  // The row carries the Badge list; the view asks it the one question this list
+  // shows, so a second Badge kind needs no protocol change to arrive.
+  it('derives the human flag from a human badge and defaults it to false without one', () => {
+    const base = {
+      createdAt: 1,
+      holder: HOLDER,
+      level: 'bearer' as const,
+      memberId: 'alice',
+      status: 'active' as const,
+      tier: 2,
+      uid: UID,
+    }
+    expect(memberRowView(base, API).human).toBe(false)
+    expect(memberRowView({ ...base, badges: [] }, API).human).toBe(false)
+    expect(memberRowView({ ...base, badges: [{ at: 1, kind: 'human', verifier: 'world' }] }, API).human).toBe(
+      true,
+    )
+  })
+
   it('hides the holder and pass links for a private row but keeps memberId, uid and QR', () => {
     const v = memberRowView(
       { createdAt: 1, holder: null, level: 'private', memberId: '', status: 'active', tier: 0, uid: UID },

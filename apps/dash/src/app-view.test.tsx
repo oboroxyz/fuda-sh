@@ -69,6 +69,7 @@ const members: MembersState = {
     {
       holder: null,
       holderShort: null,
+      human: false,
       level: 'private',
       memberId: 'alice',
       passUrls: null,

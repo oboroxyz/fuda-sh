@@ -6,6 +6,7 @@ import { DASH_COPY } from './copy.ts'
 import type { MemberRowView } from './members-view.ts'
 import { QrBlock } from './QrBlock.tsx'
 import { RightsList } from './RightsList.tsx'
+import type { ViewNode } from './test/test-view.ts'
 import { findViewNodes, viewProps, viewText, walkView } from './test/test-view.ts'
 
 const UID = `0x${'ab'.repeat(32)}` as const
@@ -22,6 +23,7 @@ const rows: readonly MemberRowView[] = [
   {
     holder: `0x${'11'.repeat(20)}`,
     holderShort: '0x1111…1111',
+    human: false,
     level: 'bearer',
     memberId: 'alice',
     passUrls: publicPasses(UID),
@@ -33,6 +35,7 @@ const rows: readonly MemberRowView[] = [
   {
     holder: `0x${'22'.repeat(20)}`,
     holderShort: '0x2222…2222',
+    human: false,
     level: 'signed',
     memberId: 'bob',
     passUrls: publicPasses(SIGNED_UID),
@@ -44,6 +47,7 @@ const rows: readonly MemberRowView[] = [
   {
     holder: null,
     holderShort: null,
+    human: false,
     level: 'private',
     memberId: 'carol',
     passUrls: null,
@@ -61,6 +65,8 @@ const panelIds = (view: unknown): string[] =>
   walkView(view)
     .map((node) => viewProps(node).id)
     .filter((id): id is string => typeof id === 'string')
+const layout = (root: unknown, testId: string): ViewNode =>
+  walkView(root).find((node) => viewProps(node)['data-testid'] === testId)!
 
 describe(RightsList, () => {
   it('passes the localized QR label and full payload in both layouts', () => {
@@ -139,6 +145,72 @@ describe(RightsList, () => {
       private: { anchorCount: 0, recordCount: 2, showsFallback: true },
       public: { includesPrivatePass: false, links: 12 },
       table: { class: 'rights-table', exists: true },
+    })
+  })
+
+  it('names the verified human column in both layouts and locales, chips only a badged right, and keeps the QR row spanning every column', () => {
+    const badged: MemberRowView = { ...rows[0], human: true }
+    const [, plain] = rows
+    const props = {
+      onRequestRevoke: (): void => {},
+      onToggleQr: (): void => {},
+      openQr: badged.uid,
+      revokingUid: null,
+      rows: [badged, plain],
+    }
+    const view = RightsList({ ...props, copy: pick(DASH_COPY, 'en').rights })
+    const japanese = RightsList({ ...props, copy: DASH_COPY.ja.rights })
+    const table = layout(view, 'rights-table')
+    const cards = layout(view, 'rights-cards')
+    // The affirmative is the neutral chip the gate already uses for this claim;
+    // the status chip is badge-success / badge-error, so it cannot be mistaken for it.
+    const chips = (scope: unknown, uid: string): string[] =>
+      records(scope, uid)
+        .flatMap((record) => findViewNodes(record, 'span'))
+        .filter((node) => viewProps(node).class === 'badge badge-neutral')
+        .map(viewText)
+    const fallbacks = (scope: unknown, uid: string): number =>
+      records(scope, uid)
+        .flatMap((record) => findViewNodes(record, 'span'))
+        .filter((node) => viewProps(node).class === 'opacity-50' && viewText(node) === '—').length
+
+    expect({
+      cards: { badged: chips(cards, badged.uid), plainFallbacks: fallbacks(cards, plain.uid) },
+      headers: findViewNodes(table, 'th').map(viewText),
+      japanese: {
+        chips: chips(layout(japanese, 'rights-cards'), badged.uid),
+        headers: findViewNodes(layout(japanese, 'rights-table'), 'th').map(viewText),
+      },
+      qrColspans: findViewNodes(table, 'td')
+        .map((node) => viewProps(node).colspan)
+        .filter((span) => span !== undefined),
+      table: {
+        badged: chips(table, badged.uid),
+        plain: chips(table, plain.uid),
+        plainFallbacks: fallbacks(table, plain.uid),
+      },
+    }).toStrictEqual({
+      // The badged right carries the chip in the card layout too: a column added
+      // only to the table would vanish on the phone an operator works from.
+      cards: { badged: ['Verified human'], plainFallbacks: 1 },
+      headers: ['Member', 'Holder', 'Level', 'Tier', 'Status', 'Verified human', 'UID', 'Passes', 'Revoke'],
+      japanese: {
+        chips: ['人間であることを確認済み'],
+        headers: [
+          'メンバー',
+          '保有者',
+          'レベル',
+          'ティア',
+          'ステータス',
+          '人間であることを確認済み',
+          'UID',
+          'パス',
+          '取り消す',
+        ],
+      },
+      // One span per column, so the QR disclosure row cannot drift from the header.
+      qrColspans: [9],
+      table: { badged: ['Verified human'], plain: [], plainFallbacks: 1 },
     })
   })
 

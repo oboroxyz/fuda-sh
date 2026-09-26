@@ -40,6 +40,16 @@ const statusBadge = (copy: DashCopy['rights'], row: MemberRowView): JSX.Element 
   </span>
 )
 
+// The fact of a `human` Badge, on the same terms as the status chip: a neutral
+// chip when the Right carries one, the list's own em dash when it does not. The
+// dashboard never sees more than the fact — no subject, no scope, no credential.
+const humanBadge = (copy: DashCopy['rights'], row: MemberRowView): JSX.Element =>
+  row.human ? (
+    <span class="badge badge-neutral">{copy.verifiedHuman}</span>
+  ) : (
+    <span class="opacity-50">—</span>
+  )
+
 const passLinks = (copy: DashCopy['rights'], row: MemberRowView): JSX.Element => {
   if (row.passUrls === null) {
     return <span class="opacity-50">—</span>
@@ -128,13 +138,14 @@ const tableRecord = (props: RightsListProps, row: MemberRowView): JSX.Element[] 
       </td>
       <td>{row.tier}</td>
       <td>{statusBadge(props.copy, row)}</td>
+      <td>{humanBadge(props.copy, row)}</td>
       <td>{uidDisplay(row)}</td>
       <td>{passLinks(props.copy, row)}</td>
       <td>{actions({ ...props, layout: 'table', row })}</td>
     </tr>,
     props.openQr === row.uid ? (
       <tr key={`${row.uid}:qr`}>
-        <td colspan={8}>{qrDisclosure(props.copy, 'table', props.openQr, row)}</td>
+        <td colspan={9}>{qrDisclosure(props.copy, 'table', props.openQr, row)}</td>
       </tr>
     ) : null,
   ].filter((record): record is JSX.Element => record !== null)
@@ -156,6 +167,10 @@ const cardRecord = (props: RightsListProps, row: MemberRowView): JSX.Element => 
       <div>
         <dt class="opacity-70">{props.copy.tier}</dt>
         <dd>{row.tier}</dd>
+      </div>
+      <div>
+        <dt class="opacity-70">{props.copy.verifiedHuman}</dt>
+        <dd>{humanBadge(props.copy, row)}</dd>
       </div>
       <div>
         <dt class="opacity-70">{props.copy.uid}</dt>
@@ -183,6 +198,7 @@ export const RightsList = (props: RightsListProps): JSX.Element => (
               <th>{props.copy.level}</th>
               <th>{props.copy.tier}</th>
               <th>{props.copy.status}</th>
+              <th>{props.copy.verifiedHuman}</th>
               <th>{props.copy.uid}</th>
               <th>{props.copy.passes}</th>
               <th class="sr-only">{props.copy.revoke}</th>

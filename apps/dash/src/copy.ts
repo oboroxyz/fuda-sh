@@ -277,6 +277,7 @@ export interface DashCopy {
     level: string
     tier: string
     status: string
+    verifiedHuman: string
     uid: string
     passes: string
     web: string
@@ -661,6 +662,9 @@ export const DASH_COPY = {
       level: 'Level',
       tier: 'Tier',
       status: 'Status',
+      // The claim, never the vendor behind it: this says a unique person holds
+      // the pass, not that anyone checked who they are.
+      verifiedHuman: 'Verified human',
       uid: 'UID',
       passes: 'Passes',
       web: 'Web',
@@ -1042,6 +1046,9 @@ export const DASH_COPY = {
       level: 'レベル',
       tier: 'ティア',
       status: 'ステータス',
+      // Not 本人確認: that is the KYC / identity-document phrase and would
+      // promise an identity check this badge deliberately does not make.
+      verifiedHuman: '人間であることを確認済み',
       uid: 'UID',
       passes: 'パス',
       web: 'Web',
