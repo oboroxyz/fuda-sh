@@ -22,10 +22,23 @@ describe('world verifier', () => {
     expect(verifierFor('nonsense')).toBeNull()
   })
 
-  it('is unconfigured when any binding is missing', () => {
+  it('is configured when all four bindings are set', () => {
     expect(worldVerifier.configured(configured)).toBe(true)
-    expect(worldVerifier.configured({ ...configured, WORLD_RP_ID: '' })).toBe(false)
-    expect(worldVerifier.configured({ ...configured, WORLD_APP_ID: undefined })).toBe(false)
+  })
+
+  // Both falsy forms — an empty string and an absent binding — must gate the
+  // same way, for every one of the four names: the feature is all-or-nothing.
+  it.each([
+    ['WORLD_APP_ID', ''],
+    ['WORLD_APP_ID', undefined],
+    ['WORLD_RP_ID', ''],
+    ['WORLD_RP_ID', undefined],
+    ['WORLD_ACTION', ''],
+    ['WORLD_ACTION', undefined],
+    ['WORLD_RP_SIGNING_KEY', ''],
+    ['WORLD_RP_SIGNING_KEY', undefined],
+  ] as const)('is unconfigured when %s is %j', (name, value) => {
+    expect(worldVerifier.configured({ ...configured, [name]: value })).toBe(false)
   })
 
   it('returns the subject key when the portal accepts the proof', async () => {

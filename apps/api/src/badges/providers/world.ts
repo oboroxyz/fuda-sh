@@ -55,8 +55,7 @@ export const worldVerifier: BadgeVerifier = {
   context: async (env) => {
     const config = configOf(env)
     if (config === null) {
-      // Routes (next task) must check `configured()` before calling this; a
-      // call with a missing binding is a caller bug, not a user-facing 501.
+      // Implements the contract documented on `BadgeVerifier.context`.
       throw new Error('world verifier: context() called while unconfigured')
     }
     // signRequest()'s output is not shaped like RpContext: sig -> signature,
@@ -87,6 +86,7 @@ export const worldVerifier: BadgeVerifier = {
   verify: async (env, input) => {
     const config = configOf(env)
     if (config === null) {
+      // Implements the contract documented on `BadgeVerifier.verify`.
       throw new Error('world verifier: verify() called while unconfigured')
     }
     if (signalOf(input.payload) !== input.uid) {

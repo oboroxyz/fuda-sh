@@ -17,6 +17,10 @@ export interface BadgeVerifier {
   kind: BadgeKind
   name: string
   configured: (env: Bindings) => boolean
+  // `context()` and `verify()` throw unless `configured(env)` returned true.
+  // A caller must check `configured()` first and answer 501 on a config gap
+  // rather than calling through — a missing binding is not a user-facing
+  // error and must never surface as a 500.
   // oxlint-disable-next-line anti-slop/no-unknown-returns -- the RP context shape is vendor-specific and lives only inside the one adapter that builds it; callers forward it opaquely
   context: (env: Bindings) => Promise<unknown>
   verify: (
