@@ -89,13 +89,16 @@ describe(requestHumanBadge, () => {
     await expect(statesOf(io)).resolves.toStrictEqual(['idle', 'opening', 'waiting', 'taken'])
   })
 
-  it.each(['user_rejected', 'cancelled'])('maps the %s cancellation to idle and submits nothing', async (error) => {
-    const io = fakeIo({
-      open: vi.fn<HumanBadgeIo['open']>(async () => await Promise.resolve({ error, success: false })),
-    })
-    await expect(statesOf(io)).resolves.toStrictEqual(['idle', 'opening', 'waiting', 'idle'])
-    expect(io.submit).not.toHaveBeenCalled()
-  })
+  it.each(['user_rejected', 'cancelled'])(
+    'maps the %s cancellation to idle and submits nothing',
+    async (code) => {
+      const io = fakeIo({
+        open: vi.fn<HumanBadgeIo['open']>(async () => await Promise.resolve({ error: code, success: false })),
+      })
+      await expect(statesOf(io)).resolves.toStrictEqual(['idle', 'opening', 'waiting', 'idle'])
+      expect(io.submit).not.toHaveBeenCalled()
+    },
+  )
 
   // The likelier path to "already verified" than the api's 409: a 4.0 nullifier
   // is stable and the protocol treats a second uniqueness proof of the same
@@ -104,9 +107,9 @@ describe(requestHumanBadge, () => {
   // failure.
   it.each(['nullifier_replayed', 'max_verifications_reached'])(
     'maps the %s answer from World App to taken, and submits nothing',
-    async (error) => {
+    async (code) => {
       const io = fakeIo({
-        open: vi.fn<HumanBadgeIo['open']>(async () => await Promise.resolve({ error, success: false })),
+        open: vi.fn<HumanBadgeIo['open']>(async () => await Promise.resolve({ error: code, success: false })),
       })
       await expect(statesOf(io)).resolves.toStrictEqual(['idle', 'opening', 'waiting', 'taken'])
       expect(io.submit).not.toHaveBeenCalled()
