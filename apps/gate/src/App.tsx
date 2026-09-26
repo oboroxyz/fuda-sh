@@ -4,7 +4,7 @@ import { useCallback, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import { admitQr, previewUid } from './api.ts'
-import { classifyInput, displayState } from './verdict.ts'
+import { classifyInput, displayState, unreadableInput } from './verdict.ts'
 import type { DisplayState } from './verdict.ts'
 import { Verdict } from './Verdict.tsx'
 
@@ -19,7 +19,7 @@ export const App = (): JSX.Element => {
       }
       const input = classifyInput(text)
       if (input.kind === 'invalid') {
-        setState({ detail: 'not a fuda pass', human: false, title: 'REJECT', tone: 'red' })
+        setState(unreadableInput())
         return
       }
       setBusy(true)
@@ -37,6 +37,7 @@ export const App = (): JSX.Element => {
       </header>
       {state === null ? (
         <Scanner
+          autoFocus
           onInput={(t) => {
             void onInput(t)
           }}

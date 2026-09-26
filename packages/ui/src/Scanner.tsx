@@ -18,16 +18,31 @@ const DEFAULT_LABELS: ScannerLabels = {
 
 // Camera loop: one detect() per animation frame while the video plays. The
 // paste box is always present so a device without BarcodeDetector still works.
+//
+// `autoFocus` is for an unattended reader — a USB keyboard-wedge QR scanner
+// types the payload and presses Enter, so the box has to already hold focus and
+// take it back after a stray click. It is opt-in because the member app renders
+// this same component on a phone, where focusing a text input raises the
+// on-screen keyboard over the page.
 export const Scanner = ({
   onInput,
   labels = DEFAULT_LABELS,
+  autoFocus = false,
 }: {
   onInput: (text: string) => void
   labels?: ScannerLabels
+  autoFocus?: boolean
 }): JSX.Element => {
   const video = useRef<HTMLVideoElement>(null)
+  const box = useRef<HTMLInputElement>(null)
   const [camera, setCamera] = useState<'idle' | 'on' | 'unavailable'>('idle')
   const [pasted, setPasted] = useState('')
+
+  useEffect(() => {
+    if (autoFocus) {
+      box.current?.focus()
+    }
+  }, [autoFocus])
 
   // The effect runs once: a parent that passes a fresh `onInput` on every render
   // would otherwise tear down and reopen the camera mid-scan. The ref keeps the
@@ -93,9 +108,21 @@ export const Scanner = ({
   }, [])
 
   return (
-    <div class="flex flex-col items-center gap-4 p-4">
-      <video ref={video} class="rounded-box bg-base-300 w-full max-w-md" playsinline muted />
-      {camera === 'unavailable' ? <div class="badge badge-warning">{labels.cameraUnavailable}</div> : null}
+    <div
+      class="flex flex-col items-center gap-4 p-4"
+      onClick={
+        autoFocus
+          ? () => {
+              box.current?.focus()
+            }
+          : undefined
+      }
+    >
+      {camera === 'unavailable' ? (
+        <div class="badge badge-warning">{labels.cameraUnavailable}</div>
+      ) : (
+        <video ref={video} class="rounded-box bg-base-300 w-full max-w-md" playsinline muted />
+      )}
       <form
         class="join w-full max-w-md"
         onSubmit={(e) => {
@@ -104,6 +131,7 @@ export const Scanner = ({
         }}
       >
         <input
+          ref={box}
           class="input join-item w-full"
           placeholder={labels.placeholder}
           aria-label={labels.placeholder}

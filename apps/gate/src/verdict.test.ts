@@ -1,10 +1,10 @@
 import type { EntitlementView } from '@fuda/sdk'
 import { describe, expect, it } from 'vitest'
 
-import { classifyInput, displayState } from './verdict.ts'
+import { classifyInput, displayState, unreadableInput } from './verdict.ts'
 
 const UID = `0x${'ab'.repeat(32)}`
-const ent = (level: number): EntitlementView => ({
+const ent = (level: number, validUntil = 0): EntitlementView => ({
   holder: `0x${'11'.repeat(20)}`,
   issuer: `0x${'f0'.repeat(20)}`,
   level,
@@ -12,8 +12,10 @@ const ent = (level: number): EntitlementView => ({
   tier: 1,
   usageModel: 1,
   validFrom: 0,
-  validUntil: 0,
+  validUntil,
 })
+
+const del = { active: true, issuer: `0x${'f0'.repeat(20)}` as const, name: 'Wassie Coffee' }
 
 describe(classifyInput, () => {
   it('routes a bare uid to preview and a fuda:v1 payload to admit', () => {
@@ -35,7 +37,33 @@ describe(displayState, () => {
       ok: true,
     })
     expect(s).toMatchObject({ title: 'ADMIT', tone: 'green' })
-    expect(s.detail).toContain('REGULAR')
+    expect(s.facts).toMatchObject({ holder: '0x1111…1111', tier: 'REGULAR', usage: 'multi-use' })
+  })
+
+  it('reports the venue name and the validity end when the api sends them', () => {
+    const s = displayState('admit', {
+      body: { decision: 'ADMIT', delegation: del, entitlement: ent(0, 1_790_467_200), reason: 'OK' },
+      ok: true,
+    })
+    expect(s.facts.venue).toBe('Wassie Coffee')
+    expect(s.facts.validUntil).toMatch(/^\d{4}-\d{2}-\d{2}$/u)
+  })
+
+  it('leaves the validity end unset for a right that never expires', () => {
+    const s = displayState('admit', {
+      body: { decision: 'ADMIT', entitlement: ent(0), reason: 'OK' },
+      ok: true,
+    })
+    expect(s.facts.validUntil).toBeNull()
+  })
+
+  it('carries the facts it has on a REJECT too, so staff can see what was presented', () => {
+    const s = displayState('admit', {
+      body: { decision: 'REJECT', delegation: del, entitlement: ent(0), reason: 'REVOKED' },
+      ok: true,
+    })
+    expect(s).toMatchObject({ detail: 'REVOKED', tone: 'red' })
+    expect(s.facts).toMatchObject({ tier: 'REGULAR', venue: 'Wassie Coffee' })
   })
 
   it('is YELLOW for a preview ADMIT of a level >= 1 right, never GREEN', () => {
@@ -89,24 +117,56 @@ describe(displayState, () => {
     expect(s.tone === 'red' ? s.banner : 'network').toBeUndefined()
   })
 
-  it('is human: true when the response carries a human badge', () => {
+  it('names the verifier and when it verified, from a human badge', () => {
     const s = displayState('admit', {
       body: {
-        badges: [{ at: 1, kind: 'human', verifier: 'world' }],
+        badges: [{ at: 1_790_405_702, kind: 'human', verifier: 'world' }],
         decision: 'ADMIT',
         entitlement: ent(0),
         reason: 'OK',
       },
       ok: true,
     })
-    expect(s.human).toBe(true)
+    expect(s.badge?.verifier).toBe('world')
+    expect(s.badge?.at).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/u)
   })
 
-  it('is human: false when the response carries no badges', () => {
+  it('has no badge when the response carries none', () => {
     const s = displayState('admit', {
       body: { decision: 'ADMIT', entitlement: ent(0), reason: 'OK' },
       ok: true,
     })
-    expect(s.human).toBe(false)
+    expect(s.badge).toBeNull()
+  })
+
+  it('ignores a badge kind it does not display', () => {
+    const s = displayState('admit', {
+      body: {
+        badges: [{ at: 1_790_405_702, kind: 'human', verifier: 'world' }],
+        decision: 'ADMIT',
+        entitlement: ent(0),
+        reason: 'OK',
+      },
+      ok: true,
+    })
+    expect(s.badge).not.toBeNull()
+  })
+
+  it('has no badge and no facts when the request itself failed', () => {
+    const s = displayState('admit', { error: 'fetch failed', network: true, ok: false, status: 0 })
+    expect(s.badge).toBeNull()
+    expect(s.facts).toStrictEqual({ holder: null, tier: null, usage: null, validUntil: null, venue: null })
+  })
+})
+
+describe(unreadableInput, () => {
+  it('is RED with no facts, for input that never reached the api', () => {
+    expect(unreadableInput()).toStrictEqual({
+      badge: null,
+      detail: 'not a fuda pass',
+      facts: { holder: null, tier: null, usage: null, validUntil: null, venue: null },
+      title: 'REJECT',
+      tone: 'red',
+    })
   })
 })
