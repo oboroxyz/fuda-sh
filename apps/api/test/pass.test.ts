@@ -3,6 +3,7 @@ import { env } from 'cloudflare:test'
 import type { Hex } from 'viem'
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { saveBadge } from '../src/badges/store.ts'
 import { getDb } from '../src/db/client.ts'
 import { cards, issuers, members } from '../src/db/schema.ts'
 import type { Bindings } from '../src/env.ts'
@@ -297,6 +298,43 @@ describe('GET /pass/:uid/google', () => {
     expect(obj?.classId).toBe('3388000000000000001.fuda-membership')
     expect(obj?.barcode.value).toBe(`fuda:v1:${uid}`)
     expect(obj?.header.defaultValue.value).toBe('VIP')
+  })
+
+  // The "badge first, save later" order: only a saved object can be patched, so
+  // a member who badges and *then* taps "Add to Google Wallet" sees the badge
+  // only if the generated object already carries it.
+  it('carries a badge saved before the pass was ever added to a wallet', async () => {
+    const chain = fakeChain()
+    const del = seedRoot(chain)
+    const uid = seedRight(chain, del, { tier: 2 })
+    await insertMember(uid)
+    await saveBadge(db(), {
+      credential: 'proof_of_human',
+      expiresAt: null,
+      kind: 'human',
+      scope: 'rp_test:fuda-human',
+      subjectKey: `0x${'0'.repeat(60)}dead`,
+      uid,
+      verifiedAt: NOW,
+      verifier: 'world',
+    })
+    const res = await appWith({ chain, now: () => NOW }).request(
+      `/pass/${uid}/google`,
+      {},
+      await googleEnv(del),
+    )
+    const [, claims] = saveJwt(await res.json())
+    const [obj] = claimsOf(claims ?? '').payload.genericObjects
+    expect(obj?.textModulesData).toContainEqual({
+      body: 'Verified human',
+      header: 'Badge',
+      id: 'fuda-badge-human',
+    })
+    // Only the fact of the badge travels: no verifier name, no scope, no
+    // subject key, no verification time.
+    const serialised = JSON.stringify(obj)
+    expect(serialised).not.toContain('world')
+    expect(serialised).not.toContain('dead')
   })
 
   it('is 501 when a required GOOGLE_* secret is missing', async () => {

@@ -2,7 +2,7 @@ import type { BadgeKind, BadgeView, Hex, StampSummary } from '@fuda/sdk'
 import { BADGE_KINDS } from '@fuda/sdk'
 
 import { base64urlBytes, base64urlText } from './base64url.ts'
-import { issuedDayText, roleLabel } from './branding.ts'
+import { BADGE_LABELS, issuedDayText, roleLabel } from './branding.ts'
 import type { PassBranding } from './branding.ts'
 import { pemToDer } from './pem.ts'
 
@@ -42,6 +42,10 @@ export interface GooglePassInput {
   // the venue's card, when the right was issued under one
   branding?: PassBranding | null
   stamps?: StampSummary | null
+  // the badges on the right at generation time, so a pass added *after* a
+  // badge carries it without waiting for a patch. Only the fact of each badge
+  // reaches the object; see mergeBadgeModules.
+  badges?: readonly BadgeView[] | null
 }
 
 interface LocalizedString {
@@ -88,11 +92,9 @@ export const mergeStampModules = (
 }
 
 // One id per BadgeKind, so a future kind gets its own row instead of
-// overwriting `human`'s. Only 'human' ships today; the label names the claim
-// ("verified human", matching the gate chip and the app), never the vendor.
+// overwriting `human`'s. Only 'human' ships today; the row's text is the
+// shared BADGE_LABELS entry, so the Apple pass and this one cannot drift.
 const badgeModuleId = (kind: BadgeKind): string => `fuda-badge-${kind}`
-
-const BADGE_LABELS = { human: 'Verified human' } satisfies Record<BadgeKind, string>
 
 const BADGE_IDS = new Set(BADGE_KINDS.map(badgeModuleId))
 
@@ -128,12 +130,15 @@ export const buildGenericObject = (cfg: GoogleConfig, input: GooglePassInput): G
       ...base,
       cardTitle: localized('fuda membership'),
       header: localized(input.tierLabel),
-      textModulesData: mergeStampModules(
-        [
-          { body: input.tierLabel, header: 'Tier', id: 'tier' },
-          { body: input.holderShort, header: 'Member', id: 'member' },
-        ],
-        input.stamps ?? null,
+      textModulesData: mergeBadgeModules(
+        mergeStampModules(
+          [
+            { body: input.tierLabel, header: 'Tier', id: 'tier' },
+            { body: input.holderShort, header: 'Member', id: 'member' },
+          ],
+          input.stamps ?? null,
+        ),
+        input.badges ?? [],
       ),
     }
   }
@@ -150,12 +155,15 @@ export const buildGenericObject = (cfg: GoogleConfig, input: GooglePassInput): G
     header: localized(branding.cardTitle),
     hexBackgroundColor: branding.brandColor,
     subheader: localized(branding.memberNumber),
-    textModulesData: mergeStampModules(
-      [
-        { body: branding.memberNumber, header: roleLabel(branding.category), id: 'member' },
-        { body: issuedDayText(branding.issuedAt), header: 'ISSUED', id: 'issued' },
-      ],
-      input.stamps ?? null,
+    textModulesData: mergeBadgeModules(
+      mergeStampModules(
+        [
+          { body: branding.memberNumber, header: roleLabel(branding.category), id: 'member' },
+          { body: issuedDayText(branding.issuedAt), header: 'ISSUED', id: 'issued' },
+        ],
+        input.stamps ?? null,
+      ),
+      input.badges ?? [],
     ),
   }
 }

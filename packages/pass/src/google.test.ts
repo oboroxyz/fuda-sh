@@ -403,3 +403,63 @@ describe(patchGoogleBadgeModules, () => {
     expect(requests).toHaveLength(1)
   })
 })
+
+// The save link is generated per request, so a member who badged first and
+// saved the pass afterwards must get the badge from the object itself: nothing
+// patches an object that does not exist yet.
+describe('badge on a generated generic object', () => {
+  const BADGE: BadgeView = { at: 1_757_000_000, kind: 'human', verifier: 'world' }
+  const CFG: GoogleConfig = { classId: 'c', issuerId: 'i', saEmail: 'sa@example.com', saKeyPem: '' }
+
+  it('carries the same row the live patch would write, beside the stamps', () => {
+    const obj = buildGenericObject(CFG, {
+      ...INPUT,
+      badges: [BADGE],
+      stamps: { dailyLimit: 2, enabled: true, goal: 10, today: 1, total: 4 },
+    })
+    expect(obj.textModulesData).toStrictEqual([
+      { body: 'VIP', header: 'Tier', id: 'tier' },
+      { body: '0x1111…1111', header: 'Member', id: 'member' },
+      { body: '4 / 10', header: 'Stamps', id: 'fuda-stamps' },
+      // Identical to what patchGoogleBadgeModules writes, so a saved-then-patched
+      // pass cannot end up with two different rows for one badge.
+      ...mergeBadgeModules([], [BADGE]),
+    ])
+  })
+
+  it('carries it on a branded object too', () => {
+    const obj = buildGenericObject(CFG, {
+      ...INPUT,
+      badges: [BADGE],
+      branding: {
+        brandColor: '#6F4320',
+        cardTitle: 'Membership Card',
+        category: 'membership',
+        issuedAt: ISSUED_AT,
+        issuerName: 'Wassie Coffee',
+        logoUrl: null,
+        memberNumber: 'QJ2Y-XPHE-PDRKA',
+        venue: null,
+      },
+    })
+    expect(obj.textModulesData.at(-1)).toStrictEqual({
+      body: 'Verified human',
+      header: 'Badge',
+      id: 'fuda-badge-human',
+    })
+  })
+
+  it('adds nothing when the right holds no badge', () => {
+    expect(buildGenericObject(CFG, { ...INPUT, badges: [] }).textModulesData).toStrictEqual(
+      buildGenericObject(CFG, INPUT).textModulesData,
+    )
+  })
+
+  // The pass carries the fact of the badge and nothing else: not the verifier's
+  // name, not the scope, not the subject key.
+  it('names neither the verifier nor anything else from the badge row', () => {
+    const obj = buildGenericObject(CFG, { ...INPUT, badges: [BADGE] })
+    expect(JSON.stringify(obj)).not.toContain('world')
+    expect(JSON.stringify(obj)).not.toContain(String(BADGE.at))
+  })
+})

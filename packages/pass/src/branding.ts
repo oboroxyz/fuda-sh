@@ -1,5 +1,5 @@
 import { brandTextColor, hexToRgb } from '@fuda/sdk'
-import type { CardCategory, Rgb } from '@fuda/sdk'
+import type { BadgeKind, CardCategory, Rgb } from '@fuda/sdk'
 
 export { hexToRgb, luminance, rgbCss } from '@fuda/sdk'
 export type { Rgb } from '@fuda/sdk'
@@ -29,6 +29,14 @@ export interface PassBranding {
 
 // The label over the member number, as the venue card page prints it.
 export const roleLabel = (category: CardCategory): string => (category === 'ticket' ? 'TICKET' : 'MEMBER')
+
+// The one string a Badge puts on a pass, shared by the Google object and the
+// Apple pass so a member never sees the same claim worded two ways. It names
+// the claim ("verified human", as the gate chip and the member app do), never
+// the vendor that attested it, and it is keyed on `kind` alone: a BadgeView
+// also carries the verifier's name and the verification times, and none of
+// those belong on a pass. A new kind must bring its own label here.
+export const BADGE_LABELS = { human: 'Verified human' } satisfies Record<BadgeKind, string>
 
 // `2026-09-12T00:00:00Z`: the issue day as Wallet's date fields want it, on the
 // UTC calendar the web pass also uses, so both show the same day.

@@ -13,7 +13,7 @@ import { passView } from '../pass/pass-view.ts'
 import type { PassOutcome } from '../pass/pass-view.ts'
 import { PassPage } from '../pass/PassPage.tsx'
 import { readStampSummary } from '../stamps/store.ts'
-import { resolveVerdict } from './verify.ts'
+import { badgesFor, resolveVerdict } from './verify.ts'
 
 // A .pkpass embeds its images, so the three small variants are read out of R2
 // here rather than linked. A venue with no logo, or a bucket that is not
@@ -98,11 +98,21 @@ passRoutes.get('/pass/:uid/google', async (c) => {
   if (cfg === null) {
     return errorResponse(c, 'google_not_configured', 501)
   }
-  const view = passView(found.row, null, await readStampSummary(c.get('db'), found.row.uid, c.get('now')()))
+  // Badges ride along in the generated object, so a member who badged first and
+  // saved the pass afterwards sees the badge without waiting for a patch (there
+  // is nothing to patch until a save completes). The read is advisory like every
+  // other badge read: `badgesFor` swallows a lookup failure, so it can never
+  // turn a pass request into an error.
+  const [stamps, badges] = await Promise.all([
+    readStampSummary(c.get('db'), found.row.uid, c.get('now')()),
+    badgesFor(c, found.row.uid),
+  ])
+  const view = passView(found.row, null, stamps)
   try {
     const saveUrl = await buildGoogleSaveUrl(
       cfg,
       {
+        badges,
         branding: view.branding,
         holderShort: view.holderShort,
         qr: view.qr,
@@ -136,11 +146,19 @@ passRoutes.get('/pass/:uid/apple.pkpass', async (c) => {
   if (cfg === null) {
     return errorResponse(c, 'apple_not_configured', 501)
   }
-  const view = passView(found.row, null, await readStampSummary(c.get('db'), found.row.uid, c.get('now')()))
+  // The same snapshot as the Google save link, and the only way an iPhone shows
+  // a badge at all: there is no push channel for an installed pass, so a member
+  // who badges then adds (or re-adds) the pass gets it from the download.
+  const [stamps, badges] = await Promise.all([
+    readStampSummary(c.get('db'), found.row.uid, c.get('now')()),
+    badgesFor(c, found.row.uid),
+  ])
+  const view = passView(found.row, null, stamps)
   try {
     const pkpass = await buildPkpass(
       cfg,
       {
+        badges,
         branding: view.branding,
         holderShort: view.holderShort,
         qr: view.qr,

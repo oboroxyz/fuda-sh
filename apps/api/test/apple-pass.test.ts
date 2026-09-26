@@ -3,6 +3,7 @@ import * as pkijs from 'pkijs'
 import type { Hex } from 'viem'
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { saveBadge } from '../src/badges/store.ts'
 import { getDb } from '../src/db/client.ts'
 import { members } from '../src/db/schema.ts'
 import type { Bindings } from '../src/env.ts'
@@ -42,7 +43,10 @@ interface InstalledPass {
   teamIdentifier: string
   serialNumber: string
   barcodes: { message: string }[]
-  storeCard: { primaryFields: { value: string }[] }
+  storeCard: {
+    primaryFields: { value: string }[]
+    auxiliaryFields?: { key: string; label?: string; value: string }[]
+  }
 }
 
 // A copy with its own exact-sized buffer: WebCrypto and pkijs both reject the
@@ -130,6 +134,38 @@ describe('GET /pass/:uid/apple.pkpass', () => {
     expect(pass.serialNumber).toBe(uid)
     expect(pass.barcodes[0]?.message).toBe(`fuda:v1:${uid}`)
     expect(pass.storeCard.primaryFields[0]?.value).toBe('VIP')
+  })
+
+  // There is no webServiceURL and no APNs here, so the download is the only way
+  // an iPhone ever shows a badge: a member who badges and then adds (or re-adds,
+  // which replaces the installed pass, the serial number being the uid) gets it
+  // from the snapshot.
+  it('carries a badge saved before the pass was downloaded', async () => {
+    const chain = fakeChain()
+    const del = seedRoot(chain)
+    const uid = seedRight(chain, del, { tier: 2 })
+    await insertMember(uid)
+    await saveBadge(db(), {
+      credential: 'proof_of_human',
+      expiresAt: null,
+      kind: 'human',
+      scope: 'rp_test:fuda-human',
+      subjectKey: `0x${'0'.repeat(60)}dead`,
+      uid,
+      verifiedAt: NOW,
+      verifier: 'world',
+    })
+    const res = await fetchPkpass(await appleEnv(del), uid)
+    const entries = readZip(new Uint8Array(await res.arrayBuffer()))
+    const body = new TextDecoder().decode(byName(entries, 'pass.json'))
+    const pass = JSON.parse(body) as InstalledPass
+    expect(pass.storeCard.auxiliaryFields).toStrictEqual([
+      { key: 'badge-human', label: 'BADGE', value: 'Verified human' },
+    ])
+    // Only the fact of the badge travels: no verifier name, no scope, no
+    // subject key, no verification time.
+    expect(body).not.toContain('world')
+    expect(body).not.toContain('dead')
   })
 
   it('hashes pass.json and icon.png into the manifest, and nothing else', async () => {
