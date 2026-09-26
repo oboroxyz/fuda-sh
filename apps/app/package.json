@@ -17,6 +17,7 @@
     "@fuda/stealth-address": "workspace:*",
     "@fuda/styles": "workspace:*",
     "@fuda/ui": "workspace:*",
+    "@worldcoin/idkit-core": "^4.3.0",
     "hono": "^4.13.5",
     "viem": "^2.56.3"
   },
