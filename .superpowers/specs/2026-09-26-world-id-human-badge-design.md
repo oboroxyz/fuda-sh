@@ -71,7 +71,9 @@ rights; Wallet-pass (Apple/Google) badge rendering.
   actual access control.
 - **S2 — on-chain badge.** A best-effort EAS attestation mirroring
   `apps/api/src/attendance/attendance-hook.ts`, making the badge portable and verifiable
-  without fuda.
+  without fuda: `bytes32 rightUID, address holder, string kind, string verifier, uint64
+  verifiedAt`, `refUID` = the Right. The `subject_key` is **never** published on chain — it
+  is fuda's dedupe key, not evidence anyone else needs.
 
 Neither stretch is a completion condition. If time runs short, they are dropped and the
 submission says so.
@@ -81,15 +83,15 @@ submission says so.
 ```
 claim (unchanged)         badge (new)                    admission (verdict extended)
 ─────────────────         ───────────                    ────────────────────────────
-POST /issuers/:h/:s/issue   POST /world/context          GET /verify/:uid
+POST /issuers/:h/:s/issue   POST /badges/human/context   GET /verify/:uid
   → Entitlement (EAS)         → { app_id, action,          → decision/reason (unchanged)
-  → Wallet pass                   rp_context }             + humanVerified? { at, credential }
-                            IDKit (headless, in-app)
+  → Wallet pass                   rp_context }             + badges? [ { kind, verifier,
+                            IDKit (headless, in-app)                     at, expiresAt } ]
                               → World App (Orb)
-                            POST /world/badge
+                            POST /badges/human
                               { uid, payload }
-                              → v4 verify → nullifier
-                              → human_badges row
+                              → v4 verify → subject key
+                              → badges row
 ```
 
 `apps/app` renders with **hono/jsx/dom, not React**, so the React `IDKitWidget` is
@@ -100,24 +102,76 @@ World App deeplink on a phone, or `connectorURI` rendered as a QR with
 
 ### Data model
 
-New migration `apps/api/migrations/0015_human_badges.sql`:
+New migration `apps/api/migrations/0015_badges.sql`:
 
 ```sql
-CREATE TABLE human_badges (
-  uid         TEXT PRIMARY KEY,   -- the Entitlement UID this badge is bound to
-  nullifier   TEXT NOT NULL,      -- canonical lowercase hex, as returned by World
-  action      TEXT NOT NULL,
-  credential  TEXT NOT NULL,      -- 'orb'
-  verified_at INTEGER NOT NULL
+CREATE TABLE badges (
+  uid         TEXT NOT NULL,      -- the Right this badge is attached to
+  kind        TEXT NOT NULL,      -- what is claimed: 'human'
+  verifier    TEXT NOT NULL,      -- who attested it: 'world'
+  scope       TEXT NOT NULL,      -- the uniqueness domain: 'ethtokyo2026'
+  subject_key TEXT NOT NULL,      -- opaque pseudonym within (verifier, scope)
+  credential  TEXT NOT NULL,      -- verifier-defined label: 'orb'
+  verified_at INTEGER NOT NULL,
+  expires_at  INTEGER,            -- null = no expiry
+  PRIMARY KEY (uid, kind)
 );
-CREATE UNIQUE INDEX human_badges_action_nullifier ON human_badges (action, nullifier);
+CREATE UNIQUE INDEX badges_subject ON badges (verifier, scope, subject_key);
 ```
 
-`uid` as the primary key makes one badge per pass; the unique `(action, nullifier)` makes
-one badge per human per event. World's documentation suggests storing the nullifier as
-`NUMERIC(78, 0)`; SQLite has no such type, so the canonical lowercase hex string is stored
-and compared verbatim. The comparison is exact-string on a value we normalise once at the
-edge, the same rule `normalizeUid` already follows for UIDs.
+The table is deliberately not `human_badges`, and the column is not `nullifier`. Two things
+are separated because they vary independently: **what is claimed** (`kind`) and **who
+attested it** (`verifier`). A gate cares about the claim; the verifier is provenance. World's
+nullifier is one instance of `subject_key`, whose contract is "an opaque value identifying a
+subject **within one `(verifier, scope)` pair and nowhere else**".
+
+The two constraints carry two different rules. `(uid, kind)` allows one badge of a kind per
+Right while leaving room for other kinds (`age_over_20`, `member_of_x`) on the same Right.
+`(verifier, scope, subject_key)` is the one-per-human rule: the same subject cannot badge a
+second Right inside the same scope.
+
+World's documentation suggests storing its nullifier as `NUMERIC(78, 0)`; SQLite has no such
+type, so the canonical lowercase hex string is stored and compared verbatim — an exact-string
+comparison on a value normalised once at the edge, the rule `normalizeUid` already follows.
+
+### The rule that keeps fuda pseudonymous as verifiers are added
+
+**Only ever store a `subject_key` that is already scoped so it cannot correlate a person
+across contexts.** World's nullifier satisfies this by construction: it is derived from
+`app_id + action`. A verifier that returns a globally stable identifier instead — a document
+number, an email address, a wallet address — must have it **hashed together with the scope
+before storage**, and the raw value must never be written. This holds the privacy line
+regardless of which verifier is added later, and it is the implementation-level counterpart
+of the criticism fuda makes of platforms that identify their members to verify them.
+
+### Verifier seam
+
+One interface in `apps/api/src/badges/`, one file per verifier under `badges/providers/`:
+
+```ts
+export interface BadgeVerifier {
+  kind: BadgeKind                                        // 'human'
+  name: string                                           // 'world'
+  configured: (env: Bindings) => boolean
+  verify: (input: VerifyInput) => Promise<VerifiedSubject> // { subjectKey, credential, expiresAt }
+}
+```
+
+`providers/world.ts` is the only implementation. This mirrors the `WalletConnector` seam the
+repository already uses for wallet rails: a named interface, one adapter, no registry.
+
+**Not generalised now** (add on demand, not in advance): a verifier registry table, per-issuer
+verifier configuration, a free-form JSON evidence column (a collection point for data nobody
+asked for), composition rules across verifiers, and any revocation protocol beyond
+`expires_at`.
+
+### Naming
+
+`docs/CONTEXT.md` already owns two adjacent terms. **Stamp** is a Venue's loyalty count and is
+unrelated. **Qualification** is the external fact that makes a Member eligible for a Right,
+read *before* issuance. A **Badge** is the new term: a verified fact about the Member holding
+a Right, attached to the Right *after* issuance and naming the Verifier that attested it. Add
+it to the glossary with the change.
 
 ### Binding: what stops a stolen proof
 
@@ -139,18 +193,21 @@ edge, the same rule `normalizeUid` already follows for UIDs.
 
 ### Endpoints
 
-`POST /world/context` — no body. Returns `{ app_id, action, rp_context }`. Public and
+The routes name the **claim**, not the vendor, so replacing the verifier behind a kind is not
+a client-visible change.
+
+`POST /badges/human/context` — no body. Returns `{ app_id, action, rp_context }`. Public and
 rate-limited with the existing `rateLimit` middleware.
 
-`POST /world/badge` — body `{ uid, payload }` where `payload` is the IDKit result forwarded
+`POST /badges/human` — body `{ uid, payload }` where `payload` is the IDKit result forwarded
 as-is. Steps: normalise `uid`; confirm the right exists and is not revoked by reusing
 `verifyUid`; forward the payload to the Developer Portal; assert the signal binds to `uid`;
 insert the badge row.
 
 | Outcome | Status | Body |
 | --- | --- | --- |
-| Verified, badge stored | 200 | `{ humanVerified: { at, credential } }` |
-| Same human, same pass, repeated | 200 | identical body — idempotent **only** when the stored nullifier equals the new one |
+| Verified, badge stored | 200 | `{ badge: { kind, verifier, at, expiresAt } }` |
+| Same human, same pass, repeated | 200 | identical body — idempotent **only** when the stored `subject_key` equals the new one |
 | Same human, different pass | 409 | `already_badged` |
 | Different human, pass already badged | 409 | `pass_already_badged` |
 | Signal does not match `uid` | 400 | `bad_input` |
@@ -162,14 +219,17 @@ insert the badge row.
 
 The feature is live only when `WORLD_APP_ID`, `WORLD_RP_ID`, `WORLD_ACTION` and
 `WORLD_RP_SIGNING_KEY` are all set and non-empty — the same all-or-nothing rule the Wallet
-and ENS bindings already use in `apps/api/src/env.ts`. Unset, both routes answer 501, the
-member screen does not offer the action, and `humanVerified` is simply absent from every
-verdict. Nothing else in the system changes.
+and ENS bindings already use in `apps/api/src/env.ts`. Unset, `configured()` is false, both
+routes answer 501, the member screen does not offer the action, and `badges` is simply absent
+from every verdict. Nothing else in the system changes.
 
 ### Verdict surface
 
 `VerifyResponse` in `packages/sdk/src/types.ts` gains an optional
-`humanVerified?: { at: number; credential: 'orb' }`. `verdictBody` in
+`badges?: Array<{ kind: BadgeKind; verifier: string; at: number; expiresAt?: number }>`. It is
+an array from the first version on purpose: this type is public, is read by `apps/gate`, the
+walletmate daemon and any third-party verifier, and a `humanVerified` field would become a
+breaking change the moment a second kind exists. `verdictBody` in
 `apps/api/src/routes/verify.ts` fills it from a D1 read. That read is **advisory**: if it
 throws, the field is omitted and the decision is unchanged, matching how the Attendance
 hook is already prevented from affecting an admission.
@@ -202,12 +262,13 @@ out of this design and all three are demonstrable:
 
 Unit tests alongside the code they cover, following the repository's existing layout:
 
-- badge store: duplicate `(action, nullifier)` conflicts; same pass and same human is
-  idempotent; distinct humans on distinct passes both succeed;
+- badge store: duplicate `(verifier, scope, subject_key)` conflicts; same pass and same
+  subject is idempotent; distinct subjects on distinct passes both succeed; a second *kind*
+  on one Right is allowed;
 - signal binding: a payload whose signal is not the requested `uid` is rejected before any
   write;
-- config gate: with the bindings unset, both routes answer 501 and `verdictBody` omits the
-  field;
+- config gate: with the bindings unset, both routes answer 501 and `verdictBody` omits
+  `badges`;
 - verdict shaping: a verdict with and without a badge, including the case where the D1 read
   throws and the decision must survive unchanged.
 
@@ -222,7 +283,7 @@ disclosure is:
 
 | Pre-existing (before 2026-09-26) | New in the event window |
 | --- | --- |
-| Entitlement issuance, EAS schemas, Wallet passes, `/verify` and the gate, Graph/ENS integrations | `/world/context`, `/world/badge`, `human_badges`, the member badge action, `humanVerified` in the verdict and gate |
+| Entitlement issuance, EAS schemas, Wallet passes, `/verify` and the gate, Graph/ENS integrations | `/badges/human/context`, `/badges/human`, the `badges` table and verifier seam, the member badge action, `badges` in the verdict and gate |
 
 The prize additionally requires an integration debrief. Record it while building, not
 afterwards: time to first successful verification, the friction actually hit (the v2→v4
