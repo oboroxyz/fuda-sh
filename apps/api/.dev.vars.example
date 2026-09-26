@@ -41,6 +41,18 @@ USE_FAKE_CHAIN=1
 #ENS_REGISTRAR_ADDRESS=0x…                                       # var
 #ENS_GAS_POLICY_ID=…                                             # var
 
+# World ID badge verification: all four or nothing. While any one is unset,
+# POST /badges/:kind answers 501 badges_not_configured and no verdict carries a
+# badge. Only the signing key is sensitive — the relying party's 32-byte
+# secp256k1 key as hex (0x optional), whose public half lives in the Developer
+# Portal — but all four are deployed as secrets rather than split between here
+# and wrangler.jsonc vars, so a deployment has one place to look. Never also add
+# these names to `vars`: a name defined twice silently resolves to the secret.
+#WORLD_APP_ID=app_…            # secret
+#WORLD_RP_ID=rp_…              # secret
+#WORLD_ACTION=…                # secret
+#WORLD_RP_SIGNING_KEY=0x…      # secret
+
 # Wallet passes: set all four GOOGLE_* (resp. all five APPLE_*) or that pass
 # endpoint answers 501. A PEM pasted straight out of a service-account JSON
 # keeps its literal \n escapes; that form is accepted as-is.

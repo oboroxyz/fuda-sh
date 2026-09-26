@@ -120,6 +120,7 @@ Set with `wrangler secret put <NAME>` from `apps/api`:
 - `ENS_VOUCHER_KEY` — dedicated 32-byte ECDSA private key that signs claim and renew vouchers. It is the key the deployed registrar checks against, so it must be the same one `ens:topology:deploy` was given, and it must not be the gateway signer, the parent key, or `SIGNER_PRIVATE_KEY`.
 - `ENS_SEPOLIA_RPC_URL` — Ethereum Sepolia RPC. A secret rather than a var, because an Alchemy endpoint carries its API key in the path.
 - `ENS_PAYMASTER_UPSTREAM` — the vendor's ERC-7677 paymaster endpoint. With Alchemy this is the same URL as above; the bindings stay separate so the paymaster vendor can change without touching the chain reads.
+- `WORLD_APP_ID`, `WORLD_RP_ID`, `WORLD_ACTION`, `WORLD_RP_SIGNING_KEY` — World ID badge verification. All four or nothing: while any one is unset, `POST /badges/:kind` answers `501 badges_not_configured` and no verdict carries a badge. Only the signing key is sensitive — it is the relying party's 32-byte secp256k1 key as hex (`0x` optional), whose public half is registered in the Developer Portal — but all four are pushed as secrets rather than split between here and `wrangler.jsonc` vars, so there is one place to look. Do not also add these names to `vars`: a name defined twice silently resolves to the secret.
 - `GOOGLE_ISSUER_ID`, `GOOGLE_CLASS_ID`, `GOOGLE_SA_EMAIL`, `GOOGLE_SA_KEY_PEM` — see §4.
 - `APPLE_PASS_TYPE_ID`, `APPLE_TEAM_ID`, `APPLE_CERT_PEM`, `APPLE_KEY_PEM`, `APPLE_WWDR_PEM` — see §5.
 
