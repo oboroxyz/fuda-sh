@@ -97,8 +97,10 @@ describe('world verifier', () => {
 
   // Every rejection is decided from the payload alone, so a portal stubbed to
   // say yes is never even called. The credential rows are the other half of the
-  // one-preset rule: only the human credential is a verified human, and the
-  // family check above closes the second nullifier family.
+  // accepted-set rule: only a credential in `HUMAN_CREDENTIALS` is a verified
+  // human, and the family check above closes the second nullifier family.
+  // Passport is refused deliberately and not for want of a mapping — it is the
+  // next entry that could be added, and until it is asked for it is not one.
   it.each([
     ['a proof bound to a different right', proofFor(`0x${'b2'.repeat(32)}`), 'bad_input'],
     ['a proof carrying a signal hash of nothing', proofFor(UID, { signalHash: '0x00' }), 'bad_input'],
@@ -123,7 +125,6 @@ describe('world verifier', () => {
     // real number for the credential it names rather than a mismatched pair.
     ['a selfie credential', proofFor(UID, { identifier: 'selfie', issuerSchemaId: 11 }), 'bad_proof'],
     ['a passport credential', proofFor(UID, { identifier: 'passport', issuerSchemaId: 9303 }), 'bad_proof'],
-    ['an mnc credential', proofFor(UID, { identifier: 'mnc', issuerSchemaId: 9310 }), 'bad_proof'],
     // 128 is the portal's own "faux issuer", freely mintable from the simulator
     // and accepted only in staging or sandbox: the credential that would make
     // the one-human-one-pass claim meaningless.
@@ -175,6 +176,126 @@ describe('world verifier', () => {
     await expect(
       worldVerifier.verify(configured, { payload: proofFor(`0x${'b2'.repeat(32)}`), uid: UID }),
     ).resolves.toStrictEqual({ error: 'bad_input' })
+    expect(portal).not.toHaveBeenCalled()
+  })
+
+  // The two accepted credentials, and the reason there are two: the event is in
+  // Japan, where many attendees hold My Number Card and have never been to an
+  // Orb. The stored `credential` is derived from the proof's own
+  // `issuer_schema_id`, so the row records which one was actually used rather
+  // than a constant — that is what keeps it auditable.
+  it.each([
+    ['proof_of_human', 1, 'proof_of_human'],
+    ['mnc', 9310, 'mnc'],
+  ] as const)(
+    'accepts the %s credential and records it as the credential used',
+    async (identifier, issuerSchemaId, credential) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Response.json({ nullifier: '0xdead', success: true })),
+      )
+      await expect(
+        worldVerifier.verify(configured, {
+          payload: proofFor(UID, { identifier, issuerSchemaId }),
+          uid: UID,
+        }),
+      ).resolves.toStrictEqual({
+        credential,
+        expiresAt: null,
+        scope: `rp_test:${WORLD_ACTION}`,
+        subjectKey: DEAD,
+      })
+    },
+  )
+
+  // The guard that keeps two accepted credentials from becoming two subject
+  // keys. A request that accepts either credential can be answered with both at
+  // once, and the nullifier is credential-independent by derivation — so equal
+  // nullifiers are what a genuine two-credential answer looks like. Differing
+  // ones would mean one person holds several subject keys for one (rp, action),
+  // which the unique index cannot detect because only one of them is ever
+  // written: the index stays satisfied and one human badges two passes. So the
+  // proof is refused and nothing is written, and the portal is not even called.
+  it('refuses a multi-credential proof whose items carry different nullifiers, without writing or calling the portal', async () => {
+    const portal = vi.fn<() => Response>(() => Response.json({ nullifier: '0xdead', success: true }))
+    vi.stubGlobal('fetch', portal)
+    const payload = proofFor(UID, {
+      items: [
+        { identifier: 'proof_of_human', issuerSchemaId: 1, nullifier: '0xdead' },
+        { identifier: 'mnc', issuerSchemaId: 9310, nullifier: '0xbeef' },
+      ],
+    })
+    await expect(worldVerifier.verify(configured, { payload, uid: UID })).resolves.toStrictEqual({
+      error: 'bad_proof',
+    })
+    expect(portal).not.toHaveBeenCalled()
+  })
+
+  it('accepts a multi-credential proof whose items agree, and records the first credential', async () => {
+    const portal = vi.fn<() => Response>(() => Response.json({ nullifier: '0xdead', success: true }))
+    vi.stubGlobal('fetch', portal)
+    const payload = proofFor(UID, {
+      items: [
+        { identifier: 'proof_of_human', issuerSchemaId: 1, nullifier: '0xdead' },
+        { identifier: 'mnc', issuerSchemaId: 9310, nullifier: '0xdead' },
+      ],
+    })
+    await expect(worldVerifier.verify(configured, { payload, uid: UID })).resolves.toMatchObject({
+      credential: 'proof_of_human',
+      subjectKey: DEAD,
+    })
+    expect(portal).toHaveBeenCalledOnce()
+  })
+
+  // Equality is decided on the canonical form, for the same reason the stored
+  // key is: two spellings of one field element are one person, not two.
+  it('treats two spellings of one nullifier across items as the same person', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Response.json({ nullifier: '0xdead', success: true })),
+    )
+    const payload = proofFor(UID, {
+      items: [
+        { identifier: 'proof_of_human', issuerSchemaId: 1, nullifier: '0xDEAD' },
+        { identifier: 'mnc', issuerSchemaId: 9310, nullifier: `0x${'0'.repeat(60)}dead` },
+      ],
+    })
+    await expect(worldVerifier.verify(configured, { payload, uid: UID })).resolves.toMatchObject({
+      subjectKey: DEAD,
+    })
+  })
+
+  // A value that is not a nullifier cannot be shown equal to anything, so it is
+  // refused with the rest rather than compared as a string.
+  it('refuses a multi-credential proof carrying an item nullifier that is not one', async () => {
+    const portal = vi.fn<() => Response>(() => Response.json({ nullifier: '0xdead', success: true }))
+    vi.stubGlobal('fetch', portal)
+    const payload = proofFor(UID, {
+      items: [
+        { identifier: 'proof_of_human', issuerSchemaId: 1, nullifier: 'nope' },
+        { identifier: 'mnc', issuerSchemaId: 9310, nullifier: 'nope' },
+      ],
+    })
+    await expect(worldVerifier.verify(configured, { payload, uid: UID })).resolves.toStrictEqual({
+      error: 'bad_proof',
+    })
+    expect(portal).not.toHaveBeenCalled()
+  })
+
+  // One accepted and one refused credential in the same payload is still a
+  // refusal: the accepted set is checked over every item, not over the first.
+  it('refuses a multi-credential proof where one item is a credential this deployment does not accept', async () => {
+    const portal = vi.fn<() => Response>(() => Response.json({ nullifier: '0xdead', success: true }))
+    vi.stubGlobal('fetch', portal)
+    const payload = proofFor(UID, {
+      items: [
+        { identifier: 'proof_of_human', issuerSchemaId: 1, nullifier: '0xdead' },
+        { identifier: 'passport', issuerSchemaId: 9303, nullifier: '0xdead' },
+      ],
+    })
+    await expect(worldVerifier.verify(configured, { payload, uid: UID })).resolves.toStrictEqual({
+      error: 'bad_proof',
+    })
     expect(portal).not.toHaveBeenCalled()
   })
 

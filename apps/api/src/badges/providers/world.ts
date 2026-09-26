@@ -79,9 +79,9 @@ const UniquenessProof = v.looseObject({
 })
 
 // The one protocol family this deployment accepts, and the server-side half of
-// the choice made once in apps/app/src/badges.ts (`HUMAN_PRESET`). The client
-// asks for `proofOfHuman` with `allow_legacy_proofs: false`, so 4.0 is the
-// family and 4.0 alone. Accepting 3.0 as well would let one person obtain a
+// the choice made once in apps/app/src/badges.ts (`humanConstraints`). The
+// client asks for the 4.0 credentials with `allow_legacy_proofs: false`, so 4.0
+// is the family and 4.0 alone. Accepting 3.0 as well would let one person obtain a
 // second, unrelated nullifier for the same action and badge a second pass — the
 // vendor says as much on `allow_legacy_proofs` ("you must track both v3 and v4
 // nullifiers to prevent double-claims"). The client preset and this constant
@@ -106,29 +106,36 @@ const PROTOCOL_VERSION = '4.0'
 // not depend on that deployment having shipped.
 const WORLD_ENVIRONMENT = 'production'
 
-// Which credential counts as "one verified human", pinned on the number rather
-// than on the `identifier` string beside it. `ResponseItemV4.issuer_schema_id`
-// is documented as "1=proof_of_human, 9303=passport, 9310=mnc" and
-// `SelfieCheckResponseItemV4` fixes it at 11, so the number *is* the
-// credential's identity, while `identifier` is a spelling this adapter cannot
-// pin — World App reported the Orb credential as both `orb` and
-// `proof_of_human` depending on transport. A number cannot be spelled two ways.
+// Which credentials count as "one verified human", and what a badge row records
+// for each. Pinned on the number rather than on the `identifier` string beside
+// it: `ResponseItemV4.issuer_schema_id` is documented as "1=proof_of_human,
+// 9303=passport, 9310=mnc, 11=selfie" and `SelfieCheckResponseItemV4` fixes it
+// at 11, so the number *is* the credential's identity, while `identifier` is a
+// spelling this adapter cannot pin — World App reported the Orb credential as
+// both `orb` and `proof_of_human` depending on transport. A number cannot be
+// spelled two ways.
 //
-// 128 is deliberately not in here. The portal's own request schema calls it the
-// "faux issuer", accepts it for `proof_of_human` only in staging or sandbox,
-// and those credentials are "freely mintable from the simulator"
+// Two entries, not one. The event this ships for is in Japan, where many
+// attendees hold the My Number Card credential (9310) and have never been to an
+// Orb, and refusing them would fail the demo for exactly the people it is for.
+// Accepting both is safe because the nullifier does not depend on which
+// credential produced it — see the equal-nullifier guard in `verify()` for the
+// derivation and the sources. Adding passport (9303) later is one line here;
+// selfie (11) is a weaker claim and stays out, and so does 128, the portal's own
+// "faux issuer", which it accepts for `proof_of_human` in staging or sandbox
+// only and whose credentials are "freely mintable from the simulator"
 // (docs/research/world-id-2026-09-26.md Q1) — a credential that would make the
-// one-human-one-pass claim meaningless. Everything else (passport, mnc, selfie,
-// document) is a different credential with different uniqueness strength, and a
-// payload carrying one means the client asked for a preset this feature did not
-// ship.
-const HUMAN_SCHEMA_ID = 1
-
-// What the badge row records as the credential. Derived from the pinned schema
-// id above rather than copied out of the payload: the `identifier` string is
-// unvalidated client text, and the schema id already names the credential the
-// proof carries.
-const HUMAN_CREDENTIAL = 'proof_of_human'
+// one-human-one-pass claim meaningless.
+//
+// The map is also where the stored `credential` comes from, so the row records
+// which credential was actually used rather than a constant: the label is
+// derived from the proof's own `issuer_schema_id` and never from client-supplied
+// text. `credential` is not part of `BadgeView`, so this changes nothing a
+// client can see — it is there so a row stays truthful and auditable.
+const HUMAN_CREDENTIALS: ReadonlyMap<number, string> = new Map([
+  [1, 'proof_of_human'],
+  [9310, 'mnc'],
+])
 
 // Both sides of the comparison in one form, so a 0x prefix or an upper-cased
 // digit cannot read as a different signal. `hashSignal` returns 0x-prefixed
@@ -240,8 +247,44 @@ export const worldVerifier: BadgeVerifier = {
     if (action !== config.action) {
       return { error: 'bad_proof' }
     }
-    if (!responses.every((response) => response.issuer_schema_id === HUMAN_SCHEMA_ID)) {
+    // One pass over the items: every credential must be one this deployment
+    // accepts, and the label the badge row records comes from the same lookup
+    // rather than from a constant or from the payload's `identifier` text.
+    const credentials = responses.map((response) => HUMAN_CREDENTIALS.get(response.issuer_schema_id))
+    const credential = credentials.at(0)
+    if (credential === undefined || credentials.includes(undefined)) {
       return { error: 'bad_proof' }
+    }
+    // More than one item means World App satisfied the request with more than
+    // one credential at once, and every one of them must name the same person.
+    // It should: the nullifier does not depend on which credential produced it.
+    // It is `Poseidon2(DS_N, query, oprf_response)` where `query =
+    // oprf_query_digest(leaf_index, action, scope)` — the authenticator's merkle
+    // leaf index, the action, and the rp id — and `issuer_schema_id` enters a
+    // *different* OPRF module (`CredentialBlindingFactor`), never this one
+    // (world-id-protocol `crates/proof/src/oprf_query.rs` and
+    // `circom/client_side_proofs/oprf_nullifier.circom`; the type's own doc
+    // comment says "derived from (user, rpId, action)",
+    // docs/research/world-id-2026-09-26.md Q3). So identical nullifiers are what
+    // a genuine two-credential answer looks like.
+    //
+    // That reading is load-bearing and has not been measured on a device, so it
+    // is checked rather than assumed. If the values differ, one person holds
+    // several subject keys for one (rp, action) — precisely the condition
+    // UNIQUE (verifier, scope, subject_key) cannot detect, because only one of
+    // those keys is ever written, so the index stays satisfied, every test stays
+    // green, and one human quietly badges two passes. Failing closed here costs
+    // that person a badge; failing open costs the guarantee the badge exists to
+    // make. So the proof is refused and no row is written.
+    //
+    // Compared in canonical form, because `0xDEAD` and `0xdead` are one field
+    // element and not two people; a value that is not a nullifier at all cannot
+    // be shown equal to anything and is refused with the rest.
+    if (responses.length > 1) {
+      const keys = new Set(responses.map((response) => canonicalNullifier(response.nullifier)))
+      if (keys.size !== 1 || keys.has(null)) {
+        return { error: 'bad_proof' }
+      }
     }
     // The signal binding, and the one place this adapter is deliberately looser
     // than its 3.0 predecessor: a hash that is present must match, and a hash
@@ -273,11 +316,13 @@ export const worldVerifier: BadgeVerifier = {
     // How far that looseness is load-bearing on *this* path is not yet
     // measured, and the honest reading is narrower than "a valid proof would be
     // rejected". This path always requests a signal;
-    // `CachedSignalHashes::compute` keys the map on the *requested* credential
-    // type; and `normalize_response_identifier` rewrites only `face` →
-    // `selfie`. So a `proof_of_human` item reaches this line without a hash only
-    // if World App echoes the identifier under some other spelling — `orb`,
-    // the one HUMAN_SCHEMA_ID above records having seen, being the candidate.
+    // `CachedSignalHashes::compute` keys the map on each requested credential
+    // type, so the two-credential request carries a hash for `proof_of_human`
+    // and one for `mnc`; and `normalize_response_identifier` rewrites only
+    // `face` → `selfie`. So an accepted item reaches this line without a hash
+    // only if World App echoes the identifier under some other spelling —
+    // `orb`, the one HUMAN_CREDENTIALS above records having seen, being the
+    // candidate.
     // Whether a real proof carries the hash is the open question the device
     // test settles; until it is taken, accepting absence is the choice that
     // does not rest the demo on a spelling nobody here has measured.
@@ -329,7 +374,10 @@ export const worldVerifier: BadgeVerifier = {
       return { error: 'bad_proof' }
     }
     return {
-      credential: HUMAN_CREDENTIAL,
+      // Which credential this person actually used, read from the proof's own
+      // `issuer_schema_id`. With every item's nullifier proven equal above, the
+      // first item's label describes the same person as any other item's.
+      credential,
       expiresAt: null,
       // A 4.0 nullifier is RP-scoped — "derived from (user, rpId, action)", and
       // the vendor's own response type calls it an "RP-scoped nullifier" — so

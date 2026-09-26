@@ -99,10 +99,15 @@ export const WORLD_ACTION = 'ethtokyo2026-human'
 // the signal is not a field of its own — it reaches the server only as
 // `responses[].signal_hash`, derived with the same `hashSignal` World App uses,
 // which is why the adapter compares a hash rather than a uid; the credential is
-// named by the numeric `issuer_schema_id` (1 = proof of human) and not by the
-// `identifier` string beside it; and `action` is a required top-level field on a
-// 4.0 uniqueness proof. `signalHash: null` drops the field entirely, the way a
-// 4.0 item with no reattached hash arrives.
+// named by the numeric `issuer_schema_id` (1 = proof of human, 9310 = My Number
+// Card) and not by the `identifier` string beside it; and `action` is a required
+// top-level field on a 4.0 uniqueness proof. `signalHash: null` drops the field
+// entirely, the way a 4.0 item with no reattached hash arrives.
+//
+// `items` builds a payload whose `responses` carries more than one credential —
+// the shape a request that accepts either credential can answer with, and the
+// only shape in which the adapter's equal-nullifier guard has anything to
+// compare. Each entry overrides the one credential it names.
 export const worldProof = (
   uid: string,
   overrides: {
@@ -112,22 +117,29 @@ export const worldProof = (
     environment?: string
     action?: string
     signalHash?: string | null
+    items?: { identifier?: string; issuerSchemaId?: number; nullifier?: string }[]
   } = {},
 ) => {
   const signalHash = overrides.signalHash === undefined ? hashSignal(uid) : overrides.signalHash
-  const item = {
-    expires_at_min: 4_102_444_800,
-    identifier: overrides.identifier ?? 'proof_of_human',
-    issuer_schema_id: overrides.issuerSchemaId ?? 1,
-    nullifier: '0xdead',
-    proof: ['0x01', '0x02', '0x03', '0x04', '0xroot'],
-  }
+  const items = overrides.items ?? [
+    { identifier: overrides.identifier, issuerSchemaId: overrides.issuerSchemaId },
+  ]
+  const responses = items.map((entry) => {
+    const item = {
+      expires_at_min: 4_102_444_800,
+      identifier: entry.identifier ?? 'proof_of_human',
+      issuer_schema_id: entry.issuerSchemaId ?? 1,
+      nullifier: entry.nullifier ?? '0xdead',
+      proof: ['0x01', '0x02', '0x03', '0x04', '0xroot'],
+    }
+    return signalHash === null ? item : { ...item, signal_hash: signalHash }
+  })
   return {
     action: overrides.action ?? WORLD_ACTION,
     environment: overrides.environment ?? 'production',
     nonce: '0x01',
     protocol_version: overrides.protocolVersion ?? '4.0',
-    responses: [signalHash === null ? item : { ...item, signal_hash: signalHash }],
+    responses,
   }
 }
 
