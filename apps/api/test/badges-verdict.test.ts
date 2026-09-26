@@ -38,7 +38,7 @@ describe('badges in the verdict', () => {
     const uid = seedRight(chain, del)
     const res = await appWith({ chain, now: () => NOW }).request(`/v1/verify/${uid}`, {}, configuredEnv(del))
     expect(res.status).toBe(200)
-    const body = (await res.json()) as VerifyResponse
+    const body: VerifyResponse = await res.json()
     expect(body.decision).toBe('ADMIT')
     expect(body).not.toHaveProperty('badges')
   })
@@ -50,7 +50,7 @@ describe('badges in the verdict', () => {
     await env.DB.exec('DROP TABLE badges')
     const res = await appWith({ chain, now: () => NOW }).request(`/v1/verify/${uid}`, {}, configuredEnv(del))
     expect(res.status).toBe(200)
-    const body = (await res.json()) as VerifyResponse
+    const body: VerifyResponse = await res.json()
     expect(body.decision).toBe('ADMIT')
     expect(body).not.toHaveProperty('badges')
   })
