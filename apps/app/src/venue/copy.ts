@@ -127,8 +127,12 @@ export const VENUE_COPY = {
     showQr: 'カードを使うときに、このコードを提示してください。',
     tryAgain: 'もう一度試す',
     verificationQrLabel: '確認を続けるためのQRコード',
-    verifiedHuman: '本人確認済み',
-    verifyHuman: '本人確認する',
+    // Not 本人確認: in Japanese that is the KYC / identity-document phrase, and
+    // it would promise an identity check this badge deliberately does not make.
+    // What is confirmed is that a real person holds the pass and cannot confirm
+    // a second one, so the wording says human, not identity.
+    verifiedHuman: '人間であることを確認済み',
+    verifyHuman: '人間であることを確認する',
     verifyingHuman: '確認中…',
   },
 } satisfies Copy<VenueCopy>

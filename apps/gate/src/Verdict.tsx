@@ -44,11 +44,11 @@ export const Verdict = ({ state, onDone }: { state: DisplayState; onDone: () => 
     {state.detail === '' ? null : <div class="px-6 text-center text-xl">{state.detail}</div>}
     <Facts facts={state.facts} />
     {state.badge === null ? null : (
-      // The verifier is named on purpose: the gate reports who attested the
-      // claim, not a bare checkmark, and the badge outlives the right it is on —
-      // so it can appear beside a REJECT.
+      // The chip names the claim, never the verifier behind it, so swapping the
+      // verifier for a kind stays invisible to every client. The badge outlives
+      // the right it is on, so it can appear beside a REJECT.
       <div class="flex flex-col items-center gap-1">
-        <div class="badge badge-neutral">verified human · {state.badge.verifier}</div>
+        <div class="badge badge-neutral">verified human</div>
         <div class="text-xs opacity-70">{state.badge.at}</div>
       </div>
     )}
