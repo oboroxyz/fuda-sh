@@ -2,6 +2,7 @@ import type { BadgeKind, CardIntegrations, Hex } from '@fuda/sdk'
 import { NO_INTEGRATIONS } from '@fuda/sdk'
 import { and, eq, inArray } from 'drizzle-orm'
 
+import { bindChunks } from '../db/bind-chunks.ts'
 import type { Db } from '../db/client.ts'
 import { cardIntegrations, cards, members } from '../db/schema.ts'
 
@@ -37,19 +38,19 @@ export const writeCardIntegrations = async (
 }
 
 // The enabled Badge kinds of many Cards at once, for a venue payload that lists
-// them all. A Card without a row is simply absent from the map.
+// them all. A Card without a row is simply absent from the map. The ids are read
+// in batches under D1's bound-parameter cap (AGENTS.md: D1 writes).
 export const badgeKindsByCard = async (
   db: Db,
   cardIds: readonly string[],
 ): Promise<Map<string, BadgeKind[]>> => {
-  if (cardIds.length === 0) {
-    return new Map()
-  }
-  const rows = await db
-    .select()
-    .from(cardIntegrations)
-    .where(inArray(cardIntegrations.cardId, [...cardIds]))
-  return new Map(rows.map((row) => [row.cardId, kindsOf(row)]))
+  const batches = await Promise.all(
+    bindChunks(cardIds).map(
+      async (batch) =>
+        await db.select().from(cardIntegrations).where(inArray(cardIntegrations.cardId, batch)),
+    ),
+  )
+  return new Map(batches.flat().map((row) => [row.cardId, kindsOf(row)]))
 }
 
 // Whether a Right may carry a Badge of this kind under its Card's integrations.

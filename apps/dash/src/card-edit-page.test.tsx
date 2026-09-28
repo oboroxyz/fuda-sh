@@ -239,6 +239,53 @@ describe(CardEditPage, () => {
     expect(p.save).not.toHaveBeenCalled()
   })
 
+  // App hands the section a fresh `{ load, save }` object on every render; the
+  // section must key on the functions, or a parent re-render would refetch and
+  // throw away an unsaved switch.
+  it('keeps an unsaved switch across a parent re-render with a fresh io object', async () => {
+    const p = props()
+    const Host = (): JSX.Element => {
+      const [tick, setTick] = useState(0)
+      return (
+        <>
+          <button
+            type="button"
+            data-testid="rerender"
+            onClick={() => {
+              setTick(tick + 1)
+            }}
+          >
+            Rerender {tick}
+          </button>
+          <CardEditPage {...p} integrations={{ load: p.integrations.load, save: p.integrations.save }} />
+        </>
+      )
+    }
+    render(<Host />, root)
+    await waitForm()
+    const details = root.querySelector<HTMLDetailsElement>('details[data-testid="card-integrations"]')!
+    details.open = true
+    details.dispatchEvent(new Event('toggle'))
+    await vi.waitFor(() => {
+      expect(details.querySelector('input[type=checkbox]')).not.toBeNull()
+    })
+    const worldId = details.querySelector<HTMLInputElement>('input[type=checkbox]')!
+    worldId.checked = true
+    worldId.dispatchEvent(new Event('input', { bubbles: true }))
+    await vi.waitFor(() => {
+      expect(worldId.checked).toBe(true)
+    })
+    root.querySelector<HTMLButtonElement>('[data-testid="rerender"]')!.click()
+    await vi.waitFor(() => {
+      expect(root.querySelector('[data-testid="rerender"]')?.textContent).toBe('Rerender 1')
+    })
+    expect(p.integrations.load).toHaveBeenCalledOnce()
+    const kept = root.querySelector<HTMLInputElement>(
+      'details[data-testid="card-integrations"] input[type=checkbox]',
+    )
+    expect(kept?.checked).toBe(true)
+  })
+
   it('discards a late card load after switching to another card', async () => {
     const p = props()
     const pending = Promise.withResolvers<Awaited<ReturnType<CardEditPageProps['load']>>>()

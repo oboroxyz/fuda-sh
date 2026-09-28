@@ -22,6 +22,10 @@ export interface IntegrationSettingsProps {
 // integration with its own switch; the whole object is saved together, and
 // every switch starts off, so a Card offers nothing its operator did not turn on.
 export const IntegrationSettings = ({ cardId, copy, io }: IntegrationSettingsProps): JSX.Element => {
+  // The parent may hand over a fresh `io` object on every render; only its
+  // functions are stable, so the load effect keys on the function, not the
+  // object, or each re-render would discard an unsaved switch and refetch.
+  const { load, save } = io
   const [value, setValue] = useState<CardIntegrations | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<'load' | 'save' | null>(null)
@@ -47,7 +51,7 @@ export const IntegrationSettings = ({ cardId, copy, io }: IntegrationSettingsPro
     const run = async (): Promise<void> => {
       let result: Result<CardIntegrations>
       try {
-        result = await io.load(cardId)
+        result = await load(cardId)
       } catch {
         result = { error: 'network', network: true, ok: false, status: 0 }
       }
@@ -62,7 +66,7 @@ export const IntegrationSettings = ({ cardId, copy, io }: IntegrationSettingsPro
       }
     }
     void run()
-  }, [cardId, io])
+  }, [cardId, load])
 
   useEffect(() => {
     runLoad()
@@ -84,7 +88,7 @@ export const IntegrationSettings = ({ cardId, copy, io }: IntegrationSettingsPro
     const run = async (): Promise<void> => {
       let result: Result<CardIntegrations>
       try {
-        result = await io.save(cardId, submitted)
+        result = await save(cardId, submitted)
       } catch {
         result = { error: 'network', network: true, ok: false, status: 0 }
       }
