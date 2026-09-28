@@ -1,11 +1,14 @@
-import type { CardView, IssuerPassesResponse, OperatorCardView } from '@fuda/sdk'
+import type { CardView, Hex, IssuerPassesResponse, OperatorCardView } from '@fuda/sdk'
 import { env } from 'cloudflare:test'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { createSession } from '../src/auth/session.ts'
+import { saveBadge } from '../src/badges/store.ts'
 import { getDb } from '../src/db/client.ts'
 import {
+  badges,
+  cardIntegrations,
   cards,
   cardStampSettings,
   challenges,
@@ -40,12 +43,14 @@ const putJson = async (
 
 const clearManagementTables = async (): Promise<void> => {
   const database = db()
+  await database.delete(badges)
   await database.delete(receptionRequests)
   await database.delete(stampCredits)
   await database.delete(entryLog)
   await database.delete(slots)
   await database.delete(members)
   await database.delete(cardStampSettings)
+  await database.delete(cardIntegrations)
   await database.delete(sessions)
   await database.delete(challenges)
   await database.delete(cards)
@@ -94,9 +99,9 @@ interface SeedPass {
   validUntil: number | null
 }
 
-const uidFor = (number: number): string => `0x${number.toString(16).padStart(64, '0')}`
+const uidFor = (number: number): Hex => `0x${number.toString(16).padStart(64, '0')}`
 
-const seedPass = async (pass: SeedPass): Promise<string> => {
+const seedPass = async (pass: SeedPass): Promise<Hex> => {
   const uid = uidFor(pass.uidNumber)
   await env.DB.prepare(
     `INSERT INTO members (
@@ -123,6 +128,8 @@ const seedPass = async (pass: SeedPass): Promise<string> => {
 
 describe('operator Card management', () => {
   beforeEach(clearManagementTables)
+  // Rows referencing cards must not outlive this file: other files delete cards.
+  afterEach(clearManagementTables)
 
   it('hydrates stored operator-only fields without changing public CardView', async () => {
     const { app, card, token } = await createOwnedCard()
@@ -281,6 +288,46 @@ describe('operator Card management', () => {
     await expect(response.json<{ card: OperatorCardView }>()).resolves.toMatchObject({
       card: { slug: 'new', title: 'Legacy Card' },
     })
+  })
+
+  // docs/specs/pass-types-and-flows.md#card-integrations
+  it('starts a Card with every integration off and saves the badge list for that Card only', async () => {
+    const { app, card, token } = await createOwnedCard()
+    const path = `/v1/issuers/me/cards/${card.id}/integrations`
+
+    const unset = await getJson(app, bindings(), path, token)
+    const saved = await putJson(app, path, { badges: ['human'] }, token)
+    const reread = await getJson(app, bindings(), path, token)
+    const off = await putJson(app, path, { badges: [] }, token)
+    expect({
+      cacheControl: unset.headers.get('cache-control'),
+      off: await off.json(),
+      reread: await reread.json(),
+      saved: await saved.json(),
+      statuses: [unset.status, saved.status],
+      unset: await unset.json(),
+    }).toStrictEqual({
+      cacheControl: 'no-store',
+      off: { badges: [] },
+      reread: { badges: ['human'] },
+      saved: { badges: ['human'] },
+      statuses: [200, 200],
+      unset: { badges: [] },
+    })
+  })
+
+  it('rejects malformed integrations and hides foreign or missing Cards', async () => {
+    const { app, card, token } = await createOwnedCard()
+    const path = `/v1/issuers/me/cards/${card.id}/integrations`
+    const statuses = await Promise.all([
+      putJson(app, path, { badges: ['nonsense'] }, token),
+      putJson(app, path, { badges: ['human', 'human'] }, token),
+      putJson(app, path, { badges: ['human'], extra: true }, token),
+      putJson(app, '/v1/issuers/me/cards/missing/integrations', { badges: ['human'] }, token),
+      getJson(app, bindings(), '/v1/issuers/me/cards/missing/integrations', token),
+      putJson(app, path, { badges: ['human'] }),
+    ])
+    expect(statuses.map((response) => response.status)).toStrictEqual([400, 400, 400, 404, 404, 401])
   })
 
   it('refuses to enable Stamp settings for a Ticket', async () => {
@@ -727,6 +774,50 @@ describe('GET /issuers/me/passes', () => {
     expect(body.cardStats).toStrictEqual([{ active: 205, cardId: card.id, issued: 205, unknown: 0 }])
   })
 
+  // What the dashboard's Verified human column reads: the badged pass carries the
+  // fact of the Badge, the rest carry no key at all.
+  it('carries a badge on the badged pass and no badges key on the rest', async () => {
+    const { app, card, token } = await createOwnedCard()
+    const badgedUid = await seedPass({
+      cardId: card.id,
+      createdAt: 990,
+      issuerId: card.issuerId,
+      memberNumber: 'badged',
+      uidNumber: 11,
+      usageModel: 1,
+      validFrom: 0,
+      validUntil: 0,
+    })
+    const plainUid = await seedPass({
+      cardId: card.id,
+      createdAt: 989,
+      issuerId: card.issuerId,
+      memberNumber: 'plain',
+      uidNumber: 12,
+      usageModel: 1,
+      validFrom: 0,
+      validUntil: 0,
+    })
+    await saveBadge(db(), {
+      credential: 'orb',
+      expiresAt: null,
+      kind: 'human',
+      scope: 'issuer-passes',
+      subjectKey: '0xsubject-passes',
+      uid: badgedUid,
+      verifiedAt: NOW,
+      verifier: 'world',
+    })
+
+    const response = await getJson(app, bindings(), '/v1/issuers/me/passes', token)
+
+    expect(response.status).toBe(200)
+    const body = await response.json<IssuerPassesResponse>()
+    const rows = new Map(body.passes.map((pass) => [pass.uid, pass]))
+    expect(rows.get(badgedUid)?.badges).toStrictEqual([{ at: NOW, kind: 'human', verifier: 'world' }])
+    expect(rows.get(plainUid)).not.toHaveProperty('badges')
+  })
+
   it.each([
     'page=0',
     'page=1.5',
@@ -740,5 +831,28 @@ describe('GET /issuers/me/passes', () => {
     const response = await getJson(app, bindings(), `/v1/issuers/me/passes?${query}`, token)
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toStrictEqual({ error: 'bad_input' })
+  })
+
+  // Last in the file: dropping the table is not undone for the tests after it.
+  it('still lists passes when the badge store is missing, only without badges', async () => {
+    const { app, card, token } = await createOwnedCard()
+    const uid = await seedPass({
+      cardId: card.id,
+      createdAt: 990,
+      issuerId: card.issuerId,
+      memberNumber: 'badgeless',
+      uidNumber: 21,
+      usageModel: 1,
+      validFrom: 0,
+      validUntil: 0,
+    })
+    await env.DB.exec('DROP TABLE badges')
+
+    const response = await getJson(app, bindings(), '/v1/issuers/me/passes', token)
+
+    expect(response.status).toBe(200)
+    const body = await response.json<IssuerPassesResponse>()
+    expect(body.passes.map((pass) => pass.uid)).toStrictEqual([uid])
+    expect(body.passes[0]).not.toHaveProperty('badges')
   })
 })

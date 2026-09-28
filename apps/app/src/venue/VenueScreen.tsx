@@ -96,6 +96,7 @@ export const VenueScreen = ({
       onReload={() => {
         setGeneration((value) => value + 1)
       }}
+      onVerifyHuman={noop}
     />
   )
 }

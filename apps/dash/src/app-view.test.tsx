@@ -69,6 +69,7 @@ const members: MembersState = {
     {
       holder: null,
       holderShort: null,
+      human: false,
       level: 'private',
       memberId: 'alice',
       passUrls: null,
@@ -99,6 +100,10 @@ const props: AppViewProps = {
   creating: false,
   ens: null,
   graphEndpoint: 'https://index.example/rights',
+  integrations: {
+    load: vi.fn<AppViewProps['integrations']['load']>(),
+    save: vi.fn<AppViewProps['integrations']['save']>(),
+  },
   loadPasses: vi.fn<AppViewProps['loadPasses']>(),
   members,
   onChangeCardDraft: vi.fn<AppViewProps['onChangeCardDraft']>(),
@@ -251,6 +256,7 @@ describe(AppView, () => {
     const edit = AppView({ ...props, route: '/cards/membership-card/edit', session: operatorSession })
     expect(viewProps(findViewNodes(edit, CardEditPage)[0])).toMatchObject({
       card,
+      integrations: props.integrations,
       load: props.cardManagement.load,
       save: props.cardManagement.save,
       settings: props.stampSettings,

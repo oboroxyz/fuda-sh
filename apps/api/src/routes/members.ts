@@ -3,6 +3,7 @@ import type { MemberRow } from '@fuda/sdk'
 import { asc, desc, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 
+import { badgesByUid, withBadges } from '../badges/advisory.ts'
 import { members } from '../db/schema.ts'
 import type { AppEnv } from '../env.ts'
 import { jsonResponse } from '../json.ts'
@@ -23,7 +24,7 @@ membersRoutes.get('/members', operatorOrAdmin(), async (c) => {
     .limit(MEMBERS_LIMIT)
   // attestation_uid and holder are written only from validated Hex values; a row
   // that fails validation is malformed and is dropped rather than reported.
-  const out: MemberRow[] = rows.flatMap((r) => {
+  const listed: MemberRow[] = rows.flatMap((r) => {
     const uid = asHex(r.attestationUid, 32)
     if (uid === null) {
       return []
@@ -41,5 +42,10 @@ membersRoutes.get('/members', operatorOrAdmin(), async (c) => {
       },
     ]
   })
-  return jsonResponse(c, { members: out })
+  // One badge read for the whole page, after the rows are known.
+  const held = await badgesByUid(
+    c.get('db'),
+    listed.map((row) => row.uid),
+  )
+  return jsonResponse(c, { members: withBadges(listed, held) })
 })

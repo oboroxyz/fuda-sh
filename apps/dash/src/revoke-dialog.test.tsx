@@ -20,6 +20,7 @@ const UID = `0x${'ab'.repeat(32)}` as const
 const row: MemberRowView = {
   holder: `0x${'12'.repeat(20)}`,
   holderShort: '0x1212…1212',
+  human: false,
   level: 'signed',
   memberId: '',
   passUrls: null,

@@ -10,6 +10,8 @@ import { CardDesigner } from './CardDesigner.tsx'
 import { CardStampSettings } from './CardStampSettings.tsx'
 import type { CardStampIo } from './CardStampSettings.tsx'
 import type { DashCopy } from './copy.ts'
+import { IntegrationSettings } from './IntegrationSettings.tsx'
+import type { CardIntegrationsIo } from './IntegrationSettings.tsx'
 import type { DashRoute } from './router.ts'
 
 export interface CardEditPageProps {
@@ -19,6 +21,7 @@ export interface CardEditPageProps {
   load: (cardId: string) => Promise<Result<CardUpdateResponse>>
   save: (cardId: string, body: CardUpdateRequest) => Promise<Result<CardUpdateResponse>>
   settings: CardStampIo
+  integrations: CardIntegrationsIo
   onNavigate: (route: DashRoute) => void
 }
 
@@ -30,6 +33,7 @@ const LoadedCardEditor = ({
   issuer,
   save,
   settings,
+  integrations,
   onNavigate,
 }: Omit<CardEditPageProps, 'card' | 'load'> & { card: OperatorCardView }): JSX.Element => {
   const [draft, setDraft] = useState(() => formFromCard(card))
@@ -38,6 +42,7 @@ const LoadedCardEditor = ({
   const [saved, setSaved] = useState(false)
   const [failed, setFailed] = useState(false)
   const [stampsOpen, setStampsOpen] = useState(false)
+  const [integrationsOpen, setIntegrationsOpen] = useState(false)
   const mounted = useRef(true)
   const saving = useRef(false)
   useEffect(
@@ -142,6 +147,24 @@ const LoadedCardEditor = ({
           ) : null}
         </details>
       ) : null}
+      <details
+        class="rounded-box border border-[var(--fuda-border)]"
+        data-testid="card-integrations"
+        open={integrationsOpen}
+        onToggle={(event: Event) => {
+          if (event.currentTarget instanceof HTMLDetailsElement) {
+            setIntegrationsOpen(event.currentTarget.open)
+          }
+        }}
+      >
+        <summary class="cursor-pointer p-4 font-semibold">{copy.management.integrationsOption}</summary>
+        {integrationsOpen ? (
+          <fieldset class="min-w-0 p-4 pt-0" disabled={busy}>
+            <p class="mb-3 text-sm text-[var(--fuda-muted)]">{copy.management.integrationsHint}</p>
+            <IntegrationSettings cardId={card.id} copy={copy.integrations} io={integrations} />
+          </fieldset>
+        ) : null}
+      </details>
     </>
   )
 }

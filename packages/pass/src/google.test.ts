@@ -1,4 +1,4 @@
-import type { Hex } from '@fuda/sdk'
+import type { BadgeView, Hex } from '@fuda/sdk'
 import { toQr } from '@fuda/sdk'
 import { describe, expect, it } from 'vitest'
 
@@ -10,7 +10,9 @@ import {
   googleAccessToken,
   GOOGLE_SAVE_BASE,
   googleConfigFrom,
+  mergeBadgeModules,
   mergeStampModules,
+  patchGoogleBadgeModules,
   patchGoogleGenericObject,
 } from './google.ts'
 
@@ -103,6 +105,34 @@ describe(buildGenericObject, () => {
       value: `fuda:v1:${UID}`,
     })
     expect(obj.smartTapRedemptionValue).toBe(obj.barcode.value)
+  })
+
+  it('links back to the member page when the branding carries one', () => {
+    const obj = buildGenericObject(
+      { classId: 'c', issuerId: '338', saEmail: 'e', saKeyPem: 'p' },
+      {
+        ...INPUT,
+        branding: {
+          brandColor: '#6F4320',
+          cardTitle: 'Membership Card',
+          category: 'membership',
+          issuedAt: ISSUED_AT,
+          issuerName: 'Wassie Coffee',
+          logoUrl: null,
+          manageUrl: 'https://fuda.sh/@wassie-coffee/members',
+          memberNumber: 'QJ2Y-XPHE-PDRKA',
+          venue: null,
+        },
+      },
+    )
+    expect(obj.linksModuleData?.uris).toStrictEqual([
+      { description: 'Open in fuda', id: 'fuda-manage', uri: 'https://fuda.sh/@wassie-coffee/members' },
+    ])
+  })
+
+  it('carries no links module for a right with no member page', () => {
+    const obj = buildGenericObject({ classId: 'c', issuerId: '338', saEmail: 'e', saKeyPem: 'p' }, INPUT)
+    expect(obj.linksModuleData).toBeUndefined()
   })
 
   it('shows the tier as the header and repeats tier and member as text modules', () => {
@@ -221,6 +251,32 @@ describe(mergeStampModules, () => {
   })
 })
 
+describe(mergeBadgeModules, () => {
+  it('replaces prior badge modules while preserving unrelated modules', () => {
+    const badge: BadgeView = { at: 1_757_000_000, kind: 'human', verifier: 'world' }
+    expect(
+      mergeBadgeModules(
+        [
+          { body: 'VIP', header: 'Tier', id: 'tier' },
+          { body: '4 / 10', header: 'Stamps', id: 'fuda-stamps' },
+          { body: 'stale', header: 'Badge', id: 'fuda-badge-human' },
+        ],
+        [badge],
+      ),
+    ).toStrictEqual([
+      { body: 'VIP', header: 'Tier', id: 'tier' },
+      { body: '4 / 10', header: 'Stamps', id: 'fuda-stamps' },
+      { body: 'Verified human', header: 'Badge', id: 'fuda-badge-human' },
+    ])
+  })
+
+  it('drops the badge module entirely once no badge is held', () => {
+    expect(
+      mergeBadgeModules([{ body: 'Verified human', header: 'Badge', id: 'fuda-badge-human' }], []),
+    ).toStrictEqual([])
+  })
+})
+
 describe(googleAccessToken, () => {
   it('exchanges a signed service-account assertion for a Wallet issuer token', async () => {
     const { cfg } = await fixture
@@ -267,5 +323,171 @@ describe(patchGoogleGenericObject, () => {
         { body: '3 / 10', header: 'Stamps', id: 'fuda-stamps' },
       ],
     })
+  })
+
+  it('preserves an existing badge module untouched', async () => {
+    const requests: Request[] = []
+    // oxlint-disable-next-line require-await -- Fetch-compatible test double
+    const request = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const current = new Request(input, init)
+      requests.push(current)
+      if (current.method === 'GET') {
+        return Response.json({
+          textModulesData: [{ body: 'Verified human', header: 'Badge', id: 'fuda-badge-human' }],
+        })
+      }
+      return Response.json({})
+    }
+    await patchGoogleGenericObject(
+      { classId: 'c', issuerId: '338', saEmail: 'e', saKeyPem: 'p' },
+      UID,
+      { dailyLimit: 1, enabled: true, goal: 10, today: 1, total: 3 },
+      'access',
+      request,
+    )
+    await expect(requests[1]?.json()).resolves.toStrictEqual({
+      textModulesData: [
+        { body: 'Verified human', header: 'Badge', id: 'fuda-badge-human' },
+        { body: '3 / 10', header: 'Stamps', id: 'fuda-stamps' },
+      ],
+    })
+  })
+
+  it('returns quietly on a 404, without patching', async () => {
+    const requests: Request[] = []
+    // oxlint-disable-next-line require-await -- Fetch-compatible test double
+    const request = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      requests.push(new Request(input, init))
+      return new Response(null, { status: 404 })
+    }
+    await patchGoogleGenericObject(
+      { classId: 'c', issuerId: '338', saEmail: 'e', saKeyPem: 'p' },
+      UID,
+      { dailyLimit: 1, enabled: true, goal: 10, today: 1, total: 3 },
+      'access',
+      request,
+    )
+    expect(requests).toHaveLength(1)
+    expect(requests[0]?.method).toBe('GET')
+  })
+
+  it('still throws on a non-404 non-ok status', async () => {
+    await expect(
+      patchGoogleGenericObject(
+        { classId: 'c', issuerId: '338', saEmail: 'e', saKeyPem: 'p' },
+        UID,
+        { dailyLimit: 1, enabled: true, goal: 10, today: 1, total: 3 },
+        'access',
+        // oxlint-disable-next-line require-await -- Fetch-compatible test double
+        async () => new Response(null, { status: 500 }),
+      ),
+    ).rejects.toThrow('Google Wallet request failed (500)')
+  })
+})
+
+describe(patchGoogleBadgeModules, () => {
+  it('preserves an existing stamp module while patching the badge module', async () => {
+    const requests: Request[] = []
+    // oxlint-disable-next-line require-await -- Fetch-compatible test double
+    const request = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const current = new Request(input, init)
+      requests.push(current)
+      if (current.method === 'GET') {
+        return Response.json({ textModulesData: [{ body: '4 / 10', header: 'Stamps', id: 'fuda-stamps' }] })
+      }
+      return Response.json({})
+    }
+    const badge: BadgeView = { at: 1_757_000_000, kind: 'human', verifier: 'world' }
+    await patchGoogleBadgeModules(
+      { classId: 'c', issuerId: '338', saEmail: 'e', saKeyPem: 'p' },
+      UID,
+      [badge],
+      'access',
+      request,
+    )
+    expect(requests.map(({ method }) => method)).toStrictEqual(['GET', 'PATCH'])
+    await expect(requests[1]?.json()).resolves.toStrictEqual({
+      textModulesData: [
+        { body: '4 / 10', header: 'Stamps', id: 'fuda-stamps' },
+        { body: 'Verified human', header: 'Badge', id: 'fuda-badge-human' },
+      ],
+    })
+  })
+
+  it('returns quietly on a 404, without patching', async () => {
+    const requests: Request[] = []
+    // oxlint-disable-next-line require-await -- Fetch-compatible test double
+    const request = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      requests.push(new Request(input, init))
+      return new Response(null, { status: 404 })
+    }
+    await patchGoogleBadgeModules(
+      { classId: 'c', issuerId: '338', saEmail: 'e', saKeyPem: 'p' },
+      UID,
+      [],
+      'access',
+      request,
+    )
+    expect(requests).toHaveLength(1)
+  })
+})
+
+// The save link is generated per request, so a member who badged first and
+// saved the pass afterwards must get the badge from the object itself: nothing
+// patches an object that does not exist yet.
+describe('badge on a generated generic object', () => {
+  const BADGE: BadgeView = { at: 1_757_000_000, kind: 'human', verifier: 'world' }
+  const CFG: GoogleConfig = { classId: 'c', issuerId: 'i', saEmail: 'sa@example.com', saKeyPem: '' }
+
+  it('carries the same row the live patch would write, beside the stamps', () => {
+    const obj = buildGenericObject(CFG, {
+      ...INPUT,
+      badges: [BADGE],
+      stamps: { dailyLimit: 2, enabled: true, goal: 10, today: 1, total: 4 },
+    })
+    expect(obj.textModulesData).toStrictEqual([
+      { body: 'VIP', header: 'Tier', id: 'tier' },
+      { body: '0x1111…1111', header: 'Member', id: 'member' },
+      { body: '4 / 10', header: 'Stamps', id: 'fuda-stamps' },
+      // Identical to what patchGoogleBadgeModules writes, so a saved-then-patched
+      // pass cannot end up with two different rows for one badge.
+      ...mergeBadgeModules([], [BADGE]),
+    ])
+  })
+
+  it('carries it on a branded object too', () => {
+    const obj = buildGenericObject(CFG, {
+      ...INPUT,
+      badges: [BADGE],
+      branding: {
+        brandColor: '#6F4320',
+        cardTitle: 'Membership Card',
+        category: 'membership',
+        issuedAt: ISSUED_AT,
+        issuerName: 'Wassie Coffee',
+        logoUrl: null,
+        memberNumber: 'QJ2Y-XPHE-PDRKA',
+        venue: null,
+      },
+    })
+    expect(obj.textModulesData.at(-1)).toStrictEqual({
+      body: 'Verified human',
+      header: 'Badge',
+      id: 'fuda-badge-human',
+    })
+  })
+
+  it('adds nothing when the right holds no badge', () => {
+    expect(buildGenericObject(CFG, { ...INPUT, badges: [] }).textModulesData).toStrictEqual(
+      buildGenericObject(CFG, INPUT).textModulesData,
+    )
+  })
+
+  // The pass carries the fact of the badge and nothing else: not the verifier's
+  // name, not the scope, not the subject key.
+  it('names neither the verifier nor anything else from the badge row', () => {
+    const obj = buildGenericObject(CFG, { ...INPUT, badges: [BADGE] })
+    expect(JSON.stringify(obj)).not.toContain('world')
+    expect(JSON.stringify(obj)).not.toContain(String(BADGE.at))
   })
 })

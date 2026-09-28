@@ -50,6 +50,12 @@ export interface Bindings {
   ENS_SEPOLIA_RPC_URL?: string
   ENS_PAYMASTER_UPSTREAM?: string
   ENS_VOUCHER_KEY?: string
+  // World ID badge verification. All four or nothing: unset, /badges answers
+  // 501 and no verdict carries a badge.
+  WORLD_APP_ID?: string
+  WORLD_RP_ID?: string
+  WORLD_ACTION?: string
+  WORLD_RP_SIGNING_KEY?: string
 }
 
 export interface Variables {

@@ -30,10 +30,20 @@ export interface VenueCopy {
   seeAllCards: (name: string) => string
   showQr: string
   tryAgain: string
+  verifyHuman: string
+  verifyingHuman: string
+  verifiedHuman: string
+  alreadyVerifiedHuman: string
+  // The hand-off to the verifier: the member opens the link (or scans the code
+  // from another device) while this page keeps waiting for the answer. Neither
+  // string names the verifier — the app the member opens introduces itself.
+  continueVerification: string
+  verificationQrLabel: string
 }
 
 export const VENUE_COPY = {
   en: {
+    alreadyVerifiedHuman: 'This person already has a verified pass',
     appleWallet: 'Add to Apple Wallet',
     browserPass: 'Open pass in browser',
     category: {
@@ -41,6 +51,7 @@ export const VENUE_COPY = {
       ticket: { label: 'Ticket', noun: 'ticket', role: 'TICKET' },
     },
     closedCard: (name, noun) => `${name} is not handing out this ${noun} right now.`,
+    continueVerification: 'Continue verification',
     defaultUnavailable: 'The featured card is not available right now. You can check the other cards below.',
     failure: {
       card_closed: 'This card is no longer being handed out.',
@@ -70,8 +81,13 @@ export const VENUE_COPY = {
     seeAllCards: (name) => `See all cards from ${name}`,
     showQr: 'Show this code when you use your card.',
     tryAgain: 'Try again',
+    verificationQrLabel: 'QR code to continue verification',
+    verifiedHuman: 'Verified Human',
+    verifyHuman: "Verify you're human",
+    verifyingHuman: 'Verifying…',
   },
   ja: {
+    alreadyVerifiedHuman: 'この方はすでに確認済みのパスをお持ちです',
     appleWallet: 'Apple Walletに追加',
     browserPass: 'ブラウザーでパスを開く',
     category: {
@@ -79,6 +95,7 @@ export const VENUE_COPY = {
       ticket: { label: 'チケット', noun: 'チケット', role: 'チケット' },
     },
     closedCard: (name, noun) => `${name}は現在この${noun}を配布していません。`,
+    continueVerification: '確認を続ける',
     defaultUnavailable: 'おすすめのカードは現在配布していません。ほかのカードは下の一覧で確認できます。',
     failure: {
       card_closed: 'このカードの配布は終了しました。',
@@ -109,5 +126,13 @@ export const VENUE_COPY = {
     seeAllCards: (name) => `${name}のカードをすべて見る`,
     showQr: 'カードを使うときに、このコードを提示してください。',
     tryAgain: 'もう一度試す',
+    verificationQrLabel: '確認を続けるためのQRコード',
+    // Not 本人確認: in Japanese that is the KYC / identity-document phrase, and
+    // it would promise an identity check this badge deliberately does not make.
+    // What is confirmed is that a real person holds the pass and cannot confirm
+    // a second one, so the wording says human, not identity.
+    verifiedHuman: '人間であることを確認済み',
+    verifyHuman: '人間であることを確認する',
+    verifyingHuman: '確認中…',
   },
 } satisfies Copy<VenueCopy>

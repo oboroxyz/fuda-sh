@@ -1,4 +1,4 @@
-import type { Hex } from '@fuda/sdk'
+import type { BadgeView, Hex } from '@fuda/sdk'
 import { describe, expect, it } from 'vitest'
 
 import { appleConfigFrom, passJson } from './pass-json.ts'
@@ -135,6 +135,39 @@ describe('branded pass.json', () => {
     expect(json.storeCard.auxiliaryFields).toBeUndefined()
   })
 
+  it('puts the member page on the back as a tappable link, when there is one', () => {
+    const json = passJson(
+      { certPem: '', keyPem: '', passTypeId: 'pass.sh.fuda', teamId: 'TEAM', wwdrPem: '' },
+      {
+        branding: {
+          brandColor: '#6F4320',
+          cardTitle: 'Membership Card',
+          category: 'membership',
+          issuedAt: ISSUED_AT,
+          issuerName: 'Wassie Coffee',
+          logoUrl: null,
+          manageUrl: 'https://fuda.sh/@wassie-coffee/members',
+          memberNumber: 'QJ2Y-XPHE-PDRKA',
+          venue: null,
+        },
+        holderShort: '0x1234…abcd',
+        qr: `fuda:v1:0x${'ab'.repeat(32)}`,
+        tierLabel: 'FREE',
+        uid: `0x${'ab'.repeat(32)}`,
+      },
+    )
+    expect(json.storeCard.backFields.at(-1)).toStrictEqual({
+      attributedValue: '<a href="https://fuda.sh/@wassie-coffee/members">Open in fuda</a>',
+      key: 'manage',
+      label: 'fuda',
+      value: 'https://fuda.sh/@wassie-coffee/members',
+    })
+  })
+
+  it('leaves the back unchanged for a right with no member page', () => {
+    expect(branded().storeCard.backFields.map(({ key }) => key)).toStrictEqual(['tier', 'holder', 'uid'])
+  })
+
   it('keeps the tier off the face and puts the venue in locations', () => {
     const json = branded()
     expect(json.storeCard.backFields[0]).toStrictEqual({ key: 'tier', label: 'Tier', value: 'FREE' })
@@ -173,5 +206,52 @@ describe('branded pass.json', () => {
     expect(json.storeCard.auxiliaryFields).toStrictEqual([
       { key: 'stamps', label: 'STAMPS', value: '4 / 10' },
     ])
+  })
+})
+
+// An installed pass cannot be pushed an update from this repo, so the download
+// is the only chance an iPhone gets to show a badge. A re-add replaces the
+// installed pass, since the serial number is the Right's uid.
+describe('badge on a generated pass.json', () => {
+  const BADGE: BadgeView = { at: 1_757_000_000, kind: 'human', verifier: 'world' }
+  const BADGE_FIELD = { key: 'badge-human', label: 'BADGE', value: 'Verified human' }
+
+  it('shows the badge on the front of a plain pass', () => {
+    const json = passJson(CFG, { ...INPUT, badges: [BADGE] })
+    expect(json.storeCard.auxiliaryFields).toStrictEqual([BADGE_FIELD])
+  })
+
+  it('shows it after the stamp count on a branded pass', () => {
+    const json = passJson(CFG, {
+      ...INPUT,
+      badges: [BADGE],
+      branding: {
+        brandColor: '#6F4320',
+        cardTitle: 'Membership Card',
+        category: 'membership',
+        issuedAt: ISSUED_AT,
+        issuerName: 'Wassie Coffee',
+        logoUrl: null,
+        memberNumber: 'QJ2Y-XPHE-PDRKA',
+        venue: null,
+      },
+      stamps: { dailyLimit: 2, enabled: true, goal: 10, today: 1, total: 4 },
+    })
+    expect(json.storeCard.auxiliaryFields).toStrictEqual([
+      { key: 'stamps', label: 'STAMPS', value: '4 / 10' },
+      BADGE_FIELD,
+    ])
+  })
+
+  it('omits the row rather than sending it empty when no badge is held', () => {
+    expect(passJson(CFG, { ...INPUT, badges: [] }).storeCard.auxiliaryFields).toBeUndefined()
+  })
+
+  // The pass carries the fact of the badge and nothing else: not the verifier's
+  // name, not the scope, not the subject key.
+  it('names neither the verifier nor anything else from the badge row', () => {
+    const json = JSON.stringify(passJson(CFG, { ...INPUT, badges: [BADGE] }))
+    expect(json).not.toContain('world')
+    expect(json).not.toContain(String(BADGE.at))
   })
 })

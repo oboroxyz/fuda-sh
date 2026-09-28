@@ -1,9 +1,11 @@
+import type { BadgeView } from '@fuda/sdk'
 import { normalizeUid, parseQr, VerifyBody } from '@fuda/sdk'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import type { Hex } from 'viem'
 
+import { readBadges } from '../badges/store.ts'
 import { ChainError } from '../chain/client.ts'
 import type { AppEnv } from '../env.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
@@ -13,17 +15,33 @@ import { qrOutcome } from '../verify/qr-admission.ts'
 import type { VerifyOutcome } from '../verify/verify-uid.ts'
 import { verifyUid } from '../verify/verify-uid.ts'
 
+// Advisory: a badge is extra information about an existing decision, so a
+// failed lookup omits the field rather than failing the scan.
+export const badgesFor = async (c: Context<AppEnv>, uid: Hex): Promise<BadgeView[]> => {
+  try {
+    return await readBadges(c.get('db'), uid)
+  } catch {
+    return []
+  }
+}
+
 // Both entry paths answer the same body. The parameter is the widened shape so a
 // route can report a verdict it decided itself (LEVEL_REQUIRED, ALREADY_USED)
-// over the entitlement and delegation the gate check already resolved.
+// over the entitlement and delegation the gate check already resolved. Badges
+// are optional and advisory: an empty list means no `badges` key at all, so a
+// Right without one keeps the exact response shape it had before badges existed.
 export const verdictBody = (
   out: Pick<VerifyOutcome, 'decision' | 'reason' | 'entitlement' | 'delegation'>,
-) => ({
-  decision: out.decision,
-  delegation: out.delegation,
-  entitlement: out.entitlement,
-  reason: out.reason,
-})
+  badges: BadgeView[] = [],
+) => {
+  const body = {
+    decision: out.decision,
+    delegation: out.delegation,
+    entitlement: out.entitlement,
+    reason: out.reason,
+  }
+  return badges.length === 0 ? body : { ...body, badges }
+}
 
 // A rejection from a best-effort side effect is not this request's business,
 // but leaving it unobserved would surface as an unhandled rejection.
@@ -85,7 +103,11 @@ verifyRoutes.get('/verify/:uid', async (c) => {
   // A preview is a live read: never let an intermediary answer it from cache.
   c.header('cache-control', 'no-store')
   const resolved = await resolveVerdict(c, uid, c.get('now')())
-  return resolved.ok ? jsonResponse(c, verdictBody(resolved.out)) : resolved.res
+  if (!resolved.ok) {
+    return resolved.res
+  }
+  const badges = await badgesFor(c, uid)
+  return jsonResponse(c, verdictBody(resolved.out, badges))
 })
 
 // Admission by QR. Order: chain verification (docs/specs/attestation-model.md#gate-verification-order-and-reasons) → level 0 only → SINGLE_USE slot
@@ -107,13 +129,14 @@ verifyRoutes.post('/verify', async (c) => {
   }
   const out = qrOutcome(resolved.out)
   const db = c.get('db')
+  const badges = await badgesFor(c, uid)
   const reject = async (reason: 'LEVEL_REQUIRED' | 'ALREADY_USED'): Promise<Response> => {
     await logEntry(db, { at: now, decision: 'REJECT', path: 'qr', reason, uid })
-    return jsonResponse(c, verdictBody({ ...out, decision: 'REJECT', reason }))
+    return jsonResponse(c, verdictBody({ ...out, decision: 'REJECT', reason }, badges))
   }
   if (out.decision === 'REJECT') {
     await logEntry(db, { at: now, decision: 'REJECT', path: 'qr', reason: out.reason, uid })
-    return jsonResponse(c, verdictBody(out))
+    return jsonResponse(c, verdictBody(out, badges))
   }
   const outcome = await admitAndHook({
     canonical: out.canonical,
@@ -127,5 +150,5 @@ verifyRoutes.post('/verify', async (c) => {
   if (!outcome.admitted) {
     return await reject(outcome.reason)
   }
-  return jsonResponse(c, verdictBody(out))
+  return jsonResponse(c, verdictBody(out, badges))
 })

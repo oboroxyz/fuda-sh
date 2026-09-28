@@ -8,6 +8,7 @@ import { errorResponse } from './json.ts'
 import { authModeHeader } from './middleware/admin-auth.ts'
 import { corsPolicy } from './middleware/cors.ts'
 import { authRoutes } from './routes/auth.ts'
+import { badgeRoutes } from './routes/badges.ts'
 import { challengeRoutes } from './routes/challenge.ts'
 import { ensClaimRoutes } from './routes/ens-claim.ts'
 import { ensGatewayRoutes } from './routes/ens-gateway.ts'
@@ -55,6 +56,7 @@ export const createApp = (deps: AppDeps): Hono<AppEnv> => {
   // breaking change can ship as /v2 while /v1 keeps answering.
   const v1 = new Hono<AppEnv>()
   v1.route('/', authRoutes)
+  v1.route('/', badgeRoutes)
   v1.route('/', issuersRoutes)
   v1.route('/', issuerManagementRoutes)
   v1.route('/', receptionRoutes)

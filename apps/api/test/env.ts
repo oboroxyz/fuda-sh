@@ -11,8 +11,9 @@ import type { DevBindings } from '../src/index.ts'
 // followed the README would otherwise run the suite with the local-dev chain
 // opt-in (and any signer or RPC) silently switched on. Strip all three here: a
 // test that wants the fake chain opts in explicitly. The wallet-platform
-// secrets are stripped for the same reason: a developer with real GOOGLE_*
-// or APPLE_* values in `.dev.vars` must not flip the "unconfigured → 501" tests.
+// secrets are stripped for the same reason: a developer with real GOOGLE_*,
+// APPLE_*, ENS_*, or WORLD_* values in `.dev.vars` must not flip the
+// "unconfigured → 501" tests.
 export const testEnv = (overrides: Partial<Bindings> = {}): Bindings => {
   const base: DevBindings = {
     ...(env as unknown as DevBindings),
@@ -37,6 +38,10 @@ export const testEnv = (overrides: Partial<Bindings> = {}): Bindings => {
     GOOGLE_SA_KEY_PEM: undefined,
     SIGNER_PRIVATE_KEY: undefined,
     USE_FAKE_CHAIN: undefined,
+    WORLD_ACTION: undefined,
+    WORLD_APP_ID: undefined,
+    WORLD_RP_ID: undefined,
+    WORLD_RP_SIGNING_KEY: undefined,
   }
   return { ...base, ...overrides }
 }

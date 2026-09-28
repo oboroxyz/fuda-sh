@@ -29,6 +29,7 @@ const cardBrandingOf = async (
   memberId: string,
   issuedAt: number,
   baseUrl: string,
+  publicBaseUrl: string,
 ): Promise<CardBranding> => {
   if (cardId === null) {
     return NO_BRANDING
@@ -41,6 +42,7 @@ const cardBrandingOf = async (
       lockScreen: cards.lockScreen,
       logoPrefix: issuers.logoPrefix,
       name: issuers.name,
+      slug: cards.slug,
       title: cards.title,
       venueLat: cards.venueLat,
       venueLng: cards.venueLng,
@@ -66,6 +68,11 @@ const cardBrandingOf = async (
       // Absolute and versioned, because Google Wallet fetches it and caches it,
       // and a saved pass outlives the request that made it.
       logoUrl: logoUrlFor(baseUrl, found.handle, found.logoPrefix),
+      // The public link, so a wallet pass leads back to the member page for this
+      // card — where badging lives. A legacy Card with no slug keeps the bare
+      // handle, which opens its sole claimable Card
+      // (docs/specs/pass-types-and-flows.md#member).
+      manageUrl: `${publicBaseUrl}/@${found.handle}${found.slug === '' ? '' : `/${found.slug}`}`,
       memberNumber: formatMemberNumber(memberId),
       venue,
     },
@@ -102,6 +109,7 @@ export const loadPassRow = async (c: Context<AppEnv>, rawUid: string): Promise<P
     row.memberId,
     row.createdAt,
     c.env.API_BASE_URL,
+    c.env.PUBLIC_BASE_URL,
   )
   return {
     ok: true,

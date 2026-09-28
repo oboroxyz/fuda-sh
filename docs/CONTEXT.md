@@ -76,6 +76,12 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Qualification**: The external fact that makes a Member eligible for a Right (registered for the event, on the roster, paid) — read from a Qualification source before issuance is triggered. _Avoid_: Eligibility, entitlement (that is the Right), registration (one kind of Qualification)
 
+**Integration** (of a Card): An optional external service an Issuer turns on for one Card, off by default and saved apart from the Card. A Card's integrations decide which Badge kinds its members may attach; the gate never reads them. _Avoid_: Plugin, add-on, feature flag, connector
+
+**Badge**: A verified fact about the Member holding a Right, attached after issuance and naming the verifier that attested it. The `human` Badge claims one thing — that a unique person holds the Right — and more than one credential can prove it: World ID's proof of human or Japan's My Number Card. Which one answered is recorded for auditing and is never shown; the Badge names the claim, never the credential or the vendor. Advisory: a missing or failed Badge lookup never changes a gate decision. _Avoid_: Stamp (that is a loyalty credit, not a verified fact), Qualification (that is pre-issuance), credential
+
+**Subject key**: The opaque value a verifier returns to identify the person behind a Badge within one `(verifier, scope)` pair and nowhere else — the whole of what fuda stores about that person. For the `human` Badge it is a World ID 4.0 uniqueness nullifier, scoped to the relying party and the action, and stable for the same person and action whichever of the accepted credentials proved it — the credential is not part of the derivation; that stability is what the one-person-one-Badge rule rests on, and it is confirmed by World's documentation and protocol source rather than by a device measurement (see [the World ID research notes](research/world-id-2026-09-26.md)). A verifier that can only return a globally stable identifier must have it hashed together with the scope before storage. _Avoid_: nullifier (that is one verifier's name for it), user id, pseudonym
+
 **Attendance**: The on-chain evidence of a public Right’s Entry. +Private Entries have no Attendance, so their visit history stays offchain. _Avoid_: Entry record, stamp, proof of attendance
 
 ### Changing a right

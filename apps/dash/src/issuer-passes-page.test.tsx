@@ -48,6 +48,34 @@ describe('Issuer pass list', () => {
     expect(row()?.textContent).toContain('No expiry')
   })
 
+  // A verification has to land on the operator's own list: the badged pass
+  // shows the chip, an unbadged one shows the table's em dash.
+  it('shows the verified human chip only on a pass that carries the badge', async () => {
+    const [badged] = passesResponse.passes
+    const passes = [
+      { ...badged, badges: [{ at: 1_780_000_100, kind: 'human', verifier: 'world' }] },
+      { ...badged, memberNumber: 'NOPQRSTUVWXY', uid: `0x${'cd'.repeat(32)}` },
+    ] satisfies IssuerPassesResponse['passes']
+    start(vi.fn<PassesLoad>().mockResolvedValue({ body: { ...passesResponse, passes }, ok: true }))
+    await vi.waitFor(() => {
+      expect(root.querySelectorAll('tbody tr')).toHaveLength(2)
+    })
+    const cells = [...root.querySelectorAll('tbody tr')].map(
+      (tr) => tr.querySelectorAll('td')[4]?.textContent,
+    )
+    expect(cells).toStrictEqual(['Verified human', '—'])
+  })
+
+  it('omits the verified human column while no listed pass carries the badge', async () => {
+    start(vi.fn<PassesLoad>().mockResolvedValue({ body: passesResponse, ok: true }))
+    await vi.waitFor(() => {
+      expect(row()).not.toBeNull()
+    })
+    const headers = [...root.querySelectorAll('thead th')].map((th) => th.textContent)
+    expect(headers).not.toContain('Verified human')
+    expect(row()?.querySelectorAll('td')).toHaveLength(6)
+  })
+
   it('explains aggregate limits and keeps pass credentials private', async () => {
     start(vi.fn<PassesLoad>().mockResolvedValue({ body: passesResponse, ok: true }))
     await vi.waitFor(() => {

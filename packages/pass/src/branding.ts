@@ -1,5 +1,5 @@
 import { brandTextColor, hexToRgb } from '@fuda/sdk'
-import type { CardCategory, Rgb } from '@fuda/sdk'
+import type { BadgeKind, CardCategory, Rgb } from '@fuda/sdk'
 
 export { hexToRgb, luminance, rgbCss } from '@fuda/sdk'
 export type { Rgb } from '@fuda/sdk'
@@ -25,10 +25,23 @@ export interface PassBranding {
   // web pass link to it; the Apple builder is handed the bytes separately,
   // because a .pkpass embeds its images rather than fetching them.
   logoUrl: string | null
+  // the member's page for this Right, so a saved wallet pass leads back to what
+  // only fuda can do with it — adding a badge, above all. Optional because a
+  // Right issued without a card has no venue page to return to, and because a
+  // caller that predates the link simply omits it.
+  manageUrl?: string | null
 }
 
 // The label over the member number, as the venue card page prints it.
 export const roleLabel = (category: CardCategory): string => (category === 'ticket' ? 'TICKET' : 'MEMBER')
+
+// The one string a Badge puts on a pass, shared by the Google object and the
+// Apple pass so a member never sees the same claim worded two ways. It names
+// the claim ("verified human", as the gate chip and the member app do), never
+// the vendor that attested it, and it is keyed on `kind` alone: a BadgeView
+// also carries the verifier's name and the verification times, and none of
+// those belong on a pass. A new kind must bring its own label here.
+export const BADGE_LABELS = { human: 'Verified human' } satisfies Record<BadgeKind, string>
 
 // `2026-09-12T00:00:00Z`: the issue day as Wallet's date fields want it, on the
 // UTC calendar the web pass also uses, so both show the same day.

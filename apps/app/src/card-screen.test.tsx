@@ -3,7 +3,7 @@ import type { Hex, PublicCard, PublicVenue } from '@fuda/sdk'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 import { describe, expect, it, vi } from 'vitest'
 
-import { CardScreenView, issueDateOf } from './venue/CardScreen.tsx'
+import { CardScreenView, humanBadgeStateOf, issueDateOf } from './venue/CardScreen.tsx'
 import type { IssuedCard } from './venue/CardScreen.tsx'
 
 interface ViewNode {
@@ -16,6 +16,7 @@ interface ViewNode {
     role?: unknown
     src?: unknown
     style?: unknown
+    target?: unknown
   }
 }
 
@@ -110,7 +111,7 @@ const issued: IssuedCard = {
 const noop = (): void => {}
 
 const render = (state: Parameters<typeof CardScreenView>[0]['state']): JSX.Element =>
-  CardScreenView({ onIssue: noop, onReload: noop, state })
+  CardScreenView({ onIssue: noop, onReload: noop, onVerifyHuman: noop, state })
 
 describe(CardScreenView, () => {
   it('shows the onboarding description as multiline plain text', () => {
@@ -164,7 +165,14 @@ describe(CardScreenView, () => {
   })
 
   it('renders the ready card with the formatted member number, issue date and QR', () => {
-    const view = render({ appleHref: null, card, googleHref: null, issued, kind: 'ready' })
+    const view = render({
+      appleHref: null,
+      badge: { kind: 'idle' },
+      card,
+      googleHref: null,
+      issued,
+      kind: 'ready',
+    })
     const text = viewText(view)
     const qr = viewNodes(view).find(({ props }) => props.role === 'img')
 
@@ -175,11 +183,52 @@ describe(CardScreenView, () => {
     expect(qr?.props['aria-label']).toBe('Your membership card QR code for Wassie Coffee')
   })
 
+  // The page is the one waiting for the verifier's answer, so the hand-off must
+  // not replace it: a link in its own tab, plus the same target as a code for a
+  // member reading this on a desktop.
+  it('offers the verification hand-off as a new-tab link and a code while it waits', () => {
+    const connectorUri = 'https://world.org/verify?t=wld&i=abc123'
+    const view = render({
+      appleHref: null,
+      badge: { connectorUri, kind: 'waiting' },
+      card,
+      googleHref: null,
+      issued,
+      kind: 'ready',
+    })
+    const nodes = viewNodes(view)
+    const link = nodes.find(({ props }) => props.href === connectorUri)
+
+    expect(link?.props.target).toBe('_blank')
+    expect(viewText(view)).toContain('Continue verification')
+    expect(viewText(view)).toContain('Please keep this page open.')
+    expect(nodes.some(({ props }) => props['aria-label'] === 'QR code to continue verification')).toBe(true)
+  })
+
+  it('offers no badge control at all where the verifier is not configured', () => {
+    const view = render({
+      appleHref: null,
+      badge: { kind: 'unavailable' },
+      card,
+      googleHref: null,
+      issued,
+      kind: 'ready',
+    })
+    expect(viewText(view)).not.toContain("Verify you're human")
+  })
+
   it.each(['iPhone', 'Android', 'unknown'])(
     'keeps the browser fallback until the wallet is available on %s',
     (userAgent) => {
       vi.stubGlobal('navigator', { userAgent })
-      const hidden = render({ appleHref: null, card, googleHref: null, issued, kind: 'ready' })
+      const hidden = render({
+        appleHref: null,
+        badge: { kind: 'idle' },
+        card,
+        googleHref: null,
+        issued,
+        kind: 'ready',
+      })
       const hrefs = (view: unknown): unknown[] => viewNodes(view).map(({ props }) => props.href)
 
       expect(hrefs(hidden)).toContain(issued.passUrls.web)
@@ -197,6 +246,7 @@ describe(CardScreenView, () => {
     vi.stubGlobal('navigator', { userAgent })
     const shown = render({
       appleHref: issued.passUrls.apple,
+      badge: { kind: 'idle' },
       card,
       googleHref: 'https://pay.google.com/gp/v/save',
       issued,
@@ -329,11 +379,30 @@ describe('venue-local navigation', () => {
     { card, kind: 'landing' },
     { card, kind: 'issuing' },
     { card: null, failure: 'network', kind: 'error' },
-    { appleHref: null, card, googleHref: null, issued, kind: 'ready' },
+    { appleHref: null, badge: { kind: 'idle' }, card, googleHref: null, issued, kind: 'ready' },
   ] satisfies Parameters<typeof CardScreenView>[0]['state'][])('keeps $kind within the venue', (state) => {
     const nodes = viewNodes(render(state))
     const hrefs = nodes.map(({ props }) => props.href)
     expect(hrefs).not.toContain('/')
     expect(nodes.some(({ props }) => String(props.class).includes('dock'))).toBe(false)
+  })
+})
+
+// The control must be hidden before the first tap, not after it: an api with no
+// verifier configured should look like the feature does not exist.
+describe(humanBadgeStateOf, () => {
+  it('starts idle only when the api lists the kind it would verify', () => {
+    expect(humanBadgeStateOf({ ...card, card: { ...card.card, badges: ['human'] } })).toStrictEqual({
+      kind: 'idle',
+    })
+    // The venue-level list says what the deployment can verify; only the card's
+    // own list says the issuer turned it on for this card.
+    expect(
+      humanBadgeStateOf({ ...card, badges: ['human'], card: { ...card.card, badges: [] } }),
+    ).toStrictEqual({
+      kind: 'unavailable',
+    })
+    expect(humanBadgeStateOf({ ...card, badges: ['human'] })).toStrictEqual({ kind: 'unavailable' })
+    expect(humanBadgeStateOf(card)).toStrictEqual({ kind: 'unavailable' })
   })
 })

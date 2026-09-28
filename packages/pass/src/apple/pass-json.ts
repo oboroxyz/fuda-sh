@@ -1,6 +1,6 @@
-import type { Hex, StampSummary } from '@fuda/sdk'
+import type { BadgeView, Hex, StampSummary } from '@fuda/sdk'
 
-import { hexToRgb, issuedDayIso, rgbCss, roleLabel, textOn } from '../branding.ts'
+import { BADGE_LABELS, hexToRgb, issuedDayIso, rgbCss, roleLabel, textOn } from '../branding.ts'
 import type { PassBranding } from '../branding.ts'
 
 export interface AppleConfig {
@@ -44,10 +44,18 @@ export interface ApplePassInput {
   // the venue's card, when the right was issued under one
   branding?: PassBranding | null
   stamps?: StampSummary | null
+  // the badges on the right when the .pkpass is generated. A pass cannot be
+  // pushed an update (no webServiceURL, no APNs), so this snapshot is how a
+  // member who badged first and added the pass afterwards sees it at all; a
+  // re-add replaces the installed pass, since the serial number is the uid.
+  badges?: readonly BadgeView[] | null
 }
 
 interface PassField {
   key: string
+  // Wallet renders a small subset of HTML here and makes an anchor tappable;
+  // `value` stays the plain text a client without it falls back to.
+  attributedValue?: string
   // omitted (not empty) for a value that stands on its own, such as the card title
   label?: string
   value: string
@@ -79,6 +87,38 @@ export interface PassJson {
   }
 }
 
+// The way back to fuda's own page, where badging and everything else a wallet
+// cannot host happens. An anchor because a bare URL is only sometimes tappable,
+// and last on the back because it is an action, not a fact about the Right.
+const manageFields = (manageUrl: string | null | undefined): PassField[] =>
+  manageUrl === null || manageUrl === undefined
+    ? []
+    : [
+        {
+          attributedValue: `<a href="${manageUrl}">Open in fuda</a>`,
+          key: 'manage',
+          label: 'fuda',
+          value: manageUrl,
+        },
+      ]
+
+// The fact of each badge, as a front-of-pass auxiliary row — the family the
+// stamp count already uses, so the member reads it without flipping the pass,
+// and on the back it would be lost among the tier and the attestation uid.
+// Only `kind` is read: a BadgeView also names the verifier and the times, and
+// a pass must carry neither.
+const badgeFields = (badges: readonly BadgeView[] | null | undefined): PassField[] =>
+  (badges ?? []).map((badge) => ({
+    key: `badge-${badge.kind}`,
+    label: 'BADGE',
+    value: BADGE_LABELS[badge.kind],
+  }))
+
+// Omitted rather than sent empty: the shape the stamps path already produced,
+// and the one the tests pin. What Wallet does with an empty array is untested.
+const auxiliaryOf = (fields: PassField[]): { auxiliaryFields?: PassField[] } =>
+  fields.length === 0 ? {} : { auxiliaryFields: fields }
+
 // docs/specs/pass-types-and-flows.md#passes. A storeCard, not a coupon or event ticket: membership has no date
 // and no venue. The barcode carries the same `fuda:v1:<uid>` payload the
 // browser pass and the Google object do, so one scanner reads all three.
@@ -95,6 +135,9 @@ export const passJson = (cfg: AppleConfig, input: ApplePassInput): PassJson => {
   }
   if (branding === null) {
     const stamps = input.stamps?.enabled === true ? input.stamps : null
+    // The plain fuda look has no auxiliary row of its own, so a badge is the
+    // only thing that can put one there.
+    const auxiliary = auxiliaryOf(badgeFields(input.badges))
     return {
       ...base,
       backgroundColor: 'rgb(20,20,20)',
@@ -103,6 +146,7 @@ export const passJson = (cfg: AppleConfig, input: ApplePassInput): PassJson => {
       labelColor: 'rgb(170,170,170)',
       organizationName: 'fuda',
       storeCard: {
+        ...auxiliary,
         backFields: [{ key: 'uid', label: 'Attestation', value: input.uid }],
         primaryFields:
           stamps === null
@@ -121,7 +165,8 @@ export const passJson = (cfg: AppleConfig, input: ApplePassInput): PassJson => {
   // A venue card, laid out like the card page in the app: the venue name
   // beside the logo, the card title large, then the member number under its
   // role label and the issue day. Tier is a fuda detail the card page never
-  // shows, so it goes on the back; an enabled stamp count takes the row below.
+  // shows, so it goes on the back; an enabled stamp count and any badge take
+  // the row below.
   // The venue location, when the card asks for it, has Wallet surface the pass
   // on the lock screen nearby.
   const { label, text } = textOn(branding.brandColor)
@@ -138,10 +183,9 @@ export const passJson = (cfg: AppleConfig, input: ApplePassInput): PassJson => {
             },
           ],
         }
-  const auxiliary =
-    stamps === null
-      ? {}
-      : { auxiliaryFields: [{ key: 'stamps', label: 'STAMPS', value: `${stamps.total} / ${stamps.goal}` }] }
+  const stampFields: PassField[] =
+    stamps === null ? [] : [{ key: 'stamps', label: 'STAMPS', value: `${stamps.total} / ${stamps.goal}` }]
+  const auxiliary = auxiliaryOf([...stampFields, ...badgeFields(input.badges)])
   return {
     ...base,
     ...locations,
@@ -157,6 +201,7 @@ export const passJson = (cfg: AppleConfig, input: ApplePassInput): PassJson => {
         { key: 'tier', label: 'Tier', value: input.tierLabel },
         { key: 'holder', label: 'Holder', value: input.holderShort },
         { key: 'uid', label: 'Attestation', value: input.uid },
+        ...manageFields(branding.manageUrl),
       ],
       primaryFields: [{ key: 'title', value: branding.cardTitle }],
       secondaryFields: [

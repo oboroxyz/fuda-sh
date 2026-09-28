@@ -40,6 +40,22 @@ const statusBadge = (copy: DashCopy['rights'], row: MemberRowView): JSX.Element 
   </span>
 )
 
+// The Verified human column exists only while a loaded row carries a `human`
+// Badge. Badges are an optional integration, so a deployment without a verifier
+// never has a badged row and never shows the column; that keeps the rule local
+// to the rows on screen rather than asking the api what it can verify.
+const showsHuman = (rows: readonly MemberRowView[]): boolean => rows.some((row) => row.human)
+
+// The fact of a `human` Badge, on the same terms as the status chip: a neutral
+// chip when the Right carries one, the list's own em dash when it does not. The
+// dashboard never sees more than the fact — no subject, no scope, no credential.
+const humanBadge = (copy: DashCopy['rights'], row: MemberRowView): JSX.Element =>
+  row.human ? (
+    <span class="badge badge-neutral">{copy.verifiedHuman}</span>
+  ) : (
+    <span class="opacity-50">—</span>
+  )
+
 const passLinks = (copy: DashCopy['rights'], row: MemberRowView): JSX.Element => {
   if (row.passUrls === null) {
     return <span class="opacity-50">—</span>
@@ -118,6 +134,9 @@ const actions = ({
   )
 }
 
+// The QR disclosure row spans every rendered column, so it follows the optional one.
+const columnCount = (rows: readonly MemberRowView[]): number => (showsHuman(rows) ? 9 : 8)
+
 const tableRecord = (props: RightsListProps, row: MemberRowView): JSX.Element[] =>
   [
     <tr key={row.uid} data-right-uid={row.uid}>
@@ -128,13 +147,14 @@ const tableRecord = (props: RightsListProps, row: MemberRowView): JSX.Element[] 
       </td>
       <td>{row.tier}</td>
       <td>{statusBadge(props.copy, row)}</td>
+      {showsHuman(props.rows) ? <td>{humanBadge(props.copy, row)}</td> : null}
       <td>{uidDisplay(row)}</td>
       <td>{passLinks(props.copy, row)}</td>
       <td>{actions({ ...props, layout: 'table', row })}</td>
     </tr>,
     props.openQr === row.uid ? (
       <tr key={`${row.uid}:qr`}>
-        <td colspan={8}>{qrDisclosure(props.copy, 'table', props.openQr, row)}</td>
+        <td colspan={columnCount(props.rows)}>{qrDisclosure(props.copy, 'table', props.openQr, row)}</td>
       </tr>
     ) : null,
   ].filter((record): record is JSX.Element => record !== null)
@@ -157,6 +177,12 @@ const cardRecord = (props: RightsListProps, row: MemberRowView): JSX.Element => 
         <dt class="opacity-70">{props.copy.tier}</dt>
         <dd>{row.tier}</dd>
       </div>
+      {showsHuman(props.rows) ? (
+        <div>
+          <dt class="opacity-70">{props.copy.verifiedHuman}</dt>
+          <dd>{humanBadge(props.copy, row)}</dd>
+        </div>
+      ) : null}
       <div>
         <dt class="opacity-70">{props.copy.uid}</dt>
         <dd>{uidDisplay(row)}</dd>
@@ -183,6 +209,7 @@ export const RightsList = (props: RightsListProps): JSX.Element => (
               <th>{props.copy.level}</th>
               <th>{props.copy.tier}</th>
               <th>{props.copy.status}</th>
+              {showsHuman(props.rows) ? <th>{props.copy.verifiedHuman}</th> : null}
               <th>{props.copy.uid}</th>
               <th>{props.copy.passes}</th>
               <th class="sr-only">{props.copy.revoke}</th>

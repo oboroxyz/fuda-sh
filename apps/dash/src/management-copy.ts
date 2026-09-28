@@ -10,6 +10,8 @@ export interface ManagementCopy {
   slugHint: string
   stampOption: string
   stampHint: string
+  integrationsOption: string
+  integrationsHint: string
   back: string
   loading: string
   loadFailed: string
@@ -51,6 +53,7 @@ export interface ManagementCopy {
   address: string
   expires: string
   notRecorded: string
+  verifiedHuman: string
   noExpiry: string
   noPasses: string
   noPassesMatch: string
@@ -82,6 +85,9 @@ export const MANAGEMENT_COPY = {
     editDescription:
       'Changes to validity apply to future claims. Existing passes keep their original validity.',
     expires: 'Expires',
+    integrationsHint:
+      'Optional services for this card. Everything here is off until you turn it on, and is saved separately.',
+    integrationsOption: 'Integrations (optional)',
     issued: 'Issued',
     loadFailed: 'Could not load this information.',
     loading: 'Loading…',
@@ -131,6 +137,7 @@ export const MANAGEMENT_COPY = {
     unknownHint: '{count} passes have no recorded validity and are excluded from the active count.',
     url: 'Public URL',
     validity: 'Claim & validity',
+    verifiedHuman: 'Verified human',
   },
   ja: {
     actions: '操作',
@@ -150,6 +157,8 @@ export const MANAGEMENT_COPY = {
     editCard: 'カードを編集',
     editDescription: '有効期限の変更は、今後取得されるパスに適用されます。発行済みパスの期限は変わりません。',
     expires: '有効期限',
+    integrationsHint: 'このカードで使う外部サービスです。すべて初期状態ではオフで、個別に保存します。',
+    integrationsOption: '連携（任意）',
     issued: '発行数',
     loadFailed: '情報を読み込めませんでした。',
     loading: '読み込み中…',
@@ -200,5 +209,6 @@ export const MANAGEMENT_COPY = {
     unknownHint: '{count}件は発行時の期限が未記録のため、有効数に含めていません。',
     url: '公開URL',
     validity: '取得期間・有効期限',
+    verifiedHuman: '人間であることを確認済み',
   },
 } satisfies Record<'en' | 'ja', ManagementCopy>

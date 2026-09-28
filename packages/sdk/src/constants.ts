@@ -78,6 +78,9 @@ export const REASONS = [
 ] as const
 export type Reason = (typeof REASONS)[number]
 
+export const BADGE_KINDS = ['human'] as const
+export type BadgeKind = (typeof BADGE_KINDS)[number]
+
 export const ERROR_CODES = [
   'bad_input',
   'bad_uid',
@@ -112,5 +115,9 @@ export const ERROR_CODES = [
   'already_claimed',
   'claim_failed',
   'claim_unconfirmed',
+  'already_badged',
+  'pass_already_badged',
+  'bad_proof',
+  'badges_not_configured',
 ] as const
 export type ErrorCode = (typeof ERROR_CODES)[number]

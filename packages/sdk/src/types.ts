@@ -1,4 +1,4 @@
-import type { ErrorCode, Hex, Level, Reason } from './constants.ts'
+import type { BadgeKind, ErrorCode, Hex, Level, Reason } from './constants.ts'
 import type { CardCategory, CardView, IssuerView, OperatorCardView } from './handles.ts'
 
 export interface ErrorResponse {
@@ -50,11 +50,22 @@ export interface DelegationView {
   name: string
 }
 
+// A verified fact about the Member holding a Right, attached after issuance
+// (docs/CONTEXT.md: Badge). An array from the first version: this type is
+// public and a second kind must not be a breaking change.
+export interface BadgeView {
+  kind: BadgeKind
+  verifier: string
+  at: number
+  expiresAt?: number
+}
+
 export interface VerifyResponse {
   decision: 'ADMIT' | 'REJECT'
   reason: Reason
   entitlement?: EntitlementView
   delegation?: DelegationView
+  badges?: BadgeView[]
 }
 
 export interface ChallengeResponse {
@@ -81,6 +92,12 @@ export interface MemberRow {
   tier: number
   status: 'active' | 'revoked'
   createdAt: number
+  // The Badges this Right carries, for an operator surface that shows the fact
+  // of a Badge beside the Right. An array rather than a `human` flag, for the
+  // same reason `VerifyResponse.badges` is one: a second kind must not be a
+  // breaking change. Absent, never empty, when the Right carries none, so a
+  // row keeps the exact shape it had before Badges existed.
+  badges?: BadgeView[]
 }
 export interface MembersResponse {
   members: MemberRow[]
@@ -135,6 +152,10 @@ export interface IssuerPassView {
   status: IssuerPassStatus
   validFrom: number | null
   validUntil: number | null
+  // The Badges this Right carries, on the same terms as `MemberRow.badges`: a
+  // list rather than a `human` flag, and absent rather than empty when the Right
+  // carries none, so a row keeps the shape it had before Badges existed.
+  badges?: BadgeView[]
 }
 
 export interface IssuerPassesResponse {

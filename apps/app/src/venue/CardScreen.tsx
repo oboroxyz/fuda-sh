@@ -19,6 +19,8 @@ import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import { cardFailureOf, fetchVenue, googleSaveUrl, issueCard } from '../api.ts'
 import type { CardFailure } from '../api.ts'
+import { defaultHumanBadgeIo, requestHumanBadge } from '../badges.ts'
+import type { BadgeState, HumanBadgeIo } from '../badges.ts'
 import { cardKey, readCard, readCardMemory, rememberCard } from '../card-memory.ts'
 import type { CardMemoryEntry } from '../card-memory.ts'
 import { API_BASE_URL } from '../config.ts'
@@ -53,6 +55,7 @@ export type CardScreenState =
       issued: IssuedCard
       googleHref: string | null
       appleHref: string | null
+      badge: BadgeState
     }
   | { kind: 'error'; card: PublicCard | null; failure: CardFailure }
 
@@ -67,6 +70,7 @@ export interface CardScreenViewProps {
   locale?: Locale
   onIssue: () => void
   onReload: () => void
+  onVerifyHuman: () => void
   state: CardScreenState
 }
 
@@ -268,6 +272,78 @@ const passActions = (
   </div>
 )
 
+// The control starts hidden unless this card offers the `human` kind: its
+// issuer turned the integration on and the deployment has a verifier for it
+// (docs/specs/pass-types-and-flows.md#card-integrations). Otherwise the feature
+// must look like it does not exist, rather than appear and earn a 501 or 404 on
+// the first tap. The list rides on the venue payload this screen already
+// fetched, so this costs no request.
+export const humanBadgeStateOf = (card: PublicCard): BadgeState =>
+  card.card.badges?.includes('human') === true ? { kind: 'idle' } : { kind: 'unavailable' }
+
+// `unavailable` (the api has no verifier configured) hides the control
+// entirely, so an unconfigured deployment looks like the feature does not
+// exist rather than like it is broken.
+const humanBadgeControl = (
+  badge: BadgeState,
+  onVerifyHuman: () => void,
+  copy: VenueCopy,
+): JSX.Element | null => {
+  if (badge.kind === 'unavailable') {
+    return null
+  }
+  if (badge.kind === 'done') {
+    return (
+      <div class="badge badge-neutral" role="status">
+        {copy.verifiedHuman}
+      </div>
+    )
+  }
+  if (badge.kind === 'taken') {
+    return (
+      <p role="status" class="text-center text-xs opacity-70">
+        {copy.alreadyVerifiedHuman}
+      </p>
+    )
+  }
+  // The hand-off, once there is a target for it. The link opens in its own tab
+  // so this page stays alive: it is the page still waiting for the answer, and
+  // navigating away from it loses a verification the member has completed. The
+  // code carries the same target for a member reading this on a desktop.
+  if (badge.kind === 'waiting' && badge.connectorUri !== null) {
+    return (
+      <div class="flex flex-col items-center gap-3">
+        <a class="btn btn-outline btn-sm" href={badge.connectorUri} target="_blank" rel="noreferrer noopener">
+          {copy.continueVerification}
+        </a>
+        <div
+          role="img"
+          aria-label={copy.verificationQrLabel}
+          class="w-36 max-w-full bg-white p-2"
+          // qrSvg builds the markup locally from the URI; the URI only decides
+          // which modules are dark, and never reaches the document as markup.
+          dangerouslySetInnerHTML={{ __html: qrSvg(badge.connectorUri, { modulePx: 144 }) }}
+        />
+        <p class="text-center text-xs leading-5 text-[var(--fuda-muted)]">{copy.keepOpen}</p>
+      </div>
+    )
+  }
+  const busy = badge.kind === 'opening' || badge.kind === 'waiting'
+  return (
+    <div class="flex flex-col items-center gap-2">
+      <button class="btn btn-outline btn-sm" type="button" disabled={busy} onClick={onVerifyHuman}>
+        {busy ? <span class="loading loading-spinner loading-xs" aria-hidden="true" /> : null}
+        {busy ? copy.verifyingHuman : copy.verifyHuman}
+      </button>
+      {badge.kind === 'error' && badge.detail !== undefined ? (
+        <p role="status" class="text-center font-mono text-[0.6875rem] text-[var(--fuda-muted)]">
+          {badge.detail}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
 const qrBlock = (card: PublicCard, issued: IssuedCard, copy: VenueCopy): JSX.Element => (
   <div class="venue-qr">
     <div
@@ -288,6 +364,7 @@ export const CardScreenView = ({
   locale = DEFAULT_LOCALE,
   onIssue,
   onReload,
+  onVerifyHuman,
   state,
 }: CardScreenViewProps): JSX.Element => {
   const copy = pick(VENUE_COPY, locale)
@@ -335,6 +412,7 @@ export const CardScreenView = ({
           {qrBlock(state.card, state.issued, copy)}
         </section>
         {passActions(state.card, state.issued, state.googleHref, state.appleHref, copy, locale)}
+        {humanBadgeControl(state.badge, onVerifyHuman, copy)}
       </>,
     )
   }
@@ -397,6 +475,7 @@ export interface CardScreenProps {
   locale?: Locale
   slug: string | null
   io?: CardScreenIo
+  humanBadgeIo?: HumanBadgeIo
   storage?: PassMemoryStorage
 }
 
@@ -405,6 +484,7 @@ export const CardScreen = ({
   locale = DEFAULT_LOCALE,
   slug,
   io = defaultIo,
+  humanBadgeIo = defaultHumanBadgeIo,
   storage,
 }: CardScreenProps): JSX.Element => {
   const [state, setState] = useState<CardScreenState>({ kind: 'loading' })
@@ -416,7 +496,14 @@ export const CardScreen = ({
   // its wallet is confirmed, and remains the fallback if it is not configured.
   const showReady = useCallback(
     async (card: PublicCard, issued: IssuedCard, isCurrent: () => boolean): Promise<void> => {
-      setState({ appleHref: null, card, googleHref: null, issued, kind: 'ready' })
+      setState({
+        appleHref: null,
+        badge: humanBadgeStateOf(card),
+        card,
+        googleHref: null,
+        issued,
+        kind: 'ready',
+      })
       const platform = passPlatform(globalThis.navigator?.userAgent ?? '')
       const googleHref = platform === 'google' ? await io.googleSaveUrl(issued.passUrls.google) : null
       const appleReady = platform === 'apple' && (await io.appleAvailable(issued.passUrls.apple))
@@ -526,5 +613,25 @@ export const CardScreen = ({
     setGeneration((value) => value + 1)
   }
 
-  return <CardScreenView locale={locale} onIssue={onIssue} onReload={onReload} state={state} />
+  const onVerifyHuman = (): void => {
+    if (state.kind !== 'ready') {
+      return
+    }
+    const { uid } = state.issued
+    void requestHumanBadge(humanBadgeIo, uid, (badge) => {
+      setState((previous) =>
+        previous.kind === 'ready' && previous.issued.uid === uid ? { ...previous, badge } : previous,
+      )
+    })
+  }
+
+  return (
+    <CardScreenView
+      locale={locale}
+      onIssue={onIssue}
+      onReload={onReload}
+      onVerifyHuman={onVerifyHuman}
+      state={state}
+    />
+  )
 }

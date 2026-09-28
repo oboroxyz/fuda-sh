@@ -44,9 +44,18 @@ const settings = () => ({
     .fn<CardEditPageProps['settings']['save']>()
     .mockResolvedValue({ body: { dailyLimit: 1, enabled: true, goal: 10 }, ok: true }),
 })
+const integrations = () => ({
+  load: vi
+    .fn<CardEditPageProps['integrations']['load']>()
+    .mockResolvedValue({ body: { badges: [] }, ok: true }),
+  save: vi
+    .fn<CardEditPageProps['integrations']['save']>()
+    .mockResolvedValue({ body: { badges: ['human'] }, ok: true }),
+})
 const props = (): CardEditPageProps => ({
   card,
   copy: DASH_COPY.en,
+  integrations: integrations(),
   issuer,
   load: vi.fn<CardEditPageProps['load']>().mockResolvedValue({ body: { card }, ok: true }),
   onNavigate: vi.fn<CardEditPageProps['onNavigate']>(),
@@ -187,8 +196,94 @@ describe(CardEditPage, () => {
       root,
     )
     await waitForm()
-    expect(root.querySelector('details')).toBeNull()
+    // The integrations section stays: it is not a membership feature.
+    expect([...root.querySelectorAll('details')].map((node) => node.dataset.testid)).toStrictEqual([
+      'card-integrations',
+    ])
     expect(p.settings.load).not.toHaveBeenCalled()
+  })
+
+  // Integrations are off until the operator opts in, and are saved apart from
+  // the card: nothing loads until the section opens, and the World ID switch
+  // saves the badge list rather than a card field.
+  it('loads integrations on expansion and saves the World ID switch for that card', async () => {
+    const p = props()
+    render(<CardEditPage {...p} />, root)
+    await waitForm()
+    expect(p.integrations.load).not.toHaveBeenCalled()
+    const details = root.querySelector<HTMLDetailsElement>('details[data-testid="card-integrations"]')!
+    expect(details.querySelector('summary')?.textContent).toBe('Integrations (optional)')
+    details.open = true
+    details.dispatchEvent(new Event('toggle'))
+    await vi.waitFor(() => {
+      expect(p.integrations.load).toHaveBeenCalledWith('card-1')
+    })
+    await vi.waitFor(() => {
+      expect(details.querySelector('input[type=checkbox]')).not.toBeNull()
+    })
+    const worldId = details.querySelector<HTMLInputElement>('input[type=checkbox]')!
+    expect(worldId.checked).toBe(false)
+    expect(details.textContent).toContain('World ID')
+    worldId.checked = true
+    worldId.dispatchEvent(new Event('input', { bubbles: true }))
+    await vi.waitFor(() => {
+      expect(worldId.checked).toBe(true)
+    })
+    details.querySelector<HTMLButtonElement>('button')!.click()
+    await vi.waitFor(() => {
+      expect(p.integrations.save).toHaveBeenCalledWith('card-1', { badges: ['human'] })
+    })
+    await vi.waitFor(() => {
+      expect(details.querySelector('[role=status]')?.textContent).toBe('Saved')
+    })
+    expect(p.save).not.toHaveBeenCalled()
+  })
+
+  // App hands the section a fresh `{ load, save }` object on every render; the
+  // section must key on the functions, or a parent re-render would refetch and
+  // throw away an unsaved switch.
+  it('keeps an unsaved switch across a parent re-render with a fresh io object', async () => {
+    const p = props()
+    const Host = (): JSX.Element => {
+      const [tick, setTick] = useState(0)
+      return (
+        <>
+          <button
+            type="button"
+            data-testid="rerender"
+            onClick={() => {
+              setTick(tick + 1)
+            }}
+          >
+            Rerender {tick}
+          </button>
+          <CardEditPage {...p} integrations={{ load: p.integrations.load, save: p.integrations.save }} />
+        </>
+      )
+    }
+    render(<Host />, root)
+    await waitForm()
+    const details = root.querySelector<HTMLDetailsElement>('details[data-testid="card-integrations"]')!
+    details.open = true
+    details.dispatchEvent(new Event('toggle'))
+    await vi.waitFor(() => {
+      expect(details.querySelector('input[type=checkbox]')).not.toBeNull()
+    })
+    const worldId = details.querySelector<HTMLInputElement>('input[type=checkbox]')!
+    worldId.checked = true
+    worldId.dispatchEvent(new Event('input', { bubbles: true }))
+    await vi.waitFor(() => {
+      expect(worldId.checked).toBe(true)
+    })
+    root.querySelector<HTMLButtonElement>('[data-testid="rerender"]')!.click()
+    await vi.waitFor(() => {
+      expect(root.querySelector('[data-testid="rerender"]')?.textContent).toBe('Rerender 1')
+    })
+    expect(p.integrations.load).toHaveBeenCalledOnce()
+    const kept = root.querySelector<HTMLInputElement>(
+      'details[data-testid="card-integrations"] input[type=checkbox]',
+    )
+    expect(kept?.checked).toBe(true)
   })
 
   it('discards a late card load after switching to another card', async () => {

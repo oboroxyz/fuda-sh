@@ -1,3 +1,4 @@
+import { hashSignal } from '@worldcoin/idkit-core/hashing'
 import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
@@ -84,3 +85,81 @@ export const signer = privateKeyToAccount(SIGNER_KEY)
 export const OTHER_KEY = `0x${'5b'.repeat(32)}` as const
 export const other = privateKeyToAccount(OTHER_KEY)
 export const signChallenge = async (message: string): Promise<Hex> => await signer.signMessage({ message })
+
+// The action the World bindings are configured with in every suite that
+// exercises the badge routes or the adapter. A 4.0 uniqueness proof carries the
+// action it was made for and the adapter checks it against this binding, so the
+// fixture and the test environment must name the same one or every proof is
+// refused as made for something else.
+export const WORLD_ACTION = 'ethtokyo2026-human'
+
+// A World proof payload shaped like the `IDKitResultV4` the vendor actually
+// returns for the shipped `proofOfHuman` preset. Three things about the shape
+// matter to the adapter and are therefore real here rather than invented:
+// the signal is not a field of its own — it reaches the server only as
+// `responses[].signal_hash`, derived with the same `hashSignal` World App uses,
+// which is why the adapter compares a hash rather than a uid; the credential is
+// named by the numeric `issuer_schema_id` (1 = proof of human, 9310 = My Number
+// Card) and not by the `identifier` string beside it; and `action` is a required
+// top-level field on a 4.0 uniqueness proof. `signalHash: null` drops the field
+// entirely, the way a 4.0 item with no reattached hash arrives.
+//
+// `items` builds a payload whose `responses` carries more than one credential —
+// the shape a request that accepts either credential can answer with, and the
+// only shape in which the adapter's equal-nullifier guard has anything to
+// compare. Each entry overrides the one credential it names.
+export const worldProof = (
+  uid: string,
+  overrides: {
+    identifier?: string
+    issuerSchemaId?: number
+    protocolVersion?: string
+    environment?: string
+    action?: string
+    signalHash?: string | null
+    items?: { identifier?: string; issuerSchemaId?: number; nullifier?: string }[]
+  } = {},
+) => {
+  const signalHash = overrides.signalHash === undefined ? hashSignal(uid) : overrides.signalHash
+  const items = overrides.items ?? [
+    { identifier: overrides.identifier, issuerSchemaId: overrides.issuerSchemaId },
+  ]
+  const responses = items.map((entry) => {
+    const item = {
+      expires_at_min: 4_102_444_800,
+      identifier: entry.identifier ?? 'proof_of_human',
+      issuer_schema_id: entry.issuerSchemaId ?? 1,
+      nullifier: entry.nullifier ?? '0xdead',
+      proof: ['0x01', '0x02', '0x03', '0x04', '0xroot'],
+    }
+    return signalHash === null ? item : { ...item, signal_hash: signalHash }
+  })
+  return {
+    action: overrides.action ?? WORLD_ACTION,
+    environment: overrides.environment ?? 'production',
+    nonce: '0x01',
+    protocol_version: overrides.protocolVersion ?? '4.0',
+    responses,
+  }
+}
+
+// A 4.0 *session* proof, the one shape the adapter must refuse outright: its
+// nullifier is bound to a randomised action, so it says nothing about
+// uniqueness. Shaped like `IDKitResultSession` — `session_id` present, no
+// top-level `action`, and `session_nullifier` in place of `nullifier`.
+export const worldSessionProof = (uid: string) => ({
+  environment: 'production',
+  nonce: '0x01',
+  protocol_version: '4.0',
+  responses: [
+    {
+      expires_at_min: 4_102_444_800,
+      identifier: 'proof_of_human',
+      issuer_schema_id: 1,
+      proof: ['0x01', '0x02', '0x03', '0x04', '0xroot'],
+      session_nullifier: ['0xdead', '0xbeef'],
+      signal_hash: hashSignal(uid),
+    },
+  ],
+  session_id: 'session_abc',
+})

@@ -1,7 +1,8 @@
-import type { Hex, StampSummary } from '@fuda/sdk'
+import type { BadgeKind, BadgeView, Hex, StampSummary } from '@fuda/sdk'
+import { BADGE_KINDS } from '@fuda/sdk'
 
 import { base64urlBytes, base64urlText } from './base64url.ts'
-import { issuedDayText, roleLabel } from './branding.ts'
+import { BADGE_LABELS, issuedDayText, roleLabel } from './branding.ts'
 import type { PassBranding } from './branding.ts'
 import { pemToDer } from './pem.ts'
 
@@ -41,6 +42,10 @@ export interface GooglePassInput {
   // the venue's card, when the right was issued under one
   branding?: PassBranding | null
   stamps?: StampSummary | null
+  // the badges on the right at generation time, so a pass added *after* a
+  // badge carries it without waiting for a patch. Only the fact of each badge
+  // reaches the object; see mergeBadgeModules.
+  badges?: readonly BadgeView[] | null
 }
 
 interface LocalizedString {
@@ -57,6 +62,12 @@ interface WalletImage {
   sourceUri: { uri: string }
 }
 
+// Wallet renders each uri as a row on the saved object. One entry, one id, so a
+// later patch can replace it by id the way the stamp and badge modules are.
+export interface LinksModule {
+  uris: { description: string; id: string; uri: string }[]
+}
+
 export interface GoogleGenericObject {
   barcode: { alternateText: string; type: string; value: string }
   cardTitle: LocalizedString
@@ -64,6 +75,7 @@ export interface GoogleGenericObject {
   header: LocalizedString
   hexBackgroundColor?: string
   id: string
+  linksModuleData?: LinksModule
   logo?: WalletImage
   smartTapRedemptionValue: string
   state: string
@@ -72,6 +84,10 @@ export interface GoogleGenericObject {
 }
 
 const localized = (value: string): LocalizedString => ({ defaultValue: { language: 'en-US', value } })
+
+// Names the destination, not the action: the same saved pass is read before and
+// after a badge, and Wallet has no way to re-render this row when that changes.
+const MANAGE_LABEL = 'Open in fuda'
 
 const STAMP_IDS = new Set(['fuda-stamps', 'fuda-stamps-today'])
 
@@ -84,6 +100,29 @@ export const mergeStampModules = (
     return preserved
   }
   return [...preserved, { body: `${stamps.total} / ${stamps.goal}`, header: 'Stamps', id: 'fuda-stamps' }]
+}
+
+// One id per BadgeKind, so a future kind gets its own row instead of
+// overwriting `human`'s. Only 'human' ships today; the row's text is the
+// shared BADGE_LABELS entry, so the Apple pass and this one cannot drift.
+const badgeModuleId = (kind: BadgeKind): string => `fuda-badge-${kind}`
+
+const BADGE_IDS = new Set(BADGE_KINDS.map(badgeModuleId))
+
+// Symmetric with mergeStampModules: filters only the badge-kind ids it owns
+// and preserves every other module (stamps included), so patching one never
+// deletes the other's rows.
+export const mergeBadgeModules = (
+  modules: readonly TextModule[],
+  badges: readonly BadgeView[],
+): TextModule[] => {
+  const preserved = modules.filter(({ id }) => !BADGE_IDS.has(id))
+  const added = badges.map((badge): TextModule => ({
+    body: BADGE_LABELS[badge.kind],
+    header: 'Badge',
+    id: badgeModuleId(badge.kind),
+  }))
+  return [...preserved, ...added]
 }
 
 // docs/specs/pass-types-and-flows.md#passes. The object id is issuer-scoped and must be unique per pass, so the
@@ -102,12 +141,15 @@ export const buildGenericObject = (cfg: GoogleConfig, input: GooglePassInput): G
       ...base,
       cardTitle: localized('fuda membership'),
       header: localized(input.tierLabel),
-      textModulesData: mergeStampModules(
-        [
-          { body: input.tierLabel, header: 'Tier', id: 'tier' },
-          { body: input.holderShort, header: 'Member', id: 'member' },
-        ],
-        input.stamps ?? null,
+      textModulesData: mergeBadgeModules(
+        mergeStampModules(
+          [
+            { body: input.tierLabel, header: 'Tier', id: 'tier' },
+            { body: input.holderShort, header: 'Member', id: 'member' },
+          ],
+          input.stamps ?? null,
+        ),
+        input.badges ?? [],
       ),
     }
   }
@@ -117,19 +159,34 @@ export const buildGenericObject = (cfg: GoogleConfig, input: GooglePassInput): G
   // fuda detail the card page never shows. The logo is a URL Google fetches,
   // so it is omitted rather than empty when unset.
   const logo = branding.logoUrl === null ? {} : { logo: { sourceUri: { uri: branding.logoUrl } } }
+  // The way back. A saved pass is the surface the member keeps, but badging and
+  // every other action live on fuda's own page, which the wallet cannot host.
+  // Omitted rather than empty when the Right has no card to return to.
+  const links =
+    branding.manageUrl === null || branding.manageUrl === undefined
+      ? {}
+      : {
+          linksModuleData: {
+            uris: [{ description: MANAGE_LABEL, id: 'fuda-manage', uri: branding.manageUrl }],
+          },
+        }
   return {
     ...base,
     ...logo,
+    ...links,
     cardTitle: localized(branding.issuerName),
     header: localized(branding.cardTitle),
     hexBackgroundColor: branding.brandColor,
     subheader: localized(branding.memberNumber),
-    textModulesData: mergeStampModules(
-      [
-        { body: branding.memberNumber, header: roleLabel(branding.category), id: 'member' },
-        { body: issuedDayText(branding.issuedAt), header: 'ISSUED', id: 'issued' },
-      ],
-      input.stamps ?? null,
+    textModulesData: mergeBadgeModules(
+      mergeStampModules(
+        [
+          { body: branding.memberNumber, header: roleLabel(branding.category), id: 'member' },
+          { body: issuedDayText(branding.issuedAt), header: 'ISSUED', id: 'issued' },
+        ],
+        input.stamps ?? null,
+      ),
+      input.badges ?? [],
     ),
   }
 }
@@ -247,6 +304,42 @@ const textModulesFrom = (value: unknown): TextModule[] => {
 }
 /* oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, anti-slop/require-safety-comment-for-type-assertion */
 
+// Shared read-modify-write for both stamps and badges: GET the saved object,
+// hand its current text modules to `transform`, then PATCH the result back.
+//
+// A 404 on the GET means this member has no saved Google object — most don't:
+// every iOS member, every browser-only member, and anyone who tapped "Add to
+// Google Wallet" but never finished. Google creates the object only when the
+// save completes (see buildGoogleSaveUrl's comment), so fuda cannot know in
+// advance which members have one. That is the normal case, not a failure, so
+// it returns quietly with nothing patched and nothing logged. Any other
+// non-ok status (auth failure, a real API error) still throws, via `checked`,
+// exactly as before.
+const patchTextModules = async (
+  cfg: GoogleConfig,
+  uid: Hex,
+  accessToken: string,
+  transform: (modules: readonly TextModule[]) => TextModule[],
+  request: PassRequest = globalThis.fetch,
+): Promise<void> => {
+  const objectId = `${cfg.issuerId}.${uid.slice(2)}`
+  const url = `https://walletobjects.googleapis.com/walletobjects/v1/genericObject/${objectId}`
+  const headers = { authorization: `Bearer ${accessToken}` }
+  const getResponse = await request(url, { headers })
+  if (getResponse.status === 404) {
+    return
+  }
+  const current: unknown = await checked(getResponse).json()
+  const modules = textModulesFrom(current)
+  await checked(
+    await request(url, {
+      body: JSON.stringify({ textModulesData: transform(modules) }),
+      headers: { ...headers, 'content-type': 'application/json' },
+      method: 'PATCH',
+    }),
+  ).json()
+}
+
 export const patchGoogleGenericObject = async (
   cfg: GoogleConfig,
   uid: Hex,
@@ -254,18 +347,17 @@ export const patchGoogleGenericObject = async (
   accessToken: string,
   request: PassRequest = globalThis.fetch,
 ): Promise<void> => {
-  const objectId = `${cfg.issuerId}.${uid.slice(2)}`
-  const url = `https://walletobjects.googleapis.com/walletobjects/v1/genericObject/${objectId}`
-  const headers = { authorization: `Bearer ${accessToken}` }
-  const current: unknown = await checked(await request(url, { headers })).json()
-  const modules = textModulesFrom(current)
-  await checked(
-    await request(url, {
-      body: JSON.stringify({ textModulesData: mergeStampModules(modules, stamps) }),
-      headers: { ...headers, 'content-type': 'application/json' },
-      method: 'PATCH',
-    }),
-  ).json()
+  await patchTextModules(cfg, uid, accessToken, (modules) => mergeStampModules(modules, stamps), request)
+}
+
+export const patchGoogleBadgeModules = async (
+  cfg: GoogleConfig,
+  uid: Hex,
+  badges: readonly BadgeView[],
+  accessToken: string,
+  request: PassRequest = globalThis.fetch,
+): Promise<void> => {
+  await patchTextModules(cfg, uid, accessToken, (modules) => mergeBadgeModules(modules, badges), request)
 }
 
 export const GOOGLE_SAVE_BASE = 'https://pay.google.com/gp/v/save/'

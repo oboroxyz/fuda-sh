@@ -126,6 +126,16 @@ export const stampSettings = sqliteTable('stamp_settings', {
     .references(() => issuers.id),
 })
 
+// docs/specs/pass-types-and-flows.md#card-integrations — one boolean column per
+// Badge kind rather than a kind list, so the CHECK constraint keeps the row
+// honest and a second kind is a second column.
+export const cardIntegrations = sqliteTable('card_integrations', {
+  cardId: text('card_id')
+    .primaryKey()
+    .references(() => cards.id),
+  humanBadge: integer('human_badge', { mode: 'boolean' }).notNull().default(false),
+})
+
 export const cardStampSettings = sqliteTable('card_stamp_settings', {
   cardId: text('card_id')
     .primaryKey()
@@ -179,4 +189,25 @@ export const logoUploads = sqliteTable(
       .default('pending'),
   },
   (t) => [index('logo_uploads_expires_at').on(t.expiresAt)],
+)
+
+// One Badge per (Right, kind); one subject per (verifier, scope). The two
+// constraints are different rules: the first leaves room for other kinds on
+// the same Right, the second is the one-per-human guarantee.
+export const badges = sqliteTable(
+  'badges',
+  {
+    credential: text('credential').notNull(),
+    expiresAt: integer('expires_at'),
+    kind: text('kind').notNull(),
+    scope: text('scope').notNull(),
+    subjectKey: text('subject_key').notNull(),
+    uid: text('uid').notNull(),
+    verifiedAt: integer('verified_at').notNull(),
+    verifier: text('verifier').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.uid, t.kind] }),
+    uniqueIndex('badges_subject').on(t.verifier, t.scope, t.subjectKey),
+  ],
 )
