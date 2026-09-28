@@ -214,6 +214,33 @@ describe(RightsList, () => {
     })
   })
 
+  it('omits the verified human column while no listed right carries the badge', () => {
+    const view = RightsList({
+      copy: pick(DASH_COPY, 'en').rights,
+      onRequestRevoke: (): void => {},
+      onToggleQr: (): void => {},
+      openQr: rows[0].uid,
+      revokingUid: null,
+      rows,
+    })
+    const table = layout(view, 'rights-table')
+    const cards = layout(view, 'rights-cards')
+    expect({
+      cardTerms: findViewNodes(cards, 'dt')
+        .map(viewText)
+        .filter((term) => term === 'Verified human'),
+      headers: findViewNodes(table, 'th').map(viewText),
+      qrColspans: findViewNodes(table, 'td')
+        .map((node) => viewProps(node).colspan)
+        .filter((span) => span !== undefined),
+    }).toStrictEqual({
+      // Badges are optional: a deployment without a verifier shows the list it always had.
+      cardTerms: [],
+      headers: ['Member', 'Holder', 'Level', 'Tier', 'Status', 'UID', 'Passes', 'Revoke'],
+      qrColspans: [8],
+    })
+  })
+
   it('keeps a short UID visible while exposing the full UID and accessible QR state', () => {
     const view = RightsList({
       copy: pick(DASH_COPY, 'en').rights,

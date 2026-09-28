@@ -49,7 +49,7 @@ flowchart TB
 
 The rights index supports discovery and status views; ENS supplies names and address resolution. Gate admission uses EAS and D1. See the [architecture overview](./docs/architecture.md) for component responsibilities and trust boundaries.
 
-**The dashed path is what this event added**: a member who already holds a Right can attach a Verified Human badge to it. Note where the dashes stop. The gate never reaches World — admission still reads EAS and D1 and nothing else — and a Right with no badge answers exactly as it did before the feature existed. See [World ID](./docs/integrations/worldid.md).
+**The dashed path is optional.** A deployment that sets the World ID secrets lets a member who already holds a Right attach a Verified Human badge to it; one that leaves them unset shows no badge control anywhere. Note where the dashes stop. The gate never reaches World — admission still reads EAS and D1 and nothing else — and a Right with no badge answers exactly as it did before the feature existed. See [World ID](./docs/integrations/worldid.md).
 
 ### From issuance to entry
 

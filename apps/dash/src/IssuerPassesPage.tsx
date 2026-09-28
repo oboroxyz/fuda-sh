@@ -40,6 +40,12 @@ const humanBadge = (pass: IssuerPassView, copy: ManagementCopy): JSX.Element =>
     <span class="opacity-50">—</span>
   )
 
+// The Verified human column exists only while a loaded pass carries the Badge:
+// Badges are an optional integration, and a venue on a deployment without a
+// verifier never sees the column at all.
+const showsHuman = (passes: readonly IssuerPassView[]): boolean =>
+  passes.some((pass) => hasHumanBadge(pass.badges))
+
 const PassTable = ({ passes, copy }: { passes: IssuerPassView[]; copy: ManagementCopy }): JSX.Element => (
   <div class="dash-management-table overflow-x-auto" role="region" aria-label={copy.passesTitle} tabIndex={0}>
     <table class="table w-full min-w-250 text-sm">
@@ -52,7 +58,7 @@ const PassTable = ({ passes, copy }: { passes: IssuerPassView[]; copy: Managemen
             {copy.stamps}
           </th>
           <th scope="col">{copy.status}</th>
-          <th scope="col">{copy.verifiedHuman}</th>
+          {showsHuman(passes) ? <th scope="col">{copy.verifiedHuman}</th> : null}
           <th scope="col">{copy.expires}</th>
           <th scope="col">{copy.address}</th>
         </tr>
@@ -76,7 +82,7 @@ const PassTable = ({ passes, copy }: { passes: IssuerPassView[]; copy: Managemen
             <td>
               <span class="badge badge-ghost whitespace-nowrap">{copy.statuses[pass.status]}</span>
             </td>
-            <td>{humanBadge(pass, copy)}</td>
+            {showsHuman(passes) ? <td>{humanBadge(pass, copy)}</td> : null}
             <td class="min-w-32 text-xs whitespace-nowrap">{expiryText(pass, copy)}</td>
             <td class="max-w-56 min-w-40">
               <code class="text-xs">{pass.holder ?? copy.notRecorded}</code>

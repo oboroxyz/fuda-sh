@@ -197,9 +197,9 @@ describe('world verifier', () => {
     expect(portal).not.toHaveBeenCalled()
   })
 
-  // The two accepted credentials, and the reason there are two: the event is in
-  // Japan, where many attendees hold My Number Card and have never been to an
-  // Orb. The stored `credential` is derived from the proof's own
+  // The two accepted credentials, and the reason there are two: a deployment
+  // in Japan serves many members who hold My Number Card and have never been to
+  // an Orb. The stored `credential` is derived from the proof's own
   // `issuer_schema_id`, so the row records which one was actually used rather
   // than a constant — that is what keeps it auditable.
   it.each([

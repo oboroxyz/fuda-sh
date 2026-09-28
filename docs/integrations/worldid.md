@@ -2,7 +2,7 @@
 
 **What fuda does.** A membership, a ticket or an event badge becomes a revocable on-chain record: a venue issues a Right, a standard pass goes to Apple Wallet, Google Wallet or a browser, and a gate checks EAS and admission state before letting someone in.
 
-**Where World ID sits.** After issuance, and nowhere near the door. A member who already holds a Right can attach a **Verified Human badge** to it. Claiming stays instant for people who have never heard of World; the gate still decides admission from the chain alone, calling neither World nor anything new; and a venue can finally address a promise to _a person_ — one badge per attendee — instead of to a bearer token. **EAS proves the right; World ID counts the people.**
+**Where World ID sits.** After issuance, and nowhere near the door. A member who already holds a Right can attach a **Verified Human badge** to it. Claiming stays instant for people who have never heard of World; the gate still decides admission from the chain alone, calling neither World nor anything new; and a venue can finally address a promise to _a person_ — one badge per member — instead of to a bearer token. **EAS proves the right; World ID counts the people.**
 
 Built on **World ID 4.0**, `allow_legacy_proofs: false`. A 3.0 proof is refused on both sides: one person must not be able to hold a 3.0 nullifier and a 4.0 nullifier for the same action and badge a pass with each.
 
@@ -94,7 +94,7 @@ A badge is refused for a Right that would not be admitted: the route resolves th
 
 [`apps/app/src/badges.ts`](../../apps/app/src/badges.ts) · [`apps/app/src/venue/CardScreen.tsx`](../../apps/app/src/venue/CardScreen.tsx)
 
-Headless `@worldcoin/idkit-core` in a hono/jsx/dom app — the React widget is never imported. The request asks for `any(proof_of_human, mnc)`: the event is in Japan, where many attendees hold a My Number Card credential and have never been to an Orb, and the nullifier does not depend on which credential produced it.
+Headless `@worldcoin/idkit-core` in a hono/jsx/dom app — the React widget is never imported. The request asks for `any(proof_of_human, mnc)`: a deployment in Japan serves many members who hold a My Number Card credential and have never been to an Orb, and the nullifier does not depend on which credential produced it.
 
 The hand-off URI is rendered as a link and a QR rather than assigned to `location.href`: `pollUntilCompletion()` only resolves while the page is alive, and navigating away loses a verification the member has already completed. A failure shows the vendor's own code under the button, because a silent button is indistinguishable from a broken one.
 
