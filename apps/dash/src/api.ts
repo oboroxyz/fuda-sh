@@ -18,6 +18,7 @@ import type {
   StampSettings,
   SignInChallengeResponse,
   SignInResponse,
+  CardIntegrations,
 } from '@fuda/sdk'
 import { API_VERSION_PREFIX, apiFetch } from '@fuda/sdk/http'
 import type { Result } from '@fuda/sdk/http'
@@ -93,6 +94,33 @@ export const updateStampSettings = async (
     method: 'PUT',
     token,
   })
+
+export const readCardIntegrations = async (
+  token: string,
+  cardId: string,
+): Promise<Result<CardIntegrations>> =>
+  await apiFetch<CardIntegrations>(
+    API_BASE_URL,
+    `/issuers/me/cards/${encodeURIComponent(cardId)}/integrations`,
+    {
+      token,
+    },
+  )
+
+export const updateCardIntegrations = async (
+  token: string,
+  cardId: string,
+  body: CardIntegrations,
+): Promise<Result<CardIntegrations>> =>
+  await apiFetch<CardIntegrations>(
+    API_BASE_URL,
+    `/issuers/me/cards/${encodeURIComponent(cardId)}/integrations`,
+    {
+      body: JSON.stringify(body),
+      method: 'PUT',
+      token,
+    },
+  )
 
 export const receiveAtReception = async (
   token: string,

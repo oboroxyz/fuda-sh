@@ -2,7 +2,7 @@
 
 **What fuda does.** A membership, a ticket or an event badge becomes a revocable on-chain record: a venue issues a Right, a standard pass goes to Apple Wallet, Google Wallet or a browser, and a gate checks EAS and admission state before letting someone in.
 
-**Where World ID sits.** After issuance, and nowhere near the door. A member who already holds a Right can attach a **Verified Human badge** to it. Claiming stays instant for people who have never heard of World; the gate still decides admission from the chain alone, calling neither World nor anything new; and a venue can finally address a promise to _a person_ — one badge per member — instead of to a bearer token. **EAS proves the right; World ID counts the people.**
+**Where World ID sits.** After issuance, and nowhere near the door. On a card whose issuer has turned the integration on, a member who already holds a Right can attach a **Verified Human badge** to it. Claiming stays instant for people who have never heard of World; the gate still decides admission from the chain alone, calling neither World nor anything new; and a venue can finally address a promise to _a person_ — one badge per member — instead of to a bearer token. **EAS proves the right; World ID counts the people.**
 
 Built on **World ID 4.0**, `allow_legacy_proofs: false`. A 3.0 proof is refused on both sides: one person must not be able to hold a 3.0 nullifier and a 4.0 nullifier for the same action and badge a pass with each.
 
@@ -112,7 +112,9 @@ Both wallet passes carry the badge as a snapshot taken when the pass is built. A
 
 ## Configuration
 
-Four values, all or nothing: `WORLD_APP_ID`, `WORLD_RP_ID`, `WORLD_ACTION`, `WORLD_RP_SIGNING_KEY`. While any one is unset, `/badges/:kind` answers `501` and no verdict carries a badge. All four are Wrangler secrets rather than split between secrets and `vars` — one place to look, and a name defined in both silently resolves to the secret. See [the runbook](../runbook.md#3-secrets).
+**Per card, off by default.** A member sees the action only on a card whose issuer turned World ID on under the card's Integrations in the dashboard (`PUT /issuers/me/cards/:cardId/integrations { badges: ['human'] }`), and the submit route refuses a Right under a card that has not — before the proof is spent. See [Card integrations](../specs/pass-types-and-flows.md#card-integrations).
+
+**Per deployment.** Four values, all or nothing: `WORLD_APP_ID`, `WORLD_RP_ID`, `WORLD_ACTION`, `WORLD_RP_SIGNING_KEY`. While any one is unset, `/badges/:kind` answers `501` and no verdict carries a badge. All four are Wrangler secrets rather than split between secrets and `vars` — one place to look, and a name defined in both silently resolves to the secret. See [the runbook](../runbook.md#3-secrets).
 
 ## Measured behaviour worth knowing
 

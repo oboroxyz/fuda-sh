@@ -392,8 +392,17 @@ describe('venue-local navigation', () => {
 // verifier configured should look like the feature does not exist.
 describe(humanBadgeStateOf, () => {
   it('starts idle only when the api lists the kind it would verify', () => {
-    expect(humanBadgeStateOf({ ...card, badges: ['human'] })).toStrictEqual({ kind: 'idle' })
-    expect(humanBadgeStateOf({ ...card, badges: [] })).toStrictEqual({ kind: 'unavailable' })
+    expect(humanBadgeStateOf({ ...card, card: { ...card.card, badges: ['human'] } })).toStrictEqual({
+      kind: 'idle',
+    })
+    // The venue-level list says what the deployment can verify; only the card's
+    // own list says the issuer turned it on for this card.
+    expect(
+      humanBadgeStateOf({ ...card, badges: ['human'], card: { ...card.card, badges: [] } }),
+    ).toStrictEqual({
+      kind: 'unavailable',
+    })
+    expect(humanBadgeStateOf({ ...card, badges: ['human'] })).toStrictEqual({ kind: 'unavailable' })
     expect(humanBadgeStateOf(card)).toStrictEqual({ kind: 'unavailable' })
   })
 })

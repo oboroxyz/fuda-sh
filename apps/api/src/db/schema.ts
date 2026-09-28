@@ -126,6 +126,16 @@ export const stampSettings = sqliteTable('stamp_settings', {
     .references(() => issuers.id),
 })
 
+// docs/specs/pass-types-and-flows.md#card-integrations — one boolean column per
+// Badge kind rather than a kind list, so the CHECK constraint keeps the row
+// honest and a second kind is a second column.
+export const cardIntegrations = sqliteTable('card_integrations', {
+  cardId: text('card_id')
+    .primaryKey()
+    .references(() => cards.id),
+  humanBadge: integer('human_badge', { mode: 'boolean' }).notNull().default(false),
+})
+
 export const cardStampSettings = sqliteTable('card_stamp_settings', {
   cardId: text('card_id')
     .primaryKey()

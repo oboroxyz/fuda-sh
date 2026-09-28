@@ -741,6 +741,40 @@ export const App = ({
     },
     [generation, operatorIo, replaceSession, token],
   )
+  const readIntegrations = useCallback(
+    async (cardId: string) => {
+      const sessionToken = token ?? ''
+      const ticket = generation.capture()
+      const result = await operatorIo.readCardIntegrations(sessionToken, cardId)
+      if (
+        !result.ok &&
+        result.status === 401 &&
+        generation.isCurrent(ticket) &&
+        activeToken.current === sessionToken
+      ) {
+        replaceSession(unauthorizedSession(activeSession.current))
+      }
+      return result
+    },
+    [generation, operatorIo, replaceSession, token],
+  )
+  const saveIntegrations = useCallback(
+    async (cardId: string, value: Parameters<OperatorIo['updateCardIntegrations']>[2]) => {
+      const sessionToken = token ?? ''
+      const ticket = generation.capture()
+      const result = await operatorIo.updateCardIntegrations(sessionToken, cardId, value)
+      if (
+        !result.ok &&
+        result.status === 401 &&
+        generation.isCurrent(ticket) &&
+        activeToken.current === sessionToken
+      ) {
+        replaceSession(unauthorizedSession(activeSession.current))
+      }
+      return result
+    },
+    [generation, operatorIo, replaceSession, token],
+  )
   const saveStamps = useCallback(
     async (cardId: string, settings: Parameters<OperatorIo['updateStampSettings']>[2]) => {
       const sessionToken = token ?? ''
@@ -894,6 +928,7 @@ export const App = ({
       session={session}
       signInError={signInError}
       signingIn={signingIn}
+      integrations={{ load: readIntegrations, save: saveIntegrations }}
       stampSettings={{ load: readStamps, save: saveStamps }}
     />
   )

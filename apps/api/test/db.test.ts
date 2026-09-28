@@ -11,6 +11,7 @@ describe('D1 schema', () => {
     ).all<{ name: string }>()
     expect(rows.results.map((r) => r.name).toSorted()).toStrictEqual([
       'badges',
+      'card_integrations',
       'card_stamp_settings',
       'cards',
       'challenges',

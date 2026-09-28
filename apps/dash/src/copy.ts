@@ -98,6 +98,16 @@ export interface DashCopy {
     saved: string
     failures: { load: string; save: string; validation: string }
   }
+  integrations: {
+    worldId: string
+    worldIdHint: string
+    loading: string
+    save: string
+    saving: string
+    retry: string
+    saved: string
+    failures: { load: string; save: string }
+  }
   reception: {
     title: string
     description: string
@@ -455,6 +465,20 @@ export const DASH_COPY = {
         load: 'Could not load stamp settings. Refresh the page to try again.',
         save: 'Could not save stamp settings. Try again.',
         validation: 'Daily limit must be 1–100 and stamp goal must be 1–1000.',
+      },
+    },
+    integrations: {
+      worldId: 'World ID',
+      worldIdHint:
+        'Let members attach a Verified Human badge to a pass from this card. Off by default; the badge never changes admission.',
+      loading: 'Loading integrations…',
+      save: 'Save integrations',
+      saving: 'Saving…',
+      retry: 'Retry',
+      saved: 'Saved',
+      failures: {
+        load: 'Could not load integrations. Refresh the page to try again.',
+        save: 'Could not save integrations. Try again.',
       },
     },
     reception: {
@@ -839,6 +863,20 @@ export const DASH_COPY = {
         load: 'スタンプ設定を読み込めませんでした。ページを再読み込みしてください。',
         save: 'スタンプ設定を保存できませんでした。もう一度お試しください。',
         validation: '1日の上限は1〜100、ゴールは1〜1000で入力してください。',
+      },
+    },
+    integrations: {
+      worldId: 'World ID',
+      worldIdHint:
+        'このカードのパスに、メンバーが「人間であることを確認済み」バッジを付けられるようにします。初期状態はオフで、バッジは入場判定を変えません。',
+      loading: '連携設定を読み込み中…',
+      save: '連携を保存',
+      saving: '保存中…',
+      retry: '再試行',
+      saved: '保存しました',
+      failures: {
+        load: '連携設定を読み込めませんでした。ページを再読み込みしてください。',
+        save: '連携設定を保存できませんでした。もう一度お試しください。',
       },
     },
     reception: {

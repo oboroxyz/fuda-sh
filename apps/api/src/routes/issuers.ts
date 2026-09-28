@@ -18,6 +18,7 @@ import { cards, issuers } from '../db/schema.ts'
 import { issuerEnsName } from '../ens/names.ts'
 import { ensNames } from '../ens/schema.ts'
 import type { AppEnv } from '../env.ts'
+import { badgeKindsByCard } from '../integrations/store.ts'
 import { insertCard, insertIssuer } from '../issuers/create.ts'
 import { ownedVenue, venueOf } from '../issuers/queries.ts'
 import { cardView, issuerView, publicUrlFor, publicVenue } from '../issuers/views.ts'
@@ -264,9 +265,20 @@ issuersRoutes.get('/issuers/:handle', async (c) => {
   if (found === null) {
     return errorResponse(c, 'not_found', 404)
   }
+  const enabledByCard = await badgeKindsByCard(
+    c.get('db'),
+    found.cards.map((card) => card.id),
+  )
   return jsonResponse(
     c,
-    publicVenue(found.issuer, found.cards, c.get('now')(), c.env.API_BASE_URL, configuredBadgeKinds(c.env)),
+    publicVenue(
+      found.issuer,
+      found.cards,
+      c.get('now')(),
+      c.env.API_BASE_URL,
+      configuredBadgeKinds(c.env),
+      enabledByCard,
+    ),
   )
 })
 

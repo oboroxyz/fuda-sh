@@ -1,13 +1,14 @@
 import type { CardView, Hex, IssuerPassesResponse, OperatorCardView } from '@fuda/sdk'
 import { env } from 'cloudflare:test'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { createSession } from '../src/auth/session.ts'
 import { saveBadge } from '../src/badges/store.ts'
 import { getDb } from '../src/db/client.ts'
 import {
   badges,
+  cardIntegrations,
   cards,
   cardStampSettings,
   challenges,
@@ -49,6 +50,7 @@ const clearManagementTables = async (): Promise<void> => {
   await database.delete(slots)
   await database.delete(members)
   await database.delete(cardStampSettings)
+  await database.delete(cardIntegrations)
   await database.delete(sessions)
   await database.delete(challenges)
   await database.delete(cards)
@@ -126,6 +128,8 @@ const seedPass = async (pass: SeedPass): Promise<Hex> => {
 
 describe('operator Card management', () => {
   beforeEach(clearManagementTables)
+  // Rows referencing cards must not outlive this file: other files delete cards.
+  afterEach(clearManagementTables)
 
   it('hydrates stored operator-only fields without changing public CardView', async () => {
     const { app, card, token } = await createOwnedCard()
@@ -284,6 +288,46 @@ describe('operator Card management', () => {
     await expect(response.json<{ card: OperatorCardView }>()).resolves.toMatchObject({
       card: { slug: 'new', title: 'Legacy Card' },
     })
+  })
+
+  // docs/specs/pass-types-and-flows.md#card-integrations
+  it('starts a Card with every integration off and saves the badge list for that Card only', async () => {
+    const { app, card, token } = await createOwnedCard()
+    const path = `/v1/issuers/me/cards/${card.id}/integrations`
+
+    const unset = await getJson(app, bindings(), path, token)
+    const saved = await putJson(app, path, { badges: ['human'] }, token)
+    const reread = await getJson(app, bindings(), path, token)
+    const off = await putJson(app, path, { badges: [] }, token)
+    expect({
+      cacheControl: unset.headers.get('cache-control'),
+      off: await off.json(),
+      reread: await reread.json(),
+      saved: await saved.json(),
+      statuses: [unset.status, saved.status],
+      unset: await unset.json(),
+    }).toStrictEqual({
+      cacheControl: 'no-store',
+      off: { badges: [] },
+      reread: { badges: ['human'] },
+      saved: { badges: ['human'] },
+      statuses: [200, 200],
+      unset: { badges: [] },
+    })
+  })
+
+  it('rejects malformed integrations and hides foreign or missing Cards', async () => {
+    const { app, card, token } = await createOwnedCard()
+    const path = `/v1/issuers/me/cards/${card.id}/integrations`
+    const statuses = await Promise.all([
+      putJson(app, path, { badges: ['nonsense'] }, token),
+      putJson(app, path, { badges: ['human', 'human'] }, token),
+      putJson(app, path, { badges: ['human'], extra: true }, token),
+      putJson(app, '/v1/issuers/me/cards/missing/integrations', { badges: ['human'] }, token),
+      getJson(app, bindings(), '/v1/issuers/me/cards/missing/integrations', token),
+      putJson(app, path, { badges: ['human'] }),
+    ])
+    expect(statuses.map((response) => response.status)).toStrictEqual([400, 400, 400, 404, 404, 401])
   })
 
   it('refuses to enable Stamp settings for a Ticket', async () => {

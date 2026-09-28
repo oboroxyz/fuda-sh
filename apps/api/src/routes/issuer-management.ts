@@ -1,4 +1,4 @@
-import { asHex, CardUpdateBody } from '@fuda/sdk'
+import { asHex, CardIntegrationsBody, CardUpdateBody } from '@fuda/sdk'
 import type { IssuerPassStatus } from '@fuda/sdk'
 import { and, eq, inArray } from 'drizzle-orm'
 import { Hono } from 'hono'
@@ -7,6 +7,7 @@ import * as v from 'valibot'
 import { badgesByUid, withBadges } from '../badges/advisory.ts'
 import { cards, cardStampSettings } from '../db/schema.ts'
 import type { AppEnv } from '../env.ts'
+import { readCardIntegrations, writeCardIntegrations } from '../integrations/store.ts'
 import { readIssuerPasses } from '../issuers/passes.ts'
 import { operatorCardView } from '../issuers/views.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
@@ -94,6 +95,46 @@ issuerManagementRoutes.put('/issuers/me/cards/:cardId', operatorAuth(), async (c
   return updated === undefined
     ? errorResponse(c, 'not_found', 404)
     : jsonResponse(c, { card: operatorCardView(updated, c.get('now')()) })
+})
+
+// docs/specs/pass-types-and-flows.md#card-integrations — a Card's optional
+// services, saved apart from the Card itself so a new integration is a new key
+// here, never a change to the Card contract.
+issuerManagementRoutes.get('/issuers/me/cards/:cardId/integrations', operatorAuth(), async (c) => {
+  c.header('cache-control', 'no-store')
+  const { issuerId } = c.get('operator')
+  if (issuerId === null) {
+    return errorResponse(c, 'not_found', 404)
+  }
+  const card = await c
+    .get('db')
+    .select({ id: cards.id })
+    .from(cards)
+    .where(and(eq(cards.id, c.req.param('cardId')), eq(cards.issuerId, issuerId)))
+    .get()
+  return card === undefined
+    ? errorResponse(c, 'not_found', 404)
+    : jsonResponse(c, await readCardIntegrations(c.get('db'), card.id))
+})
+
+issuerManagementRoutes.put('/issuers/me/cards/:cardId/integrations', operatorAuth(), async (c) => {
+  c.header('cache-control', 'no-store')
+  const { issuerId } = c.get('operator')
+  if (issuerId === null) {
+    return errorResponse(c, 'not_found', 404)
+  }
+  const parsed = v.safeParse(CardIntegrationsBody, await c.req.json().catch(() => null))
+  if (!parsed.success) {
+    return errorResponse(c, 'bad_input', 400)
+  }
+  const saved = await writeCardIntegrations(
+    c.env.DB,
+    c.get('db'),
+    c.req.param('cardId'),
+    issuerId,
+    parsed.output,
+  )
+  return saved === null ? errorResponse(c, 'not_found', 404) : jsonResponse(c, saved)
 })
 
 issuerManagementRoutes.get('/issuers/me/passes', operatorAuth(), async (c) => {

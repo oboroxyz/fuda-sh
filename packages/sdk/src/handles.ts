@@ -142,6 +142,12 @@ export interface CardView extends ClaimWindow, CardValidity {
   // computed by the api against its own clock, because a member's device clock
   // is not authoritative for whether a card is being handed out
   claimable: boolean
+  // The Badge kinds a member may attach to a Right issued under this card: the
+  // ones the issuer turned on in the card's integrations that this deployment
+  // can also verify. Present on the public venue payload; absent elsewhere and
+  // from an older API, which a client treats as none, so a card offers nothing
+  // until its issuer opts in.
+  badges?: readonly BadgeKind[]
 }
 
 // Operator-only card hydration includes the stored fields that are intentionally

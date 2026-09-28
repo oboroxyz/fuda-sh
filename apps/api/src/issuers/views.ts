@@ -1,4 +1,4 @@
-import { isClaimable } from '@fuda/sdk'
+import { isClaimable, offerableBadgeKinds } from '@fuda/sdk'
 import type { BadgeKind, CardView, IssuerView, OperatorCardView, PublicVenue } from '@fuda/sdk'
 import type { Hex } from 'viem'
 
@@ -24,20 +24,28 @@ export const issuerView = (row: IssuerRow, baseUrl: string): IssuerView => {
   }
 }
 
-// `claimable` is decided against the api's clock, not the caller's.
-export const cardView = (row: CardRow, now: number): CardView => ({
-  category: row.category,
-  claimFrom: row.claimFrom,
-  claimUntil: row.claimUntil,
-  claimable: isClaimable(row, now),
-  description: row.description,
-  id: row.id,
-  slug: row.slug,
-  title: row.title,
-  validFrom: row.validFrom,
-  validUntil: row.validUntil,
-  validityDays: row.validityDays,
-})
+// `claimable` is decided against the api's clock, not the caller's. `badges`
+// is written only when the caller computed it (the public venue payload); an
+// operator response leaves the key out, and a client treats absence as none.
+export const cardView = (row: CardRow, now: number, badges?: readonly BadgeKind[]): CardView => {
+  const view: CardView = {
+    category: row.category,
+    claimFrom: row.claimFrom,
+    claimUntil: row.claimUntil,
+    claimable: isClaimable(row, now),
+    description: row.description,
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    validFrom: row.validFrom,
+    validUntil: row.validUntil,
+    validityDays: row.validityDays,
+  }
+  if (badges !== undefined) {
+    view.badges = badges
+  }
+  return view
+}
 
 export const operatorCardView = (row: CardRow, now: number): OperatorCardView => ({
   ...cardView(row, now),
@@ -51,10 +59,15 @@ export const publicVenue = (
   now: number,
   baseUrl: string,
   badges: readonly BadgeKind[],
+  // each Card's enabled kinds (docs/specs/pass-types-and-flows.md#card-integrations);
+  // a Card missing from the map has none on
+  enabledByCard: ReadonlyMap<string, readonly BadgeKind[]>,
 ): PublicVenue => ({
   badges,
   brandColor: issuer.brandColor,
-  cards: cards.map((card) => cardView(card, now)),
+  cards: cards.map((card) =>
+    cardView(card, now, offerableBadgeKinds(enabledByCard.get(card.id) ?? [], badges)),
+  ),
   defaultCardSlug: issuer.defaultCardSlug,
   handle: issuer.handle,
   logoUrl: logoUrlFor(baseUrl, issuer.handle, issuer.logoPrefix),

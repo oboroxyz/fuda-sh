@@ -4,10 +4,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { FakeChain } from '../src/chain/fake-chain.ts'
 import { getDb } from '../src/db/client.ts'
-import { badges, cards, challenges, issuers, sessions } from '../src/db/schema.ts'
+import { badges, cardIntegrations, cards, challenges, issuers, members, sessions } from '../src/db/schema.ts'
 import type { Bindings } from '../src/env.ts'
 import { appWith, fakeChain, testEnv } from './env.ts'
-import { configuredEnv, NOW, seedRight, seedRoot, WORLD_ACTION, worldProof as proofFor } from './fixtures.ts'
+import {
+  configuredEnv,
+  HOLDER,
+  NOW,
+  seedRight,
+  seedRoot,
+  WORLD_ACTION,
+  worldProof as proofFor,
+} from './fixtures.ts'
 import { CARD_INPUT, getJson, registerVenueWithCard, signIn } from './operator.ts'
 
 const db = () => getDb({ DB: env.DB })
@@ -52,8 +60,11 @@ describe('badge routes', () => {
   beforeEach(async () => {
     await db().delete(badges)
   })
-  afterEach(() => {
+  afterEach(async () => {
     vi.restoreAllMocks()
+    // The gating test seeds a card integration; it must not outlive the test,
+    // because other files delete cards and the row references one.
+    await db().delete(cardIntegrations)
   })
 
   describe('POST /v1/badges/:kind/context', () => {
@@ -187,6 +198,61 @@ describe('badge routes', () => {
       await expect(db().select().from(badges)).resolves.toHaveLength(1)
     })
 
+    // docs/specs/pass-types-and-flows.md#card-integrations — a Right under a
+    // Card carries a kind only once its Card turned the integration on; the
+    // admin path issues outside any Card and keeps the pre-integration behaviour.
+    it('refuses a Card Right until its Card enables the kind, without spending the proof', async () => {
+      const chain = fakeChain()
+      const del = seedRoot(chain)
+      const uid = seedRight(chain, del)
+      const bindings = worldEnv(configuredEnv(del))
+      await db().delete(members)
+      await db().delete(cardIntegrations)
+      await db().delete(cards)
+      await db().delete(issuers)
+      const issuerId = crypto.randomUUID()
+      const cardId = crypto.randomUUID()
+      await db()
+        .insert(issuers)
+        .values({
+          brandColor: '#112233',
+          createdAt: NOW,
+          handle: 'gated',
+          id: issuerId,
+          name: 'Gated',
+          operatorAddress: `0x${'cc'.repeat(20)}`,
+          tagline: '',
+        })
+      await db().insert(cards).values({
+        category: 'membership',
+        createdAt: NOW,
+        id: cardId,
+        issuerId,
+        slug: 'card',
+        title: 'Card',
+      })
+      await db().insert(members).values({
+        attestationUid: uid,
+        cardId,
+        createdAt: NOW,
+        holder: HOLDER,
+        issuerId,
+        level: 'bearer',
+        memberId: 'member-1',
+      })
+
+      const portal = vi.fn<() => Response>(() => Response.json({ nullifier: '0xdead', success: true }))
+      vi.stubGlobal('fetch', portal)
+      const closed = await post('/v1/badges/human', { payload: proofFor(uid), uid }, bindings, chain)
+      expect(closed.status).toBe(404)
+      expect(portal).not.toHaveBeenCalled()
+
+      await db().insert(cardIntegrations).values({ cardId, humanBadge: true })
+      const open = await post('/v1/badges/human', { payload: proofFor(uid), uid }, bindings, chain)
+      expect(open.status).toBe(200)
+      expect(portal).toHaveBeenCalledOnce()
+    })
+
     it('rejects the same nullifier claimed against a second Right with 409 already_badged', async () => {
       const chain = fakeChain()
       const del = seedRoot(chain)
@@ -227,8 +293,12 @@ describe('GET /v1/issuers/:handle badge availability', () => {
   beforeEach(async () => {
     await db().delete(challenges)
     await db().delete(sessions)
+    await db().delete(cardIntegrations)
     await db().delete(cards)
     await db().delete(issuers)
+  })
+  afterEach(async () => {
+    await db().delete(cardIntegrations)
   })
 
   it('lists a kind only where its verifier is configured', async () => {
@@ -242,5 +312,30 @@ describe('GET /v1/issuers/:handle badge availability', () => {
 
     const set = await getJson(app, worldEnv(bindings), '/v1/issuers/wassie-coffee')
     await expect(set.json<PublicVenue>()).resolves.toMatchObject({ badges: ['human'] })
+  })
+
+  // A card offers a kind only where both hold: its issuer turned the integration
+  // on and the deployment can verify it. Either alone lists nothing on the card.
+  it('lists a kind on a card only once its integration is on and the verifier is configured', async () => {
+    const app = appWith({ chain: fakeChain(), now: () => NOW })
+    const bindings = testEnv()
+    const { token } = await signIn(app, bindings)
+    await registerVenueWithCard(app, bindings, CARD_INPUT, token)
+    const card = await db().select().from(cards).get()
+
+    const off = await getJson(app, worldEnv(bindings), '/v1/issuers/wassie-coffee')
+    await expect(off.json<PublicVenue>()).resolves.toMatchObject({ cards: [{ badges: [] }] })
+
+    await db().insert(cardIntegrations).values({ cardId: card!.id, humanBadge: true })
+    const on = await getJson(app, worldEnv(bindings), '/v1/issuers/wassie-coffee')
+    await expect(on.json<PublicVenue>()).resolves.toMatchObject({
+      badges: ['human'],
+      cards: [{ badges: ['human'] }],
+    })
+    const unverifiable = await getJson(app, bindings, '/v1/issuers/wassie-coffee')
+    await expect(unverifiable.json<PublicVenue>()).resolves.toMatchObject({
+      badges: [],
+      cards: [{ badges: [] }],
+    })
   })
 })

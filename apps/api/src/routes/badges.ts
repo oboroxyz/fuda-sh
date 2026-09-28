@@ -5,6 +5,7 @@ import * as v from 'valibot'
 import { saveBadge } from '../badges/store.ts'
 import { verifierFor } from '../badges/verifier.ts'
 import type { AppEnv } from '../env.ts'
+import { cardAllowsBadge } from '../integrations/store.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { rateLimit } from '../middleware/rate-limit.ts'
 import { scheduleBadgePassUpdate } from '../pass/badge-update.ts'
@@ -56,6 +57,12 @@ badgeRoutes.post('/badges/:kind', rateLimit({ budget: BADGE_BUDGET }), async (c)
     return resolved.res
   }
   if (resolved.out.decision !== 'ADMIT') {
+    return errorResponse(c, 'not_found', 404)
+  }
+  // A Card offers a kind only once its issuer turned the integration on; a
+  // Right whose Card has not is, for this route, a Right that cannot carry it.
+  // Checked before the verifier is called, so a proof is never spent on it.
+  if (!(await cardAllowsBadge(c.get('db'), uid, verifier.kind))) {
     return errorResponse(c, 'not_found', 404)
   }
   const subject = await verifier.verify(c.env, { payload: parsed.output.payload, uid })

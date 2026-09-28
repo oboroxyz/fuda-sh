@@ -11,6 +11,7 @@ import type { CardStampIo } from './CardStampSettings.tsx'
 import { API_BASE_URL } from './config.ts'
 import type { DashCopy } from './copy.ts'
 import { DashboardShell } from './DashboardShell.tsx'
+import type { CardIntegrationsIo } from './IntegrationSettings.tsx'
 import type { IssueFormProps } from './IssueForm.tsx'
 import { IssueForm } from './IssueForm.tsx'
 import type { PassesLoad } from './issuer-passes-state.ts'
@@ -51,6 +52,7 @@ export interface AppViewProps {
   createFailure: CreateFailure | null
   creating: boolean
   graphEndpoint: string
+  integrations: CardIntegrationsIo
   members: MembersState
   onChangeCardDraft: (form: DesignerForm) => void
   onCheckHandle: (handle: string) => Promise<'available' | 'taken' | 'unknown'>
@@ -88,6 +90,7 @@ export const AppView = ({
   createFailure,
   creating,
   graphEndpoint,
+  integrations,
   members,
   onChangeCardDraft,
   onCheckHandle,
@@ -202,6 +205,7 @@ export const AppView = ({
               issuer={operator.issuer}
               load={cardManagement.load}
               save={cardManagement.save}
+              integrations={integrations}
               onNavigate={onNavigate}
               settings={stampSettings}
             />

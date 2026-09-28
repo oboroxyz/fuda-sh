@@ -4,8 +4,10 @@ import {
   commitLogo,
   issueRight,
   listMembers,
+  readCardIntegrations,
   readStampSettings,
   revokeRight,
+  updateCardIntegrations,
   updateDefaultCard,
   updateStampSettings,
   uploadLogo,
@@ -164,6 +166,23 @@ describe('default Card requests', () => {
       })
     },
   )
+})
+
+describe('Card integration requests', () => {
+  it("reads and saves the selected Card's integrations on their own route", async () => {
+    const value = { badges: ['human'] }
+    const spy = stubFetch(() => json(value, 200))
+    await expect(readCardIntegrations(TOKEN, 'card-1')).resolves.toStrictEqual({ body: value, ok: true })
+    expect(spy).toHaveBeenLastCalledWith('/api/v1/issuers/me/cards/card-1/integrations', {
+      headers: GET_HEADERS,
+    })
+    await updateCardIntegrations(TOKEN, 'card-2', { badges: [] })
+    expect(spy).toHaveBeenLastCalledWith('/api/v1/issuers/me/cards/card-2/integrations', {
+      body: JSON.stringify({ badges: [] }),
+      headers: HEADERS,
+      method: 'PUT',
+    })
+  })
 })
 
 describe('Card stamp policy requests', () => {

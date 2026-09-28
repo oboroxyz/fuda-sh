@@ -272,12 +272,14 @@ const passActions = (
   </div>
 )
 
-// Where the api publishes no `human` verifier, the control starts hidden
-// instead of appearing until the first tap earns a 501: an unconfigured
-// deployment must look like the feature does not exist. The list rides on the
-// venue payload this screen already fetched, so this costs no request.
+// The control starts hidden unless this card offers the `human` kind: its
+// issuer turned the integration on and the deployment has a verifier for it
+// (docs/specs/pass-types-and-flows.md#card-integrations). Otherwise the feature
+// must look like it does not exist, rather than appear and earn a 501 or 404 on
+// the first tap. The list rides on the venue payload this screen already
+// fetched, so this costs no request.
 export const humanBadgeStateOf = (card: PublicCard): BadgeState =>
-  card.badges?.includes('human') === true ? { kind: 'idle' } : { kind: 'unavailable' }
+  card.card.badges?.includes('human') === true ? { kind: 'idle' } : { kind: 'unavailable' }
 
 // `unavailable` (the api has no verifier configured) hides the control
 // entirely, so an unconfigured deployment looks like the feature does not
