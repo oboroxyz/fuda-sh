@@ -15,7 +15,6 @@ import type { DashRoute } from './router.ts'
 import { useCopyText } from './use-copy-text.ts'
 
 export interface PublishedCardProps {
-  canAddCard: boolean
   cards: CardView[]
   copy: DashCopy['published']
   managementCopy: ManagementCopy
@@ -24,7 +23,6 @@ export interface PublishedCardProps {
   onAddCard: () => void
   onDefaultCard: (slug: string | null) => Promise<boolean>
   onSettings: (cardId: string) => void
-  onVenue: () => void
   onNavigate: (route: DashRoute) => void
   publicUrl: string
 }
@@ -81,21 +79,19 @@ export const PublishedCard = ({
       <header class="dash-page-header">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <h1 class="dash-page-title">{copy.title}</h1>
-          {props.canAddCard ? (
-            <a
-              class="link link-hover inline-flex min-h-11 items-center text-sm"
-              href="/cards/new"
-              onClick={(event) => {
-                if (event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
-                  return
-                }
-                event.preventDefault()
-                props.onAddCard()
-              }}
-            >
-              {copy.addCard}
-            </a>
-          ) : null}
+          <a
+            class="link link-hover inline-flex min-h-11 items-center text-sm"
+            href="/cards/new"
+            onClick={(event) => {
+              if (event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+                return
+              }
+              event.preventDefault()
+              props.onAddCard()
+            }}
+          >
+            {copy.addCard}
+          </a>
         </div>
         <p class="text-[var(--fuda-muted)]">{copy.description}</p>
         <a
@@ -319,13 +315,9 @@ export const PublishedCard = ({
         </div>
       ) : (
         <div class="card flex flex-col items-start gap-4 p-6">
-          <p>{props.canAddCard ? copy.createFirst : copy.manageVenue}</p>
-          <button
-            class="btn btn-primary"
-            onClick={props.canAddCard ? props.onAddCard : props.onVenue}
-            type="button"
-          >
-            {props.canAddCard ? copy.addCard : copy.manageVenue}
+          <p>{copy.createFirst}</p>
+          <button class="btn btn-primary" onClick={props.onAddCard} type="button">
+            {copy.addCard}
           </button>
         </div>
       )}

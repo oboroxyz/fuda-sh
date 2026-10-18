@@ -165,7 +165,6 @@ export const AppView = ({
         return (
           <VenuePage
             busy={creating}
-            canCreateCard={operator.ens?.status === 'claimed'}
             copy={copy}
             ens={ens}
             failure={createFailure}
@@ -178,21 +177,6 @@ export const AppView = ({
             onNavigate={onNavigate}
             onUpdate={onUpdateVenue}
           />
-        )
-      }
-      if (route === '/cards/new' && operator.issuer !== null && operator.ens?.status !== 'claimed') {
-        return (
-          <section class="dash-page flex max-w-3xl flex-col gap-6">
-            <header class="space-y-2">
-              <h1 class="text-3xl font-bold">{copy.ens.requiredTitle}</h1>
-              <p class="text-moderate">
-                {operator.ens === null ? copy.venue.ensUnavailable : copy.ens.requiredDescription}
-              </p>
-            </header>
-            <a class="btn btn-primary self-start" href="/profile">
-              {copy.published.manageVenue}
-            </a>
-          </section>
         )
       }
       const managementPage = (): JSX.Element | null => {
@@ -236,7 +220,6 @@ export const AppView = ({
           return (
             <PublishedCard
               key={session.token}
-              canAddCard={operator.ens?.status === 'claimed'}
               cards={operator.cards}
               onSettings={(selectedId) => {
                 const selected = operator.cards.find((card) => card.id === selectedId)
@@ -252,9 +235,6 @@ export const AppView = ({
               issuer={operator.issuer}
               onAddCard={() => {
                 onNavigate('/cards/new')
-              }}
-              onVenue={() => {
-                onNavigate('/profile')
               }}
               publicUrl={operator.publicUrl}
             />
@@ -272,7 +252,6 @@ export const AppView = ({
       return operator.issuer === null ? (
         <VenuePage
           busy={creating}
-          canCreateCard={false}
           copy={copy}
           ens={ens}
           failure={createFailure}

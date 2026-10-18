@@ -13,7 +13,6 @@ const png = new Blob(['image'], { type: 'image/png' })
 const variants = { logo1x: png, logo2x: png, logo3x: png, master: png }
 const props = (): VenuePageProps => ({
   busy: false,
-  canCreateCard: false,
   copy: DASH_COPY.en,
   ens: null,
   failure: null,
@@ -76,8 +75,8 @@ describe('venue registration and details', () => {
     vi.restoreAllMocks()
   })
 
-  it('links to the card list and designer from the profile', () => {
-    render(<VenuePage {...props()} canCreateCard />, root)
+  it('links to the card list and designer from the profile without an ENS claim', () => {
+    render(<VenuePage {...props()} />, root)
     expect(root.querySelector('a[href="/cards"]')?.textContent).toBe('Your cards')
     expect(root.querySelector('a[href="/cards/new"]')?.textContent).toBe('+ Add card')
   })

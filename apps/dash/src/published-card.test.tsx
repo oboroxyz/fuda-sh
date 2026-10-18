@@ -11,7 +11,6 @@ import { membershipCard, passesResponse, ticketCard } from './test/management-fi
 let root: HTMLDivElement
 
 const props = (): PublishedCardProps => ({
-  canAddCard: true,
   cards: [membershipCard, ticketCard],
   copy: DASH_COPY.en.published,
   issuer: {
@@ -30,7 +29,6 @@ const props = (): PublishedCardProps => ({
   onDefaultCard: vi.fn<PublishedCardProps['onDefaultCard']>().mockResolvedValue(true),
   onNavigate: vi.fn<PublishedCardProps['onNavigate']>(),
   onSettings: vi.fn<PublishedCardProps['onSettings']>(),
-  onVenue: vi.fn<PublishedCardProps['onVenue']>(),
   publicUrl: 'https://fuda.sh/@coffee',
 })
 const rows = () => [...root.querySelectorAll('tbody tr')]
@@ -69,6 +67,15 @@ describe('Card list', () => {
     expect(root.querySelector('a[href="https://fuda.sh/@coffee/membership"]')?.getAttribute('target')).toBe(
       '_blank',
     )
+  })
+
+  it('starts an empty venue on its first card without asking for anything else first', () => {
+    const p = props()
+    render(<PublishedCard {...p} cards={[]} />, root)
+    expect(root.textContent).toContain('Create your first card')
+    const button = [...root.querySelectorAll('button')].find((node) => node.textContent === '+ Add card')
+    button?.click()
+    expect(p.onAddCard).toHaveBeenCalledOnce()
   })
 
   it('links to the store display while keeping the existing home Card on its explicit claim route', () => {

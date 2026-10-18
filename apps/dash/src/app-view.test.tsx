@@ -278,40 +278,20 @@ describe(AppView, () => {
     expect(findViewNodes(view, PublishedCard)).toHaveLength(0)
   })
 
-  it('explains the ENS prerequisite on the new-card page and links to venue settings', () => {
-    const session: AppViewProps['session'] = {
-      authError: null,
-      members: { kind: 'idle' },
-      operator: {
-        cards: [card],
-        ens: {
-          claimTxHash: null,
-          expiry: null,
-          name: 'wassie-coffee.fuda.eth',
-          status: 'unclaimed' as const,
-        },
-        issuer,
-        publicUrl: 'https://fuda.sh/@wassie-coffee',
-      },
-      token: 'session',
-    }
-    const view = AppView({ ...props, route: '/cards/new', session })
-    expect(findViewNodes(view, CardDesigner)).toHaveLength(0)
-    expect(findViewNodes(view, VenuePage)).toHaveLength(0)
-    expect(viewText(view)).toContain('Claim your ENS name first')
-    expect(findViewNodes(view, 'a').map((link) => link.props.href)).toStrictEqual(['/profile'])
-  })
-
-  it('explains unavailable ENS configuration on /cards/new in the selected language', () => {
+  it.each([
+    {
+      ens: { claimTxHash: null, expiry: null, name: 'wassie-coffee.fuda.eth', status: 'unclaimed' as const },
+      name: 'an unclaimed ENS name',
+    },
+    { ens: null, name: 'no ENS configured' },
+  ])('opens the card designer for a venue with $name', ({ ens }) => {
     const session: AppViewProps['session'] = {
       ...operatorSession,
-      operator: { cards: [card], ens: null, issuer, publicUrl: 'https://fuda.sh/@wassie-coffee' },
+      operator: { cards: [card], ens, issuer, publicUrl: 'https://fuda.sh/@wassie-coffee' },
     }
-    const view = AppView({ ...props, copy: DASH_COPY.ja, route: '/cards/new', session })
-    expect(viewText(view)).toContain(DASH_COPY.ja.ens.requiredTitle)
-    expect(viewText(view)).toContain(DASH_COPY.ja.venue.ensUnavailable)
-    expect(findViewNodes(view, 'a').map((link) => link.props.href)).toStrictEqual(['/profile'])
-    expect(findViewNodes(view, CardDesigner)).toHaveLength(0)
+    const view = AppView({ ...props, route: '/cards/new', session })
+    expect(viewProps(findViewNodes(view, CardDesigner)[0])).toMatchObject({ issuer, onSubmit: props.onCreate })
+    expect(findViewNodes(view, VenuePage)).toHaveLength(0)
   })
 
   it('opens the dedicated venue form while the operator has no venue', () => {
