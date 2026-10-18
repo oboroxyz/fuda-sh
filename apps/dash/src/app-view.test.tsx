@@ -18,7 +18,7 @@ import { PublishedCard } from './PublishedCard.tsx'
 import { RightsPage } from './RightsPage.tsx'
 import { SignIn } from './SignIn.tsx'
 import { SignOutButton } from './SignOutButton.tsx'
-import { findViewNodes, viewProps, viewText, walkView } from './test/test-view.ts'
+import { findViewNodes, viewProps, walkView } from './test/test-view.ts'
 import { VenuePage } from './VenuePage.tsx'
 
 const issuer = {
@@ -290,7 +290,10 @@ describe(AppView, () => {
       operator: { cards: [card], ens, issuer, publicUrl: 'https://fuda.sh/@wassie-coffee' },
     }
     const view = AppView({ ...props, route: '/cards/new', session })
-    expect(viewProps(findViewNodes(view, CardDesigner)[0])).toMatchObject({ issuer, onSubmit: props.onCreate })
+    expect(viewProps(findViewNodes(view, CardDesigner)[0])).toMatchObject({
+      issuer,
+      onSubmit: props.onCreate,
+    })
     expect(findViewNodes(view, VenuePage)).toHaveLength(0)
   })
 

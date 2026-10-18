@@ -361,18 +361,16 @@ describe('a venue with several cards', () => {
     const { token } = await signIn(app, bindings)
     const { card: firstCard, ...venueInput } = CARD_INPUT
     await postJson(app, bindings, '/v1/issuers', venueInput, token)
-    expect((await postJson(app, bindings, '/v1/issuers/cards', firstCard, token)).status).toBe(201)
-
+    const created = await postJson(app, bindings, '/v1/issuers/cards', firstCard, token)
     const venue = await getJson(app, bindings, '/v1/issuers/wassie-coffee')
-    expect(venue.status).toBe(200)
+    const issued = await issue(app, bindings)
+    expect([created.status, venue.status, issued.status]).toStrictEqual([201, 200, 200])
     await expect(venue.json()).resolves.toMatchObject({ cards: [{ slug: 'stamp' }], handle: 'wassie-coffee' })
 
-    const issued = await issue(app, bindings)
-    expect(issued.status).toBe(200)
     const { memberNumber, uid } = await issued.json<SelfServeIssued>()
     const page = await app.request(`/pass/${uid}`, {}, bindings)
     expect(page.status).toBe(200)
-    expect(await page.text()).toContain('Wassie Coffee')
+    await expect(page.text()).resolves.toContain('Wassie Coffee')
 
     // The member's own name resolves offchain whether or not the venue claimed its own.
     const names = await getDb({ DB: env.DB }).select().from(ensNames)
