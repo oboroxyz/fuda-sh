@@ -8,8 +8,9 @@ import { issuerEnsName, memberEnsName } from './names.ts'
 import { ensNames } from './schema.ts'
 
 // The `ens_names` mirror is what `POST /ens/gateway` answers from
-// (docs/specs/ens-naming.md#hybrid-resolution). Nothing else writes it, so every
-// write in the product goes through this module.
+// (docs/specs/ens-naming.md#hybrid-resolution), except for a venue name that has
+// never been claimed, which `lookup.ts` answers from `issuers`. Nothing else
+// writes the mirror, so every write in the product goes through this module.
 //
 // A member name is a convenience attached to a right; the right is the product.
 // Those mirror writes stay best-effort, because a failed issuance would cost a

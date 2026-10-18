@@ -43,10 +43,10 @@ Deeper background: [naming spec](../specs/ens-naming.md) · [why one shared hybr
 
 |  | `<venue>.fuda.eth` | `<member-no>.<venue>.fuda.eth` |
 | --- | --- | --- |
-| Where it lives | fuda's own ENSv2 User Registry | offchain mirror, served by a signed CCIP-Read gateway |
+| Where it lives | fuda's own ENSv2 User Registry once claimed; before that, the venue's D1 record served by the gateway | offchain mirror, served by a signed CCIP-Read gateway |
 | Who owns it | the venue's own wallet | nobody — the member holds no ENS key |
 | What it costs | one transaction, sponsored via fuda's ERC-7677 endpoint; Alchemy's paymaster pays | nothing |
-| Resolves | once the claim confirms, while unexpired; no offchain fallback | once standard issuance writes the mirror, under an active venue namespace |
+| Resolves | offchain to the operator's wallet from registration; onchain once the claim confirms, while unexpired, with no offchain fallback after that | once standard issuance writes the mirror, under an active venue namespace |
 | Goes dark | while expired or unregistered | on revoke, or when the venue namespace becomes inactive |
 | Transferable | no (role bitmap `0`) | n/a |
 
@@ -115,7 +115,7 @@ The nonce is consumed before the registry call, so a revert rolls everything bac
 
 [`apps/api/src/ens/`](../../apps/api/src/ens)
 
-`POST /ens/gateway` is the EIP-3668 endpoint: it decodes the request, checks the `addr` selector and node, looks the name up in the `ens_names` mirror, and signs the answer over `0x1900 ‖ resolver ‖ expires ‖ keccak(request) ‖ keccak(result)`. [`mirror.ts`](../../apps/api/src/ens/mirror.ts) writes member names after standard issuance, venue names on the claim path, and darkening on revoke. Member-name writes and darkening are best-effort: they never fail the underlying issuance or revocation, and the mirror may remain missing or stale. [`resolution.ts`](../../apps/api/src/ens/resolution.ts) advances private resolution counters and records allocations in `stealth_resolutions`.
+`POST /ens/gateway` is the EIP-3668 endpoint: it decodes the request, checks the `addr` selector and node, looks the name up in the `ens_names` mirror (a never-claimed venue name in `issuers`, answering with the operator's wallet), and signs the answer over `0x1900 ‖ resolver ‖ expires ‖ keccak(request) ‖ keccak(result)`. [`mirror.ts`](../../apps/api/src/ens/mirror.ts) writes member names after standard issuance, venue names on the claim path, and darkening on revoke. Member-name writes and darkening are best-effort: they never fail the underlying issuance or revocation, and the mirror may remain missing or stale. [`resolution.ts`](../../apps/api/src/ens/resolution.ts) advances private resolution counters and records allocations in `stealth_resolutions`.
 
 ## On the product's path
 
