@@ -13,8 +13,9 @@ import { ensNames } from './schema.ts'
 //
 // A member name is a convenience attached to a right; the right is the product.
 // Those mirror writes stay best-effort, because a failed issuance would cost a
-// member their card. Issuer claims are different: card creation is gated on the
-// durable row, so their writer below reports failures to its route.
+// member their card. Issuer claims are different: a claim route must not report
+// success for a row that never persisted, so their writer below reports failures
+// to its route.
 const quietly = async <T>(what: string, write: () => Promise<T>): Promise<void> => {
   try {
     await write()
