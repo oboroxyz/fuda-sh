@@ -101,7 +101,10 @@ export const ERROR_CODES = [
   'bad_signature',
   'bad_handle',
   'handle_taken',
+  // No longer returned: an account may own several issuers (ADR 0009). Kept
+  // so a client built against an older api still knows the code.
   'issuer_exists',
+  'issuer_limit',
   'bad_slug',
   'slug_taken',
   'stamps_not_supported',
@@ -119,5 +122,16 @@ export const ERROR_CODES = [
   'pass_already_badged',
   'bad_proof',
   'badges_not_configured',
+  // Connected apps (docs/specs/connected-apps.md). The first five are the
+  // RFC 6749 token-endpoint codes, spelled as the RFC spells them.
+  'invalid_request',
+  'invalid_client',
+  'invalid_grant',
+  'unsupported_grant_type',
+  'invalid_scope',
+  'insufficient_scope',
+  'bad_redirect_uri',
+  'not_app_owner',
+  'app_limit',
 ] as const
 export type ErrorCode = (typeof ERROR_CODES)[number]

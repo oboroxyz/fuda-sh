@@ -168,6 +168,12 @@ export const IssuerUpdateBody = v.strictObject({
 
 export type IssuerUpdateRequest = v.InferOutput<typeof IssuerUpdateBody>
 
+// POST /auth/switch — which of the account's issuers the new session acts for.
+export const IssuerSwitchBody = v.strictObject({
+  issuerId: v.pipe(v.string(), v.minLength(1), v.maxLength(64)),
+})
+export type IssuerSwitchRequest = v.InferOutput<typeof IssuerSwitchBody>
+
 export const DefaultCardBody = v.strictObject({
   slug: v.nullable(v.pipe(v.string(), v.check(isCardSlugReference))),
 })

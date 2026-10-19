@@ -1,6 +1,6 @@
 # ADR 0008: One issuer wallet, multiple owner credentials
 
-- **Status**: Accepted 2026-09-09. The signature foundation is verified; co-owner onboarding and owner management are deferred beyond the current MVP.
+- **Status**: Accepted 2026-09-09. The signature foundation is verified; co-owner onboarding and owner management are deferred beyond the current MVP. The "one issuer per wallet" rule below is superseded by [ADR 0009](0009-several-issuers-per-account.md): a wallet may own several issuers.
 - **Scope**: shared control of one issuer, without adding a multiple-venue workspace model to the dashboard.
 
 An issuer's wallet is its durable dashboard and ENS identity. The credentials controlling that wallet can change without changing the issuer, handle, cards, or ENS owner. Preserve one issuer per wallet and use Coinbase Smart Wallet's MultiOwnable mechanism for full co-owners. Do not reinterpret each owner credential as a separate issuer or add an offchain owner allowlist as the authority for the wallet.

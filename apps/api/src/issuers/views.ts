@@ -1,5 +1,5 @@
 import { isClaimable, offerableBadgeKinds } from '@fuda/sdk'
-import type { BadgeKind, CardView, IssuerView, OperatorCardView, PublicVenue } from '@fuda/sdk'
+import type { BadgeKind, CardView, IssuerSummary, IssuerView, OperatorCardView, PublicVenue } from '@fuda/sdk'
 import type { Hex } from 'viem'
 
 import type { cards, issuers } from '../db/schema.ts'
@@ -23,6 +23,13 @@ export const issuerView = (row: IssuerRow, baseUrl: string): IssuerView => {
     tagline: row.tagline,
   }
 }
+
+export const issuerSummary = (row: IssuerRow, baseUrl: string): IssuerSummary => ({
+  handle: row.handle,
+  id: row.id,
+  logoUrl: logoUrlFor(baseUrl, row.handle, row.logoPrefix),
+  name: row.name,
+})
 
 // `claimable` is decided against the api's clock, not the caller's. `badges`
 // is written only when the caller computed it (the public venue payload); an

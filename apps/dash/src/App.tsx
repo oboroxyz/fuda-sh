@@ -7,6 +7,7 @@ import type {
   IssuerCreateResponse,
   IssuerMeResponse,
   IssuerUpdateRequest,
+  OwnedIssuersResponse,
 } from '@fuda/sdk'
 import { LanguageSwitcher, saveThemeMode, ThemeToggle, watchThemeMode } from '@fuda/ui'
 import type { ThemeMode } from '@fuda/ui'
@@ -14,6 +15,7 @@ import { useCallback, useEffect, useRef, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import { issueRight, listMembers, revokeRight } from './api.ts'
+import type { Result } from './api.ts'
 import { applyLogo, issueAndReload, revokeAndReload, submitCard, submitVenue } from './app-actions.ts'
 import type { ActionContext, CardCreateOutcome, DashIo, VenueCreateOutcome } from './app-actions.ts'
 import { hasIssuer, signedOutSession, unauthorizedSession } from './app-state.ts'
@@ -21,6 +23,14 @@ import type { SessionState } from './app-state.ts'
 import { AppView } from './AppView.tsx'
 import type { CreateFailure, DesignerForm, DesignerMode } from './card-designer.ts'
 import { API_BASE_URL, GRAPH_RIGHTS_ENDPOINT } from './config.ts'
+import {
+  deleteConnectedApp,
+  listConnectedApps,
+  listGrants,
+  registerConnectedApp,
+  revokeGrant,
+} from './connected-apps-api.ts'
+import type { ConnectedAppsIo } from './ConnectedAppsPage.tsx'
 import { DASH_COPY } from './copy.ts'
 import type { ClaimState } from './ens-claim.ts'
 import { initialClaimState, reconcileClaimState, runClaim } from './ens-claim.ts'
@@ -33,6 +43,7 @@ import { DEFAULT_OPERATOR_IO } from './operator-io.ts'
 import type { OperatorIo } from './operator-io.ts'
 import { clearOperatorToken, readOperatorToken, saveOperatorToken } from './operator-session.ts'
 import type { SignInFailure } from './operator-sign-in.ts'
+import type { ProfileChoices } from './ProfileMenu.tsx'
 import {
   canonicalPath,
   cardForRoute,
@@ -75,7 +86,20 @@ const operatorWithCard = (
   }
 }
 
-const operatorWithVenue = (created: IssuerCreateResponse): IssuerMeResponse => created
+// The create answer without its session token, which the tab stores as its
+// token rather than as part of the profile it shows.
+const operatorWithVenue = ({ token: _token, ...created }: IssuerCreateResponse): IssuerMeResponse => created
+
+const activeIssuerOf = (session: SessionState): string | null => session.operator?.issuer?.id ?? null
+
+// The profile switcher's contents, once the account's profiles are known.
+const profileChoices = (
+  owned: OwnedIssuersResponse | undefined,
+  activeId: string | null,
+  onSwitch: (issuerId: string) => void,
+  onAdd: () => void,
+): ProfileChoices | null =>
+  owned === undefined || activeId === null ? null : { activeId, issuers: owned.issuers, onAdd, onSwitch }
 
 export const App = ({
   initialTheme,
@@ -211,6 +235,17 @@ export const App = ({
       setClaimState((state) => reconcileClaimState(state, operator.ens, pending, previousEnsName))
     }
   }, [generation, issuerTicket, issuerQuery.data, issuerQuery.error, replaceSession, token])
+
+  // docs/adr/0009-several-issuers-per-account.md — the account's profiles for
+  // the switcher. Keyed by the active issuer, so creating or switching to
+  // another profile reads the list again.
+  const ownedTicket = generation.capture()
+  const activeIssuerId = activeIssuerOf(session)
+  const ownedQuery = useQuery<OwnedIssuersResponse>(queryClient, {
+    enabled: token !== null && activeIssuerId !== null,
+    queryFn: async () => readQueryResult(await operatorIo.ownedIssuers(token ?? '')),
+    queryKey: ['owned-issuers', API_BASE_URL, ownedTicket, activeIssuerId],
+  })
 
   const updateOperator = useCallback(
     (operator: IssuerMeResponse): void => {
@@ -490,14 +525,19 @@ export const App = ({
 
   const onSignOut = (): void => {
     const oldToken = token ?? restoringToken.current
+    // Another tab may have switched profile since, storing a session of its
+    // own; signing out ends that one too, so a reload never signs back in.
+    const storedToken = readOperatorToken()
     const hadOperator = session.operator !== null || restoringToken.current !== null
     replaceSession(signedOutSession())
+    clearOperatorToken(storedToken)
     navigateTo(history, '/')
     setRoute('/')
-    if (oldToken !== null && hadOperator) {
+    const ending = [...new Set([oldToken, storedToken])].filter((ended) => ended !== null)
+    if (hadOperator) {
       const run = async (): Promise<void> => {
         try {
-          await operatorIo.signOut(oldToken)
+          await Promise.all(ending.map(async (ended) => await operatorIo.signOut(ended)))
         } catch {
           // Remote sign-out failure cannot restore the locally signed-out session.
         }
@@ -564,6 +604,10 @@ export const App = ({
     submit: () => Promise<{ ok: true; body: T } | { ok: false; failure: CreateFailure }>,
     apply: (body: T) => IssuerMeResponse,
     target: DashRoute,
+    // A create that answers a session of its own (another profile beside an
+    // existing one) moves this tab onto that session with a clean slate:
+    // nothing the previous profile loaded or drafted may carry over.
+    newSessionOf: (body: T) => string | null = () => null,
   ): void => {
     if (token === null) {
       setCreateFailure('input')
@@ -597,7 +641,13 @@ export const App = ({
         setCreateFailure(outcome.failure)
         return
       }
-      updateOperator(apply(outcome.body))
+      const newSession = newSessionOf(outcome.body)
+      if (newSession === null) {
+        updateOperator(apply(outcome.body))
+      } else {
+        saveOperatorToken(newSession)
+        replaceSession({ ...signedOutSession(), operator: apply(outcome.body), token: newSession })
+      }
       setCardDraft(null)
       navigateTo(history, target)
       setRoute(target)
@@ -618,8 +668,48 @@ export const App = ({
       async (): Promise<VenueCreateOutcome> => await submitVenue(operatorIo.design, token ?? '', form, logo),
       operatorWithVenue,
       '/profile',
+      (created) => created.token ?? null,
     )
   }
+
+  const onSwitchProfile = (issuerId: string): void => {
+    if (token === null) {
+      return
+    }
+    const sessionToken = token
+    const ticket = generation.capture()
+    const run = async (): Promise<void> => {
+      let result: Awaited<ReturnType<OperatorIo['switchIssuer']>>
+      try {
+        result = await operatorIo.switchIssuer(sessionToken, issuerId)
+      } catch {
+        return
+      }
+      if (!generation.isCurrent(ticket) || activeToken.current !== sessionToken) {
+        return
+      }
+      if (!result.ok) {
+        if (result.status === 401) {
+          replaceSession(unauthorizedSession(activeSession.current))
+        }
+        return
+      }
+      // A new session bound to the chosen profile. The previous token stays
+      // bound to its own profile, so another tab still holding it keeps
+      // writing where it shows (docs/adr/0009-several-issuers-per-account.md).
+      saveOperatorToken(result.body.token)
+      replaceSession({ ...signedOutSession(), operator: result.body.operator, token: result.body.token })
+      navigateTo(history, '/cards')
+      setRoute('/cards')
+    }
+    void run()
+  }
+
+  const profiles = profileChoices(ownedQuery.data, activeIssuerId, onSwitchProfile, () => {
+    setCreateFailure(null)
+    navigateTo(history, '/profiles/new')
+    setRoute('/profiles/new')
+  })
 
   // The published screen changes a live venue's mark, which is a staged upload
   // spent by the commit route rather than by a create body.
@@ -807,7 +897,9 @@ export const App = ({
       }
       return result
     },
-    [generation, operatorIo, replaceSession, token],
+    // The active profile is part of what this reads, so a switch gives the
+    // pass list a new loader even though the session token is the same.
+    [generation, operatorIo, replaceSession, token, activeIssuerId],
   )
 
   const readCard = useCallback(
@@ -874,9 +966,36 @@ export const App = ({
     [generation, operatorIo, replaceSession, token],
   )
 
+  // A 401 from any connected-app call ends the session, as every other
+  // operator read does.
+  const guarded = async <T,>(call: (sessionToken: string) => Promise<Result<T>>): Promise<Result<T>> => {
+    const sessionToken = token ?? ''
+    const ticket = generation.capture()
+    const result = await call(sessionToken)
+    if (
+      !result.ok &&
+      result.status === 401 &&
+      generation.isCurrent(ticket) &&
+      activeToken.current === sessionToken
+    ) {
+      replaceSession(unauthorizedSession(activeSession.current))
+    }
+    return result
+  }
+  const connectedApps: ConnectedAppsIo = {
+    grants: async () => await guarded(listGrants),
+    list: async () => await guarded(listConnectedApps),
+    register: async (body) =>
+      await guarded(async (sessionToken) => await registerConnectedApp(sessionToken, body)),
+    remove: async (clientId) =>
+      await guarded(async (sessionToken) => await deleteConnectedApp(sessionToken, clientId)),
+    revoke: async (id) => await guarded(async (sessionToken) => await revokeGrant(sessionToken, id)),
+  }
+
   return (
     <AppView
       appearance={appearance}
+      connectedApps={connectedApps}
       authError={session.authError}
       cardDraft={cardDraft}
       cardManagement={{ load: readCard, save: saveCard }}
@@ -899,6 +1018,7 @@ export const App = ({
       }}
       onDefaultCard={onDefaultCard}
       onUpdateVenue={onUpdateVenue}
+      profiles={profiles}
       onIssue={async (body) =>
         context === null
           ? { error: 'unauthorized', network: false, ok: false, status: 401 }

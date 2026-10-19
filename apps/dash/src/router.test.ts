@@ -52,6 +52,16 @@ describe('Dash router', () => {
     expect(redirectFor(routeFromPath('/passes'), 'operator', true)).toBeNull()
   })
 
+  it('opens another profile’s registration only for an operator who already has one', () => {
+    const route = routeFromPath('/profiles/new')
+    expect([
+      route,
+      redirectFor(route, 'operator', true),
+      redirectFor(route, 'operator', false),
+      redirectFor(route, 'admin', false),
+    ]).toStrictEqual(['/profiles/new', null, '/start', '/'])
+  })
+
   it('opens card settings directly and preserves the selected card through history', () => {
     expect(routeFromPath('/cards/card-1/stamps/')).toBe('/cards/card-1/stamps')
     expect(routeFromPath('/cards/card-2/stamps?from=list')).toBe('/cards/card-2/stamps')

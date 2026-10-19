@@ -80,7 +80,8 @@ describe('dashboard navigation', () => {
     await vi.waitFor(() => {
       expect(trigger.getAttribute('aria-expanded')).toBe('true')
     })
-    expect(button('Switch profile').disabled).toBe(true)
+    // No profile list is passed here, so the menu offers only sign-out.
+    expect(root.querySelector('[role="group"]')).toBeNull()
     expect(root.querySelector('nav a[href="/profile"]')?.textContent).toBe('Profile')
     expect(root.querySelector('a[href="https://fuda.test/@coffee"]')?.closest('[hidden]')).toBeNull()
   })
@@ -251,7 +252,7 @@ describe('dashboard navigation', () => {
     (hasIssuer) => {
       start('operator', hasIssuer)
       expect([...root.querySelectorAll('nav a')].map((link) => link.getAttribute('href'))).toStrictEqual(
-        hasIssuer ? ['/profile', '/reception', '/cards', '/passes'] : ['/start'],
+        hasIssuer ? ['/profile', '/reception', '/cards', '/passes', '/apps'] : ['/start'],
       )
     },
   )
@@ -260,7 +261,7 @@ describe('dashboard navigation', () => {
     start()
     button('Open menu').click()
     await setTimeout(0)
-    const lastLink = root.querySelector<HTMLAnchorElement>('nav a[href="/passes"]')!
+    const lastLink = root.querySelector<HTMLAnchorElement>('nav a[href="/apps"]')!
     lastLink.focus()
     lastLink.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Tab' }))
     expect(document.activeElement).toBe(button('Close menu'))

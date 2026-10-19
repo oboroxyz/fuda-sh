@@ -30,6 +30,7 @@ flowchart LR
 | --- | --- | --- |
 | API | `apps/api` | Coordinates issuance, revocation, gate operational state, pass generation, and +Private announcement writes |
 | Operator dashboard | `apps/dash` | Gives authorized issuers routed Overview, Rights, and Issue views; derives operational summaries from D1 member rows, issues and revokes through the API, and queries chain status separately through the rights subgraph |
+| Connected apps | External; `apps/api`, `apps/dash` | Browser-only apps an Operator registers and approves for one Issuer; they create and read that Issuer's Cards with an access token ([Connected apps](./specs/connected-apps.md)) |
 | Member app | `apps/app` | Holds member signing rails, answers Signed challenges, lists public member passes from holder addresses and device memory, and discovers +Private rights client-side |
 | Gate | `apps/gate` | Reads presented rights, requests proof when required, and renders an ADMIT or REJECT verdict |
 | EAS on Base | External; `apps/api` | Records Entitlements, issuer delegation, revocation, and Attendance evidence |
@@ -56,6 +57,7 @@ This cache supports presentation, not authorization or admission decisions. It i
 - **Private discovery is client-side.** The member app derives viewing keys and matches ERC-5564 announcements locally after fetching raw candidates from the public rights subgraph. The API and D1 are not involved in discovery.
 - **Push and query lanes are independent.** The rights subgraph reads EAS and the Announcer directly. Stopping the optional Substreams push lane does not stop discovery, right cards, dashboard on-chain status, issuance, or gate checks.
 - **Admin routes fail closed.** Issue, revoke and member listing require `ADMIN_TOKEN` wherever a signer or `BASE_RPC_URL` is configured; a deployment with either binding and no token locks them rather than opening them.
+- **A connected app reaches one Issuer.** Its access token names the Issuer chosen at approval and the routes it reaches read only that Issuer; it cannot create an Issuer or act as the Operator. Only the account that registered the app can approve it.
 - **The public verify endpoints are unauthenticated by design.** `GET /verify/:uid` and `POST /verify` take a uid that is public on chain, so anyone who learns one can preview it. `GET /verify/:uid` is a read-only preview and never consumes a slot; a bare `POST /verify` is an admission, so it burns a SINGLE_USE right's slot. What that buys an attacker, and why Signed is the answer for rights that must resist it, is in the attestation model's [threat model of the public verify endpoints](./specs/attestation-model.md#api-payloads-that-touch-attestations).
 
 ## UX and decentralization

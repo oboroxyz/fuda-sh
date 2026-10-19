@@ -316,7 +316,15 @@ export const canSubmit = (
 }
 
 // Why a create failed, in the terms the form explains it.
-export type CreateFailure = 'input' | 'logo' | 'network' | 'session' | 'slugInvalid' | 'slugTaken' | 'taken'
+export type CreateFailure =
+  | 'input'
+  | 'issuerLimit'
+  | 'logo'
+  | 'network'
+  | 'session'
+  | 'slugInvalid'
+  | 'slugTaken'
+  | 'taken'
 
 export const createFailureOf = (status: number, network: boolean, error: string): CreateFailure => {
   if (network) {
@@ -328,6 +336,9 @@ export const createFailureOf = (status: number, network: boolean, error: string)
   if (status === 409) {
     if (error === 'issuer_exists') {
       return 'input'
+    }
+    if (error === 'issuer_limit') {
+      return 'issuerLimit'
     }
     return error === 'slug_taken' ? 'slugTaken' : 'taken'
   }

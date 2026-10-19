@@ -4,12 +4,14 @@ import {
   claimVoucher,
   confirmEnsClaim,
   issuerMe,
+  ownedIssuers,
   readCardIntegrations,
   readStampSettings,
   receiveAtReception,
   signInChallenge,
   signInVerify,
   signOut,
+  switchIssuer,
   updateCardIntegrations,
   updateDefaultCard,
   updateIssuer,
@@ -32,6 +34,7 @@ export interface OperatorIo {
   design: DesignIo
   issuerMe: typeof issuerMe
   listPasses: typeof listIssuerPasses
+  ownedIssuers: typeof ownedIssuers
   readCard: typeof readOperatorCard
   updateCard: typeof updateOperatorCard
   readCardIntegrations: typeof readCardIntegrations
@@ -39,6 +42,7 @@ export interface OperatorIo {
   receiveAtReception: typeof receiveAtReception
   signIn: () => Promise<SignInOutcome>
   signOut: typeof signOut
+  switchIssuer: typeof switchIssuer
   updateDefaultCard: typeof updateDefaultCard
   updateIssuer: typeof updateIssuer
   updateCardIntegrations: typeof updateCardIntegrations
@@ -56,6 +60,7 @@ export const DEFAULT_OPERATOR_IO: OperatorIo = {
   design: DEFAULT_DESIGN_IO,
   issuerMe,
   listPasses: listIssuerPasses,
+  ownedIssuers,
   readCard: readOperatorCard,
   readCardIntegrations,
   readStampSettings,
@@ -70,6 +75,7 @@ export const DEFAULT_OPERATOR_IO: OperatorIo = {
       verify: signInVerify,
     }),
   signOut,
+  switchIssuer,
   updateCard: updateOperatorCard,
   updateCardIntegrations,
   updateDefaultCard,

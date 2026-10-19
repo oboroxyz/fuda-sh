@@ -45,11 +45,15 @@ export const insertCard = async (
   }
 }
 
+// `bindSession` is true only for a session with no issuer yet: a session that
+// already acts for an issuer keeps it, and the caller mints a new session for
+// the new one (docs/adr/0009-several-issuers-per-account.md).
 export const insertIssuer = async (
   db: Db,
   operator: OperatorSession,
   input: IssuerCreateRequest,
   now: number,
+  bindSession: boolean,
 ): Promise<string> => {
   const issuerId = crypto.randomUUID()
   // A logo staged before the venue existed is claimed here; an id that is
@@ -59,18 +63,16 @@ export const insertIssuer = async (
     input.logoUploadId === null
       ? null
       : await claimLogoUpload(db, { id: input.logoUploadId, now, sessionTokenHash: operator.tokenHash })
-  await db.batch([
-    db.insert(issuers).values({
-      brandColor: input.brandColor,
-      createdAt: now,
-      handle: input.handle,
-      id: issuerId,
-      logoPrefix,
-      name: input.name,
-      operatorAddress: operator.address,
-      tagline: input.tagline,
-    }),
-    attachIssuer(db, operator.tokenHash, issuerId),
-  ])
+  const insert = db.insert(issuers).values({
+    brandColor: input.brandColor,
+    createdAt: now,
+    handle: input.handle,
+    id: issuerId,
+    logoPrefix,
+    name: input.name,
+    operatorAddress: operator.address,
+    tagline: input.tagline,
+  })
+  await (bindSession ? db.batch([insert, attachIssuer(db, operator.tokenHash, issuerId)]) : insert)
   return issuerId
 }
