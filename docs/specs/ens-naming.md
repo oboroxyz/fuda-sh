@@ -246,18 +246,20 @@ The parent owner therefore does not itself unregister an issuer entry. It can gi
 
 The exact root bitmap is asserted at deployment and re-checked by the standalone verifier, so a drift in root custody fails topology verification rather than passing silently.
 
-## Remaining lifecycle integration
+## Lifecycle
 
-The intended lifecycle remains evidence-driven, but the B1 seams are not yet shipped:
+Names follow the venue and its rights:
 
 ```text
-confirmed right or delegation evidence -> naming mirror write -> resolvable name
-revoked or expired evidence             -> mirror/lifecycle update -> dark name
+registered venue, confirmed claim or issued right -> resolvable name
+revoked right or passed registry expiry           -> dark name
 ```
 
-B1 must supply authenticated voucher issuance from a real active `IssuerDelegation`, issuer onboarding and confirmed member mirror writes, and revoke lifecycle integration for the mirror. Until those exist, normal application flows do not populate the gateway mirror or mutate claimed issuer state.
+Normal application flows drive every step. A registered venue's name resolves from the `issuers` table, a confirmed claim and every right issued under a venue write the mirror (see [what writes the mirror](#claiming-a-name-and-what-writes-the-mirror)), revoking a right takes its member name dark, and lookup stops answering a claimed name once its registry expiry passes. Member names carry no expiry of their own; they end with the right's revocation.
 
-Revoking an issuer's delegation does not take its claimed name dark. The name keeps resolving to the issuer's wallet, and its member descendants keep resolving, until the registry expiry passes. This is deliberate and is not a missing B1 seam: a name is a destination, the delegation check is a separate fact every surface performs, and tying revocation to an onchain unregister would require handing revocation power to a live principal. Member answers do go dark on revocation, because they come from the mirror.
+One B1 seam remains. The claim voucher is signed for the signed-in operator's registered venue without checking that the venue holds an active `IssuerDelegation`. A name is not authority, so this decides which venues can take their name onchain, not what a name proves.
+
+Revoking an issuer's delegation does not take its claimed name dark. The name keeps resolving to the issuer's wallet, and its member descendants keep resolving, until the registry expiry passes. This is deliberate, not a missing seam: a name is a destination, the delegation check is a separate fact every surface performs, and tying revocation to an onchain unregister would require handing revocation power to a live principal. A member name does go dark when its own right is revoked, because its answer comes from the mirror.
 
 Bearer-to-Signed Activation changes the claimable account's owners, not its address, so the member name, right, and history remain unchanged.
 
