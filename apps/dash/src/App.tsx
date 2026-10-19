@@ -14,6 +14,7 @@ import { useCallback, useEffect, useRef, useState } from 'hono/jsx/dom'
 import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import { issueRight, listMembers, revokeRight } from './api.ts'
+import type { Result } from './api.ts'
 import { applyLogo, issueAndReload, revokeAndReload, submitCard, submitVenue } from './app-actions.ts'
 import type { ActionContext, CardCreateOutcome, DashIo, VenueCreateOutcome } from './app-actions.ts'
 import { hasIssuer, signedOutSession, unauthorizedSession } from './app-state.ts'
@@ -21,6 +22,14 @@ import type { SessionState } from './app-state.ts'
 import { AppView } from './AppView.tsx'
 import type { CreateFailure, DesignerForm, DesignerMode } from './card-designer.ts'
 import { API_BASE_URL, GRAPH_RIGHTS_ENDPOINT } from './config.ts'
+import {
+  deleteConnectedApp,
+  listConnectedApps,
+  listGrants,
+  registerConnectedApp,
+  revokeGrant,
+} from './connected-apps-api.ts'
+import type { ConnectedAppsIo } from './ConnectedAppsPage.tsx'
 import { DASH_COPY } from './copy.ts'
 import type { ClaimState } from './ens-claim.ts'
 import { initialClaimState, reconcileClaimState, runClaim } from './ens-claim.ts'
@@ -874,9 +883,36 @@ export const App = ({
     [generation, operatorIo, replaceSession, token],
   )
 
+  // A 401 from any connected-app call ends the session, as every other
+  // operator read does.
+  const guarded = async <T,>(call: (sessionToken: string) => Promise<Result<T>>): Promise<Result<T>> => {
+    const sessionToken = token ?? ''
+    const ticket = generation.capture()
+    const result = await call(sessionToken)
+    if (
+      !result.ok &&
+      result.status === 401 &&
+      generation.isCurrent(ticket) &&
+      activeToken.current === sessionToken
+    ) {
+      replaceSession(unauthorizedSession(activeSession.current))
+    }
+    return result
+  }
+  const connectedApps: ConnectedAppsIo = {
+    grants: async () => await guarded(listGrants),
+    list: async () => await guarded(listConnectedApps),
+    register: async (body) =>
+      await guarded(async (sessionToken) => await registerConnectedApp(sessionToken, body)),
+    remove: async (clientId) =>
+      await guarded(async (sessionToken) => await deleteConnectedApp(sessionToken, clientId)),
+    revoke: async (id) => await guarded(async (sessionToken) => await revokeGrant(sessionToken, id)),
+  }
+
   return (
     <AppView
       appearance={appearance}
+      connectedApps={connectedApps}
       authError={session.authError}
       cardDraft={cardDraft}
       cardManagement={{ load: readCard, save: saveCard }}

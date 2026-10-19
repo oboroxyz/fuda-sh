@@ -7,6 +7,7 @@ describe('Dash copy', () => {
   it('defaults callers to the complete English branch', () => {
     const copy = pick(DASH_COPY, 'en')
     expect(copy.nav).toStrictEqual({
+      apps: 'Apps',
       card: 'Your cards',
       issue: 'Issue',
       newCard: 'New card',
@@ -51,6 +52,7 @@ describe('Dash copy', () => {
   it('contains Japanese operator copy for every typed field', () => {
     const copy = pick(DASH_COPY, 'ja')
     expect(copy.nav).toStrictEqual({
+      apps: 'アプリ連携',
       card: 'カード',
       issue: '発行',
       newCard: 'カードを作る',

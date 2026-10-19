@@ -251,7 +251,7 @@ describe('dashboard navigation', () => {
     (hasIssuer) => {
       start('operator', hasIssuer)
       expect([...root.querySelectorAll('nav a')].map((link) => link.getAttribute('href'))).toStrictEqual(
-        hasIssuer ? ['/profile', '/reception', '/cards', '/passes'] : ['/start'],
+        hasIssuer ? ['/profile', '/reception', '/cards', '/passes', '/apps'] : ['/start'],
       )
     },
   )
@@ -260,7 +260,7 @@ describe('dashboard navigation', () => {
     start()
     button('Open menu').click()
     await setTimeout(0)
-    const lastLink = root.querySelector<HTMLAnchorElement>('nav a[href="/passes"]')!
+    const lastLink = root.querySelector<HTMLAnchorElement>('nav a[href="/apps"]')!
     lastLink.focus()
     lastLink.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Tab' }))
     expect(document.activeElement).toBe(button('Close menu'))

@@ -1,11 +1,14 @@
 import { AUTH_COPY } from '@fuda/i18n'
 import type { Copy } from '@fuda/i18n'
 
+import { APPS_COPY } from './apps-copy.ts'
+import type { AppsCopy } from './apps-copy.ts'
 import type { BrandColorName } from './brand-colors.ts'
 import { MANAGEMENT_COPY } from './management-copy.ts'
 import type { ManagementCopy } from './management-copy.ts'
 
 export interface DashCopy {
+  apps: AppsCopy
   management: ManagementCopy
   chrome: {
     brand: string
@@ -27,6 +30,7 @@ export interface DashCopy {
     newCard: string
     card: string
     passes: string
+    apps: string
   }
   auth: {
     title: string
@@ -359,6 +363,7 @@ export interface DashCopy {
 /* oxlint-disable eslint/sort-keys -- translation objects follow the shared DashCopy UI grouping */
 export const DASH_COPY = {
   en: {
+    apps: APPS_COPY.en,
     management: MANAGEMENT_COPY.en,
     chrome: {
       brand: 'fuda.',
@@ -380,6 +385,7 @@ export const DASH_COPY = {
       newCard: 'New card',
       card: 'Your cards',
       passes: 'Passes',
+      apps: 'Apps',
     },
     auth: {
       title: 'fuda. dashboard',
@@ -752,6 +758,7 @@ export const DASH_COPY = {
     },
   },
   ja: {
+    apps: APPS_COPY.ja,
     management: MANAGEMENT_COPY.ja,
     chrome: {
       brand: 'fuda.',
@@ -773,6 +780,7 @@ export const DASH_COPY = {
       newCard: 'カードを作る',
       card: 'カード',
       passes: 'パス一覧',
+      apps: 'アプリ連携',
     },
     auth: {
       title: 'fuda. dashboard',

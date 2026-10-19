@@ -95,6 +95,13 @@ const props: AppViewProps = {
     load: vi.fn<AppViewProps['cardManagement']['load']>(),
     save: vi.fn<AppViewProps['cardManagement']['save']>(),
   },
+  connectedApps: {
+    grants: vi.fn<AppViewProps['connectedApps']['grants']>(),
+    list: vi.fn<AppViewProps['connectedApps']['list']>(),
+    register: vi.fn<AppViewProps['connectedApps']['register']>(),
+    remove: vi.fn<AppViewProps['connectedApps']['remove']>(),
+    revoke: vi.fn<AppViewProps['connectedApps']['revoke']>(),
+  },
   copy: DASH_COPY.en,
   createFailure: null,
   creating: false,

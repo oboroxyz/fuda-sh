@@ -9,6 +9,8 @@ import { CardEditPage } from './CardEditPage.tsx'
 import type { CardEditPageProps } from './CardEditPage.tsx'
 import type { CardStampIo } from './CardStampSettings.tsx'
 import { API_BASE_URL } from './config.ts'
+import { ConnectedAppsPage } from './ConnectedAppsPage.tsx'
+import type { ConnectedAppsIo } from './ConnectedAppsPage.tsx'
 import type { DashCopy } from './copy.ts'
 import { DashboardShell } from './DashboardShell.tsx'
 import type { CardIntegrationsIo } from './IntegrationSettings.tsx'
@@ -52,6 +54,7 @@ export interface AppViewProps {
   createFailure: CreateFailure | null
   creating: boolean
   graphEndpoint: string
+  connectedApps: ConnectedAppsIo
   integrations: CardIntegrationsIo
   members: MembersState
   onChangeCardDraft: (form: DesignerForm) => void
@@ -89,6 +92,7 @@ export const AppView = ({
   copy,
   createFailure,
   creating,
+  connectedApps,
   graphEndpoint,
   integrations,
   members,
@@ -245,6 +249,9 @@ export const AppView = ({
       const management = managementPage()
       if (management !== null) {
         return management
+      }
+      if (operator.issuer !== null && route === '/apps') {
+        return <ConnectedAppsPage key={session.token} copy={copy.apps} io={connectedApps} />
       }
       if (operator.issuer !== null && route === '/reception') {
         return <ReceptionPage copy={copy.reception} receive={receiveAtReception} />
