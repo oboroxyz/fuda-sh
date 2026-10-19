@@ -187,6 +187,27 @@ describe('several issuers per account', () => {
     expect([venue.status, body.handle, anonymousList.status]).toStrictEqual([200, 'owned', 401])
   })
 
+  it('answers every concurrent first create with a session bound to its own issuer', async () => {
+    const { token } = await signIn(app, bindings())
+    const creates = await Promise.all(
+      ['first-shop', 'second-shop'].map(
+        async (handle) =>
+          await bodyOf<IssuerCreateResponse>(
+            postJson(app, bindings(), '/v1/issuers', { ...COFFEE, handle }, token),
+          ),
+      ),
+    )
+    // Whichever create bound the shared session, the other was answered a
+    // token of its own; each token reads exactly the issuer it was created for.
+    const tokens = creates.map((created) => created.token ?? token)
+    const shown = await Promise.all(tokens.map(async (session) => await me(session)))
+    expect([
+      new Set(tokens).size,
+      shown.map((view) => view.issuer?.handle),
+      creates.filter((created) => created.token === undefined).length,
+    ]).toStrictEqual([2, ['first-shop', 'second-shop'], 1])
+  })
+
   it('caps the issuers one account can create', async () => {
     const { token } = await signIn(app, bindings())
     const statuses: number[] = []

@@ -75,6 +75,17 @@ export const resolveSession = async (
   return { kind: 'valid', session: { address, issuerId: row.issuerId, tokenHash } }
 }
 
+// The issuer a session is bound to, read fresh: a create that meant to bind
+// the session checks it took, since another request may have bound it first.
+export const sessionIssuerId = async (db: Db, tokenHash: string): Promise<string | null> => {
+  const row = await db
+    .select({ issuerId: sessions.issuerId })
+    .from(sessions)
+    .where(eq(sessions.tokenHash, tokenHash))
+    .get()
+  return row?.issuerId ?? null
+}
+
 export const deleteSession = async (db: Db, tokenHash: string): Promise<void> => {
   await db.delete(sessions).where(eq(sessions.tokenHash, tokenHash))
 }

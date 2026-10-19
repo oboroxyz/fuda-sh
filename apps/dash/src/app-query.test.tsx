@@ -17,6 +17,7 @@ import { EnsClaim } from './EnsClaim.tsx'
 import type { EnsClaimProps } from './EnsClaim.tsx'
 import { DEFAULT_OPERATOR_IO } from './operator-io.ts'
 import type { OperatorIo } from './operator-io.ts'
+import { readOperatorToken, saveOperatorToken } from './operator-session.ts'
 import { membershipCard, passesResponse } from './test/management-fixtures.ts'
 import { findViewNodes, viewProps } from './test/test-view.ts'
 import { EMPTY_VENUE_FORM } from './venue.ts'
@@ -805,5 +806,23 @@ describe('dashboard query lifecycle', () => {
     expect([operator.switchIssuer.mock.calls, view().session.token, view().profiles?.activeId]).toStrictEqual(
       [[['session', 'issuer-2']], 'session-bar', 'issuer-2'],
     )
+  })
+
+  it('signs out the session another tab stored after switching, as well as its own', async () => {
+    const operator = {
+      ...operatorIo(),
+      issuerMe: vi.fn<OperatorIo['issuerMe']>().mockResolvedValue({ body: issuer, ok: true }),
+    }
+    await start(operator)
+    // Another tab switched profile and stored the session it was handed.
+    saveOperatorToken('session-other-tab')
+    view().onSignOut()
+    await vi.waitFor(() => {
+      expect(operator.signOut).toHaveBeenCalledTimes(2)
+    })
+    expect([
+      operator.signOut.mock.calls.map(([ended]) => ended).toSorted(),
+      readOperatorToken(),
+    ]).toStrictEqual([['session', 'session-other-tab'], null])
   })
 })

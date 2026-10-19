@@ -20,7 +20,7 @@ import { Hono } from 'hono'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 
-import { createSession } from '../auth/session.ts'
+import { createSession, sessionIssuerId } from '../auth/session.ts'
 import { configuredBadgeKinds } from '../badges/verifier.ts'
 import { cards, issuers } from '../db/schema.ts'
 import { issuerEnsName } from '../ens/names.ts'
@@ -238,8 +238,9 @@ issuersRoutes.post('/issuers', operatorAuth(), async (c) => {
   // A session with no issuer yet is bound to this one. A session that already
   // acts for an issuer keeps it, and the new issuer gets a session of its own.
   const bindSession = operator.issuerId === null
+  let issuerId: string
   try {
-    await insertIssuer(db, operator, parsed.output, c.get('now')(), bindSession)
+    issuerId = await insertIssuer(db, operator, parsed.output, c.get('now')(), bindSession)
   } catch {
     // The unique indexes are the last word when two requests race the checks above.
     return errorResponse(c, 'handle_taken', 409)
@@ -254,7 +255,10 @@ issuersRoutes.post('/issuers', operatorAuth(), async (c) => {
     issuer: issuerView(found.issuer, c.env.API_BASE_URL),
     publicUrl: publicUrlFor(c.env.PUBLIC_BASE_URL, found.issuer.handle),
   }
-  if (!bindSession) {
+  // Two creates from one session with no issuer can race; only the first binds
+  // it, and the other is answered a session of its own like any additional one.
+  const bound = bindSession && (await sessionIssuerId(db, operator.tokenHash)) === issuerId
+  if (!bound) {
     created.token = await createSession(db, {
       address: operator.address,
       audience: 'operator',

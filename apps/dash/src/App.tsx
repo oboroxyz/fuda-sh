@@ -86,7 +86,9 @@ const operatorWithCard = (
   }
 }
 
-const operatorWithVenue = (created: IssuerCreateResponse): IssuerMeResponse => created
+// The create answer without its session token, which the tab stores as its
+// token rather than as part of the profile it shows.
+const operatorWithVenue = ({ token: _token, ...created }: IssuerCreateResponse): IssuerMeResponse => created
 
 const activeIssuerOf = (session: SessionState): string | null => session.operator?.issuer?.id ?? null
 
@@ -523,14 +525,19 @@ export const App = ({
 
   const onSignOut = (): void => {
     const oldToken = token ?? restoringToken.current
+    // Another tab may have switched profile since, storing a session of its
+    // own; signing out ends that one too, so a reload never signs back in.
+    const storedToken = readOperatorToken()
     const hadOperator = session.operator !== null || restoringToken.current !== null
     replaceSession(signedOutSession())
+    clearOperatorToken(storedToken)
     navigateTo(history, '/')
     setRoute('/')
-    if (oldToken !== null && hadOperator) {
+    const ending = [...new Set([oldToken, storedToken])].filter((ended) => ended !== null)
+    if (hadOperator) {
       const run = async (): Promise<void> => {
         try {
-          await operatorIo.signOut(oldToken)
+          await Promise.all(ending.map(async (ended) => await operatorIo.signOut(ended)))
         } catch {
           // Remote sign-out failure cannot restore the locally signed-out session.
         }
