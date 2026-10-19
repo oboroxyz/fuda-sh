@@ -46,16 +46,19 @@ let root: HTMLDivElement
 
 const fixture = () => {
   let active = coffee
+  // Which profile each pass-list read was answered for, in order. How many
+  // reads a render makes depends on timing; which profile they read does not.
+  const reads: string[] = []
   return {
+    reads,
     ...DEFAULT_OPERATOR_IO,
     issuerMe: vi
       .fn<OperatorIo['issuerMe']>()
       .mockImplementation(async () => await Promise.resolve({ body: active, ok: true })),
-    listPasses: vi
-      .fn<OperatorIo['listPasses']>()
-      .mockImplementation(
-        async () => await Promise.resolve({ body: active === coffee ? passesResponse : empty, ok: true }),
-      ),
+    listPasses: vi.fn<OperatorIo['listPasses']>().mockImplementation(async () => {
+      reads.push(active.issuer?.handle ?? '')
+      return await Promise.resolve({ body: active === coffee ? passesResponse : empty, ok: true })
+    }),
     ownedIssuers: vi.fn<OperatorIo['ownedIssuers']>().mockResolvedValue({
       body: {
         activeIssuerId: 'issuer-1',
@@ -112,6 +115,12 @@ describe('switching profile', () => {
     await vi.waitFor(() => {
       expect(statValues()).toStrictEqual(['0', '0', '0', '0'])
     })
-    expect(operator.listPasses).toHaveBeenCalledTimes(2)
+    // Read again after the switch, and never for the previous profile once Bar
+    // was read.
+    const firstBar = operator.reads.indexOf('bar')
+    expect([firstBar > 0, operator.reads.slice(firstBar).every((handle) => handle === 'bar')]).toStrictEqual([
+      true,
+      true,
+    ])
   })
 })
