@@ -67,19 +67,19 @@ const decodeDelegationOrNull = (version: number, data: Hex): Delegation | null =
   }
 }
 
-type DelegationResult = { ok: true; view: DelegationView } | { ok: false; reason: Reason }
+export type DelegationResult = { ok: true; view: DelegationView } | { ok: false; reason: Reason }
 
-// The authority boundary: the Entitlement's refUID must be a live IssuerDelegation
-// attested by ISSUER_ADDRESS whose `issuer` field is the Entitlement's attester.
-// Every failure mode here fails closed.
-const checkDelegation = async (deps: VerifyDeps, refUID: Hex, attester: Hex): Promise<DelegationResult> => {
+// The IssuerDelegation at `uid` as the root left it: attested by ISSUER_ADDRESS
+// under an accepted schema, active and unrevoked. Whom it delegates to is the
+// caller's question. Every failure mode here fails closed.
+export const liveDelegation = async (deps: VerifyDeps, uid: Hex): Promise<DelegationResult> => {
   if (sameAddress(deps.issuerAddress, ZERO_ADDRESS) || deps.sets.issuerDelegation.length === 0) {
     return { ok: false, reason: 'DELEGATION_CONFIG_MISSING' }
   }
-  if (refUID === ZERO_UID) {
+  if (uid === ZERO_UID) {
     return { ok: false, reason: 'NO_DELEGATION' }
   }
-  const raw = await readOrNull(deps.chain, refUID)
+  const raw = await readOrNull(deps.chain, uid)
   if (raw === null) {
     return { ok: false, reason: 'DELEGATION_UNAVAILABLE' }
   }
@@ -96,10 +96,17 @@ const checkDelegation = async (deps: VerifyDeps, refUID: Hex, attester: Hex): Pr
   if (d === null || !d.active) {
     return { ok: false, reason: 'NO_DELEGATION' }
   }
-  if (!sameAddress(d.issuer, attester)) {
+  return { ok: true, view: { active: d.active, issuer: d.issuer, name: d.name } }
+}
+
+// The authority boundary: the Entitlement's refUID must be a live IssuerDelegation
+// whose `issuer` field is the Entitlement's attester.
+const checkDelegation = async (deps: VerifyDeps, refUID: Hex, attester: Hex): Promise<DelegationResult> => {
+  const live = await liveDelegation(deps, refUID)
+  if (live.ok && !sameAddress(live.view.issuer, attester)) {
     return { ok: false, reason: 'ISSUER_NOT_DELEGATED' }
   }
-  return { ok: true, view: { active: d.active, issuer: d.issuer, name: d.name } }
+  return live
 }
 
 // The usage model and validity window, in the table order of docs/specs/attestation-model.md#gate-verification-order-and-reasons. 0 means unbounded on

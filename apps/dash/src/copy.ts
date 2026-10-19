@@ -207,6 +207,7 @@ export interface DashCopy {
     failures: {
       network: string
       rejected: string
+      undelegated: string
       unconfigured: string
       unsponsored: string
       unconfirmed: string
@@ -600,6 +601,7 @@ export const DASH_COPY = {
       failures: {
         network: 'Could not reach fuda. Check your connection and try again.',
         rejected: 'The claim was not signed. Press the button to try again.',
+        undelegated: 'fuda cannot hand out names right now. Please try again later.',
         unconfigured: 'ENS names are not switched on for this deployment yet.',
         unsponsored: 'The transaction fee could not be covered. Please try again shortly.',
         unconfirmed: 'The claim has not appeared on chain yet. Wait a moment and press the button again.',
@@ -993,6 +995,7 @@ export const DASH_COPY = {
       failures: {
         network: 'fuda に接続できませんでした。通信環境を確認してもう一度試してください。',
         rejected: '署名されませんでした。ボタンを押すとやり直せます。',
+        undelegated: '現在 fuda は名前を発行できません。しばらくしてからもう一度試してください。',
         unconfigured: 'この環境では ENS 名がまだ有効になっていません。',
         unsponsored: '手数料を負担できませんでした。少し待ってからもう一度試してください。',
         unconfirmed: 'チェーン上にまだ現れていません。少し待ってからボタンを押してください。',

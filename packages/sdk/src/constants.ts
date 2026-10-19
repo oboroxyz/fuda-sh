@@ -114,6 +114,7 @@ export const ERROR_CODES = [
   'already_claimed',
   'claim_failed',
   'claim_unconfirmed',
+  'not_delegated',
   'already_badged',
   'pass_already_badged',
   'bad_proof',

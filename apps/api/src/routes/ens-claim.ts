@@ -5,6 +5,7 @@ import type { Context } from 'hono'
 import * as v from 'valibot'
 import { getAddress } from 'viem'
 
+import { ZERO_UID } from '../chain/client.ts'
 import { issuers } from '../db/schema.ts'
 import {
   claimedEvent,
@@ -22,6 +23,8 @@ import type { AppEnv } from '../env.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { operatorAuth } from '../middleware/operator-auth.ts'
 import { rateLimit } from '../middleware/rate-limit.ts'
+import { verifyConfig } from '../verify/config.ts'
+import { liveDelegation } from '../verify/verify-uid.ts'
 
 // Sponsorship requests per IP per hour. A venue claims its name once; this is a
 // ceiling on abuse of a public endpoint, not a working budget.
@@ -48,6 +51,33 @@ const claimed = async (c: Context<AppEnv>, config: ClaimConfig, handle: string) 
     .where(eq(ensNames.name, issuerEnsName(handle, config.parentName)))
     .get()
 
+// Whether the root still delegates issuance to this deployment, read from the
+// IssuerDelegation every right it issues points at. Venues share that one
+// delegation; a name is handed out only while it is live
+// (docs/specs/ens-naming.md#lifecycle).
+const deploymentDelegation = async (
+  c: Context<AppEnv>,
+): Promise<'live' | 'unconfigured' | 'refused' | 'unreadable'> => {
+  const uid = asHex(c.env.DELEGATION_UID, 32)
+  let deps: ReturnType<typeof verifyConfig>
+  try {
+    deps = verifyConfig(c.env, c.get('chain'), c.get('now')())
+  } catch {
+    return 'unconfigured'
+  }
+  if (uid === null || uid === ZERO_UID) {
+    return 'unconfigured'
+  }
+  const result = await liveDelegation(deps, uid)
+  if (result.ok) {
+    return 'live'
+  }
+  if (result.reason === 'DELEGATION_CONFIG_MISSING') {
+    return 'unconfigured'
+  }
+  return result.reason === 'DELEGATION_UNAVAILABLE' ? 'unreadable' : 'refused'
+}
+
 // Signs the authorization the registrar checks and records the claim as pending.
 // It does not send anything: the operator's own wallet submits, sponsored through
 // POST /ens/paymaster (docs/specs/ens-naming.md#issuer-claim-and-renewal).
@@ -64,6 +94,16 @@ ensClaimRoutes.post('/issuers/me/ens/claim-voucher', operatorAuth(), async (c) =
   const existing = await claimed(c, config, issuer.handle)
   if (existing?.status === 'claimed') {
     return errorResponse(c, 'already_claimed', 409)
+  }
+  const delegation = await deploymentDelegation(c)
+  if (delegation === 'unconfigured') {
+    return errorResponse(c, 'ens_not_configured', 503)
+  }
+  if (delegation === 'unreadable') {
+    return errorResponse(c, 'chain_error', 502)
+  }
+  if (delegation === 'refused') {
+    return errorResponse(c, 'not_delegated', 403)
   }
   const owner = getAddress(c.get('operator').address)
   let voucher: Awaited<ReturnType<typeof signClaimVoucher>>

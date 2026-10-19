@@ -95,6 +95,14 @@ describe(runClaim, () => {
     expect(final).toStrictEqual({ failure: 'unconfigured', kind: 'failed' })
   })
 
+  it('names a lapsed issuing delegation rather than blaming the network', async () => {
+    const { final } = await run({
+      requestVoucher: async () => await Promise.resolve(fail('not_delegated')),
+    })
+
+    expect(final).toStrictEqual({ failure: 'undelegated', kind: 'failed' })
+  })
+
   it('separates a refused prompt from a paymaster that would not pay', async () => {
     const rejected = await run({
       submitClaim: async () => await Promise.reject(new Error('User rejected the request')),
