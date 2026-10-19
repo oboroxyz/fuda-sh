@@ -7,6 +7,7 @@ import type {
   IssuerCreateResponse,
   IssuerMeResponse,
   IssuerUpdateRequest,
+  OwnedIssuersResponse,
 } from '@fuda/sdk'
 import { LanguageSwitcher, saveThemeMode, ThemeToggle, watchThemeMode } from '@fuda/ui'
 import type { ThemeMode } from '@fuda/ui'
@@ -42,6 +43,7 @@ import { DEFAULT_OPERATOR_IO } from './operator-io.ts'
 import type { OperatorIo } from './operator-io.ts'
 import { clearOperatorToken, readOperatorToken, saveOperatorToken } from './operator-session.ts'
 import type { SignInFailure } from './operator-sign-in.ts'
+import type { ProfileChoices } from './ProfileMenu.tsx'
 import {
   canonicalPath,
   cardForRoute,
@@ -85,6 +87,17 @@ const operatorWithCard = (
 }
 
 const operatorWithVenue = (created: IssuerCreateResponse): IssuerMeResponse => created
+
+const activeIssuerOf = (session: SessionState): string | null => session.operator?.issuer?.id ?? null
+
+// The profile switcher's contents, once the account's profiles are known.
+const profileChoices = (
+  owned: OwnedIssuersResponse | undefined,
+  activeId: string | null,
+  onSwitch: (issuerId: string) => void,
+  onAdd: () => void,
+): ProfileChoices | null =>
+  owned === undefined || activeId === null ? null : { activeId, issuers: owned.issuers, onAdd, onSwitch }
 
 export const App = ({
   initialTheme,
@@ -220,6 +233,17 @@ export const App = ({
       setClaimState((state) => reconcileClaimState(state, operator.ens, pending, previousEnsName))
     }
   }, [generation, issuerTicket, issuerQuery.data, issuerQuery.error, replaceSession, token])
+
+  // docs/adr/0009-several-issuers-per-account.md — the account's profiles for
+  // the switcher. Keyed by the active issuer, so creating or switching to
+  // another profile reads the list again.
+  const ownedTicket = generation.capture()
+  const activeIssuerId = activeIssuerOf(session)
+  const ownedQuery = useQuery<OwnedIssuersResponse>(queryClient, {
+    enabled: token !== null && activeIssuerId !== null,
+    queryFn: async () => readQueryResult(await operatorIo.ownedIssuers(token ?? '')),
+    queryKey: ['owned-issuers', API_BASE_URL, ownedTicket, activeIssuerId],
+  })
 
   const updateOperator = useCallback(
     (operator: IssuerMeResponse): void => {
@@ -573,6 +597,9 @@ export const App = ({
     submit: () => Promise<{ ok: true; body: T } | { ok: false; failure: CreateFailure }>,
     apply: (body: T) => IssuerMeResponse,
     target: DashRoute,
+    // A new profile beside an existing one starts a clean slate: nothing the
+    // previous profile had loaded or drafted may carry over.
+    startsNewProfile = false,
   ): void => {
     if (token === null) {
       setCreateFailure('input')
@@ -606,7 +633,11 @@ export const App = ({
         setCreateFailure(outcome.failure)
         return
       }
-      updateOperator(apply(outcome.body))
+      if (startsNewProfile) {
+        replaceSession({ ...signedOutSession(), operator: apply(outcome.body), token: sessionToken })
+      } else {
+        updateOperator(apply(outcome.body))
+      }
       setCardDraft(null)
       navigateTo(history, target)
       setRoute(target)
@@ -627,8 +658,44 @@ export const App = ({
       async (): Promise<VenueCreateOutcome> => await submitVenue(operatorIo.design, token ?? '', form, logo),
       operatorWithVenue,
       '/profile',
+      activeIssuerOf(activeSession.current) !== null,
     )
   }
+
+  const onSwitchProfile = (issuerId: string): void => {
+    if (token === null) {
+      return
+    }
+    const sessionToken = token
+    const ticket = generation.capture()
+    const run = async (): Promise<void> => {
+      let result: Awaited<ReturnType<OperatorIo['switchIssuer']>>
+      try {
+        result = await operatorIo.switchIssuer(sessionToken, issuerId)
+      } catch {
+        return
+      }
+      if (!generation.isCurrent(ticket) || activeToken.current !== sessionToken) {
+        return
+      }
+      if (!result.ok) {
+        if (result.status === 401) {
+          replaceSession(unauthorizedSession(activeSession.current))
+        }
+        return
+      }
+      replaceSession({ ...signedOutSession(), operator: result.body, token: sessionToken })
+      navigateTo(history, '/cards')
+      setRoute('/cards')
+    }
+    void run()
+  }
+
+  const profiles = profileChoices(ownedQuery.data, activeIssuerId, onSwitchProfile, () => {
+    setCreateFailure(null)
+    navigateTo(history, '/profiles/new')
+    setRoute('/profiles/new')
+  })
 
   // The published screen changes a live venue's mark, which is a staged upload
   // spent by the commit route rather than by a create body.
@@ -935,6 +1002,7 @@ export const App = ({
       }}
       onDefaultCard={onDefaultCard}
       onUpdateVenue={onUpdateVenue}
+      profiles={profiles}
       onIssue={async (body) =>
         context === null
           ? { error: 'unauthorized', network: false, ok: false, status: 401 }

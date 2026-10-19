@@ -12,6 +12,7 @@ export const DASH_ROUTES = [
   '/cards',
   '/passes',
   '/apps',
+  '/profiles/new',
 ] as const
 
 export type MainDashRoute = (typeof DASH_ROUTES)[number]
@@ -70,6 +71,7 @@ const OPERATOR_ROUTES: ReadonlySet<DashRoute> = new Set([
   '/cards',
   '/passes',
   '/apps',
+  '/profiles/new',
 ])
 
 export const surfaceOf = (route: DashRoute): DashSurface =>

@@ -760,4 +760,46 @@ describe('dashboard query lifecycle', () => {
     const confirmedView = viewProps(findViewNodes(view().ens, EnsClaim)[0]) as unknown as EnsClaimProps
     expect(confirmedView.state).toMatchObject({ kind: 'claimed', name: ens.name })
   })
+
+  it('lists the account’s profiles and switches the session to another one', async () => {
+    const bar: IssuerMeResponse = {
+      cards: [],
+      ens: null,
+      issuer: {
+        brandColor: '#112233',
+        createdAt: 2,
+        handle: 'bar',
+        id: 'issuer-2',
+        logoUrl: null,
+        name: 'Bar',
+        operatorAddress: `0x${'11'.repeat(20)}`,
+        tagline: '',
+      },
+      publicUrl: 'https://fuda.sh/@bar',
+    }
+    const summaries = [
+      { handle: 'coffee', id: 'issuer-1', logoUrl: null, name: 'Coffee' },
+      { handle: 'bar', id: 'issuer-2', logoUrl: null, name: 'Bar' },
+    ]
+    const operator = {
+      ...operatorIo(),
+      issuerMe: vi.fn<OperatorIo['issuerMe']>().mockResolvedValue({ body: issuer, ok: true }),
+      ownedIssuers: vi.fn<OperatorIo['ownedIssuers']>().mockResolvedValue({
+        body: { activeIssuerId: 'issuer-1', issuers: summaries },
+        ok: true,
+      }),
+      switchIssuer: vi.fn<OperatorIo['switchIssuer']>().mockResolvedValue({ body: bar, ok: true }),
+    }
+    await start(operator)
+    await vi.waitFor(() => {
+      expect(view().profiles?.issuers.map((choice) => choice.handle)).toStrictEqual(['coffee', 'bar'])
+    })
+    view().profiles?.onSwitch('issuer-2')
+    await vi.waitFor(() => {
+      expect(view().session.operator?.issuer?.handle).toBe('bar')
+    })
+    expect([operator.switchIssuer.mock.calls, view().session.token, view().profiles?.activeId]).toStrictEqual(
+      [[['session', 'issuer-2']], 'session', 'issuer-2'],
+    )
+  })
 })

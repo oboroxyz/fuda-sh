@@ -111,6 +111,10 @@ describe(createFailureOf, () => {
     expect(createFailureOf(0, true, 'offline')).toBe('network')
   })
 
+  it('names the per-account profile cap', () => {
+    expect(createFailureOf(409, false, 'issuer_limit')).toBe('issuerLimit')
+  })
+
   it('tells a rejected slug apart from any other rejected field', () => {
     expect(createFailureOf(400, false, 'bad_slug')).toBe('slugInvalid')
     expect(createFailureOf(400, false, 'bad_handle')).toBe('input')

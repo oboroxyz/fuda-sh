@@ -22,6 +22,7 @@ import type { LogoSet } from './logo.ts'
 import type { MembersState } from './members-state.ts'
 import type { SignInFailure } from './operator-sign-in.ts'
 import { OverviewPage } from './OverviewPage.tsx'
+import type { ProfileChoices } from './ProfileMenu.tsx'
 import { PublishedCard } from './PublishedCard.tsx'
 import { ReceptionPage } from './ReceptionPage.tsx'
 import type { ReceptionPageProps } from './ReceptionPage.tsx'
@@ -74,6 +75,7 @@ export interface AppViewProps {
   onSignOut: () => void
   onToken: (token: string) => void
   onUpdateVenue: VenuePageProps['onUpdate']
+  profiles: ProfileChoices | null
   receiveAtReception: ReceptionPageProps['receive']
   route: DashRoute
   session: SessionState
@@ -113,6 +115,7 @@ export const AppView = ({
   onSignOut,
   onToken,
   onUpdateVenue,
+  profiles,
   receiveAtReception,
   route,
   session,
@@ -165,6 +168,25 @@ export const AppView = ({
 
   const page = (): JSX.Element => {
     if (operator !== null) {
+      // Another profile for the same account: the registration form again,
+      // whatever profile the session is acting for now.
+      if (operator.issuer !== null && route === '/profiles/new') {
+        return (
+          <VenuePage
+            busy={creating}
+            copy={copy}
+            ens={null}
+            failure={createFailure}
+            issuer={null}
+            publicUrl={null}
+            onCheckHandle={onCheckHandle}
+            onCommitLogo={onCommitLogo}
+            onCreate={onCreateVenue}
+            onNavigate={onNavigate}
+            onUpdate={onUpdateVenue}
+          />
+        )
+      }
       if (route === '/profile') {
         return (
           <VenuePage
@@ -307,6 +329,7 @@ export const AppView = ({
       appearance={appearance}
       copy={copy}
       hasIssuer={published}
+      profiles={profiles}
       venue={
         operator === null || operator.issuer === null
           ? null

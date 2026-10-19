@@ -5,6 +5,7 @@ import type { JSX } from 'hono/jsx/dom/jsx-runtime'
 
 import type { DashCopy } from './copy.ts'
 import { ProfileMenu } from './ProfileMenu.tsx'
+import type { ProfileChoices } from './ProfileMenu.tsx'
 import { navigationRoute } from './router.ts'
 import type { DashRoute, DashSurface, MainDashRoute } from './router.ts'
 import { SignOutButton } from './SignOutButton.tsx'
@@ -12,6 +13,7 @@ import { SignOutButton } from './SignOutButton.tsx'
 export interface DashboardShellProps {
   appearance: JSX.Element
   venue?: { name: string; publicUrl: string | null } | null
+  profiles?: ProfileChoices | null
   children: JSX.Element
   copy: DashCopy
   hasIssuer: boolean
@@ -79,6 +81,7 @@ const navigationIcon = (route: MainDashRoute): JSX.Element => {
     '/issue': 'M12 3v12 M7 10l5 5 5-5 M4 17v4h16v-4',
     '/passes': 'M3 5h18v14H3z M7 9h4 M7 13h6 M16 9h1 M16 13h1',
     '/profile': 'M4 21V10l8-7 8 7v11 M9 21v-6h6v6',
+    '/profiles/new': 'M4 21V10l8-7 8 7v11 M12 11v6 M9 14h6',
     '/reception': 'M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 14h2v2h-2z M18 14h2v6h-6v-2',
     '/rights': 'M4 4h16v16H4z M8 8h8 M8 12h8 M8 16h5',
     '/start': 'M4 21V10l8-7 8 7v11 M9 21v-6h6v6',
@@ -156,6 +159,7 @@ const Brand = ({ copy }: { copy: DashCopy['chrome'] }): JSX.Element => (
 export const DashboardShell = ({
   appearance,
   venue = null,
+  profiles = null,
   children,
   copy,
   hasIssuer,
@@ -327,7 +331,7 @@ export const DashboardShell = ({
             </button>
           </div>
           {surface === 'operator' && venue !== null ? (
-            <ProfileMenu key={route} copy={copy} venue={venue} onSignOut={onSignOut} />
+            <ProfileMenu key={route} copy={copy} profiles={profiles} venue={venue} onSignOut={onSignOut} />
           ) : null}
           {Navigation({
             copy,

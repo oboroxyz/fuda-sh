@@ -80,7 +80,8 @@ describe('dashboard navigation', () => {
     await vi.waitFor(() => {
       expect(trigger.getAttribute('aria-expanded')).toBe('true')
     })
-    expect(button('Switch profile').disabled).toBe(true)
+    // No profile list is passed here, so the menu offers only sign-out.
+    expect(root.querySelector('[role="group"]')).toBeNull()
     expect(root.querySelector('nav a[href="/profile"]')?.textContent).toBe('Profile')
     expect(root.querySelector('a[href="https://fuda.test/@coffee"]')?.closest('[hidden]')).toBeNull()
   })

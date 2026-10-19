@@ -13,6 +13,7 @@ export interface DashCopy {
   chrome: {
     brand: string
     switchProfile: string
+    addProfile: string
     navigation: string
     openMenu: string
     closeMenu: string
@@ -190,6 +191,7 @@ export interface DashCopy {
     }
     failures: {
       input: string
+      issuerLimit: string
       logo: string
       network: string
       session: string
@@ -368,6 +370,7 @@ export const DASH_COPY = {
     chrome: {
       brand: 'fuda.',
       switchProfile: 'Switch profile',
+      addProfile: 'Add a profile',
       navigation: 'Dashboard navigation',
       openMenu: 'Open menu',
       closeMenu: 'Close menu',
@@ -585,6 +588,7 @@ export const DASH_COPY = {
       },
       failures: {
         input: 'Some fields need a change before this card can be created.',
+        issuerLimit: 'This account already has the most profiles it can create.',
         logo: 'Could not upload the logo. Your card is still here — try again.',
         network: 'Could not reach fuda. Check your connection and try again.',
         session: 'Your sign-in expired. Please sign in again.',
@@ -763,6 +767,7 @@ export const DASH_COPY = {
     chrome: {
       brand: 'fuda.',
       switchProfile: 'プロフィールを切り替え',
+      addProfile: 'プロフィールを追加',
       navigation: 'ダッシュボードナビゲーション',
       openMenu: 'メニューを開く',
       closeMenu: 'メニューを閉じる',
@@ -981,6 +986,7 @@ export const DASH_COPY = {
       },
       failures: {
         input: '入力内容を確認してください。このままではカードを作成できません。',
+        issuerLimit: 'このアカウントで作成できるプロフィールの上限に達しています。',
         logo: 'ロゴをアップロードできませんでした。入力内容はそのままです。もう一度お試しください。',
         network: 'fuda に接続できませんでした。通信環境を確認して、もう一度お試しください。',
         session: 'サインインの有効期限が切れました。もう一度サインインしてください。',

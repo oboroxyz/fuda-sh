@@ -11,6 +11,7 @@ import type {
   IssuerUpdateRequest,
   IssuerUpdateResponse,
   IssuerView,
+  OwnedIssuersResponse,
   IssueResponse,
   MembersResponse,
   RevokeResponse,
@@ -78,6 +79,18 @@ export const signOut = async (token: string): Promise<Result<{ loggedOut: true }
 
 export const issuerMe = async (token: string): Promise<Result<IssuerMeResponse>> =>
   await apiFetch<IssuerMeResponse>(API_BASE_URL, '/issuers/me', { token })
+
+// docs/adr/0009-several-issuers-per-account.md — the account's issuers and the
+// one this session acts for; switching answers the new one as /issuers/me does.
+export const ownedIssuers = async (token: string): Promise<Result<OwnedIssuersResponse>> =>
+  await apiFetch<OwnedIssuersResponse>(API_BASE_URL, '/issuers/owned', { token })
+
+export const switchIssuer = async (token: string, issuerId: string): Promise<Result<IssuerMeResponse>> =>
+  await apiFetch<IssuerMeResponse>(API_BASE_URL, '/issuers/switch', {
+    body: JSON.stringify({ issuerId }),
+    method: 'POST',
+    token,
+  })
 
 export const readStampSettings = async (token: string, cardId: string): Promise<Result<StampSettings>> =>
   await apiFetch<StampSettings>(API_BASE_URL, `/issuers/me/cards/${encodeURIComponent(cardId)}/stamps`, {
