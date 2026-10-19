@@ -883,7 +883,9 @@ export const App = ({
       }
       return result
     },
-    [generation, operatorIo, replaceSession, token],
+    // The active profile is part of what this reads, so a switch gives the
+    // pass list a new loader even though the session token is the same.
+    [generation, operatorIo, replaceSession, token, activeIssuerId],
   )
 
   const readCard = useCallback(

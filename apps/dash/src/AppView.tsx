@@ -164,6 +164,10 @@ export const AppView = ({
 
   const { operator } = session
   const surface = operator === null ? 'admin' : 'operator'
+  // Pages hold what they loaded for one profile. Switching profile keeps the
+  // session token, so the key names the profile too: every page remounts and
+  // reads the new profile instead of showing the previous one's numbers.
+  const pageScope = `${session.token}:${operator?.issuer?.id ?? ''}`
   const published = operator !== null && operator.issuer !== null
 
   const page = (): JSX.Element => {
@@ -190,6 +194,7 @@ export const AppView = ({
       if (route === '/profile') {
         return (
           <VenuePage
+            key={pageScope}
             busy={creating}
             copy={copy}
             ens={ens}
@@ -209,7 +214,7 @@ export const AppView = ({
         if (operator.issuer !== null && (isCardEditRoute(route) || isLegacyCardSettingsRoute(route))) {
           return (
             <CardEditPage
-              key={`${session.token}:${route}`}
+              key={`${pageScope}:${route}`}
               card={cardForRoute(route, operator.cards)}
               copy={copy}
               issuer={operator.issuer}
@@ -224,7 +229,7 @@ export const AppView = ({
         if (operator.issuer !== null && isCardRoute(route)) {
           return (
             <CardDetailPage
-              key={`${session.token}:${route}`}
+              key={`${pageScope}:${route}`}
               card={cardForRoute(route, operator.cards)}
               copy={copy}
               publicUrl={operator.publicUrl}
@@ -235,7 +240,7 @@ export const AppView = ({
         if (operator.issuer !== null && route === '/passes') {
           return (
             <IssuerPassesPage
-              key={session.token}
+              key={pageScope}
               cards={operator.cards}
               copy={copy.management}
               load={loadPasses}
@@ -245,7 +250,7 @@ export const AppView = ({
         if (operator.issuer !== null && route === '/cards') {
           return (
             <PublishedCard
-              key={session.token}
+              key={pageScope}
               cards={operator.cards}
               onSettings={(selectedId) => {
                 const selected = operator.cards.find((card) => card.id === selectedId)
@@ -273,10 +278,10 @@ export const AppView = ({
         return management
       }
       if (operator.issuer !== null && route === '/apps') {
-        return <ConnectedAppsPage key={session.token} copy={copy.apps} io={connectedApps} />
+        return <ConnectedAppsPage key={pageScope} copy={copy.apps} io={connectedApps} />
       }
       if (operator.issuer !== null && route === '/reception') {
-        return <ReceptionPage copy={copy.reception} receive={receiveAtReception} />
+        return <ReceptionPage key={pageScope} copy={copy.reception} receive={receiveAtReception} />
       }
       return operator.issuer === null ? (
         <VenuePage
@@ -294,6 +299,7 @@ export const AppView = ({
         />
       ) : (
         <CardDesigner
+          key={pageScope}
           busy={creating}
           copy={copy.designer}
           failure={createFailure}
