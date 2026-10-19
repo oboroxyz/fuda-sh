@@ -385,13 +385,15 @@ See `apps/api/README.md` for the api side: `USE_FAKE_CHAIN=1` (set it in `apps/a
 
 ## 13. Rate-limit state
 
-Three routes use the fixed hourly D1 counter and require `CF-Connecting-IP`:
+Five routes use the fixed hourly D1 counter and require `CF-Connecting-IP`:
 
 | Route                                  | Requests per IP per hour |
 | -------------------------------------- | ------------------------ |
 | `POST /v1/issuers/:handle/:slug/issue` | 20                       |
 | `POST /v1/ens/paymaster`               | 60                       |
 | `POST /ens/gateway`                    | 120                      |
+| `POST /v1/oauth/token`                 | 120                      |
+| `POST /v1/oauth/revoke`                | 120                      |
 
 The counter is keyed by IP and hour, not route: requests across these routes share a count, with each route applying its own threshold. Rejected requests also increment it. Announcement discovery is a browser-to-Graph query and does not pass through the API. The gate routes (`/verify`, `/challenge`, `/verify-signed`) and the admin routes (`/issue`, `/revoke`, `/members`) are never budgeted.
 
@@ -437,6 +439,10 @@ Three kinds of state do not roll back with the code, and each needs its own trea
 ### Card description migration
 
 Apply `0012_card_description.sql` before deploying the updated Card API and frontends. It joins existing nonempty Perk and Reward text with a newline into `cards.description`, then drops the old columns; Card identities and related records are preserved. The API, dashboard and member app must be deployed together because Card requests and responses now use `description` instead of `perk` and `reward`. Use `pnpm migrate:local` for local development and the usual remote migration procedure for deployment. Retain a database backup before migration; reverting to the previous API requires restoring the old schema, not only rolling back Worker code.
+
+### Connected apps migration
+
+Apply `0017_connected_apps.sql` before deploying the api and dashboard that carry connected apps ([Connected apps](./specs/connected-apps.md)). It only adds tables (`connected_apps`, `connected_app_redirects`, `oauth_codes`, `oauth_tokens`), so older api code keeps running against it. No binding or secret is new: approval reuses the operator session, and the consent page is the dashboard's `/oauth/authorize`. After deployment, smoke-check one app end to end — register it on `dash.fuda.sh/apps`, approve it, exchange the code, `POST /v1/connect/cards` — then revoke the approval and confirm the next call answers `401`.
 
 ### Issuer Pass management migration
 
