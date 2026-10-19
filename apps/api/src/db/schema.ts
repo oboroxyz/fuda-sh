@@ -211,3 +211,72 @@ export const badges = sqliteTable(
     uniqueIndex('badges_subject').on(t.verifier, t.scope, t.subjectKey),
   ],
 )
+
+// docs/specs/connected-apps.md — a browser-only app registered by an operator
+// address. Only that address may approve it (no third-party consent yet).
+export const connectedApps = sqliteTable(
+  'connected_apps',
+  {
+    clientId: text('client_id').primaryKey(),
+    createdAt: integer('created_at').notNull(),
+    name: text('name').notNull(),
+    ownerAddress: text('owner_address').notNull(),
+  },
+  (t) => [index('connected_apps_owner').on(t.ownerAddress)],
+)
+
+export const connectedAppRedirects = sqliteTable(
+  'connected_app_redirects',
+  {
+    clientId: text('client_id')
+      .notNull()
+      .references(() => connectedApps.clientId),
+    origin: text('origin').notNull(),
+    redirectUri: text('redirect_uri').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.clientId, t.redirectUri] }),
+    index('connected_app_redirects_origin').on(t.origin),
+  ],
+)
+
+export const oauthCodes = sqliteTable(
+  'oauth_codes',
+  {
+    address: text('address').notNull(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => connectedApps.clientId),
+    codeChallenge: text('code_challenge').notNull(),
+    codeHash: text('code_hash').primaryKey(),
+    createdAt: integer('created_at').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+    issuerId: text('issuer_id')
+      .notNull()
+      .references(() => issuers.id),
+    redirectUri: text('redirect_uri').notNull(),
+    scope: text('scope').notNull(),
+    usedAt: integer('used_at'),
+  },
+  (t) => [index('oauth_codes_expires_at').on(t.expiresAt)],
+)
+
+export const oauthTokens = sqliteTable(
+  'oauth_tokens',
+  {
+    address: text('address').notNull(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => connectedApps.clientId),
+    createdAt: integer('created_at').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+    id: text('id').primaryKey(),
+    issuerId: text('issuer_id')
+      .notNull()
+      .references(() => issuers.id),
+    revokedAt: integer('revoked_at'),
+    scope: text('scope').notNull(),
+    tokenHash: text('token_hash').notNull().unique(),
+  },
+  (t) => [index('oauth_tokens_address').on(t.address), index('oauth_tokens_client').on(t.clientId)],
+)

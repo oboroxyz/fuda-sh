@@ -119,5 +119,16 @@ export const ERROR_CODES = [
   'pass_already_badged',
   'bad_proof',
   'badges_not_configured',
+  // Connected apps (docs/specs/connected-apps.md). The first five are the
+  // RFC 6749 token-endpoint codes, spelled as the RFC spells them.
+  'invalid_request',
+  'invalid_client',
+  'invalid_grant',
+  'unsupported_grant_type',
+  'invalid_scope',
+  'insufficient_scope',
+  'bad_redirect_uri',
+  'not_app_owner',
+  'app_limit',
 ] as const
 export type ErrorCode = (typeof ERROR_CODES)[number]

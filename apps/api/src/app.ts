@@ -10,6 +10,7 @@ import { corsPolicy } from './middleware/cors.ts'
 import { authRoutes } from './routes/auth.ts'
 import { badgeRoutes } from './routes/badges.ts'
 import { challengeRoutes } from './routes/challenge.ts'
+import { connectedAppRoutes } from './routes/connected-apps.ts'
 import { ensClaimRoutes } from './routes/ens-claim.ts'
 import { ensGatewayRoutes } from './routes/ens-gateway.ts'
 import { health } from './routes/health.ts'
@@ -68,6 +69,7 @@ export const createApp = (deps: AppDeps): Hono<AppEnv> => {
   v1.route('/', issueRoutes)
   v1.route('/', revokeRoutes)
   v1.route('/', membersRoutes)
+  v1.route('/', connectedAppRoutes)
   app.route(API_VERSION_PREFIX, v1)
 
   // Outside the prefix on purpose. Each of these URLs is held by someone fuda

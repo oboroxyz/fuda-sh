@@ -20,6 +20,7 @@ import { ensNames } from '../ens/schema.ts'
 import type { AppEnv } from '../env.ts'
 import { badgeKindsByCard } from '../integrations/store.ts'
 import { insertCard, insertIssuer } from '../issuers/create.ts'
+import { fieldErrorFor } from '../issuers/field-error.ts'
 import { ownedVenue, venueOf } from '../issuers/queries.ts'
 import { cardView, issuerView, publicUrlFor, publicVenue } from '../issuers/views.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
@@ -154,22 +155,6 @@ issuersRoutes.get('/issuers/cards/check', operatorAuth(), async (c) => {
       : false
   return jsonResponse(c, { available: valid && !taken, slug, valid })
 })
-
-// Which field a failed parse should be reported as. The valibot issues already
-// name the failing key, so the body is never re-parsed against a shadow schema
-// to find out. Only the name rule's own `check` earns the field's code
-// (docs/specs/attestation-model.md): a missing or non-string field fails the
-// string schema first and stays bad_input, as it did before.
-const fieldErrorFor = (
-  issues: readonly v.BaseIssue<unknown>[],
-  field: string,
-  code: 'bad_handle' | 'bad_slug',
-): 'bad_handle' | 'bad_slug' | 'bad_input' =>
-  issues.some(
-    (issue) => issue.type === 'check' && issue.path?.some((segment) => segment.key === field) === true,
-  )
-    ? code
-    : 'bad_input'
 
 // Creates the issuer and binds the session to it in one batch. Cards are
 // published separately, and claiming the venue's ENS name is optional.
