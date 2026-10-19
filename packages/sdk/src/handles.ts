@@ -200,6 +200,22 @@ export interface IssuerView {
   logoUrl: string | null
 }
 
+// The part of an issuer needed to name it in a list: the dashboard's profile
+// switcher and the connected-app consent screen.
+export interface IssuerSummary {
+  id: string
+  handle: string
+  name: string
+  logoUrl: string | null
+}
+
+// GET /issuers/owned — every issuer the signed-in account owns, oldest first,
+// and the one this session is acting for (docs/adr/0009-several-issuers-per-account.md).
+export interface OwnedIssuersResponse {
+  issuers: IssuerSummary[]
+  activeIssuerId: string | null
+}
+
 // GET /issuers/:handle — the venue page a member lands on. A venue with one
 // card goes straight to it; with several, the member picks one.
 export interface PublicVenue {

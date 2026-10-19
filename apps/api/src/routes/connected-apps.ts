@@ -22,10 +22,8 @@ import * as v from 'valibot'
 
 import {
   appHasOrigin,
-  connectedIssuerView,
   deleteApp,
   findApp,
-  issuersOwnedBy,
   listApps,
   listGrants,
   mintCode,
@@ -38,7 +36,8 @@ import { cards, issuers } from '../db/schema.ts'
 import type { AppEnv } from '../env.ts'
 import { insertCard } from '../issuers/create.ts'
 import { fieldErrorFor } from '../issuers/field-error.ts'
-import { cardView, issuerView, publicUrlFor } from '../issuers/views.ts'
+import { issuersOwnedBy } from '../issuers/queries.ts'
+import { cardView, issuerSummary, issuerView, publicUrlFor } from '../issuers/views.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { connectedAppAuth } from '../middleware/connected-app-auth.ts'
 import { operatorAuth } from '../middleware/operator-auth.ts'
@@ -140,7 +139,7 @@ connectedAppRoutes.get('/oauth/authorize', operatorAuth(), async (c) => {
   const owned = await issuersOwnedBy(c.get('db'), c.get('operator').address)
   const body: AuthorizePreviewResponse = {
     app: { clientId: checked.app.clientId, name: checked.app.name },
-    issuers: owned.map((row) => connectedIssuerView(row, c.env.API_BASE_URL)),
+    issuers: owned.map((row) => issuerSummary(row, c.env.API_BASE_URL)),
     redirectUri: checked.redirectUri,
     scope: checked.scope,
   }
@@ -224,7 +223,7 @@ connectedAppRoutes.post('/oauth/token', rateLimit({ budget: DEFAULT_BUDGET }), a
   const body: TokenResponse = {
     access_token: issued.accessToken,
     expires_in: issued.expiresIn,
-    issuer: connectedIssuerView(issued.issuer, c.env.API_BASE_URL),
+    issuer: issuerSummary(issued.issuer, c.env.API_BASE_URL),
     scope: issued.scope.join(' '),
     token_type: 'Bearer',
   }

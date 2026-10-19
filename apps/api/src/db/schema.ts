@@ -32,17 +32,23 @@ export const members = sqliteTable(
   ],
 )
 
-export const issuers = sqliteTable('issuers', {
-  brandColor: text('brand_color').notNull(),
-  createdAt: integer('created_at').notNull(),
-  defaultCardSlug: text('default_card_slug'),
-  handle: text('handle').notNull().unique(),
-  id: text('id').primaryKey(),
-  logoPrefix: text('logo_prefix'),
-  name: text('name').notNull(),
-  operatorAddress: text('operator_address').notNull().unique(),
-  tagline: text('tagline').notNull().default(''),
-})
+// One account (operator address) may own several issuers; each keeps its own
+// handle, cards and data (docs/adr/0009-several-issuers-per-account.md).
+export const issuers = sqliteTable(
+  'issuers',
+  {
+    brandColor: text('brand_color').notNull(),
+    createdAt: integer('created_at').notNull(),
+    defaultCardSlug: text('default_card_slug'),
+    handle: text('handle').notNull().unique(),
+    id: text('id').primaryKey(),
+    logoPrefix: text('logo_prefix'),
+    name: text('name').notNull(),
+    operatorAddress: text('operator_address').notNull(),
+    tagline: text('tagline').notNull().default(''),
+  },
+  (t) => [index('issuers_operator_address').on(t.operatorAddress, t.createdAt)],
+)
 
 export const cards = sqliteTable(
   'cards',

@@ -1,6 +1,6 @@
 import * as v from 'valibot'
 
-import type { CardView, IssuerView } from './handles.ts'
+import type { CardView, IssuerSummary, IssuerView } from './handles.ts'
 
 // docs/specs/connected-apps.md — a browser-only app an operator registers in
 // the dashboard, approves for one of their issuers, and that then acts for that
@@ -114,20 +114,12 @@ export interface ConnectedAppResponse {
   app: ConnectedAppView
 }
 
-// The part of an issuer an app or the consent screen needs to name it.
-export interface ConnectedIssuerView {
-  id: string
-  handle: string
-  name: string
-  logoUrl: string | null
-}
-
 // One live approval: an unexpired, unrevoked access token.
 export interface ConnectedAppGrantView {
   id: string
   clientId: string
   appName: string
-  issuer: ConnectedIssuerView
+  issuer: IssuerSummary
   scope: ConnectedAppScope[]
   createdAt: number
   expiresAt: number
@@ -142,7 +134,7 @@ export interface AuthorizePreviewResponse {
   app: { clientId: string; name: string }
   redirectUri: string
   scope: ConnectedAppScope[]
-  issuers: ConnectedIssuerView[]
+  issuers: IssuerSummary[]
 }
 
 export interface AuthorizeApprovalResponse {
@@ -154,7 +146,7 @@ export interface TokenResponse {
   token_type: 'Bearer'
   expires_in: number
   scope: string
-  issuer: ConnectedIssuerView
+  issuer: IssuerSummary
 }
 
 // The resource routes under /connect, all bound to the token's one issuer.

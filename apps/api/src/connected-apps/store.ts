@@ -4,7 +4,6 @@ import type {
   ConnectedAppRequest,
   ConnectedAppScope,
   ConnectedAppView,
-  ConnectedIssuerView,
 } from '@fuda/sdk'
 import { and, asc, count, desc, eq, gt, inArray, isNull, lt } from 'drizzle-orm'
 
@@ -12,7 +11,7 @@ import { hashToken } from '../auth/session.ts'
 import type { Db } from '../db/client.ts'
 import { connectedAppRedirects, connectedApps, issuers, oauthCodes, oauthTokens } from '../db/schema.ts'
 import { toHex } from '../hex.ts'
-import { logoUrlFor } from '../media/logo.ts'
+import { issuerSummary } from '../issuers/views.ts'
 
 // docs/specs/connected-apps.md#lifetimes
 export const CODE_TTL_SECONDS = 10 * 60
@@ -26,13 +25,6 @@ const ACCESS_TOKEN_PREFIX = 'fuda_at_'
 const randomHex = (bytes: number): string => toHex(crypto.getRandomValues(new Uint8Array(bytes)))
 
 type IssuerRow = typeof issuers.$inferSelect
-
-export const connectedIssuerView = (row: IssuerRow, baseUrl: string): ConnectedIssuerView => ({
-  handle: row.handle,
-  id: row.id,
-  logoUrl: logoUrlFor(baseUrl, row.handle, row.logoPrefix),
-  name: row.name,
-})
 
 // Stored as the space-separated OAuth form, read back in canonical order.
 export const scopeList = (stored: string): ConnectedAppScope[] =>
@@ -136,15 +128,6 @@ export const deleteApp = async (db: Db, owner: string, clientId: string): Promis
   ])
   return true
 }
-
-// Every issuer the signed-in address owns, for the consent screen's choice.
-// Read as a list so the screen is already right when one account holds several.
-export const issuersOwnedBy = async (db: Db, address: string): Promise<IssuerRow[]> =>
-  await db
-    .select()
-    .from(issuers)
-    .where(eq(issuers.operatorAddress, address))
-    .orderBy(asc(issuers.createdAt), asc(issuers.id))
 
 // Whether any registered app redirects to this origin (the CORS allowlist).
 export const isRegisteredOrigin = async (db: Db, origin: string): Promise<boolean> =>
@@ -319,7 +302,7 @@ export const listGrants = async (
     createdAt: token.createdAt,
     expiresAt: token.expiresAt,
     id: token.id,
-    issuer: connectedIssuerView(issuer, baseUrl),
+    issuer: issuerSummary(issuer, baseUrl),
     scope: scopeList(token.scope),
   }))
 }

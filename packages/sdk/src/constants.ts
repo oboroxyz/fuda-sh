@@ -101,7 +101,10 @@ export const ERROR_CODES = [
   'bad_signature',
   'bad_handle',
   'handle_taken',
+  // No longer returned: an account may own several issuers (ADR 0009). Kept
+  // so a client built against an older api still knows the code.
   'issuer_exists',
+  'issuer_limit',
   'bad_slug',
   'slug_taken',
   'stamps_not_supported',

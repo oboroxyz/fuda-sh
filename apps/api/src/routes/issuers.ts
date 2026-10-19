@@ -5,14 +5,16 @@ import {
   isCardSlug,
   isIssuerHandle,
   IssuerCreateBody,
+  IssuerSwitchBody,
   IssuerUpdateBody,
 } from '@fuda/sdk'
-import type { EnsClaimView, IssuerMeResponse } from '@fuda/sdk'
+import type { EnsClaimView, IssuerMeResponse, OwnedIssuersResponse } from '@fuda/sdk'
 import { and, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 
+import { attachIssuer } from '../auth/session.ts'
 import { configuredBadgeKinds } from '../badges/verifier.ts'
 import { cards, issuers } from '../db/schema.ts'
 import { issuerEnsName } from '../ens/names.ts'
@@ -21,8 +23,8 @@ import type { AppEnv } from '../env.ts'
 import { badgeKindsByCard } from '../integrations/store.ts'
 import { insertCard, insertIssuer } from '../issuers/create.ts'
 import { fieldErrorFor } from '../issuers/field-error.ts'
-import { ownedVenue, venueOf } from '../issuers/queries.ts'
-import { cardView, issuerView, publicUrlFor, publicVenue } from '../issuers/views.ts'
+import { issuersOwnedBy, ownedVenue, venueOf } from '../issuers/queries.ts'
+import { cardView, issuerSummary, issuerView, publicUrlFor, publicVenue } from '../issuers/views.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { operatorAuth } from '../middleware/operator-auth.ts'
 import { selfServeIssueRoutes } from './self-serve-issue.ts'
@@ -54,20 +56,54 @@ const ensView = async (c: Context<AppEnv>, handle: string): Promise<EnsClaimView
   }
 }
 
-issuersRoutes.get('/issuers/me', operatorAuth(), async (c) => {
-  c.header('cache-control', 'no-store')
-  const found = await ownedVenue(c.get('db'), c.get('operator').issuerId)
+// The venue a session is acting for, with its cards and ENS state.
+const meResponse = async (c: Context<AppEnv>, issuerId: string | null): Promise<IssuerMeResponse> => {
+  const found = await ownedVenue(c.get('db'), issuerId)
   if (found === null) {
-    const empty: IssuerMeResponse = { cards: [], ens: null, issuer: null, publicUrl: null }
-    return jsonResponse(c, empty)
+    return { cards: [], ens: null, issuer: null, publicUrl: null }
   }
-  const body: IssuerMeResponse = {
+  return {
     cards: found.cards.map((card) => cardView(card, c.get('now')())),
     ens: await ensView(c, found.issuer.handle),
     issuer: issuerView(found.issuer, c.env.API_BASE_URL),
     publicUrl: publicUrlFor(c.env.PUBLIC_BASE_URL, found.issuer.handle),
   }
+}
+
+issuersRoutes.get('/issuers/me', operatorAuth(), async (c) => {
+  c.header('cache-control', 'no-store')
+  return jsonResponse(c, await meResponse(c, c.get('operator').issuerId))
+})
+
+// docs/adr/0009-several-issuers-per-account.md — every issuer this account
+// owns, and the one the session acts for. Each `/issuers/me…` route keeps
+// reading only the active one, so two issuers' data never mix in one answer.
+issuersRoutes.get('/issuers/owned', operatorAuth(), async (c) => {
+  c.header('cache-control', 'no-store')
+  const { address, issuerId } = c.get('operator')
+  const owned = await issuersOwnedBy(c.get('db'), address)
+  const body: OwnedIssuersResponse = {
+    activeIssuerId: issuerId,
+    issuers: owned.map((row) => issuerSummary(row, c.env.API_BASE_URL)),
+  }
   return jsonResponse(c, body)
+})
+
+// Moves the session to another issuer of the same account. An id the account
+// does not own is "not found", as everywhere else.
+issuersRoutes.post('/issuers/switch', operatorAuth(), async (c) => {
+  c.header('cache-control', 'no-store')
+  const parsed = v.safeParse(IssuerSwitchBody, await c.req.json().catch(() => null))
+  if (!parsed.success) {
+    return errorResponse(c, 'bad_input', 400)
+  }
+  const operator = c.get('operator')
+  const owned = await issuersOwnedBy(c.get('db'), operator.address)
+  if (!owned.some((row) => row.id === parsed.output.issuerId)) {
+    return errorResponse(c, 'not_found', 404)
+  }
+  await attachIssuer(c.get('db'), operator.tokenHash, parsed.output.issuerId)
+  return jsonResponse(c, await meResponse(c, parsed.output.issuerId))
 })
 
 issuersRoutes.put('/issuers/me', operatorAuth(), async (c) => {
@@ -156,8 +192,11 @@ issuersRoutes.get('/issuers/cards/check', operatorAuth(), async (c) => {
   return jsonResponse(c, { available: valid && !taken, slug, valid })
 })
 
-// Creates the issuer and binds the session to it in one batch. Cards are
-// published separately, and claiming the venue's ENS name is optional.
+// Creates an issuer — the account's first or another one — and moves the
+// session to it in one batch. Cards are published separately, and claiming the
+// venue's ENS name is optional.
+const ISSUERS_PER_ACCOUNT = 10
+
 issuersRoutes.post('/issuers', operatorAuth(), async (c) => {
   const body: unknown = await c.req.json().catch(() => null)
   const parsed = v.safeParse(IssuerCreateBody, body)
@@ -166,15 +205,14 @@ issuersRoutes.post('/issuers', operatorAuth(), async (c) => {
   }
   const db = c.get('db')
   const operator = c.get('operator')
-  if (operator.issuerId !== null) {
-    return errorResponse(c, 'issuer_exists', 409)
-  }
   const [owned, taken] = await Promise.all([
-    db.select({ id: issuers.id }).from(issuers).where(eq(issuers.operatorAddress, operator.address)).get(),
+    issuersOwnedBy(db, operator.address),
     db.select({ id: issuers.id }).from(issuers).where(eq(issuers.handle, parsed.output.handle)).get(),
   ])
-  if (owned !== undefined) {
-    return errorResponse(c, 'issuer_exists', 409)
+  // An account may own several issuers, up to a cap that keeps one account
+  // from reserving handles in bulk.
+  if (owned.length >= ISSUERS_PER_ACCOUNT) {
+    return errorResponse(c, 'issuer_limit', 409)
   }
   if (taken !== undefined) {
     return errorResponse(c, 'handle_taken', 409)
