@@ -104,4 +104,4 @@ Every other route keeps fuda's own allow-list, so a connected app's page cannot 
 
 ## Multiple Issuers per account
 
-Approvals, codes and tokens are keyed by Issuer, and the consent page lists every Issuer the signed-in address owns. Today an address owns at most one Issuer (`issuers.operator_address` is unique), so the list has zero or one entries; the contract does not change when an account can own several.
+An account may own several Issuers ([ADR 0009](../adr/0009-several-issuers-per-account.md)). The consent page lists every Issuer the signed-in address owns, oldest first, and the Operator approves an app for one of them; approving the same app for another Issuer is a second approval with its own token. Codes and tokens are keyed by Issuer, so a token approved for one Issuer answers `404` for another Issuer's Card even when the same account owns both. The Issuer the dashboard session is currently acting for plays no part: the choice on the consent page is what binds the token.

@@ -25,7 +25,7 @@ sequenceDiagram
 3. In the dashboard, open **Apps**, register the app with that address as its return address, and copy the client ID. Register the editor-preview address as well if you want to test inside Figma's preview; fuda only answers pages at a registered address.
 4. Put the client ID into the app (below). It is not a secret.
 
-Only the account that registered the app can approve it. The dashboard's Apps page lists every live approval and can revoke it, or delete the app with all of its approvals.
+Only the account that registered the app can approve it. An account with several profiles chooses one on the consent page; approving the app for a second profile is a separate approval with its own token, and neither token reaches the other profile's cards. The dashboard's Apps page lists every live approval and can revoke it, or delete the app with all of its approvals.
 
 ## The client
 
