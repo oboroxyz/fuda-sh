@@ -288,7 +288,7 @@ After the initial setup above, start dashboard development from the repository r
 pnpm dev:dash-api
 ```
 
-Run `pnpm migrate:local` after pulling new database migrations. `dev:dash-api` starts the dashboard at http://localhost:5175 and its local API at http://localhost:8787 together. The example simulates chain state and writes. EOA sign-in works offline; Base Account passkey sign-in uses read-only Base Sepolia RPC verification and requires network access. FakeChain does not simulate the ENS claim, and nothing else in the dashboard needs it. Real acquisition requires the claim bindings documented above; for UI-only work on the claimed state, use the local fixture below.
+Run `pnpm migrate:local` after pulling new database migrations. `dev:dash-api` starts the dashboard at http://localhost:5175 and its local API at http://localhost:8787 together. The example simulates chain state and writes. EOA sign-in works offline; Base Account passkey sign-in uses read-only Base Sepolia RPC verification and requires network access. FakeChain does not simulate the ENS claim, and nothing else in the dashboard needs it. Real acquisition requires the claim bindings documented above; for UI-only work on the claimed state, use the [local fixture](#ui-walkthrough-with-fakechain).
 
 `pnpm dev` starts the whole local stack on the fixed ports below. A single surface starts with `pnpm dev:api`, `pnpm dev:app`, `pnpm dev:gate`, or `pnpm dev:dash`. Every frontend calls the api for its live data, so `pnpm dev:app+api`, `pnpm dev:gate+api`, and `pnpm dev:dash+api` start one frontend together with the api from a single terminal; a bare `dev:app`, `dev:gate`, or `dev:dash` needs `pnpm dev:api` running elsewhere.
 
@@ -330,35 +330,21 @@ Success prints the public wallet/factory/owner addresses and six successful chec
 
 ### UI walkthrough with FakeChain
 
-For Card creation, issuance and reception UI work, keep `USE_FAKE_CHAIN=1` with `SIGNER_PRIVATE_KEY` and `BASE_RPC_URL` absent. The local chain simulates entitlement writes. Card creation needs no ENS name. To see `/profile` in its claimed state without claiming a name on Sepolia, seed the ENS fixture below; the claim state is read from the local D1 mirror. This does not exercise wallet submission, sponsorship, ENS ownership or receipt verification; use the real testnets for those integration checks.
+For Card creation, issuance and reception UI work, keep `USE_FAKE_CHAIN=1` with `SIGNER_PRIVATE_KEY` and `BASE_RPC_URL` absent. The local chain simulates entitlement writes. No step needs an ENS name.
 
-Set `ENS_PARENT_NAME=fuda.eth` in `apps/api/.dev.vars`. After registering a local venue, the following example seeds the acquired state for `fuda-coffee`. Replace that handle with the venue being tested. It adds a row only when no ENS row exists for that name; it never overwrites an existing claim or pending attempt. Run from the repository root:
+Only the claimed look of `/profile` needs a fixture. With `ENS_PARENT_NAME=fuda.eth` in `apps/api/.dev.vars`, mark a registered local venue (`fuda-coffee` here) as claimed in the local D1 mirror, then reload Dash. The insert never overwrites an existing row:
 
 ```sh
-cat > /tmp/fuda-local-ui-ens.sql <<'SQL'
-INSERT INTO ens_names (
-  issuer_handle, name, kind, owner_address, target_address,
-  status, created_at, updated_at
-)
-SELECT handle, handle || '.fuda.eth', 'issuer', operator_address, operator_address,
-       'claimed', unixepoch(), unixepoch()
-FROM issuers
-WHERE handle = 'fuda-coffee'
-ON CONFLICT(name) DO NOTHING;
-
-SELECT name, status, claim_tx_hash, voucher_issued_at
-FROM ens_names WHERE name = 'fuda-coffee.fuda.eth' AND kind = 'issuer';
-SQL
-pnpm --filter api exec wrangler d1 execute fuda-beta --local --file /tmp/fuda-local-ui-ens.sql
+pnpm --filter api exec wrangler d1 execute fuda-beta --local --command "INSERT INTO ens_names (issuer_handle, name, kind, owner_address, target_address, status, created_at, updated_at) SELECT handle, handle || '.fuda.eth', 'issuer', operator_address, operator_address, 'claimed', unixepoch(), unixepoch() FROM issuers WHERE handle = 'fuda-coffee' ON CONFLICT(name) DO NOTHING"
 ```
 
-The fixture reports `status = claimed` with no transaction hash or voucher timestamp. Reload Dash to refresh the operator state: the claim button on `/profile` is replaced by the claimed mark. No API restart is needed if `ENS_PARENT_NAME` was already configured. Keep `--local`: this is simulated development state, not an onchain claim.
-
-To return this fixture to the unclaimed UI, delete only the synthetic row and reload Dash. Existing Cards and their Stamps remain intact:
+To undo it, delete only that synthetic row:
 
 ```sh
 pnpm --filter api exec wrangler d1 execute fuda-beta --local --command "DELETE FROM ens_names WHERE name = 'fuda-coffee.fuda.eth' AND kind = 'issuer' AND claim_tx_hash IS NULL AND voucher_issued_at IS NULL AND expiry IS NULL"
 ```
+
+This is local display state only. It does not exercise wallet submission, sponsorship, ENS ownership or receipt verification; use the real testnets for those.
 
 ### Gate station with a USB QR reader
 
