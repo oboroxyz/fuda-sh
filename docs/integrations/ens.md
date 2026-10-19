@@ -98,7 +98,7 @@ One press in the dashboard. fuda signs the permission; the venue signs the trans
 
 | Step | What happens |
 | --- | --- |
-| 1 | `POST /v1/issuers/me/ens/claim-voucher` reads the registrar nonce fresh, signs an EIP-712 `ClaimVoucher`, records `voucher_issued` |
+| 1 | `POST /v1/issuers/me/ens/claim-voucher` checks that the deployment's `IssuerDelegation` on Base is live, reads the registrar nonce fresh, signs an EIP-712 `ClaimVoucher`, records `voucher_issued` |
 | 2 | The venue's wallet submits `claim(voucher)` as an ERC-4337 user operation. `POST /v1/ens/paymaster` (ERC-7677) accepts only `claim` or `renew` on fuda's registrar and forwards to **Alchemy's verifying paymaster**, which pays. Strip it and the claim still works; it just costs the venue gas |
 | 3 | `POST /v1/issuers/me/ens/claimed` fetches the receipt, requires the registrar's own event, and only then records `claimed` |
 
