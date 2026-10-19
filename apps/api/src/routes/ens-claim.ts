@@ -24,7 +24,7 @@ import { errorResponse, jsonResponse } from '../json.ts'
 import { operatorAuth } from '../middleware/operator-auth.ts'
 import { rateLimit } from '../middleware/rate-limit.ts'
 import { verifyConfig } from '../verify/config.ts'
-import { liveDelegation } from '../verify/verify-uid.ts'
+import { checkDelegation } from '../verify/verify-uid.ts'
 
 // Sponsorship requests per IP per hour. A venue claims its name once; this is a
 // ceiling on abuse of a public endpoint, not a working budget.
@@ -51,24 +51,26 @@ const claimed = async (c: Context<AppEnv>, config: ClaimConfig, handle: string) 
     .where(eq(ensNames.name, issuerEnsName(handle, config.parentName)))
     .get()
 
-// Whether the root still delegates issuance to this deployment, read from the
-// IssuerDelegation every right it issues points at. Venues share that one
-// delegation; a name is handed out only while it is live
+// Whether the root still delegates issuance to this deployment: the
+// IssuerDelegation every right it issues points at must be live and name the
+// signer those rights are attested by, exactly as the gate will check them.
+// Venues share that one delegation; a name is handed out only while it holds
 // (docs/specs/ens-naming.md#lifecycle).
 const deploymentDelegation = async (
   c: Context<AppEnv>,
 ): Promise<'live' | 'unconfigured' | 'refused' | 'unreadable'> => {
   const uid = asHex(c.env.DELEGATION_UID, 32)
+  const signer = c.get('chain').signerAddress()
   let deps: ReturnType<typeof verifyConfig>
   try {
     deps = verifyConfig(c.env, c.get('chain'), c.get('now')())
   } catch {
     return 'unconfigured'
   }
-  if (uid === null || uid === ZERO_UID) {
+  if (uid === null || uid === ZERO_UID || signer === null) {
     return 'unconfigured'
   }
-  const result = await liveDelegation(deps, uid)
+  const result = await checkDelegation(deps, uid, signer)
   if (result.ok) {
     return 'live'
   }
