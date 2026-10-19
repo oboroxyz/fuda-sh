@@ -8,7 +8,9 @@ An operator who runs two shops, or a shop and an event, signs in with one passke
 ## Decision
 
 - `issuers.operator_address` is no longer unique (`0018_issuers_per_account.sql`). An address may own up to ten issuers; the cap keeps one account from reserving handles in bulk. Handles stay globally unique.
-- A dashboard session acts for one issuer at a time: `sessions.issuer_id`, set at sign-in to the oldest issuer the address owns and changed only through `POST /issuers/switch`, which checks ownership. Every route that reads or writes shop data keeps reading the session's one issuer, so two issuers' cards, passes, stamps and members never mix in one answer.
+- A session token is bound to one issuer for its whole life: `sessions.issuer_id`, set at sign-in to the oldest issuer the address owns, or once from empty when the account's first issuer is created. Acting for another issuer takes another token — `POST /auth/switch`, or the token `POST /issuers` answers for an account's additional issuer — and the token that asked keeps its issuer. Every route that reads or writes shop data reads the token's one issuer, so two issuers' cards, passes, stamps and members never mix in one answer.
+- The binding is never moved in place because tabs share a token. If switching changed the issuer behind a live token, a second tab still showing the first issuer would write its edits into the second; with one issuer per token, each tab writes to the issuer it was showing. A switch therefore leaves an extra session row until it expires, and signing out ends only the tab's own token.
+- The account routes live under `/auth` (`GET /auth/issuers`, `POST /auth/switch`): a static segment under `/issuers` would shadow the public `GET /issuers/:handle` of a venue whose handle matched it.
 - Permissions, connected-app approvals and tokens, and ENS names are per issuer. A connected-app token names the issuer chosen on the consent page and reaches no other, even another issuer of the same account.
 - Creating an issuer is still done only in the dashboard; nothing outside fuda can create one.
 

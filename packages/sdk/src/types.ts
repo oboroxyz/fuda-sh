@@ -174,7 +174,10 @@ export interface IssuerCardsResponse {
   // deployment has no ENS configured (docs/specs/ens-naming.md).
   ens: EnsClaimView | null
 }
-export type IssuerCreateResponse = IssuerCardsResponse
+// `token` is present when the account already acted for another issuer: a new
+// session bound to the new issuer, leaving the caller's own session — and any
+// other tab holding it — on the issuer it had (docs/adr/0009-several-issuers-per-account.md).
+export type IssuerCreateResponse = IssuerCardsResponse & { token?: string }
 export interface IssuerUpdateResponse {
   issuer: IssuerView
 }
@@ -182,6 +185,14 @@ export interface DefaultCardResponse {
   issuer: IssuerView
 }
 export type IssuerMeResponse = IssuerCardsResponse | { issuer: null; cards: []; publicUrl: null; ens: null }
+
+// POST /auth/switch — a new session bound to the chosen issuer. The session
+// that asked keeps its own issuer: a token never changes which issuer it acts
+// for (docs/adr/0009-several-issuers-per-account.md).
+export interface IssuerSwitchResponse {
+  token: string
+  operator: IssuerMeResponse
+}
 
 // `unclaimed` covers both "never asked" and a voucher that was signed and never
 // used; either way the next step is the same, so the dashboard needs no third

@@ -597,9 +597,10 @@ export const App = ({
     submit: () => Promise<{ ok: true; body: T } | { ok: false; failure: CreateFailure }>,
     apply: (body: T) => IssuerMeResponse,
     target: DashRoute,
-    // A new profile beside an existing one starts a clean slate: nothing the
-    // previous profile had loaded or drafted may carry over.
-    startsNewProfile = false,
+    // A create that answers a session of its own (another profile beside an
+    // existing one) moves this tab onto that session with a clean slate:
+    // nothing the previous profile loaded or drafted may carry over.
+    newSessionOf: (body: T) => string | null = () => null,
   ): void => {
     if (token === null) {
       setCreateFailure('input')
@@ -633,10 +634,12 @@ export const App = ({
         setCreateFailure(outcome.failure)
         return
       }
-      if (startsNewProfile) {
-        replaceSession({ ...signedOutSession(), operator: apply(outcome.body), token: sessionToken })
-      } else {
+      const newSession = newSessionOf(outcome.body)
+      if (newSession === null) {
         updateOperator(apply(outcome.body))
+      } else {
+        saveOperatorToken(newSession)
+        replaceSession({ ...signedOutSession(), operator: apply(outcome.body), token: newSession })
       }
       setCardDraft(null)
       navigateTo(history, target)
@@ -658,7 +661,7 @@ export const App = ({
       async (): Promise<VenueCreateOutcome> => await submitVenue(operatorIo.design, token ?? '', form, logo),
       operatorWithVenue,
       '/profile',
-      activeIssuerOf(activeSession.current) !== null,
+      (created) => created.token ?? null,
     )
   }
 
@@ -684,7 +687,11 @@ export const App = ({
         }
         return
       }
-      replaceSession({ ...signedOutSession(), operator: result.body, token: sessionToken })
+      // A new session bound to the chosen profile. The previous token stays
+      // bound to its own profile, so another tab still holding it keeps
+      // writing where it shows (docs/adr/0009-several-issuers-per-account.md).
+      saveOperatorToken(result.body.token)
+      replaceSession({ ...signedOutSession(), operator: result.body.operator, token: result.body.token })
       navigateTo(history, '/cards')
       setRoute('/cards')
     }

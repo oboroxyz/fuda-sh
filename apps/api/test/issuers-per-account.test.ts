@@ -1,7 +1,9 @@
 import type {
   AuthorizePreviewResponse,
   ConnectCardsResponse,
+  IssuerCreateResponse,
   IssuerMeResponse,
+  IssuerSwitchResponse,
   OwnedIssuersResponse,
   TokenResponse,
 } from '@fuda/sdk'
@@ -58,21 +60,44 @@ const me = async (token: string): Promise<IssuerMeResponse> =>
   await bodyOf<IssuerMeResponse>(getJson(app, bindings(), '/v1/issuers/me', token))
 
 const switchTo = async (token: string, issuerId: string): Promise<Response> =>
-  await postJson(app, bindings(), '/v1/issuers/switch', { issuerId }, token)
+  await postJson(app, bindings(), '/v1/auth/switch', { issuerId }, token)
 
-// An account with two issuers: Coffee (with its stamp card) first, then Bar
-// (with a ticket), the session ending on Bar.
-const twoIssuers = async (): Promise<{ token: string; coffee: string; bar: string }> => {
-  const { token } = await signIn(app, bindings())
-  await postJson(app, bindings(), '/v1/issuers', COFFEE, token)
-  await postJson(app, bindings(), '/v1/issuers/cards', COFFEE_CARD, token)
+const owned = async (token: string): Promise<OwnedIssuersResponse> =>
+  await bodyOf<OwnedIssuersResponse>(getJson(app, bindings(), '/v1/auth/issuers', token))
+
+const putJson = async (path: string, body: unknown, token: string): Promise<Response> =>
+  await app.request(
+    path,
+    {
+      body: JSON.stringify(body),
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      method: 'PUT',
+    },
+    bindings(),
+  )
+
+interface TwoIssuers {
+  bar: string
+  barToken: string
+  coffee: string
+  coffeeToken: string
+}
+
+// An account with two issuers: Coffee (with its stamp card) on the session
+// that created it, then Bar (with a ticket) on the session its create answered.
+const twoIssuers = async (): Promise<TwoIssuers> => {
+  const { token: coffeeToken } = await signIn(app, bindings())
+  await postJson(app, bindings(), '/v1/issuers', COFFEE, coffeeToken)
+  await postJson(app, bindings(), '/v1/issuers/cards', COFFEE_CARD, coffeeToken)
   clock += 1
-  const created = await postJson(app, bindings(), '/v1/issuers', BAR, token)
-  expect(created.status).toBe(201)
-  await postJson(app, bindings(), '/v1/issuers/cards', SECOND_CARD, token)
-  const owned = await bodyOf<OwnedIssuersResponse>(getJson(app, bindings(), '/v1/issuers/owned', token))
-  const [coffee, bar] = owned.issuers.map((issuer) => issuer.id)
-  return { bar: bar ?? '', coffee: coffee ?? '', token }
+  const created = await bodyOf<IssuerCreateResponse>(
+    postJson(app, bindings(), '/v1/issuers', BAR, coffeeToken),
+  )
+  const barToken = created.token ?? ''
+  await postJson(app, bindings(), '/v1/issuers/cards', SECOND_CARD, barToken)
+  const list = await owned(coffeeToken)
+  const [coffee, bar] = list.issuers.map((issuer) => issuer.id)
+  return { bar: bar ?? '', barToken, coffee: coffee ?? '', coffeeToken }
 }
 
 describe('several issuers per account', () => {
@@ -82,45 +107,59 @@ describe('several issuers per account', () => {
   })
   afterEach(clearTables)
 
-  it('creates a second issuer, lists both and acts for the newest', async () => {
-    const { bar, token } = await twoIssuers()
-    const owned = await bodyOf<OwnedIssuersResponse>(getJson(app, bindings(), '/v1/issuers/owned', token))
-    const current = await me(token)
+  it('gives a second issuer its own session and leaves the creating session on the first', async () => {
+    const { bar, barToken, coffee, coffeeToken } = await twoIssuers()
+    const [fromCoffee, fromBar, coffeeMe, barMe] = await Promise.all([
+      owned(coffeeToken),
+      owned(barToken),
+      me(coffeeToken),
+      me(barToken),
+    ])
     expect({
-      active: owned.activeIssuerId,
-      cards: current.cards.map((card) => card.slug),
-      handles: owned.issuers.map((issuer) => issuer.handle),
-      me: current.issuer?.handle,
+      active: [fromCoffee.activeIssuerId, fromBar.activeIssuerId],
+      cards: [coffeeMe.cards.map((card) => card.slug), barMe.cards.map((card) => card.slug)],
+      handles: fromBar.issuers.map((issuer) => issuer.handle),
     }).toStrictEqual({
-      active: bar,
-      cards: ['gig'],
+      active: [coffee, bar],
+      cards: [['stamp'], ['gig']],
       handles: ['wassie-coffee', 'wassie-bar'],
-      me: 'wassie-bar',
     })
   })
 
-  it('switches between them, each with only its own cards', async () => {
-    const { bar, coffee, token } = await twoIssuers()
-    const toCoffee = await bodyOf<IssuerMeResponse>(switchTo(token, coffee))
+  it('switches by a new session, so another tab on the old one still writes to its own issuer', async () => {
+    const { bar, coffeeToken } = await twoIssuers()
+    // Two tabs share coffeeToken. Tab B switches to Bar; tab A still shows
+    // Coffee and saves its profile and a card with the token it holds.
+    const switched = await bodyOf<IssuerSwitchResponse>(switchTo(coffeeToken, bar))
+    const saved = await putJson(
+      '/v1/issuers/me',
+      { brandColor: '#112233', name: 'Coffee edited', tagline: 'Only Coffee' },
+      coffeeToken,
+    )
     const added = await postJson(
       app,
       bindings(),
       '/v1/issuers/cards',
       { ...SECOND_CARD, slug: 'latte' },
-      token,
+      coffeeToken,
     )
-    const coffeeNow = await me(token)
-    await switchTo(token, bar)
-    const barNow = await me(token)
+    const [coffeeNow, barNow] = await Promise.all([me(coffeeToken), me(switched.token)])
     expect({
       added: added.status,
-      bar: barNow.cards.map((card) => card.slug),
-      coffee: coffeeNow.cards.map((card) => card.slug),
-      switched: toCoffee.issuer?.handle,
-    }).toStrictEqual({ added: 201, bar: ['gig'], coffee: ['stamp', 'latte'], switched: 'wassie-coffee' })
+      bar: [barNow.issuer?.name, barNow.issuer?.tagline, barNow.cards.map((card) => card.slug)],
+      coffee: [coffeeNow.issuer?.name, coffeeNow.cards.map((card) => card.slug)],
+      saved: saved.status,
+      switched: [switched.operator.issuer?.handle, switched.token === coffeeToken],
+    }).toStrictEqual({
+      added: 201,
+      bar: ['Wassie Bar', COFFEE.tagline, ['gig']],
+      coffee: ['Coffee edited', ['stamp', 'latte']],
+      saved: 200,
+      switched: ['wassie-bar', false],
+    })
   })
 
-  it('starts a new session on the oldest issuer', async () => {
+  it('starts a new sign-in on the oldest issuer', async () => {
     await twoIssuers()
     const again = await signIn(app, bindings())
     expect(again.issuer).toMatchObject({ handle: 'wassie-coffee' })
@@ -131,10 +170,21 @@ describe('several issuers per account', () => {
     const { token: stranger } = await signIn(app, bindings(), other)
     const [foreign, malformed] = await Promise.all([
       switchTo(stranger, coffee),
-      postJson(app, bindings(), '/v1/issuers/switch', { id: coffee }, stranger),
+      postJson(app, bindings(), '/v1/auth/switch', { id: coffee }, stranger),
     ])
     const strangerMe = await me(stranger)
     expect([foreign.status, malformed.status, strangerMe.issuer]).toStrictEqual([404, 400, null])
+  })
+
+  it('leaves every handle to the public venue route, including the words the account routes use', async () => {
+    const { token } = await signIn(app, bindings())
+    await postJson(app, bindings(), '/v1/issuers', { ...COFFEE, handle: 'owned' }, token)
+    const [venue, anonymousList] = await Promise.all([
+      getJson(app, bindings(), '/v1/issuers/owned'),
+      getJson(app, bindings(), '/v1/auth/issuers'),
+    ])
+    const body = await venue.json<{ handle: string }>()
+    expect([venue.status, body.handle, anonymousList.status]).toStrictEqual([200, 'owned', 401])
   })
 
   it('caps the issuers one account can create', async () => {
@@ -154,7 +204,7 @@ describe('several issuers per account', () => {
   })
 
   it('lets a connected app be approved for either issuer, and keeps each token to its own', async () => {
-    const { bar, coffee, token } = await twoIssuers()
+    const { bar, barToken: barSession, coffee, coffeeToken: token } = await twoIssuers()
     const ORIGIN = 'https://shop.figma.site'
     const created = await postJson(
       app,
@@ -224,7 +274,7 @@ describe('several issuers per account', () => {
       )
       return listed.cards.map((card) => card.slug)
     }
-    const barNow = await me(token)
+    const barNow = await me(barSession)
     const barCardId = barNow.cards[0]?.id ?? ''
     const crossRead = await app.request(
       `/v1/connect/cards/${barCardId}`,

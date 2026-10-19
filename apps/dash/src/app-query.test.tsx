@@ -788,7 +788,9 @@ describe('dashboard query lifecycle', () => {
         body: { activeIssuerId: 'issuer-1', issuers: summaries },
         ok: true,
       }),
-      switchIssuer: vi.fn<OperatorIo['switchIssuer']>().mockResolvedValue({ body: bar, ok: true }),
+      switchIssuer: vi
+        .fn<OperatorIo['switchIssuer']>()
+        .mockResolvedValue({ body: { operator: bar, token: 'session-bar' }, ok: true }),
     }
     await start(operator)
     await vi.waitFor(() => {
@@ -798,8 +800,10 @@ describe('dashboard query lifecycle', () => {
     await vi.waitFor(() => {
       expect(view().session.operator?.issuer?.handle).toBe('bar')
     })
+    // The switch moves this tab onto a new session bound to Bar; the old token
+    // is never asked to change which profile it acts for.
     expect([operator.switchIssuer.mock.calls, view().session.token, view().profiles?.activeId]).toStrictEqual(
-      [[['session', 'issuer-2']], 'session', 'issuer-2'],
+      [[['session', 'issuer-2']], 'session-bar', 'issuer-2'],
     )
   })
 })

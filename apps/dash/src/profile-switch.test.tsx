@@ -44,20 +44,24 @@ const empty: IssuerPassesResponse = {
 
 let root: HTMLDivElement
 
+// Each session token is bound to one profile, as the api binds it: the
+// original token answers Coffee, the token the switch hands out answers Bar.
+const BAR_SESSION = 'session-bar'
+const profileOf = (token: string): IssuerMeResponse => (token === BAR_SESSION ? bar : coffee)
+
 const fixture = () => {
-  let active = coffee
   // Which profile each pass-list read was answered for, in order. How many
   // reads a render makes depends on timing; which profile they read does not.
   const reads: string[] = []
   return {
-    reads,
     ...DEFAULT_OPERATOR_IO,
     issuerMe: vi
       .fn<OperatorIo['issuerMe']>()
-      .mockImplementation(async () => await Promise.resolve({ body: active, ok: true })),
-    listPasses: vi.fn<OperatorIo['listPasses']>().mockImplementation(async () => {
-      reads.push(active.issuer?.handle ?? '')
-      return await Promise.resolve({ body: active === coffee ? passesResponse : empty, ok: true })
+      .mockImplementation(async (token) => await Promise.resolve({ body: profileOf(token), ok: true })),
+    listPasses: vi.fn<OperatorIo['listPasses']>().mockImplementation(async (token) => {
+      const profile = profileOf(token)
+      reads.push(profile.issuer?.handle ?? '')
+      return await Promise.resolve({ body: profile === coffee ? passesResponse : empty, ok: true })
     }),
     ownedIssuers: vi.fn<OperatorIo['ownedIssuers']>().mockResolvedValue({
       body: {
@@ -69,10 +73,10 @@ const fixture = () => {
       },
       ok: true,
     }),
-    switchIssuer: vi.fn<OperatorIo['switchIssuer']>().mockImplementation(async () => {
-      active = bar
-      return await Promise.resolve({ body: bar, ok: true })
-    }),
+    reads,
+    switchIssuer: vi
+      .fn<OperatorIo['switchIssuer']>()
+      .mockResolvedValue({ body: { operator: bar, token: BAR_SESSION }, ok: true }),
   }
 }
 

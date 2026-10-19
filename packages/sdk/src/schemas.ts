@@ -168,7 +168,7 @@ export const IssuerUpdateBody = v.strictObject({
 
 export type IssuerUpdateRequest = v.InferOutput<typeof IssuerUpdateBody>
 
-// POST /issuers/switch — which of the account's issuers the session acts for.
+// POST /auth/switch — which of the account's issuers the new session acts for.
 export const IssuerSwitchBody = v.strictObject({
   issuerId: v.pipe(v.string(), v.minLength(1), v.maxLength(64)),
 })

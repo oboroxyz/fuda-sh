@@ -8,13 +8,19 @@ import {
   IssuerSwitchBody,
   IssuerUpdateBody,
 } from '@fuda/sdk'
-import type { EnsClaimView, IssuerMeResponse, OwnedIssuersResponse } from '@fuda/sdk'
+import type {
+  EnsClaimView,
+  IssuerCreateResponse,
+  IssuerMeResponse,
+  IssuerSwitchResponse,
+  OwnedIssuersResponse,
+} from '@fuda/sdk'
 import { and, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 
-import { attachIssuer } from '../auth/session.ts'
+import { createSession } from '../auth/session.ts'
 import { configuredBadgeKinds } from '../badges/verifier.ts'
 import { cards, issuers } from '../db/schema.ts'
 import { issuerEnsName } from '../ens/names.ts'
@@ -76,9 +82,10 @@ issuersRoutes.get('/issuers/me', operatorAuth(), async (c) => {
 })
 
 // docs/adr/0009-several-issuers-per-account.md — every issuer this account
-// owns, and the one the session acts for. Each `/issuers/me…` route keeps
-// reading only the active one, so two issuers' data never mix in one answer.
-issuersRoutes.get('/issuers/owned', operatorAuth(), async (c) => {
+// owns, and the one this session's token is bound to. Under /auth rather than
+// /issuers, where a static segment would shadow the public /issuers/:handle of
+// a venue whose handle happened to match it.
+issuersRoutes.get('/auth/issuers', operatorAuth(), async (c) => {
   c.header('cache-control', 'no-store')
   const { address, issuerId } = c.get('operator')
   const owned = await issuersOwnedBy(c.get('db'), address)
@@ -89,21 +96,31 @@ issuersRoutes.get('/issuers/owned', operatorAuth(), async (c) => {
   return jsonResponse(c, body)
 })
 
-// Moves the session to another issuer of the same account. An id the account
-// does not own is "not found", as everywhere else.
-issuersRoutes.post('/issuers/switch', operatorAuth(), async (c) => {
+// Acting for another issuer of the same account takes a new session bound to
+// it. The session that asked is left exactly as it was: a token is bound to
+// one issuer for its whole life, so a second tab still holding it keeps
+// writing to the issuer it shows. An id the account does not own is "not
+// found", as everywhere else.
+issuersRoutes.post('/auth/switch', operatorAuth(), async (c) => {
   c.header('cache-control', 'no-store')
   const parsed = v.safeParse(IssuerSwitchBody, await c.req.json().catch(() => null))
   if (!parsed.success) {
     return errorResponse(c, 'bad_input', 400)
   }
-  const operator = c.get('operator')
-  const owned = await issuersOwnedBy(c.get('db'), operator.address)
+  const db = c.get('db')
+  const { address } = c.get('operator')
+  const owned = await issuersOwnedBy(db, address)
   if (!owned.some((row) => row.id === parsed.output.issuerId)) {
     return errorResponse(c, 'not_found', 404)
   }
-  await attachIssuer(c.get('db'), operator.tokenHash, parsed.output.issuerId)
-  return jsonResponse(c, await meResponse(c, parsed.output.issuerId))
+  const token = await createSession(db, {
+    address,
+    audience: 'operator',
+    issuerId: parsed.output.issuerId,
+    now: c.get('now')(),
+  })
+  const body: IssuerSwitchResponse = { operator: await meResponse(c, parsed.output.issuerId), token }
+  return jsonResponse(c, body)
 })
 
 issuersRoutes.put('/issuers/me', operatorAuth(), async (c) => {
@@ -192,9 +209,10 @@ issuersRoutes.get('/issuers/cards/check', operatorAuth(), async (c) => {
   return jsonResponse(c, { available: valid && !taken, slug, valid })
 })
 
-// Creates an issuer — the account's first or another one — and moves the
-// session to it in one batch. Cards are published separately, and claiming the
-// venue's ENS name is optional.
+// Creates an issuer — the account's first or another one. The first binds the
+// session that created it; another one answers a new session token bound to
+// it. Cards are published separately, and claiming the venue's ENS name is
+// optional.
 const ISSUERS_PER_ACCOUNT = 10
 
 issuersRoutes.post('/issuers', operatorAuth(), async (c) => {
@@ -217,8 +235,11 @@ issuersRoutes.post('/issuers', operatorAuth(), async (c) => {
   if (taken !== undefined) {
     return errorResponse(c, 'handle_taken', 409)
   }
+  // A session with no issuer yet is bound to this one. A session that already
+  // acts for an issuer keeps it, and the new issuer gets a session of its own.
+  const bindSession = operator.issuerId === null
   try {
-    await insertIssuer(db, operator, parsed.output, c.get('now')())
+    await insertIssuer(db, operator, parsed.output, c.get('now')(), bindSession)
   } catch {
     // The unique indexes are the last word when two requests race the checks above.
     return errorResponse(c, 'handle_taken', 409)
@@ -227,16 +248,21 @@ issuersRoutes.post('/issuers', operatorAuth(), async (c) => {
   if (found === null) {
     return errorResponse(c, 'internal', 500)
   }
-  return jsonResponse(
-    c,
-    {
-      cards: [],
-      ens: await ensView(c, found.issuer.handle),
-      issuer: issuerView(found.issuer, c.env.API_BASE_URL),
-      publicUrl: publicUrlFor(c.env.PUBLIC_BASE_URL, found.issuer.handle),
-    },
-    201,
-  )
+  const created: IssuerCreateResponse = {
+    cards: [],
+    ens: await ensView(c, found.issuer.handle),
+    issuer: issuerView(found.issuer, c.env.API_BASE_URL),
+    publicUrl: publicUrlFor(c.env.PUBLIC_BASE_URL, found.issuer.handle),
+  }
+  if (!bindSession) {
+    created.token = await createSession(db, {
+      address: operator.address,
+      audience: 'operator',
+      issuerId: found.issuer.id,
+      now: c.get('now')(),
+    })
+  }
+  return jsonResponse(c, created, 201)
 })
 
 // Adds a card to the operator's existing venue. The venue itself, its handle

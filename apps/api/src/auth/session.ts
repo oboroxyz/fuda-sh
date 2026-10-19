@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { Hex } from 'viem'
 
 import type { Db } from '../db/client.ts'
@@ -80,9 +80,14 @@ export const deleteSession = async (db: Db, tokenHash: string): Promise<void> =>
 }
 
 // The statement rather than its result, so the venue-create path can batch it
-// with the issuer and card inserts instead of paying a second round trip.
+// with the issuer and card inserts instead of paying a second round trip. Only
+// a session with no issuer yet is bound: a token never changes the issuer it
+// acts for, so another tab holding it can never write to a different one
+// (docs/adr/0009-several-issuers-per-account.md).
 export const attachIssuer = (db: Db, tokenHash: string, issuerId: string) =>
   db
     .update(sessions)
     .set({ issuerId })
-    .where(and(eq(sessions.tokenHash, tokenHash), eq(sessions.audience, 'operator')))
+    .where(
+      and(eq(sessions.tokenHash, tokenHash), eq(sessions.audience, 'operator'), isNull(sessions.issuerId)),
+    )

@@ -11,6 +11,7 @@ import type {
   IssuerUpdateRequest,
   IssuerUpdateResponse,
   IssuerView,
+  IssuerSwitchResponse,
   OwnedIssuersResponse,
   IssueResponse,
   MembersResponse,
@@ -81,12 +82,13 @@ export const issuerMe = async (token: string): Promise<Result<IssuerMeResponse>>
   await apiFetch<IssuerMeResponse>(API_BASE_URL, '/issuers/me', { token })
 
 // docs/adr/0009-several-issuers-per-account.md — the account's issuers and the
-// one this session acts for; switching answers the new one as /issuers/me does.
+// one this session's token is bound to. Switching answers a new token bound to
+// the chosen issuer; the token that asked keeps its own.
 export const ownedIssuers = async (token: string): Promise<Result<OwnedIssuersResponse>> =>
-  await apiFetch<OwnedIssuersResponse>(API_BASE_URL, '/issuers/owned', { token })
+  await apiFetch<OwnedIssuersResponse>(API_BASE_URL, '/auth/issuers', { token })
 
-export const switchIssuer = async (token: string, issuerId: string): Promise<Result<IssuerMeResponse>> =>
-  await apiFetch<IssuerMeResponse>(API_BASE_URL, '/issuers/switch', {
+export const switchIssuer = async (token: string, issuerId: string): Promise<Result<IssuerSwitchResponse>> =>
+  await apiFetch<IssuerSwitchResponse>(API_BASE_URL, '/auth/switch', {
     body: JSON.stringify({ issuerId }),
     method: 'POST',
     token,

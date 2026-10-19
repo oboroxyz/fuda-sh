@@ -209,8 +209,8 @@ export interface IssuerSummary {
   logoUrl: string | null
 }
 
-// GET /issuers/owned — every issuer the signed-in account owns, oldest first,
-// and the one this session is acting for (docs/adr/0009-several-issuers-per-account.md).
+// GET /auth/issuers — every issuer the signed-in account owns, oldest first,
+// and the one this session's token is bound to (docs/adr/0009-several-issuers-per-account.md).
 export interface OwnedIssuersResponse {
   issuers: IssuerSummary[]
   activeIssuerId: string | null
