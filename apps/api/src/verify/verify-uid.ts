@@ -71,8 +71,13 @@ type DelegationResult = { ok: true; view: DelegationView } | { ok: false; reason
 
 // The authority boundary: the Entitlement's refUID must be a live IssuerDelegation
 // attested by ISSUER_ADDRESS whose `issuer` field is the Entitlement's attester.
-// Every failure mode here fails closed.
-const checkDelegation = async (deps: VerifyDeps, refUID: Hex, attester: Hex): Promise<DelegationResult> => {
+// Every failure mode here fails closed. The ENS claim asks the same question of
+// the deployment's own signer before it hands out a name.
+export const checkDelegation = async (
+  deps: VerifyDeps,
+  refUID: Hex,
+  attester: Hex,
+): Promise<DelegationResult> => {
   if (sameAddress(deps.issuerAddress, ZERO_ADDRESS) || deps.sets.issuerDelegation.length === 0) {
     return { ok: false, reason: 'DELEGATION_CONFIG_MISSING' }
   }

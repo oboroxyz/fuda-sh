@@ -172,7 +172,7 @@ const fieldErrorFor = (
     : 'bad_input'
 
 // Creates the issuer and binds the session to it in one batch. Cards are
-// published separately after ENS claim confirmation.
+// published separately, and claiming the venue's ENS name is optional.
 issuersRoutes.post('/issuers', operatorAuth(), async (c) => {
   const body: unknown = await c.req.json().catch(() => null)
   const parsed = v.safeParse(IssuerCreateBody, body)
@@ -217,7 +217,8 @@ issuersRoutes.post('/issuers', operatorAuth(), async (c) => {
 })
 
 // Adds a card to the operator's existing venue. The venue itself, its handle
-// and its brand colour are unchanged; only the card is new.
+// and its brand colour are unchanged; only the card is new. The venue's ENS
+// name plays no part: a card is published whether or not it was claimed.
 issuersRoutes.post('/issuers/cards', operatorAuth(), async (c) => {
   const body: unknown = await c.req.json().catch(() => null)
   const parsed = v.safeParse(CardBody, body)
@@ -232,13 +233,6 @@ issuersRoutes.post('/issuers/cards', operatorAuth(), async (c) => {
   const issuer = await db.select().from(issuers).where(eq(issuers.id, issuerId)).get()
   if (issuer === undefined) {
     return errorResponse(c, 'not_found', 404)
-  }
-  const ens = await ensView(c, issuer.handle)
-  if (ens === null) {
-    return errorResponse(c, 'ens_not_configured', 503)
-  }
-  if (ens.status !== 'claimed') {
-    return errorResponse(c, 'ens_required', 409)
   }
   const card = await insertCard(db, issuerId, parsed.output, c.get('now')())
   if (card === null) {

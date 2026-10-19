@@ -17,7 +17,6 @@ import { VenueIdentityFields } from './VenueIdentityFields.tsx'
 
 export interface VenuePageProps {
   busy: boolean
-  canCreateCard: boolean
   copy: DashCopy
   ens: JSX.Element | null
   failure: CreateFailure | null
@@ -176,16 +175,11 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
           >
             {props.copy.nav.card}
           </a>
-          {props.hasCardDraft !== true &&
-            (props.canCreateCard ? (
-              <a class="btn" href="/cards/new">
-                {props.copy.published.addCard}
-              </a>
-            ) : (
-              <button class="btn" disabled type="button">
-                {props.copy.published.addCard}
-              </button>
-            ))}
+          {props.hasCardDraft === true ? null : (
+            <a class="btn" href="/cards/new">
+              {props.copy.published.addCard}
+            </a>
+          )}
         </div>
       </section>
     )

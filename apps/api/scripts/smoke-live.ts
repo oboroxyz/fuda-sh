@@ -4,8 +4,8 @@
 //   bearer  — issue → verify → re-scan → revoke → verify
 //   signed  — issue to a holder key → challenge/response admission, including
 //             the wrong-signature, replayed-nonce and single-use rejections
-//   card    — operator sign-in → verify an existing ENS-claimed venue → publish
-//             a card → the member's own one-tap claim → scan → revoke
+//   card    — operator sign-in → verify an existing venue → publish a card
+//             → the member's own one-tap claim → scan → revoke
 //
 // Pick ladders with `--ladder bearer,signed` (or `all`), or with SMOKE_LADDERS;
 // the default runs all three. Every returned issue UID is revoked in finally, even
@@ -229,8 +229,9 @@ const signedLadder = async (): Promise<void> => {
 }
 
 // The venue's own front door, end to end. Nothing here uses ADMIN_TOKEN: an
-// operator signs in with their wallet, publishes a card for an ENS-claimed
-// venue, and a member claims it off the public page exactly as a phone in the queue would
+// operator signs in with their wallet, publishes a card for their venue,
+// whether or not its ENS name is claimed, and a member claims it off the
+// public page exactly as a phone in the queue would
 // (docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route).
 
 interface CardContext {
@@ -271,9 +272,6 @@ const cardPreflight = async (): Promise<CardContext> => {
   const me = await call<IssuerMeResponse>('/issuers/me', { headers: operatorHeaders })
   if (me.issuer === null) {
     throw new Error('card ladder requires SMOKE_OPERATOR_KEY to own an existing venue')
-  }
-  if (me.ens?.status !== 'claimed') {
-    throw new Error(`card ladder requires ${me.issuer.handle} ENS name to be claimed`)
   }
   return { handle: me.issuer.handle, operatorHeaders }
 }

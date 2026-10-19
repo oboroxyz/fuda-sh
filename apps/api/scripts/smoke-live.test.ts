@@ -190,11 +190,14 @@ describe('live smoke cleanup', () => {
     expect(api.fetchSpy).not.toHaveBeenCalled()
   })
 
-  it('requires an existing ENS-claimed venue before bearer or signed issuance starts', async () => {
+  it('runs the card ladder for a venue that never claimed its ENS name', async () => {
+    vi.stubEnv('SMOKE_LADDERS', 'card')
     const api = fakeApi(undefined, 'unclaimed')
 
-    await expect(runScript()).rejects.toThrow(/ENS.*claimed/iu)
-    expect(api.issued).toStrictEqual([])
+    await runScript()
+
+    expect(api.issued).toHaveLength(1)
+    expect(api.revoked).toStrictEqual(api.issued)
   })
 
   it.each(['bearer', 'signed'])('revokes %s rights when verification fails', async (ladder) => {

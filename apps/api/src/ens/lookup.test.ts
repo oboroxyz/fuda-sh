@@ -1,13 +1,30 @@
 import { env } from 'cloudflare:test'
+import { getAddress } from 'viem'
 import { describe, expect, it } from 'vitest'
 
 import { getDb } from '../db/client.ts'
+import { issuers } from '../db/schema.ts'
 import { lookupEnsName } from './lookup.ts'
 import { ensNames } from './schema.ts'
 
 const OWNER = `0x${'11'.repeat(20)}`
 const TARGET = `0x${'22'.repeat(20)}`
 const META_ADDRESS = `0x${'44'.repeat(66)}`
+
+// A registered venue, as `POST /issuers` stores it: the operator address
+// lower-cased, and unique to the venue.
+const registerVenue = async (handle: string): Promise<string> => {
+  const operatorAddress = `0x${crypto.randomUUID().replaceAll('-', '').padEnd(40, 'ab')}`
+  await getDb({ DB: env.DB }).insert(issuers).values({
+    brandColor: '#000000',
+    createdAt: 1,
+    handle,
+    id: crypto.randomUUID(),
+    name: handle,
+    operatorAddress,
+  })
+  return operatorAddress
+}
 
 const insertIssuerName = async (
   handle: string,
@@ -89,6 +106,43 @@ describe('ENS lookup', () => {
       }),
     ).resolves.toBeNull()
   })
+
+  it("answers a never-claimed venue's name with its operator wallet", async () => {
+    const operator = await registerVenue('noodles')
+
+    await expect(
+      lookupEnsName(getDb({ DB: env.DB }), { name: 'noodles.fuda.eth', now: 10, parentName: 'fuda.eth' }),
+    ).resolves.toStrictEqual({ address: getAddress(operator), expiresAt: null, type: 'address' })
+  })
+
+  it.each(['voucher_issued', 'failed'] as const)(
+    'keeps answering a venue name offchain while its claim is %s',
+    async (status) => {
+      const handle = `pending-${status.replace('_', '-')}`
+      const operator = await registerVenue(handle)
+      await insertIssuerName(handle, { status })
+
+      await expect(
+        lookupEnsName(getDb({ DB: env.DB }), { name: `${handle}.fuda.eth`, now: 10, parentName: 'fuda.eth' }),
+      ).resolves.toStrictEqual({ address: getAddress(operator), expiresAt: null, type: 'address' })
+    },
+  )
+
+  it.each(['claimed', 'unregistered'] as const)(
+    'never falls back to the operator wallet once a %s name has lapsed',
+    async (status) => {
+      await registerVenue(`lapsed-${status}`)
+      await insertIssuerName(`lapsed-${status}`, { expiry: 9, status })
+
+      await expect(
+        lookupEnsName(getDb({ DB: env.DB }), {
+          name: `lapsed-${status}.fuda.eth`,
+          now: 10,
+          parentName: 'fuda.eth',
+        }),
+      ).resolves.toBeNull()
+    },
+  )
 
   it('hides an expired name but includes its exact expiry instant', async () => {
     await insertIssuerName('expired', { expiry: 9 })

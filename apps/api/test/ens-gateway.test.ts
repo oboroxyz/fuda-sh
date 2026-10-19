@@ -1,13 +1,21 @@
 import { env } from 'cloudflare:test'
 import * as v from 'valibot'
-import { encodeFunctionData, namehash, parseAbi, toHex } from 'viem'
+import {
+  decodeAbiParameters,
+  decodeFunctionResult,
+  encodeFunctionData,
+  getAddress,
+  namehash,
+  parseAbi,
+  toHex,
+} from 'viem'
 import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { packetToBytes } from 'viem/ens'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getDb } from '../src/db/client.ts'
-import { rateLimits } from '../src/db/schema.ts'
+import { issuers, rateLimits } from '../src/db/schema.ts'
 import { ensNames } from '../src/ens/schema.ts'
 import type { Bindings } from '../src/env.ts'
 import { appWith, fakeChain, testEnv } from './env.ts'
@@ -104,6 +112,29 @@ describe('POST /ens/gateway', () => {
     expect(res.headers.get('x-auth-mode')).toBeNull()
     const body = v.parse(v.object({ data: v.string() }), await res.json())
     expect(body.data).toMatch(/^0x[0-9a-f]+$/u)
+  })
+
+  it("answers a never-claimed venue's name with its operator wallet", async () => {
+    const operatorAddress = `0x${'77'.repeat(20)}`
+    await getDb({ DB: env.DB }).insert(issuers).values({
+      brandColor: '#000000',
+      createdAt: 1,
+      handle: 'ramen',
+      id: 'issuer-ramen',
+      name: 'Ramen',
+      operatorAddress,
+    })
+
+    const res = await post(JSON.stringify({ data: requestData('ramen.fuda.eth'), sender: RESOLVER }))
+
+    expect(res.status).toBe(200)
+    const body = v.parse(v.object({ data: v.pipe(v.string(), v.hexadecimal()) }), await res.json())
+    const [result] = decodeFunctionResult({
+      abi: RESOLVER_SERVICE_ABI,
+      data: `0x${body.data.slice(2)}`,
+      functionName: 'resolve',
+    })
+    expect(decodeAbiParameters([{ type: 'address' }], result)).toStrictEqual([getAddress(operatorAddress)])
   })
 
   it('404s a valid but unconfigured resolver sender', async () => {

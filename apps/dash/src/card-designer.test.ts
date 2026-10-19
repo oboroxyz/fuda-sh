@@ -103,11 +103,6 @@ describe(canSubmit, () => {
 })
 
 describe(createFailureOf, () => {
-  it('maps ENS prerequisites to venue guidance', () => {
-    expect(createFailureOf(409, false, 'ens_required')).toBe('ensRequired')
-    expect(createFailureOf(503, false, 'ens_not_configured')).toBe('ensUnavailable')
-  })
-
   it('separates a taken handle, a taken slug, an expired session and an unreachable api', () => {
     expect(createFailureOf(409, false, 'handle_taken')).toBe('taken')
     expect(createFailureOf(409, false, 'slug_taken')).toBe('slugTaken')

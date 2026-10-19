@@ -98,7 +98,7 @@ Preflight and standalone verification are read-only. The parent commit, parent r
 
 Keep the parent key. It is the User Registry's root principal and the only way to rotate the voucher or gateway signer, so losing it is unrecoverable — a password manager, not just `packages/ens-contracts/.env`.
 
-After topology verification, configure the API with the five claim bindings in §3 alongside `ENS_PARENT_NAME=fuda.eth` and the shared resolver in `ENS_RESOLVER_ADDRESSES`. Every claim route answers `503 ens_not_configured` until all of them are present. The dashboard registers the venue first and then guides the operator through ENS acquisition on `/profile`; card creation requires the confirmed claim. When no ENS name is configured, `/profile` shows an unavailable state and new cards cannot be created. Configure these bindings before testing the complete onboarding flow. Existing cards and member issuance remain available. The issuer can be registered and restored with no cards, so an interrupted claim can be retried without registering again.
+After topology verification, configure the API with the five claim bindings in §3 alongside `ENS_PARENT_NAME=fuda.eth` and the shared resolver in `ENS_RESOLVER_ADDRESSES`. Every claim route answers `503 ens_not_configured` until all of them are present. A voucher is also signed only under the issuing bindings (`ISSUER_ADDRESS`, `DELEGATION_UID`, `EAS_SCHEMAS`) and the signer, and only while that delegation is live on Base and names the signer as its issuer; otherwise it answers `403 not_delegated`. Claiming is optional: a venue registers, creates cards and issues passes whether or not its ENS name is claimed, and whether or not these bindings are present. With them configured, `/profile` offers the claim; without them it says ENS names are unavailable and nothing else changes. An interrupted claim leaves the venue and its cards as they were and can be retried from `/profile`.
 
 The DNSSEC TXT value required to expose the `.eth` tree through `fuda.sh` is:
 
@@ -211,7 +211,7 @@ API_URL=https://api.fuda.sh ADMIN_TOKEN=… SMOKE_OPERATOR_KEY=… \
   pnpm --filter api smoke:live --ladder bearer,signed,card
 ```
 
-Runs the supported ladders end to end against the live API. The `card` ladder is the one that covers the venue's own front door — an operator signs in with their wallet, publishes a card, and a member claims it off the public page with no admin token — so it exercises what a phone in the queue does. Set `SMOKE_OPERATOR_KEY` to a dedicated operator key whose venue is already registered and has a confirmed ENS claim. The script checks these prerequisites before running the selected ladders, creates a card with a unique slug, and leaves that card behind in the venue. It does not acquire an ENS name or fund a wallet. Use `--ladder bearer,signed` when testing without an operator venue; the card ladder is not silently skipped. Fresh issuer registration and the ENS card-creation prerequisite are also covered by the API test suite. There is no `private` ladder: discovery is a browser-to-Graph query and the script would have nothing to drive. Verify +Private discovery through the rights subgraph and member app, then enter through the ordinary Signed challenge-response flow, as documented in [`integrations/thegraph.md`](./integrations/thegraph.md). The Attendance attestation for the Bearer/Signed ladder's ADMIT verdicts appears on the Base Sepolia explorer within a few blocks.
+Runs the supported ladders end to end against the live API. The `card` ladder is the one that covers the venue's own front door — an operator signs in with their wallet, publishes a card, and a member claims it off the public page with no admin token — so it exercises what a phone in the queue does. Set `SMOKE_OPERATOR_KEY` to a dedicated operator key whose venue is already registered; its ENS name need not be claimed. The script checks this prerequisite before running the selected ladders, creates a card with a unique slug, and leaves that card behind in the venue. It does not acquire an ENS name or fund a wallet. Use `--ladder bearer,signed` when testing without an operator venue; the card ladder is not silently skipped. Fresh issuer registration and card creation for an unclaimed venue are also covered by the API test suite. There is no `private` ladder: discovery is a browser-to-Graph query and the script would have nothing to drive. Verify +Private discovery through the rights subgraph and member app, then enter through the ordinary Signed challenge-response flow, as documented in [`integrations/thegraph.md`](./integrations/thegraph.md). The Attendance attestation for the Bearer/Signed ladder's ADMIT verdicts appears on the Base Sepolia explorer within a few blocks.
 
 Once ENS is configured, send one known ENSIP-10 request through the deployed resolver or directly to `POST /ens/gateway`. A successful direct response is `{"data":"0x…"}` with `Cache-Control: no-store`; malformed, unknown, and infrastructure failures use `{"message":"…"}` and are also never cached. The gateway is public, so do not send `ADMIN_TOKEN`.
 
@@ -288,7 +288,7 @@ After the initial setup above, start dashboard development from the repository r
 pnpm dev:dash-api
 ```
 
-Run `pnpm migrate:local` after pulling new database migrations. `dev:dash-api` starts the dashboard at http://localhost:5175 and its local API at http://localhost:8787 together. The example simulates chain state and writes. EOA sign-in works offline; Base Account passkey sign-in uses read-only Base Sepolia RPC verification and requires network access. FakeChain does not simulate ENS acquisition. Real acquisition requires the claim bindings documented above; for UI-only work, use the local fixture below to exercise the flow after acquisition.
+Run `pnpm migrate:local` after pulling new database migrations. `dev:dash-api` starts the dashboard at http://localhost:5175 and its local API at http://localhost:8787 together. The example simulates chain state and writes. EOA sign-in works offline; Base Account passkey sign-in uses read-only Base Sepolia RPC verification and requires network access. FakeChain does not simulate the ENS claim, and nothing else in the dashboard needs it. Real acquisition requires the claim bindings documented above; for UI-only work on the claimed state, use the [local fixture](#ui-walkthrough-with-fakechain).
 
 `pnpm dev` starts the whole local stack on the fixed ports below. A single surface starts with `pnpm dev:api`, `pnpm dev:app`, `pnpm dev:gate`, or `pnpm dev:dash`. Every frontend calls the api for its live data, so `pnpm dev:app+api`, `pnpm dev:gate+api`, and `pnpm dev:dash+api` start one frontend together with the api from a single terminal; a bare `dev:app`, `dev:gate`, or `dev:dash` needs `pnpm dev:api` running elsewhere.
 
@@ -330,35 +330,21 @@ Success prints the public wallet/factory/owner addresses and six successful chec
 
 ### UI walkthrough with FakeChain
 
-For Card creation, issuance and reception UI work, keep `USE_FAKE_CHAIN=1` with `SIGNER_PRIVATE_KEY` and `BASE_RPC_URL` absent. The local chain simulates entitlement writes, but the ENS prerequisite is read from the local D1 mirror. An ENS fixture lets the existing Card creation flow run without claiming a name on Sepolia. This does not exercise wallet submission, sponsorship, ENS ownership or receipt verification; use the real testnets for those integration checks.
+For Card creation, issuance and reception UI work, keep `USE_FAKE_CHAIN=1` with `SIGNER_PRIVATE_KEY` and `BASE_RPC_URL` absent. The local chain simulates entitlement writes. No step needs an ENS name.
 
-Set `ENS_PARENT_NAME=fuda.eth` in `apps/api/.dev.vars`. After registering a local venue, the following example seeds the acquired state for `fuda-coffee`. Replace that handle with the venue being tested. It adds a row only when no ENS row exists for that name; it never overwrites an existing claim or pending attempt. Run from the repository root:
+Only the claimed look of `/profile` needs a fixture. With `ENS_PARENT_NAME=fuda.eth` in `apps/api/.dev.vars`, mark a registered local venue (`fuda-coffee` here) as claimed in the local D1 mirror, then reload Dash. The insert never overwrites an existing row:
 
 ```sh
-cat > /tmp/fuda-local-ui-ens.sql <<'SQL'
-INSERT INTO ens_names (
-  issuer_handle, name, kind, owner_address, target_address,
-  status, created_at, updated_at
-)
-SELECT handle, handle || '.fuda.eth', 'issuer', operator_address, operator_address,
-       'claimed', unixepoch(), unixepoch()
-FROM issuers
-WHERE handle = 'fuda-coffee'
-ON CONFLICT(name) DO NOTHING;
-
-SELECT name, status, claim_tx_hash, voucher_issued_at
-FROM ens_names WHERE name = 'fuda-coffee.fuda.eth' AND kind = 'issuer';
-SQL
-pnpm --filter api exec wrangler d1 execute fuda-beta --local --file /tmp/fuda-local-ui-ens.sql
+pnpm --filter api exec wrangler d1 execute fuda-beta --local --command "INSERT INTO ens_names (issuer_handle, name, kind, owner_address, target_address, status, created_at, updated_at) SELECT handle, handle || '.fuda.eth', 'issuer', operator_address, operator_address, 'claimed', unixepoch(), unixepoch() FROM issuers WHERE handle = 'fuda-coffee' ON CONFLICT(name) DO NOTHING"
 ```
 
-The fixture reports `status = claimed` with no transaction hash or voucher timestamp. Reload Dash to refresh the operator state: the claim prompt disappears and Add another card becomes available. No API restart is needed if `ENS_PARENT_NAME` was already configured. Keep `--local`: this is simulated development state, not an onchain claim.
-
-To return this fixture to the unclaimed UI, delete only the synthetic row and reload Dash. Existing Cards and their Stamps remain intact:
+To undo it, delete only that synthetic row:
 
 ```sh
 pnpm --filter api exec wrangler d1 execute fuda-beta --local --command "DELETE FROM ens_names WHERE name = 'fuda-coffee.fuda.eth' AND kind = 'issuer' AND claim_tx_hash IS NULL AND voucher_issued_at IS NULL AND expiry IS NULL"
 ```
+
+This is local display state only. It does not exercise wallet submission, sponsorship, ENS ownership or receipt verification; use the real testnets for those.
 
 ### Gate station with a USB QR reader
 

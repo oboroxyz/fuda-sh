@@ -223,14 +223,14 @@ Errors are `{ "error": "<code>" }` with these statuses. Every gate _decision_ is
 | `google_not_configured` / `apple_not_configured` | 501 | wallet platform secrets absent |
 | `chain_error` | 502 | chain write reverted or failed; the gate cannot read the attestation or its schema binding at verify time (fail closed); or the deployment cannot issue: `ISSUER_ADDRESS` or `DELEGATION_UID` unset or zero, or the accepted schema set empty or malformed |
 
-ENS onboarding also returns these errors:
+The optional ENS claim also returns these errors:
 
 | Code | Status | When |
 | --- | --- | --- |
-| `ens_not_configured` | 503 | Required ENS configuration is absent. |
-| `ens_required` | 409 | A new card is requested before the venue's ENS claim is confirmed. |
+| `ens_not_configured` | 503 | The ENS claim configuration, or the issuing configuration or signer a voucher is checked against, is absent. |
 | `ens_persistence_failed` | 503 | The issuer's voucher or confirmed claim could not be persisted; confirmation can be retried with the same transaction hash. |
 | `already_claimed` | 409 | A claim voucher is requested for an already claimed venue name. |
+| `not_delegated` | 403 | A claim voucher is requested while the deployment's `IssuerDelegation` is missing, revoked or inactive, or names an issuer other than the deployment's signer. |
 | `claim_unconfirmed` | 409 | The receipt does not yet prove the expected issuer claim. |
 | `claim_failed` | 409 | The claim transaction reverted; a new claim attempt is required. |
 

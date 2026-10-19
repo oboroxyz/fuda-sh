@@ -15,10 +15,14 @@ import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ZERO_UID } from '../src/chain/client.ts'
+import type { FakeChain } from '../src/chain/fake-chain.ts'
 import { getDb } from '../src/db/client.ts'
+import { encodeDelegationV1 } from '../src/eas/codecs.ts'
 import { ensNames } from '../src/ens/schema.ts'
 import type { Bindings } from '../src/env.ts'
 import { appWith, fakeChain, testEnv } from './env.ts'
+import { configuredEnv, DEL, ROOT } from './fixtures.ts'
 import { CARD_INPUT, operator, postJson, signIn } from './operator.ts'
 
 const REGISTRAR = privateKeyToAccount(`0x${'7c'.repeat(32)}`).address
@@ -30,8 +34,34 @@ const IP = '203.0.113.9'
 
 const SMART_WALLET_ABI = parseAbi(['function execute(address dest,uint256 value,bytes func)'])
 
+// The deployment's one IssuerDelegation, which a voucher is signed only under.
+// The root delegates to itself, and the chain signs as the root, as in
+// production: the rights this deployment issues verify under it.
+const DELEGATION: Hex = `0x${'de'.repeat(32)}`
+
+const signingChain = (): FakeChain => fakeChain({ signer: ROOT })
+
+const delegate = (
+  chain: FakeChain,
+  over: { active?: boolean; issuer?: Hex; revocationTime?: bigint } = {},
+): FakeChain => {
+  chain.seed({
+    attester: ROOT,
+    data: encodeDelegationV1({ active: over.active ?? true, issuer: over.issuer ?? ROOT, name: 'fuda root' }),
+    expirationTime: 0n,
+    recipient: ROOT,
+    refUID: ZERO_UID,
+    revocable: true,
+    revocationTime: over.revocationTime ?? 0n,
+    schema: DEL,
+    time: 1n,
+    uid: DELEGATION,
+  })
+  return chain
+}
+
 const configured = (overrides: Partial<Bindings> = {}): Bindings =>
-  testEnv({
+  configuredEnv(DELEGATION, {
     ENS_GAS_POLICY_ID: 'policy-1',
     ENS_PARENT_NAME: 'fuda.eth',
     ENS_PAYMASTER_UPSTREAM: UPSTREAM,
@@ -41,7 +71,7 @@ const configured = (overrides: Partial<Bindings> = {}): Bindings =>
     ...overrides,
   })
 
-const app = () => appWith({ chain: fakeChain() })
+const app = () => appWith({ chain: delegate(signingChain()) })
 
 const claimLog = (label: string) => ({
   address: REGISTRAR,
@@ -115,8 +145,8 @@ const stubChain = (
   return calls
 }
 
-const withVenue = async (bindings: Bindings) => {
-  const created = appWith({ chain: fakeChain() })
+const withVenue = async (bindings: Bindings, chain: FakeChain = delegate(signingChain())) => {
+  const created = appWith({ chain })
   const { token } = await signIn(created, bindings)
   await postJson(created, bindings, '/v1/issuers', CARD_INPUT, token)
   return { app: created, token }
@@ -174,6 +204,65 @@ describe('issuer ENS claim', () => {
       expect(body.name).toBe(`${HANDLE}.fuda.eth`)
       expect(body.voucher.label).toBe(HANDLE)
       await expect(rowFor(`${HANDLE}.fuda.eth`)).resolves.toMatchObject({ status: 'voucher_issued' })
+    })
+
+    it.each([
+      ['missing', (chain: FakeChain) => chain],
+      ['revoked', (chain: FakeChain) => delegate(chain, { revocationTime: 5n })],
+      ['inactive', (chain: FakeChain) => delegate(chain, { active: false })],
+      ['for another issuer', (chain: FakeChain) => delegate(chain, { issuer: `0x${'12'.repeat(20)}` })],
+    ])('refuses a voucher while the deployment delegation is %s, recording nothing', async (_, seed) => {
+      stubChain()
+      const bindings = configured()
+      const { app: venue, token } = await withVenue(bindings, seed(signingChain()))
+
+      const response = await postJson(venue, bindings, '/v1/issuers/me/ens/claim-voucher', {}, token)
+
+      expect(response.status).toBe(403)
+      await expect(response.json()).resolves.toStrictEqual({ error: 'not_delegated' })
+      await expect(rowFor(`${HANDLE}.fuda.eth`)).resolves.toBeUndefined()
+    })
+
+    it('answers 502 when the delegation cannot be read, recording nothing', async () => {
+      stubChain()
+      const bindings = configured()
+      const chain = delegate(signingChain())
+      const { app: venue, token } = await withVenue(bindings, chain)
+      chain.failReads = true
+
+      const response = await postJson(venue, bindings, '/v1/issuers/me/ens/claim-voucher', {}, token)
+
+      expect(response.status).toBe(502)
+      await expect(response.json()).resolves.toStrictEqual({ error: 'chain_error' })
+      await expect(rowFor(`${HANDLE}.fuda.eth`)).resolves.toBeUndefined()
+    })
+
+    it.each([
+      ['DELEGATION_UID unset', { DELEGATION_UID: '' }],
+      ['DELEGATION_UID zero', { DELEGATION_UID: ZERO_UID }],
+      ['ISSUER_ADDRESS unset', { ISSUER_ADDRESS: '' }],
+      ['EAS_SCHEMAS malformed', { EAS_SCHEMAS: '{' }],
+    ])('answers ens_not_configured with %s', async (_, overrides) => {
+      stubChain()
+      const bindings = configured(overrides)
+      const { app: venue, token } = await withVenue(bindings)
+
+      const response = await postJson(venue, bindings, '/v1/issuers/me/ens/claim-voucher', {}, token)
+
+      expect(response.status).toBe(503)
+      await expect(response.json()).resolves.toStrictEqual({ error: 'ens_not_configured' })
+    })
+
+    it('answers ens_not_configured when the deployment has no signer to issue with', async () => {
+      stubChain()
+      const bindings = configured()
+      const { app: venue, token } = await withVenue(bindings, delegate(fakeChain({ signer: null })))
+
+      const response = await postJson(venue, bindings, '/v1/issuers/me/ens/claim-voucher', {}, token)
+
+      expect(response.status).toBe(503)
+      await expect(response.json()).resolves.toStrictEqual({ error: 'ens_not_configured' })
+      await expect(rowFor(`${HANDLE}.fuda.eth`)).resolves.toBeUndefined()
     })
 
     it('reports a persistence failure instead of returning an unrecorded voucher', async () => {

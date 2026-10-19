@@ -317,15 +317,27 @@ describe('a venue with several cards', () => {
     return { app, firstCard, token, venueInput }
   }
 
-  it('refuses card creation when ENS is not configured', async () => {
+  it('creates a card for an unclaimed venue when ENS is not configured', async () => {
     const { app, firstCard, token } = await venueWithoutCard()
-    const unavailable = await postJson(app, publicEnv(), '/v1/issuers/cards', firstCard, token)
-    expect(unavailable.status).toBe(503)
-    await expect(unavailable.json()).resolves.toStrictEqual({ error: 'ens_not_configured' })
-    await expect(getDb({ DB: env.DB }).select().from(cards)).resolves.toStrictEqual([])
+    const created = await postJson(app, publicEnv(), '/v1/issuers/cards', firstCard, token)
+    expect(created.status).toBe(201)
+    const stored = await getDb({ DB: env.DB }).select().from(cards)
+    expect(stored.map((card) => card.slug)).toStrictEqual(['stamp'])
   })
 
-  it('refuses card creation while the ENS claim is only voucher-issued', async () => {
+  it('creates a card for a venue that has never claimed its ENS name', async () => {
+    const { app, firstCard, token } = await venueWithoutCard()
+    const configured = publicEnv({ ENS_PARENT_NAME: 'fuda.eth' })
+    const created = await postJson(app, configured, '/v1/issuers/cards', firstCard, token)
+    expect(created.status).toBe(201)
+    const me = await getJson(app, configured, '/v1/issuers/me', token)
+    await expect(me.json()).resolves.toMatchObject({
+      cards: [{ slug: 'stamp' }],
+      ens: { claimTxHash: null, name: 'wassie-coffee.fuda.eth', status: 'unclaimed' },
+    })
+  })
+
+  it('creates a card while the ENS claim is only voucher-issued', async () => {
     const { app, firstCard, token, venueInput } = await venueWithoutCard()
     const configured = publicEnv({ ENS_PARENT_NAME: 'fuda.eth' })
     await mirrorIssuerName(getDb({ DB: env.DB }), {
@@ -335,10 +347,34 @@ describe('a venue with several cards', () => {
       parentName: 'fuda.eth',
       status: 'voucher_issued',
     })
-    const required = await postJson(app, configured, '/v1/issuers/cards', firstCard, token)
-    expect(required.status).toBe(409)
-    await expect(required.json()).resolves.toStrictEqual({ error: 'ens_required' })
-    await expect(getDb({ DB: env.DB }).select().from(cards)).resolves.toStrictEqual([])
+    const created = await postJson(app, configured, '/v1/issuers/cards', firstCard, token)
+    expect(created.status).toBe(201)
+  })
+
+  it('serves an unclaimed venue end to end: public page, member claim and pass', async () => {
+    const chain = fakeChain({ signer: ROOT })
+    const app = appWith({ chain, now: () => NOW })
+    const bindings = configuredEnv(seedRoot(chain), {
+      ENS_PARENT_NAME: 'fuda.eth',
+      PUBLIC_BASE_URL: 'https://fuda.test',
+    })
+    const { token } = await signIn(app, bindings)
+    const { card: firstCard, ...venueInput } = CARD_INPUT
+    await postJson(app, bindings, '/v1/issuers', venueInput, token)
+    const created = await postJson(app, bindings, '/v1/issuers/cards', firstCard, token)
+    const venue = await getJson(app, bindings, '/v1/issuers/wassie-coffee')
+    const issued = await issue(app, bindings)
+    expect([created.status, venue.status, issued.status]).toStrictEqual([201, 200, 200])
+    await expect(venue.json()).resolves.toMatchObject({ cards: [{ slug: 'stamp' }], handle: 'wassie-coffee' })
+
+    const { memberNumber, uid } = await issued.json<SelfServeIssued>()
+    const page = await app.request(`/pass/${uid}`, {}, bindings)
+    expect(page.status).toBe(200)
+    await expect(page.text()).resolves.toContain('Wassie Coffee')
+
+    // The member's own name resolves offchain whether or not the venue claimed its own.
+    const names = await getDb({ DB: env.DB }).select().from(ensNames)
+    expect(names).toMatchObject([{ name: `${memberNumber}.wassie-coffee.fuda.eth`, status: 'offchain' }])
   })
 
   it('allows different card slugs after the ENS claim is confirmed', async () => {

@@ -185,8 +185,6 @@ export interface DashCopy {
       unknown: string
     }
     failures: {
-      ensRequired: string
-      ensUnavailable: string
       input: string
       logo: string
       network: string
@@ -197,8 +195,6 @@ export interface DashCopy {
     }
   }
   ens: {
-    requiredTitle: string
-    requiredDescription: string
     title: string
     description: string
     claim: string
@@ -211,6 +207,7 @@ export interface DashCopy {
     failures: {
       network: string
       rejected: string
+      undelegated: string
       unconfigured: string
       unsponsored: string
       unconfirmed: string
@@ -219,7 +216,6 @@ export interface DashCopy {
   published: {
     settings: string
     createFirst: string
-    manageVenue: string
     title: string
     description: string
     venueLabel: string
@@ -433,12 +429,11 @@ export const DASH_COPY = {
     venue: {
       profileTitle: 'Profile',
       profileDescription: 'Manage your name, logo and ENS name.',
-      ensUnavailable:
-        'ENS is not configured for this deployment. Card creation is unavailable until it is enabled.',
+      ensUnavailable: 'ENS names are not available on this deployment.',
       handleLabel: 'Handle',
       handleHint: 'This cannot be changed after registration.',
       registerTitle: 'Create your profile',
-      registerDescription: 'Choose the name and appearance members will see. Next, claim your ENS name.',
+      registerDescription: 'Choose the name and appearance members will see.',
       register: 'Create profile',
       registering: 'Creating…',
       optional: '(optional)',
@@ -583,8 +578,6 @@ export const DASH_COPY = {
         unknown: 'Could not check this link.',
       },
       failures: {
-        ensRequired: 'Claim your ENS name before creating a card.',
-        ensUnavailable: 'Card creation is unavailable because ENS is not configured.',
         input: 'Some fields need a change before this card can be created.',
         logo: 'Could not upload the logo. Your card is still here — try again.',
         network: 'Could not reach fuda. Check your connection and try again.',
@@ -595,8 +588,6 @@ export const DASH_COPY = {
       },
     },
     ens: {
-      requiredTitle: 'Claim your ENS name first',
-      requiredDescription: 'Claim your ENS name to start creating cards.',
       title: 'ENS name',
       description:
         'Claim {name} and the name is yours onchain. fuda covers the transaction fee — you never need a second wallet or any ETH.',
@@ -610,6 +601,7 @@ export const DASH_COPY = {
       failures: {
         network: 'Could not reach fuda. Check your connection and try again.',
         rejected: 'The claim was not signed. Press the button to try again.',
+        undelegated: 'Names cannot be claimed right now. Please try again later.',
         unconfigured: 'ENS names are not switched on for this deployment yet.',
         unsponsored: 'The transaction fee could not be covered. Please try again shortly.',
         unconfirmed: 'The claim has not appeared on chain yet. Wait a moment and press the button again.',
@@ -618,7 +610,6 @@ export const DASH_COPY = {
     published: {
       settings: 'Card settings',
       createFirst: 'Create your first card',
-      manageVenue: 'Go to profile',
       title: 'Your Cards',
       description: 'Manage your cards, track issuance, and share their links.',
       venueLabel: 'Public page',
@@ -832,11 +823,11 @@ export const DASH_COPY = {
     venue: {
       profileTitle: 'プロフィール',
       profileDescription: '名前、ロゴ、ENS名を管理します。',
-      ensUnavailable: 'この環境では ENS が設定されていません。有効になるまでカードを作成できません。',
+      ensUnavailable: 'この環境では ENS 名を利用できません。',
       handleLabel: 'ハンドル',
       handleHint: '登録後は変更できません。',
       registerTitle: 'プロフィールを作成',
-      registerDescription: 'メンバーに表示する名前やデザインを設定します。次にENS名を取得します。',
+      registerDescription: 'メンバーに表示する名前やデザインを設定します。',
       register: 'プロフィールを作成',
       registering: '作成中…',
       optional: '（任意）',
@@ -981,8 +972,6 @@ export const DASH_COPY = {
         unknown: 'リンクを確認できませんでした。',
       },
       failures: {
-        ensRequired: 'カードを作成する前にENS名を取得してください。',
-        ensUnavailable: 'ENS が設定されていないため、カードを作成できません。',
         input: '入力内容を確認してください。このままではカードを作成できません。',
         logo: 'ロゴをアップロードできませんでした。入力内容はそのままです。もう一度お試しください。',
         network: 'fuda に接続できませんでした。通信環境を確認して、もう一度お試しください。',
@@ -993,8 +982,6 @@ export const DASH_COPY = {
       },
     },
     ens: {
-      requiredTitle: '先にENS名を取得してください',
-      requiredDescription: 'ENS名を取得すると、カードを作成できます。',
       title: 'ENS名',
       description:
         '{name} を取得すると、この名前がオンチェーンであなたのものになります。手数料は fuda が負担するので、別のウォレットも ETH も要りません。',
@@ -1008,6 +995,7 @@ export const DASH_COPY = {
       failures: {
         network: 'fuda に接続できませんでした。通信環境を確認してもう一度試してください。',
         rejected: '署名されませんでした。ボタンを押すとやり直せます。',
+        undelegated: '現在は名前を取得できません。しばらくしてからもう一度試してください。',
         unconfigured: 'この環境では ENS 名がまだ有効になっていません。',
         unsponsored: '手数料を負担できませんでした。少し待ってからもう一度試してください。',
         unconfirmed: 'チェーン上にまだ現れていません。少し待ってからボタンを押してください。',
@@ -1016,7 +1004,6 @@ export const DASH_COPY = {
     published: {
       settings: 'カード設定',
       createFirst: '最初のカードを作成',
-      manageVenue: 'プロフィールへ',
       title: 'カード一覧',
       description: 'カードの設定や発行状況を確認し、公開リンクを共有できます。',
       venueLabel: '公開ページ',

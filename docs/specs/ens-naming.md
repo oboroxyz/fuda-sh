@@ -32,7 +32,7 @@ Voucher issuance, the naming mirror and revoke lifecycle integration are impleme
 
 ## Claiming a name, and what writes the mirror
 
-Dashboard onboarding registers the issuer without a card, then acquires its ENS name on `/profile`. Only a confirmed claim unlocks `POST /issuers/cards` and the `/cards/new` card designer. Before confirmation, a registered operator can open `/cards/new` to see an explicit ENS prerequisite and a link to `/profile`, rather than being redirected or shown the venue form in place of the designer. A cancelled wallet prompt or failed confirmation leaves the issuer registered with zero cards and offers another claim attempt. Existing card reads and member issuance remain available independently of this new-card prerequisite. Deployments without ENS configured show an unavailable state instead of bypassing the acquisition step.
+Claiming is optional. A venue registers, creates cards, issues passes and serves its public page without ever claiming its ENS name; none of those paths reads the issuer's `ens_names` row, and none depends on `ENS_PARENT_NAME` being configured. Everywhere outside `/profile` the venue is identified by its name, its Handle and its public URL `/@<handle>`; an unclaimed venue shows nothing in place of an ENS name. The issuer's own name resolves before any claim: for a never-claimed name the gateway answers with the registered operator's wallet, read from the `issuers` table, which is the wallet a claim would make the owner. A signed but unused voucher (`voucher_issued`) or a `failed` row still counts as never claimed. Once a claim is confirmed the `claimed` mirror row answers instead, and from then on the name never falls back to `issuers`, even after it expires or is unregistered (see [the claim marker](#append-only-claim-marker)). As with a claimed name, revoking the issuer's delegation does not take an unclaimed name dark. This answer makes the operator's wallet discoverable from the Handle before the operator opts into a claim; a claim would publish the same wallet onchain. Member names (`<member-no>.<issuer>.fuda.eth`) are mirrored offchain at issuance whether or not the issuer's own name is claimed. A cancelled wallet prompt or failed confirmation changes nothing but the claim itself and offers another attempt. Deployments without ENS configured show that ENS names are unavailable on `/profile` and otherwise behave the same.
 
 The dashboard venue identity on `/profile` shows the ENS name alongside the venue name and public URL. A confirmed claim displays a verification mark; an unclaimed name offers a Claim button in the same area, with progress and retry feedback. The mark indicates a confirmed ENS claim, not independent verification of the business. The claimed ENS name links to the issuer owner address on Sepolia Etherscan in a new tab, even when the claim transaction hash is unavailable.
 
@@ -83,7 +83,7 @@ fuda.sh  ──alias──►  fuda.eth         planned DNS alias; the zone is n
 
 - An **issuer label** is the issuer's public Handle (`/@<handle>`), restricted to lowercase ASCII `[a-z0-9-]`, 1–63 bytes, without a leading or trailing hyphen. Within this ASCII subset, [ENSIP-15](https://docs.ens.domains/ensip/15/#validate) also forbids hyphens in both the third and fourth positions (`ab--cd`, including the `xn--` Punycode prefix). The dashboard checks this before requesting availability; registration and ENS name construction use the same shared rule. Card slugs are not ENS labels and do not inherit this extra restriction. A reserved set is refused on top of that rule: fuda's own hostnames, the api's route prefixes, and the static segments under `/issuers/` (`me`, `check`, `cards`), which a venue name would otherwise shadow. A claimed label is an ENSv2 User Registry entry owned onchain by the issuer wallet.
 - A **member label** is the right's member number, exactly as printed on the pass after display formatting is removed. Member labels never become User Registry entries and members hold no ENS-side key; all member records remain offchain.
-- One shared `FudaResolver` is configured on `fuda.eth` and on every claimed issuer entry. The User Registry owns claimed issuer state; D1 owns unclaimed and member answers.
+- One shared `FudaResolver` is configured on `fuda.eth` and on every claimed issuer entry. The User Registry owns claimed issuer state; D1 owns unclaimed and member answers: never-claimed issuer names from the `issuers` table, member names from the `ens_names` mirror.
 - `fuda.sh` is intended to be a read-only alias of the `.eth` tree. The `fuda.sh` zone is DNSSEC-signed (validated by public resolvers) and carries a TXT record `ENS1 dnsalias.ens.eth sh eth`, which aliases the name through **production ENS on Ethereum mainnet** — not through this hackathon deployment's `DNSAliasResolver`. The hackathon alias record documented in the runbook has not been set, no `<venue>.fuda.sh` name resolves to a venue entry, and nothing in the product depends on the alias.
 
 ## Member number
@@ -246,18 +246,20 @@ The parent owner therefore does not itself unregister an issuer entry. It can gi
 
 The exact root bitmap is asserted at deployment and re-checked by the standalone verifier, so a drift in root custody fails topology verification rather than passing silently.
 
-## Remaining lifecycle integration
+## Lifecycle
 
-The intended lifecycle remains evidence-driven, but the B1 seams are not yet shipped:
+Names follow the venue and its rights:
 
 ```text
-confirmed right or delegation evidence -> naming mirror write -> resolvable name
-revoked or expired evidence             -> mirror/lifecycle update -> dark name
+registered venue, confirmed claim or issued right -> resolvable name
+revoked right or passed registry expiry           -> dark name
 ```
 
-B1 must supply authenticated voucher issuance from a real active `IssuerDelegation`, issuer onboarding and confirmed member mirror writes, and revoke lifecycle integration for the mirror. Until those exist, normal application flows do not populate the gateway mirror or mutate claimed issuer state.
+Normal application flows drive every step. A registered venue's name resolves from the `issuers` table, a confirmed claim and every right issued under a venue write the mirror (see [what writes the mirror](#claiming-a-name-and-what-writes-the-mirror)), revoking a right takes its member name dark, and lookup stops answering a claimed name once its registry expiry passes. Member names carry no expiry of their own; they end with the right's revocation.
 
-Revoking an issuer's delegation does not take its claimed name dark. The name keeps resolving to the issuer's wallet, and its member descendants keep resolving, until the registry expiry passes. This is deliberate and is not a missing B1 seam: a name is a destination, the delegation check is a separate fact every surface performs, and tying revocation to an onchain unregister would require handing revocation power to a live principal. Member answers do go dark on revocation, because they come from the mirror.
+A claim voucher is signed only while the deployment's issuing delegation is live. Venues have no delegation of their own: every right a venue issues points at the one `IssuerDelegation` named by `DELEGATION_UID`. Before signing, `POST /issuers/me/ens/claim-voucher` runs the gate's own delegation check against the deployment's signer: the delegation must be root-attested under an accepted schema, active, unrevoked, and name that signer as its issuer, so a voucher is signed only when the rights this deployment issues would verify. A missing, revoked or inactive delegation, or one naming another issuer, answers `403 not_delegated`, an unreadable chain `502 chain_error`, and missing issuing bindings or no signer `503 ens_not_configured`; none of them writes a mirror row. Confirmation is not gated: a claim the chain has confirmed is recorded whatever the delegation's state. A name is not authority, so the check decides when fuda hands out names, not what a name proves, and a later revocation leaves names already claimed resolving.
+
+Revoking an issuer's delegation does not take its claimed name dark. The name keeps resolving to the issuer's wallet, and its member descendants keep resolving, until the registry expiry passes. This is deliberate, not a missing seam: a name is a destination, the delegation check is a separate fact every surface performs, and tying revocation to an onchain unregister would require handing revocation power to a live principal. A member name does go dark when its own right is revoked, because its answer comes from the mirror.
 
 Bearer-to-Signed Activation changes the claimable account's owners, not its address, so the member name, right, and history remain unchanged.
 

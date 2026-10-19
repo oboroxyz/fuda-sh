@@ -23,9 +23,20 @@ export interface ClaimVoucherResponse {
 }
 
 // Why a claim stopped. Each maps to one sentence the operator can act on: only
-// `rejected` is their own doing, and only `unsponsored` needs fuda to look at
-// the paymaster.
-export type ClaimFailure = 'network' | 'rejected' | 'unconfigured' | 'unsponsored' | 'unconfirmed'
+// `rejected` is their own doing, only `unsponsored` needs fuda to look at the
+// paymaster, and `undelegated` means fuda's issuing delegation is not live.
+export type ClaimFailure =
+  | 'network'
+  | 'rejected'
+  | 'undelegated'
+  | 'unconfigured'
+  | 'unsponsored'
+  | 'unconfirmed'
+
+const voucherFailures: ReadonlyMap<string, ClaimFailure> = new Map([
+  ['ens_not_configured', 'unconfigured'],
+  ['not_delegated', 'undelegated'],
+])
 
 export type ClaimState =
   | { kind: 'unclaimed' }
@@ -130,7 +141,7 @@ export const runClaim = async (
   emit({ kind: 'signing' })
   const voucher = await io.requestVoucher()
   if (!voucher.ok) {
-    const failure: ClaimFailure = voucher.error === 'ens_not_configured' ? 'unconfigured' : 'network'
+    const failure: ClaimFailure = voucherFailures.get(voucher.error) ?? 'network'
     const state: ClaimState = { failure, kind: 'failed' }
     emit(state)
     return state

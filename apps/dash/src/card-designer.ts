@@ -316,16 +316,7 @@ export const canSubmit = (
 }
 
 // Why a create failed, in the terms the form explains it.
-export type CreateFailure =
-  | 'ensRequired'
-  | 'ensUnavailable'
-  | 'input'
-  | 'logo'
-  | 'network'
-  | 'session'
-  | 'slugInvalid'
-  | 'slugTaken'
-  | 'taken'
+export type CreateFailure = 'input' | 'logo' | 'network' | 'session' | 'slugInvalid' | 'slugTaken' | 'taken'
 
 export const createFailureOf = (status: number, network: boolean, error: string): CreateFailure => {
   if (network) {
@@ -335,16 +326,10 @@ export const createFailureOf = (status: number, network: boolean, error: string)
     return 'session'
   }
   if (status === 409) {
-    if (error === 'ens_required') {
-      return 'ensRequired'
-    }
     if (error === 'issuer_exists') {
       return 'input'
     }
     return error === 'slug_taken' ? 'slugTaken' : 'taken'
-  }
-  if (status === 503 && error === 'ens_not_configured') {
-    return 'ensUnavailable'
   }
   if (status === 400) {
     return error === 'bad_slug' ? 'slugInvalid' : 'input'
