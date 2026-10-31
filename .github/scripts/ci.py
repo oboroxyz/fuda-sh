@@ -33,7 +33,7 @@ def manifests(root, base=None):
 
 
 def documentation(path):
-    return path.endswith('.md') or path.startswith(('docs/', '.agents/', '.claude/', '.superpowers/'))
+    return path.endswith('.md') or path.startswith(('docs/', '.agents/', '.claude/'))
 
 
 def make_plan(root, base=None):

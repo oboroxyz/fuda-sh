@@ -3,8 +3,7 @@
 //
 // Real import established during Task 1's Step 3 inspection: `signRequest` lives in
 // `@worldcoin/idkit-server` (pure JS, no Node built-ins; re-exported unchanged by
-// `@worldcoin/idkit-core/signing`). See .superpowers/2026-09-26-world-spike-notes.md
-// for the full trace, including the runtime-gate finding.
+// `@worldcoin/idkit-core/signing`).
 import { signRequest } from '@worldcoin/idkit-server'
 
 const signingKeyHex = process.env.WORLD_RP_SIGNING_KEY ?? ''

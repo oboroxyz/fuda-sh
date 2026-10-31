@@ -253,6 +253,3 @@ docs/internal
 
 # Vitest coverage output
 coverage/
-
-# Superpowers SDD scratch state (specs/ and plans/ are committed while active)
-.superpowers/sdd/
