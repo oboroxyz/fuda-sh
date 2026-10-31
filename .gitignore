@@ -253,3 +253,7 @@ docs/internal
 
 # Vitest coverage output
 coverage/
+
+# Void local state and generated Cloudflare config (void.lock.json is committed)
+.void/
+.void-wrangler.jsonc

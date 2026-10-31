@@ -7,6 +7,10 @@ autoInstallPeers: false
 # Node is provisioned by pnpm itself via package.json devEngines.runtime
 # (onFail: download); no .node-version / version manager needed.
 allowBuilds:
+  # A dependency of `void`, used only for its local SQLite database mode. No
+  # app here uses that mode (D1 runs under workerd), so its native build is
+  # declined rather than compiled on every install.
+  better-sqlite3: false
   esbuild: true
   workerd: true
 # vite-plus pins oxlint/oxfmt exactly; ultracite floats. Without these overrides

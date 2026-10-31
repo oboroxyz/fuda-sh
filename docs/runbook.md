@@ -194,7 +194,16 @@ VITE_API_BASE_URL=https://api.fuda.sh VITE_GRAPH_RIGHTS_ENDPOINT=<PUBLIC_GRAPH_E
   pnpm --filter app run deploy
 ```
 
-Each frontend's `deploy` script builds then runs `wrangler deploy`; the API script runs Wrangler directly. Every `wrangler.jsonc` declares its hostname as a custom domain — `api.fuda.sh`, `gate.fuda.sh`, `dash.fuda.sh`, and `app.fuda.sh` — so the first deploy of each Worker attaches it; the zone must already be on the account. The `fuda.sh/@*` redirect is a zone-level Single Redirect and is not managed by Wrangler. Validate config without shipping with `pnpm --filter api exec wrangler deploy --dry-run`. For a frontend, run `pnpm --filter <app> run build` with its intended build environment, then `pnpm --filter <app> exec wrangler deploy --dry-run`.
+The api, dash and app `deploy` scripts deploy with Wrangler: the frontends build, then run `wrangler deploy`, and the api runs Wrangler directly. Their `wrangler.jsonc` files declare their hostnames as custom domains (`api.fuda.sh`, `dash.fuda.sh` and `app.fuda.sh`), so the first deploy of each Worker attaches its hostname. The zone must already be on the account. The `fuda.sh/@*` redirect is a zone-level Single Redirect and is not managed by Wrangler. To validate a config without shipping, run `pnpm --filter api exec wrangler deploy --dry-run`. For a frontend, run `pnpm --filter <app> run build` with its intended build environment, then `pnpm --filter <app> exec wrangler deploy --dry-run`.
+
+Gate deploys with Void ([ADR 0009](adr/0009-void-and-solid.md)). Its `deploy` script runs `void deploy`, which builds with `vp build` and uploads `dist` as a static SPA. `apps/gate/void.config.ts` holds the Worker name `fuda-gate` and the `gate.fuda.sh` custom-domain route.
+
+`pnpm --filter gate exec void info` checks the config offline.
+
+No one has run `void deploy` for gate yet. Run the first one interactively, from one machine. Void signs in to Cloudflare and writes `apps/gate/void.lock.json`; commit that file before deploying from any other machine. `.void/` and `.void-wrangler.jsonc` are local state and are Git-ignored. Two things to watch for on that first run:
+
+- **Link or create.** Void should link the existing `fuda-gate` Worker, keeping its `gate.fuda.sh` domain. If it offers to create a new Worker instead, stop: a second Worker would conflict with the domain.
+- **Readiness.** Before sending traffic, Void checks the new version through a version metadata binding or a Version URL. If it stops at that check, enable Version URLs for `fuda-gate`, or add a version metadata binding under `cloudflare` in `void.config.ts`, then retry.
 
 ## 9. Live smoke
 
