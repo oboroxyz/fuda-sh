@@ -1,4 +1,4 @@
-import { applyThemeMode, readThemeMode } from '@fuda/ui/solid'
+import { applyThemeMode, readThemeMode } from '@fuda/ui'
 import { render } from 'solid-js/web'
 
 import { App } from './App.tsx'

@@ -1,5 +1,4 @@
-/** @jsxImportSource hono/jsx/dom */
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import type { JSX } from 'solid-js'
 
 // Phosphor Icons: Cards Three (regular), MIT licensed; see ../LICENSE.phosphor.
 // https://github.com/phosphor-icons/core/blob/main/assets/regular/cards-three.svg

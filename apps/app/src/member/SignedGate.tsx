@@ -2,7 +2,7 @@ import { DEFAULT_LOCALE, pick } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
 import { normalizeUid, parseQr } from '@fuda/sdk'
 import type { Hex } from '@fuda/sdk'
-import { Scanner, short } from '@fuda/ui/solid'
+import { Scanner, short } from '@fuda/ui'
 import { createSignal, onCleanup, Show } from 'solid-js'
 import type { JSX } from 'solid-js'
 

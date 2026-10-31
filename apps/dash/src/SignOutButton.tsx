@@ -1,4 +1,4 @@
-import { ConfirmAction } from '@fuda/ui/solid'
+import { ConfirmAction } from '@fuda/ui'
 import type { JSX } from 'solid-js'
 
 import type { DashCopy } from './copy.ts'

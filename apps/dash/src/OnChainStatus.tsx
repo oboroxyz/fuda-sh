@@ -1,5 +1,5 @@
 import type { GraphAttendance, GraphDelegation, GraphRight } from '@fuda/sdk'
-import { short } from '@fuda/ui/solid'
+import { short } from '@fuda/ui'
 import { createSignal, For } from 'solid-js'
 import type { JSX } from 'solid-js'
 

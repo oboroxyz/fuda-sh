@@ -1,5 +1,4 @@
 import type { JSX } from 'solid-js'
-/** @jsxImportSource solid-js */
 import { render } from 'solid-js/web'
 
 // Mounts a Solid tree into a fresh host on document.body; tests clear the body

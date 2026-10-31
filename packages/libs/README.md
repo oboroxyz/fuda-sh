@@ -4,34 +4,39 @@ Shared library integrations, exposed through independent subpaths. Import only t
 
 ## `@fuda/libs/query`
 
-Shared in-memory read caching for fuda's Hono JSX applications. The package is a small adapter around TanStack Query Core; its results and cache remain Query Core's rather than a second state model.
+Shared in-memory read caching for fuda's Solid applications. The package is a small adapter around TanStack Query Core; its results and cache remain Query Core's rather than a second state model.
 
 ### API
 
 - `createQueryClient()` creates an independent client. Read data stays fresh for 30 seconds. Failed reads retry once unless the error has a 4xx status. Mutations do not retry.
-- `useQueryScope()` creates one client for a mounted component, enables focus and reconnect handling, and clears and unmounts the client when that component is removed.
-- `useQuery(client, options)` observes a query from Hono JSX DOM. The client is explicit so ownership and protected-data boundaries stay visible. It returns Query Core's `QueryObserverResult`.
+- `createQueryScope()` creates one client for the current Solid owner, enables focus and reconnect handling, and clears and unmounts the client when that owner is disposed.
+- `createQuery(client, options)` observes a query. `options` is a function, so the observer follows the signals it reads. The client is explicit so ownership and protected-data boundaries stay visible. It returns an accessor of Query Core's `QueryObserverResult`.
 - `readQueryResult(result)` unwraps a successful `@fuda/sdk/http` result. A failed result throws `QueryError`, which exposes `status` and `network`.
 
 `QueryOptions<T>`, `QueryClient`, `QueryKey`, and `QueryObserverResult` are exported for consumers. The adapter supports Query Core observer options, including `enabled`, `initialData`, `staleTime`, `retry`, `refetchInterval`, focus and reconnect policies, and imperative `refetch` through the returned result. It does not provide Suspense or error-boundary integration.
 
-### Hono JSX DOM
+### Solid
 
 ```tsx
-/** @jsxImportSource hono/jsx/dom */
-import { readQueryResult, useQuery, useQueryScope } from '@fuda/libs/query'
+import { createQuery, createQueryScope, readQueryResult } from '@fuda/libs/query'
+import { Match, Switch } from 'solid-js'
 
 const Passes = () => {
-  const client = useQueryScope()
-  const passes = useQuery(client, {
-    queryKey: ['passes', apiEndpoint, holderAddresses],
+  const client = createQueryScope()
+  const passes = createQuery(client, () => ({
+    queryKey: ['passes', apiEndpoint, holderAddresses()],
     queryFn: async ({ signal }) => readQueryResult(await loadPasses({ signal })),
     refetchInterval: 30_000,
-  })
+  }))
 
-  if (passes.isPending) return <p>Loading…</p>
-  if (passes.isError) return <p>{passes.error.message}</p>
-  return <PassList passes={passes.data} />
+  return (
+    <Switch fallback={<p>Loading…</p>}>
+      <Match when={passes().isError}>
+        <p>{passes().error?.message}</p>
+      </Match>
+      <Match when={passes().data}>{(data) => <PassList passes={data()} />}</Match>
+    </Switch>
+  )
 }
 ```
 

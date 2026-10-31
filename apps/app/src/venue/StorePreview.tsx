@@ -1,7 +1,7 @@
 // Loaded only by the opt-in Vite development entry. No API or wallet requests.
 import { cardBySlug } from '@fuda/sdk'
 import type { PublicVenue } from '@fuda/sdk'
-import { applyThemeMode } from '@fuda/ui/solid'
+import { applyThemeMode } from '@fuda/ui'
 import { createEffect, createSignal, on, onCleanup, onMount } from 'solid-js'
 import type { JSX } from 'solid-js'
 

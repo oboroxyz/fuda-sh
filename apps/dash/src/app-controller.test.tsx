@@ -8,7 +8,7 @@ import type {
   MembersResponse,
   RevokeResponse,
 } from '@fuda/sdk'
-import type { LanguageSwitcherProps, ThemeToggleProps } from '@fuda/ui/solid'
+import type { LanguageSwitcherProps, ThemeToggleProps } from '@fuda/ui'
 import { createRoot } from 'solid-js'
 import type { JSX } from 'solid-js'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -47,7 +47,7 @@ vi.mock(import('./EnsClaim.tsx'), () => ({
     return null
   },
 }))
-vi.mock(import('@fuda/ui/solid'), async (importOriginal) => ({
+vi.mock(import('@fuda/ui'), async (importOriginal) => ({
   ...(await importOriginal()),
   LanguageSwitcher: (props: LanguageSwitcherProps): JSX.Element => {
     captured.language = props

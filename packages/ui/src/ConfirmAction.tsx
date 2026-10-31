@@ -1,6 +1,5 @@
-/** @jsxImportSource hono/jsx/dom */
-import { useId, useRef } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import { createUniqueId } from 'solid-js'
+import type { JSX } from 'solid-js'
 
 export interface ConfirmActionProps {
   label: string
@@ -14,47 +13,41 @@ export interface ConfirmActionProps {
   disabled?: boolean
 }
 
-export const ConfirmAction = ({
-  label,
-  icon,
-  title,
-  description,
-  cancelLabel,
-  confirmLabel,
-  onConfirm,
-  class: className = 'btn btn-ghost btn-sm self-start',
-  disabled,
-}: ConfirmActionProps): JSX.Element => {
-  const titleId = useId()
-  const descriptionId = useId()
-  const dialog = useRef<HTMLDialogElement | null>(null)
-  const cancel = useRef<HTMLButtonElement | null>(null)
-  const opener = useRef<HTMLButtonElement | null>(null)
+export const ConfirmAction = (props: ConfirmActionProps): JSX.Element => {
+  const titleId = createUniqueId()
+  const descriptionId = createUniqueId()
+  let dialog: HTMLDialogElement | undefined
+  let cancel: HTMLButtonElement | undefined
+  let opener: HTMLButtonElement | undefined
   const close = (): void => {
-    dialog.current?.close()
+    dialog?.close()
   }
   return (
     <>
       <button
-        class={className}
-        disabled={disabled}
-        ref={opener}
+        class={props.class ?? 'btn btn-ghost btn-sm self-start'}
+        disabled={props.disabled}
+        ref={(el) => {
+          opener = el
+        }}
         type="button"
         onClick={() => {
-          dialog.current?.showModal()
-          cancel.current?.focus()
+          dialog?.showModal()
+          cancel?.focus()
         }}
       >
-        {icon}
-        {label}
+        {props.icon}
+        {props.label}
       </button>
       <dialog
         class="modal"
-        ref={dialog}
+        ref={(el) => {
+          dialog = el
+        }}
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
         onClose={() => {
-          opener.current?.focus()
+          opener?.focus()
         }}
         onClick={(event) => {
           if (event.target === event.currentTarget) {
@@ -64,27 +57,34 @@ export const ConfirmAction = ({
       >
         <div class="modal-box">
           <h2 id={titleId} class="text-lg font-bold">
-            {title}
+            {props.title}
           </h2>
           <p id={descriptionId} class="mt-2">
-            {description}
+            {props.description}
           </p>
           <div class="modal-action">
-            <button ref={cancel} class="btn" type="button" onClick={close}>
-              {cancelLabel}
+            <button
+              ref={(el) => {
+                cancel = el
+              }}
+              class="btn"
+              type="button"
+              onClick={close}
+            >
+              {props.cancelLabel}
             </button>
             <button
               class="btn btn-error"
               type="button"
               onClick={() => {
-                if (dialog.current?.open !== true) {
+                if (dialog?.open !== true) {
                   return
                 }
                 close()
-                onConfirm()
+                props.onConfirm()
               }}
             >
-              {confirmLabel}
+              {props.confirmLabel}
             </button>
           </div>
         </div>

@@ -1,4 +1,3 @@
-/** @jsxImportSource solid-js */
 import { focusManager, onlineManager } from '@tanstack/query-core'
 import type { QueryFunctionContext } from '@tanstack/query-core'
 import { createSignal } from 'solid-js'
@@ -8,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createQueryClient } from './client.ts'
 import type { QueryClient, QueryKey } from './index.ts'
-import { createQuery, createQueryScope } from './solid.ts'
+import { createQuery, createQueryScope } from './query.ts'
 
 type StringQuery = (context: QueryFunctionContext) => Promise<string>
 

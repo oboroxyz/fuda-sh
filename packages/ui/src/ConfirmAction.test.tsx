@@ -1,6 +1,5 @@
 // @vitest-environment happy-dom
-/** @jsxImportSource hono/jsx/dom */
-import { render } from 'hono/jsx/dom'
+import { render } from 'solid-js/web'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ConfirmAction } from './ConfirmAction.tsx'
@@ -15,14 +14,16 @@ describe(ConfirmAction, () => {
     document.body.append(host)
     const confirm = vi.fn<() => void>()
     render(
-      <ConfirmAction
-        label="Sign out"
-        title="Leave?"
-        description="Sign out of this device."
-        cancelLabel="Cancel"
-        confirmLabel="Confirm"
-        onConfirm={confirm}
-      />,
+      () => (
+        <ConfirmAction
+          label="Sign out"
+          title="Leave?"
+          description="Sign out of this device."
+          cancelLabel="Cancel"
+          confirmLabel="Confirm"
+          onConfirm={confirm}
+        />
+      ),
       host,
     )
     await vi.waitFor(() => {

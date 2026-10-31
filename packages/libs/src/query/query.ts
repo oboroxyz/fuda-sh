@@ -1,13 +1,17 @@
-// Solid bindings for the shared TanStack Query client, the counterpart of
-// use-query.ts for apps that have moved to Solid (docs/adr/0009-void-and-solid.md).
-// Remove use-query.ts once no app imports it.
+// Solid bindings for the shared TanStack Query client.
 import { QueryObserver } from '@tanstack/query-core'
-import type { DefaultedQueryObserverOptions, QueryClient, QueryObserverResult } from '@tanstack/query-core'
+import type {
+  DefaultedQueryObserverOptions,
+  QueryClient,
+  QueryObserverOptions,
+  QueryObserverResult,
+} from '@tanstack/query-core'
 import { createComputed, createSignal, on, onCleanup } from 'solid-js'
 import type { Accessor } from 'solid-js'
 
 import { createQueryClient } from './client.ts'
-import type { QueryOptions } from './use-query.ts'
+
+export type QueryOptions<T> = QueryObserverOptions<T, Error, T, T>
 
 // One client per owner (an app root or a screen), mounted for the owner's
 // lifetime. Teardown aborts in-flight requests and drops the cache.

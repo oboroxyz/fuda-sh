@@ -1,6 +1,5 @@
 // @vitest-environment happy-dom
-/** @jsxImportSource hono/jsx/dom */
-import { render } from 'hono/jsx/dom'
+import { render } from 'solid-js/web'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { Scanner } from './Scanner.tsx'
@@ -10,7 +9,7 @@ import { Scanner } from './Scanner.tsx'
 const mount = (props: { autoFocus?: boolean; cameraMode?: 'auto' | 'off' }): HTMLElement => {
   const host = document.createElement('div')
   document.body.append(host)
-  render(<Scanner onInput={() => {}} {...props} />, host)
+  render(() => <Scanner onInput={() => {}} {...props} />, host)
   return host
 }
 
@@ -61,11 +60,13 @@ describe(Scanner, () => {
     const host = document.createElement('div')
     document.body.append(host)
     render(
-      <Scanner
-        cameraMode="off"
-        labels={{ cameraUnavailable: 'x', check: 'y', placeholder: 'z', ready: 'パスをかざしてください' }}
-        onInput={() => {}}
-      />,
+      () => (
+        <Scanner
+          cameraMode="off"
+          labels={{ cameraUnavailable: 'x', check: 'y', placeholder: 'z', ready: 'パスをかざしてください' }}
+          onInput={() => {}}
+        />
+      ),
       host,
     )
     await vi.waitFor(() => {

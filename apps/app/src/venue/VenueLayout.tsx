@@ -1,4 +1,4 @@
-import { FudaMark } from '@fuda/ui/solid'
+import { FudaMark } from '@fuda/ui'
 import type { JSX } from 'solid-js'
 
 export const VenueLayout = (props: { children: JSX.Element }): JSX.Element => (

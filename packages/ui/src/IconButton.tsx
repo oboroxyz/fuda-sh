@@ -1,6 +1,5 @@
-/** @jsxImportSource hono/jsx/dom */
 import { cn } from 'cn'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import type { JSX } from 'solid-js'
 
 export interface IconButtonProps {
   class?: string
@@ -9,8 +8,15 @@ export interface IconButtonProps {
   onClick: () => void
 }
 
-export const IconButton = ({ children, class: className, label, onClick }: IconButtonProps): JSX.Element => (
-  <button aria-label={label} class={cn('fuda-icon-button', className)} onClick={onClick} type="button">
-    {children}
+export const IconButton = (props: IconButtonProps): JSX.Element => (
+  <button
+    aria-label={props.label}
+    class={cn('fuda-icon-button', props.class)}
+    onClick={() => {
+      props.onClick()
+    }}
+    type="button"
+  >
+    {props.children}
   </button>
 )

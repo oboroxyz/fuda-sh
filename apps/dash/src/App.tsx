@@ -1,15 +1,14 @@
 import { isLocale, pick } from '@fuda/i18n'
 import { getLocale, setLocale } from '@fuda/i18n/browser'
-import { QueryError, readQueryResult } from '@fuda/libs/query'
-import { createQuery, createQueryScope } from '@fuda/libs/query/solid'
+import { QueryError, createQuery, createQueryScope, readQueryResult } from '@fuda/libs/query'
 import type {
   CardCreateResponse,
   IssuerCreateResponse,
   IssuerMeResponse,
   IssuerUpdateRequest,
 } from '@fuda/sdk'
-import { LanguageSwitcher, saveThemeMode, ThemeToggle, watchThemeMode } from '@fuda/ui/solid'
-import type { ThemeMode } from '@fuda/ui/solid'
+import { LanguageSwitcher, saveThemeMode, ThemeToggle, watchThemeMode } from '@fuda/ui'
+import type { ThemeMode } from '@fuda/ui'
 import { batch, createEffect, createMemo, createSignal, on, onCleanup, onMount, Show } from 'solid-js'
 import type { JSX } from 'solid-js'
 

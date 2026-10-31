@@ -1,7 +1,7 @@
 import { AUTH_COPY, DEFAULT_LOCALE, pick } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
 import type { SignInFailure } from '@fuda/libs/auth'
-import { FingerprintSimple } from '@fuda/ui/solid'
+import { FingerprintSimple } from '@fuda/ui'
 import type { JSX } from 'solid-js'
 
 import { TOP_PATH } from '../route.ts'

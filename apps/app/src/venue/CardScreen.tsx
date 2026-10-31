@@ -12,7 +12,7 @@ import {
 } from '@fuda/sdk'
 import type { CardView, PassUrls, PublicCard, PublicVenue, SelfServeIssueResponse } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
-import { CardsThree, WalletButton } from '@fuda/ui/solid'
+import { CardsThree, WalletButton } from '@fuda/ui'
 import { createEffect, createSignal, For, on, onCleanup } from 'solid-js'
 import type { JSX } from 'solid-js'
 

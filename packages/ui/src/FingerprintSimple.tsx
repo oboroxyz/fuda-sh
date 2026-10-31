@@ -1,5 +1,4 @@
-/** @jsxImportSource hono/jsx/dom */
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import type { JSX } from 'solid-js'
 
 // Phosphor Icons: Fingerprint Simple (regular), MIT licensed.
 // https://github.com/phosphor-icons/core

@@ -3,7 +3,7 @@ import type { Locale } from '@fuda/i18n'
 import { getLocale, setLocale } from '@fuda/i18n/browser'
 import { createSessionGeneration, createTokenStore } from '@fuda/libs/auth'
 import type { QueryClient } from '@fuda/libs/query'
-import { createQueryScope } from '@fuda/libs/query/solid'
+import { createQueryScope } from '@fuda/libs/query'
 import { normalizeUid } from '@fuda/sdk'
 import type { Hex } from '@fuda/sdk'
 import {
@@ -13,8 +13,8 @@ import {
   saveThemeMode,
   ThemeToggle,
   watchThemeMode,
-} from '@fuda/ui/solid'
-import type { ThemeMode } from '@fuda/ui/solid'
+} from '@fuda/ui'
+import type { ThemeMode } from '@fuda/ui'
 import { batch, createEffect, createMemo, createSignal, on, onCleanup, onMount, Show } from 'solid-js'
 import type { JSX } from 'solid-js'
 

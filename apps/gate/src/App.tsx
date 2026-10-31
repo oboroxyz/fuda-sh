@@ -1,4 +1,4 @@
-import { Scanner } from '@fuda/ui/solid'
+import { Scanner } from '@fuda/ui'
 import { Show, createSignal, onCleanup, onMount } from 'solid-js'
 import type { JSX } from 'solid-js'
 
