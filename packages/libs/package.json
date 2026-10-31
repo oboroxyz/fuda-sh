@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./query": "./src/query/index.ts",
+    "./query/solid": "./src/query/solid.ts",
     "./auth": "./src/auth/index.ts",
     "./wallet": "./src/wallet/index.ts"
   },
@@ -16,9 +17,11 @@
     "@fuda/sdk": "workspace:*",
     "@tanstack/query-core": "5.102.8",
     "hono": "^4.13.5",
+    "solid-js": "1.9.17",
     "viem": "^2.56.3"
   },
   "devDependencies": {
+    "vite-plugin-solid": "2.11.14",
     "vitest": "4.1.11"
   }
 }

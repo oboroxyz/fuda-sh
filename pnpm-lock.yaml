@@ -285,10 +285,16 @@ importers:
       hono:
         specifier: ^4.13.5
         version: 4.13.5
+      solid-js:
+        specifier: 1.9.17
+        version: 1.9.17
       viem:
         specifier: ^2.56.3
         version: 2.56.3(typescript@7.0.2)(zod@4.6.7)
     devDependencies:
+      vite-plugin-solid:
+        specifier: 2.11.14
+        version: 2.11.14(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(solid-js@1.9.17)(supports-color@10.2.2)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1)
       vitest:
         specifier: 4.1.11
         version: 4.1.11(@types/node@24.13.3)(@vitest/browser-preview@4.1.11)(esbuild@0.28.2)(happy-dom@20.14.0)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1)
