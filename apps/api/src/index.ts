@@ -18,7 +18,7 @@ type FakeChainSignal = Pick<DevBindings, 'BASE_RPC_URL' | 'SIGNER_PRIVATE_KEY' |
 export const isFakeChainEnabled = (env: FakeChainSignal): boolean =>
   env.USE_FAKE_CHAIN === '1' && env.SIGNER_PRIVATE_KEY === undefined && env.BASE_RPC_URL === undefined
 
-// One FakeChain per isolate so `wrangler dev` keeps issued rights across requests.
+// One FakeChain per isolate so local dev keeps issued rights across requests.
 let devChain: FakeChain | null = null
 const createDevChain = (env: DevBindings): FakeChain => {
   // Base Account passkeys need ERC-1271/6492 verification. Only this read uses
@@ -27,7 +27,7 @@ const createDevChain = (env: DevBindings): FakeChain => {
   const uid = chain.seedRootDelegation(schemaUid(SCHEMA_STRINGS.issuerDelegation), DEV_DELEGATION_UID)
   // oxlint-disable-next-line no-console -- one-time dev bootstrap hint, printed once per isolate
   console.warn(
-    `[fuda-api] USE_FAKE_CHAIN=1: seeded root delegation. Set ISSUER_ADDRESS=${chain.signerAddress() ?? ''} and DELEGATION_UID=${uid} in wrangler.jsonc env.local.vars.`,
+    `[fuda-api] USE_FAKE_CHAIN=1: seeded root delegation. Set ISSUER_ADDRESS=${chain.signerAddress() ?? ''} and DELEGATION_UID=${uid} in local.vars in targets.jsonc.`,
   )
   return chain
 }

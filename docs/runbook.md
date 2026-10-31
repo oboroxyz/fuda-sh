@@ -1,6 +1,6 @@
 # Deploy runbook
 
-Operator instructions for standing up fuda on Cloudflare and Base Sepolia, in order. The checked-in top-level API configuration already contains the Sepolia schema UIDs, root delegation, database id, and Announcer start block. The bootstrap steps below are for a new deployment; verify and reuse the existing resources when operating this checkout.
+Operator instructions for standing up fuda on Cloudflare and Base Sepolia, in order. The checked-in `develop` target of the api (`apps/api/targets.jsonc`) already contains the Sepolia schema UIDs, root delegation, database id, and Announcer start block. The bootstrap steps below are for a new deployment; verify and reuse the existing resources when operating this checkout.
 
 For local setup, start at [Local development](#12-local-development). API paths in prose omit `/v1` except for the unversioned pass, asset, ENS gateway, and health routes; see [API versioning](./specs/attestation-model.md#api-versioning).
 
@@ -22,7 +22,7 @@ Run these in order; each fills a placeholder the next step or the deploy depends
    SIGNER_PRIVATE_KEY=0x… pnpm --filter api register-schemas
    ```
 
-   Prints each schema's UID and a ready-to-paste `EAS_SCHEMAS` JSON blob. Paste it into `apps/api/wrangler.jsonc`'s top-level `vars.EAS_SCHEMAS`.
+   Prints each schema's UID and a ready-to-paste `EAS_SCHEMAS` JSON blob. Paste it into `vars.EAS_SCHEMAS` of the `develop` target in `apps/api/targets.jsonc`.
 
 3. Attest the root `IssuerDelegation` — the signer delegating issuance to itself:
 
@@ -30,7 +30,7 @@ Run these in order; each fills a placeholder the next step or the deploy depends
    SIGNER_PRIVATE_KEY=0x… pnpm --filter api attest-root-delegation
    ```
 
-   Prints `ISSUER_ADDRESS` (the signer) and `DELEGATION_UID` (the new attestation). Paste both into `wrangler.jsonc`'s top-level `vars`. The script warns (but still proceeds) if `DELEGATION_UID` is already set in the environment, and it attests under the newest `issuerDelegation` uid in an exported `EAS_SCHEMAS` when present, falling back to the deterministic uid of the current schema string otherwise (`apps/api/scripts/attest-root-delegation.ts:22-39`). Idempotence is the operator's: run this once per deployment; a second run mints a second, equally valid delegation.
+   Prints `ISSUER_ADDRESS` (the signer) and `DELEGATION_UID` (the new attestation). Paste both into the `develop` target's `vars` in `targets.jsonc`. The script warns (but still proceeds) if `DELEGATION_UID` is already set in the environment, and it attests under the newest `issuerDelegation` uid in an exported `EAS_SCHEMAS` when present, falling back to the deterministic uid of the current schema string otherwise (`apps/api/scripts/attest-root-delegation.ts:22-39`). Idempotence is the operator's: run this once per deployment; a second run mints a second, equally valid delegation.
 
    Create the media bucket before the first deploy:
 
@@ -38,12 +38,12 @@ Run these in order; each fills a placeholder the next step or the deploy depends
    wrangler r2 bucket create fuda-media-dev
    ```
 
-   Its `MEDIA_BUCKET` binding is already in `wrangler.jsonc`. An absent `MEDIA_BUCKET` binding makes logo upload answer `501 media_not_configured`. A configured bucket must exist before deployment. Every environment owns its own bucket, because an R2 bucket cannot be renamed and develop must never read or overwrite a production venue's mark: `fuda-media-dev` here, `fuda-media` for mainnet, `fuda-media-local` for `wrangler dev --remote` only (a plain `wrangler dev` simulates R2 locally, so that one rarely needs creating). Nothing outside `wrangler.jsonc` sees a bucket name — the public URL is `/assets/:handle/logo/:variant` and D1 stores only the relative `logos/<uuid>` prefix — so a bucket can be swapped later by copying objects and editing one line.
+   Its `MEDIA_BUCKET` binding is already in `targets.jsonc`. An absent `MEDIA_BUCKET` binding makes logo upload answer `501 media_not_configured`. A configured bucket must exist before deployment. Every environment owns its own bucket, because an R2 bucket cannot be renamed and develop must never read or overwrite a production venue's mark: `fuda-media-dev` here, `fuda-media` for mainnet, `fuda-media-local` for remote-binding local runs only (local dev simulates R2, so that one rarely needs creating). Nothing outside `targets.jsonc` sees a bucket name — the public URL is `/assets/:handle/logo/:variant` and D1 stores only the relative `logos/<uuid>` prefix — so a bucket can be swapped later by copying objects and editing one line.
 
-   `PUBLIC_BASE_URL` (top-level `vars`) is the member-facing origin the dashboard's published card links to, `https://fuda.sh`; the `env.local` value is the app dev port. It never needs regenerating.
+   `PUBLIC_BASE_URL` (`develop` `vars`) is the member-facing origin the dashboard's published card links to, `https://fuda.sh`; the `local` value is the app dev port. It never needs regenerating.
 
-4. Look up the `Announcer` contract's deployment block on the Base Sepolia explorer and set the top-level `vars.ANNOUNCER_FROM_BLOCK` to it. The checked-in Sepolia value is `"7552655"`; a fresh deployment must verify its own value. This value is the start block used when generating both data sources in the rights-subgraph manifest; it is not an API binding or a D1 cache floor. `pnpm graph:prepare` rejects zero, missing, and malformed values.
-5. Create the D1 database and paste its id into both `database_id` entries in `apps/api/wrangler.jsonc` (the top-level `d1_databases` entry and the one repeated under `env.local`):
+4. Look up the `Announcer` contract's deployment block on the Base Sepolia explorer and set the `develop` target's `vars.ANNOUNCER_FROM_BLOCK` to it. The checked-in Sepolia value is `"7552655"`; a fresh deployment must verify its own value. This value is the start block used when generating both data sources in the rights-subgraph manifest; it is not an API binding or a D1 cache floor. `pnpm graph:prepare` rejects zero, missing, and malformed values.
+5. Create the D1 database and paste its id into both `database_id` entries in `apps/api/targets.jsonc` (the `develop` and `local` targets):
 
    ```bash
    wrangler d1 create fuda-beta
@@ -110,7 +110,7 @@ This value is documented only. The `fuda.sh` zone is DNSSEC-signed and currently
 
 ## 3. Secrets
 
-Set with `wrangler secret put <NAME>` from `apps/api`:
+Set with `wrangler secret put <NAME> --name fuda-api` (the `develop` Worker; `fuda-api-production` for mainnet). Void keeps a linked Worker's secrets, so they survive the move to `void deploy`. `wrangler secret bulk <file> --name <worker>` pushes a dotenv file such as `apps/api/.dev.vars.production` in one go:
 
 - `SIGNER_PRIVATE_KEY` — the issuer's EOA private key.
 - `ADMIN_TOKEN` — **required whenever a chain binding is set.** With `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL` configured and no `ADMIN_TOKEN`, the api locks every admin route (`401 unauthorized`) and every response carries `x-auth-mode: locked`. This is deliberate fail-closed behavior, not a misconfiguration to work around.
@@ -120,7 +120,7 @@ Set with `wrangler secret put <NAME>` from `apps/api`:
 - `ENS_VOUCHER_KEY` — dedicated 32-byte ECDSA private key that signs claim and renew vouchers. It is the key the deployed registrar checks against, so it must be the same one `ens:topology:deploy` was given, and it must not be the gateway signer, the parent key, or `SIGNER_PRIVATE_KEY`.
 - `ENS_SEPOLIA_RPC_URL` — Ethereum Sepolia RPC. A secret rather than a var, because an Alchemy endpoint carries its API key in the path.
 - `ENS_PAYMASTER_UPSTREAM` — the vendor's ERC-7677 paymaster endpoint. With Alchemy this is the same URL as above; the bindings stay separate so the paymaster vendor can change without touching the chain reads.
-- `WORLD_APP_ID`, `WORLD_RP_ID`, `WORLD_ACTION`, `WORLD_RP_SIGNING_KEY` — World ID badge verification. All four or nothing: while any one is unset, `POST /badges/:kind` answers `501 badges_not_configured` and no verdict carries a badge. Only the signing key is sensitive — it is the relying party's 32-byte secp256k1 key as hex (`0x` optional), whose public half is registered in the Developer Portal — but all four are pushed as secrets rather than split between here and `wrangler.jsonc` vars, so there is one place to look. Do not also add these names to `vars`: a name defined twice silently resolves to the secret.
+- `WORLD_APP_ID`, `WORLD_RP_ID`, `WORLD_ACTION`, `WORLD_RP_SIGNING_KEY` — World ID badge verification. All four or nothing: while any one is unset, `POST /badges/:kind` answers `501 badges_not_configured` and no verdict carries a badge. Only the signing key is sensitive — it is the relying party's 32-byte secp256k1 key as hex (`0x` optional), whose public half is registered in the Developer Portal — but all four are pushed as secrets rather than split between here and `targets.jsonc` vars, so there is one place to look. Do not also add these names to `vars`: a name defined twice silently resolves to the secret.
 - `GOOGLE_ISSUER_ID`, `GOOGLE_CLASS_ID`, `GOOGLE_SA_EMAIL`, `GOOGLE_SA_KEY_PEM` — see §4.
 - `APPLE_PASS_TYPE_ID`, `APPLE_TEAM_ID`, `APPLE_CERT_PEM`, `APPLE_KEY_PEM`, `APPLE_WWDR_PEM` — see §5.
 
@@ -159,7 +159,7 @@ The Graph endpoint is browser-visible. Use a public gateway key restricted to th
 
 ## 7. Build and deploy the rights subgraph
 
-Install the independent package, then generate and verify the deployable manifest from the top-level Sepolia `EAS_SCHEMAS` and `ANNOUNCER_FROM_BLOCK` values in `apps/api/wrangler.jsonc`:
+Install the independent package, then generate and verify the deployable manifest from the Sepolia `EAS_SCHEMAS` and `ANNOUNCER_FROM_BLOCK` values of the `develop` target in `apps/api/targets.jsonc`:
 
 ```bash
 pnpm --ignore-workspace --dir packages/subgraphs/rights install --frozen-lockfile
@@ -169,7 +169,7 @@ pnpm graph:test
 pnpm graph:build
 ```
 
-`graph:prepare` rejects missing or placeholder values. Its CLI reads the top-level API vars and `config/base-sepolia.json`, not `env.production`. Create the subgraph in Graph Studio, then authenticate and deploy from its independently installed package:
+`graph:prepare` rejects missing or placeholder values. Its CLI reads the `develop` target's vars and `config/base-sepolia.json`, not the `production` target. Create the subgraph in Graph Studio, then authenticate and deploy from its independently installed package:
 
 ```bash
 cd packages/subgraphs/rights
@@ -194,15 +194,18 @@ VITE_API_BASE_URL=https://api.fuda.sh VITE_GRAPH_RIGHTS_ENDPOINT=<PUBLIC_GRAPH_E
   pnpm --filter app run deploy
 ```
 
-The api deploys with Wrangler: its `deploy` script runs `wrangler deploy`, and `apps/api/wrangler.jsonc` declares `api.fuda.sh` as a custom domain, so the first deploy attaches the hostname. The zone must already be on the account. The `fuda.sh/@*` redirect is a zone-level Single Redirect and is not managed by Wrangler. To validate the api config without shipping, run `pnpm --filter api exec wrangler deploy --dry-run`.
+Everything deploys with Void ([ADR 0009](adr/0009-void-and-solid.md)).
 
-The three frontends deploy with Void ([ADR 0009](adr/0009-void-and-solid.md)). Each `deploy` script runs `void deploy`, which builds with `vp build` and uploads `dist` as a static SPA. Each app's `void.config.ts` holds its Worker name (`fuda-gate`, `fuda-dash`, `fuda-app`) and its custom-domain route (`gate.fuda.sh`, `dash.fuda.sh`, `app.fuda.sh`). The build environment above is read by `vp build` inside `void deploy`.
+The api's `deploy` script runs `void deploy` in `apps/api/targets/develop`, the Void project for the live Sepolia Worker `fuda-api`. Its config comes from the `develop` block of `apps/api/targets.jsonc`, which declares `api.fuda.sh` as a custom domain. The zone must already be on the account. The `fuda.sh/@*` redirect is a zone-level Single Redirect and is not managed by Void. `void deploy` does not apply D1 migrations for the api; run `pnpm --filter api migrate:remote` first. To check the generated Worker config without shipping, run `pnpm --filter api exec sh -c 'cd targets/develop && vp build'` and read `targets/develop/dist/ssr/wrangler.json`.
+
+The three frontends' `deploy` scripts run `void deploy`, which builds with `vp build` and uploads `dist` as a static SPA. Each app's `void.config.ts` holds its Worker name (`fuda-gate`, `fuda-dash`, `fuda-app`) and its custom-domain route (`gate.fuda.sh`, `dash.fuda.sh`, `app.fuda.sh`). The build environment above is read by `vp build` inside `void deploy`.
 
 `pnpm --filter <app> exec void info` checks a config offline.
 
-No one has run `void deploy` for the frontends yet. Run each first deploy interactively, from one machine. Void signs in to Cloudflare and writes the app's `void.lock.json`; commit that file before deploying from any other machine. `.void/` and `.void-wrangler.jsonc` are local state and are Git-ignored. Three things to watch for on those first runs:
+No one has run `void deploy` yet, for the api or the frontends. Run each first deploy interactively, from one machine. Void signs in to Cloudflare and writes the project's `void.lock.json` (`apps/api/targets/<target>/void.lock.json` for the api); commit that file before deploying from any other machine. `.void/`, `.void-wrangler.jsonc` and `dist/` are local state and are Git-ignored. Things to watch for on those first runs:
 
-- **Link or create.** Void should link the existing Worker, keeping its domain. If it offers to create a new Worker instead, stop: a second Worker would conflict with the domain.
+- **Link or create.** Void should link the existing Worker, keeping its domain, bindings and secrets. If it offers to create a new Worker instead, stop: a second Worker would conflict with the domain. The api's `production` Worker has never been deployed, so its first deploy creates it.
+- **Api secrets.** After the api's first deploy, `wrangler secret list --name fuda-api` must still list every name in §3.
 - **Readiness.** Before sending traffic, Void checks the new version through a version metadata binding or a Version URL. If it stops at that check, enable Version URLs for that Worker, or add a version metadata binding under `cloudflare` in `void.config.ts`, then retry.
 - **Venue URLs (app only).** Workers Static Assets rewrites a literal `@` in an unknown path to `%40`. `apps/app/void.config.ts` therefore rewrites `/@*` to the SPA shell before the asset lookup, replacing the old Worker that ran first for those paths. After the first app deploy, confirm that `curl -sI 'https://app.fuda.sh/@wassie-coffee?source=qr'` answers `200` with `content-type: text/html` and no `location` header. A redirect to `%40` means the rewrite did not run.
 
@@ -270,7 +273,7 @@ Two writes are deliberately non-atomic across the chain and D1; check both after
   pnpm exec wrangler d1 execute fuda-beta --remote --command "SELECT id, uid, at FROM entry_log WHERE decision = 'ADMIT' AND attendance_uid IS NULL"
   ```
 
-The query also includes +Private admissions, which intentionally have no Attendance. Check the right's level before treating a row as a failure; `members.level` can help when a matching operational row exists. For mainnet, select `fuda` with `--env production` instead.
+The query also includes +Private admissions, which intentionally have no Attendance. Check the right's level before treating a row as a failure; `members.level` can help when a matching operational row exists. For mainnet, query `fuda` instead of `fuda-beta`.
 
 ## 12. Local development
 
@@ -279,7 +282,7 @@ Dependency resolution waits three days after a package version is published (`mi
 ```sh
 pnpm install --frozen-lockfile
 # Fresh checkout only; preserve existing local values when updating.
-cp apps/api/.dev.vars.example apps/api/.dev.vars
+cp apps/api/.env.example apps/api/targets/local/.env
 pnpm migrate:local
 VITE_API_BASE_URL=http://localhost:8787 VITE_APP_ORIGIN=http://localhost:5173 VITE_RP_ID=localhost pnpm dev
 ```
@@ -314,12 +317,12 @@ In development mode with the `/api` proxy selected, Dash also displays saved log
 
 For each surface, the suite does four things:
 
-1. It deletes its D1 state under `packages/e2e/.e2e/state/` and applies the migrations to a fresh copy.
-2. It starts the api with `wrangler dev --env local` on `127.0.0.1:8797`.
+1. It builds the api's `local` Void target, deletes its D1 state under `packages/e2e/.e2e/state/` and applies the migrations to a fresh copy.
+2. It starts the build output with `wrangler dev` on `127.0.0.1:8797`.
 3. It starts the surface's Vite dev server: app on `127.0.0.1:6173`, gate on `6174`, dash on `6175`. These ports sit beside the `pnpm dev` ports, so both can run at once. Starting it is how the suite checks the api is up.
 4. It seeds venues, cards and Rights through the public api routes.
 
-The api reads only `packages/e2e/stack.env` (`USE_FAKE_CHAIN=1`). Passing an env file explicitly makes wrangler skip `apps/api/.dev.vars`, so local secrets never reach a run. Admin routes stay open, and the developer's `.wrangler/state` is never touched.
+The api reads only `packages/e2e/stack.env` (`USE_FAKE_CHAIN=1`). Void builds ignore `.env`, and passing an env file explicitly makes wrangler skip any other, so local secrets in `apps/api/targets/local/.env` never reach a run. Admin routes stay open, and the developer's local D1 under `apps/api/targets/local/.void/` is never touched.
 
 What the suite does not cover:
 
@@ -355,7 +358,7 @@ Run the read-only MultiOwnable probe from the repository root:
 pnpm --filter api probe:venue-wallet
 ```
 
-It uses the public Base Sepolia RPC by default; an exported `BASE_RPC_URL` can select another Base Sepolia provider. It does not load `.dev.vars` or require any private-key setting. The RPC chain ID must be 84532. The probe generates two throwaway EOA owners and an undeployed Coinbase Smart Wallet v1 using fuda's current factory, then checks both owners' dashboard-challenge signatures through the API's actual chain verifier. It also rejects a changed challenge, an unregistered owner's wallet proof, and a raw personal signature. No transaction is submitted, no account is funded, and no D1 state is changed. ERC-6492 verification simulates deployment only inside `eth_call`; the probe checks that the wallet remains undeployed afterward.
+It uses the public Base Sepolia RPC by default; an exported `BASE_RPC_URL` can select another Base Sepolia provider. It does not load any local env file or require any private-key setting. The RPC chain ID must be 84532. The probe generates two throwaway EOA owners and an undeployed Coinbase Smart Wallet v1 using fuda's current factory, then checks both owners' dashboard-challenge signatures through the API's actual chain verifier. It also rejects a changed challenge, an unregistered owner's wallet proof, and a raw personal signature. No transaction is submitted, no account is funded, and no D1 state is changed. ERC-6492 verification simulates deployment only inside `eth_call`; the probe checks that the wallet remains undeployed afterward.
 
 Success prints the public wallet/factory/owner addresses and six successful checks, and exits zero. A failed assertion or unavailable RPC exits nonzero. The probe allows only `eth_chainId`, `eth_call`, and `eth_getCode`, and records RPC failures even if the signature verifier would fold one into `false`. Any rejected RPC request, including an EVM revert, makes the run inconclusive and nonzero: these negative fixtures must produce completed validation responses. RPC URLs, keys and signatures are not printed. This verifies initial multiple-owner signing; it does not test adding owners to an existing wallet, Base Account popup discovery, passkey or nested-wallet owners, API sessions, or owner removal. See [ADR 0008](adr/0008-shared-issuer-wallet.md) for the future co-owner login and session-revocation requirements. The dashboard still has no owner-management UI.
 
@@ -363,16 +366,16 @@ Success prints the public wallet/factory/owner addresses and six successful chec
 
 For Card creation, issuance and reception UI work, keep `USE_FAKE_CHAIN=1` with `SIGNER_PRIVATE_KEY` and `BASE_RPC_URL` absent. The local chain simulates entitlement writes. No step needs an ENS name.
 
-Only the claimed look of `/profile` needs a fixture. With `ENS_PARENT_NAME=fuda.eth` in `apps/api/.dev.vars`, mark a registered local venue (`fuda-coffee` here) as claimed in the local D1 mirror, then reload Dash. The insert never overwrites an existing row:
+Only the claimed look of `/profile` needs a fixture. With `ENS_PARENT_NAME=fuda.eth` in `apps/api/targets/local/.env`, mark a registered local venue (`fuda-coffee` here) as claimed in the local D1 mirror, then reload Dash. `d1:local` needs a prior `pnpm migrate:local`, which builds the config it reads. The insert never overwrites an existing row:
 
 ```sh
-pnpm --filter api exec wrangler d1 execute fuda-beta --local --command "INSERT INTO ens_names (issuer_handle, name, kind, owner_address, target_address, status, created_at, updated_at) SELECT handle, handle || '.fuda.eth', 'issuer', operator_address, operator_address, 'claimed', unixepoch(), unixepoch() FROM issuers WHERE handle = 'fuda-coffee' ON CONFLICT(name) DO NOTHING"
+pnpm --filter api d1:local --command "INSERT INTO ens_names (issuer_handle, name, kind, owner_address, target_address, status, created_at, updated_at) SELECT handle, handle || '.fuda.eth', 'issuer', operator_address, operator_address, 'claimed', unixepoch(), unixepoch() FROM issuers WHERE handle = 'fuda-coffee' ON CONFLICT(name) DO NOTHING"
 ```
 
 To undo it, delete only that synthetic row:
 
 ```sh
-pnpm --filter api exec wrangler d1 execute fuda-beta --local --command "DELETE FROM ens_names WHERE name = 'fuda-coffee.fuda.eth' AND kind = 'issuer' AND claim_tx_hash IS NULL AND voucher_issued_at IS NULL AND expiry IS NULL"
+pnpm --filter api d1:local --command "DELETE FROM ens_names WHERE name = 'fuda-coffee.fuda.eth' AND kind = 'issuer' AND claim_tx_hash IS NULL AND voucher_issued_at IS NULL AND expiry IS NULL"
 ```
 
 This is local display state only. It does not exercise wallet submission, sponsorship, ENS ownership or receipt verification; use the real testnets for those.
@@ -398,12 +401,12 @@ Changing the daily limit affects subsequent receptions, including the current da
 
 Reception records commit before the asynchronous Attendance and Google Wallet effects. Inspect Worker logs for Google sync failures and verify credentials and the saved object's ID. A receipt retry or later reception can attempt display synchronization again without re-awarding an existing receipt's Stamp. A saved Apple Pass has no push-refresh service in this implementation; a new download contains the current snapshot.
 
-| Surface      | Path        | Dev                                                                          |
-| ------------ | ----------- | ---------------------------------------------------------------------------- |
-| api          | `apps/api`  | `pnpm --filter api dev` — http://localhost:8787 (`wrangler dev --env local`) |
-| member app   | `apps/app`  | `pnpm --filter app dev` — http://localhost:5173                              |
-| gate scanner | `apps/gate` | `pnpm --filter gate dev` — http://localhost:5174                             |
-| dashboard    | `apps/dash` | `pnpm --filter dash dev` — http://localhost:5175                             |
+| Surface      | Path        | Dev                                                                       |
+| ------------ | ----------- | ------------------------------------------------------------------------- |
+| api          | `apps/api`  | `pnpm --filter api dev` — http://localhost:8787 (the `local` Void target) |
+| member app   | `apps/app`  | `pnpm --filter app dev` — http://localhost:5173                           |
+| gate scanner | `apps/gate` | `pnpm --filter gate dev` — http://localhost:5174                          |
+| dashboard    | `apps/dash` | `pnpm --filter dash dev` — http://localhost:5175                          |
 
 The frontends read the same `VITE_*` names as step 6, with different local values. They are baked in at build time, so changing one means restarting the dev server.
 
@@ -412,7 +415,7 @@ The frontends read the same `VITE_*` names as step 6, with different local value
 - **`VITE_APP_ORIGIN`** (app) — set it to `http://localhost:5173`, or the `/signed` gate bounces to the production origin (`https://app.fuda.sh`) instead of running locally. These routes render only on the configured app origin. The deployed app Worker owns `app.fuda.sh`; apex `/@*` redirects are managed separately at the zone.
 - **`VITE_RP_ID`** (app) — set it to `localhost`, or the browser refuses the production default (`fuda.sh`), which is not a registrable suffix of the dev host.
 
-See `apps/api/README.md` for the api side: `USE_FAKE_CHAIN=1` (set it in `apps/api/.dev.vars` to run without a signer), `.dev.vars.example`, and the deterministic `env.local` block in `apps/api/wrangler.jsonc`. Local D1 state under `.wrangler/state` persists across `wrangler dev` restarts; wipe it if the fake chain's world (schemas, delegation, seeded rows) changes shape. `.dev.vars` is read both by `wrangler dev` during local dev and by the workerd test pool during `vp test`; `apps/api/test/env.ts` strips it back out for every test, so `vp test` never depends on `.dev.vars` being present or on what it contains.
+See `apps/api/README.md` for the api side: `USE_FAKE_CHAIN=1` (set it in `apps/api/targets/local/.env` to run without a signer), `apps/api/.env.example`, and the deterministic `local` block in `apps/api/targets.jsonc`. Void reads only `targets/local/.env`; it ignores `.dev.vars`, and it refuses to build while a `.env.example` sits beside it, which is why the example lives one level up. Local D1 state under `apps/api/targets/local/.void/` persists across restarts; wipe it if the fake chain's world (schemas, delegation, seeded rows) changes shape. The workerd test pool reads neither file: `vp test` runs on the `develop` vars, and `apps/api/test/env.ts` strips every optional binding back out.
 
 ## 13. Rate-limit state
 
@@ -428,7 +431,7 @@ The counter is keyed by IP and hour, not route: requests across these routes sha
 
 ## Mainnet cutover
 
-Today's top-level `wrangler.jsonc` is the Base Sepolia deployment that owns `api.fuda.sh` and its sibling hostnames. At release it keeps the Sepolia chain and becomes the internal **develop** environment (branch `develop`), while `env.production` takes mainnet and the apex hostnames.
+Today's `develop` target in `apps/api/targets.jsonc` is the Base Sepolia deployment that owns `api.fuda.sh` and its sibling hostnames. At release it keeps the Sepolia chain and becomes the internal **develop** environment (branch `develop`), while the `production` target takes mainnet and the apex hostnames.
 
 Nothing is migrated. A Sepolia Entitlement is meaningless on mainnet, so production starts with an empty database and an empty bucket, and every member re-claims. That is why each environment owns its own resources rather than sharing them:
 
@@ -436,22 +439,22 @@ Nothing is migrated. A Sepolia Entitlement is meaningless on mainnet, so product
 | --- | --- | --- |
 | D1 | `fuda-beta` — the existing database, kept under its name because D1 has no rename and `database_id` is what binds | `fuda`, created at cutover |
 | R2 | `fuda-media-dev` | `fuda-media` |
-| Worker | `fuda-api` | `fuda-api-production`, or rename in the env block |
+| Worker | `fuda-api` | `fuda-api-production`, or rename in its target block |
 | Hostnames | `*.dev.fuda.sh` after the cutover | `*.fuda.sh` |
 | Chain id | `84532` | `8453` |
 
 EAS and the SchemaRegistry are OP-stack predeploys at the same addresses on both networks, so those two `vars` do not change. The ERC-5564 Announcer is a separate deployment: confirm the mainnet address before reusing the Sepolia one rather than assuming the singleton is at the same place.
 
-`env.production` deliberately carries `routes: []`. Adding a custom domain there before the Sepolia deployment has moved off it would take a live hostname away from the running beta, so the order matters:
+The `production` target deliberately carries `routes: []`. Adding a custom domain there before the Sepolia deployment has moved off it would take a live hostname away from the running beta, so the order matters:
 
-1. Register the mainnet EAS schemas and attest the root delegation, then fill `env.production`'s `EAS_SCHEMAS`, `ISSUER_ADDRESS`, `DELEGATION_UID` and `ANNOUNCER_FROM_BLOCK`. Until then issuance answers `502 chain_error` rather than attesting under the wrong configuration.
+1. Register the mainnet EAS schemas and attest the root delegation, then fill the `production` target's `EAS_SCHEMAS`, `ISSUER_ADDRESS`, `DELEGATION_UID` and `ANNOUNCER_FROM_BLOCK`. Until then issuance answers `502 chain_error` rather than attesting under the wrong configuration.
 2. `wrangler d1 create fuda` and paste the id; `wrangler r2 bucket create fuda-media`.
-3. Set every secret again for the environment (`wrangler secret put … --env production`). The mainnet root must be a Safe with a hot issuer, not the Sepolia EOA.
-4. Apply migrations against the new database and deploy `--env production` with no routes; smoke it on its `workers.dev` hostname.
-5. Move the Sepolia deployment to `*.dev.fuda.sh`, then add the apex custom domains to `env.production` and redeploy both.
+3. Set every secret again for the new Worker (`wrangler secret put … --name fuda-api-production`). Deploy first if the Worker does not exist yet. The mainnet root must be a Safe with a hot issuer, not the Sepolia EOA.
+4. Apply migrations against the new database (`pnpm --filter api migrate:production`) and deploy with no routes (`pnpm --filter api run deploy:production`); smoke it on its `workers.dev` hostname.
+5. Move the Sepolia deployment to `*.dev.fuda.sh`, then add the apex custom domains to the `production` target and redeploy both.
 6. Rebuild the three frontends with the production `VITE_*` values; their `VITE_API_BASE_URL` decides which api a bundle talks to, so a develop build must point at the develop api.
 7. Change the passkey wallet's chain id. `apps/app/src/base-account.ts` and `apps/dash/src/wallet.ts` construct the Base Account SDK with Base Sepolia and Ethereum Sepolia; a mainnet build must pass `8453` in place of `84_532` or the operator signs against the wrong network. This is source, not a `VITE_*` value, so a rebuild alone does not fix it.
-8. Decide what ENS means on mainnet. `env.production` carries no `ENS_*` values and nothing here changes that: today's names live on a dedicated ENSv2 deployment on Ethereum Sepolia, which has no mainnet counterpart. Until one exists, a mainnet api leaves every ENS binding unset, every claim route answers `503`, and the dashboard hides the section — the same fail-closed behaviour as an unconfigured develop deployment. Moving the tree means registering a new parent and deploying the topology again against whatever the mainnet addresses turn out to be; nothing migrates, exactly as with the attestations.
+8. Decide what ENS means on mainnet. The `production` target carries no `ENS_*` values and nothing here changes that: today's names live on a dedicated ENSv2 deployment on Ethereum Sepolia, which has no mainnet counterpart. Until one exists, a mainnet api leaves every ENS binding unset, every claim route answers `503`, and the dashboard hides the section — the same fail-closed behaviour as an unconfigured develop deployment. Moving the tree means registering a new parent and deploying the topology again against whatever the mainnet addresses turn out to be; nothing migrates, exactly as with the attestations.
 
 ## Rolling back
 

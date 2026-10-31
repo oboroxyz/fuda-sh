@@ -202,7 +202,7 @@ describe('FakeChain announcements', () => {
   })
 
   // Local D1's `announcements` table (PK `tx_hash, log_index`) outlives the isolate
-  // that wrote it, so two FakeChains (one per `wrangler dev` restart) must not hand
+  // that wrote it, so two FakeChains (one per local dev restart) must not hand
   // out the same tx hash or `syncAnnouncements`'s INSERT OR IGNORE silently drops it.
   it('mints tx hashes that differ between instances', async () => {
     const first = await new FakeChain({ head: 100 }).announce(p)

@@ -4,12 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --env local",
-    "deploy": "wrangler deploy",
+    "dev": "cd targets/local && vp dev --port 8787",
+    "deploy": "cd targets/develop && void deploy",
+    "deploy:production": "cd targets/production && void deploy",
     "test": "vp test",
     "test:scripts": "vp test --config vite.scripts.config.ts",
-    "migrate:local": "wrangler d1 migrations apply fuda-beta --local",
-    "migrate:remote": "wrangler d1 migrations apply fuda-beta --remote",
+    "migrate:local": "cd targets/local && vp build && wrangler d1 migrations apply fuda-beta --local -c dist/ssr/wrangler.json --persist-to .void",
+    "migrate:remote": "cd targets/develop && vp build && wrangler d1 migrations apply fuda-beta --remote -c dist/ssr/wrangler.json",
+    "migrate:production": "cd targets/production && vp build && wrangler d1 migrations apply fuda --remote -c dist/ssr/wrangler.json",
+    "d1:local": "cd targets/local && wrangler d1 execute fuda-beta --local -c dist/ssr/wrangler.json --persist-to .void",
     "register-schemas": "tsx scripts/register-schemas.ts",
     "attest-root-delegation": "tsx scripts/attest-root-delegation.ts",
     "smoke:live": "tsx scripts/smoke-live.ts",
@@ -33,7 +36,9 @@
     "@cloudflare/workers-types": "^4.20250905.0",
     "asn1js": "3.0.10",
     "drizzle-kit": "^0.31.0",
+    "jsonc-parser": "3.3.1",
     "pkijs": "3.4.0",
-    "vitest": "4.1.11"
+    "vitest": "4.1.11",
+    "void": "1.3.0"
   }
 }

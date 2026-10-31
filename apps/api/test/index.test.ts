@@ -18,7 +18,7 @@ describe(isFakeChainEnabled, () => {
 
 describe(buildChain, () => {
   it('builds a FakeChain under the opt-in and a viem chain otherwise', () => {
-    // testEnv() strips the opt-in that `.dev.vars` may carry, so this case sets it.
+    // testEnv() strips the opt-in a developer's environment may carry, so this case sets it.
     const fakeEnv: DevBindings = { ...testEnv(), USE_FAKE_CHAIN: '1' }
     expect(buildChain(fakeEnv)).toBeInstanceOf(FakeChain)
 
@@ -26,8 +26,8 @@ describe(buildChain, () => {
     expect(buildChain(realEnv)).not.toBeInstanceOf(FakeChain)
   })
 
-  it('seeds the dev root delegation at the fixed uid wrangler.jsonc pins, not a random one', async () => {
-    // Pinned literally (not read from wrangler.jsonc) so a change to either side
+  it('seeds the dev root delegation at the fixed uid targets.jsonc pins, not a random one', async () => {
+    // Pinned literally (not read from targets.jsonc) so a change to either side
     // of this pairing is a deliberate, visible edit rather than a tautology.
     expect(DEV_DELEGATION_UID).toBe('0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6')
 

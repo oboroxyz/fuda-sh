@@ -1,6 +1,6 @@
 # ADR 0009: move the apps onto Void, with Solid for the frontends
 
-- **Status**: Accepted 2026-10-31. `gate`, `dash` and `app` have moved (Solid 1.9, Void static SPAs). `apps/api` still deploys with Wrangler. The browser end-to-end suite (`packages/e2e`, `pnpm e2e`) is the safety net.
+- **Status**: Accepted 2026-10-31. Every app has moved: `gate`, `dash` and `app` are Solid 1.9 Void static SPAs, and `apps/api` is a Void app with one project per target. None has been deployed with Void yet. The browser end-to-end suite (`packages/e2e`, `pnpm e2e`) is the safety net.
 - **Scope**: `apps/gate`, `apps/dash`, `apps/app`, `packages/ui` and `apps/api`.
 
 ## Context
@@ -15,7 +15,7 @@ Move each app onto Void, one at a time, in this order: `gate`, `dash`, `app`, th
 
 - The frontends become Void SPAs on Solid 1.9. Server-rendered pages are not part of this decision: wallet, passkey and scanner state exist only in the browser, `dash` sits behind sign-in, and `gate` is a kiosk.
 - An SPA compiles Solid with `vite-plugin-solid` directly. `@void/solid` builds Void's server-rendered pages, so it is added only if an app later adopts pages mode, for example for the public `/@<handle>` pages.
-- `apps/api` becomes a Void API-only app.
+- `apps/api` becomes a Void API-only app that keeps its Hono app. A single Void middleware hands every request to the existing Worker entry, so the routes, the tests and the server-rendered `PassPage` do not change.
 - SolidStart is not used, because Void does not support it.
 
 `gate` goes first because it is small and has no view tests, so it proves the toolchain cheaply. `app` goes last among the frontends because it carries the handle Worker and the wallet and passkey flows.
@@ -25,6 +25,9 @@ Move each app onto Void, one at a time, in this order: `gate`, `dash`, `app`, th
 - **The rewrite is real work.** About 9.9k lines of components and about 175 hook call sites need a manual rewrite, because Solid runs a component body once. About 9.6k lines of view tests walk Hono VNodes and must become DOM tests (`@solidjs/testing-library` with `happy-dom`). Plain `.ts` logic and its tests stay.
 - **Shared packages are Solid-only.** Once every frontend moved, the Hono components and query hooks were deleted. `@fuda/ui` exports Solid components and `@fuda/libs/query` exports the Solid query bindings (`createQuery`, `createQueryScope`). Renderer-independent helpers have their own subpaths, such as `@fuda/ui/short`. `@fuda/ui/wallet-button` stays a `hono/html` helper, because `apps/api` renders it on the server.
 - **Solid 2.0 is a second migration.** Choosing Solid 1.9 now means moving to 2.0 later, once it is stable and `vite-plugin-solid` supports it.
-- **Deployment moves out of `wrangler.jsonc`.** It moves to `void.config.ts` and a committed `void.lock.json`. Void has no Wrangler named environments, so the api needs a separate Void project config for each target (local, develop and production). The api phase must decide how those configs stay in sync. It must also keep the `@cloudflare/vitest-pool-workers` suite and the byte-exact `PassPage` output.
+- **Deployment moves out of `wrangler.jsonc`.** It moves to `void.config.ts` and a committed `void.lock.json`. Void has no named environments, `void deploy` has no `--project` flag for Cloudflare, and `sourceDir` must stay inside the project. So each api target (`local`, `develop`, `production`) is its own Void project under `apps/api/targets/<name>/`, holding only a one-line `void.config.ts`, a Vite config, a one-line middleware re-export and, once deployed, its lock file.
+- **One file holds the api targets.** `apps/api/targets.jsonc` keeps each target's Worker name, routes, D1 and R2 bindings and `vars`, and `apps/api/targets.ts` builds each project's config from it. It is JSONC rather than TypeScript because the rights subgraph's `graph:prepare` reads the `develop` vars from it as an independent package. The workerd test pool takes its bindings from the same file, so the suite no longer reads a Wrangler config.
+- **Migrations stay with Wrangler.** Void manages migrations only for a database it infers, and it expects Drizzle snapshots in `db/migrations/`. The api's migrations are hand-written SQL tracked in `d1_migrations`, so `inference.bindings.db` is off and `pnpm migrate:*` runs `wrangler d1 migrations apply` against the config Void generates for the target.
+- **Secrets stay Worker secrets.** There is no `env.ts`: declaring a name there would move it under `void secret`. Secrets are still set with `wrangler secret put --name <worker>`, and local values move from `.dev.vars` to `targets/local/.env`, the only local file Void reads.
 - **Upgrades come in pairs.** Void releases new versions every few days and pulls in a large dependency tree, including native modules. The repository's 3-day `minimumReleaseAge` limits which versions we can install, and `void` and `@void/solid` (if adopted) must upgrade together, because the adapter requires the exact same `void` version.
 - **The browser suite is the safety net.** It must pass unchanged before and after each phase. It asserts on roles and visible text only, so a framework change does not touch it.

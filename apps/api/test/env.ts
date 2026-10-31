@@ -7,13 +7,10 @@ import { FakeChain } from '../src/chain/fake-chain.ts'
 import type { Bindings } from '../src/env.ts'
 import type { DevBindings } from '../src/index.ts'
 
-// The workerd pool loads `apps/api/.dev.vars` into `env`, so a developer who
-// followed the README would otherwise run the suite with the local-dev chain
-// opt-in (and any signer or RPC) silently switched on. Strip all three here: a
-// test that wants the fake chain opts in explicitly. The wallet-platform
-// secrets are stripped for the same reason: a developer with real GOOGLE_*,
-// APPLE_*, ENS_*, or WORLD_* values in `.dev.vars` must not flip the
-// "unconfigured → 501" tests.
+// `env` carries the develop target's vars (see vite.config.ts), which include a
+// live ENS topology. Strip the local-dev chain opt-in, any signer or RPC, and
+// every wallet-platform, ENS and World ID name, so each "unconfigured → 501"
+// test starts unconfigured and a test that wants one of them opts in explicitly.
 export const testEnv = (overrides: Partial<Bindings> = {}): Bindings => {
   const base: DevBindings = {
     ...(env as unknown as DevBindings),

@@ -1,5 +1,5 @@
 // Live end-to-end smoke test against a running api (a deployed worker or
-// `wrangler dev`). Runs under tsx (node), not workerd. Two ladders:
+// `pnpm dev`). Runs under tsx (node), not workerd. Two ladders:
 //
 //   bearer  — issue → verify → re-scan → revoke → verify
 //   signed  — issue to a holder key → challenge/response admission, including

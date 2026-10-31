@@ -15,9 +15,9 @@ import type {
 const DEFAULT_SIGNER: Hex = `0x${'f0'.repeat(20)}`
 
 // The fixed uid `createDevChain` (in `../index.ts`) seeds the fake root
-// IssuerDelegation at. Must match `wrangler.jsonc` `env.local.vars.DELEGATION_UID`
+// IssuerDelegation at. Must match `local.vars.DELEGATION_UID` in `targets.jsonc`
 // exactly: `FakeChain`'s uid counter (below) starts at a random per-instance
-// offset, so without an explicit uid every `wrangler dev` start would mint a
+// offset, so without an explicit uid every local dev start would mint a
 // different delegation uid than the one pinned in the dev vars, and
 // verification would fail with NO_DELEGATION.
 export const DEV_DELEGATION_UID: Hex = '0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6'
@@ -32,7 +32,7 @@ const lowerHex = (h: Hex): Hex => `0x${h.slice(2).toLowerCase()}`
 const checksum = (h: Hex): Hex => getAddress(h)
 
 // In-memory EAS + factory used by the workerd integration tests and by
-// `wrangler dev` without a signer. Offline by default; local dev can supply a
+// local dev without a signer. Offline by default; local dev can supply a
 // read-only smart-wallet verifier. Uids differ between instances (see `counter`).
 export class FakeChain implements ChainClient {
   readonly attestations = new Map<Hex, RawAttestation>()
@@ -49,14 +49,14 @@ export class FakeChain implements ChainClient {
   now: () => bigint = () => BigInt(Math.floor(Date.now() / 1000))
   private readonly signer: Hex | null
   private readonly verifyOnChain: ChainClient['verifyMessage'] | undefined
-  // `wrangler dev --local` keeps its D1 file across restarts while every isolate
+  // Local dev keeps its D1 file across restarts while every isolate
   // starts a fresh FakeChain, so a counter from zero re-mints uids that are
   // already `members.attestation_uid` primary keys. A random per-instance start
   // keeps uids deterministic within one instance and distinct across restarts.
   private counter = crypto.getRandomValues(new Uint32Array(1))[0] ?? 0
   // Same restart problem as `counter`, but for tx hashes: the local D1
   // `announcements` table (PK `(tx_hash, log_index)`) persists across
-  // `wrangler dev` restarts while `this.txs` resets, so a tx counter from
+  // local dev restarts while `this.txs` resets, so a tx counter from
   // zero re-mints hashes `syncAnnouncements`'s `INSERT OR IGNORE` has already
   // seen and silently drops. A random per-instance start keeps tx hashes
   // deterministic within one instance and distinct across restarts.
@@ -85,7 +85,7 @@ export class FakeChain implements ChainClient {
   }
 
   // Seeds an active root IssuerDelegation attested by the fake signer; returns its uid.
-  // `uid` lets callers (e.g. `wrangler dev`'s bootstrap) pin a fixed uid instead of
+  // `uid` lets callers (e.g. the local dev bootstrap) pin a fixed uid instead of
   // taking one from the random per-instance counter — see `DEV_DELEGATION_UID`.
   seedRootDelegation(delegationSchema: Hex, uid?: Hex): Hex {
     if (this.signer === null) {

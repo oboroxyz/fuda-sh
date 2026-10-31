@@ -64,7 +64,7 @@ def make_plan(root, base=None):
         'full': full,
         'packages': packages,
         'rust': rust,
-        'subgraph': full or any(path.startswith(GRAPH + '/') or path == 'apps/api/wrangler.jsonc' for path in changed),
+        'subgraph': full or any(path.startswith(GRAPH + '/') or path == 'apps/api/targets.jsonc' for path in changed),
     }
 
 

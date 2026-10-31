@@ -3,19 +3,27 @@ import path from 'node:path'
 import { cloudflareTest, readD1Migrations } from '@cloudflare/vitest-pool-workers'
 import { defineConfig } from 'vitest/config'
 
+import { COMPATIBILITY_DATE, COMPATIBILITY_FLAGS, TARGETS } from './targets.ts'
+
 // Tests run inside workerd via @cloudflare/vitest-pool-workers. Since its 0.2x
 // line (the one compatible with the Vitest 4 that Vite+ bundles) the pool is a
 // Vite plugin — `cloudflareTest(...)` — rather than the old
-// `defineWorkersConfig` + `test.poolOptions.workers` shape.
+// `defineWorkersConfig` + `test.poolOptions.workers` shape. The bindings are the
+// develop target's (targets.jsonc), with D1 and R2 simulated in memory.
 export default defineConfig({
   plugins: [
     cloudflareTest(async () => ({
+      main: './src/index.ts',
       miniflare: {
         bindings: {
+          ...TARGETS.develop.vars,
           TEST_MIGRATIONS: await readD1Migrations(path.join(import.meta.dirname, 'migrations')),
         },
+        compatibilityDate: COMPATIBILITY_DATE,
+        compatibilityFlags: COMPATIBILITY_FLAGS,
+        d1Databases: ['DB'],
+        r2Buckets: ['MEDIA_BUCKET'],
       },
-      wrangler: { configPath: './wrangler.jsonc' },
     })),
   ],
   test: {

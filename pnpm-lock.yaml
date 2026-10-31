@@ -89,12 +89,18 @@ importers:
       drizzle-kit:
         specifier: ^0.31.0
         version: 0.31.10
+      jsonc-parser:
+        specifier: 3.3.1
+        version: 3.3.1
       pkijs:
         specifier: 3.4.0
         version: 3.4.0
       vitest:
         specifier: 4.1.11
         version: 4.1.11(@types/node@24.13.3)(@vitest/browser-preview@4.1.11)(esbuild@0.28.2)(happy-dom@20.14.0)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1)
+      void:
+        specifier: 1.3.0
+        version: 1.3.0(@types/node@24.13.3)(esbuild@0.28.2)(kysely@0.29.7)(solid-js@1.9.17)(tsx@4.23.13)(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261019.1)(zod@4.6.7)
 
   apps/app:
     dependencies:
@@ -143,13 +149,13 @@ importers:
         version: '@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0)'
       vite-plugin-solid:
         specifier: 2.11.14
-        version: 2.11.14(@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0))(solid-js@1.9.17)(supports-color@10.2.2)
+        version: 2.11.14(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(solid-js@1.9.17)(supports-color@10.2.2)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1)
       vitest:
         specifier: 4.1.11
         version: 4.1.11(@types/node@24.13.3)(@vitest/browser-preview@4.1.11)(esbuild@0.28.2)(happy-dom@20.14.0)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1)
       void:
         specifier: 1.3.0
-        version: 1.3.0(@types/node@24.13.3)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0))(kysely@0.29.7)(solid-js@1.9.17)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261019.1)(zod@4.6.7)
+        version: 1.3.0(@types/node@24.13.3)(esbuild@0.28.2)(kysely@0.29.7)(solid-js@1.9.17)(tsx@4.23.13)(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261019.1)(zod@4.6.7)
 
   apps/dash:
     dependencies:
@@ -198,13 +204,13 @@ importers:
         version: '@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0)'
       vite-plugin-solid:
         specifier: 2.11.14
-        version: 2.11.14(@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0))(solid-js@1.9.17)(supports-color@10.2.2)
+        version: 2.11.14(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(solid-js@1.9.17)(supports-color@10.2.2)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1)
       vitest:
         specifier: 4.1.11
         version: 4.1.11(@types/node@24.13.3)(@vitest/browser-preview@4.1.11)(esbuild@0.28.2)(happy-dom@20.14.0)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1)
       void:
         specifier: 1.3.0
-        version: 1.3.0(@types/node@24.13.3)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0))(kysely@0.29.7)(solid-js@1.9.17)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261019.1)(zod@4.6.7)
+        version: 1.3.0(@types/node@24.13.3)(esbuild@0.28.2)(kysely@0.29.7)(solid-js@1.9.17)(tsx@4.23.13)(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261019.1)(zod@4.6.7)
 
   apps/gate:
     dependencies:
@@ -235,13 +241,13 @@ importers:
         version: '@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0)'
       vite-plugin-solid:
         specifier: 2.11.14
-        version: 2.11.14(@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0))(solid-js@1.9.17)(supports-color@10.2.2)
+        version: 2.11.14(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(solid-js@1.9.17)(supports-color@10.2.2)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1)
       vitest:
         specifier: 4.1.11
         version: 4.1.11(@types/node@24.13.3)(@vitest/browser-preview@4.1.11)(esbuild@0.28.2)(happy-dom@20.14.0)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1)
       void:
         specifier: 1.3.0
-        version: 1.3.0(@types/node@24.13.3)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0))(kysely@0.29.7)(solid-js@1.9.17)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261019.1)(zod@4.6.7)
+        version: 1.3.0(@types/node@24.13.3)(esbuild@0.28.2)(kysely@0.29.7)(solid-js@1.9.17)(tsx@4.23.13)(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261019.1)(zod@4.6.7)
 
   packages/e2e:
     devDependencies:
@@ -300,7 +306,7 @@ importers:
     devDependencies:
       vite-plugin-solid:
         specifier: 2.11.14
-        version: 2.11.14(@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0))(solid-js@1.9.17)(supports-color@10.2.2)
+        version: 2.11.14(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(solid-js@1.9.17)(supports-color@10.2.2)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0)
       vitest:
         specifier: 4.1.11
         version: 4.1.11(@types/node@24.13.3)(@vitest/browser-preview@4.1.11)(esbuild@0.28.2)(happy-dom@20.14.0)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1)
@@ -369,7 +375,7 @@ importers:
     devDependencies:
       vite-plugin-solid:
         specifier: 2.11.14
-        version: 2.11.14(@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0))(solid-js@1.9.17)(supports-color@10.2.2)
+        version: 2.11.14(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(solid-js@1.9.17)(supports-color@10.2.2)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1)
       vitest:
         specifier: 4.1.11
         version: 4.1.11(@types/node@24.13.3)(@vitest/browser-preview@4.1.11)(esbuild@0.28.2)(happy-dom@20.14.0)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1)
@@ -626,8 +632,6 @@ packages:
 
   '@cloudflare/vite-plugin@1.65.0':
     resolution: {integrity: sha512-6Oot0UAqh0Lr1nzZbacUyBGi4xbmNXDpbkWdSvpudxFkrFAXJ8gYF+XMzVyytWqrWM23WGuPE+9/vQaEVSGrcg==}
-    peerDependencies:
-      vite: ^6.1.0 || ^7.0.0 || ^8.0.0
 
   '@cloudflare/vitest-pool-workers@0.22.0':
     resolution: {integrity: sha512-OJv/qikkOgxnKxJ5xrLS7zuOLZhc/6iziU+llqZm4tiQf2CJUYwlMuXN68VaWIQebORd1AUx4w6A0oy8XRbuaQ==}
@@ -5510,7 +5514,6 @@ packages:
     peerDependencies:
       '@testing-library/jest-dom': ^5.16.6 || ^5.17.0 || ^6.0.0 || ^7.0.0
       solid-js: ^1.7.2
-      vite: ^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0 || ^9.0.0
     peerDependenciesMeta:
       '@testing-library/jest-dom':
         optional: true
@@ -5530,11 +5533,6 @@ packages:
 
   vitefu@1.1.3:
     resolution: {integrity: sha512-ub4okH7Z5KLjb6hDyjqrGXqWtWvoYdU3IGm/NorpgHncKoLTCfRIbvlhBm7r0YstIaQRYlp4yEbFqDcKSzXSSg==}
-    peerDependencies:
-      vite: ^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0
-    peerDependenciesMeta:
-      vite:
-        optional: true
 
   vitest@4.1.11:
     resolution: {integrity: sha512-fhACrNXUidIbGSBr5FlbuBkO7VWC1ZyLl0DO4CU2DrQoAPxX84Ysxs+HeGQpii5lZWV1Q4gBZTTu49mF+A6Edw==}
@@ -5584,7 +5582,6 @@ packages:
       '@void/md': 1.3.0
       arktype: '>=2.0.0'
       valibot: '>=1.0.0-beta.7'
-      vite: ^8.0.0
       zod: ^3.25.0 || ^4.0.0
     peerDependenciesMeta:
       '@void/md':
@@ -6061,20 +6058,36 @@ snapshots:
     optionalDependencies:
       workerd: 1.20261019.1
 
-  '@cloudflare/vite-plugin@1.65.0(@cloudflare/workers-types@5.20261028.1)(@types/node@24.13.3)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0))(workerd@1.20261019.1)':
+  '@cloudflare/vite-plugin@1.65.0(@cloudflare/workers-types@5.20261028.1)(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(workerd@1.20261019.1)(yaml@2.9.1)':
     dependencies:
       '@cloudflare/unenv-preset': 2.16.2(unenv@2.0.0-rc.24)(workerd@1.20261019.1)
       miniflare: 5.20261019.2-beta(@types/node@24.13.3)
       unenv: 2.0.0-rc.24
-      vite: '@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0)'
+      vite: '@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1)'
       wrangler: 4.152.0(@cloudflare/workers-types@5.20261028.1)(@types/node@24.13.3)
       ws: 8.22.0
     transitivePeerDependencies:
+      - '@arethetypeswrong/core'
       - '@cloudflare/workers-types'
       - '@types/node'
+      - '@vitejs/devtools'
       - bufferutil
+      - esbuild
+      - jiti
+      - less
+      - publint
+      - sass
+      - sass-embedded
+      - stylus
+      - sugarss
+      - terser
+      - tsx
+      - typescript
+      - unplugin-unused
+      - unrun
       - utf-8-validate
       - workerd
+      - yaml
 
   '@cloudflare/vitest-pool-workers@0.22.0(@cloudflare/workers-types@4.20260702.1)(@vitest/runner@4.1.11)(@vitest/snapshot@4.1.11)(vitest@4.1.11)':
     dependencies:
@@ -8076,7 +8089,7 @@ snapshots:
 
   '@vitest/pretty-format@4.1.11':
     dependencies:
-      tinyrainbow: 3.1.1
+      tinyrainbow: 3.2.0
 
   '@vitest/pretty-format@5.0.5':
     dependencies:
@@ -8102,7 +8115,7 @@ snapshots:
     dependencies:
       '@vitest/pretty-format': 4.1.11
       convert-source-map: 2.0.0
-      tinyrainbow: 3.1.1
+      tinyrainbow: 3.2.0
 
   '@vitest/utils@5.0.5':
     dependencies:
@@ -9930,7 +9943,7 @@ snapshots:
       - utf-8-validate
       - zod
 
-  vite-plugin-solid@2.11.14(@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0))(solid-js@1.9.17)(supports-color@10.2.2):
+  vite-plugin-solid@2.11.14(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(solid-js@1.9.17)(supports-color@10.2.2)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0):
     dependencies:
       '@babel/core': 7.29.7(supports-color@10.2.2)
       '@types/babel__core': 7.20.5
@@ -9938,10 +9951,57 @@ snapshots:
       merge-anything: 5.1.7
       solid-js: 1.9.17
       solid-refresh: 0.6.3(solid-js@1.9.17)(supports-color@10.2.2)
-      vite: '@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0)'
-      vitefu: 1.1.3(@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0))
+      vite: '@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1)'
+      vitefu: 1.1.3(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0)
     transitivePeerDependencies:
+      - '@arethetypeswrong/core'
+      - '@types/node'
+      - '@vitejs/devtools'
+      - esbuild
+      - jiti
+      - less
+      - publint
+      - sass
+      - sass-embedded
+      - stylus
+      - sugarss
       - supports-color
+      - terser
+      - tsx
+      - typescript
+      - unplugin-unused
+      - unrun
+      - yaml
+
+  vite-plugin-solid@2.11.14(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(solid-js@1.9.17)(supports-color@10.2.2)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1):
+    dependencies:
+      '@babel/core': 7.29.7(supports-color@10.2.2)
+      '@types/babel__core': 7.20.5
+      babel-preset-solid: 1.9.16(@babel/core@7.29.7(supports-color@10.2.2))(solid-js@1.9.17)
+      merge-anything: 5.1.7
+      solid-js: 1.9.17
+      solid-refresh: 0.6.3(solid-js@1.9.17)(supports-color@10.2.2)
+      vite: '@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1)'
+      vitefu: 1.1.3(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1)
+    transitivePeerDependencies:
+      - '@arethetypeswrong/core'
+      - '@types/node'
+      - '@vitejs/devtools'
+      - esbuild
+      - jiti
+      - less
+      - publint
+      - sass
+      - sass-embedded
+      - stylus
+      - sugarss
+      - supports-color
+      - terser
+      - tsx
+      - typescript
+      - unplugin-unused
+      - unrun
+      - yaml
 
   vite-plus@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(happy-dom@20.14.0)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0):
     dependencies:
@@ -10000,9 +10060,49 @@ snapshots:
       - utf-8-validate
       - yaml
 
-  vitefu@1.1.3(@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0)):
-    optionalDependencies:
+  vitefu@1.1.3(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0):
+    dependencies:
       vite: '@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0)'
+    transitivePeerDependencies:
+      - '@arethetypeswrong/core'
+      - '@types/node'
+      - '@vitejs/devtools'
+      - esbuild
+      - jiti
+      - less
+      - publint
+      - sass
+      - sass-embedded
+      - stylus
+      - sugarss
+      - terser
+      - tsx
+      - typescript
+      - unplugin-unused
+      - unrun
+      - yaml
+
+  vitefu@1.1.3(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1):
+    dependencies:
+      vite: '@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1)'
+    transitivePeerDependencies:
+      - '@arethetypeswrong/core'
+      - '@types/node'
+      - '@vitejs/devtools'
+      - esbuild
+      - jiti
+      - less
+      - publint
+      - sass
+      - sass-embedded
+      - stylus
+      - sugarss
+      - terser
+      - tsx
+      - typescript
+      - unplugin-unused
+      - unrun
+      - yaml
 
   vitest@4.1.11(@types/node@24.13.3)(@vitest/browser-preview@4.1.11)(esbuild@0.28.2)(happy-dom@20.14.0)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1):
     dependencies:
@@ -10049,13 +10149,13 @@ snapshots:
       - unrun
       - yaml
 
-  void@1.3.0(@types/node@24.13.3)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0))(kysely@0.29.7)(solid-js@1.9.17)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261019.1)(zod@4.6.7):
+  void@1.3.0(@types/node@24.13.3)(esbuild@0.28.2)(kysely@0.29.7)(solid-js@1.9.17)(tsx@4.23.13)(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261019.1)(zod@4.6.7):
     dependencies:
       '@cloudflare/build-output-utils': 0.9.5
       '@cloudflare/codemods': 0.5.1
       '@cloudflare/config': 0.27.0
       '@cloudflare/sandbox': 1.0.3
-      '@cloudflare/vite-plugin': 1.65.0(@cloudflare/workers-types@5.20261028.1)(@types/node@24.13.3)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0))(workerd@1.20261019.1)
+      '@cloudflare/vite-plugin': 1.65.0(@cloudflare/workers-types@5.20261028.1)(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(workerd@1.20261019.1)(yaml@2.9.1)
       '@cloudflare/workers-auth': 0.14.1(vitest@4.1.11)
       '@cloudflare/workers-types': 5.20261028.1
       '@napi-rs/keyring': 2.1.2
@@ -10086,12 +10186,13 @@ snapshots:
       postal-mime: 4.1.4
       proper-lockfile: 4.1.2
       terminal-link: 5.0.0
-      vite: '@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0)'
+      vite: '@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1)'
       yaml: 2.9.1
     optionalDependencies:
       valibot: 1.4.2(typescript@7.0.2)
       zod: 4.6.7
     transitivePeerDependencies:
+      - '@arethetypeswrong/core'
       - '@aws-sdk/client-rds-data'
       - '@electric-sql/pglite'
       - '@libsql/client'
@@ -10113,25 +10214,38 @@ snapshots:
       - '@types/sql.js'
       - '@upstash/redis'
       - '@vercel/postgres'
+      - '@vitejs/devtools'
       - '@xata.io/client'
       - bufferutil
       - bun-types
+      - esbuild
       - expo-sqlite
       - gel
       - knex
       - kysely
+      - less
       - mongodb
       - msw
       - next
       - pg-native
       - postgres
       - prisma
+      - publint
       - react
       - react-dom
+      - sass
+      - sass-embedded
       - solid-js
       - sql.js
       - sqlite3
+      - stylus
+      - sugarss
       - svelte
+      - terser
+      - tsx
+      - typescript
+      - unplugin-unused
+      - unrun
       - utf-8-validate
       - vitest
       - vue

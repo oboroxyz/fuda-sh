@@ -7,7 +7,7 @@ import { readMvpGraphConfig } from './read-mvp-config.mjs'
 
 interface PrepareOptions {
   rootDir: string
-  wranglerPath: string
+  targetsPath: string
   networkConfigPath: string
   templatePath: string
 }
@@ -47,7 +47,7 @@ const renderSchemaUids = (schemas: ReturnType<typeof readMvpGraphConfig>['schema
   ].join('\n\n')
 
 export const prepareRightsSubgraph = async (options: PrepareOptions): Promise<void> => {
-  const graphConfig = readMvpGraphConfig(options.wranglerPath)
+  const graphConfig = readMvpGraphConfig(options.targetsPath)
   const networkJson: unknown = JSON.parse(await readFile(options.networkConfigPath, 'utf-8'))
   const network = v.parse(NetworkConfigSchema, networkJson)
   const template = await readFile(options.templatePath, 'utf-8')
@@ -73,8 +73,8 @@ export const runPrepareCli = async (): Promise<void> => {
   await prepareRightsSubgraph({
     networkConfigPath: path.join(rootDir, 'config/base-sepolia.json'),
     rootDir,
+    targetsPath: path.resolve(rootDir, '../../../apps/api/targets.jsonc'),
     templatePath: path.join(rootDir, 'subgraph.template.yaml'),
-    wranglerPath: path.resolve(rootDir, '../../../apps/api/wrangler.jsonc'),
   })
 }
 

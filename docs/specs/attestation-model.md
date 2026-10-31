@@ -147,14 +147,14 @@ Attested with `recipient = holder` and `refUID = rightUID`.
 
 | Key | Location | Meaning |
 | --- | --- | --- |
-| `EAS_SCHEMAS` | `wrangler.jsonc` `vars` | Accepted-version set per record type: `[{ uid, version }]`, one entry per type at launch |
-| `DELEGATION_UID` | `wrangler.jsonc` `vars` | UID of the root IssuerDelegation that every issued Entitlement references |
-| `ISSUER_ADDRESS` | `wrangler.jsonc` `vars` | The configured root attester; the gate accepts only delegations attested by this address |
-| `ANNOUNCER_ADDRESS` | `wrangler.jsonc` `vars` | The ERC-5564 Announcer `/issue` writes +Private announcements to |
-| `ANNOUNCER_FROM_BLOCK` | `wrangler.jsonc` `vars` | Graph-manifest generation source for both rights-subgraph data-source start blocks; it is not read by the API |
-| `FACTORY_ADDRESS` | `wrangler.jsonc` `vars` | Coinbase Smart Wallet factory used to derive Bearer holder addresses |
-| `PUBLIC_BASE_URL` | `wrangler.jsonc` `vars` | The member-facing origin a published card links to (`https://fuda.sh`; the apex redirects `/@*` to `app.fuda.sh`). `POST /issuers` and `GET /issuers/me` build `publicUrl` from it, never from the request URL |
-| `API_BASE_URL` | `wrangler.jsonc` `vars` | Absolute base for the `passUrls` in `/issue` responses; its origin is the api entry in the Google Wallet `origins` claim, which also lists `https://dash.fuda.sh` and `https://app.fuda.sh` |
+| `EAS_SCHEMAS` | `apps/api/targets.jsonc` `vars` | Accepted-version set per record type: `[{ uid, version }]`, one entry per type at launch |
+| `DELEGATION_UID` | `apps/api/targets.jsonc` `vars` | UID of the root IssuerDelegation that every issued Entitlement references |
+| `ISSUER_ADDRESS` | `apps/api/targets.jsonc` `vars` | The configured root attester; the gate accepts only delegations attested by this address |
+| `ANNOUNCER_ADDRESS` | `apps/api/targets.jsonc` `vars` | The ERC-5564 Announcer `/issue` writes +Private announcements to |
+| `ANNOUNCER_FROM_BLOCK` | `apps/api/targets.jsonc` `vars` | Graph-manifest generation source for both rights-subgraph data-source start blocks; it is not read by the API |
+| `FACTORY_ADDRESS` | `apps/api/targets.jsonc` `vars` | Coinbase Smart Wallet factory used to derive Bearer holder addresses |
+| `PUBLIC_BASE_URL` | `apps/api/targets.jsonc` `vars` | The member-facing origin a published card links to (`https://fuda.sh`; the apex redirects `/@*` to `app.fuda.sh`). `POST /issuers` and `GET /issuers/me` build `publicUrl` from it, never from the request URL |
+| `API_BASE_URL` | `apps/api/targets.jsonc` `vars` | Absolute base for the `passUrls` in `/issue` responses; its origin is the api entry in the Google Wallet `origins` claim, which also lists `https://dash.fuda.sh` and `https://app.fuda.sh` |
 | Signer key (`SIGNER_PRIVATE_KEY`) | Worker secret | Signs Entitlement, IssuerDelegation, and Attendance transactions; endpoints answer `501 no_signer` without |
 | `ADMIN_TOKEN` | Worker secret | Bearer token for `/issue`, `/revoke`, `/members`. Required whenever a chain binding is configured: with `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL` set and no token the admin routes answer `401 unauthorized` and every response carries `x-auth-mode: locked`; with no token and neither binding (local dev) they are open and responses carry `x-auth-mode: open` |
 | `BASE_RPC_URL` | Worker secret | Base Sepolia RPC; falls back to the public endpoint |
@@ -163,7 +163,7 @@ Attested with `recipient = holder` and `refUID = rightUID`.
 
 Issuance always writes the newest version in the set; verification accepts every listed version and decodes through a per-version codec (`decodeEntitlementV1 → toCanonical`, the identity for v1). A future v2 is added by appending a set entry and a codec, with no change to gate logic. Deprecation policies, `refUID` supersession chains, and touch-time migration are deliberately not in the MVP.
 
-`USE_FAKE_CHAIN=1` is a local-development opt-in only (`apps/api/.dev.vars`): it swaps in an in-memory chain and is ignored whenever a signer or an RPC binding is present. It is never set in a deployed environment. Wrangler named environments do not inherit top-level `vars` or `d1_databases`, so the `env.local` block in `apps/api/wrangler.jsonc` repeats them in full with deterministic fake-chain values.
+`USE_FAKE_CHAIN=1` is a local-development opt-in only (`apps/api/targets/local/.env`): it swaps in an in-memory chain and is ignored whenever a signer or an RPC binding is present. It is never set in a deployed environment. Each target block in `apps/api/targets.jsonc` is complete, and the `local` block carries deterministic fake-chain values.
 
 Migrations under `apps/api/migrations/` are hand-written SQL; there is no drizzle-kit snapshot. Before any future `drizzle-kit generate`, bootstrap the baseline snapshot first, or the generator re-emits every table as a new migration.
 

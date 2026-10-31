@@ -5,12 +5,24 @@ Cloudflare Worker (Hono) implementing the fuda endpoints: `GET /health`, `POST /
 ## Run locally
 
 ```bash
-cp .dev.vars.example .dev.vars
+cp .env.example targets/local/.env
 pnpm --filter api migrate:local
 pnpm --filter api dev
 ```
 
-With `USE_FAKE_CHAIN=1` set in `.dev.vars` (the default in the example file) and no `SIGNER_PRIVATE_KEY` / `BASE_RPC_URL`, the api runs against an in-memory `FakeChain` instead of Base Sepolia for chain state and writes — no signer or funds needed. EOA signatures verify offline. Local smart-wallet signatures (including Base Account passkeys) use read-only verification against the default Base Sepolia RPC; they still require network access and a valid signature. Tests that construct `FakeChain` without a verifier remain offline. `src/index.ts` seeds a root `IssuerDelegation` on first request and logs the `ISSUER_ADDRESS` / `DELEGATION_UID` it used; `wrangler.jsonc`'s `env.local.vars` block already carries the matching (deterministic) values, and `pnpm --filter api dev` runs `wrangler dev --env local`, so the quick start above works as written. Both the top-level and the `env.local` D1 block name the same database, so `migrate:local` targets the same local database that `--env local` then serves; `--env local` reads `.dev.vars.local` when present and falls back to `.dev.vars` otherwise. Setting either `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL` always wins over `USE_FAKE_CHAIN` — the fake chain is never constructed in production, only under this explicit local opt-in. Either binding also arms the admin lock: set `ADMIN_TOKEN` in `.dev.vars` alongside it, or `/issue`, `/revoke` and `/members` answer `401` with `x-auth-mode: locked`.
+With `USE_FAKE_CHAIN=1` set in `targets/local/.env` (the default in the example file) and no `SIGNER_PRIVATE_KEY` / `BASE_RPC_URL`, the api runs against an in-memory `FakeChain` instead of Base Sepolia for chain state and writes — no signer or funds needed. EOA signatures verify offline. Local smart-wallet signatures (including Base Account passkeys) use read-only verification against the default Base Sepolia RPC; they still require network access and a valid signature. Tests that construct `FakeChain` without a verifier remain offline. `src/index.ts` seeds a root `IssuerDelegation` on first request and logs the `ISSUER_ADDRESS` / `DELEGATION_UID` it used; the `local` block of `targets.jsonc` already carries the matching (deterministic) values, and `pnpm --filter api dev` runs the `local` Void target, so the quick start above works as written. `migrate:local` applies migrations to the same local database (`targets/local/.void/`) that `pnpm --filter api dev` then serves, and `pnpm --filter api d1:local --command "…"` runs SQL against it after a `migrate:local`. Setting either `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL` always wins over `USE_FAKE_CHAIN` — the fake chain is never constructed in production, only under this explicit local opt-in. Either binding also arms the admin lock: set `ADMIN_TOKEN` in `targets/local/.env` alongside it, or `/issue`, `/revoke` and `/members` answer `401` with `x-auth-mode: locked`.
+
+## Targets
+
+The api deploys with Void, which has no named environments, so each target is its own Void project under `targets/`: `local` (never deployed), `develop` (the live Base Sepolia Worker `fuda-api` on `api.fuda.sh`) and `production` (Base mainnet, deployed at the cutover). [`targets.jsonc`](targets.jsonc) holds each target's Worker name, routes, D1 and R2 bindings and `vars`; [`targets.ts`](targets.ts) turns one block into that project's `void.config.ts`. Each project's `middleware/api.ts` re-exports [`src/void-entry.ts`](src/void-entry.ts), which hands every request to the Worker entry in `src/index.ts`. The tests run on the `develop` vars with D1 and R2 simulated (`vite.config.ts`).
+
+| Script                                    | Target       |
+| ----------------------------------------- | ------------ |
+| `dev`, `migrate:local`, `d1:local`        | `local`      |
+| `deploy`, `migrate:remote`                | `develop`    |
+| `deploy:production`, `migrate:production` | `production` |
+
+Void does not manage the D1 migrations (`inference.bindings.db` is off): the `migrate:*` scripts build the target and run `wrangler d1 migrations apply` against its generated `dist/ssr/wrangler.json`.
 
 ## Attendance
 

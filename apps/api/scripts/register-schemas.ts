@@ -1,5 +1,5 @@
 // One-time CLI: idempotently registers the three fuda schemas on the EAS
-// SchemaRegistry and prints the UIDs for wrangler.jsonc. Runs under tsx (node),
+// SchemaRegistry and prints the UIDs for targets.jsonc. Runs under tsx (node),
 // not workerd. Needs SIGNER_PRIVATE_KEY and optionally BASE_RPC_URL.
 import { createPublicClient, createWalletClient, http, isHex, zeroAddress } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
@@ -47,5 +47,5 @@ for (const [kind, schema] of Object.entries(SCHEMA_STRINGS)) {
   out[kind] = [{ uid, version: 1 }]
 }
 
-console.log('\nPaste into wrangler.jsonc vars.EAS_SCHEMAS:')
+console.log('\nPaste into the target’s vars.EAS_SCHEMAS in targets.jsonc:')
 console.log(JSON.stringify(JSON.stringify(out)))

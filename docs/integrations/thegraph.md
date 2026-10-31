@@ -201,7 +201,7 @@ None of this requires trusting this page or any fuda service. The 9/6 attestatio
 
 The +Private right's recipient is `0x000A9A88…75431`, a one-time stealth address. The Bearer right and the Attendance share recipient `0xb682824e…e4B4`, which is how "this holder attended" is expressed without a database.
 
-The three schemas are what the subgraph's `handleAttested` decodes and what [`wrangler.jsonc`](../../apps/api/wrangler.jsonc)'s `EAS_SCHEMAS` lists, so explorer, Worker and indexer can be compared directly:
+The three schemas are what the subgraph's `handleAttested` decodes and what the `develop` target in [`targets.jsonc`](../../apps/api/targets.jsonc) lists in `EAS_SCHEMAS`, so explorer, Worker and indexer can be compared directly:
 
 | Schema | UID | Fields |
 | --- | --- | --- |
@@ -243,7 +243,7 @@ cargo build --release --target wasm32-unknown-unknown \
   --manifest-path packages/substreams/erc5564-eas-pipeline/Cargo.toml
 
 # the subgraph mappings. `subgraph.yaml`, `src/schema-uids.ts` and `generated/`
-# are gitignored; prepare reads top-level Sepolia vars from apps/api/wrangler.jsonc.
+# are gitignored; prepare reads the develop vars from apps/api/targets.jsonc.
 pnpm graph:prepare
 pnpm graph:codegen
 pnpm graph:test                                                                 # 12 Matchstick tests

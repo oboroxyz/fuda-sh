@@ -2,9 +2,11 @@
 // D1 state, then that surface's Vite dev server. The e2e runner starts this as
 // the target's `app.command` and stops it when the run ends.
 //
-// The api reads `stack.env` through `--env-file`. An explicit env file makes
-// wrangler skip `apps/api/.dev.vars`, so a developer's local secrets (a signer,
-// an ADMIN_TOKEN) never change what the suite sees.
+// The api is the `local` Void target, built and then run by wrangler from the
+// build output. It reads `stack.env` through `--env-file`: Void builds ignore
+// `.env`, and an explicit env file makes wrangler skip any other, so a
+// developer's local secrets (a signer, an ADMIN_TOKEN) never change what the
+// suite sees.
 import { spawn, spawnSync } from 'node:child_process'
 import type { ChildProcess } from 'node:child_process'
 import { rmSync } from 'node:fs'
@@ -18,7 +20,8 @@ if (surface === undefined || !isSurface(surface)) {
   throw new Error(`usage: stack.ts <${Object.keys(SURFACES).join('|')}>`)
 }
 const { port } = SURFACES[surface]
-const apiDir = path.join(repoRoot, 'apps/api')
+const apiDir = path.join(repoRoot, 'apps/api/targets/local')
+const apiConfig = 'dist/ssr/wrangler.json'
 const surfaceDir = path.join(repoRoot, 'apps', surface)
 const wrangler = path.join(repoRoot, 'node_modules/.bin/wrangler')
 const vp = path.join(repoRoot, 'node_modules/.bin/vp')
@@ -79,17 +82,18 @@ const waitFor = async (url: string, deadline: number): Promise<void> => {
 }
 
 rmSync(state, { force: true, recursive: true })
+run(vp, ['build'], apiDir)
 run(
   wrangler,
-  ['d1', 'migrations', 'apply', 'fuda-beta', '--local', '--env', 'local', '--persist-to', state],
+  ['d1', 'migrations', 'apply', 'fuda-beta', '--local', '-c', apiConfig, '--persist-to', state],
   apiDir,
 )
 start(
   wrangler,
   [
     'dev',
-    '--env',
-    'local',
+    '-c',
+    apiConfig,
     '--env-file',
     envFile,
     '--persist-to',

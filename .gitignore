@@ -233,7 +233,6 @@ docs/internal
 # Local Worker secrets (per-package)
 .dev.vars
 .dev.vars.*
-!.dev.vars.example
 
 # Signing key material. The Apple Pass Type ID certificate, its private key and
 # the WWDR intermediate belong outside this repository entirely — they are read

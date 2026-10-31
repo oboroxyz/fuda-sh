@@ -88,11 +88,11 @@ fuda runs one deployment per chain, and they never share state. Each owns its ow
 
 |  | Chain | D1 | R2 | Hostnames | Branch |
 | --- | --- | --- | --- | --- | --- |
-| local | in-memory fake (`USE_FAKE_CHAIN`) | the local simulated database | simulated; `fuda-media-local` only under `wrangler dev --remote` | none | any |
+| local | in-memory fake (`USE_FAKE_CHAIN`) | the local simulated database | simulated; `fuda-media-local` only for remote-binding runs | none | any |
 | develop | Base Sepolia | `fuda-beta` | `fuda-media-dev` | `*.fuda.sh` today, `*.dev.fuda.sh` after the mainnet cutover | `develop` |
 | production | Base mainnet | `fuda` | `fuda-media` | `*.fuda.sh` from the cutover | `main` |
 
-The Sepolia deployment is live on the apex hostnames today and keeps them until the cutover; `env.production` therefore carries no `routes`, so deploying it early cannot take a hostname from the running one. The local environment is named `local`, not `dev`, so it is never confused with the deployed develop one. Nothing is migrated at the cutover — see [ADR 0006](./adr/0006-per-chain-environments.md) — so production begins with an empty database and bucket.
+The Sepolia deployment is live on the apex hostnames today and keeps them until the cutover; the `production` target therefore carries no `routes`, so deploying it early cannot take a hostname from the running one. The local environment is named `local`, not `dev`, so it is never confused with the deployed develop one. Each environment is a target of the api in `apps/api/targets.jsonc`, deployed as its own Void project ([ADR 0009](./adr/0009-void-and-solid.md)). Nothing is migrated at the cutover — see [ADR 0006](./adr/0006-per-chain-environments.md) — so production begins with an empty database and bucket.
 
 Because a frontend bakes `VITE_API_BASE_URL` in at build time, a bundle belongs to exactly one environment: a develop build must be built against the develop api. The deploy order and the one-time chain setup per environment are in the [runbook](./runbook.md).
 
@@ -100,9 +100,9 @@ Because a frontend bakes `VITE_API_BASE_URL` in at build time, a bundle belongs 
 
 The deployment's configured values, and what fails when one is missing, are tabulated once in the attestation model's [chain fixtures](./specs/attestation-model.md#chain-fixtures) and [configured values](./specs/attestation-model.md#configured-values). In outline:
 
-- **`apps/api/wrangler.jsonc` `vars`** — the chain addresses and the api's own base: `EAS_ADDRESS`, `SCHEMA_REGISTRY_ADDRESS`, `EAS_SCHEMAS`, `ISSUER_ADDRESS`, `DELEGATION_UID`, `ANNOUNCER_ADDRESS`, `ANNOUNCER_FROM_BLOCK` (the rights-subgraph manifest's generated start block; it is not read by the API), `FACTORY_ADDRESS` (the smart-wallet factory the Bearer holder address is derived from), and `API_BASE_URL` (the absolute base of the `passUrls` in an `/issue` response, and the api entry in the Google Wallet `origins` claim).
+- **`apps/api/targets.jsonc` `vars`**, one set per target — the chain addresses and the api's own base: `EAS_ADDRESS`, `SCHEMA_REGISTRY_ADDRESS`, `EAS_SCHEMAS`, `ISSUER_ADDRESS`, `DELEGATION_UID`, `ANNOUNCER_ADDRESS`, `ANNOUNCER_FROM_BLOCK` (the rights-subgraph manifest's generated start block; it is not read by the API), `FACTORY_ADDRESS` (the smart-wallet factory the Bearer holder address is derived from), and `API_BASE_URL` (the absolute base of the `passUrls` in an `/issue` response, and the api entry in the Google Wallet `origins` claim).
 - **Worker secrets** — `SIGNER_PRIVATE_KEY`, `ADMIN_TOKEN`, `BASE_RPC_URL`, the four `GOOGLE_*` names and the five `APPLE_*` names. A wallet platform is all-or-nothing: a missing name answers `501`, never a broken pass.
-- **`USE_FAKE_CHAIN`** — local development only (`apps/api/.dev.vars`); it swaps in an in-memory chain and is never set in a deployed environment.
+- **`USE_FAKE_CHAIN`** — local development only (`apps/api/targets/local/.env`); it swaps in an in-memory chain and is never set in a deployed environment.
 - **Frontend build environment** — `VITE_API_BASE_URL` in all three apps; `VITE_GRAPH_RIGHTS_ENDPOINT` in the member app and dashboard; plus `VITE_APP_ORIGIN` and `VITE_RP_ID` in the member app. Vite bakes these in at build time, so changing one means rebuilding and redeploying that app.
 
 ## Member app responsibility

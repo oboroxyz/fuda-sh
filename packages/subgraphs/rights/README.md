@@ -12,7 +12,7 @@ pnpm graph:test
 pnpm graph:build
 ```
 
-`graph:prepare` reads only the top-level production `EAS_SCHEMAS` and `ANNOUNCER_FROM_BLOCK` values from `apps/api/wrangler.jsonc`. It deliberately fails while schema sets are empty or the start block is zero. Populate those values from live deployment receipts before generating a deployable `subgraph.yaml`; fixture-generated manifests and schema constants must not be committed.
+`graph:prepare` reads only the `EAS_SCHEMAS` and `ANNOUNCER_FROM_BLOCK` values of the live `develop` target in `apps/api/targets.jsonc`. It deliberately fails while schema sets are empty or the start block is zero. Populate those values from live deployment receipts before generating a deployable `subgraph.yaml`; fixture-generated manifests and schema constants must not be committed.
 
 `subgraph.yaml`, `src/schema-uids.ts` and `generated/` are gitignored, so a fresh clone must run `graph:prepare` and `graph:codegen` before the mappings will compile.
 
@@ -35,7 +35,7 @@ Normally `graph:prepare` succeeds, because the production values are committed. 
 
 ```sh
 export FUDA_GRAPH_FIXTURE="$(mktemp -d /tmp/fuda-rights-fixture.XXXXXX)"
-export FUDA_GRAPH_FIXTURE_CONFIG="$FUDA_GRAPH_FIXTURE/wrangler.jsonc"
+export FUDA_GRAPH_FIXTURE_CONFIG="$FUDA_GRAPH_FIXTURE/targets.jsonc"
 export FUDA_GRAPH_PACKAGE=packages/subgraphs/rights
 if test -f "$FUDA_GRAPH_PACKAGE/subgraph.yaml"; then
   cp "$FUDA_GRAPH_PACKAGE/subgraph.yaml" "$FUDA_GRAPH_FIXTURE/original-subgraph.yaml"
@@ -77,12 +77,12 @@ node --input-type=module -e '
     }],
   };
   await writeFile(process.env.FUDA_GRAPH_FIXTURE_CONFIG, JSON.stringify({
-    vars: { ANNOUNCER_FROM_BLOCK: "1", EAS_SCHEMAS: JSON.stringify(schemas) },
+    develop: { vars: { ANNOUNCER_FROM_BLOCK: "1", EAS_SCHEMAS: JSON.stringify(schemas) } },
   }));
   const rootDir = path.resolve("packages/subgraphs/rights");
   await prepareRightsSubgraph({
     rootDir,
-    wranglerPath: process.env.FUDA_GRAPH_FIXTURE_CONFIG,
+    targetsPath: process.env.FUDA_GRAPH_FIXTURE_CONFIG,
     networkConfigPath: path.join(rootDir, "config/base-sepolia.json"),
     templatePath: path.join(rootDir, "subgraph.template.yaml"),
   });

@@ -32,16 +32,18 @@ const fixture = async (schemas: FixtureSchemas, startBlock: string) => {
   const configDir = path.join(rootDir, 'config')
   await Promise.all([mkdir(scriptsDir, { recursive: true }), mkdir(configDir, { recursive: true })])
 
-  const wranglerPath = path.join(rootDir, 'wrangler.jsonc')
+  const targetsPath = path.join(rootDir, 'targets.jsonc')
   const networkConfigPath = path.join(configDir, 'base-sepolia.json')
   const templatePath = path.join(rootDir, 'subgraph.template.yaml')
   await Promise.all([
     writeFile(
-      wranglerPath,
+      targetsPath,
       JSON.stringify({
-        vars: {
-          ANNOUNCER_FROM_BLOCK: startBlock,
-          EAS_SCHEMAS: JSON.stringify(schemas),
+        develop: {
+          vars: {
+            ANNOUNCER_FROM_BLOCK: startBlock,
+            EAS_SCHEMAS: JSON.stringify(schemas),
+          },
         },
       }),
     ),
@@ -64,7 +66,7 @@ const fixture = async (schemas: FixtureSchemas, startBlock: string) => {
     ),
   ])
 
-  return { networkConfigPath, rootDir, templatePath, wranglerPath }
+  return { networkConfigPath, rootDir, targetsPath, templatePath }
 }
 
 describe(prepareRightsSubgraph, () => {

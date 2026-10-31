@@ -22,10 +22,8 @@ const VarsSchema = v.object({
   ANNOUNCER_FROM_BLOCK: v.string(),
   EAS_SCHEMAS: v.string(),
 })
-const WranglerSchema = v.object({
-  env: v.optional(v.record(v.string(), v.object({ vars: VarsSchema }))),
-  vars: v.optional(VarsSchema),
-})
+// apps/api/targets.jsonc: one block per api target, each with its `vars`.
+const TargetsSchema = v.record(v.string(), v.object({ vars: v.optional(VarsSchema) }))
 const VersionSchema = v.object({
   uid: v.pipe(v.string(), v.regex(UID_PATTERN)),
   version: v.pipe(v.number(), v.integer(), v.minValue(1)),
@@ -90,14 +88,14 @@ const stripJsonComments = (source: string): string => {
   return output
 }
 
-const parseWrangler = (source: string, path: string): v.InferOutput<typeof WranglerSchema> => {
+const parseTargets = (source: string, path: string): v.InferOutput<typeof TargetsSchema> => {
   try {
     const parsed: unknown = JSON.parse(
       stripJsonComments(source).replaceAll(/,\s*(?<closing>[}\]])/gu, '$<closing>'),
     )
-    return v.parse(WranglerSchema, parsed)
+    return v.parse(TargetsSchema, parsed)
   } catch (error) {
-    throw new Error(`Invalid Wrangler configuration at ${path}`, { cause: error })
+    throw new Error(`Invalid api targets file at ${path}`, { cause: error })
   }
 }
 
@@ -132,17 +130,12 @@ const parseSchemas = (json: string): MvpGraphConfig['schemas'] => {
   }
 }
 
-export const readMvpGraphConfig = (
-  filePath: string,
-  options: { environment?: string } = {},
-): MvpGraphConfig => {
-  const config = parseWrangler(fs.readFileSync(filePath).toString(), filePath)
-  const { environment } = options
-  const selectedVars = environment === undefined ? config.vars : config.env?.[environment]?.vars
+export const readMvpGraphConfig = (filePath: string, options: { target?: string } = {}): MvpGraphConfig => {
+  const targets = parseTargets(fs.readFileSync(filePath).toString(), filePath)
+  const { target = 'develop' } = options
+  const selectedVars = targets[target]?.vars
   if (selectedVars === undefined) {
-    throw new Error(
-      environment === undefined ? 'Wrangler vars are missing' : `Wrangler env.${environment} is missing`,
-    )
+    throw new Error(`api target ${target} has no vars`)
   }
 
   const announcerFromBlock = Number(selectedVars.ANNOUNCER_FROM_BLOCK)

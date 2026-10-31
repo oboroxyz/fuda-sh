@@ -5,5 +5,5 @@
     "jsxImportSource": "hono/jsx",
     "types": ["@cloudflare/workers-types", "@cloudflare/vitest-pool-workers/types"]
   },
-  "include": ["src", "test", "scripts", "vite.config.ts", "drizzle.config.ts"]
+  "include": ["src", "test", "scripts", "targets", "targets.ts", "vite.config.ts", "drizzle.config.ts"]
 }
