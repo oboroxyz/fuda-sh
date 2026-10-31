@@ -1,6 +1,6 @@
 # ADR 0009: move the apps onto Void, with Solid for the frontends
 
-- **Status**: Accepted 2026-10-31. `gate` and `dash` have moved (Solid 1.9, Void static SPAs). `app` still uses Hono JSX and Wrangler, and `apps/api` still deploys with Wrangler. The browser end-to-end suite (`packages/e2e`, `pnpm e2e`) is the safety net.
+- **Status**: Accepted 2026-10-31. `gate`, `dash` and `app` have moved (Solid 1.9, Void static SPAs). `apps/api` still deploys with Wrangler. The browser end-to-end suite (`packages/e2e`, `pnpm e2e`) is the safety net.
 - **Scope**: `apps/gate`, `apps/dash`, `apps/app`, `packages/ui` and `apps/api`.
 
 ## Context

@@ -1,9 +1,9 @@
-/** @jsxImportSource hono/jsx/dom */
 import { isLocale, pick } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
 import { getLocale, setLocale } from '@fuda/i18n/browser'
 import { createSessionGeneration, createTokenStore } from '@fuda/libs/auth'
-import { useQueryScope } from '@fuda/libs/query'
+import type { QueryClient } from '@fuda/libs/query'
+import { createQueryScope } from '@fuda/libs/query/solid'
 import { normalizeUid } from '@fuda/sdk'
 import type { Hex } from '@fuda/sdk'
 import {
@@ -13,10 +13,10 @@ import {
   saveThemeMode,
   ThemeToggle,
   watchThemeMode,
-} from '@fuda/ui'
-import type { ThemeMode } from '@fuda/ui'
-import { useCallback, useEffect, useRef, useState } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+} from '@fuda/ui/solid'
+import type { ThemeMode } from '@fuda/ui/solid'
+import { batch, createEffect, createMemo, createSignal, on, onCleanup, onMount, Show } from 'solid-js'
+import type { JSX } from 'solid-js'
 
 import { API_BASE_URL } from './config.ts'
 import type { MemberPassListIo } from './member-pass-list.ts'
@@ -60,19 +60,7 @@ const isCardRoute = (route: Route): route is { card: string; slug: string | null
 // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Route is an internal parsed union; narrow the store display variant.
 const isHomeRoute = (route: Route): route is { home: string } => typeof route === 'object' && 'home' in route
 
-const MemberScreen = ({
-  locale,
-  address,
-  onSignOut,
-  onLocaleChange,
-  onThemeChange,
-  theme,
-  passIo,
-  queryClient,
-  queryUid,
-  route,
-  onNavigate,
-}: {
+interface MemberScreenProps {
   locale: Locale
   address: Hex
   onSignOut: () => void
@@ -80,40 +68,36 @@ const MemberScreen = ({
   onThemeChange: (theme: ThemeMode) => void
   theme: ThemeMode
   passIo?: MemberPassListIo
-  queryClient: ReturnType<typeof useQueryScope>
+  queryClient: QueryClient
   queryUid: Hex | null
   route: MemberRoute
   onNavigate: (path: string) => void
-}): JSX.Element => {
-  if (route === 'signed') {
-    return <SignedGate locale={locale} />
-  }
-  if (route === 'private') {
-    return <PrivateScreen locale={locale} />
-  }
-  if (route === 'settings') {
-    return (
-      <Settings
-        locale={locale}
-        theme={theme}
-        onLocaleChange={onLocaleChange}
-        onThemeChange={onThemeChange}
-        onSignOut={onSignOut}
-        passIo={passIo}
-      />
-    )
-  }
-  return (
-    <RightsList
-      locale={locale}
-      initialAddress={address}
-      io={passIo}
-      onNavigate={onNavigate}
-      queryClient={queryClient}
-      queryUid={queryUid}
-    />
-  )
 }
+
+const memberScreens = {
+  private: (props: MemberScreenProps): JSX.Element => <PrivateScreen locale={props.locale} />,
+  rights: (props: MemberScreenProps): JSX.Element => (
+    <RightsList
+      locale={props.locale}
+      initialAddress={props.address}
+      io={props.passIo}
+      onNavigate={props.onNavigate}
+      queryClient={props.queryClient}
+      queryUid={props.queryUid}
+    />
+  ),
+  settings: (props: MemberScreenProps): JSX.Element => (
+    <Settings
+      locale={props.locale}
+      theme={props.theme}
+      onLocaleChange={props.onLocaleChange}
+      onThemeChange={props.onThemeChange}
+      onSignOut={props.onSignOut}
+      passIo={props.passIo}
+    />
+  ),
+  signed: (props: MemberScreenProps): JSX.Element => <SignedGate locale={props.locale} />,
+} satisfies Record<MemberRoute, (props: MemberScreenProps) => JSX.Element>
 
 export interface AppProps {
   initialTheme?: ThemeMode
@@ -140,81 +124,87 @@ const uidFromLocation = (key: string): Hex | null => {
   return raw === null ? null : normalizeUid(raw)
 }
 
-const MemberApp = ({
-  locale,
-  theme,
-  onLocaleChange,
-  onThemeChange,
-  appearance,
-  memberIo = DEFAULT_MEMBER_IO,
-  memberPassIo,
-}: Omit<AppProps, 'initialTheme'> & {
-  locale: Locale
-  theme: ThemeMode
-  onLocaleChange: (locale: Locale) => void
-  onThemeChange: (theme: ThemeMode) => void
-  appearance: JSX.Element
-}): JSX.Element => {
-  const copy = pick(MEMBER_COPY, locale)
-  const queryClient = useQueryScope()
-  const [page, setPage] = useState<LocationState>(readLocation)
-  const { key: locationKey, route } = page
-  const [session, setSession] = useState<MemberSession | null>(null)
-  const [savedToken] = useState(tokenStore.read)
-  const [restore, setRestore] = useState<RestoreState>(savedToken === null ? null : 'loading')
-  const [signingIn, setSigningIn] = useState(false)
-  const [failure, setFailure] = useState<SignInFailure | null>(null)
-  const [generation] = useState(createSessionGeneration)
-  const activeToken = useRef<string | null>(savedToken)
-  const requestedReturn = useRef(initialReturn())
-  const signInPending = useRef(false)
-  const signInAbort = useRef<AbortController | null>(null)
-  const signInAttempt = useRef(0)
+type Screen = 'card' | 'entry' | 'home' | 'member' | 'redirect' | 'restore' | 'signin' | 'top'
 
-  const navigate = useCallback(
-    (path: string): void => {
-      if (signInAbort.current !== null) {
-        signInAbort.current?.abort()
-        signInAbort.current = null
-        signInAttempt.current += 1
-        generation.invalidate()
-        signInPending.current = false
-        setSigningIn(false)
-      }
-      history.pushState(null, '', path)
-      setPage(readLocation())
-    },
-    [generation],
-  )
+const isMemberRoute = (route: Route): route is MemberRoute =>
+  route === 'private' || route === 'rights' || route === 'settings' || route === 'signed'
 
-  const clearLocal = useCallback((): void => {
-    const token = activeToken.current
+// A member screen is only built with a session; this placeholder never renders.
+const NO_ADDRESS: Hex = `0x${'0'.repeat(40)}`
+
+const MemberApp = (
+  props: Omit<AppProps, 'initialTheme'> & {
+    locale: Locale
+    theme: ThemeMode
+    onLocaleChange: (locale: Locale) => void
+    onThemeChange: (theme: ThemeMode) => void
+    appearance: JSX.Element
+  },
+): JSX.Element => {
+  const memberIo = props.memberIo ?? DEFAULT_MEMBER_IO
+  const copy = (): (typeof MEMBER_COPY)[Locale] => pick(MEMBER_COPY, props.locale)
+  const queryClient = createQueryScope()
+  const [page, setPage] = createSignal<LocationState>(readLocation())
+  const route = (): Route => page().route
+  const [session, setSession] = createSignal<MemberSession | null>(null)
+  const savedToken = tokenStore.read()
+  const [restore, setRestore] = createSignal<RestoreState>(savedToken === null ? null : 'loading')
+  const [signingIn, setSigningIn] = createSignal(false)
+  const [failure, setFailure] = createSignal<SignInFailure | null>(null)
+  const generation = createSessionGeneration()
+  let activeToken: string | null = savedToken
+  let requestedReturn = initialReturn()
+  let signInPending = false
+  let signInAbort: AbortController | null = null
+  let signInAttempt = 0
+
+  const cancelSignIn = (): void => {
+    signInAbort?.abort()
+    signInAbort = null
+    signInAttempt += 1
     generation.invalidate()
-    activeToken.current = null
+    signInPending = false
+    setSigningIn(false)
+  }
+
+  const navigate = (path: string): void => {
+    if (signInAbort !== null) {
+      cancelSignIn()
+    }
+    history.pushState(null, '', path)
+    setPage(readLocation())
+  }
+
+  const clearLocal = (): void => {
+    const token = activeToken
+    generation.invalidate()
+    activeToken = null
     tokenStore.clear(token)
     queryClient.clear()
-    setSession(null)
-    setRestore(null)
-    setSigningIn(false)
-    signInPending.current = false
-    signInAbort.current?.abort()
-    signInAbort.current = null
-    signInAttempt.current += 1
-    setFailure(null)
-  }, [generation, queryClient])
+    batch(() => {
+      setSession(null)
+      setRestore(null)
+      setSigningIn(false)
+      setFailure(null)
+    })
+    signInPending = false
+    signInAbort?.abort()
+    signInAbort = null
+    signInAttempt += 1
+  }
 
-  const signOut = useCallback((): void => {
-    const token = activeToken.current
+  const signOut = (): void => {
+    const token = activeToken
     clearLocal()
     history.pushState(null, '', '/')
     setPage(readLocation())
     if (token !== null) {
       void memberIo.logout(token)
     }
-  }, [clearLocal, memberIo])
+  }
 
-  const restoreSession = useCallback((): void => {
-    const token = activeToken.current
+  const restoreSession = (): void => {
+    const token = activeToken
     if (token === null) {
       return
     }
@@ -223,7 +213,7 @@ const MemberApp = ({
     setRestore('loading')
     const run = async (): Promise<void> => {
       const result = await memberIo.me(token)
-      if (!generation.isCurrent(ticket) || activeToken.current !== token) {
+      if (!generation.isCurrent(ticket) || activeToken !== token) {
         return
       }
       if (result.ok) {
@@ -231,8 +221,10 @@ const MemberApp = ({
           clearLocal()
           return
         }
-        setSession({ address: result.body.address, token })
-        setRestore(null)
+        batch(() => {
+          setSession({ address: result.body.address, token })
+          setRestore(null)
+        })
         return
       }
       if (result.status === 401) {
@@ -242,197 +234,249 @@ const MemberApp = ({
       }
     }
     void run()
-  }, [clearLocal, generation, memberIo])
+  }
 
-  useEffect(() => {
+  onMount(() => {
     const onPopState = (): void => {
-      if (signInAbort.current !== null) {
-        signInAbort.current?.abort()
-        signInAbort.current = null
-        signInAttempt.current += 1
-        generation.invalidate()
-        signInPending.current = false
-        setSigningIn(false)
+      if (signInAbort !== null) {
+        cancelSignIn()
       }
       setPage(readLocation())
     }
     window.addEventListener('popstate', onPopState)
-    return () => {
+    onCleanup(() => {
       generation.invalidate()
-      signInAbort.current?.abort()
-      signInAttempt.current += 1
+      signInAbort?.abort()
+      signInAttempt += 1
       queryClient.clear()
       window.removeEventListener('popstate', onPopState)
+    })
+  })
+  onMount(restoreSession)
+
+  const signedIn = createMemo(() => session() !== null)
+  createEffect(
+    on([route, signedIn], ([current, hasSession]) => {
+      if (hasSession && current === 'signin') {
+        history.replaceState(null, '', requestedReturn)
+        setPage(readLocation())
+        return
+      }
+      // A protected page reached while signed out is where sign-in returns to.
+      if (!hasSession && isMemberRoute(current)) {
+        requestedReturn = safeMemberReturn(pathAndQuery())
+      }
+    }),
+  )
+
+  const screen = createMemo((): Screen => {
+    const current = route()
+    if (isRedirectRoute(current)) {
+      return 'redirect'
     }
-  }, [generation, queryClient])
-  useEffect(restoreSession, [restoreSession])
-  useEffect(() => {
-    if (session !== null && route === 'signin') {
-      history.replaceState(null, '', requestedReturn.current)
+    if (isHomeRoute(current)) {
+      return 'home'
+    }
+    if (isCardRoute(current)) {
+      return current.slug === null ? 'entry' : 'card'
+    }
+    if (current === 'top') {
+      return 'top'
+    }
+    if (session() === null) {
+      return restore() === null ? 'signin' : 'restore'
+    }
+    return 'member'
+  })
+  // Each screen is built once per identity: a venue, a card, or a member page
+  // at one address. Session and locale updates reach the screen as props.
+  const identity = createMemo(() => {
+    const current = route()
+    const kind = screen()
+    if (isRedirectRoute(current)) {
+      return `redirect:${current.redirect}`
+    }
+    if (isHomeRoute(current)) {
+      return `home:${current.home}`
+    }
+    if (isCardRoute(current)) {
+      return `${kind}:${current.card}/${current.slug ?? ''}`
+    }
+    return kind === 'member' ? `member:${page().key}` : kind
+  })
+
+  createEffect(() => {
+    const current = route()
+    if (isRedirectRoute(current)) {
+      location.replace(current.redirect)
+    }
+  })
+
+  const memberRoute = (): MemberRoute => {
+    const current = route()
+    return isMemberRoute(current) ? current : 'rights'
+  }
+
+  const onSignIn = (): void => {
+    if (signInPending) {
+      return
+    }
+    signInPending = true
+    const abort = new AbortController()
+    signInAbort = abort
+    signInAttempt += 1
+    const attempt = signInAttempt
+    generation.invalidate()
+    const ticket = generation.capture()
+    const locationKey = page().key
+    setSigningIn(true)
+    setFailure(null)
+    const run = async (): Promise<void> => {
+      const outcome = await signInMember(memberIo, abort.signal)
+      if (signInAttempt !== attempt || !generation.isCurrent(ticket) || pathAndQuery() !== locationKey) {
+        if (signInAttempt === attempt && signInAbort === abort) {
+          signInPending = false
+          signInAbort = null
+          setSigningIn(false)
+        }
+        return
+      }
+      signInPending = false
+      signInAbort = null
+      setSigningIn(false)
+      if (!outcome.ok) {
+        setFailure(outcome.failure)
+        return
+      }
+      const next = outcome.session
+      activeToken = next.token
+      tokenStore.save(next.token)
+      setSession(next)
+      history.replaceState(null, '', requestedReturn)
       setPage(readLocation())
     }
-  }, [route, session])
+    void run()
+  }
 
-  if (isRedirectRoute(route)) {
-    location.replace(route.redirect)
-    return <div class="p-6">{copy.auth.redirecting}</div>
-  }
-  if (isHomeRoute(route)) {
-    return <VenueScreen key={`${route.home}/home`} handle={route.home} mode="home" locale={locale} />
-  }
-  if (isCardRoute(route)) {
-    if (route.slug === null) {
-      return <VenueScreen key={route.card} handle={route.card} mode="entry" locale={locale} />
+  const venueHandle = (): string => {
+    const current = route()
+    if (isHomeRoute(current)) {
+      return current.home
     }
-    return (
-      <CardScreen
-        key={`${route.card}/${route.slug ?? ''}`}
-        handle={route.card}
-        slug={route.slug}
-        locale={locale}
-      />
-    )
+    return isCardRoute(current) ? current.card : ''
   }
-  if (route === 'top') {
-    return (
-      <div class="app-top">
-        {appearance}
-        <Landing locale={locale} signedIn={session !== null} onNavigate={navigate} />
-      </div>
-    )
+  const cardSlug = (): string | null => {
+    const current = route()
+    return isCardRoute(current) ? current.slug : null
   }
 
-  const protectedRoute = route !== 'signin'
-  if (session === null && protectedRoute) {
-    requestedReturn.current = safeMemberReturn(pathAndQuery())
-  }
-  if (session === null && restore !== null) {
-    return (
+  const screens = {
+    card: (): JSX.Element => <CardScreen handle={venueHandle()} slug={cardSlug()} locale={props.locale} />,
+    entry: (): JSX.Element => <VenueScreen handle={venueHandle()} mode="entry" locale={props.locale} />,
+    home: (): JSX.Element => <VenueScreen handle={venueHandle()} mode="home" locale={props.locale} />,
+    member: (): JSX.Element => {
+      const kind = memberRoute()
+      // Built here, once: as a child expression it would be rebuilt whenever
+      // the layout re-read it.
+      const content = memberScreens[kind]({
+        get address() {
+          return session()?.address ?? NO_ADDRESS
+        },
+        get locale() {
+          return props.locale
+        },
+        onLocaleChange: (next) => {
+          props.onLocaleChange(next)
+        },
+        onNavigate: navigate,
+        onSignOut: signOut,
+        onThemeChange: (next) => {
+          props.onThemeChange(next)
+        },
+        passIo: props.memberPassIo,
+        queryClient,
+        queryUid: uidFromLocation(page().key),
+        route: kind,
+        get theme() {
+          return props.theme
+        },
+      })
+      return (
+        <MemberLayout locale={props.locale} navigate={navigate} route={kind}>
+          {content}
+        </MemberLayout>
+      )
+    },
+    redirect: (): JSX.Element => <div class="p-6">{copy().auth.redirecting}</div>,
+    restore: (): JSX.Element => (
       <main class="member-auth-page">
         <section class="member-panel flex w-full flex-col gap-4" role="status">
-          <h1 class="member-heading">{restore === 'loading' ? copy.auth.checking : copy.auth.failed}</h1>
-          {restore === 'failed' ? (
-            <p class="text-sm text-[var(--fuda-muted)]">{copy.auth.preserved}</p>
+          <h1 class="member-heading">
+            {restore() === 'loading' ? copy().auth.checking : copy().auth.failed}
+          </h1>
+          {restore() === 'failed' ? (
+            <p class="text-sm text-[var(--fuda-muted)]">{copy().auth.preserved}</p>
           ) : null}
           <div class="flex flex-col gap-2 sm:flex-row">
-            {restore === 'failed' ? (
+            {restore() === 'failed' ? (
               <button class="btn btn-primary" type="button" onClick={restoreSession}>
-                {copy.common.retry}
+                {copy().common.retry}
               </button>
             ) : null}
             <button class="btn btn-ghost" type="button" onClick={signOut}>
-              {copy.auth.signOutLocal}
+              {copy().auth.signOutLocal}
             </button>
           </div>
         </section>
       </main>
-    )
-  }
-  if (session === null) {
-    return (
+    ),
+    signin: (): JSX.Element => (
       <SignIn
-        locale={locale}
-        busy={signingIn}
-        failure={failure}
-        onCancel={() => {
-          signInAbort.current?.abort()
-          signInAbort.current = null
-          signInAttempt.current += 1
-          generation.invalidate()
-          signInPending.current = false
-          setSigningIn(false)
-        }}
+        locale={props.locale}
+        busy={signingIn()}
+        failure={failure()}
+        onCancel={cancelSignIn}
         onNavigate={navigate}
-        onSignIn={() => {
-          if (signInPending.current) {
-            return
-          }
-          signInPending.current = true
-          const abort = new AbortController()
-          signInAbort.current = abort
-          signInAttempt.current += 1
-          const attempt = signInAttempt.current
-          generation.invalidate()
-          const ticket = generation.capture()
-          setSigningIn(true)
-          setFailure(null)
-          const run = async (): Promise<void> => {
-            const outcome = await signInMember(memberIo, abort.signal)
-            if (
-              signInAttempt.current !== attempt ||
-              !generation.isCurrent(ticket) ||
-              pathAndQuery() !== locationKey
-            ) {
-              if (signInAttempt.current === attempt && signInAbort.current === abort) {
-                signInPending.current = false
-                signInAbort.current = null
-                setSigningIn(false)
-              }
-              return
-            }
-            signInPending.current = false
-            signInAbort.current = null
-            setSigningIn(false)
-            if (!outcome.ok) {
-              setFailure(outcome.failure)
-              return
-            }
-            const next = outcome.session
-            activeToken.current = next.token
-            tokenStore.save(next.token)
-            setSession(next)
-            const destination = requestedReturn.current
-            history.replaceState(null, '', destination)
-            setPage(readLocation())
-          }
-          void run()
-        }}
+        onSignIn={onSignIn}
       />
-    )
-  }
+    ),
+    top: (): JSX.Element => (
+      <div class="app-top">
+        {props.appearance}
+        <Landing locale={props.locale} signedIn={signedIn()} onNavigate={navigate} />
+      </div>
+    ),
+  } satisfies Record<Screen, () => JSX.Element>
 
-  const memberRoute = route === 'signin' ? 'rights' : route
   return (
-    <MemberLayout locale={locale} navigate={navigate} route={memberRoute}>
-      <MemberScreen
-        key={locationKey}
-        locale={locale}
-        address={session.address}
-        passIo={memberPassIo}
-        queryClient={queryClient}
-        queryUid={uidFromLocation(locationKey)}
-        route={memberRoute}
-        onNavigate={navigate}
-        onSignOut={signOut}
-        theme={theme}
-        onThemeChange={onThemeChange}
-        onLocaleChange={onLocaleChange}
-      />
-    </MemberLayout>
+    <Show when={identity()} keyed>
+      {(_identity: string) => screens[screen()]()}
+    </Show>
   )
 }
 
-export const App = ({ initialTheme = readThemeMode(), memberIo, memberPassIo }: AppProps): JSX.Element => {
-  const [locale, updateLocale] = useState(getLocale)
-  const [theme, setTheme] = useState(initialTheme)
-  const copy = pick(MEMBER_COPY, locale)
-  useEffect(() => {
-    setLocale(locale)
-  }, [locale])
-  useEffect(() => {
-    applyThemeMode(theme)
-    return watchThemeMode(theme)
-  }, [theme])
+export const App = (props: AppProps): JSX.Element => {
+  const [locale, updateLocale] = createSignal(getLocale())
+  const [theme, setTheme] = createSignal(props.initialTheme ?? readThemeMode())
+  const copy = (): (typeof MEMBER_COPY)[Locale] => pick(MEMBER_COPY, locale())
+  createEffect(() => {
+    setLocale(locale())
+  })
+  createEffect(() => {
+    const mode = theme()
+    applyThemeMode(mode)
+    onCleanup(watchThemeMode(mode))
+  })
   const changeTheme = (mode: ThemeMode): void => {
     saveThemeMode(mode)
     setTheme(mode)
   }
   const appearance = (
-    <div class="app-appearance" role="group" aria-label={copy.settings.appearance}>
+    <div class="app-appearance" role="group" aria-label={copy().settings.appearance}>
       <LanguageSwitcher
         class="h-9 w-9"
-        current={locale}
-        label={copy.chrome.language}
+        current={locale()}
+        label={copy().chrome.language}
         options={[
           { label: 'English', value: 'en' },
           { label: '日本語', value: 'ja' },
@@ -443,18 +487,20 @@ export const App = ({ initialTheme = readThemeMode(), memberIo, memberPassIo }: 
           }
         }}
       />
-      <ThemeToggle class="h-9 w-9" labels={copy.chrome.theme} mode={theme} onChange={changeTheme} />
+      <ThemeToggle class="h-9 w-9" labels={copy().chrome.theme} mode={theme()} onChange={changeTheme} />
     </div>
   )
   return (
     <div class="app-frame">
       <MemberApp
-        locale={locale}
-        memberIo={memberIo}
-        memberPassIo={memberPassIo}
+        locale={locale()}
+        memberIo={props.memberIo}
+        memberPassIo={props.memberPassIo}
         appearance={appearance}
-        theme={theme}
-        onLocaleChange={updateLocale}
+        theme={theme()}
+        onLocaleChange={(next) => {
+          updateLocale(next)
+        }}
         onThemeChange={changeTheme}
       />
     </div>

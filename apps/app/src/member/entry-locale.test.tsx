@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
-/** @jsxImportSource hono/jsx/dom */
 import { setTimeout } from 'node:timers/promises'
 
 import type { Locale } from '@fuda/i18n'
-import { render, useState } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import { createSignal } from 'solid-js'
+import type { Accessor, JSX } from 'solid-js'
+import { render as solidRender } from 'solid-js/web'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import type { PrfResult } from '../passkey.ts'
@@ -13,18 +13,35 @@ import { PrivateScreen } from './PrivateScreen.tsx'
 import { SignedGate } from './SignedGate.tsx'
 import { Verdict } from './Verdict.tsx'
 
+const disposers: (() => void)[] = []
+// Solid delegates events to the document, so a host must be attached to
+// receive clicks.
+const render = (view: () => JSX.Element, host: HTMLElement): void => {
+  if (!host.isConnected) {
+    document.body.append(host)
+  }
+  disposers.push(solidRender(view, host))
+}
+const unmountAll = (): void => {
+  for (const dispose of disposers.splice(0)) {
+    dispose()
+  }
+}
+
 const root = document.createElement('div')
 type PrivateIo = NonNullable<Parameters<typeof PrivateScreen>[0]['io']>
 
-const Harness = ({ children }: { children: (locale: Locale) => JSX.Element }): JSX.Element => {
-  const [locale, setLocale] = useState<Locale>('en')
+// The screen is built once and reads the language as it changes, so a switch
+// translates it in place instead of rebuilding it.
+const Harness = (props: { children: (locale: Accessor<Locale>) => JSX.Element }): JSX.Element => {
+  const [locale, setLocale] = createSignal<Locale>('en')
   return (
     <>
-      {children(locale)}
+      {props.children(locale)}
       <button
         type="button"
         onClick={() => {
-          setLocale(locale === 'en' ? 'ja' : 'en')
+          setLocale(locale() === 'en' ? 'ja' : 'en')
         }}
       >
         Language
@@ -50,14 +67,17 @@ const privateIo = (result: Promise<PrfResult>): PrivateIo => ({
 
 describe('entry locale changes', () => {
   afterEach(() => {
-    render(<div />, root)
+    unmountAll()
     root.replaceChildren()
   })
 
   it('keeps a pending private ceremony and translates its result using the current language', async () => {
     const pending = Promise.withResolvers<PrfResult>()
     const io = privateIo(pending.promise)
-    render(<Harness>{(locale): JSX.Element => <PrivateScreen io={io} locale={locale} />}</Harness>, root)
+    render(
+      () => <Harness>{(locale): JSX.Element => <PrivateScreen io={io} locale={locale()} />}</Harness>,
+      root,
+    )
     await setTimeout(0)
     click('Use existing passkey')
     await setTimeout(0)
@@ -77,7 +97,10 @@ describe('entry locale changes', () => {
   it('retains unlocked private keys across a language change', async () => {
     const output = new Uint8Array(32).fill(7)
     const io = privateIo(Promise.resolve({ ok: true, output }))
-    render(<Harness>{(locale): JSX.Element => <PrivateScreen io={io} locale={locale} />}</Harness>, root)
+    render(
+      () => <Harness>{(locale): JSX.Element => <PrivateScreen io={io} locale={locale()} />}</Harness>,
+      root,
+    )
     await setTimeout(0)
     click('Use existing passkey')
     await setTimeout(0)
@@ -97,7 +120,10 @@ describe('entry locale changes', () => {
   })
 
   it('retains scanner input and selected right while translating wallet actions', async () => {
-    render(<Harness>{(locale): JSX.Element => <SignedGate provider={null} locale={locale} />}</Harness>, root)
+    render(
+      () => <Harness>{(locale): JSX.Element => <SignedGate provider={null} locale={locale()} />}</Harness>,
+      root,
+    )
     await setTimeout(0)
     const input = root.querySelector('input')
     if (input === null) {
@@ -128,13 +154,15 @@ describe('entry locale changes', () => {
   it('translates a verdict without changing its protocol reason or dismissal', async () => {
     let dismissed = false
     render(
-      <Verdict
-        locale="ja"
-        state={{ detail: 'REVOKED', title: 'REJECT', tone: 'red' }}
-        onDone={() => {
-          dismissed = true
-        }}
-      />,
+      () => (
+        <Verdict
+          locale="ja"
+          state={{ detail: 'REVOKED', title: 'REJECT', tone: 'red' }}
+          onDone={() => {
+            dismissed = true
+          }}
+        />
+      ),
       root,
     )
     expect(root.textContent).toContain('入場できません')

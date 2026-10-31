@@ -107,8 +107,8 @@ def main():
             run('pnpm', '--filter', './' + path, 'run', 'test')
         if path == 'apps/api':
             run('pnpm', '--filter', 'api', 'run', 'test:scripts')
-        # app's test and ens-contracts' test already include their builds.
-        if path in ('apps/dash', 'apps/gate'):
+        # ens-contracts' test already includes its build.
+        if path in ('apps/app', 'apps/dash', 'apps/gate'):
             run('pnpm', '--filter', './' + path, 'run', 'build')
 
 

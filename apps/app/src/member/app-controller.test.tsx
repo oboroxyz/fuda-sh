@@ -1,15 +1,30 @@
 // @vitest-environment happy-dom
-/** @jsxImportSource hono/jsx/dom */
 import { setTimeout } from 'node:timers/promises'
 
 import type { MemberSessionResponse, MemberSignInResponse, SignInChallengeResponse } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
-import { render } from 'hono/jsx/dom'
+import type { JSX } from 'solid-js'
+import { render as solidRender } from 'solid-js/web'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { App } from '../App.tsx'
 import type { MemberPassListIo } from '../member-pass-list.ts'
 import type { MemberAppIo } from './auth.ts'
+
+const disposers: (() => void)[] = []
+// Solid delegates events to the document, so a host must be attached to
+// receive clicks.
+const render = (view: () => JSX.Element, host: HTMLElement): void => {
+  if (!host.isConnected) {
+    document.body.append(host)
+  }
+  disposers.push(solidRender(view, host))
+}
+const unmountAll = (): void => {
+  for (const dispose of disposers.splice(0)) {
+    dispose()
+  }
+}
 
 vi.mock(import('../config.ts'), () => ({
   API_BASE_URL: 'http://localhost:8787',
@@ -52,7 +67,7 @@ const passIo = (): MemberPassListIo => ({
 })
 
 const mount = (memberIo: MemberAppIo = io(), memberPassIo: MemberPassListIo = passIo()): void => {
-  render(<App memberIo={memberIo} memberPassIo={memberPassIo} />, root)
+  render(() => <App memberIo={memberIo} memberPassIo={memberPassIo} />, root)
 }
 
 const click = (label: string): void => {
@@ -74,7 +89,7 @@ describe('member app controller', () => {
   })
 
   afterEach(async () => {
-    render(<></>, root)
+    unmountAll()
     await setTimeout(0)
     root.replaceChildren()
     root.remove()
@@ -252,7 +267,7 @@ describe('member app controller', () => {
       expect(location.pathname).toBe('/settings')
     })
 
-    render(<></>, root)
+    unmountAll()
     localStorage.clear()
     history.replaceState(null, '', '/signin?return=%2F%2Foutside.example%2Fprivate')
     mount()

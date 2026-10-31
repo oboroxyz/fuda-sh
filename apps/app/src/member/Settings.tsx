@@ -1,16 +1,15 @@
-/** @jsxImportSource hono/jsx/dom */
 import { isLocale, pick } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
-import { ConfirmAction } from '@fuda/ui'
-import type { ThemeMode } from '@fuda/ui'
-import { useState } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import { ConfirmAction } from '@fuda/ui/solid'
+import type { ThemeMode } from '@fuda/ui/solid'
+import { createSignal } from 'solid-js'
+import type { JSX } from 'solid-js'
 
 import type { MemberPassListIo } from '../member-pass-list.ts'
 import { MEMBER_COPY } from './copy.ts'
 import { RightsList } from './RightsList.tsx'
 
-const SettingsIcon = ({ kind }: { kind: 'language' | 'lookup' | 'signout' | 'theme' }): JSX.Element => {
+const SettingsIcon = (props: { kind: 'language' | 'lookup' | 'signout' | 'theme' }): JSX.Element => {
   const paths = {
     language: 'M4 5h12M10 3v2M6 5c0 6 5 10 9 11M14 5c0 6-5 10-9 11M14 21l4-10 4 10M15.5 17h5',
     lookup: 'M16 16l5 5M18 10a8 8 0 1 0-16 0 8 8 0 0 0 16 0',
@@ -29,19 +28,12 @@ const SettingsIcon = ({ kind }: { kind: 'language' | 'lookup' | 'signout' | 'the
       stroke-linecap="round"
       stroke-linejoin="round"
     >
-      <path d={paths[kind]} />
+      <path d={paths[props.kind]} />
     </svg>
   )
 }
 
-export const Settings = ({
-  locale,
-  theme,
-  onLocaleChange,
-  onThemeChange,
-  onSignOut,
-  passIo,
-}: {
+export const Settings = (props: {
   locale: Locale
   theme: ThemeMode
   onLocaleChange: (locale: Locale) => void
@@ -49,60 +41,54 @@ export const Settings = ({
   onSignOut: () => void
   passIo?: MemberPassListIo
 }): JSX.Element => {
-  const copy = pick(MEMBER_COPY, locale)
-  const [lookupOpen, setLookupOpen] = useState(false)
+  const copy = (): (typeof MEMBER_COPY)[Locale] => pick(MEMBER_COPY, props.locale)
+  const [lookupOpen, setLookupOpen] = createSignal(false)
   return (
     <main class="member-page member-page-narrow flex flex-col gap-8">
-      <h1 class="member-heading">{copy.nav.settings}</h1>
+      <h1 class="member-heading">{copy().nav.settings}</h1>
       <section class="overflow-hidden rounded-2xl border border-[var(--fuda-border)] bg-[var(--fuda-surface)]">
         <label class="member-settings-row">
           <SettingsIcon kind="theme" />
-          <span class="grow">{copy.settings.changeTheme}</span>
+          <span class="grow">{copy().settings.changeTheme}</span>
           <span aria-hidden="true" class="text-sm text-[var(--fuda-muted)]">
-            {copy.chrome.theme[theme]}
+            {copy().chrome.theme[props.theme]}
           </span>
           <span aria-hidden="true" class="text-[var(--fuda-muted)]">
             ›
           </span>
           <select
             class="absolute inset-0 size-full cursor-pointer opacity-0"
-            aria-label={copy.settings.changeTheme}
-            value={theme}
-            onChange={(event) => {
-              if (!(event.currentTarget instanceof HTMLSelectElement)) {
-                return
-              }
+            aria-label={copy().settings.changeTheme}
+            value={props.theme}
+            onInput={(event) => {
               const { value } = event.currentTarget
               if (value === 'light' || value === 'dark' || value === 'system') {
-                onThemeChange(value)
+                props.onThemeChange(value)
               }
             }}
           >
-            <option value="system">{copy.chrome.theme.system}</option>
-            <option value="light">{copy.chrome.theme.light}</option>
-            <option value="dark">{copy.chrome.theme.dark}</option>
+            <option value="system">{copy().chrome.theme.system}</option>
+            <option value="light">{copy().chrome.theme.light}</option>
+            <option value="dark">{copy().chrome.theme.dark}</option>
           </select>
         </label>
         <label class="member-settings-row">
           <SettingsIcon kind="language" />
-          <span class="grow">{copy.settings.changeLanguage}</span>
+          <span class="grow">{copy().settings.changeLanguage}</span>
           <span aria-hidden="true" class="text-sm text-[var(--fuda-muted)]">
-            {locale === 'ja' ? '日本語' : 'English'}
+            {props.locale === 'ja' ? '日本語' : 'English'}
           </span>
           <span aria-hidden="true" class="text-[var(--fuda-muted)]">
             ›
           </span>
           <select
             class="absolute inset-0 size-full cursor-pointer opacity-0"
-            aria-label={copy.settings.changeLanguage}
-            value={locale}
-            onChange={(event) => {
-              if (!(event.currentTarget instanceof HTMLSelectElement)) {
-                return
-              }
+            aria-label={copy().settings.changeLanguage}
+            value={props.locale}
+            onInput={(event) => {
               const { value } = event.currentTarget
               if (isLocale(value)) {
-                onLocaleChange(value)
+                props.onLocaleChange(value)
               }
             }}
           >
@@ -113,34 +99,42 @@ export const Settings = ({
         <button
           class="member-settings-row"
           type="button"
-          aria-expanded={lookupOpen}
+          aria-expanded={lookupOpen()}
           onClick={() => {
             setLookupOpen((open) => !open)
           }}
         >
           <SettingsIcon kind="lookup" />
-          <span class="grow">{copy.passes.lookupAnother}</span>
+          <span class="grow">{copy().passes.lookupAnother}</span>
           <span aria-hidden="true" class="text-[var(--fuda-muted)]">
-            {lookupOpen ? '−' : '›'}
+            {lookupOpen() ? '−' : '›'}
           </span>
         </button>
-        {lookupOpen ? (
+        {lookupOpen() ? (
           <div class="border-b border-[var(--fuda-border)] px-4 py-5">
             <p class="mb-4 text-sm leading-relaxed text-[var(--fuda-muted)]">
-              {copy.settings.lookupDescription}
+              {copy().settings.lookupDescription}
             </p>
-            <RightsList variant="lookup" locale={locale} io={passIo} memory={[]} queryUid={null} />
+            <RightsList
+              variant="lookup"
+              locale={props.locale}
+              io={props.passIo}
+              memory={[]}
+              queryUid={null}
+            />
           </div>
         ) : null}
         <ConfirmAction
           class="member-settings-row border-b-0 text-[var(--fuda-danger)]"
           icon={<SettingsIcon kind="signout" />}
-          cancelLabel={copy.settings.keep}
-          confirmLabel={copy.settings.signOut}
-          description={copy.settings.description}
-          label={copy.settings.signOut}
-          title={copy.settings.title}
-          onConfirm={onSignOut}
+          cancelLabel={copy().settings.keep}
+          confirmLabel={copy().settings.signOut}
+          description={copy().settings.description}
+          label={copy().settings.signOut}
+          title={copy().settings.title}
+          onConfirm={() => {
+            props.onSignOut()
+          }}
         />
       </section>
     </main>

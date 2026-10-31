@@ -1,10 +1,9 @@
-/** @jsxImportSource hono/jsx/dom */
 // Loaded only by the opt-in Vite development entry. No API or wallet requests.
 import { cardBySlug } from '@fuda/sdk'
 import type { PublicVenue } from '@fuda/sdk'
-import { applyThemeMode } from '@fuda/ui'
-import { useEffect, useState } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import { applyThemeMode } from '@fuda/ui/solid'
+import { createEffect, createSignal, on, onCleanup, onMount } from 'solid-js'
+import type { JSX } from 'solid-js'
 
 import { CardScreenView } from './CardScreen.tsx'
 import type { CardScreenState, IssuedCard } from './CardScreen.tsx'
@@ -188,8 +187,8 @@ const labels =
       }
 
 export const StorePreview = (): JSX.Element => {
-  const [state, setState] = useState(initialState)
-  useEffect(() => {
+  const [state, setState] = createSignal(initialState())
+  onMount(() => {
     document.documentElement.lang = locale
     applyThemeMode(dark ? 'dark' : 'light')
     if (
@@ -200,41 +199,51 @@ export const StorePreview = (): JSX.Element => {
     ) {
       location.replace(`${cardClaimHref(venue.handle, choice.slug)}${location.search}`)
     }
-  }, [])
-  useEffect(() => {
-    // Keep development-only scenario preferences across the real view's links.
-    for (const link of document.querySelectorAll<HTMLAnchorElement>('.venue-page a')) {
-      const url = new URL(link.href)
-      if (
-        url.origin === location.origin &&
-        url.pathname.startsWith('/@wassie-coffee') &&
-        !url.searchParams.has('scene')
-      ) {
-        if (!url.searchParams.has('cards')) {
-          url.searchParams.set('cards', multiple ? 'multiple' : 'single')
+  })
+  createEffect(
+    on(
+      () => state().kind,
+      () => {
+        // Keep development-only scenario preferences across the real view's links.
+        for (const link of document.querySelectorAll<HTMLAnchorElement>('.venue-page a')) {
+          const url = new URL(link.href)
+          if (
+            url.origin === location.origin &&
+            url.pathname.startsWith('/@wassie-coffee') &&
+            !url.searchParams.has('scene')
+          ) {
+            if (!url.searchParams.has('cards')) {
+              url.searchParams.set('cards', multiple ? 'multiple' : 'single')
+            }
+            url.searchParams.set('lang', locale)
+            url.searchParams.set('theme', dark ? 'dark' : 'light')
+            const defaultParam = params.get('default')
+            if (defaultParam !== null) {
+              url.searchParams.set('default', defaultParam)
+            }
+            link.href = url.href
+          }
         }
-        url.searchParams.set('lang', locale)
-        url.searchParams.set('theme', dark ? 'dark' : 'light')
-        const defaultParam = params.get('default')
-        if (defaultParam !== null) {
-          url.searchParams.set('default', defaultParam)
+      },
+    ),
+  )
+  createEffect(
+    on(
+      () => state().kind,
+      (kind) => {
+        if (kind !== 'issuing') {
+          return
         }
-        link.href = url.href
-      }
-    }
-  }, [state.kind])
-  useEffect(() => {
-    if (state.kind !== 'issuing') {
-      return
-    }
-    const timer = setTimeout(() => {
-      history.replaceState(null, '', previewHref('ready'))
-      setState(ready())
-    }, 700)
-    return () => {
-      clearTimeout(timer)
-    }
-  }, [state.kind])
+        const timer = setTimeout(() => {
+          history.replaceState(null, '', previewHref('ready'))
+          setState(ready())
+        }, 700)
+        onCleanup(() => {
+          clearTimeout(timer)
+        })
+      },
+    ),
+  )
 
   return (
     <div class="[&_.venue-page]:min-h-[calc(100svh-2.75rem)]">
@@ -252,7 +261,7 @@ export const StorePreview = (): JSX.Element => {
         <CardScreenView
           locale={locale}
           onIssue={() => {
-            if (card !== null && state.kind !== 'issuing') {
+            if (card !== null && state().kind !== 'issuing') {
               setState({ card, kind: 'issuing' })
             }
           }}
@@ -262,7 +271,7 @@ export const StorePreview = (): JSX.Element => {
           onVerifyHuman={() => {
             /* UI preview only: no vendor round trip. */
           }}
-          state={state}
+          state={state()}
         />
       )}
       <nav
@@ -272,7 +281,6 @@ export const StorePreview = (): JSX.Element => {
         {(['home', 'landing', 'ready', 'choose', 'closed', 'error', 'loading'] as const).map(
           (scene): JSX.Element => (
             <a
-              key={scene}
               class="inline-flex min-h-11 items-center underline underline-offset-4"
               href={previewHref(scene)}
             >

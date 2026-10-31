@@ -1,6 +1,9 @@
+// @vitest-environment happy-dom
 import type { GraphRight, Hex, VerifyResponse } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
-import { describe, expect, it, vi } from 'vitest'
+import type { JSX } from 'solid-js'
+import { render as solidRender } from 'solid-js/web'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import {
   applePassAvailable,
@@ -18,38 +21,22 @@ import { requestAccount } from './wallet.ts'
 const RIGHT = `0x${'aa'.repeat(32)}` as const
 const DELEGATION = `0x${'bb'.repeat(32)}` as const
 
-interface ViewNode {
-  tag?: unknown
-  props: { children?: unknown; class?: unknown; href?: unknown; src?: unknown; style?: unknown }
-}
+type RightsListViewProps = Parameters<typeof RightsListView>[0]
 
-const isViewNode = (value: unknown): value is ViewNode => {
-  if (typeof value !== 'object' || value === null || !('props' in value)) {
-    return false
-  }
-  const { props } = value
-  return typeof props === 'object' && props !== null
+const mount = (view: () => JSX.Element): HTMLElement => {
+  const host = document.createElement('div')
+  document.body.append(host)
+  const dispose = solidRender(view, host)
+  onTestFinished(() => {
+    dispose()
+    host.remove()
+  })
+  return host
 }
-
-const viewNodes = (value: unknown): ViewNode[] => {
-  if (Array.isArray(value)) {
-    return value.flatMap(viewNodes)
-  }
-  return isViewNode(value) ? [value, ...viewNodes(value.props.children)] : []
-}
-
-const isTextChild = (value: unknown): value is bigint | number | string =>
-  typeof value === 'string' || typeof value === 'number' || typeof value === 'bigint'
-
-const viewText = (value: unknown): string => {
-  if (isTextChild(value)) {
-    return String(value)
-  }
-  if (Array.isArray(value)) {
-    return value.map(viewText).join(' ')
-  }
-  return isViewNode(value) ? viewText(value.props.children) : ''
-}
+const showView = (props: RightsListViewProps): HTMLElement => mount(() => <RightsListView {...props} />)
+const viewText = (host: HTMLElement): string => host.textContent ?? ''
+const hrefsOf = (host: HTMLElement): string[] =>
+  [...host.querySelectorAll('[href]')].map((node) => node.getAttribute('href') ?? '')
 
 const right = (id: `0x${string}`, revokedAt: bigint | null): GraphRight => ({
   delegation: {
@@ -419,7 +406,9 @@ describe('pass link availability', () => {
 
 describe('member pass screen', () => {
   it('keeps public-address tools out of the main pass list', () => {
-    const view = RightsList({ injected: { request: async () => await Promise.resolve([HOLDER_A]) } })
+    const view = mount(() => (
+      <RightsList injected={{ request: async () => await Promise.resolve([HOLDER_A]) }} />
+    ))
     const text = viewText(view)
 
     expect(text).toContain('Your passes')
@@ -506,10 +495,10 @@ describe('member rails and query memory', () => {
   })
 
   it('shows private-recovery guidance with the +Private route', () => {
-    const view = QueryRecoveryNotice()
+    const view = mount(() => <QueryRecoveryNotice />)
 
     expect(viewText(view)).toContain('This is a +Private pass. Open Private rights to recover it.')
-    expect(viewNodes(view).some(({ props }) => props.href === '/private')).toBe(true)
+    expect(hrefsOf(view)).toContain('/private')
   })
 
   it('reports an unsuccessful query preview instead of forgetting it', async () => {
@@ -535,11 +524,11 @@ describe('member rails and query memory', () => {
 
 describe(RightsListView, () => {
   it('renders separate active and revoked right cards', () => {
-    const view = RightsListView({
+    const view = showView({
       state: { kind: 'ready', rights: [right(RIGHT, null), right(`0x${'cc'.repeat(32)}`, 88n)] },
     })
     const text = viewText(view)
-    expect(viewNodes(view).filter(({ tag }) => tag === 'li')).toHaveLength(2)
+    expect(view.querySelectorAll('li')).toHaveLength(2)
     expect(text).toContain('ACTIVE')
     expect(text).toContain('REVOKED')
     expect(text).toContain(RIGHT)
@@ -547,23 +536,23 @@ describe(RightsListView, () => {
   })
 
   it('renders explicit loading, empty, and error states', () => {
-    expect(viewText(RightsListView({ state: { kind: 'loading' } }))).toContain('Loading rights')
-    expect(viewText(RightsListView({ state: { kind: 'ready', rights: [] } }))).toContain('No rights found')
-    expect(viewText(RightsListView({ state: { kind: 'error', message: 'Graph unavailable' } }))).toContain(
+    expect(viewText(showView({ state: { kind: 'loading' } }))).toContain('Loading rights')
+    expect(viewText(showView({ state: { kind: 'ready', rights: [] } }))).toContain('No rights found')
+    expect(viewText(showView({ state: { kind: 'error', message: 'Graph unavailable' } }))).toContain(
       'Graph unavailable',
     )
   })
 
   it('displays an unsafe metadata URI without making it a link', () => {
     const unsafe = { ...right(RIGHT, null), metaURI: ['javascript', 'alert(1)'].join(':') }
-    const view = RightsListView({ state: { kind: 'ready', rights: [unsafe] } })
+    const view = showView({ state: { kind: 'ready', rights: [unsafe] } })
 
     expect(viewText(view)).toContain(unsafe.metaURI)
-    expect(viewNodes(view).some(({ props }) => props.href === unsafe.metaURI)).toBe(false)
+    expect(hrefsOf(view)).not.toContain(unsafe.metaURI)
   })
 
   it('uses a live REVOKED preview over an active Graph row and tags memory-only rows', () => {
-    const graphView = RightsListView({
+    const graphView = showView({
       state: {
         kind: 'ready',
         result: {
@@ -574,7 +563,7 @@ describe(RightsListView, () => {
         },
       },
     })
-    const memoryView = RightsListView({
+    const memoryView = showView({
       state: {
         kind: 'ready',
         result: {
@@ -599,10 +588,10 @@ describe(RightsListView, () => {
       googleHref: 'https://api.test/google',
       graph: right(RIGHT, null),
     })
-    const view = RightsListView({
+    const view = showView({
       state: { kind: 'ready', result: { indexUnavailable: false, rows: [row] } },
     })
-    const hrefs = viewNodes(view).map(({ props }) => props.href)
+    const hrefs = hrefsOf(view)
     expect(hrefs).toContain(row.passes.web)
     expect(hrefs).not.toContain(row.appleHref)
     expect(hrefs).not.toContain(row.googleHref)
@@ -610,15 +599,15 @@ describe(RightsListView, () => {
 
   it('does not render pass links for an unclassified memory-only row', () => {
     const row = memberRow({ memory: { addedAt: 1, holder: HOLDER_A, uid: RIGHT }, preview: null })
-    const view = RightsListView({
+    const view = showView({
       state: { kind: 'ready', result: { indexUnavailable: true, rows: [row] } },
     })
 
-    expect(viewNodes(view).some(({ props }) => props.href === row.passes.web)).toBe(false)
+    expect(hrefsOf(view)).not.toContain(row.passes.web)
   })
 
   it('renders the exact saved-pass banner when the public index is unavailable', () => {
-    const view = RightsListView({
+    const view = showView({
       state: { kind: 'ready', result: { indexUnavailable: true, rows: [memberRow({})] } },
     })
 
@@ -626,7 +615,7 @@ describe(RightsListView, () => {
   })
 
   it('shows live enabled stamp progress on a public Pass', () => {
-    const view = RightsListView({
+    const view = showView({
       state: {
         kind: 'ready',
         result: {
@@ -640,7 +629,7 @@ describe(RightsListView, () => {
   })
 
   it('draws a venue card in its own colour, mark, title and member number', () => {
-    const view = RightsListView({
+    const view = showView({
       state: {
         kind: 'ready',
         result: {
@@ -665,12 +654,13 @@ describe(RightsListView, () => {
       text.includes(part),
     )
     expect(shown).toStrictEqual([true, true, true, true, false])
-    const face = viewNodes(view).find((node) => node.props.class === 'member-pass-preview')
-    expect(face?.props.style).toStrictEqual({ backgroundColor: '#112233', color: '#FFFFFF' })
-    expect(
-      viewNodes(view).some(
-        (node) => node.props.src === 'https://api.example.test/assets/coffee/logo/master?v=1',
-      ),
-    ).toBe(true)
+    const face = view.querySelector<HTMLElement>('.member-pass-preview')
+    expect({ backgroundColor: face?.style.backgroundColor, color: face?.style.color }).toStrictEqual({
+      backgroundColor: '#112233',
+      color: '#FFFFFF',
+    })
+    expect(view.querySelector('img')?.getAttribute('src')).toBe(
+      'https://api.example.test/assets/coffee/logo/master?v=1',
+    )
   })
 })

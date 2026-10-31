@@ -1,52 +1,11 @@
+// @vitest-environment happy-dom
 import { soleCard } from '@fuda/sdk'
 import type { Hex, PublicCard, PublicVenue } from '@fuda/sdk'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
-import { describe, expect, it, vi } from 'vitest'
+import { render as solidRender } from 'solid-js/web'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import { CardScreenView, humanBadgeStateOf, issueDateOf } from './venue/CardScreen.tsx'
 import type { IssuedCard } from './venue/CardScreen.tsx'
-
-interface ViewNode {
-  props: {
-    'aria-label'?: unknown
-    children?: unknown
-    class?: unknown
-    disabled?: unknown
-    href?: unknown
-    role?: unknown
-    src?: unknown
-    style?: unknown
-    target?: unknown
-  }
-}
-
-const isViewNode = (value: unknown): value is ViewNode => {
-  if (typeof value !== 'object' || value === null || !('props' in value)) {
-    return false
-  }
-  const { props } = value
-  return typeof props === 'object' && props !== null
-}
-
-const viewNodes = (value: unknown): ViewNode[] => {
-  if (Array.isArray(value)) {
-    return value.flatMap(viewNodes)
-  }
-  return isViewNode(value) ? [value, ...viewNodes(value.props.children)] : []
-}
-
-const isTextChild = (value: unknown): value is bigint | number | string =>
-  typeof value === 'string' || typeof value === 'number' || typeof value === 'bigint'
-
-const viewText = (value: unknown): string => {
-  if (isTextChild(value)) {
-    return String(value)
-  }
-  if (Array.isArray(value)) {
-    return value.map(viewText).join(' ')
-  }
-  return isViewNode(value) ? viewText(value.props.children) : ''
-}
 
 const UID: Hex = `0x${'ab'.repeat(32)}`
 const HOLDER: Hex = `0x${'11'.repeat(20)}`
@@ -110,17 +69,36 @@ const issued: IssuedCard = {
 
 const noop = (): void => {}
 
-const render = (state: Parameters<typeof CardScreenView>[0]['state']): JSX.Element =>
-  CardScreenView({ onIssue: noop, onReload: noop, onVerifyHuman: noop, state })
+const render = (state: Parameters<typeof CardScreenView>[0]['state']): HTMLElement => {
+  const host = document.createElement('div')
+  document.body.append(host)
+  const dispose = solidRender(
+    () => <CardScreenView onIssue={noop} onReload={noop} onVerifyHuman={noop} state={state} />,
+    host,
+  )
+  onTestFinished(() => {
+    dispose()
+    host.remove()
+    vi.unstubAllGlobals()
+  })
+  return host
+}
+const viewText = (host: HTMLElement): string => host.textContent ?? ''
+const hrefsOf = (host: HTMLElement): string[] =>
+  [...host.querySelectorAll('[href]')].map((node) => node.getAttribute('href') ?? '')
+const brandStyle = (host: HTMLElement) => {
+  const brand = host.querySelector<HTMLElement>('.venue-brand')!
+  return { backgroundColor: brand.style.backgroundColor, color: brand.style.color }
+}
 
 describe(CardScreenView, () => {
   it('shows the onboarding description as multiline plain text', () => {
     const description = 'First line\n<em>Second line</em>'
     const view = render({ card: { ...card, card: { ...card.card, description } }, kind: 'landing' })
     expect(viewText(view)).toContain(description)
-    expect(viewNodes(view).find((node) => node.props.children === description)?.props.class).toContain(
-      'whitespace-pre-wrap',
-    )
+    expect(
+      [...view.querySelectorAll('p')].find((node) => node.textContent === description)?.className,
+    ).toContain('whitespace-pre-wrap')
   })
 
   it('shows the venue card, its description and the free-card button on the landing', () => {
@@ -137,19 +115,12 @@ describe(CardScreenView, () => {
   it('paints the card in the brand colour', () => {
     const view = render({ card, kind: 'landing' })
 
-    expect(viewNodes(view).some(({ props }) => props.style !== undefined)).toBe(true)
-    expect(viewNodes(view).find(({ props }) => props.style !== undefined)?.props.style).toStrictEqual({
-      backgroundColor: '#1D4ED8',
-      color: '#FFFFFF',
-    })
+    expect(brandStyle(view)).toStrictEqual({ backgroundColor: '#1D4ED8', color: '#FFFFFF' })
   })
 
   it('uses black text on a light venue card', () => {
     const view = render({ card: { ...card, brandColor: '#C389FF' }, kind: 'landing' })
-    expect(viewNodes(view).find(({ props }) => props.class === 'venue-brand')?.props.style).toStrictEqual({
-      backgroundColor: '#C389FF',
-      color: '#000000',
-    })
+    expect(brandStyle(view)).toStrictEqual({ backgroundColor: '#C389FF', color: '#000000' })
   })
 
   it('omits an empty description and disables the button while issuing', () => {
@@ -157,10 +128,8 @@ describe(CardScreenView, () => {
     const landing = render({ card: bare, kind: 'landing' })
     const issuing = render({ card, kind: 'issuing' })
 
-    expect(viewNodes(landing).some(({ props }) => String(props.class).includes('whitespace-pre-wrap'))).toBe(
-      false,
-    )
-    expect(viewNodes(issuing).some(({ props }) => props.disabled === true)).toBe(true)
+    expect(landing.querySelector('.whitespace-pre-wrap')).toBeNull()
+    expect(issuing.querySelector('button')?.disabled).toBe(true)
     expect(viewText(issuing)).toContain('Getting your card…')
   })
 
@@ -174,13 +143,13 @@ describe(CardScreenView, () => {
       kind: 'ready',
     })
     const text = viewText(view)
-    const qr = viewNodes(view).find(({ props }) => props.role === 'img')
+    const qr = view.querySelector('div[role="img"]')
 
     expect(text).toContain('Regular')
     expect(text).toContain('MEMBER')
     expect(text).toContain('QJ2Y-XPHE-PDRKA')
     expect(text).toContain('Sep 7, 2026')
-    expect(qr?.props['aria-label']).toBe('Your membership card QR code for Wassie Coffee')
+    expect(qr?.getAttribute('aria-label')).toBe('Your membership card QR code for Wassie Coffee')
   })
 
   // The page is the one waiting for the verifier's answer, so the hand-off must
@@ -196,13 +165,12 @@ describe(CardScreenView, () => {
       issued,
       kind: 'ready',
     })
-    const nodes = viewNodes(view)
-    const link = nodes.find(({ props }) => props.href === connectorUri)
+    const link = [...view.querySelectorAll('a')].find((node) => node.getAttribute('href') === connectorUri)
 
-    expect(link?.props.target).toBe('_blank')
+    expect(link?.getAttribute('target')).toBe('_blank')
     expect(viewText(view)).toContain('Continue verification')
     expect(viewText(view)).toContain('Please keep this page open.')
-    expect(nodes.some(({ props }) => props['aria-label'] === 'QR code to continue verification')).toBe(true)
+    expect(view.querySelector('[aria-label="QR code to continue verification"]')).not.toBeNull()
   })
 
   it('offers no badge control at all where the verifier is not configured', () => {
@@ -229,7 +197,7 @@ describe(CardScreenView, () => {
         issued,
         kind: 'ready',
       })
-      const hrefs = (view: unknown): unknown[] => viewNodes(view).map(({ props }) => props.href)
+      const hrefs = hrefsOf
 
       expect(hrefs(hidden)).toContain(issued.passUrls.web)
       expect(hrefs(hidden)).not.toContain(issued.passUrls.apple)
@@ -252,9 +220,7 @@ describe(CardScreenView, () => {
       issued,
       kind: 'ready',
     })
-    const hrefs = viewNodes(shown).map(({ props }) => props.href)
-
-    expect(hrefs.filter((href) => href !== undefined)).toStrictEqual([expectedHref])
+    expect(hrefsOf(shown)).toStrictEqual([expectedHref])
     expect(viewText(shown)).toContain('No name or contact details required')
   })
 
@@ -280,9 +246,7 @@ describe('the card chooser', () => {
   it('names the venue once and links a row per card with its type and description', () => {
     const view = render({ heldSlugs: [], kind: 'choose', venue })
     const text = viewText(view)
-    const hrefs = viewNodes(view)
-      .map(({ props }) => props.href)
-      .filter((href) => href !== undefined)
+    const hrefs = hrefsOf(view)
 
     expect(text).toContain('Wassie Coffee')
     expect(text).toContain('Slow coffee, fast wifi')
@@ -321,9 +285,9 @@ describe('the card chooser', () => {
     const bare = render({ kind: 'not_found', venue: null })
 
     expect(viewText(unknown)).toMatch(/Wassie Coffee\s+has no card at this address/u)
-    expect(viewNodes(unknown).map(({ props }) => props.href)).toContain('/@wassie-coffee?cards=all')
+    expect(hrefsOf(unknown)).toContain('/@wassie-coffee?cards=all')
     expect(viewText(bare)).toContain('There is no card at this address')
-    expect(viewNodes(bare).map(({ props }) => props.href)).not.toContain('/')
+    expect(hrefsOf(bare)).not.toContain('/')
   })
 })
 
@@ -338,10 +302,7 @@ describe('a card outside its claim window', () => {
   })
 
   it('offers the way back to the venue page', () => {
-    const back = viewNodes(render({ card: closed, kind: 'landing' })).find(
-      (node) => node.props.href === `/@${closed.handle}?cards=all`,
-    )
-    expect(back).toBeDefined()
+    expect(hrefsOf(render({ card: closed, kind: 'landing' }))).toContain(`/@${closed.handle}?cards=all`)
   })
 
   it('marks the row as closed on the venue page and keeps a held card openable', () => {
@@ -356,18 +317,15 @@ describe('a card outside its claim window', () => {
 
 describe('the venue mark', () => {
   it('renders the url the api handed out', () => {
-    const marks = viewNodes(render({ card, kind: 'landing' })).filter(
-      (node) => node.props.src === card.logoUrl,
+    const marks = [...render({ card, kind: 'landing' }).querySelectorAll('img')].filter(
+      (node) => node.getAttribute('src') === card.logoUrl,
     )
     expect(marks).toHaveLength(1)
   })
 
   it('renders no image for a venue without a mark', () => {
     const bare = { ...card, logoUrl: null }
-    const marks = viewNodes(render({ card: bare, kind: 'landing' })).filter(
-      (node) => node.props.src !== undefined,
-    )
-    expect(marks).toStrictEqual([])
+    expect(render({ card: bare, kind: 'landing' }).querySelectorAll('[src]')).toHaveLength(0)
   })
 })
 
@@ -381,10 +339,9 @@ describe('venue-local navigation', () => {
     { card: null, failure: 'network', kind: 'error' },
     { appleHref: null, badge: { kind: 'idle' }, card, googleHref: null, issued, kind: 'ready' },
   ] satisfies Parameters<typeof CardScreenView>[0]['state'][])('keeps $kind within the venue', (state) => {
-    const nodes = viewNodes(render(state))
-    const hrefs = nodes.map(({ props }) => props.href)
-    expect(hrefs).not.toContain('/')
-    expect(nodes.some(({ props }) => String(props.class).includes('dock'))).toBe(false)
+    const host = render(state)
+    expect(hrefsOf(host)).not.toContain('/')
+    expect(host.querySelector('[class*="dock"]')).toBeNull()
   })
 })
 

@@ -1,9 +1,10 @@
 import tailwindcss from '@tailwindcss/vite'
+import solid from 'vite-plugin-solid'
 import { defineConfig } from 'vite-plus'
 
 // Pinned dev port (api CORS accepts any localhost port); the member app owns 5173.
 export default defineConfig({
-  plugins: [tailwindcss()],
+  plugins: [tailwindcss(), solid({ hot: false })],
   server: { port: 5173, strictPort: true },
   test: { environment: 'node', include: ['src/**/*.test.{ts,tsx}'], unstubGlobals: true },
 })

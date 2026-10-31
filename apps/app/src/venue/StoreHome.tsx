@@ -1,10 +1,9 @@
-/** @jsxImportSource hono/jsx/dom */
 import { DEFAULT_LOCALE, pick } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
 import { brandTextColor, qrSvg } from '@fuda/sdk'
 import type { PublicVenue } from '@fuda/sdk'
-import { useState } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import { createSignal, For } from 'solid-js'
+import type { JSX } from 'solid-js'
 
 import { VENUE_COPY } from './copy.ts'
 import type { VenueCopy } from './copy.ts'
@@ -43,18 +42,16 @@ const initialSlug = (venue: PublicVenue, requested: string | null): string | nul
 const missingCardText = (venue: PublicVenue, copy: VenueCopy): string =>
   venue.cards.length === 0 ? copy.noCards(venue.name) : copy.defaultUnavailable
 
-const CardTabs = ({
-  cards,
-  selected,
-  label,
-  onSelect,
-}: {
+const selectedState = (selected: boolean): 'false' | 'true' => (selected ? 'true' : 'false')
+
+const CardTabs = (props: {
   cards: PublicVenue['cards']
   selected: string | null
   label: string
   onSelect: (slug: string) => void
 }): JSX.Element => {
   const onTabKey = (event: KeyboardEvent, index: number): void => {
+    const { cards } = props
     let next = index
     switch (event.key) {
       case 'ArrowRight': {
@@ -82,135 +79,142 @@ const CardTabs = ({
       return
     }
     event.preventDefault()
-    onSelect(target.slug)
+    props.onSelect(target.slug)
     document.querySelector<HTMLButtonElement>(`#store-tab-${target.slug}`)?.focus()
   }
+  // Until an alternative is chosen, this is a button group, not an unnamed tab
+  // panel claiming to have an active tab.
+  const tabbed = (): boolean => props.selected !== null
   return (
-    <div
-      role={selected === null ? 'group' : 'tablist'}
-      aria-label={label}
-      class="tabs tabs-box store-home-tabs"
-    >
-      {cards.map((item, index): JSX.Element => {
-        // Until an alternative is chosen, this is a button group, not an
-        // unnamed tab panel claiming to have an active tab.
-        const semantics =
-          selected === null
-            ? { role: 'button', tabIndex: 0 }
-            : {
-                'aria-controls': 'store-home-card',
-                'aria-selected': selected === item.slug ? 'true' : 'false',
-                role: 'tab',
-                tabIndex: selected === item.slug ? 0 : -1,
-              }
-        return (
+    <div role={tabbed() ? 'tablist' : 'group'} aria-label={props.label} class="tabs tabs-box store-home-tabs">
+      <For each={props.cards}>
+        {(item, index) => (
           <button
             type="button"
-            key={item.slug}
             id={`store-tab-${item.slug}`}
-            {...semantics}
+            role={tabbed() ? 'tab' : 'button'}
+            aria-controls={tabbed() ? 'store-home-card' : undefined}
+            aria-selected={tabbed() ? selectedState(props.selected === item.slug) : undefined}
+            tabIndex={!tabbed() || props.selected === item.slug ? 0 : -1}
             class="tab"
-            onKeyDown={(event: KeyboardEvent) => {
-              onTabKey(event, index)
+            onKeyDown={(event) => {
+              onTabKey(event, index())
             }}
             onClick={() => {
-              onSelect(item.slug)
+              props.onSelect(item.slug)
             }}
           >
             {item.title}
           </button>
-        )
-      })}
+        )}
+      </For>
     </div>
   )
 }
 
+// The QR and claim link for a card that is handing out, or the reason it is not.
+const claimPanel = (
+  card: PublicVenue['cards'][number] | undefined,
+  href: string | null,
+  copy: (typeof HOME_COPY)['en'],
+  unavailable: () => string,
+): JSX.Element =>
+  card?.claimable === true && href !== null ? (
+    <>
+      <div
+        class="store-home-qr"
+        role="img"
+        aria-label={`${copy.title}: ${card.title}`}
+        // Generated locally from the card URL, never from remote SVG markup.
+        innerHTML={qrSvg(href, { modulePx: 12 })}
+      />
+      <div class="flex flex-col gap-2">
+        <p class="text-base font-semibold sm:text-xl">{copy.scan}</p>
+        <p class="text-xs leading-relaxed opacity-85 sm:text-sm">{copy.tip}</p>
+      </div>
+      <a
+        data-claim-link
+        href={href}
+        class="store-home-receive inline-flex min-h-11 items-center text-sm underline underline-offset-4"
+      >
+        {copy.get}
+        <span aria-hidden="true" class="ml-2">
+          ↗
+        </span>
+      </a>
+    </>
+  ) : (
+    <p class="max-w-sm text-sm leading-relaxed" role="status">
+      {unavailable()}
+    </p>
+  )
+
 // Display-only: this component never issues a Card or chooses a Wallet platform.
-export const StoreHome = ({
-  venue,
-  origin,
-  locale = DEFAULT_LOCALE,
-  requested = null,
-}: {
+export const StoreHome = (props: {
   venue: PublicVenue
   origin: string
   locale?: Locale
   requested?: string | null
 }): JSX.Element => {
-  const [selected, setSelected] = useState(() => initialSlug(venue, requested))
-  const card = venue.cards.find(({ slug }) => slug === selected)
-  const copy = pick(HOME_COPY, locale)
-  const venueCopy = pick(VENUE_COPY, locale)
-  const href = card === undefined ? null : new URL(cardClaimHref(venue.handle, card.slug), origin).href
-  const showTabs = venue.cards.length > 1 || (venue.cards.length > 0 && card === undefined)
+  const [selected, setSelected] = createSignal(initialSlug(props.venue, props.requested ?? null))
+  const card = (): PublicVenue['cards'][number] | undefined =>
+    props.venue.cards.find(({ slug }) => slug === selected())
+  const copy = (): (typeof HOME_COPY)['en'] => pick(HOME_COPY, props.locale ?? DEFAULT_LOCALE)
+  const venueCopy = (): VenueCopy => pick(VENUE_COPY, props.locale ?? DEFAULT_LOCALE)
+  const href = (): string | null => {
+    const current = card()
+    return current === undefined
+      ? null
+      : new URL(cardClaimHref(props.venue.handle, current.slug), props.origin).href
+  }
+  const showTabs = (): boolean =>
+    props.venue.cards.length > 1 || (props.venue.cards.length > 0 && card() === undefined)
   return (
     <main
       class="store-home"
-      style={{ backgroundColor: venue.brandColor, color: brandTextColor(venue.brandColor) }}
+      style={{ 'background-color': props.venue.brandColor, color: brandTextColor(props.venue.brandColor) }}
     >
       <div class="store-home-content">
         <header class="flex flex-col items-center gap-5">
-          {venue.logoUrl === null ? null : (
+          {props.venue.logoUrl === null ? null : (
             <img
               alt=""
               class="size-20 rounded-3xl object-contain sm:size-24"
-              src={venue.logoUrl}
-              onError={(event: Event & { currentTarget: HTMLImageElement }) => {
+              src={props.venue.logoUrl}
+              onError={(event) => {
                 event.currentTarget.hidden = true
               }}
             />
           )}
           <div class="flex flex-col gap-3">
-            <h1 class="text-3xl leading-tight font-semibold tracking-tight sm:text-5xl">{venue.name}</h1>
-            {venue.tagline === '' ? null : (
-              <p class="text-sm leading-relaxed opacity-85 sm:text-base">{venue.tagline}</p>
+            <h1 class="text-3xl leading-tight font-semibold tracking-tight sm:text-5xl">
+              {props.venue.name}
+            </h1>
+            {props.venue.tagline === '' ? null : (
+              <p class="text-sm leading-relaxed opacity-85 sm:text-base">{props.venue.tagline}</p>
             )}
           </div>
         </header>
-        {showTabs ? (
+        {showTabs() ? (
           <CardTabs
-            cards={venue.cards}
-            label={copy.choose}
-            selected={card?.slug ?? null}
-            onSelect={setSelected}
+            cards={props.venue.cards}
+            label={copy().choose}
+            selected={card()?.slug ?? null}
+            onSelect={(slug) => {
+              setSelected(slug)
+            }}
           />
         ) : null}
         <section
           id="store-home-card"
-          role={showTabs && card !== undefined ? 'tabpanel' : undefined}
-          aria-labelledby={showTabs && card !== undefined ? `store-tab-${card.slug}` : undefined}
+          role={showTabs() && card() !== undefined ? 'tabpanel' : undefined}
+          aria-labelledby={showTabs() && card() !== undefined ? `store-tab-${card()?.slug ?? ''}` : undefined}
           class="flex w-full flex-col items-center gap-5"
           aria-live="polite"
         >
-          {card === undefined ? null : <h2 class="text-lg font-medium sm:text-xl">{card.title}</h2>}
-          {card?.claimable === true && href !== null ? (
-            <>
-              <div
-                class="store-home-qr"
-                role="img"
-                aria-label={`${copy.title}: ${card.title}`}
-                // Generated locally from the card URL, never from remote SVG markup.
-                dangerouslySetInnerHTML={{ __html: qrSvg(href, { modulePx: 12 }) }}
-              />
-              <div class="flex flex-col gap-2">
-                <p class="text-base font-semibold sm:text-xl">{copy.scan}</p>
-                <p class="text-xs leading-relaxed opacity-85 sm:text-sm">{copy.tip}</p>
-              </div>
-              <a
-                data-claim-link
-                href={href}
-                class="store-home-receive inline-flex min-h-11 items-center text-sm underline underline-offset-4"
-              >
-                {copy.get}
-                <span aria-hidden="true" class="ml-2">
-                  ↗
-                </span>
-              </a>
-            </>
-          ) : (
-            <p class="max-w-sm text-sm leading-relaxed" role="status">
-              {card === undefined ? missingCardText(venue, venueCopy) : venueCopy.notHandingOut}
-            </p>
+          {card() === undefined ? null : <h2 class="text-lg font-medium sm:text-xl">{card()?.title}</h2>}
+          {claimPanel(card(), href(), copy(), () =>
+            card() === undefined ? missingCardText(props.venue, venueCopy()) : venueCopy().notHandingOut,
           )}
         </section>
         <footer class="store-home-footer flex w-full items-center justify-between gap-4 text-xs">
@@ -222,7 +226,7 @@ export const StoreHome = ({
               window.print()
             }}
           >
-            {copy.print}
+            {copy().print}
           </button>
         </footer>
       </div>

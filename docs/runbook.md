@@ -194,16 +194,17 @@ VITE_API_BASE_URL=https://api.fuda.sh VITE_GRAPH_RIGHTS_ENDPOINT=<PUBLIC_GRAPH_E
   pnpm --filter app run deploy
 ```
 
-The api and app `deploy` scripts deploy with Wrangler: app builds, then runs `wrangler deploy`, and the api runs Wrangler directly. Their `wrangler.jsonc` files declare their hostnames as custom domains (`api.fuda.sh` and `app.fuda.sh`), so the first deploy of each Worker attaches its hostname. The zone must already be on the account. The `fuda.sh/@*` redirect is a zone-level Single Redirect and is not managed by Wrangler. To validate a config without shipping, run `pnpm --filter api exec wrangler deploy --dry-run`. For app, run `pnpm --filter app run build` with its intended build environment, then `pnpm --filter app exec wrangler deploy --dry-run`.
+The api deploys with Wrangler: its `deploy` script runs `wrangler deploy`, and `apps/api/wrangler.jsonc` declares `api.fuda.sh` as a custom domain, so the first deploy attaches the hostname. The zone must already be on the account. The `fuda.sh/@*` redirect is a zone-level Single Redirect and is not managed by Wrangler. To validate the api config without shipping, run `pnpm --filter api exec wrangler deploy --dry-run`.
 
-Gate and dash deploy with Void ([ADR 0009](adr/0009-void-and-solid.md)). Each `deploy` script runs `void deploy`, which builds with `vp build` and uploads `dist` as a static SPA. `apps/gate/void.config.ts` and `apps/dash/void.config.ts` hold each Worker's name (`fuda-gate`, `fuda-dash`) and its custom-domain route (`gate.fuda.sh`, `dash.fuda.sh`).
+The three frontends deploy with Void ([ADR 0009](adr/0009-void-and-solid.md)). Each `deploy` script runs `void deploy`, which builds with `vp build` and uploads `dist` as a static SPA. Each app's `void.config.ts` holds its Worker name (`fuda-gate`, `fuda-dash`, `fuda-app`) and its custom-domain route (`gate.fuda.sh`, `dash.fuda.sh`, `app.fuda.sh`). The build environment above is read by `vp build` inside `void deploy`.
 
-`pnpm --filter <app> exec void info` checks either config offline.
+`pnpm --filter <app> exec void info` checks a config offline.
 
-No one has run `void deploy` for gate or dash yet. Run each first deploy interactively, from one machine. Void signs in to Cloudflare and writes the app's `void.lock.json`; commit that file before deploying from any other machine. `.void/` and `.void-wrangler.jsonc` are local state and are Git-ignored. Two things to watch for on that first run:
+No one has run `void deploy` for the frontends yet. Run each first deploy interactively, from one machine. Void signs in to Cloudflare and writes the app's `void.lock.json`; commit that file before deploying from any other machine. `.void/` and `.void-wrangler.jsonc` are local state and are Git-ignored. Three things to watch for on those first runs:
 
-- **Link or create.** Void should link the existing Worker (`fuda-gate` or `fuda-dash`), keeping its domain. If it offers to create a new Worker instead, stop: a second Worker would conflict with the domain.
+- **Link or create.** Void should link the existing Worker, keeping its domain. If it offers to create a new Worker instead, stop: a second Worker would conflict with the domain.
 - **Readiness.** Before sending traffic, Void checks the new version through a version metadata binding or a Version URL. If it stops at that check, enable Version URLs for that Worker, or add a version metadata binding under `cloudflare` in `void.config.ts`, then retry.
+- **Venue URLs (app only).** Workers Static Assets rewrites a literal `@` in an unknown path to `%40`. `apps/app/void.config.ts` therefore rewrites `/@*` to the SPA shell before the asset lookup, replacing the old Worker that ran first for those paths. After the first app deploy, confirm that `curl -sI 'https://app.fuda.sh/@wassie-coffee?source=qr'` answers `200` with `content-type: text/html` and no `location` header. A redirect to `%40` means the rewrite did not run.
 
 ## 9. Live smoke
 
