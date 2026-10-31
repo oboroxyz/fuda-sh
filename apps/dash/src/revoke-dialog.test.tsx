@@ -1,20 +1,13 @@
-/** @jsxImportSource hono/jsx/dom */
+// @vitest-environment happy-dom
 import { pick } from '@fuda/i18n'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createSignal } from 'solid-js'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { DASH_COPY } from './copy.ts'
 import type { MemberRowView } from './members-view.ts'
 import { RevokeDialog } from './RevokeDialog.tsx'
 import type { RevokeDialogProps } from './RevokeDialog.tsx'
-import { findViewNodes, viewProps, viewText, walkView } from './test/test-view.ts'
-
-const effects = vi.hoisted(() => [] as (() => void)[])
-vi.mock(import('hono/jsx/dom'), async (importOriginal) => ({
-  ...(await importOriginal()),
-  useEffect: (effect: () => void): void => {
-    effects.push(effect)
-  },
-}))
+import { cleanup, mount, spacedText } from './test/render.tsx'
 
 const UID = `0x${'ab'.repeat(32)}` as const
 const row: MemberRowView = {
@@ -40,134 +33,110 @@ const props = (overrides: Partial<RevokeDialogProps> = {}): RevokeDialogProps =>
   ...overrides,
 })
 
-const actionButtons = (view: unknown) => walkView(view).filter((node) => viewProps(node).type === 'button')
+const show = (overrides: Partial<RevokeDialogProps> = {}): HTMLElement => {
+  const value = props(overrides)
+  return mount(() => <RevokeDialog {...value} />)
+}
+
+const actionButtons = (host: HTMLElement): HTMLButtonElement[] => [
+  ...host.querySelectorAll<HTMLButtonElement>('button[type="button"]'),
+]
+
+const dialogOf = (host: HTMLElement): HTMLDialogElement => host.querySelector('dialog')!
 
 describe('revoke dialog', () => {
-  beforeEach(() => {
-    effects.length = 0
-  })
+  afterEach(cleanup)
 
   it('identifies the right accessibly and puts safe Cancel before confirmation', () => {
-    const view = RevokeDialog(props({ error: 'RPC unavailable' }))
-    const [dialog] = findViewNodes(view, 'dialog')
-    const [heading] = findViewNodes(view, 'h2')
-    const [uid] = findViewNodes(view, 'code')
+    const host = show({ error: 'RPC unavailable' })
+    const dialog = dialogOf(host)
+    const heading = host.querySelector('h2')!
+    const uid = host.querySelector('code')!
     expect({
-      labelledBy: viewProps(dialog)['aria-labelledby'],
-      modal: viewProps(dialog)['aria-modal'],
-      uid: viewProps(uid).title,
-    }).toStrictEqual({ labelledBy: viewProps(heading).id, modal: 'true', uid: UID })
-    expect(viewText(view)).toMatch(/No member ID.*0x1212…1212.*signed/u)
+      labelledBy: dialog.getAttribute('aria-labelledby'),
+      modal: dialog.getAttribute('aria-modal'),
+      uid: uid.getAttribute('title'),
+    }).toStrictEqual({ labelledBy: heading.id, modal: 'true', uid: UID })
+    expect(spacedText(host)).toMatch(/No member ID.*0x1212…1212.*signed/u)
     expect(
-      findViewNodes(uid, 'span').map((node) => [viewProps(node)['aria-hidden'], viewText(node)]),
+      [...uid.querySelectorAll('span')].map((node) => [node.getAttribute('aria-hidden'), node.textContent]),
     ).toStrictEqual([
-      [undefined, UID],
+      [null, UID],
       ['true', '0xabababab…'],
     ])
-    expect(actionButtons(view).map(viewText)).toStrictEqual(['Cancel', 'Revoke right'])
-    expect(viewText(view)).toContain('Revoke failed: RPC unavailable')
+    expect(actionButtons(host).map(spacedText)).toStrictEqual(['Cancel', 'Revoke right'])
+    expect(spacedText(host)).toContain('Revoke failed: RPC unavailable')
   })
 
   it('opens modally and focuses Cancel, then closes when the target clears', () => {
-    const view = RevokeDialog(props())
-    const [dialog] = findViewNodes(view, 'dialog')
-    const [cancel] = actionButtons(view)
-    const calls: string[] = []
-    const element = {
-      close: (): void => {
-        calls.push('close')
-      },
-      open: false,
-      showModal: (): void => {
-        calls.push('showModal')
-      },
-    } as unknown as HTMLDialogElement
-    ;(viewProps(dialog).ref as { current: HTMLDialogElement | null }).current = element
-    ;(viewProps(cancel).ref as { current: HTMLButtonElement | null }).current = {
-      focus: (): void => {
-        calls.push('focusCancel')
-      },
-    } as unknown as HTMLButtonElement
-    for (const effect of effects) {
-      effect()
-    }
-    expect(calls).toStrictEqual(['showModal', 'focusCancel'])
+    const [target, setTarget] = createSignal<MemberRowView | null>(row)
+    const value = props()
+    const host = mount(() => <RevokeDialog {...value} target={target()} />)
+    const dialog = dialogOf(host)
+    const [cancel] = actionButtons(host)
 
-    effects.length = 0
-    const closed = RevokeDialog(props({ target: null }))
-    element.open = true
-    ;(viewProps(findViewNodes(closed, 'dialog')[0]).ref as { current: HTMLDialogElement | null }).current =
-      element
-    for (const effect of effects) {
-      effect()
-    }
-    expect(calls).toStrictEqual(['showModal', 'focusCancel', 'close'])
+    expect(dialog.open).toBe(true)
+    expect(document.activeElement).toBe(cancel)
+
+    setTarget(null)
+    expect(dialog.open).toBe(false)
   })
 
   it('blocks Escape, backdrop, close and actions while busy', () => {
     const onCancel = vi.fn<() => void>()
     const onConfirm = vi.fn<() => void>()
-    const view = RevokeDialog(props({ busy: true, onCancel, onConfirm }))
-    const [dialog] = findViewNodes(view, 'dialog')
-    const buttons = actionButtons(view)
-    const preventDefault = vi.fn<() => void>()
-    const showModal = vi.fn<() => void>()
-    const element = { open: false, showModal } as unknown as HTMLDialogElement
-    ;(viewProps(dialog).ref as { current: HTMLDialogElement | null }).current = element
-    ;(viewProps(dialog).onCancel as (event: Event) => void)({ preventDefault } as unknown as Event)
-    ;(viewProps(dialog).onClick as (event: MouseEvent) => void)({
-      currentTarget: element,
-      target: element,
-    } as unknown as MouseEvent)
-    ;(viewProps(dialog).onClose as () => void)()
+    const host = show({ busy: true, onCancel, onConfirm })
+    const dialog = dialogOf(host)
+    const buttons = actionButtons(host)
+
+    const escape = new Event('cancel', { cancelable: true })
+    dialog.dispatchEvent(escape)
+    dialog.click()
+    dialog.close()
     for (const button of buttons) {
-      ;(viewProps(button).onClick as () => void)()
+      button.click()
     }
-    expect(buttons.map((button) => [viewProps(button).disabled, viewText(button)])).toStrictEqual([
+
+    expect(buttons.map((button) => [button.disabled, spacedText(button)])).toStrictEqual([
       [true, 'Cancel'],
       [true, 'Revoking'],
     ])
-    expect(preventDefault).toHaveBeenCalledOnce()
+    expect(escape.defaultPrevented).toBe(true)
     expect(onCancel).not.toHaveBeenCalled()
     expect(onConfirm).not.toHaveBeenCalled()
-    expect(showModal).toHaveBeenCalledOnce()
+    // A close while busy reopens the dialog: the revoke is still in flight.
+    expect(dialog.open).toBe(true)
   })
 
   it.each([
     ['en', 'Revoking'],
     ['ja', '取り消し中'],
   ] as const)('announces the revoke busy state in a localized live region in %s', (locale, message) => {
-    const view = RevokeDialog(props({ busy: true, copy: DASH_COPY[locale].revoke }))
-    const status = walkView(view).find((node) => node.props.role === 'status')
+    const busy = show({ busy: true, copy: DASH_COPY[locale].revoke })
+    const status = busy.querySelector('[role="status"]')
 
-    expect(viewText(status)).toBe(message)
-    expect(status?.props['aria-live']).toBe('polite')
-    expect(actionButtons(view).every((button) => button.props.disabled === true)).toBe(true)
-    expect(
-      walkView(RevokeDialog(props({ copy: DASH_COPY[locale].revoke }))).filter(
-        (node) => node.props.role === 'status' && viewText(node) !== '',
-      ),
-    ).toHaveLength(0)
+    expect(spacedText(status)).toBe(message)
+    expect(status?.getAttribute('aria-live')).toBe('polite')
+    expect(actionButtons(busy).every((button) => button.disabled)).toBe(true)
+
+    const idle = show({ copy: DASH_COPY[locale].revoke })
+    expect(spacedText(idle.querySelector('[role="status"]'))).toBe('')
   })
 
   it('routes idle Cancel, Escape and backdrop to cancellation and disables revoked confirmation', () => {
     const onCancel = vi.fn<() => void>()
     const onConfirm = vi.fn<() => void>()
-    const view = RevokeDialog(props({ onCancel, onConfirm, target: { ...row, status: 'revoked' } }))
-    const [dialog] = findViewNodes(view, 'dialog')
-    const [cancel, confirm] = actionButtons(view)
-    ;(viewProps(cancel).onClick as () => void)()
-    ;(viewProps(confirm).onClick as () => void)()
-    ;(viewProps(dialog).onCancel as (event: Event) => void)({
-      preventDefault: (): void => {},
-    } as unknown as Event)
-    const backdrop = {} as HTMLDialogElement
-    ;(viewProps(dialog).onClick as (event: MouseEvent) => void)({
-      currentTarget: backdrop,
-      target: backdrop,
-    } as unknown as MouseEvent)
+    const host = show({ onCancel, onConfirm, target: { ...row, status: 'revoked' } })
+    const dialog = dialogOf(host)
+    const [cancel, confirm] = actionButtons(host)
+
+    cancel.click()
+    confirm.click()
+    dialog.dispatchEvent(new Event('cancel', { cancelable: true }))
+    dialog.click()
+
     expect(onCancel).toHaveBeenCalledTimes(3)
     expect(onConfirm).not.toHaveBeenCalled()
-    expect(viewProps(confirm).disabled).toBe(true)
+    expect(confirm.disabled).toBe(true)
   })
 })

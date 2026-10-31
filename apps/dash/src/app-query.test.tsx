@@ -1,24 +1,24 @@
 // @vitest-environment happy-dom
-/** @jsxImportSource hono/jsx/dom */
 import { setTimeout } from 'node:timers/promises'
 
+import { pick } from '@fuda/i18n'
 import type { IssuerMeResponse } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
-import { render, useState } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import { createSignal, Show } from 'solid-js'
+import type { JSX } from 'solid-js'
+import { render } from 'solid-js/web'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { DashIo } from './app-actions.ts'
 import { App } from './App.tsx'
 import type { AppViewProps } from './AppView.tsx'
 import { EMPTY_FORM } from './card-designer.ts'
+import { DASH_COPY } from './copy.ts'
 import { readPendingEnsClaim, writePendingEnsClaim } from './ens-pending.ts'
-import { EnsClaim } from './EnsClaim.tsx'
-import type { EnsClaimProps } from './EnsClaim.tsx'
 import { DEFAULT_OPERATOR_IO } from './operator-io.ts'
 import type { OperatorIo } from './operator-io.ts'
 import { membershipCard, passesResponse } from './test/management-fixtures.ts'
-import { findViewNodes, viewProps } from './test/test-view.ts'
+import { mount, spacedText } from './test/render.tsx'
 import { EMPTY_VENUE_FORM } from './venue.ts'
 
 const output = vi.hoisted(() => ({ current: null as AppViewProps | null }))
@@ -67,19 +67,38 @@ const operatorIo = () => ({
 const root = document.createElement('div')
 let removeMounted: (() => void) | undefined
 
-const Mount = ({ children }: { children: JSX.Element }): JSX.Element | null => {
-  const [mounted, setMounted] = useState(true)
+let dispose: (() => void) | undefined
+
+const Mount = (props: { children: JSX.Element }): JSX.Element => {
+  const [mounted, setMounted] = createSignal(true)
   removeMounted = () => {
     setMounted(false)
   }
-  return mounted ? children : null
+  return <Show when={mounted()}>{props.children}</Show>
+}
+
+// The ENS section App hands to the view, mounted on its own so its claim
+// state can be read the way the operator sees it.
+const ensCopy = pick(DASH_COPY, 'en').ens
+const ensSection = (): HTMLElement => mount(() => <>{view().ens}</>)
+const ensState = (): 'claimed' | 'failed' | 'unclaimed' | 'busy' => {
+  const host = ensSection()
+  if (host.querySelector(`svg[aria-label="${ensCopy.claimedLabel}"]`) !== null) {
+    return 'claimed'
+  }
+  if (host.querySelector('[role="alert"]') !== null) {
+    return 'failed'
+  }
+  return host.querySelector('button')?.disabled === true ? 'busy' : 'unclaimed'
 }
 
 const start = async (operator: OperatorIo): Promise<void> => {
-  render(
-    <Mount>
-      <App initialTheme="light" io={io} operatorIo={operator} />
-    </Mount>,
+  dispose = render(
+    () => (
+      <Mount>
+        <App initialTheme="light" io={io} operatorIo={operator} />
+      </Mount>
+    ),
     root,
   )
   await vi.waitFor(() => {
@@ -114,7 +133,9 @@ describe('dashboard query lifecycle', () => {
     }
     removeMounted?.()
     await setTimeout(0)
-    render(null, root)
+    dispose?.()
+    dispose = undefined
+    document.body.replaceChildren()
     root.remove()
     vi.restoreAllMocks()
   })
@@ -538,9 +559,7 @@ describe('dashboard query lifecycle', () => {
       operator.signIn.mockResolvedValue({ issuer: { ...issuer, ens }, ok: true, token: 'session' })
       await start(operator)
       expect(readPendingEnsClaim(issuer.issuer.id)).toBeNull()
-      expect((viewProps(findViewNodes(view().ens, EnsClaim)[0]) as unknown as EnsClaimProps).state.kind).toBe(
-        ens.status === 'claimed' ? 'claimed' : 'unclaimed',
-      )
+      expect(ensState()).toBe(ens.status === 'claimed' ? 'claimed' : 'unclaimed')
     },
   )
 
@@ -557,9 +576,10 @@ describe('dashboard query lifecycle', () => {
       token: 'session',
     })
     await start(operator)
-    expect(
-      (viewProps(findViewNodes(view().ens, EnsClaim)[0]) as unknown as EnsClaimProps).state,
-    ).toMatchObject({ kind: 'failed', ...pending })
+    const host = ensSection()
+    expect(spacedText(host.querySelector('[role="alert"]'))).toBe(ensCopy.failures.unconfirmed)
+    expect(spacedText(host.querySelector('button'))).toBe(ensCopy.retry)
+    expect(spacedText(host)).toContain(pending.name)
   })
 
   it('keeps every card when cards are created one after another', async () => {
@@ -750,14 +770,13 @@ describe('dashboard query lifecycle', () => {
       submitClaim: vi.fn<ReturnType<OperatorIo['claim']>['submitClaim']>().mockResolvedValue(tx),
     })
     await start(operator)
-    const ensView = viewProps(findViewNodes(view().ens, EnsClaim)[0]) as unknown as EnsClaimProps
-    ensView.onClaim()
+    ensSection().querySelector('button')!.click()
     await vi.waitFor(() => {
       expect(operator.issuerMe).toHaveBeenCalledExactlyOnceWith('session')
       expect(view().session.operator).toStrictEqual({ ...(refresh === 'success' ? updated : issuer), ens })
     })
     await setTimeout(25)
-    const confirmedView = viewProps(findViewNodes(view().ens, EnsClaim)[0]) as unknown as EnsClaimProps
-    expect(confirmedView.state).toMatchObject({ kind: 'claimed', name: ens.name })
+    expect(ensState()).toBe('claimed')
+    expect(spacedText(ensSection().querySelector('a'))).toBe(ens.name)
   })
 })

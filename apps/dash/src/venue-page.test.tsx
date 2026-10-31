@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
-/** @jsxImportSource hono/jsx/dom */
-import { render } from 'hono/jsx/dom'
+import type { JSX } from 'solid-js'
+import { render as solidRender } from 'solid-js/web'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DASH_COPY } from './copy.ts'
@@ -8,6 +8,16 @@ import { EnsClaim } from './EnsClaim.tsx'
 import * as logoTools from './logo.ts'
 import { VenuePage } from './VenuePage.tsx'
 import type { VenuePageProps } from './VenuePage.tsx'
+
+const disposers: (() => void)[] = []
+const render = (view: () => JSX.Element, host: HTMLElement): void => {
+  disposers.push(solidRender(view, host))
+}
+const unmountAll = (): void => {
+  for (const dispose of disposers.splice(0)) {
+    dispose()
+  }
+}
 
 const png = new Blob(['image'], { type: 'image/png' })
 const variants = { logo1x: png, logo2x: png, logo3x: png, master: png }
@@ -70,13 +80,13 @@ describe('venue registration and details', () => {
   })
 
   afterEach(() => {
-    render(<></>, root)
+    unmountAll()
     root.remove()
     vi.restoreAllMocks()
   })
 
   it('links to the card list and designer from the profile without an ENS claim', () => {
-    render(<VenuePage {...props()} />, root)
+    render(() => <VenuePage {...props()} />, root)
     expect(root.querySelector('a[href="/cards"]')?.textContent).toBe('Your cards')
     expect(root.querySelector('a[href="/cards/new"]')?.textContent).toBe('+ Add card')
   })
@@ -91,12 +101,14 @@ describe('venue registration and details', () => {
   ])('handles $name footer Card clicks without overriding browser gestures', ({ click, intercepted }) => {
     const navigated: string[] = []
     render(
-      <VenuePage
-        {...props()}
-        onNavigate={(route) => {
-          navigated.push(route)
-        }}
-      />,
+      () => (
+        <VenuePage
+          {...props()}
+          onNavigate={(route) => {
+            navigated.push(route)
+          }}
+        />
+      ),
       root,
     )
     const cards = root.querySelector<HTMLAnchorElement>('a[href="/cards"]')!
@@ -108,7 +120,7 @@ describe('venue registration and details', () => {
   })
 
   it('starts with only handle, name and optional tagline, with only an unobtrusive optional label', () => {
-    render(<VenuePage {...props()} issuer={null} />, root)
+    render(() => <VenuePage {...props()} issuer={null} />, root)
 
     expect([...root.querySelectorAll('input')].map((input) => input.name)).toStrictEqual([
       'handle',
@@ -127,7 +139,7 @@ describe('venue registration and details', () => {
 
   it('registers without a tagline, custom colour or logo', async () => {
     const input = props()
-    render(<VenuePage {...input} issuer={null} />, root)
+    render(() => <VenuePage {...input} issuer={null} />, root)
     typeField('handle', 'new-coffee')
     typeField('name', 'New Coffee')
     await vi.waitFor(() => {
@@ -141,7 +153,7 @@ describe('venue registration and details', () => {
   })
 
   it('shows the saved venue name and public link before editable name and tagline', () => {
-    render(<VenuePage {...props()} />, root)
+    render(() => <VenuePage {...props()} />, root)
     expect(root.querySelector('input[name="handle"]')).toBeNull()
     const form = field('name').closest('form')!
     expect([form.querySelector('h2')?.textContent, field('name').value]).toStrictEqual(['Coffee', 'Coffee'])
@@ -160,22 +172,24 @@ describe('venue registration and details', () => {
     const input = props()
     const onClaim = vi.fn<() => void>()
     render(
-      <VenuePage
-        {...input}
-        ens={
-          <EnsClaim
-            copy={input.copy.ens}
-            name="coffee.fuda.eth"
-            onClaim={onClaim}
-            ownerAddress={input.issuer!.operatorAddress}
-            state={
-              claimed
-                ? { claimTxHash: null, kind: 'claimed', name: 'coffee.fuda.eth' }
-                : { kind: 'unclaimed' }
-            }
-          />
-        }
-      />,
+      () => (
+        <VenuePage
+          {...input}
+          ens={
+            <EnsClaim
+              copy={input.copy.ens}
+              name="coffee.fuda.eth"
+              onClaim={onClaim}
+              ownerAddress={input.issuer!.operatorAddress}
+              state={
+                claimed
+                  ? { claimTxHash: null, kind: 'claimed', name: 'coffee.fuda.eth' }
+                  : { kind: 'unclaimed' }
+              }
+            />
+          }
+        />
+      ),
       root,
     )
     const identity = root.querySelector('a[href="https://fuda.test/@coffee"]')!.parentElement!
@@ -190,7 +204,7 @@ describe('venue registration and details', () => {
 
   it('saves the name and clears an optional tagline without sending the handle', async () => {
     const input = props()
-    render(<VenuePage {...input} />, root)
+    render(() => <VenuePage {...input} />, root)
     typeField('name', 'New Coffee')
     typeField('tagline', '')
     await vi.waitFor(() => {
@@ -212,7 +226,7 @@ describe('venue registration and details', () => {
   it('keeps unsaved text after a failed update and permits retry', async () => {
     const input = props()
     vi.spyOn(input, 'onUpdate').mockResolvedValue(false)
-    render(<VenuePage {...input} />, root)
+    render(() => <VenuePage {...input} />, root)
     typeField('name', 'New Coffee')
     await vi.waitFor(() => {
       expect(button('Save').disabled).toBe(false)
@@ -236,7 +250,7 @@ describe('venue logo preview', () => {
   })
 
   afterEach(() => {
-    render(<></>, root)
+    unmountAll()
     root.remove()
     vi.restoreAllMocks()
   })
@@ -244,7 +258,7 @@ describe('venue logo preview', () => {
   it('previews a replacement locally and uploads only when the operator confirms', async () => {
     const input = props()
     const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL')
-    render(<VenuePage {...input} />, root)
+    render(() => <VenuePage {...input} />, root)
     pickImage()
     await vi.waitFor(() => {
       expect(root.querySelector('img[src="blob:logo-preview"]')).not.toBeNull()
@@ -264,7 +278,7 @@ describe('venue logo preview', () => {
 
   it('shows only one preview and restores the saved Logo when a replacement is removed', async () => {
     const input = props()
-    render(<VenuePage {...input} issuer={{ ...input.issuer!, logoUrl: '/saved-logo.png' }} />, root)
+    render(() => <VenuePage {...input} issuer={{ ...input.issuer!, logoUrl: '/saved-logo.png' }} />, root)
     expect(root.querySelectorAll('img')).toHaveLength(1)
     pickImage()
     await vi.waitFor(() => {
@@ -282,7 +296,7 @@ describe('venue logo preview', () => {
     const pending = Promise.withResolvers<Awaited<ReturnType<typeof logoTools.generateLogoSet>>>()
     vi.spyOn(logoTools, 'generateLogoSet').mockReturnValue(pending.promise)
     const input = props()
-    render(<VenuePage {...input} />, root)
+    render(() => <VenuePage {...input} />, root)
     typeField('name', 'New Coffee')
     pickImage()
     await vi.waitFor(() => {
@@ -299,7 +313,7 @@ describe('venue logo preview', () => {
   it('retains the profile draft after Logo success and retries without uploading twice', async () => {
     const input = props()
     vi.spyOn(input, 'onUpdate').mockResolvedValueOnce(false).mockResolvedValueOnce(true)
-    render(<VenuePage {...input} />, root)
+    render(() => <VenuePage {...input} />, root)
     typeField('name', 'New Coffee')
     pickImage()
     await vi.waitFor(() => {
@@ -321,7 +335,7 @@ describe('venue logo preview', () => {
 
   it('discards a replacement without uploading it', async () => {
     const input = props()
-    render(<VenuePage {...input} />, root)
+    render(() => <VenuePage {...input} />, root)
     pickImage()
     await vi.waitFor(() => {
       expect(root.querySelector('img[src="blob:logo-preview"]')).not.toBeNull()
@@ -336,7 +350,7 @@ describe('venue logo preview', () => {
   it('keeps the preview available to retry a failed upload', async () => {
     const input = props()
     vi.spyOn(input, 'onCommitLogo').mockResolvedValue(false)
-    render(<VenuePage {...input} />, root)
+    render(() => <VenuePage {...input} />, root)
     pickImage()
     await vi.waitFor(() => {
       expect(root.querySelector('img[src="blob:logo-preview"]')).not.toBeNull()

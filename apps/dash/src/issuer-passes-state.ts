@@ -1,6 +1,7 @@
 import type { IssuerPassesResponse } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
-import { useEffect, useState } from 'hono/jsx/dom'
+import { createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js'
+import type { Accessor } from 'solid-js'
 
 import type { PassQuery } from './management-api.ts'
 
@@ -11,42 +12,45 @@ export type IssuerPassesState =
   | { kind: 'ready'; data: IssuerPassesResponse }
 
 interface PassesController {
-  state: IssuerPassesState
+  state: Accessor<IssuerPassesState>
   refresh: () => void
 }
 
-export const useIssuerPasses = (load: PassesLoad, query: PassQuery): PassesController => {
-  const key = JSON.stringify([query.page, query.pageSize, query.q, query.cardId, query.status])
-  const [attempt, setAttempt] = useState(0)
-  const [result, setResult] = useState<{ key: string; state: IssuerPassesState }>({
-    key,
-    state: { kind: 'loading' },
+// Loads one page of the venue's passes and reloads whenever the query changes.
+// A response for a query that is no longer current is dropped.
+export const createIssuerPasses = (load: PassesLoad, query: Accessor<PassQuery>): PassesController => {
+  const key = createMemo(() => {
+    const current = query()
+    return JSON.stringify([current.page, current.pageSize, current.q, current.cardId, current.status])
   })
-  useEffect(() => {
-    let current = true
-    setResult({ key, state: { kind: 'loading' } })
-    const run = async (): Promise<void> => {
-      try {
-        const response = await load(query)
-        if (current) {
-          setResult({ key, state: response.ok ? { data: response.body, kind: 'ready' } : { kind: 'failed' } })
-        }
-      } catch {
-        if (current) {
-          setResult({ key, state: { kind: 'failed' } })
+  const [attempt, setAttempt] = createSignal(0)
+  const [state, setState] = createSignal<IssuerPassesState>({ kind: 'loading' })
+  createEffect(
+    on([key, attempt], () => {
+      let current = true
+      setState({ kind: 'loading' })
+      const run = async (): Promise<void> => {
+        try {
+          const response = await load(query())
+          if (current) {
+            setState(response.ok ? { data: response.body, kind: 'ready' } : { kind: 'failed' })
+          }
+        } catch {
+          if (current) {
+            setState({ kind: 'failed' })
+          }
         }
       }
-    }
-    void run()
-    return () => {
-      current = false
-    }
-  }, [key, load, attempt])
+      void run()
+      onCleanup(() => {
+        current = false
+      })
+    }),
+  )
   return {
     refresh: () => {
-      setResult({ key, state: { kind: 'loading' } })
       setAttempt((value) => value + 1)
     },
-    state: result.key === key ? result.state : { kind: 'loading' },
+    state,
   }
 }

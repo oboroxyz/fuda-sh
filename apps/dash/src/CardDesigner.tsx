@@ -1,15 +1,13 @@
-/** @jsxImportSource hono/jsx/dom */
 import { brandTextColor, CARD_DESCRIPTION_MAX_LENGTH } from '@fuda/sdk'
 import type { CardCategory, IssuerView } from '@fuda/sdk'
 import { cn } from 'cn'
-import { useCallback, useEffect, useLayoutEffect, useState } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import { createComputed, createEffect, createSignal, For, on, onCleanup } from 'solid-js'
+import type { JSX } from 'solid-js'
 
 import {
   canSubmit,
   EMPTY_FORM,
   EXPIRY_DAY_CHOICES,
-  handleStatusOf,
   slugStatusOf,
   windowProblemOf,
   withCategory,
@@ -84,131 +82,142 @@ const validityModeLabel = (copy: DashCopy['designer'], mode: ValidityMode): stri
   return mode === 'fixed' ? copy.validityFixed : copy.validityNone
 }
 
+// The helpers below take accessors and read them only inside attributes and
+// text, so each input is created once and keeps focus while the form changes.
+
 // One optional instant. `datetime-local` shows the operator's own wall clock
 // and carries no timezone; `card-designer.ts` converts it through the local
 // `Date`, so an empty field means the end is unbounded.
 const datetimeField = (
   id: string,
-  label: string,
-  value: string,
+  label: () => string,
+  value: () => string,
   onValue: (next: string) => void,
 ): JSX.Element => (
   <div class="flex flex-col gap-1">
-    <label for={id}>{label}</label>
+    <label for={id}>{label()}</label>
     <input
       class="input w-full"
       id={id}
       onInput={(e) => {
-        if (e.currentTarget instanceof HTMLInputElement) {
-          onValue(e.currentTarget.value)
-        }
+        onValue(e.currentTarget.value)
       }}
       type="datetime-local"
       step="1"
-      value={value}
+      value={value()}
     />
   </div>
 )
 
 // The same two rules the schema checks, said in the operator's words; the
 // submit stays disabled while one of them holds.
-const windowAlert = (copy: DashCopy['designer'], form: DesignerForm): JSX.Element | null => {
-  const problem = windowProblemOf(form)
-  return problem === null ? null : (
-    <p class="text-error text-sm" role="alert">
-      {copy.windowProblems[problem]}
-    </p>
+const windowAlert = (props: CardDesignerViewProps): JSX.Element => {
+  const problem = (): ReturnType<typeof windowProblemOf> => windowProblemOf(props.form)
+  return (
+    <>
+      {problem() === null ? null : (
+        <p class="text-error text-sm" role="alert">
+          {props.copy.windowProblems[problem() ?? 'claimOrder']}
+        </p>
+      )}
+    </>
   )
 }
 
-const claimSection = (
-  copy: DashCopy['designer'],
-  form: DesignerForm,
-  onWindow: CardDesignerViewProps['onWindow'],
-): JSX.Element => (
+const claimSection = (props: CardDesignerViewProps): JSX.Element => (
   <fieldset class="fieldset border-base-300 rounded-box border p-4">
-    <legend class="fieldset-legend px-1 font-semibold">{copy.claimLabel}</legend>
+    <legend class="fieldset-legend px-1 font-semibold">{props.copy.claimLabel}</legend>
     <div class="grid gap-3 sm:grid-cols-2">
-      {datetimeField('claim-from', copy.claimFromLabel, form.claimFrom, (next) => {
-        onWindow('claimFrom', next)
-      })}
-      {datetimeField('claim-until', copy.claimUntilLabel, form.claimUntil, (next) => {
-        onWindow('claimUntil', next)
-      })}
+      {datetimeField(
+        'claim-from',
+        () => props.copy.claimFromLabel,
+        () => props.form.claimFrom,
+        (next) => {
+          props.onWindow('claimFrom', next)
+        },
+      )}
+      {datetimeField(
+        'claim-until',
+        () => props.copy.claimUntilLabel,
+        () => props.form.claimUntil,
+        (next) => {
+          props.onWindow('claimUntil', next)
+        },
+      )}
     </div>
-    <p class="mt-2 text-sm opacity-70">{copy.claimHint}</p>
+    <p class="mt-2 text-sm opacity-70">{props.copy.claimHint}</p>
   </fieldset>
 )
 
-const validityDaysField = (
-  copy: DashCopy['designer'],
-  form: DesignerForm,
-  onValidityDays: CardDesignerViewProps['onValidityDays'],
-): JSX.Element => (
-  <div class="flex flex-col gap-1">
-    <label for="validity-days">{copy.validityDaysLabel}</label>
-    <select
-      class="select w-full"
-      id="validity-days"
-      onChange={(e) => {
-        if (e.currentTarget instanceof HTMLSelectElement) {
-          onValidityDays(expiryFromValue(e.currentTarget.value))
-        }
-      }}
-      value={form.validityDays === null ? '' : String(form.validityDays)}
-    >
-      {form.validityDays !== null && !EXPIRY_DAY_CHOICES.some((days) => days === form.validityDays) ? (
-        <option value={String(form.validityDays)}>{expiryLabel(copy, form.validityDays)}</option>
-      ) : null}
-      {EXPIRY_DAY_CHOICES.map((days): JSX.Element => (
-        <option key={String(days)} value={String(days)}>
-          {expiryLabel(copy, days)}
-        </option>
-      ))}
-    </select>
-  </div>
-)
-
-const validitySection = (
-  copy: DashCopy['designer'],
-  form: DesignerForm,
-  onValidityDays: CardDesignerViewProps['onValidityDays'],
-  onValidityMode: CardDesignerViewProps['onValidityMode'],
-  onWindow: CardDesignerViewProps['onWindow'],
-): JSX.Element => (
-  <fieldset class="fieldset border-base-300 rounded-box border p-4">
-    <legend class="fieldset-legend px-1 font-semibold">{copy.validityLabel}</legend>
+const validityDaysField = (props: CardDesignerViewProps): JSX.Element => {
+  const offList = (): number | null => {
+    const days = props.form.validityDays
+    return days !== null && !EXPIRY_DAY_CHOICES.some((choice) => choice === days) ? days : null
+  }
+  return (
     <div class="flex flex-col gap-1">
-      <label for="validity-mode">{copy.validityModeLabel}</label>
+      <label for="validity-days">{props.copy.validityDaysLabel}</label>
+      <select
+        class="select w-full"
+        id="validity-days"
+        onInput={(e) => {
+          props.onValidityDays(expiryFromValue(e.currentTarget.value))
+        }}
+        value={props.form.validityDays === null ? '' : String(props.form.validityDays)}
+      >
+        {offList() === null ? null : (
+          <option value={String(offList())}>{expiryLabel(props.copy, offList() ?? 0)}</option>
+        )}
+        <For each={EXPIRY_DAY_CHOICES}>
+          {(days) => <option value={String(days)}>{expiryLabel(props.copy, days)}</option>}
+        </For>
+      </select>
+    </div>
+  )
+}
+
+const validitySection = (props: CardDesignerViewProps): JSX.Element => (
+  <fieldset class="fieldset border-base-300 rounded-box border p-4">
+    <legend class="fieldset-legend px-1 font-semibold">{props.copy.validityLabel}</legend>
+    <div class="flex flex-col gap-1">
+      <label for="validity-mode">{props.copy.validityModeLabel}</label>
       <select
         class="select w-full"
         id="validity-mode"
-        onChange={(e) => {
-          if (e.currentTarget instanceof HTMLSelectElement && isValidityMode(e.currentTarget.value)) {
-            onValidityMode(e.currentTarget.value)
+        onInput={(e) => {
+          if (isValidityMode(e.currentTarget.value)) {
+            props.onValidityMode(e.currentTarget.value)
           }
         }}
-        value={form.validityMode}
+        value={props.form.validityMode}
       >
-        {VALIDITY_MODES.map((mode): JSX.Element => (
-          <option key={mode} value={mode}>
-            {validityModeLabel(copy, mode)}
-          </option>
-        ))}
+        <For each={VALIDITY_MODES}>
+          {(mode) => <option value={mode}>{validityModeLabel(props.copy, mode)}</option>}
+        </For>
       </select>
     </div>
-    {form.validityMode === 'days' ? validityDaysField(copy, form, onValidityDays) : null}
-    {form.validityMode === 'fixed' ? (
+    {props.form.validityMode === 'days' ? validityDaysField(props) : null}
+    {props.form.validityMode === 'fixed' ? (
       <div class="mt-3 grid gap-3 sm:grid-cols-2">
-        {datetimeField('valid-from', copy.validFromLabel, form.validFrom, (next) => {
-          onWindow('validFrom', next)
-        })}
-        {datetimeField('valid-until', copy.validUntilLabel, form.validUntil, (next) => {
-          onWindow('validUntil', next)
-        })}
+        {datetimeField(
+          'valid-from',
+          () => props.copy.validFromLabel,
+          () => props.form.validFrom,
+          (next) => {
+            props.onWindow('validFrom', next)
+          },
+        )}
+        {datetimeField(
+          'valid-until',
+          () => props.copy.validUntilLabel,
+          () => props.form.validUntil,
+          (next) => {
+            props.onWindow('validUntil', next)
+          },
+        )}
       </div>
     ) : null}
-    <p class="mt-2 text-sm opacity-70">{copy.validityHint}</p>
+    <p class="mt-2 text-sm opacity-70">{props.copy.validityHint}</p>
   </fieldset>
 )
 
@@ -227,29 +236,29 @@ const PreviewQr = (): JSX.Element => (
   </svg>
 )
 
-const preview = (copy: DashCopy['designer'], form: DesignerForm, logoUrl: string | null): JSX.Element => (
+const preview = (props: CardDesignerViewProps): JSX.Element => (
   <div
     class="dash-card-preview"
-    style={{ background: form.brandColor, color: brandTextColor(form.brandColor) }}
+    style={{ background: props.form.brandColor, color: brandTextColor(props.form.brandColor) }}
   >
     <div class="dash-card-preview-top">
       <div class="flex min-w-0 items-center gap-3">
-        {logoUrl === null ? null : (
+        {props.savedLogoUrl === null ? null : (
           <img
             alt=""
             class="size-10 shrink-0 rounded-xl object-contain"
             height={40}
-            src={assetUrlForDisplay(logoUrl)}
+            src={assetUrlForDisplay(props.savedLogoUrl)}
             width={40}
           />
         )}
-        <span>{form.name === '' ? copy.namePlaceholder : form.name}</span>
+        <span>{props.form.name === '' ? props.copy.namePlaceholder : props.form.name}</span>
       </div>
     </div>
     <div class="flex items-end justify-between gap-4">
       <div class="flex min-w-0 flex-col gap-2">
-        <strong>{form.title}</strong>
-        {form.tagline === '' ? null : <span class="text-sm">{form.tagline}</span>}
+        <strong>{props.form.title}</strong>
+        {props.form.tagline === '' ? null : <span class="text-sm">{props.form.tagline}</span>}
         <span class="font-mono text-sm tracking-wide">ABCD-E123-F5679</span>
       </div>
       <PreviewQr />
@@ -259,224 +268,207 @@ const preview = (copy: DashCopy['designer'], form: DesignerForm, logoUrl: string
 
 const textField = (
   id: string,
-  label: string,
-  value: string,
-  placeholder: string,
+  label: () => string,
+  value: () => string,
+  placeholder: () => string,
   onValue: (next: string) => void,
 ): JSX.Element => (
   <div class="flex flex-col gap-1">
-    <label for={id}>{label}</label>
+    <label for={id}>{label()}</label>
     <input
       class="input w-full"
       id={id}
       onInput={(e) => {
-        if (e.currentTarget instanceof HTMLInputElement) {
-          onValue(e.currentTarget.value)
-        }
+        onValue(e.currentTarget.value)
       }}
-      placeholder={placeholder}
+      placeholder={placeholder()}
       type="text"
-      value={value}
+      value={value()}
     />
   </div>
 )
 
 // A name typed under a fixed prefix, with the rule's verdict under it.
-const prefixedField = (
-  id: string,
-  label: string,
-  prefix: string,
-  value: string,
-  placeholder: string,
-  hint: { status: FieldStatus; text: string | null },
-  onValue: (next: string) => void,
-  readOnly = false,
-): JSX.Element => (
+const prefixedField = (field: {
+  id: string
+  label: () => string
+  prefix: () => string
+  value: () => string
+  placeholder: () => string
+  hint: () => { status: FieldStatus; text: string | null }
+  onValue: (next: string) => void
+  readOnly: () => boolean
+}): JSX.Element => (
   <div class="flex flex-col gap-1">
-    <label for={id}>{label}</label>
+    <label for={field.id}>{field.label()}</label>
     <div class="flex items-center gap-2">
-      <span>{prefix}</span>
+      <span>{field.prefix()}</span>
       <input
         class="input min-w-0 flex-1"
-        id={id}
+        id={field.id}
         onInput={(e) => {
-          if (e.currentTarget instanceof HTMLInputElement) {
-            onValue(e.currentTarget.value)
-          }
+          field.onValue(e.currentTarget.value)
         }}
-        placeholder={placeholder}
+        placeholder={field.placeholder()}
         type="text"
-        readOnly={readOnly}
-        value={value}
+        readOnly={field.readOnly()}
+        value={field.value()}
       />
     </div>
-    {hint.text === null ? null : (
+    {field.hint().text === null ? null : (
       <span
         class={cn(
           'text-sm',
-          hint.status === 'available' || hint.status === 'checking' ? 'text-moderate' : 'text-danger',
+          field.hint().status === 'available' || field.hint().status === 'checking'
+            ? 'text-moderate'
+            : 'text-danger',
         )}
       >
-        {hint.text}
+        {field.hint().text}
       </span>
     )}
   </div>
 )
 
-export const CardDesignerView = ({
-  busy,
-  editing = false,
-  readonlySlugHint,
-  copy,
-  failure,
-  form,
-  locationDenied,
-  logo: _logo,
-  logoCopy: _logoCopy,
-  savedLogoUrl,
-  mode,
-  onCategory,
-  onEditProfile,
-  onField,
-  onLockScreen,
-  onLogoClear: _onLogoClear,
-  onLogoPick: _onLogoPick,
-  onSlug,
-  onSubmit,
-  onTitle,
-  onValidityDays,
-  onValidityMode,
-  onWindow,
-  status,
-}: CardDesignerViewProps): JSX.Element => (
-  <section class="flex max-w-2xl flex-col gap-6">
-    <header class="dash-page-header">
-      <h1 class="dash-page-title">{copy.title}</h1>
-      <p class="opacity-70">{copy.description}</p>
-    </header>
+export const CardDesignerView = (props: CardDesignerViewProps): JSX.Element => {
+  const editing = (): boolean => props.editing ?? false
+  return (
+    <section class="flex max-w-2xl flex-col gap-6">
+      <header class="dash-page-header">
+        <h1 class="dash-page-title">{props.copy.title}</h1>
+        <p class="opacity-70">{props.copy.description}</p>
+      </header>
 
-    <div class="flex flex-col gap-2">
-      <span class="text-xs tracking-widest uppercase opacity-70">{copy.preview}</span>
-      {preview(copy, form, savedLogoUrl)}
-      <p class="text-moderate text-sm">
-        {copy.profileHint}{' '}
-        <a
-          class="link"
-          href="/profile"
-          onClick={(event) => {
-            if (event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
-              return
-            }
-            event.preventDefault()
-            onEditProfile()
-          }}
-        >
-          {copy.editProfile}
-        </a>
-      </p>
-    </div>
-
-    {failure === null ? null : (
-      <p role="alert" class="alert alert-error">
-        {copy.failures[failure]}
-      </p>
-    )}
-
-    <form
-      class="flex flex-col gap-4"
-      onSubmit={(e) => {
-        e.preventDefault()
-        onSubmit()
-      }}
-    >
-      <fieldset disabled={busy} class="flex min-w-0 flex-col gap-4">
-        {textField('card-title', copy.titleLabel, form.title, '', onTitle)}
-        {prefixedField(
-          'card-slug',
-          copy.slugLabel,
-          `${copy.handlePrefix}${form.handle}/`,
-          form.slug,
-          copy.slugPlaceholder,
-          { status: status.slug, text: editing ? null : statusLabel(copy.slugStatus, status.slug) },
-          onSlug,
-          editing,
-        )}
-        {editing && readonlySlugHint !== undefined ? (
-          <p class="text-moderate text-sm">{readonlySlugHint}</p>
-        ) : null}
-
-        <div class="flex flex-col gap-1">
-          <label for="category">{copy.categoryLabel}</label>
-          <select
-            class="select w-full"
-            id="category"
-            onChange={(e) => {
-              if (e.currentTarget instanceof HTMLSelectElement) {
-                onCategory(e.currentTarget.value === 'ticket' ? 'ticket' : 'membership')
+      <div class="flex flex-col gap-2">
+        <span class="text-xs tracking-widest uppercase opacity-70">{props.copy.preview}</span>
+        {preview(props)}
+        <p class="text-moderate text-sm">
+          {props.copy.profileHint}{' '}
+          <a
+            class="link"
+            href="/profile"
+            onClick={(event) => {
+              if (event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+                return
               }
+              event.preventDefault()
+              props.onEditProfile()
             }}
-            value={form.category}
           >
-            <option value="membership">{copy.membership}</option>
-            <option value="ticket">{copy.ticket}</option>
-          </select>
-        </div>
+            {props.copy.editProfile}
+          </a>
+        </p>
+      </div>
 
-        <div class="flex flex-col gap-1">
-          <label for="card-description">
-            <FieldLabel label={copy.cardDescriptionLabel} optional={copy.optional} />
-          </label>
-          <textarea
-            class="textarea w-full"
-            id="card-description"
-            maxLength={CARD_DESCRIPTION_MAX_LENGTH}
-            onInput={(event) => {
-              if (event.currentTarget instanceof HTMLTextAreaElement) {
-                onField('description', event.currentTarget.value)
-              }
-            }}
-            placeholder={copy.cardDescriptionPlaceholder}
-            rows={4}
-            value={form.description}
-          />
-          <p class="text-moderate text-sm">{copy.cardDescriptionHint}</p>
-        </div>
+      {props.failure === null ? null : (
+        <p role="alert" class="alert alert-error">
+          {props.copy.failures[props.failure]}
+        </p>
+      )}
 
-        {claimSection(copy, form, onWindow)}
-        {validitySection(copy, form, onValidityDays, onValidityMode, onWindow)}
+      <form
+        class="flex flex-col gap-4"
+        onSubmit={(e) => {
+          e.preventDefault()
+          props.onSubmit()
+        }}
+      >
+        <fieldset disabled={props.busy} class="flex min-w-0 flex-col gap-4">
+          {textField(
+            'card-title',
+            () => props.copy.titleLabel,
+            () => props.form.title,
+            () => '',
+            (next) => {
+              props.onTitle(next)
+            },
+          )}
+          {prefixedField({
+            hint: () => ({
+              status: props.status.slug,
+              text: editing() ? null : statusLabel(props.copy.slugStatus, props.status.slug),
+            }),
+            id: 'card-slug',
+            label: () => props.copy.slugLabel,
+            onValue: (next) => {
+              props.onSlug(next)
+            },
+            placeholder: () => props.copy.slugPlaceholder,
+            prefix: () => `${props.copy.handlePrefix}${props.form.handle}/`,
+            readOnly: editing,
+            value: () => props.form.slug,
+          })}
+          {editing() && props.readonlySlugHint !== undefined ? (
+            <p class="text-moderate text-sm">{props.readonlySlugHint}</p>
+          ) : null}
 
-        {windowAlert(copy, form)}
-
-        <div class="flex flex-col gap-1">
-          <label class="flex items-center gap-2" for="lock-screen">
-            <input
-              checked={form.lockScreen}
-              id="lock-screen"
-              onChange={(e) => {
-                if (e.currentTarget instanceof HTMLInputElement) {
-                  onLockScreen(e.currentTarget.checked)
-                }
+          <div class="flex flex-col gap-1">
+            <label for="category">{props.copy.categoryLabel}</label>
+            <select
+              class="select w-full"
+              id="category"
+              onInput={(e) => {
+                props.onCategory(e.currentTarget.value === 'ticket' ? 'ticket' : 'membership')
               }}
-              type="checkbox"
-            />
-            <span>{copy.lockScreenLabel}</span>
-          </label>
-          <span class="text-sm opacity-70">
-            {locationDenied ? copy.locationUnavailable : copy.lockScreenHint}
-          </span>
-        </div>
+              value={props.form.category}
+            >
+              <option value="membership">{props.copy.membership}</option>
+              <option value="ticket">{props.copy.ticket}</option>
+            </select>
+          </div>
 
-        <button
-          class="btn btn-primary self-start"
-          disabled={!canSubmit(mode, form, status, busy, editing)}
-          type="submit"
-        >
-          {busy ? copy.submitting : copy.submit}
-        </button>
-      </fieldset>
-    </form>
-  </section>
-)
+          <div class="flex flex-col gap-1">
+            <label for="card-description">
+              <FieldLabel label={props.copy.cardDescriptionLabel} optional={props.copy.optional} />
+            </label>
+            <textarea
+              class="textarea w-full"
+              id="card-description"
+              maxLength={CARD_DESCRIPTION_MAX_LENGTH}
+              onInput={(event) => {
+                props.onField('description', event.currentTarget.value)
+              }}
+              placeholder={props.copy.cardDescriptionPlaceholder}
+              rows={4}
+              value={props.form.description}
+            />
+            <p class="text-moderate text-sm">{props.copy.cardDescriptionHint}</p>
+          </div>
+
+          {claimSection(props)}
+          {validitySection(props)}
+
+          {windowAlert(props)}
+
+          <div class="flex flex-col gap-1">
+            <label class="flex items-center gap-2" for="lock-screen">
+              <input
+                checked={props.form.lockScreen}
+                id="lock-screen"
+                onInput={(e) => {
+                  props.onLockScreen(e.currentTarget.checked)
+                }}
+                type="checkbox"
+              />
+              <span>{props.copy.lockScreenLabel}</span>
+            </label>
+            <span class="text-sm opacity-70">
+              {props.locationDenied ? props.copy.locationUnavailable : props.copy.lockScreenHint}
+            </span>
+          </div>
+
+          <button
+            class="btn btn-primary self-start"
+            disabled={!canSubmit(props.mode, props.form, props.status, props.busy, editing())}
+            type="submit"
+          >
+            {props.busy ? props.copy.submitting : props.copy.submit}
+          </button>
+        </fieldset>
+      </form>
+    </section>
+  )
+}
 
 export type NameCheck = (value: string) => Promise<'available' | 'taken' | 'unknown'>
 
@@ -537,47 +529,34 @@ const withIssuer = (form: DesignerForm, issuer: IssuerView | null): DesignerForm
         tagline: issuer.tagline,
       }
 
-export const CardDesigner = ({
-  busy,
-  editing = false,
-  readonlySlugHint,
-  copy,
-  failure,
-  initialDraft,
-  issuer,
-  logoCopy,
-  onCheckHandle,
-  onCheckSlug,
-  onDraftChange,
-  onEditProfile,
-  onSubmit,
-}: CardDesignerProps): JSX.Element => {
+export const CardDesigner = (props: CardDesignerProps): JSX.Element => {
   const mode: DesignerMode = 'card'
-  const [draft, setForm] = useState<DesignerForm>(() => initialDraft ?? EMPTY_FORM)
-  const form = withIssuer(draft, issuer)
-  // Publish before leaving the screen; a queued passive effect could restore
-  // the previous session's draft after sign-out or successful card creation.
-  useLayoutEffect(() => {
-    onDraftChange?.(draft)
-  }, [draft, onDraftChange])
-  const [handleStatus, setHandleStatus] = useState<FieldStatus>('idle')
-  const [slugStatus, setSlugStatus] = useState<FieldStatus>('idle')
-  const [locationDenied, setLocationDenied] = useState(false)
+  const editing = (): boolean => props.editing ?? false
+  const [draft, setForm] = createSignal<DesignerForm>(props.initialDraft ?? EMPTY_FORM)
+  const form = (): DesignerForm => withIssuer(draft(), props.issuer)
+  // Publish synchronously with every change, so leaving the screen never loses
+  // the latest draft or restores a previous session's.
+  createComputed(() => {
+    props.onDraftChange?.(draft())
+  })
+  const [handleStatus, setHandleStatus] = createSignal<FieldStatus>('idle')
+  const [slugStatus, setSlugStatus] = createSignal<FieldStatus>('idle')
+  const [locationDenied, setLocationDenied] = createSignal(false)
   // The picked logo waits here until submit: uploading on pick would stage an
   // upload that expires, or is never spent, every time the operator changes
   // their mind.
-  const [logo, setLogo] = useState<LogoState>(EMPTY_LOGO)
+  const [logo, setLogo] = createSignal<LogoState>(EMPTY_LOGO)
 
   // The preview is an object URL, so each one is released when it is replaced
   // and when the designer goes away.
-  useEffect(() => {
-    const url = logo.pick?.previewUrl ?? null
-    return () => {
+  createEffect(() => {
+    const url = logo().pick?.previewUrl ?? null
+    onCleanup(() => {
       if (url !== null) {
         URL.revokeObjectURL(url)
       }
-    }
-  }, [logo])
+    })
+  })
 
   const onLogoPick = (file: File): void => {
     const run = async (): Promise<void> => {
@@ -587,30 +566,35 @@ export const CardDesigner = ({
     void run()
   }
 
-  const onField = useCallback(<K extends keyof DesignerForm>(key: K, value: DesignerForm[K]): void => {
+  const onField = <K extends keyof DesignerForm>(key: K, value: DesignerForm[K]): void => {
     setForm((current) => ({ ...current, [key]: value }))
-  }, [])
+  }
 
-  const { handle, slug } = form
-  useEffect(() => {
-    // An existing venue's handle is settled; only a new one is checked.
-    if (mode === 'card') {
-      setHandleStatus('available')
-      return
-    }
-    return scheduleCheck(setHandleStatus, handleStatusOf(handle), handle, onCheckHandle)
-  }, [handle, mode, onCheckHandle])
+  // The designer adds a card to an existing venue, whose handle is settled.
+  setHandleStatus('available')
 
-  useEffect(() => {
-    if (editing) {
-      setSlugStatus('available')
-      return
-    }
-    return scheduleCheck(setSlugStatus, slugStatusOf(slug), slug, onCheckSlug)
-  }, [editing, onCheckSlug, slug])
+  createEffect(
+    on([editing, () => form().slug], ([isEditing, slug]) => {
+      if (isEditing) {
+        setSlugStatus('available')
+        return
+      }
+      const stop = scheduleCheck(
+        (update) => {
+          setSlugStatus(update)
+        },
+        slugStatusOf(slug),
+        slug,
+        props.onCheckSlug,
+      )
+      onCleanup(() => {
+        stop?.()
+      })
+    }),
+  )
 
-  const onLockScreen = (on: boolean): void => {
-    if (!on) {
+  const onLockScreen = (enabled: boolean): void => {
+    if (!enabled) {
       setForm((current) => ({ ...current, lockScreen: false, venue: null }))
       return
     }
@@ -633,20 +617,20 @@ export const CardDesigner = ({
 
   return (
     <CardDesignerView
-      busy={busy}
-      editing={editing}
-      readonlySlugHint={readonlySlugHint}
-      copy={copy}
-      failure={failure}
-      form={form}
-      locationDenied={locationDenied}
-      logo={logo}
-      logoCopy={logoCopy}
-      savedLogoUrl={issuer?.logoUrl ?? null}
+      busy={props.busy}
+      editing={editing()}
+      readonlySlugHint={props.readonlySlugHint}
+      copy={props.copy}
+      failure={props.failure}
+      form={form()}
+      locationDenied={locationDenied()}
+      logo={logo()}
+      logoCopy={props.logoCopy}
+      savedLogoUrl={props.issuer?.logoUrl ?? null}
       mode={mode}
       onField={onField}
       onEditProfile={() => {
-        onEditProfile(form)
+        props.onEditProfile(form())
       }}
       onCategory={(next) => {
         setForm((current) => withCategory(current, next))
@@ -660,7 +644,7 @@ export const CardDesigner = ({
         setForm((current) => withSlug(current, next))
       }}
       onSubmit={() => {
-        onSubmit(mode, form, logo.pick?.variants ?? null)
+        props.onSubmit(mode, form(), logo().pick?.variants ?? null)
       }}
       onTitle={(next) => {
         setForm((current) => withTitle(current, next))
@@ -674,7 +658,7 @@ export const CardDesigner = ({
       onWindow={(field, next) => {
         setForm((current) => withWindow(current, field, next))
       }}
-      status={{ handle: handleStatus, slug: slugStatus }}
+      status={{ handle: handleStatus(), slug: slugStatus() }}
     />
   )
 }

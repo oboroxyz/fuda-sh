@@ -1,7 +1,6 @@
-/** @jsxImportSource hono/jsx/dom */
 import type { IssuerUpdateRequest, IssuerView } from '@fuda/sdk'
-import { useEffect, useRef, useState } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import { createEffect, createMemo, createSignal, on, onCleanup, Show } from 'solid-js'
+import type { JSX } from 'solid-js'
 
 import { handleStatusOf } from './card-designer.ts'
 import type { CreateFailure, FieldStatus } from './card-designer.ts'
@@ -31,60 +30,62 @@ export interface VenuePageProps {
 }
 
 export const VenuePage = (props: VenuePageProps): JSX.Element => {
-  const [form, setForm] = useState<VenueForm>(EMPTY_VENUE_FORM)
-  const [status, setStatus] = useState<FieldStatus>('idle')
-  const [logo, setLogo] = useState<LogoState>(EMPTY_LOGO)
-  const [logoBusy, setLogoBusy] = useState(false)
-  const [logoFailed, setLogoFailed] = useState(false)
-  const checkRevision = useRef(0)
-  const logoRevision = useRef(0)
+  const [form, setForm] = createSignal<VenueForm>(EMPTY_VENUE_FORM)
+  const [status, setStatus] = createSignal<FieldStatus>('idle')
+  const [logo, setLogo] = createSignal<LogoState>(EMPTY_LOGO)
+  const [logoBusy, setLogoBusy] = createSignal(false)
+  const [logoFailed, setLogoFailed] = createSignal(false)
+  let checkRevision = 0
+  let logoRevision = 0
 
-  useEffect(
-    () => () => {
-      logoRevision.current += 1
-    },
-    [],
-  )
+  onCleanup(() => {
+    logoRevision += 1
+  })
 
-  useEffect(() => {
-    const previewUrl = logo.pick?.previewUrl
-    return () => {
+  createEffect(() => {
+    const previewUrl = logo().pick?.previewUrl
+    onCleanup(() => {
       if (previewUrl !== undefined) {
         URL.revokeObjectURL(previewUrl)
       }
-    }
-  }, [logo])
+    })
+  })
 
-  useEffect(() => {
-    const local = handleStatusOf(form.handle)
-    setStatus(local)
-    checkRevision.current += 1
-    const revision = checkRevision.current
-    if (local !== 'checking') {
-      return
-    }
-    const timer = setTimeout(() => {
-      const run = async (): Promise<void> => {
-        const next = await props.onCheckHandle(form.handle)
-        if (checkRevision.current === revision) {
-          setStatus(next)
+  createEffect(
+    on(
+      () => form().handle,
+      (handle) => {
+        const local = handleStatusOf(handle)
+        setStatus(local)
+        checkRevision += 1
+        const revision = checkRevision
+        if (local !== 'checking') {
+          return
         }
-      }
-      void run()
-    }, 300)
-    return () => {
-      clearTimeout(timer)
-    }
-  }, [form.handle])
+        const timer = setTimeout(() => {
+          const run = async (): Promise<void> => {
+            const next = await props.onCheckHandle(handle)
+            if (checkRevision === revision) {
+              setStatus(next)
+            }
+          }
+          void run()
+        }, 300)
+        onCleanup(() => {
+          clearTimeout(timer)
+        })
+      },
+    ),
+  )
 
   const pickLogo = (file: File): void => {
-    logoRevision.current += 1
-    const revision = logoRevision.current
+    logoRevision += 1
+    const revision = logoRevision
     setLogoBusy(true)
     setLogoFailed(false)
     const run = async (): Promise<void> => {
       const result = await generateLogoSet(file, browserLogoTools)
-      if (revision !== logoRevision.current) {
+      if (revision !== logoRevision) {
         return
       }
       setLogo(withLogoResult(result, (blob) => URL.createObjectURL(blob)))
@@ -94,21 +95,22 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
   }
 
   const clearLogo = (): void => {
-    logoRevision.current += 1
+    logoRevision += 1
     setLogo(EMPTY_LOGO)
     setLogoFailed(false)
   }
 
   const saveVenue = async (body: IssuerUpdateRequest): Promise<boolean> => {
-    if (logoBusy) {
+    if (logoBusy()) {
       return false
     }
-    if (logo.pick !== null) {
-      const revision = logoRevision.current
+    const { pick } = logo()
+    if (pick !== null) {
+      const revision = logoRevision
       setLogoBusy(true)
       setLogoFailed(false)
-      const ok = await props.onCommitLogo(logo.pick.variants).catch(() => false)
-      if (revision !== logoRevision.current) {
+      const ok = await props.onCommitLogo(pick.variants).catch(() => false)
+      if (revision !== logoRevision) {
         return false
       }
       setLogoBusy(false)
@@ -121,7 +123,44 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
     return await props.onUpdate(body)
   }
 
-  if (props.issuer !== null) {
+  // One profile form per venue: switching venues starts a fresh draft.
+  const issuerId = createMemo(() => props.issuer?.id ?? null)
+
+  const profile = (issuer: () => IssuerView): JSX.Element => {
+    // Built once so the file input keeps its state while the form re-renders.
+    const logoField = (
+      <section aria-label={props.copy.logo.label} class="flex flex-col gap-3">
+        <LogoField
+          busy={logoBusy()}
+          copy={props.copy.logo}
+          id="change-logo"
+          label={props.copy.logo.label}
+          onClear={clearLogo}
+          onPick={pickLogo}
+          savedUrl={issuer().logoUrl}
+          state={logo()}
+        />
+        {logoFailed() ? <p class="text-error text-sm">{props.copy.logo.updateFailed}</p> : null}
+      </section>
+    )
+    const ens = (
+      <>
+        {props.ens ?? (
+          <p class="text-sm opacity-70" role="status">
+            {props.copy.venue.ensUnavailable}
+          </p>
+        )}
+      </>
+    )
+    const logoProps = {
+      get busy() {
+        return logoBusy()
+      },
+      field: logoField,
+      get pending() {
+        return logo().pick !== null
+      },
+    }
     return (
       <section class="dash-page flex max-w-3xl flex-col gap-6">
         <header class="dash-page-header">
@@ -129,37 +168,12 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
           <p class="opacity-70">{props.copy.venue.profileDescription}</p>
         </header>
         <VenueDetailsForm
-          key={props.issuer.id}
           copy={props.copy}
-          ens={
-            props.ens ?? (
-              <p class="text-sm opacity-70" role="status">
-                {props.copy.venue.ensUnavailable}
-              </p>
-            )
-          }
-          issuer={props.issuer}
+          ens={ens}
+          issuer={issuer()}
           publicUrl={props.publicUrl}
           onUpdate={saveVenue}
-          logo={{
-            busy: logoBusy,
-            field: (
-              <section aria-label={props.copy.logo.label} class="flex flex-col gap-3">
-                <LogoField
-                  busy={logoBusy}
-                  copy={props.copy.logo}
-                  id="change-logo"
-                  label={props.copy.logo.label}
-                  onClear={clearLogo}
-                  onPick={pickLogo}
-                  savedUrl={props.issuer.logoUrl}
-                  state={logo}
-                />
-                {logoFailed ? <p class="text-error text-sm">{props.copy.logo.updateFailed}</p> : null}
-              </section>
-            ),
-            pending: logo.pick !== null,
-          }}
+          logo={logoProps}
         />
         <div class="dash-actions">
           <a
@@ -185,41 +199,48 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
     )
   }
 
-  const copy = props.copy.designer
   const update = <K extends keyof VenueForm>(key: K, value: VenueForm[K]): void => {
     setForm((current) => ({ ...current, [key]: value }))
   }
-  return (
+  const register = (): JSX.Element => (
     <section class="dash-page flex max-w-2xl flex-col gap-6">
       <header class="dash-page-header">
         <h1 class="dash-page-title">{props.copy.venue.registerTitle}</h1>
         <p class="opacity-70">{props.copy.venue.registerDescription}</p>
       </header>
-      {props.failure === null ? null : <p class="alert alert-error">{copy.failures[props.failure]}</p>}
+      {props.failure === null ? null : (
+        <p class="alert alert-error">{props.copy.designer.failures[props.failure]}</p>
+      )}
       <form
         class="card flex flex-col gap-5 px-6 py-8"
         onSubmit={(event) => {
           event.preventDefault()
-          if (!props.busy && status !== 'taken' && venueBodyFrom(form) !== null) {
-            props.onCreate(form, null)
+          if (!props.busy && status() !== 'taken' && venueBodyFrom(form()) !== null) {
+            props.onCreate(form(), null)
           }
         }}
       >
         <VenueIdentityFields
           copy={props.copy}
-          handleStatus={status}
+          handleStatus={status()}
           onChange={update}
           registering
-          value={form}
+          value={form()}
         />
         <button
           class="btn btn-primary sm:self-start"
-          disabled={props.busy || status === 'taken' || venueBodyFrom(form) === null}
+          disabled={props.busy || status() === 'taken' || venueBodyFrom(form()) === null}
           type="submit"
         >
           {props.busy ? props.copy.venue.registering : props.copy.venue.register}
         </button>
       </form>
     </section>
+  )
+
+  return (
+    <Show when={issuerId()} keyed fallback={register()}>
+      {(_id: string) => <Show when={props.issuer}>{(issuer) => profile(issuer)}</Show>}
+    </Show>
   )
 }

@@ -1,8 +1,7 @@
-/** @jsxImportSource hono/jsx/dom */
 import type { StampSettings as StampSettingsValue } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
-import { useCallback, useEffect, useRef, useState } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import { createEffect, createSignal, on, onCleanup, Show } from 'solid-js'
+import type { Accessor, JSX } from 'solid-js'
 
 import type { DashCopy } from './copy.ts'
 
@@ -12,30 +11,35 @@ export interface StampSettingsProps {
   save: (settings: StampSettingsValue) => Promise<Result<StampSettingsValue>>
 }
 
-export const StampSettings = ({ copy, load, save }: StampSettingsProps): JSX.Element => {
-  const [settings, setSettings] = useState<StampSettingsValue | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<'load' | 'save' | 'validation' | null>(null)
-  const [saved, setSaved] = useState(false)
-  const mounted = useRef(true)
-  const loadRevision = useRef(0)
-  const saveRevision = useRef(0)
-  const saving = useRef(false)
+const valid = (current: StampSettingsValue): boolean =>
+  Number.isInteger(current.dailyLimit) &&
+  current.dailyLimit >= 1 &&
+  current.dailyLimit <= 100 &&
+  Number.isInteger(current.goal) &&
+  current.goal >= 1 &&
+  current.goal <= 1000
 
-  useEffect(
-    () => () => {
-      mounted.current = false
-      loadRevision.current += 1
-      saveRevision.current += 1
-    },
-    [],
-  )
+export const StampSettings = (props: StampSettingsProps): JSX.Element => {
+  const [settings, setSettings] = createSignal<StampSettingsValue | null>(null)
+  const [busy, setBusy] = createSignal(false)
+  const [error, setError] = createSignal<'load' | 'save' | 'validation' | null>(null)
+  const [saved, setSaved] = createSignal(false)
+  let mounted = true
+  let loadRevision = 0
+  let saveRevision = 0
+  let saving = false
 
-  const runLoad = useCallback((): void => {
-    loadRevision.current += 1
-    const ticket = loadRevision.current
-    saveRevision.current += 1
-    saving.current = false
+  onCleanup(() => {
+    mounted = false
+    loadRevision += 1
+    saveRevision += 1
+  })
+
+  const runLoad = (): void => {
+    loadRevision += 1
+    const ticket = loadRevision
+    saveRevision += 1
+    saving = false
     setSettings(null)
     setError(null)
     setSaved(false)
@@ -43,11 +47,11 @@ export const StampSettings = ({ copy, load, save }: StampSettingsProps): JSX.Ele
     const run = async (): Promise<void> => {
       let result: Result<StampSettingsValue>
       try {
-        result = await load()
+        result = await props.load()
       } catch {
         result = { error: 'network', network: true, ok: false, status: 0 }
       }
-      if (!mounted.current || loadRevision.current !== ticket) {
+      if (!mounted || loadRevision !== ticket) {
         return
       }
       setBusy(false)
@@ -58,53 +62,39 @@ export const StampSettings = ({ copy, load, save }: StampSettingsProps): JSX.Ele
       }
     }
     void run()
-  }, [load])
+  }
 
-  useEffect(() => {
-    runLoad()
-    return () => {
-      loadRevision.current += 1
-      saveRevision.current += 1
-      saving.current = false
-    }
-  }, [runLoad, save])
-
-  const valid =
-    settings !== null &&
-    Number.isInteger(settings.dailyLimit) &&
-    settings.dailyLimit >= 1 &&
-    settings.dailyLimit <= 100 &&
-    Number.isInteger(settings.goal) &&
-    settings.goal >= 1 &&
-    settings.goal <= 1000
+  // A new loader (another card, or a replaced session) starts over; a late
+  // answer for the previous one is dropped.
+  createEffect(on(() => props.load, runLoad))
 
   const submit = (): void => {
-    if (settings === null || saving.current) {
+    const submitted = settings()
+    if (submitted === null || saving) {
       return
     }
-    if (!valid) {
+    if (!valid(submitted)) {
       setError('validation')
       setSaved(false)
       return
     }
-    saving.current = true
-    saveRevision.current += 1
-    const ticket = saveRevision.current
-    const submitted = settings
+    saving = true
+    saveRevision += 1
+    const ticket = saveRevision
     setBusy(true)
     setError(null)
     setSaved(false)
     const run = async (): Promise<void> => {
       let result: Result<StampSettingsValue>
       try {
-        result = await save(submitted)
+        result = await props.save(submitted)
       } catch {
         result = { error: 'network', network: true, ok: false, status: 0 }
       }
-      if (!mounted.current || saveRevision.current !== ticket) {
+      if (!mounted || saveRevision !== ticket) {
         return
       }
-      saving.current = false
+      saving = false
       setBusy(false)
       if (result.ok) {
         setSettings(result.body)
@@ -116,22 +106,9 @@ export const StampSettings = ({ copy, load, save }: StampSettingsProps): JSX.Ele
     void run()
   }
 
-  if (settings === null) {
-    return (
-      <div class="card flex items-start gap-3 p-5" role={error === 'load' ? 'alert' : 'status'}>
-        <span>{busy ? copy.loading : copy.failures.load}</span>
-        {error === 'load' ? (
-          <button class="btn btn-sm" type="button" onClick={runLoad}>
-            {copy.retry}
-          </button>
-        ) : null}
-      </div>
-    )
-  }
-
   const numberInput = (
     label: string,
-    value: number,
+    value: () => number,
     max: number,
     update: (value: number) => void,
   ): JSX.Element => (
@@ -142,19 +119,17 @@ export const StampSettings = ({ copy, load, save }: StampSettingsProps): JSX.Ele
         type="number"
         min="1"
         max={max}
-        value={value}
-        disabled={busy}
+        value={value()}
+        disabled={busy()}
         onInput={(event) => {
-          if (event.currentTarget instanceof HTMLInputElement) {
-            update(Number(event.currentTarget.value))
-            setSaved(false)
-          }
+          update(Number(event.currentTarget.value))
+          setSaved(false)
         }}
       />
     </label>
   )
 
-  return (
+  const editor = (current: Accessor<StampSettingsValue>): JSX.Element => (
     <form
       noValidate
       class="card flex flex-col gap-5 px-6 py-8"
@@ -164,39 +139,65 @@ export const StampSettings = ({ copy, load, save }: StampSettingsProps): JSX.Ele
       }}
     >
       <div class="space-y-1">
-        <h2 class="text-xl font-bold">{copy.title}</h2>
-        <p class="text-sm opacity-70">{copy.description}</p>
+        <h2 class="text-xl font-bold">{props.copy.title}</h2>
+        <p class="text-sm opacity-70">{props.copy.description}</p>
       </div>
       <label class="flex cursor-pointer items-center gap-3">
         <input
           class="toggle shrink-0"
           type="checkbox"
-          checked={settings.enabled}
-          disabled={busy}
-          onChange={(event) => {
-            if (event.currentTarget instanceof HTMLInputElement) {
-              setSettings({ ...settings, enabled: event.currentTarget.checked })
-              setSaved(false)
-            }
+          checked={current().enabled}
+          disabled={busy()}
+          onInput={(event) => {
+            setSettings({ ...current(), enabled: event.currentTarget.checked })
+            setSaved(false)
           }}
         />
-        <span>{copy.enabled}</span>
+        <span>{props.copy.enabled}</span>
       </label>
-      {numberInput(copy.dailyLimit, settings.dailyLimit, 100, (dailyLimit) => {
-        setSettings({ ...settings, dailyLimit })
-      })}
-      {numberInput(copy.goal, settings.goal, 1000, (goal) => {
-        setSettings({ ...settings, goal })
-      })}
-      {error === null ? null : (
+      {numberInput(
+        props.copy.dailyLimit,
+        () => current().dailyLimit,
+        100,
+        (dailyLimit) => {
+          setSettings({ ...current(), dailyLimit })
+        },
+      )}
+      {numberInput(
+        props.copy.goal,
+        () => current().goal,
+        1000,
+        (goal) => {
+          setSettings({ ...current(), goal })
+        },
+      )}
+      {error() === null ? null : (
         <p class="text-error" role="alert">
-          {error === 'validation' ? copy.failures.validation : copy.failures[error]}
+          {props.copy.failures[error() ?? 'load']}
         </p>
       )}
-      {saved ? <p role="status">{copy.saved}</p> : null}
-      <button class="btn btn-primary self-start" disabled={busy} type="button" onClick={submit}>
-        {busy ? copy.saving : copy.save}
+      {saved() ? <p role="status">{props.copy.saved}</p> : null}
+      <button class="btn btn-primary self-start" disabled={busy()} type="button" onClick={submit}>
+        {busy() ? props.copy.saving : props.copy.save}
       </button>
     </form>
+  )
+
+  return (
+    <Show
+      when={settings()}
+      fallback={
+        <div class="card flex items-start gap-3 p-5" role={error() === 'load' ? 'alert' : 'status'}>
+          <span>{busy() ? props.copy.loading : props.copy.failures.load}</span>
+          {error() === 'load' ? (
+            <button class="btn btn-sm" type="button" onClick={runLoad}>
+              {props.copy.retry}
+            </button>
+          ) : null}
+        </div>
+      }
+    >
+      {(current) => editor(current)}
+    </Show>
   )
 }

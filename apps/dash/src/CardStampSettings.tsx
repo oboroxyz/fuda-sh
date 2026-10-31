@@ -1,6 +1,4 @@
-/** @jsxImportSource hono/jsx/dom */
-import { useCallback } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import type { JSX } from 'solid-js'
 
 import type { DashCopy } from './copy.ts'
 import { StampSettings } from './StampSettings.tsx'
@@ -14,19 +12,14 @@ export interface CardStampIo {
   ) => ReturnType<StampSettingsProps['save']>
 }
 
-export const CardStampSettings = ({
-  cardId,
-  copy,
-  settings,
-}: {
+export const CardStampSettings = (props: {
   cardId: string
   copy: DashCopy['stamps']
   settings: CardStampIo
-}): JSX.Element => {
-  const load = useCallback(async () => await settings.load(cardId), [cardId, settings.load])
-  const save = useCallback(
-    async (value: Parameters<StampSettingsProps['save']>[0]) => await settings.save(cardId, value),
-    [cardId, settings.save],
-  )
-  return <StampSettings copy={copy} load={load} save={save} />
-}
+}): JSX.Element => (
+  <StampSettings
+    copy={props.copy}
+    load={async () => await props.settings.load(props.cardId)}
+    save={async (value) => await props.settings.save(props.cardId, value)}
+  />
+)

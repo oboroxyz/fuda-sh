@@ -1,22 +1,21 @@
-/** @jsxImportSource hono/jsx/dom */
-import { ConfirmAction } from '@fuda/ui'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import { ConfirmAction } from '@fuda/ui/solid'
+import type { JSX } from 'solid-js'
 
 import type { DashCopy } from './copy.ts'
 
-export const SignOutButton = ({
-  copy,
-  onSignOut,
-  menu = false,
-}: {
+export const SignOutButton = (props: {
   copy: DashCopy['auth']
   onSignOut: () => void
   menu?: boolean
 }): JSX.Element => (
   <ConfirmAction
-    class={menu ? 'dash-menu-item btn btn-ghost w-full !border-0 font-normal shadow-none' : undefined}
+    class={
+      props.menu === true
+        ? 'dash-menu-item btn btn-ghost w-full !border-0 font-normal shadow-none'
+        : undefined
+    }
     icon={
-      menu ? (
+      props.menu === true ? (
         <svg
           aria-hidden="true"
           class="size-5 shrink-0"
@@ -29,11 +28,13 @@ export const SignOutButton = ({
         </svg>
       ) : undefined
     }
-    label={copy.signOut}
-    title={copy.signOutTitle}
-    description={copy.signOutDescription}
-    cancelLabel={copy.cancelSignOut}
-    confirmLabel={copy.signOut}
-    onConfirm={onSignOut}
+    label={props.copy.signOut}
+    title={props.copy.signOutTitle}
+    description={props.copy.signOutDescription}
+    cancelLabel={props.copy.cancelSignOut}
+    confirmLabel={props.copy.signOut}
+    onConfirm={() => {
+      props.onSignOut()
+    }}
   />
 )

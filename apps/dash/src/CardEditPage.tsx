@@ -1,8 +1,7 @@
-/** @jsxImportSource hono/jsx/dom */
 import type { CardView, CardUpdateRequest, CardUpdateResponse, IssuerView, OperatorCardView } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
-import { useCallback, useEffect, useRef, useState } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import { createEffect, createSignal, on, onCleanup, Show } from 'solid-js'
+import type { JSX } from 'solid-js'
 
 import { cardUpdateBodyFrom, formFromCard } from './card-designer.ts'
 import type { DesignerForm } from './card-designer.ts'
@@ -27,37 +26,30 @@ export interface CardEditPageProps {
 
 const available = async (): Promise<'available'> => await Promise.resolve('available')
 
-const LoadedCardEditor = ({
-  card,
-  copy,
-  issuer,
-  save,
-  settings,
-  integrations,
-  onNavigate,
-}: Omit<CardEditPageProps, 'card' | 'load'> & { card: OperatorCardView }): JSX.Element => {
-  const [draft, setDraft] = useState(() => formFromCard(card))
-  const [savedCard, setSavedCard] = useState(card)
-  const [busy, setBusy] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [failed, setFailed] = useState(false)
-  const [stampsOpen, setStampsOpen] = useState(false)
-  const [integrationsOpen, setIntegrationsOpen] = useState(false)
-  const mounted = useRef(true)
-  const saving = useRef(false)
-  useEffect(
-    () => () => {
-      mounted.current = false
-    },
-    [],
-  )
-  const changed = useCallback((form: DesignerForm): void => {
+type EditorProps = Omit<CardEditPageProps, 'card' | 'load'> & { card: OperatorCardView }
+
+// Mounted once per loaded Card: the form starts from that Card and keeps its own draft.
+const LoadedCardEditor = (props: EditorProps): JSX.Element => {
+  const initial = props.card
+  const [draft, setDraft] = createSignal(formFromCard(initial))
+  const [savedCard, setSavedCard] = createSignal(initial)
+  const [busy, setBusy] = createSignal(false)
+  const [saved, setSaved] = createSignal(false)
+  const [failed, setFailed] = createSignal(false)
+  const [stampsOpen, setStampsOpen] = createSignal(false)
+  const [integrationsOpen, setIntegrationsOpen] = createSignal(false)
+  let mounted = true
+  let saving = false
+  onCleanup(() => {
+    mounted = false
+  })
+  const changed = (form: DesignerForm): void => {
     setDraft(form)
     setSaved(false)
-  }, [])
+  }
 
   const submit = (form: DesignerForm): void => {
-    if (saving.current) {
+    if (saving) {
       return
     }
     const body = cardUpdateBodyFrom(form)
@@ -65,21 +57,21 @@ const LoadedCardEditor = ({
       setFailed(true)
       return
     }
-    saving.current = true
+    saving = true
     setBusy(true)
     setSaved(false)
     setFailed(false)
     const run = async (): Promise<void> => {
       let result: Result<CardUpdateResponse>
       try {
-        result = await save(card.id, body)
+        result = await props.save(initial.id, body)
       } catch {
         result = { error: 'network', network: true, ok: false, status: 0 }
       }
-      if (!mounted.current) {
+      if (!mounted) {
         return
       }
-      saving.current = false
+      saving = false
       setBusy(false)
       if (result.ok) {
         setSavedCard(result.body.card)
@@ -94,55 +86,53 @@ const LoadedCardEditor = ({
   return (
     <>
       <CardDesigner
-        busy={busy}
+        busy={busy()}
         editing
         copy={{
-          ...copy.designer,
-          description: copy.management.editDescription,
-          submit: copy.management.save,
-          submitting: copy.management.saving,
-          title: copy.management.editCard,
+          ...props.copy.designer,
+          description: props.copy.management.editDescription,
+          submit: props.copy.management.save,
+          submitting: props.copy.management.saving,
+          title: props.copy.management.editCard,
         }}
-        readonlySlugHint={copy.management.slugHint}
+        readonlySlugHint={props.copy.management.slugHint}
         failure={null}
-        initialDraft={draft}
-        issuer={issuer}
-        logoCopy={copy.logo}
+        initialDraft={draft()}
+        issuer={props.issuer}
+        logoCopy={props.copy.logo}
         onCheckHandle={available}
         onCheckSlug={available}
         onDraftChange={changed}
         onEditProfile={() => {
-          onNavigate('/profile')
+          props.onNavigate('/profile')
         }}
         onSubmit={(_mode, form) => {
           submit(form)
         }}
       />
-      {failed ? (
+      {failed() ? (
         <p role="alert" class="text-error">
-          {copy.management.saveFailed}
+          {props.copy.management.saveFailed}
         </p>
       ) : null}
-      {saved ? (
+      {saved() ? (
         <p role="status" class="text-sm">
-          {copy.management.saved}
+          {props.copy.management.saved}
         </p>
       ) : null}
-      {savedCard.category === 'membership' && draft.category === 'membership' ? (
+      {savedCard().category === 'membership' && draft().category === 'membership' ? (
         <details
           class="rounded-box border border-[var(--fuda-border)]"
-          open={stampsOpen}
-          onToggle={(event: Event) => {
-            if (event.currentTarget instanceof HTMLDetailsElement) {
-              setStampsOpen(event.currentTarget.open)
-            }
+          open={stampsOpen()}
+          onToggle={(event) => {
+            setStampsOpen(event.currentTarget.open)
           }}
         >
-          <summary class="cursor-pointer p-4 font-semibold">{copy.management.stampOption}</summary>
-          {stampsOpen ? (
-            <fieldset class="min-w-0 p-4 pt-0" disabled={busy}>
-              <p class="mb-3 text-sm text-[var(--fuda-muted)]">{copy.management.stampHint}</p>
-              <CardStampSettings cardId={card.id} copy={copy.stamps} settings={settings} />
+          <summary class="cursor-pointer p-4 font-semibold">{props.copy.management.stampOption}</summary>
+          {stampsOpen() ? (
+            <fieldset class="min-w-0 p-4 pt-0" disabled={busy()}>
+              <p class="mb-3 text-sm text-[var(--fuda-muted)]">{props.copy.management.stampHint}</p>
+              <CardStampSettings cardId={initial.id} copy={props.copy.stamps} settings={props.settings} />
             </fieldset>
           ) : null}
         </details>
@@ -150,18 +140,16 @@ const LoadedCardEditor = ({
       <details
         class="rounded-box border border-[var(--fuda-border)]"
         data-testid="card-integrations"
-        open={integrationsOpen}
-        onToggle={(event: Event) => {
-          if (event.currentTarget instanceof HTMLDetailsElement) {
-            setIntegrationsOpen(event.currentTarget.open)
-          }
+        open={integrationsOpen()}
+        onToggle={(event) => {
+          setIntegrationsOpen(event.currentTarget.open)
         }}
       >
-        <summary class="cursor-pointer p-4 font-semibold">{copy.management.integrationsOption}</summary>
-        {integrationsOpen ? (
-          <fieldset class="min-w-0 p-4 pt-0" disabled={busy}>
-            <p class="mb-3 text-sm text-[var(--fuda-muted)]">{copy.management.integrationsHint}</p>
-            <IntegrationSettings cardId={card.id} copy={copy.integrations} io={integrations} />
+        <summary class="cursor-pointer p-4 font-semibold">{props.copy.management.integrationsOption}</summary>
+        {integrationsOpen() ? (
+          <fieldset class="min-w-0 p-4 pt-0" disabled={busy()}>
+            <p class="mb-3 text-sm text-[var(--fuda-muted)]">{props.copy.management.integrationsHint}</p>
+            <IntegrationSettings cardId={initial.id} copy={props.copy.integrations} io={props.integrations} />
           </fieldset>
         ) : null}
       </details>
@@ -169,62 +157,78 @@ const LoadedCardEditor = ({
   )
 }
 
-const CardEditorLoader = ({
-  card,
-  ...props
-}: Omit<CardEditPageProps, 'card'> & { card: CardView }): JSX.Element => {
-  const [loaded, setLoaded] = useState<OperatorCardView | null>(null)
-  const [failed, setFailed] = useState(false)
-  const [attempt, setAttempt] = useState(0)
-  useEffect(() => {
-    let current = true
-    setFailed(false)
-    setLoaded(null)
-    const run = async (): Promise<void> => {
-      try {
-        const result = await props.load(card.id)
-        if (!current) {
-          return
-        }
-        if (result.ok) {
-          setLoaded(result.body.card)
-        } else {
-          setFailed(true)
-        }
-      } catch {
-        if (current) {
-          setFailed(true)
+// Mounted once per Card id: loads the operator view of that Card, then hands it
+// to a fresh editor.
+const CardEditorLoader = (props: CardEditPageProps & { cardId: string }): JSX.Element => {
+  const [loaded, setLoaded] = createSignal<OperatorCardView | null>(null)
+  const [failed, setFailed] = createSignal(false)
+  const [attempt, setAttempt] = createSignal(0)
+  createEffect(
+    on(attempt, () => {
+      let current = true
+      setFailed(false)
+      setLoaded(null)
+      const run = async (): Promise<void> => {
+        try {
+          const result = await props.load(props.cardId)
+          if (!current) {
+            return
+          }
+          if (result.ok) {
+            setLoaded(result.body.card)
+          } else {
+            setFailed(true)
+          }
+        } catch {
+          if (current) {
+            setFailed(true)
+          }
         }
       }
-    }
-    void run()
-    return () => {
-      current = false
-    }
-  }, [card.id, props.load, attempt])
+      void run()
+      onCleanup(() => {
+        current = false
+      })
+    }),
+  )
 
-  if (loaded !== null) {
-    return <LoadedCardEditor {...props} card={loaded} />
-  }
   return (
-    <div class="flex flex-col items-start gap-3" role={failed ? 'alert' : 'status'}>
-      <p>{failed ? props.copy.management.loadFailed : props.copy.management.loading}</p>
-      {failed ? (
-        <button
-          class="btn btn-sm"
-          type="button"
-          onClick={() => {
-            setAttempt((value) => value + 1)
-          }}
-        >
-          {props.copy.management.retry}
-        </button>
-      ) : null}
-    </div>
+    <Show
+      when={loaded()}
+      keyed
+      fallback={
+        <div class="flex flex-col items-start gap-3" role={failed() ? 'alert' : 'status'}>
+          <p>{failed() ? props.copy.management.loadFailed : props.copy.management.loading}</p>
+          {failed() ? (
+            <button
+              class="btn btn-sm"
+              type="button"
+              onClick={() => {
+                setAttempt((value) => value + 1)
+              }}
+            >
+              {props.copy.management.retry}
+            </button>
+          ) : null}
+        </div>
+      }
+    >
+      {(card) => (
+        <LoadedCardEditor
+          card={card}
+          copy={props.copy}
+          integrations={props.integrations}
+          issuer={props.issuer}
+          onNavigate={props.onNavigate}
+          save={props.save}
+          settings={props.settings}
+        />
+      )}
+    </Show>
   )
 }
 
-export const CardEditPage = ({ card, ...props }: CardEditPageProps): JSX.Element => (
+export const CardEditPage = (props: CardEditPageProps): JSX.Element => (
   <section class="dash-page flex max-w-2xl flex-col gap-6">
     <a
       class="link link-hover self-start text-sm"
@@ -239,10 +243,12 @@ export const CardEditPage = ({ card, ...props }: CardEditPageProps): JSX.Element
     >
       {props.copy.management.back}
     </a>
-    {card === null ? (
-      <h1 class="dash-page-title">{props.copy.stamps.cardNotFound}</h1>
-    ) : (
-      <CardEditorLoader key={card.id} {...props} card={card} />
-    )}
+    <Show
+      when={props.card?.id}
+      keyed
+      fallback={<h1 class="dash-page-title">{props.copy.stamps.cardNotFound}</h1>}
+    >
+      {(cardId) => <CardEditorLoader {...props} cardId={cardId} />}
+    </Show>
   </section>
 )

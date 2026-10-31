@@ -1,6 +1,5 @@
-/** @jsxImportSource hono/jsx/dom */
 import { cn } from 'cn'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import type { JSX } from 'solid-js'
 
 import type { DashCopy } from './copy.ts'
 import type { MemberRowView } from './members-view.ts'
@@ -94,41 +93,30 @@ const qrDisclosure = (
     </div>
   ) : null
 
-const actions = ({
-  copy,
-  onRequestRevoke,
-  onToggleQr,
-  openQr,
-  revokingUid,
-  row,
-  layout,
-}: RightsListProps & { layout: RightsLayout; row: MemberRowView }): JSX.Element => {
-  const qrOpen = openQr === row.uid
-  const revokeDisabled = row.status === 'revoked' || revokingUid === row.uid
+const actions = (props: RightsListProps, layout: RightsLayout, row: MemberRowView): JSX.Element => {
+  const qrOpen = (): boolean => props.openQr === row.uid
   return (
     <div class="dash-actions">
       <button
         type="button"
         class="btn btn-xs"
         aria-controls={qrPanelId(layout, row.uid)}
-        aria-expanded={qrOpen}
+        aria-expanded={qrOpen()}
         onClick={() => {
-          onToggleQr(row.uid)
+          props.onToggleQr(row.uid)
         }}
       >
-        {qrOpen ? copy.hideQr : copy.qr}
+        {qrOpen() ? props.copy.hideQr : props.copy.qr}
       </button>
       <button
         type="button"
         class="btn btn-xs btn-error"
-        disabled={revokeDisabled}
+        disabled={row.status === 'revoked' || props.revokingUid === row.uid}
         onClick={(event) => {
-          if (event.currentTarget instanceof HTMLButtonElement) {
-            onRequestRevoke(row, event.currentTarget)
-          }
+          props.onRequestRevoke(row, event.currentTarget)
         }}
       >
-        {copy.revoke}
+        {props.copy.revoke}
       </button>
     </div>
   )
@@ -139,7 +127,7 @@ const columnCount = (rows: readonly MemberRowView[]): number => (showsHuman(rows
 
 const tableRecord = (props: RightsListProps, row: MemberRowView): JSX.Element[] =>
   [
-    <tr key={row.uid} data-right-uid={row.uid}>
+    <tr data-right-uid={row.uid}>
       <td>{displayValue(row.memberId)}</td>
       <td>{row.holderShort ?? <span class="opacity-50">—</span>}</td>
       <td>
@@ -150,10 +138,10 @@ const tableRecord = (props: RightsListProps, row: MemberRowView): JSX.Element[] 
       {showsHuman(props.rows) ? <td>{humanBadge(props.copy, row)}</td> : null}
       <td>{uidDisplay(row)}</td>
       <td>{passLinks(props.copy, row)}</td>
-      <td>{actions({ ...props, layout: 'table', row })}</td>
+      <td>{actions(props, 'table', row)}</td>
     </tr>,
     props.openQr === row.uid ? (
-      <tr key={`${row.uid}:qr`}>
+      <tr>
         <td colspan={columnCount(props.rows)}>{qrDisclosure(props.copy, 'table', props.openQr, row)}</td>
       </tr>
     ) : null,
@@ -192,7 +180,7 @@ const cardRecord = (props: RightsListProps, row: MemberRowView): JSX.Element => 
         <dd>{passLinks(props.copy, row)}</dd>
       </div>
     </dl>
-    {actions({ ...props, layout: 'cards', row })}
+    {actions(props, 'cards', row)}
     {qrDisclosure(props.copy, 'cards', props.openQr, row)}
   </article>
 )

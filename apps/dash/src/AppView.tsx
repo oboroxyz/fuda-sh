@@ -1,5 +1,6 @@
-/** @jsxImportSource hono/jsx/dom */
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import type { IssuerMeResponse, IssuerView } from '@fuda/sdk'
+import { createMemo, Match, Show, Switch } from 'solid-js'
+import type { Accessor, JSX } from 'solid-js'
 
 import type { SessionState } from './app-state.ts'
 import type { CreateFailure, DesignerForm, DesignerMode } from './card-designer.ts'
@@ -79,238 +80,227 @@ export interface AppViewProps {
   stampSettings: CardStampIo
 }
 
-export const AppView = ({
-  appearance,
-  ens,
-  authError,
-  cardDraft,
-  cardManagement,
-  loadPasses,
-  copy,
-  createFailure,
-  creating,
-  graphEndpoint,
-  integrations,
-  members,
-  onChangeCardDraft,
-  onCheckHandle,
-  onCheckSlug,
-  onCommitLogo,
-  onCreate,
-  onCreateVenue,
-  onDefaultCard,
-  onEditProfile,
-  onIssue,
-  onNavigate,
-  onPasskey,
-  onRestore,
-  restoreState,
-  onRevoke,
-  onSignOut,
-  onToken,
-  onUpdateVenue,
-  receiveAtReception,
-  route,
-  session,
-  signInError,
-  signingIn,
-  stampSettings,
-}: AppViewProps): JSX.Element => {
-  const signInMessage = (): string | null => {
-    if (signInError !== null) {
-      return signInErrorOf(copy.auth, signInError)
-    }
-    return authError === 'unauthorized' ? copy.auth.unauthorized : null
-  }
+type PageKind =
+  | 'venue'
+  | 'edit'
+  | 'detail'
+  | 'passes'
+  | 'cards'
+  | 'reception'
+  | 'designer'
+  | 'rights'
+  | 'issue'
+  | 'overview'
 
-  if (restoreState !== null) {
-    return (
-      <main class="dash-auth">
-        <div class="flex justify-end">{appearance}</div>
-        <div class="card mx-auto mt-32 flex max-w-md flex-col gap-6 p-8 py-12">
-          <p role={restoreState === 'loading' ? 'status' : 'alert'}>
-            {restoreState === 'loading' ? copy.auth.restoring : copy.auth.restoreFailed}
-          </p>
-          {restoreState === 'failed' ? (
-            <button class="btn btn-primary" onClick={onRestore} type="button">
-              {copy.auth.retry}
-            </button>
-          ) : null}
-          <SignOutButton copy={copy.auth} onSignOut={onSignOut} />
-        </div>
-      </main>
-    )
-  }
-
-  if (session.token === null) {
-    return (
-      <SignIn
-        appearance={appearance}
-        copy={copy.auth}
-        error={signInMessage()}
-        onPasskey={onPasskey}
-        onToken={onToken}
-        pending={signingIn}
-      />
-    )
-  }
-
-  const { operator } = session
-  const surface = operator === null ? 'admin' : 'operator'
-  const published = operator !== null && operator.issuer !== null
-
-  const page = (): JSX.Element => {
-    if (operator !== null) {
-      if (route === '/profile') {
-        return (
-          <VenuePage
-            busy={creating}
-            copy={copy}
-            ens={ens}
-            failure={createFailure}
-            publicUrl={operator.publicUrl}
-            issuer={operator.issuer}
-            onCheckHandle={onCheckHandle}
-            onCommitLogo={onCommitLogo}
-            onCreate={onCreateVenue}
-            hasCardDraft={cardDraft !== null}
-            onNavigate={onNavigate}
-            onUpdate={onUpdateVenue}
-          />
-        )
-      }
-      const managementPage = (): JSX.Element | null => {
-        if (operator.issuer !== null && (isCardEditRoute(route) || isLegacyCardSettingsRoute(route))) {
-          return (
-            <CardEditPage
-              key={`${session.token}:${route}`}
-              card={cardForRoute(route, operator.cards)}
-              copy={copy}
-              issuer={operator.issuer}
-              load={cardManagement.load}
-              save={cardManagement.save}
-              integrations={integrations}
-              onNavigate={onNavigate}
-              settings={stampSettings}
-            />
-          )
-        }
-        if (operator.issuer !== null && isCardRoute(route)) {
-          return (
-            <CardDetailPage
-              key={`${session.token}:${route}`}
-              card={cardForRoute(route, operator.cards)}
-              copy={copy}
-              publicUrl={operator.publicUrl}
-              onNavigate={onNavigate}
-            />
-          )
-        }
-        if (operator.issuer !== null && route === '/passes') {
-          return (
-            <IssuerPassesPage
-              key={session.token}
-              cards={operator.cards}
-              copy={copy.management}
-              load={loadPasses}
-            />
-          )
-        }
-        if (operator.issuer !== null && route === '/cards') {
-          return (
-            <PublishedCard
-              key={session.token}
-              cards={operator.cards}
-              onSettings={(selectedId) => {
-                const selected = operator.cards.find((card) => card.id === selectedId)
-                if (selected !== undefined) {
-                  onNavigate(cardEditPath(selected))
-                }
-              }}
-              onDefaultCard={onDefaultCard}
-              copy={copy.published}
-              managementCopy={copy.management}
-              loadPasses={loadPasses}
-              onNavigate={onNavigate}
-              issuer={operator.issuer}
-              onAddCard={() => {
-                onNavigate('/cards/new')
-              }}
-              publicUrl={operator.publicUrl}
-            />
-          )
-        }
-        return null
-      }
-      const management = managementPage()
-      if (management !== null) {
-        return management
-      }
-      if (operator.issuer !== null && route === '/reception') {
-        return <ReceptionPage copy={copy.reception} receive={receiveAtReception} />
-      }
-      return operator.issuer === null ? (
-        <VenuePage
-          busy={creating}
-          copy={copy}
-          ens={ens}
-          failure={createFailure}
-          issuer={null}
-          publicUrl={operator.publicUrl}
-          onCheckHandle={onCheckHandle}
-          onCommitLogo={onCommitLogo}
-          onCreate={onCreateVenue}
-          onNavigate={onNavigate}
-          onUpdate={onUpdateVenue}
-        />
-      ) : (
-        <CardDesigner
-          busy={creating}
-          copy={copy.designer}
-          failure={createFailure}
-          initialDraft={cardDraft}
-          issuer={operator.issuer}
-          logoCopy={copy.logo}
-          onCheckHandle={onCheckHandle}
-          onCheckSlug={onCheckSlug}
-          onDraftChange={onChangeCardDraft}
-          onEditProfile={onEditProfile}
-          onSubmit={onCreate}
-        />
-      )
-    }
+// Which screen the route shows. A screen is rebuilt only when this kind, the
+// session token or (for one Card) the route changes, so typing into a page is
+// never thrown away by an unrelated session update.
+const pageKindOf = (operator: IssuerMeResponse | null, route: DashRoute): PageKind => {
+  if (operator === null) {
     if (route === '/rights') {
-      return <RightsPage copy={copy} graphEndpoint={graphEndpoint} members={members} onRevoke={onRevoke} />
+      return 'rights'
     }
-    if (route === '/issue') {
-      return <IssueForm copy={copy.issue} onIssue={onIssue} />
+    return route === '/issue' ? 'issue' : 'overview'
+  }
+  if (route === '/profile' || operator.issuer === null) {
+    return 'venue'
+  }
+  if (isCardEditRoute(route) || isLegacyCardSettingsRoute(route)) {
+    return 'edit'
+  }
+  if (isCardRoute(route)) {
+    return 'detail'
+  }
+  if (route === '/passes') {
+    return 'passes'
+  }
+  if (route === '/cards') {
+    return 'cards'
+  }
+  return route === '/reception' ? 'reception' : 'designer'
+}
+
+const pageIdentity = (kind: PageKind, token: string | null, route: DashRoute): string => {
+  if (kind === 'edit' || kind === 'detail') {
+    return `${kind}:${token ?? ''}:${route}`
+  }
+  if (kind === 'passes' || kind === 'cards' || kind === 'reception') {
+    return `${kind}:${token ?? ''}`
+  }
+  return kind
+}
+
+export const AppView = (props: AppViewProps): JSX.Element => {
+  const signInMessage = (): string | null => {
+    if (props.signInError !== null) {
+      return signInErrorOf(props.copy.auth, props.signInError)
     }
-    return (
+    return props.authError === 'unauthorized' ? props.copy.auth.unauthorized : null
+  }
+  const operator = (): IssuerMeResponse | null => props.session.operator
+  const issuer = (): IssuerView | null => operator()?.issuer ?? null
+  const cards = (): IssuerMeResponse['cards'] => operator()?.cards ?? []
+  const publicUrl = (): string => operator()?.publicUrl ?? ''
+  const kind = createMemo(() => pageKindOf(operator(), props.route))
+  const identity = createMemo(() => pageIdentity(kind(), props.session.token, props.route))
+
+  // Pages that need the venue get it as a live accessor; they are only built
+  // while the operator has one.
+  const withIssuer = (render: (current: Accessor<IssuerView>) => JSX.Element): JSX.Element => (
+    <Show when={issuer()}>{(current) => render(current)}</Show>
+  )
+
+  const pages = {
+    cards: () =>
+      withIssuer((current) => (
+        <PublishedCard
+          cards={cards()}
+          onSettings={(selectedId) => {
+            const selected = cards().find((card) => card.id === selectedId)
+            if (selected !== undefined) {
+              props.onNavigate(cardEditPath(selected))
+            }
+          }}
+          onDefaultCard={props.onDefaultCard}
+          copy={props.copy.published}
+          managementCopy={props.copy.management}
+          loadPasses={props.loadPasses}
+          onNavigate={props.onNavigate}
+          issuer={current()}
+          onAddCard={() => {
+            props.onNavigate('/cards/new')
+          }}
+          publicUrl={publicUrl()}
+        />
+      )),
+    designer: () => (
+      <CardDesigner
+        busy={props.creating}
+        copy={props.copy.designer}
+        failure={props.createFailure}
+        initialDraft={props.cardDraft}
+        issuer={issuer()}
+        logoCopy={props.copy.logo}
+        onCheckHandle={props.onCheckHandle}
+        onCheckSlug={props.onCheckSlug}
+        onDraftChange={props.onChangeCardDraft}
+        onEditProfile={props.onEditProfile}
+        onSubmit={props.onCreate}
+      />
+    ),
+    detail: () => (
+      <CardDetailPage
+        card={cardForRoute(props.route, cards())}
+        copy={props.copy}
+        publicUrl={publicUrl()}
+        onNavigate={props.onNavigate}
+      />
+    ),
+    edit: () =>
+      withIssuer((current) => (
+        <CardEditPage
+          card={cardForRoute(props.route, cards())}
+          copy={props.copy}
+          issuer={current()}
+          load={props.cardManagement.load}
+          save={props.cardManagement.save}
+          integrations={props.integrations}
+          onNavigate={props.onNavigate}
+          settings={props.stampSettings}
+        />
+      )),
+    issue: () => <IssueForm copy={props.copy.issue} onIssue={props.onIssue} />,
+    overview: () => (
       <OverviewPage
         apiBaseUrl={API_BASE_URL}
-        copy={copy.overview}
-        graphEndpoint={graphEndpoint}
-        state={members}
+        copy={props.copy.overview}
+        graphEndpoint={props.graphEndpoint}
+        state={props.members}
       />
-    )
-  }
+    ),
+    passes: () => <IssuerPassesPage cards={cards()} copy={props.copy.management} load={props.loadPasses} />,
+    reception: () => <ReceptionPage copy={props.copy.reception} receive={props.receiveAtReception} />,
+    rights: () => (
+      <RightsPage
+        copy={props.copy}
+        graphEndpoint={props.graphEndpoint}
+        members={props.members}
+        onRevoke={props.onRevoke}
+      />
+    ),
+    venue: () => (
+      <VenuePage
+        busy={props.creating}
+        copy={props.copy}
+        ens={props.ens}
+        failure={props.createFailure}
+        publicUrl={operator()?.publicUrl ?? null}
+        issuer={issuer()}
+        onCheckHandle={props.onCheckHandle}
+        onCommitLogo={props.onCommitLogo}
+        onCreate={props.onCreateVenue}
+        hasCardDraft={props.cardDraft !== null}
+        onNavigate={props.onNavigate}
+        onUpdate={props.onUpdateVenue}
+      />
+    ),
+  } satisfies Record<PageKind, () => JSX.Element>
 
   return (
-    <DashboardShell
-      appearance={appearance}
-      copy={copy}
-      hasIssuer={published}
-      venue={
-        operator === null || operator.issuer === null
-          ? null
-          : { name: operator.issuer.name, publicUrl: operator.publicUrl }
+    <Switch
+      fallback={
+        <DashboardShell
+          appearance={props.appearance}
+          copy={props.copy}
+          hasIssuer={issuer() !== null}
+          venue={
+            issuer() === null
+              ? null
+              : { name: issuer()?.name ?? '', publicUrl: operator()?.publicUrl ?? null }
+          }
+          onNavigate={props.onNavigate}
+          onSignOut={operator() === null ? null : props.onSignOut}
+          route={props.route}
+          surface={operator() === null ? 'admin' : 'operator'}
+        >
+          <Show when={identity()} keyed>
+            {(_identity: string) => pages[kind()]()}
+          </Show>
+        </DashboardShell>
       }
-      onNavigate={onNavigate}
-      onSignOut={operator === null ? null : onSignOut}
-      route={route}
-      surface={surface}
     >
-      {page()}
-    </DashboardShell>
+      <Match when={props.restoreState !== null}>
+        <main class="dash-auth">
+          <div class="flex justify-end">{props.appearance}</div>
+          <div class="card mx-auto mt-32 flex max-w-md flex-col gap-6 p-8 py-12">
+            <p role={props.restoreState === 'loading' ? 'status' : 'alert'}>
+              {props.restoreState === 'loading' ? props.copy.auth.restoring : props.copy.auth.restoreFailed}
+            </p>
+            {props.restoreState === 'failed' ? (
+              <button
+                class="btn btn-primary"
+                onClick={() => {
+                  props.onRestore()
+                }}
+                type="button"
+              >
+                {props.copy.auth.retry}
+              </button>
+            ) : null}
+            <SignOutButton copy={props.copy.auth} onSignOut={props.onSignOut} />
+          </div>
+        </main>
+      </Match>
+      <Match when={props.session.token === null}>
+        <SignIn
+          appearance={props.appearance}
+          copy={props.copy.auth}
+          error={signInMessage()}
+          onPasskey={props.onPasskey}
+          onToken={props.onToken}
+          pending={props.signingIn}
+        />
+      </Match>
+    </Switch>
   )
 }

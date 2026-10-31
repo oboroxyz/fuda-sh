@@ -1,4 +1,4 @@
-/** @jsxImportSource hono/jsx/dom */
+// @vitest-environment happy-dom
 import { setTimeout } from 'node:timers/promises'
 
 import type {
@@ -8,87 +8,55 @@ import type {
   MembersResponse,
   RevokeResponse,
 } from '@fuda/sdk'
-import { LanguageSwitcher, ThemeToggle } from '@fuda/ui'
-import type { LanguageSwitcherProps, ThemeToggleProps } from '@fuda/ui'
-import type * as HonoDom from 'hono/jsx/dom'
+import type { LanguageSwitcherProps, ThemeToggleProps } from '@fuda/ui/solid'
+import { createRoot } from 'solid-js'
+import type { JSX } from 'solid-js'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Result } from './api.ts'
 import type { DashIo, DesignIo } from './app-actions.ts'
 import { App } from './App.tsx'
 import type { AppProps } from './App.tsx'
-import { AppView } from './AppView.tsx'
 import type { AppViewProps } from './AppView.tsx'
 import { API_BASE_URL } from './config.ts'
 import { DASH_COPY } from './copy.ts'
 import type { ClaimIo } from './ens-claim.ts'
-import { EnsClaim } from './EnsClaim.tsx'
 import type { EnsClaimProps } from './EnsClaim.tsx'
 import type { LogoSet } from './logo.ts'
 import { DEFAULT_OPERATOR_IO } from './operator-io.ts'
 import type { OperatorIo } from './operator-io.ts'
 import type { SignInOutcome } from './operator-sign-in.ts'
-import { findViewNodes, viewProps } from './test/test-view.ts'
 
-// Control only hook scheduling; App, actions, router and browser preference helpers remain real.
-const hooks = vi.hoisted(() => ({
-  cleanups: new Map<number, () => void>(),
-  effects: [] as { effect: Parameters<typeof HonoDom.useEffect>[0]; index: number }[],
-  index: 0,
-  slots: new Map<number, unknown>(),
+// App runs for real; only the views it hands its state to are replaced, so a
+// test reads exactly the props App would give them (live, as Solid passes them).
+const captured = vi.hoisted(() => ({
+  ens: null as EnsClaimProps | null,
+  language: null as LanguageSwitcherProps | null,
+  theme: null as ThemeToggleProps | null,
+  view: null as AppViewProps | null,
 }))
-vi.mock(import('hono/jsx/dom'), async (importOriginal) => ({
+vi.mock(import('./AppView.tsx'), () => ({
+  AppView: (props: AppViewProps): JSX.Element => {
+    captured.view = props
+    return null
+  },
+}))
+vi.mock(import('./EnsClaim.tsx'), () => ({
+  EnsClaim: (props: EnsClaimProps): JSX.Element => {
+    captured.ens = props
+    return null
+  },
+}))
+vi.mock(import('@fuda/ui/solid'), async (importOriginal) => ({
   ...(await importOriginal()),
-  useCallback: (<T,>(callback: T, dependencies: readonly unknown[]): T => {
-    const { index } = hooks
-    hooks.index += 1
-    const previous = hooks.slots.get(index) as { callback: T; dependencies: readonly unknown[] } | undefined
-    if (
-      previous === undefined ||
-      dependencies.some((value, i) => !Object.is(value, previous.dependencies[i]))
-    ) {
-      hooks.slots.set(index, { callback, dependencies })
-      return callback
-    }
-    return previous.callback
-  }) as typeof HonoDom.useCallback,
-  useEffect: (
-    effect: Parameters<typeof HonoDom.useEffect>[0],
-    dependencies: readonly unknown[] = [],
-  ): void => {
-    const { index } = hooks
-    hooks.index += 1
-    const previous = hooks.slots.get(index) as readonly unknown[] | undefined
-    if (previous === undefined || dependencies.some((value, i) => !Object.is(value, previous[i]))) {
-      hooks.effects.push({ effect, index })
-      hooks.slots.set(index, dependencies)
-    }
+  LanguageSwitcher: (props: LanguageSwitcherProps): JSX.Element => {
+    captured.language = props
+    return null
   },
-  useRef: <T,>(initial: T): { current: T } => {
-    const { index } = hooks
-    hooks.index += 1
-    if (!hooks.slots.has(index)) {
-      hooks.slots.set(index, { current: initial })
-    }
-    return hooks.slots.get(index) as { current: T }
+  ThemeToggle: (props: ThemeToggleProps): JSX.Element => {
+    captured.theme = props
+    return null
   },
-  useState: (<T,>(initial: T | (() => T)): [T, (value: T | ((previous: T) => T)) => void] => {
-    const { index } = hooks
-    hooks.index += 1
-    if (!hooks.slots.has(index)) {
-      // oxlint-disable-next-line anti-slop/no-runtime-typeof -- emulate the hook's lazy initializer contract.
-      hooks.slots.set(index, typeof initial === 'function' ? (initial as () => T)() : initial)
-    }
-    return [
-      hooks.slots.get(index) as T,
-      (value): void => {
-        const next =
-          // oxlint-disable-next-line anti-slop/no-runtime-typeof -- emulate the hook's functional state updater contract.
-          typeof value === 'function' ? (value as (previous: T) => T)(hooks.slots.get(index) as T) : value
-        hooks.slots.set(index, next)
-      },
-    ]
-  }) as typeof HonoDom.useState,
 }))
 
 const UID = `0x${'ab'.repeat(32)}` as const
@@ -189,20 +157,19 @@ const browser = {
   storage: new Map<string, string>(),
 }
 const sessionKey = `fuda:dash:operator:${API_BASE_URL}`
-const remount = (): void => {
-  for (const cleanup of hooks.cleanups.values()) {
-    cleanup()
-  }
-  hooks.cleanups.clear()
-  hooks.slots.clear()
-  hooks.effects.length = 0
+let dispose: (() => void) | undefined
+const unmount = (): void => {
+  dispose?.()
+  dispose = undefined
+  captured.ens = null
+  captured.language = null
+  captured.theme = null
+  captured.view = null
 }
+// A reload: the next render mounts a fresh App against the same browser state.
+const remount = unmount
 const location = { pathname: '/rights/' }
-const root = {
-  classList: { toggle: vi.fn<(name: string, force: boolean) => void>() },
-  dataset: { theme: 'light', themeMode: 'system' },
-  lang: 'en',
-}
+const root = document.documentElement
 const history = {
   pushState: vi.fn<(data: null, unused: string, path: string) => void>((_data, _unused, path) => {
     location.pathname = path
@@ -212,27 +179,36 @@ const history = {
   }),
 }
 
+// The first call mounts App; later calls return the same live view props, which
+// always read App's current state.
 const render = (
   io: DashIo,
   initialTheme: AppProps['initialTheme'] = 'system',
   operatorIo?: OperatorIo,
 ): AppViewProps => {
-  hooks.index = 0
-  const view = App({ initialTheme, io, operatorIo })
-  for (const { effect, index } of hooks.effects.splice(0)) {
-    hooks.cleanups.get(index)?.()
-    hooks.cleanups.delete(index)
-    const cleanup = effect()
-    if (cleanup !== undefined) {
-      hooks.cleanups.set(index, cleanup)
-    }
+  if (captured.view === null) {
+    dispose = createRoot((stop) => {
+      App({ initialTheme, io, operatorIo })
+      return stop
+    })
   }
-  return viewProps(findViewNodes(view, AppView)[0]) as unknown as AppViewProps
+  if (captured.view === null) {
+    throw new Error('App did not render its view')
+  }
+  return captured.view
 }
-const language = (view: AppViewProps): LanguageSwitcherProps =>
-  viewProps(findViewNodes(view.appearance, LanguageSwitcher)[0]) as unknown as LanguageSwitcherProps
-const theme = (view: AppViewProps): ThemeToggleProps =>
-  viewProps(findViewNodes(view.appearance, ThemeToggle)[0]) as unknown as ThemeToggleProps
+const language = (_view: AppViewProps): LanguageSwitcherProps => {
+  if (captured.language === null) {
+    throw new Error('expected the language control')
+  }
+  return captured.language
+}
+const theme = (_view: AppViewProps): ThemeToggleProps => {
+  if (captured.theme === null) {
+    throw new Error('expected the theme control')
+  }
+  return captured.theme
+}
 const authenticate = async (io: DashIo): Promise<AppViewProps> => {
   render(io).onToken('secret')
   render(io)
@@ -245,18 +221,15 @@ const authenticateOperator = async (io: DashIo, operatorIo: OperatorIo): Promise
   return render(io, 'system', operatorIo)
 }
 const ensPropsOf = (view: AppViewProps): EnsClaimProps => {
-  if (view.ens === null) {
+  if (view.ens === null || captured.ens === null) {
     throw new Error('expected ENS view')
   }
-  return viewProps(findViewNodes(view.ens, EnsClaim)[0]) as unknown as EnsClaimProps
+  return captured.ens
 }
 
 describe(App, () => {
   beforeEach(() => {
-    hooks.index = 0
-    hooks.slots.clear()
-    hooks.effects.length = 0
-    hooks.cleanups.clear()
+    unmount()
     browser.dark = false
     browser.mediaListeners.clear()
     browser.routeListeners.clear()
@@ -266,9 +239,10 @@ describe(App, () => {
     root.dataset.theme = 'light'
     root.dataset.themeMode = 'system'
     vi.clearAllMocks()
+    // Default operator IO talks to the api; no test here should reach a network.
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockRejectedValue(new TypeError('offline')))
     vi.stubGlobal('location', location)
     vi.stubGlobal('history', history)
-    vi.stubGlobal('document', { documentElement: root })
     vi.stubGlobal('window', {
       addEventListener: (_type: 'popstate', listener: () => void): void => {
         browser.routeListeners.add(listener)
@@ -298,9 +272,8 @@ describe(App, () => {
   })
 
   afterEach(() => {
-    for (const cleanup of hooks.cleanups.values()) {
-      cleanup()
-    }
+    unmount()
+    vi.unstubAllGlobals()
   })
 
   it('canonicalizes the initial path and applies saved locale before authentication', () => {
@@ -877,7 +850,7 @@ describe(App, () => {
     if (ens === null) {
       throw new Error('expected ENS view')
     }
-    expect((viewProps(findViewNodes(ens, EnsClaim)[0]) as unknown as EnsClaimProps).state).toStrictEqual({
+    expect(ensPropsOf(view).state).toStrictEqual({
       claimTxHash: UID,
       kind: 'claimed',
       name: 'wassie-coffee.fuda.eth',
@@ -889,9 +862,7 @@ describe(App, () => {
     const pending = Promise.withResolvers<SignInOutcome>()
     const operatorIo: OperatorIo = { ...DEFAULT_OPERATOR_IO, signIn: async () => await pending.promise }
     render(io, 'system', operatorIo).onPasskey()
-    for (const cleanup of hooks.cleanups.values()) {
-      cleanup()
-    }
+    unmount()
     pending.resolve({ issuer: operatorIssuer, ok: true, token: 'old-operator' })
     await setTimeout(0)
     expect({ navigation: history.pushState.mock.calls, token: render(io).session.token }).toStrictEqual({
@@ -909,9 +880,7 @@ describe(App, () => {
     }
     expect(render(io).route).toBe('/issue')
     expect(io.listMembers).toHaveBeenCalledOnce()
-    for (const cleanup of hooks.cleanups.values()) {
-      cleanup()
-    }
+    unmount()
     expect(browser.routeListeners.size).toBe(0)
     expect(browser.mediaListeners.size).toBe(0)
   })

@@ -1,8 +1,7 @@
-/** @jsxImportSource hono/jsx/dom */
 import type { ReceptionResponse } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
-import { useEffect, useRef, useState } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import { createEffect, createSignal, on, onCleanup } from 'solid-js'
+import type { JSX } from 'solid-js'
 
 import type { DashCopy } from './copy.ts'
 
@@ -32,74 +31,77 @@ const failureOf = (error: string): keyof DashCopy['reception']['failures'] => {
   return 'rejected'
 }
 
-export const ReceptionPage = ({
-  copy,
-  createRequestId = () => crypto.randomUUID(),
-  receive,
-}: ReceptionPageProps): JSX.Element => {
-  const [qr, setQr] = useState('')
-  const [pending, setPending] = useState(false)
-  const pendingRef = useRef(false)
-  const [result, setResult] = useState<ReceptionResponse | null>(null)
-  const [failure, setFailure] = useState<keyof DashCopy['reception']['failures'] | null>(null)
-  const retry = useRef<RetryRequest | null>(null)
-  const input = useRef<HTMLInputElement | null>(null)
-  const mounted = useRef(true)
-  const revision = useRef(0)
-  useEffect(
-    () => () => {
-      mounted.current = false
-      revision.current += 1
-    },
-    [],
+export const ReceptionPage = (props: ReceptionPageProps): JSX.Element => {
+  const createRequestId = (): string => (props.createRequestId ?? (() => crypto.randomUUID()))()
+  const [qr, setQr] = createSignal('')
+  const [pending, setPending] = createSignal(false)
+  let pendingNow = false
+  const [result, setResult] = createSignal<ReceptionResponse | null>(null)
+  const [failure, setFailure] = createSignal<keyof DashCopy['reception']['failures'] | null>(null)
+  let retry: RetryRequest | null = null
+  let input: HTMLInputElement | undefined
+  let mounted = true
+  let revision = 0
+  onCleanup(() => {
+    mounted = false
+    revision += 1
+  })
+  // A different reception endpoint (another session) starts from a clean slate.
+  createEffect(
+    on(
+      () => props.receive,
+      () => {
+        revision += 1
+        setPending(false)
+        pendingNow = false
+        setResult(null)
+        setFailure(null)
+        retry = null
+      },
+      { defer: true },
+    ),
   )
-  useEffect(() => {
-    revision.current += 1
-    setPending(false)
-    pendingRef.current = false
-    setResult(null)
-    setFailure(null)
-    retry.current = null
-  }, [receive])
-  useEffect(() => {
-    if (!pending) {
-      input.current?.focus()
-    }
-  }, [pending, receive])
+  createEffect(
+    on([() => props.receive, pending], ([, busy]) => {
+      if (!busy) {
+        input?.focus()
+      }
+    }),
+  )
 
   const submit = (request: RetryRequest): void => {
-    if (pendingRef.current) {
+    if (pendingNow) {
       return
     }
-    pendingRef.current = true
+    pendingNow = true
     setPending(true)
     setResult(null)
     setFailure(null)
-    revision.current += 1
-    const ticket = revision.current
+    revision += 1
+    const ticket = revision
     const run = async (): Promise<void> => {
       let outcome: Result<ReceptionResponse>
       try {
-        outcome = await receive(request.qr, request.requestId)
+        outcome = await props.receive(request.qr, request.requestId)
       } catch {
         outcome = { error: 'network', network: true, ok: false, status: 0 }
       }
-      if (!mounted.current || revision.current !== ticket) {
+      if (!mounted || revision !== ticket) {
         return
       }
-      pendingRef.current = false
+      pendingNow = false
       setPending(false)
       setQr('')
       if (outcome.ok) {
-        retry.current = null
+        retry = null
         setResult(outcome.body)
         return
       }
       if (outcome.network) {
-        retry.current = request
+        retry = request
         setFailure('network')
       } else {
-        retry.current = null
+        retry = null
         setFailure(failureOf(outcome.error))
       }
     }
@@ -107,77 +109,76 @@ export const ReceptionPage = ({
   }
 
   const stampText = (): string | null => {
-    if (result === null) {
+    const current = result()
+    if (current === null) {
       return null
     }
-    const { status } = result.stamp
-    const { summary } = result.stamp
+    const { status, summary } = current.stamp
     if (status === 'awarded' && summary !== null) {
-      return `${copy.stamp.awarded} ${summary.total} / ${summary.goal}`
+      return `${props.copy.stamp.awarded} ${summary.total} / ${summary.goal}`
     }
-    return copy.stamp[status]
+    return props.copy.stamp[status]
   }
 
   return (
     <section class="dash-page flex max-w-3xl flex-col gap-6">
       <header class="dash-page-header">
-        <h1 class="dash-page-title">{copy.title}</h1>
-        <p class="opacity-70">{copy.description}</p>
+        <h1 class="dash-page-title">{props.copy.title}</h1>
+        <p class="opacity-70">{props.copy.description}</p>
       </header>
       <div class="card flex flex-col gap-5 px-6 py-8">
         <label class="flex flex-col gap-2">
-          <span>{copy.scannerLabel}</span>
+          <span>{props.copy.scannerLabel}</span>
           <input
-            ref={input}
+            ref={(el) => {
+              input = el
+            }}
             autofocus
             class="input w-full font-mono"
-            disabled={pending}
-            placeholder={copy.scannerPlaceholder}
-            value={qr}
+            disabled={pending()}
+            placeholder={props.copy.scannerPlaceholder}
+            value={qr()}
             onInput={(event) => {
-              if (event.currentTarget instanceof HTMLInputElement) {
-                setQr(event.currentTarget.value)
-              }
+              setQr(event.currentTarget.value)
             }}
             onKeyDown={(event) => {
               if (event.key !== 'Enter') {
                 return
               }
               event.preventDefault()
-              const value =
-                event.currentTarget instanceof HTMLInputElement ? event.currentTarget.value.trim() : ''
-              if (value !== '' && !pending) {
+              const value = event.currentTarget.value.trim()
+              if (value !== '' && !pending()) {
                 submit({ qr: value, requestId: createRequestId() })
               }
             }}
           />
         </label>
-        {pending ? <p role="status">{copy.checking}</p> : null}
-        {result === null ? null : (
+        {pending() ? <p role="status">{props.copy.checking}</p> : null}
+        {result() === null ? null : (
           <div class="grid gap-3" aria-live="polite">
-            <div class={result.decision === 'ADMIT' ? 'alert alert-success' : 'alert alert-error'}>
-              <strong>{result.decision}</strong>
-              <span>{result.reason}</span>
+            <div class={result()?.decision === 'ADMIT' ? 'alert alert-success' : 'alert alert-error'}>
+              <strong>{result()?.decision}</strong>
+              <span>{result()?.reason}</span>
             </div>
             <div class="alert" role="status">
               {stampText()}
             </div>
           </div>
         )}
-        {failure === null ? null : (
+        {failure() === null ? null : (
           <div class="alert alert-error" role="alert">
-            <span>{copy.failures[failure]}</span>
-            {failure === 'network' ? (
+            <span>{props.copy.failures[failure() ?? 'rejected']}</span>
+            {failure() === 'network' ? (
               <button
                 class="btn btn-sm"
                 type="button"
                 onClick={() => {
-                  if (retry.current !== null) {
-                    submit(retry.current)
+                  if (retry !== null) {
+                    submit(retry)
                   }
                 }}
               >
-                {copy.retry}
+                {props.copy.retry}
               </button>
             ) : null}
           </div>

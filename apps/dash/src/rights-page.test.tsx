@@ -1,70 +1,15 @@
-/** @jsxImportSource hono/jsx/dom */
-import { setTimeout } from 'node:timers/promises'
-
+// @vitest-environment happy-dom
 import { pick } from '@fuda/i18n'
 import type { RevokeResponse } from '@fuda/sdk'
-import type * as HonoDom from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createSignal } from 'solid-js'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { Result } from './api.ts'
 import { DASH_COPY } from './copy.ts'
 import type { MembersState } from './members-state.ts'
 import type { MemberRowView } from './members-view.ts'
-import { OnChainStatus } from './OnChainStatus.tsx'
-import { RevokeDialog } from './RevokeDialog.tsx'
-import type { RevokeDialogProps } from './RevokeDialog.tsx'
-import { RightsList } from './RightsList.tsx'
-import type { RightsListProps } from './RightsList.tsx'
 import { RightsPage } from './RightsPage.tsx'
-import { findViewNodes, viewProps, viewText, walkView } from './test/test-view.ts'
-
-// Only the hook scheduler is controlled: page, child views, filtering and flight guard stay real.
-const hooks = vi.hoisted(() => ({
-  cleanups: [] as (() => void)[],
-  effects: [] as Parameters<typeof HonoDom.useEffect>[0][],
-  index: 0,
-  slots: new Map<number, unknown>(),
-}))
-vi.mock(import('hono/jsx/dom'), async (importOriginal) => ({
-  ...(await importOriginal()),
-  useEffect: (
-    effect: Parameters<typeof HonoDom.useEffect>[0],
-    dependencies: readonly unknown[] = [],
-  ): void => {
-    const { index } = hooks
-    hooks.index += 1
-    const previous = hooks.slots.get(index) as unknown[] | undefined
-    if (
-      previous === undefined ||
-      dependencies.some((value, position) => !Object.is(value, previous[position]))
-    ) {
-      hooks.effects.push(effect)
-      hooks.slots.set(index, dependencies)
-    }
-  },
-  useRef: <T,>(initial: T): { current: T } => {
-    const { index } = hooks
-    hooks.index += 1
-    if (!hooks.slots.has(index)) {
-      hooks.slots.set(index, { current: initial })
-    }
-    return hooks.slots.get(index) as { current: T }
-  },
-  useState: (<T,>(initial: T): [T, (value: T) => void] => {
-    const { index } = hooks
-    hooks.index += 1
-    if (!hooks.slots.has(index)) {
-      hooks.slots.set(index, initial)
-    }
-    return [
-      hooks.slots.get(index) as T,
-      (value): void => {
-        hooks.slots.set(index, value)
-      },
-    ]
-  }) as typeof HonoDom.useState,
-}))
+import { buttonNamed, choose, cleanup, flush, mount, spacedText, typeInto } from './test/render.tsx'
 
 const UID = `0x${'ab'.repeat(32)}` as const
 const row: MemberRowView = {
@@ -82,139 +27,106 @@ const row: MemberRowView = {
 const success: Result<RevokeResponse> = { body: { revoked: true, uid: UID }, ok: true }
 const copy = pick(DASH_COPY, 'en')
 const ready: MembersState = { kind: 'ready', rows: [row] }
-const focusState = { activeElement: null as { focus: () => void } | null }
-const headingElement = {
-  focus: (): void => {
-    focusState.activeElement = headingElement
-  },
+
+type Revoke = (uid: string) => Promise<Result<RevokeResponse>>
+
+// What a list page says about its own state: the source is empty, or the filters are.
+const says = (host: HTMLElement) => ({
+  empty: spacedText(host).includes('No rights have been issued.'),
+  filtered: spacedText(host).includes('No rights match these filters.'),
+})
+
+interface Shown {
+  host: HTMLElement
+  setMembers: (next: MembersState) => void
 }
 
-const makeButton = () => {
-  const button = {
-    disabled: false,
-    focus: (): void => {
-      if (!button.disabled && button.isConnected) {
-        focusState.activeElement = button
-      }
-    },
-    isConnected: true,
-  }
-  return button
-}
-
-const render = (
+const show = (
   members: MembersState = ready,
-  onRevoke: (uid: string) => Promise<Result<RevokeResponse>> = async () => await Promise.resolve(success),
+  onRevoke: Revoke = async () => await Promise.resolve(success),
   locale: 'en' | 'ja' = 'en',
-): JSX.Element => {
-  hooks.index = 0
-  const view = RightsPage({
-    copy: DASH_COPY[locale],
-    graphEndpoint: 'https://index.example/rights',
-    members,
-    onRevoke,
-  })
-  const headingRef = viewProps(findViewNodes(view, 'h1')[0]).ref as
-    | { current: HTMLHeadingElement | null }
-    | undefined
-  if (headingRef !== undefined) {
-    headingRef.current = headingElement as HTMLHeadingElement
+): Shown => {
+  const [state, setState] = createSignal(members)
+  const host = mount(() => (
+    <RightsPage
+      copy={DASH_COPY[locale]}
+      graphEndpoint="https://index.example/rights"
+      members={state()}
+      onRevoke={onRevoke}
+    />
+  ))
+  return {
+    host,
+    setMembers: (next) => {
+      setState(next)
+    },
   }
-  for (const effect of hooks.effects.splice(0)) {
-    const cleanup = effect()
-    if (cleanup !== undefined) {
-      hooks.cleanups.push(cleanup)
-    }
+}
+
+const dialog = (host: HTMLElement): HTMLDialogElement => host.querySelector('dialog')!
+const tableRevoke = (host: HTMLElement): HTMLButtonElement =>
+  buttonNamed(host.querySelector('[data-testid="rights-table"]')!, 'Revoke')
+const confirmButton = (host: HTMLElement): HTMLButtonElement =>
+  dialog(host).querySelector<HTMLButtonElement>('.btn-error')!
+const cancelButton = (host: HTMLElement): HTMLButtonElement => buttonNamed(dialog(host), 'Cancel')
+const search = (host: HTMLElement): HTMLInputElement =>
+  host.querySelector<HTMLInputElement>('input[aria-label="Search rights"]')!
+
+// Whether a page in this state lists the right and shows the given message.
+const page = (members: MembersState, message: string) => {
+  const { host } = show(members)
+  return {
+    listed: host.querySelector(`[data-right-uid="${UID}"]`) !== null,
+    says: spacedText(host).includes(message),
   }
-  return view
-}
-const dialogProps = (view: unknown): RevokeDialogProps =>
-  viewProps(findViewNodes(view, RevokeDialog)[0]) as unknown as RevokeDialogProps
-const listProps = (view: unknown): RightsListProps =>
-  viewProps(findViewNodes(view, RightsList)[0]) as unknown as RightsListProps
-const field = (view: unknown, label: string) =>
-  walkView(view).find((node) => viewProps(node)['aria-label'] === label)!
-const input = (view: unknown, label: string, value: string): void => {
-  ;(viewProps(field(view, label)).onInput as (event: Event) => void)({
-    currentTarget: { value },
-  } as unknown as Event)
-}
-const requestRevoke = (view: unknown, invoker = makeButton()): void => {
-  const list = RightsList(listProps(view))
-  const revoke = walkView(list).find(
-    (node) => viewProps(node).type === 'button' && viewText(node) === 'Revoke',
-  )!
-  ;(viewProps(revoke).onClick as (event: MouseEvent) => void)({
-    currentTarget: invoker,
-    target: invoker,
-  } as unknown as MouseEvent)
 }
 
 describe('rights page', () => {
-  beforeEach(() => {
-    hooks.index = 0
-    hooks.slots.clear()
-    hooks.effects.length = 0
-    hooks.cleanups.length = 0
-    focusState.activeElement = null
-    vi.stubGlobal('document', focusState)
-    vi.stubGlobal('HTMLElement', Object)
-    vi.stubGlobal('HTMLButtonElement', Object)
-    vi.stubGlobal('HTMLInputElement', Object)
-    vi.stubGlobal('HTMLSelectElement', Object)
-  })
+  afterEach(cleanup)
 
   it('distinguishes source-empty from filtered-empty and clears filters without loading', () => {
-    const empty = render({ kind: 'ready', rows: [] })
-    expect(viewText(empty)).toContain('No rights have been issued.')
-    expect(viewText(empty)).not.toContain('No rights match these filters.')
-    const populated = render()
-    input(populated, 'Search rights', 'nobody')
-    const filtered = render()
-    expect(viewText(filtered)).toContain('No rights match these filters.')
-    expect(viewText(filtered)).not.toContain('No rights have been issued.')
-    const clear = walkView(filtered).find(
-      (node) => viewProps(node).type === 'button' && viewText(node) === 'Clear filters',
-    )!
-    ;(viewProps(clear).onClick as () => void)()
+    const empty = show({ kind: 'ready', rows: [] }).host
+    const { host } = show()
+    typeInto(search(host), 'nobody')
+    const filtered = says(host)
+    buttonNamed(host, 'Clear filters').click()
+
     expect({
-      query: viewProps(field(render(), 'Search rights')).value,
-      rows: listProps(render()).rows,
-    }).toStrictEqual({ query: '', rows: [row] })
+      cleared: {
+        query: search(host).value,
+        records: host.querySelectorAll(`[data-right-uid="${UID}"]`).length,
+      },
+      empty: says(empty),
+      filtered,
+    }).toStrictEqual({
+      cleared: { query: '', records: 2 },
+      empty: { empty: true, filtered: false },
+      filtered: { empty: false, filtered: true },
+    })
   })
 
   it('preserves rights during refresh and errors while keeping chain lookup separate', () => {
-    const initial = render({ kind: 'loading', previousRows: null })
+    const stale = show({ kind: 'error', message: 'D1 offline', previousRows: [row] }).host
+    // The chain lookup is its own section, outside the D1 list.
+    const chain = stale.querySelector(`section[aria-label="${copy.chain.title}"]`)
+
     expect({
-      empty: viewText(initial).includes('No rights have been issued.'),
-      loading: viewText(initial).includes('Refreshing rights'),
-    }).toStrictEqual({ empty: false, loading: true })
-    const error = render({ kind: 'error', message: 'D1 unavailable', previousRows: null })
-    expect({
-      error: viewText(error).includes('D1 unavailable'),
-      lists: findViewNodes(error, RightsList).length,
-    }).toStrictEqual({ error: true, lists: 0 })
-    const refreshing = render({ kind: 'loading', previousRows: [row] })
-    expect({
-      refreshing: viewText(refreshing).includes('Refreshing rights'),
-      rows: listProps(refreshing).rows,
-    }).toStrictEqual({ refreshing: true, rows: [row] })
-    const stale = render({ kind: 'error', message: 'D1 offline', previousRows: [row] })
-    expect({ error: viewText(stale).includes('D1 offline'), rows: listProps(stale).rows }).toStrictEqual({
-      error: true,
-      rows: [row],
-    })
-    const sections = findViewNodes(stale, 'section')
-    const chainSection = sections.find(
-      (section) =>
-        findViewNodes(section, OnChainStatus).length === 1 && findViewNodes(section, RightsList).length === 0,
-    )
-    expect({
-      props: viewProps(findViewNodes(stale, OnChainStatus)[0]),
-      separate: chainSection !== undefined,
-    }).toMatchObject({
-      props: { copy: copy.chain, endpoint: 'https://index.example/rights' },
-      separate: true,
+      chain: {
+        lookup: chain?.querySelector('#chain-holder') !== null,
+        separate: chain?.querySelector('[data-testid="rights-table"]') === null,
+      },
+      error: page({ kind: 'error', message: 'D1 unavailable', previousRows: null }, 'D1 unavailable'),
+      initial: page({ kind: 'loading', previousRows: null }, 'Refreshing rights'),
+      initialEmpty: page({ kind: 'loading', previousRows: null }, 'No rights have been issued.').says,
+      refreshing: page({ kind: 'loading', previousRows: [row] }, 'Refreshing rights'),
+      stale: page({ kind: 'error', message: 'D1 offline', previousRows: [row] }, 'D1 offline'),
+    }).toStrictEqual({
+      chain: { lookup: true, separate: true },
+      error: { listed: false, says: true },
+      initial: { listed: false, says: true },
+      initialEmpty: false,
+      refreshing: { listed: true, says: true },
+      stale: { listed: true, says: true },
     })
   })
 
@@ -228,151 +140,147 @@ describe('rights page', () => {
   ] as const)(
     'explains initial and refresh load failures beside the retained rights in %s',
     (locale, errorPrefix, stale) => {
-      const initial = render(
-        { kind: 'error', message: 'D1_UNAVAILABLE [42]', previousRows: null },
-        undefined,
-        locale,
-      )
-      const refreshed = render(
-        { kind: 'error', message: 'D1_UNAVAILABLE [42]', previousRows: [row] },
-        undefined,
-        locale,
-      )
+      const failure = { kind: 'error', message: 'D1_UNAVAILABLE [42]' } as const
+      const initial = show({ ...failure, previousRows: null }, undefined, locale).host
+      const refreshed = show({ ...failure, previousRows: [row] }, undefined, locale).host
 
-      for (const view of [initial, refreshed]) {
-        const alert = walkView(view).find((node) => node.props.role === 'alert')
-        expect(viewText(alert)).toBe(`${errorPrefix}: D1_UNAVAILABLE [42]`)
-      }
-      expect(findViewNodes(initial, RightsList)).toHaveLength(0)
-      expect(viewText(initial)).not.toContain(stale)
-      const collection = findViewNodes(refreshed, 'section').find(
-        (node) => findViewNodes(node, RightsList).length === 1,
-      )
-      expect(viewText(collection)).toContain(stale)
-      expect(listProps(refreshed).rows).toStrictEqual([row])
-      expect(viewText(render(ready, undefined, locale))).not.toContain(stale)
+      const alert = `${errorPrefix}: D1_UNAVAILABLE [42]`
+      expect({
+        alerts: [initial, refreshed].map((host) => spacedText(host.querySelector('[role="alert"]'))),
+        initial: {
+          listed: initial.querySelector('[data-testid="rights-table"]') !== null,
+          stale: spacedText(initial).includes(stale),
+        },
+        ready: spacedText(show(ready, undefined, locale).host).includes(stale),
+        refreshed: {
+          listed: refreshed.querySelector(`[data-right-uid="${UID}"]`) !== null,
+          stale: spacedText(refreshed.querySelector('section[aria-labelledby="rights-title"]')).includes(
+            stale,
+          ),
+        },
+      }).toStrictEqual({
+        alerts: [alert, alert],
+        initial: { listed: false, stale: false },
+        ready: false,
+        refreshed: { listed: true, stale: true },
+      })
     },
   )
 
   it('connects confirmation to the UID, suppresses immediate duplicates, and closes on success', async () => {
     const pending = Promise.withResolvers<Result<RevokeResponse>>()
-    const onRevoke = vi.fn<(uid: string) => Promise<Result<RevokeResponse>>>(
-      async () => await pending.promise,
-    )
-    const state: MembersState = { kind: 'ready', rows: [row] }
-    requestRevoke(render(state, onRevoke))
-    const confirmation = dialogProps(render(state, onRevoke))
-    expect(confirmation.target).toStrictEqual(row)
-    confirmation.onConfirm()
-    confirmation.onConfirm()
-    confirmation.onCancel()
+    const onRevoke = vi.fn<Revoke>(async () => await pending.promise)
+    const { host } = show(ready, onRevoke)
+
+    tableRevoke(host).click()
+    expect(dialog(host).open).toBe(true)
+    expect(dialog(host).querySelector('code')?.getAttribute('title')).toBe(UID)
+
+    confirmButton(host).click()
+    confirmButton(host).click()
+    cancelButton(host).click()
     expect(onRevoke).toHaveBeenCalledExactlyOnceWith(UID)
-    const busy = dialogProps(render(state, onRevoke))
-    expect({ busy: busy.busy, target: busy.target }).toStrictEqual({ busy: true, target: row })
-    expect(listProps(render(state, onRevoke)).revokingUid).toBe(UID)
+    expect({
+      confirm: confirmButton(host).disabled,
+      open: dialog(host).open,
+      revoke: tableRevoke(host).disabled,
+    }).toStrictEqual({ confirm: true, open: true, revoke: true })
+
     pending.resolve(success)
     await vi.waitFor(() => {
-      expect(dialogProps(render(state, onRevoke)).target).toBeNull()
+      expect(dialog(host).open).toBe(false)
     })
-    expect(dialogProps(render(state, onRevoke)).busy).toBe(false)
+    // Closed with no target: nothing to confirm, and Cancel is free again.
+    expect({ cancel: cancelButton(host).disabled, confirm: confirmButton(host).disabled }).toStrictEqual({
+      cancel: false,
+      confirm: true,
+    })
   })
 
   it('keeps raw non-401 errors in the dialog, clears busy, and allows a successful retry', async () => {
     const onRevoke = vi
-      .fn<(uid: string) => Promise<Result<RevokeResponse>>>()
+      .fn<Revoke>()
       .mockResolvedValueOnce({ error: 'RPC says: denied [42]', network: false, ok: false, status: 503 })
       .mockResolvedValueOnce(success)
-    const state: MembersState = { kind: 'ready', rows: [row] }
-    requestRevoke(render(state, onRevoke))
-    dialogProps(render(state, onRevoke)).onConfirm()
+    const { host } = show(ready, onRevoke)
+
+    tableRevoke(host).click()
+    confirmButton(host).click()
     await vi.waitFor(() => {
-      expect(dialogProps(render(state, onRevoke)).error).toBe('RPC says: denied [42]')
+      expect(spacedText(dialog(host))).toContain('Revoke failed: RPC says: denied [42]')
     })
-    const failed = dialogProps(render(state, onRevoke))
-    expect(failed.target).toStrictEqual(row)
-    expect(failed.busy).toBe(false)
-    expect(viewText(RevokeDialog(failed))).toContain('Revoke failed: RPC says: denied [42]')
-    failed.onConfirm()
-    expect(dialogProps(render(state, onRevoke)).error).toBeNull()
+    expect(dialog(host).open).toBe(true)
+    expect(confirmButton(host).disabled).toBe(false)
+
+    confirmButton(host).click()
+    expect(dialog(host).querySelector('[role="alert"]')).toBeNull()
     await vi.waitFor(() => {
-      expect(dialogProps(render(state, onRevoke)).target).toBeNull()
+      expect(dialog(host).open).toBe(false)
     })
     expect(onRevoke).toHaveBeenCalledTimes(2)
   })
 
-  it('restores the actual clicked invoker when pointer activation left another element focused', async () => {
-    const previous = makeButton()
-    const invoker = makeButton()
-    focusState.activeElement = previous
-    requestRevoke(render(), invoker)
-    dialogProps(render()).onCancel()
-    void render()
-    await Promise.resolve()
-    expect(focusState.activeElement).toBe(invoker)
-    focusState.activeElement = previous
-    requestRevoke(render(), invoker)
-    dialogProps(render()).onConfirm()
+  it('restores the actual clicked invoker after cancel and after a revoke', async () => {
+    const { host } = show()
+    const elsewhere = document.createElement('button')
+    document.body.append(elsewhere)
+
+    elsewhere.focus()
+    tableRevoke(host).click()
+    cancelButton(host).click()
+    await flush()
+    expect(document.activeElement).toBe(tableRevoke(host))
+
+    elsewhere.focus()
+    tableRevoke(host).click()
+    confirmButton(host).click()
     await vi.waitFor(() => {
-      expect(dialogProps(render()).target).toBeNull()
+      expect(dialog(host).open).toBe(false)
     })
-    await Promise.resolve()
-    expect(focusState.activeElement).toBe(invoker)
+    await flush()
+    expect(document.activeElement).toBe(tableRevoke(host))
   })
 
   it.each([
-    { filter: 'all', listCount: 1, reason: 'disabled after revocation' },
-    { filter: 'active', listCount: 0, reason: 'removed by the Active filter' },
-  ])('focuses the Rights heading when the invoker is $reason', async ({ filter, listCount }) => {
+    { filter: 'all', reason: 'disabled after revocation' },
+    { filter: 'active', reason: 'removed by the Active filter' },
+  ])('focuses the Rights heading when the invoker is $reason', async ({ filter }) => {
     const pending = Promise.withResolvers<Result<RevokeResponse>>()
-    const onRevoke = async (): Promise<Result<RevokeResponse>> => await pending.promise
-    const invoker = makeButton()
-    focusState.activeElement = invoker
-    input(render(ready, onRevoke), 'Filter by status', filter)
-    requestRevoke(render(ready, onRevoke), invoker)
-    dialogProps(render(ready, onRevoke)).onConfirm()
+    const { host, setMembers } = show(ready, async () => await pending.promise)
+    choose(host.querySelector<HTMLSelectElement>('select[aria-label="Filter by status"]')!, filter)
 
-    const refreshed: MembersState = { kind: 'ready', rows: [{ ...row, status: 'revoked' }] }
-    const reloadView = render(refreshed, onRevoke)
-    const lists = findViewNodes(reloadView, RightsList)
-    expect(lists).toHaveLength(listCount)
-    if (lists.length === 0) {
-      invoker.isConnected = false
-    } else {
-      const revoke = walkView(RightsList(listProps(reloadView))).find(
-        (node) => viewProps(node).type === 'button' && viewText(node) === 'Revoke',
-      )!
-      invoker.disabled = viewProps(revoke).disabled as boolean
-    }
-    focusState.activeElement = null
+    tableRevoke(host).click()
+    confirmButton(host).click()
+    setMembers({ kind: 'ready', rows: [{ ...row, status: 'revoked' }] })
     pending.resolve(success)
     await vi.waitFor(() => {
-      expect(dialogProps(render(refreshed, onRevoke)).target).toBeNull()
+      expect(dialog(host).open).toBe(false)
     })
-    await Promise.resolve()
+    await flush()
 
-    expect(focusState.activeElement).toBe(headingElement)
-    expect(viewProps(findViewNodes(render(refreshed, onRevoke), 'h1')[0]).tabIndex).toBe(-1)
+    const heading = host.querySelector('h1')!
+    expect(document.activeElement).toBe(heading)
+    expect(heading.tabIndex).toBe(-1)
   })
 
   it('does not surface a second error for a 401 and ignores settlement after unmount', async () => {
     const onRevoke = vi
-      .fn<(uid: string) => Promise<Result<RevokeResponse>>>()
-      .mockResolvedValue({ error: 'Unauthorized', network: false, ok: false, status: 401 })
-    const state: MembersState = { kind: 'ready', rows: [row] }
-    requestRevoke(render(state, onRevoke))
-    dialogProps(render(state, onRevoke)).onConfirm()
+      .fn<Revoke>()
+      .mockResolvedValueOnce({ error: 'Unauthorized', network: false, ok: false, status: 401 })
+    const { host } = show(ready, onRevoke)
+    tableRevoke(host).click()
+    confirmButton(host).click()
     await vi.waitFor(() => {
-      expect(dialogProps(render(state, onRevoke)).busy).toBe(false)
+      expect(confirmButton(host).disabled).toBe(false)
     })
-    expect(dialogProps(render(state, onRevoke)).error).toBeNull()
+    expect(dialog(host).querySelector('[role="alert"]')).toBeNull()
+
     const pending = Promise.withResolvers<Result<RevokeResponse>>()
-    dialogProps(render(state, async () => await pending.promise)).onConfirm()
-    for (const cleanup of hooks.cleanups) {
-      cleanup()
-    }
-    const slots = new Map(hooks.slots)
+    onRevoke.mockReturnValueOnce(pending.promise)
+    confirmButton(host).click()
+    cleanup()
     pending.resolve(success)
-    await setTimeout()
-    expect(hooks.slots).toStrictEqual(slots)
+    await flush()
+    expect(document.body.childElementCount).toBe(0)
   })
 })

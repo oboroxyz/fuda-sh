@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
-/** @jsxImportSource hono/jsx/dom */
 import { setTimeout } from 'node:timers/promises'
 
 import type { IssuerMeResponse, IssuerView } from '@fuda/sdk'
-import { render } from 'hono/jsx/dom'
+import type { JSX } from 'solid-js'
+import { render as solidRender } from 'solid-js/web'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { App } from './App.tsx'
@@ -12,6 +12,16 @@ import * as logoTools from './logo.ts'
 import { DEFAULT_OPERATOR_IO } from './operator-io.ts'
 import type { OperatorIo } from './operator-io.ts'
 import { saveOperatorToken } from './operator-session.ts'
+
+const disposers: (() => void)[] = []
+const render = (view: () => JSX.Element, host: HTMLElement): void => {
+  disposers.push(solidRender(view, host))
+}
+const unmountAll = (): void => {
+  for (const dispose of disposers.splice(0)) {
+    dispose()
+  }
+}
 
 const issuer: IssuerView = {
   brandColor: '#112233',
@@ -95,7 +105,7 @@ const select = async (selector: string, value: string): Promise<void> => {
 const start = async (operator: OperatorIo, path = '/cards/new'): Promise<void> => {
   window.history.replaceState(null, '', path)
   saveOperatorToken('session')
-  render(<App initialTheme="light" operatorIo={operator} />, root)
+  render(() => <App initialTheme="light" operatorIo={operator} />, root)
   await vi.waitFor(() => {
     expect(root.querySelector('form')).not.toBeNull()
   })
@@ -156,7 +166,7 @@ describe('editing the profile from a card draft', () => {
   })
 
   afterEach(async () => {
-    render(null, root)
+    unmountAll()
     await setTimeout(0)
     root.remove()
     vi.restoreAllMocks()

@@ -1,14 +1,15 @@
-/** @jsxImportSource hono/jsx/dom */
+// @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { DASH_COPY } from './copy.ts'
 import { EMPTY_LOGO } from './logo.ts'
-import { findViewNodes, viewProps } from './test/test-view.ts'
+import { cleanup, mount } from './test/render.tsx'
 
 const LOCAL_LOGO = 'http://localhost:8787/assets/coffee/logo/master?v=version-1'
 
 describe('logo preview connection', () => {
   afterEach(() => {
+    cleanup()
     vi.unstubAllEnvs()
     vi.resetModules()
   })
@@ -39,17 +40,19 @@ describe('logo preview connection', () => {
       vi.stubEnv('VITE_API_BASE_URL', api)
       vi.resetModules()
       const { LogoField } = await import('./LogoField.tsx')
-      const view = LogoField({
-        busy: false,
-        copy: DASH_COPY.en.logo,
-        id: 'logo',
-        label: 'Logo',
-        onClear: null,
-        onPick: vi.fn<(file: File) => void>(),
-        savedUrl: url,
-        state: EMPTY_LOGO,
-      })
-      expect(viewProps(findViewNodes(view, 'img')[0]).src).toBe(expected)
+      const host = mount(() => (
+        <LogoField
+          busy={false}
+          copy={DASH_COPY.en.logo}
+          id="logo"
+          label="Logo"
+          onClear={null}
+          onPick={vi.fn<(file: File) => void>()}
+          savedUrl={url}
+          state={EMPTY_LOGO}
+        />
+      ))
+      expect(host.querySelector('img')?.getAttribute('src')).toBe(expected)
     },
   )
 })

@@ -1,9 +1,8 @@
-/** @jsxImportSource hono/jsx/dom */
 import { brandTextColor } from '@fuda/sdk'
 import type { IssuerUpdateRequest, IssuerView } from '@fuda/sdk'
 import { cn } from 'cn'
-import { useEffect, useRef, useState } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import { createEffect, createMemo, createSignal, For, on, onCleanup } from 'solid-js'
+import type { JSX } from 'solid-js'
 
 import { BRAND_SWATCHES } from './brand-colors.ts'
 import type { DashCopy } from './copy.ts'
@@ -20,59 +19,61 @@ interface VenueDetailsFormProps {
   onUpdate: (body: IssuerUpdateRequest) => Promise<boolean>
 }
 
-export const VenueDetailsForm = ({
-  copy,
-  ens,
-  issuer,
-  logo,
-  publicUrl,
-  onUpdate,
-}: VenueDetailsFormProps): JSX.Element => {
-  const [draft, setDraft] = useState<IssuerUpdateRequest | null>(null)
-  const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle')
-  const saving = useRef(false)
-  const revision = useRef(0)
-  useEffect(() => {
-    if (logo.pending) {
-      setState((current) => (current === 'saved' ? 'idle' : current))
-    }
-  }, [logo.pending])
-  useEffect(
-    () => () => {
-      revision.current += 1
-    },
-    [],
+export const VenueDetailsForm = (props: VenueDetailsFormProps): JSX.Element => {
+  const [draft, setDraft] = createSignal<IssuerUpdateRequest | null>(null)
+  const [state, setState] = createSignal<'idle' | 'saving' | 'saved' | 'failed'>('idle')
+  let saving = false
+  let revision = 0
+  createEffect(
+    on(
+      () => props.logo.pending,
+      (pending) => {
+        if (pending) {
+          setState((current) => (current === 'saved' ? 'idle' : current))
+        }
+      },
+    ),
   )
+  onCleanup(() => {
+    revision += 1
+  })
 
-  const form = draft ?? { brandColor: issuer.brandColor, name: issuer.name, tagline: issuer.tagline }
-  const body = venueUpdateBodyFrom(form)
-  const changed =
-    body !== null &&
-    (logo.pending ||
-      body.name !== issuer.name ||
-      body.tagline !== issuer.tagline ||
-      body.brandColor !== issuer.brandColor)
+  const saved = (): IssuerUpdateRequest => ({
+    brandColor: props.issuer.brandColor,
+    name: props.issuer.name,
+    tagline: props.issuer.tagline,
+  })
+  const form = (): IssuerUpdateRequest => draft() ?? saved()
+  const body = createMemo(() => venueUpdateBodyFrom(form()))
+  const changed = (): boolean => {
+    const current = body()
+    return (
+      current !== null &&
+      (props.logo.pending ||
+        current.name !== props.issuer.name ||
+        current.tagline !== props.issuer.tagline ||
+        current.brandColor !== props.issuer.brandColor)
+    )
+  }
   const update = (key: keyof IssuerUpdateRequest, value: string): void => {
-    setDraft((current) => ({
-      ...(current ?? { brandColor: issuer.brandColor, name: issuer.name, tagline: issuer.tagline }),
-      [key]: value,
-    }))
+    setDraft((current) => ({ ...(current ?? saved()), [key]: value }))
     setState('idle')
   }
 
   const submit = (): void => {
-    if (body === null || !changed || logo.busy || saving.current) {
+    const current = body()
+    if (current === null || !changed() || props.logo.busy || saving) {
       return
     }
-    saving.current = true
+    saving = true
     setState('saving')
-    const ticket = revision.current
+    const ticket = revision
     const run = async (): Promise<void> => {
-      const ok = await onUpdate(body).catch(() => false)
-      if (ticket !== revision.current) {
+      const ok = await props.onUpdate(current).catch(() => false)
+      if (ticket !== revision) {
         return
       }
-      saving.current = false
+      saving = false
       if (ok) {
         setDraft(null)
       }
@@ -84,90 +85,94 @@ export const VenueDetailsForm = ({
   return (
     <form
       class="card flex flex-col gap-5 px-6 py-8"
-      style={{ '--dash-logo-preview-background': form.brandColor }}
+      style={{ '--dash-logo-preview-background': form().brandColor }}
       onSubmit={(event) => {
         event.preventDefault()
         submit()
       }}
     >
       <header class="min-w-0 rounded-xl border border-[var(--fuda-border)] p-5 sm:p-6">
-        <h2 class="mb-3 text-2xl leading-tight font-bold tracking-tight wrap-anywhere">{issuer.name}</h2>
-        {publicUrl === null ? null : (
+        <h2 class="mb-3 text-2xl leading-tight font-bold tracking-tight wrap-anywhere">
+          {props.issuer.name}
+        </h2>
+        {props.publicUrl === null ? null : (
           <a
             class="link link-hover flex items-start gap-2 text-sm text-[var(--fuda-muted)]"
-            href={publicUrl}
+            href={props.publicUrl}
             target="_blank"
             rel="noopener noreferrer"
           >
             <VenueLinkIcon kind="globe" />
-            <span class="min-w-0 wrap-anywhere">{publicUrl}</span>
+            <span class="min-w-0 wrap-anywhere">{props.publicUrl}</span>
           </a>
         )}
-        {ens}
+        {props.ens}
       </header>
-      <fieldset class="flex flex-col gap-5" disabled={state === 'saving'}>
+      <fieldset class="flex flex-col gap-5" disabled={state() === 'saving'}>
         <VenueIdentityFields
-          copy={copy}
+          copy={props.copy}
           onChange={(key, value) => {
             if (key !== 'handle') {
               update(key, value)
             }
           }}
           registering={false}
-          value={{ ...form, handle: issuer.handle }}
+          value={{ ...form(), handle: props.issuer.handle }}
         />
         <fieldset class="fieldset">
-          <legend class="text-base font-normal">{copy.designer.colorLabel}</legend>
+          <legend class="text-base font-normal">{props.copy.designer.colorLabel}</legend>
           <div class="grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
-            {BRAND_SWATCHES.map(({ color, name }): JSX.Element => (
-              <button
-                key={name}
-                aria-label={`${copy.designer.colorNames[name]} ${color}`}
-                aria-pressed={form.brandColor.toUpperCase() === color ? 'true' : 'false'}
-                class={cn('dash-swatch', form.brandColor.toUpperCase() === color && 'dash-swatch-selected')}
-                style={{ background: color, color: brandTextColor(color) }}
-                type="button"
-                onClick={() => {
-                  update('brandColor', color)
-                }}
-              >
-                <span aria-hidden="true">Aa</span>
-              </button>
-            ))}
+            <For each={BRAND_SWATCHES}>
+              {({ color, name }) => (
+                <button
+                  aria-label={`${props.copy.designer.colorNames[name]} ${color}`}
+                  aria-pressed={form().brandColor.toUpperCase() === color ? 'true' : 'false'}
+                  class={cn(
+                    'dash-swatch',
+                    form().brandColor.toUpperCase() === color && 'dash-swatch-selected',
+                  )}
+                  style={{ background: color, color: brandTextColor(color) }}
+                  type="button"
+                  onClick={() => {
+                    update('brandColor', color)
+                  }}
+                >
+                  <span aria-hidden="true">Aa</span>
+                </button>
+              )}
+            </For>
           </div>
           <label class="mt-2 flex items-center gap-3">
-            <span>{copy.designer.customColorLabel}</span>
+            <span>{props.copy.designer.customColorLabel}</span>
             <input
-              aria-label={copy.designer.customColorLabel}
+              aria-label={props.copy.designer.customColorLabel}
               class="h-11 w-16 cursor-pointer rounded-lg border border-[var(--fuda-border)] bg-white p-1"
               type="color"
-              value={form.brandColor}
+              value={form().brandColor}
               onInput={(event) => {
-                if (event.currentTarget instanceof HTMLInputElement) {
-                  update('brandColor', event.currentTarget.value)
-                }
+                update('brandColor', event.currentTarget.value)
               }}
             />
           </label>
         </fieldset>
-        {logo.field}
+        {props.logo.field}
       </fieldset>
-      {state === 'failed' ? (
+      {state() === 'failed' ? (
         <p class="text-danger text-sm" role="alert">
-          {copy.venue.saveFailed}
+          {props.copy.venue.saveFailed}
         </p>
       ) : null}
-      {state === 'saved' ? (
+      {state() === 'saved' ? (
         <p class="text-moderate text-sm" role="status">
-          {copy.venue.saved}
+          {props.copy.venue.saved}
         </p>
       ) : null}
       <button
         class="btn btn-primary sm:self-start"
-        disabled={!changed || logo.busy || state === 'saving'}
+        disabled={!changed() || props.logo.busy || state() === 'saving'}
         type="submit"
       >
-        {state === 'saving' ? copy.venue.saving : copy.venue.save}
+        {state() === 'saving' ? props.copy.venue.saving : props.copy.venue.save}
       </button>
     </form>
   )
