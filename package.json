@@ -31,7 +31,8 @@
     "format:check": "vp fmt --check",
     "check": "vp check",
     "typecheck": "vp check --no-fmt --no-lint",
-    "test": "vp run --filter './apps/*' --filter './packages/*' test && pnpm --filter api test:scripts"
+    "test": "vp run --filter './apps/*' --filter './packages/*' test && pnpm --filter api test:scripts",
+    "e2e": "pnpm --filter @fuda/e2e e2e"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
