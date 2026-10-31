@@ -12,27 +12,19 @@ export interface PassQuery {
   status?: IssuerPassStatus
 }
 
-export const readOperatorCard = async (
-  token: string,
-  cardId: string,
-): Promise<Result<{ card: OperatorCardView }>> =>
-  await apiFetch(API_BASE_URL, `/issuers/me/cards/${encodeURIComponent(cardId)}`, { token })
+export const readOperatorCard = async (cardId: string): Promise<Result<{ card: OperatorCardView }>> =>
+  await apiFetch(API_BASE_URL, `/issuers/me/cards/${encodeURIComponent(cardId)}`)
 
 export const updateOperatorCard = async (
-  token: string,
   cardId: string,
   body: CardUpdateRequest,
 ): Promise<Result<{ card: OperatorCardView }>> =>
   await apiFetch(API_BASE_URL, `/issuers/me/cards/${encodeURIComponent(cardId)}`, {
     body: JSON.stringify(body),
     method: 'PUT',
-    token,
   })
 
-export const listIssuerPasses = async (
-  token: string,
-  query: PassQuery,
-): Promise<Result<IssuerPassesResponse>> => {
+export const listIssuerPasses = async (query: PassQuery): Promise<Result<IssuerPassesResponse>> => {
   const params = new URLSearchParams({ page: String(query.page), pageSize: String(query.pageSize) })
   if (query.q !== undefined && query.q !== '') {
     params.set('q', query.q)
@@ -43,5 +35,5 @@ export const listIssuerPasses = async (
   if (query.status !== undefined) {
     params.set('status', query.status)
   }
-  return await apiFetch(API_BASE_URL, `/issuers/me/passes?${params}`, { token })
+  return await apiFetch(API_BASE_URL, `/issuers/me/passes?${params}`)
 }

@@ -1,16 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
-import {
-  canonicalPath,
-  cardSettingsPath,
-  navigationRoute,
-  navigateTo,
-  redirectFor,
-  routeFromPath,
-  subscribeToRoute,
-  surfaceOf,
-} from './router.ts'
-import type { DashRoute, PushHistory, RouteEvents } from './router.ts'
+import { cardSettingsPath, navigationRoute, redirectFor, routeFromPath, surfaceOf } from './router.ts'
 
 describe('Dash router', () => {
   it('recognizes routes and normalizes trailing and unknown paths', () => {
@@ -22,9 +12,9 @@ describe('Dash router', () => {
   })
 
   it('canonicalizes previous operator URLs', () => {
-    expect(canonicalPath('/venue/')).toBe('/profile')
-    expect(canonicalPath('/published')).toBe('/cards')
-    expect(canonicalPath('/new?from=menu')).toBe('/cards/new')
+    expect(routeFromPath('/venue/')).toBe('/profile')
+    expect(routeFromPath('/published')).toBe('/cards')
+    expect(routeFromPath('/new?from=menu')).toBe('/cards/new')
   })
 
   it('recognizes the reception route', () => {
@@ -80,29 +70,7 @@ describe('Dash router', () => {
   })
 
   it('canonicalizes an unknown path', () => {
-    expect(canonicalPath('/unknown')).toBe('/')
-  })
-
-  it('pushes a selected route and reports browser navigation', () => {
-    const pushState = vi.fn<PushHistory['pushState']>()
-    navigateTo({ pushState }, '/rights')
-    expect(pushState).toHaveBeenCalledWith(null, '', '/rights')
-
-    let listener: (() => void) | undefined
-    const onRoute = vi.fn<(route: DashRoute) => void>()
-    const unsubscribe = subscribeToRoute(
-      {
-        addEventListener: (_type, next) => {
-          listener = next
-        },
-        pathname: () => '/issue',
-        removeEventListener: vi.fn<RouteEvents['removeEventListener']>(),
-      },
-      onRoute,
-    )
-    listener?.()
-    expect(onRoute).toHaveBeenCalledWith('/issue')
-    unsubscribe()
+    expect(routeFromPath('/unknown')).toBe('/')
   })
 })
 

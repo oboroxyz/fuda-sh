@@ -45,4 +45,5 @@ minimumReleaseAgeExclude:
   - '@void/edge@1.4.0'
   - '@void/isr@1.4.0'
   - '@void/platform@1.4.0'
+  - '@void/solid@1.4.0'
   - void@1.4.0

@@ -10,10 +10,8 @@ describe('operator management requests', () => {
       .fn<typeof globalThis.fetch>()
       .mockResolvedValue(Response.json({ card: { id: 'card/1' } }))
     vi.stubGlobal('fetch', fetch)
-    await readOperatorCard('session', 'card/1')
-    expect(fetch).toHaveBeenCalledWith('/api/v1/issuers/me/cards/card%2F1', {
-      headers: { authorization: 'Bearer session' },
-    })
+    await readOperatorCard('card/1')
+    expect(fetch).toHaveBeenCalledWith('/api/v1/issuers/me/cards/card%2F1', { headers: {} })
     const body = {
       category: 'membership',
       claimFrom: null,
@@ -25,10 +23,10 @@ describe('operator management requests', () => {
       validUntil: null,
       validityDays: 45,
     } as const
-    await updateOperatorCard('session', 'card/1', body)
+    await updateOperatorCard('card/1', body)
     expect(fetch).toHaveBeenLastCalledWith('/api/v1/issuers/me/cards/card%2F1', {
       body: JSON.stringify(body),
-      headers: { authorization: 'Bearer session', 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json' },
       method: 'PUT',
     })
   })
@@ -36,7 +34,7 @@ describe('operator management requests', () => {
   it('encodes page filters without accepting an issuer identity from the UI', async () => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(Response.json({ passes: [] }))
     vi.stubGlobal('fetch', fetch)
-    await listIssuerPasses('session', {
+    await listIssuerPasses({
       cardId: 'card/1',
       page: 2,
       pageSize: 25,
@@ -46,7 +44,7 @@ describe('operator management requests', () => {
     expect(fetch).toHaveBeenCalledWith(
       '/api/v1/issuers/me/passes?page=2&pageSize=25&q=coffee+%26+tea&cardId=card%2F1&status=active',
       {
-        headers: { authorization: 'Bearer session' },
+        headers: {},
       },
     )
   })
@@ -58,7 +56,7 @@ describe('operator management requests', () => {
         .fn<typeof globalThis.fetch>()
         .mockResolvedValue(Response.json({ error: 'unauthorized' }, { status: 401 })),
     )
-    await expect(listIssuerPasses('expired', { page: 1, pageSize: 25 })).resolves.toMatchObject({
+    await expect(listIssuerPasses({ page: 1, pageSize: 25 })).resolves.toMatchObject({
       ok: false,
       status: 401,
     })

@@ -145,10 +145,12 @@ Set the five `APPLE_*` secrets (§3). If the certificate has not arrived yet, le
 
 ## 6. Build env for the frontends
 
-`VITE_*` values are baked into the bundle at build time, so they must be set in the environment of the build, not the deploy. Keep the production values in each app's `.env.production` (gitignored; copy the keys from `.env.example`): Vite reads it automatically on `vite build`, so a plain `pnpm --filter <app> run deploy` from that machine ships the right bundle, and an environment variable still overrides it. A deploy from a machine without that file silently bakes empty values in (the app then reports "rights discovery is not configured"). Each app's `.env.example` lists what it reads; values for the current hosted Sepolia deployment are:
+`VITE_*` values are baked into the bundle at build time, so they must be set in the environment of the build, not the deploy. For gate and app, keep the production values in the app's `.env.production` (gitignored; copy the keys from `.env.example`): Vite reads it automatically on `vite build`, so a plain `pnpm --filter <app> run deploy` from that machine ships the right bundle, and an environment variable still overrides it. A deploy from a machine without that file silently bakes empty values in (the app then reports "rights discovery is not configured"). Each app's `.env.example` lists what it reads.
+
+The dashboard is a Void pages app ([ADR 0010](adr/0010-void-pages-and-frontend-workers.md)), and Void refuses to build next to a `.env.production` or `.env.example` and ignores `.env` in builds. Pass its two `VITE_*` values in the shell of `pnpm --filter dash run deploy` (§8). It has no `VITE_API_BASE_URL`: its Worker calls the api at the `API_BASE_URL` var in `apps/dash/void.config.ts`, `https://api.fuda.sh` unless `API_BASE_URL` is set in the deploy shell. Values for the current hosted Sepolia deployment are:
 
 ```bash
-VITE_API_BASE_URL=https://api.fuda.sh   # gate, dash, app
+VITE_API_BASE_URL=https://api.fuda.sh   # gate, app
 VITE_GRAPH_RIGHTS_ENDPOINT=https://gateway.thegraph.com/api/<PUBLIC_KEY>/subgraphs/id/<SUBGRAPH_ID> # dash, app
 VITE_ENS_PAYMASTER_URL=https://api.fuda.sh/v1/ens/paymaster  # dash only, and the one VITE_* that carries the version prefix: the wallet fetches this URL as given
 VITE_APP_ORIGIN=https://app.fuda.sh     # app only
@@ -187,7 +189,8 @@ Deploy the rights subgraph first so its public query endpoint can be baked into 
 pnpm --filter api run deploy
 
 VITE_API_BASE_URL=https://api.fuda.sh pnpm --filter gate run deploy
-VITE_API_BASE_URL=https://api.fuda.sh VITE_GRAPH_RIGHTS_ENDPOINT=<PUBLIC_GRAPH_ENDPOINT> \
+VITE_GRAPH_RIGHTS_ENDPOINT=<PUBLIC_GRAPH_ENDPOINT> \
+  VITE_ENS_PAYMASTER_URL=https://api.fuda.sh/v1/ens/paymaster \
   pnpm --filter dash run deploy
 VITE_API_BASE_URL=https://api.fuda.sh VITE_GRAPH_RIGHTS_ENDPOINT=<PUBLIC_GRAPH_ENDPOINT> \
   VITE_APP_ORIGIN=https://app.fuda.sh VITE_RP_ID=fuda.sh \
@@ -198,7 +201,7 @@ Everything deploys with Void ([ADR 0009](adr/0009-void-and-solid.md)).
 
 The api's `deploy` script runs `void deploy` in `apps/api/targets/develop`, the Void project for the live Sepolia Worker `fuda-api`. Its config comes from the `develop` block of `apps/api/targets.jsonc`, which declares `api.fuda.sh` as a custom domain. The zone must already be on the account. The `fuda.sh/@*` redirect is a zone-level Single Redirect and is not managed by Void. `void deploy` does not apply D1 migrations for the api; run `pnpm --filter api migrate:remote` first. To check the generated Worker config without shipping, run `pnpm --filter api exec sh -c 'cd targets/develop && vp build'` and read `targets/develop/dist/ssr/wrangler.json`.
 
-The three frontends' `deploy` scripts run `void deploy`, which builds with `vp build` and uploads `dist` as a static SPA. Each app's `void.config.ts` holds its Worker name (`fuda-gate`, `fuda-dash`, `fuda-app`) and its custom-domain route (`gate.fuda.sh`, `dash.fuda.sh`, `app.fuda.sh`). The build environment above is read by `vp build` inside `void deploy`.
+The three frontends' `deploy` scripts run `void deploy`, which builds with `vp build`. Gate and app upload `dist` as a static SPA. The dashboard deploys a Worker that renders its pages, holds the session in HttpOnly cookies and forwards the browser's `/api/*` calls to the api ([ADR 0010](adr/0010-void-pages-and-frontend-workers.md)); the first `void deploy` replaces the static-assets `fuda-dash` Worker with it, and a signed-in operator signs in again once, because the old browser-stored token is no longer read. Each app's `void.config.ts` holds its Worker name (`fuda-gate`, `fuda-dash`, `fuda-app`) and its custom-domain route (`gate.fuda.sh`, `dash.fuda.sh`, `app.fuda.sh`). The build environment above is read by `vp build` inside `void deploy`.
 
 `pnpm --filter <app> exec void info` checks a config offline.
 
@@ -307,9 +310,9 @@ Run `pnpm migrate:local` after pulling new database migrations. `dev:dash-api` s
 
 Stop an existing API before starting a combined frontend/API command to avoid a port conflict.
 
-For SSH previews, Dash binds explicitly to IPv4 loopback (`127.0.0.1:5175`) so a tunnel targeting that address works even when the host resolves `localhost` to IPv6. In Moshi, select port 5175 from the browser-preview picker and use the URL it opens. With `VITE_API_BASE_URL` unset, Dash sends API requests to `/api` on the preview origin; Vite forwards them to `127.0.0.1:8787` on the host. Only port 5175 needs forwarding. An explicit `VITE_API_BASE_URL` overrides the proxy and must be reachable from the browser.
+For SSH previews, Dash binds explicitly to IPv4 loopback (`127.0.0.1:5175`) so a tunnel targeting that address works even when the host resolves `localhost` to IPv6. In Moshi, select port 5175 from the browser-preview picker and use the URL it opens. The browser sends every api call to `/api` on the preview origin, and the dashboard's own Worker forwards it to the api at `API_BASE_URL` (`http://localhost:8787` in `pnpm --filter dash dev`). Only port 5175 needs forwarding. The dev script also sets `VOID_INSPECTOR_PORT=false`, because the api's Void dev server already holds the inspector port.
 
-In development mode with the `/api` proxy selected, Dash also displays saved logos from `http://localhost:8787/assets/...` through `/api/assets/...`, preserving the query string. This follows the browser connection, independently of FakeChain or whether the API reads a local or remote R2 bucket. Other asset URLs (including public R2, CDN and signed URLs), explicit API origins, and production builds retain their original URLs.
+In development mode, Dash also displays saved logos from `http://localhost:8787/assets/...` through `/api/assets/...`, preserving the query string, so they load over the preview connection. This is independent of FakeChain or whether the API reads a local or remote R2 bucket. Other asset URLs (including public R2, CDN and signed URLs) and production builds retain their original URLs.
 
 ### End-to-end tests
 
@@ -410,7 +413,7 @@ Reception records commit before the asynchronous Attendance and Google Wallet ef
 
 The frontends read the same `VITE_*` names as step 6, with different local values. They are baked in at build time, so changing one means restarting the dev server.
 
-- **`VITE_API_BASE_URL`** (gate, dash, app) — Dash development defaults to the same-origin `/api` proxy; gate, app, and Dash builds default to `http://localhost:8787`. A local API needs no override.
+- **`VITE_API_BASE_URL`** (gate, app) — defaults to `http://localhost:8787`. A local API needs no override. The dashboard reads `API_BASE_URL` in its Worker instead, which its dev script sets.
 - **`VITE_GRAPH_RIGHTS_ENDPOINT`** (dash, app) — the public Graph endpoint the on-chain status views read; the member app also loads raw announcements from it before matching them locally. There is no local substitute; point it at a deployed rights subgraph.
 - **`VITE_APP_ORIGIN`** (app) — set it to `http://localhost:5173`, or the `/signed` gate bounces to the production origin (`https://app.fuda.sh`) instead of running locally. These routes render only on the configured app origin. The deployed app Worker owns `app.fuda.sh`; apex `/@*` redirects are managed separately at the zone.
 - **`VITE_RP_ID`** (app) — set it to `localhost`, or the browser refuses the production default (`fuda.sh`), which is not a registrable suffix of the dev host.
@@ -452,7 +455,7 @@ The `production` target deliberately carries `routes: []`. Adding a custom domai
 3. Set every secret again for the new Worker (`wrangler secret put … --name fuda-api-production`). Deploy first if the Worker does not exist yet. The mainnet root must be a Safe with a hot issuer, not the Sepolia EOA.
 4. Apply migrations against the new database (`pnpm --filter api migrate:production`) and deploy with no routes (`pnpm --filter api run deploy:production`); smoke it on its `workers.dev` hostname.
 5. Move the Sepolia deployment to `*.dev.fuda.sh`, then add the apex custom domains to the `production` target and redeploy both.
-6. Rebuild the three frontends with the production `VITE_*` values; their `VITE_API_BASE_URL` decides which api a bundle talks to, so a develop build must point at the develop api.
+6. Rebuild the three frontends with the production `VITE_*` values; gate's and app's `VITE_API_BASE_URL` decides which api a bundle talks to, and the dashboard Worker's `API_BASE_URL` var does the same for it, so a develop build must point at the develop api.
 7. Change the passkey wallet's chain id. `apps/app/src/base-account.ts` and `apps/dash/src/wallet.ts` construct the Base Account SDK with Base Sepolia and Ethereum Sepolia; a mainnet build must pass `8453` in place of `84_532` or the operator signs against the wrong network. This is source, not a `VITE_*` value, so a rebuild alone does not fix it.
 8. Decide what ENS means on mainnet. The `production` target carries no `ENS_*` values and nothing here changes that: today's names live on a dedicated ENSv2 deployment on Ethereum Sepolia, which has no mainnet counterpart. Until one exists, a mainnet api leaves every ENS binding unset, every claim route answers `503`, and the dashboard hides the section — the same fail-closed behaviour as an unconfigured develop deployment. Moving the tree means registering a new parent and deploying the topology again against whatever the mainnet addresses turn out to be; nothing migrates, exactly as with the attestations.
 

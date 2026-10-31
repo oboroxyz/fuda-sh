@@ -96,16 +96,6 @@ export const redirectFor = (route: DashRoute, surface: DashSurface, hasIssuer: b
   return null
 }
 
-export interface PushHistory {
-  pushState: (data: null, unused: string, url: string) => void
-}
-
-export interface RouteEvents {
-  pathname: () => string
-  addEventListener: (type: 'popstate', listener: () => void) => void
-  removeEventListener: (type: 'popstate', listener: () => void) => void
-}
-
 const isDashRoute = (value: string): value is DashRoute =>
   DASH_ROUTES.some((route) => route === value) || isCardRoute(value)
 
@@ -122,20 +112,4 @@ export const routeFromPath = (pathname: string): DashRoute => {
     return '/cards/new'
   }
   return isDashRoute(normalized) ? normalized : '/'
-}
-
-export const canonicalPath = (pathname: string): DashRoute => routeFromPath(pathname)
-
-export const navigateTo = (history: PushHistory, route: DashRoute): void => {
-  history.pushState(null, '', route)
-}
-
-export const subscribeToRoute = (events: RouteEvents, onRoute: (route: DashRoute) => void): (() => void) => {
-  const listener = (): void => {
-    onRoute(routeFromPath(events.pathname()))
-  }
-  events.addEventListener('popstate', listener)
-  return () => {
-    events.removeEventListener('popstate', listener)
-  }
 }

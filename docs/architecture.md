@@ -29,7 +29,7 @@ flowchart LR
 | Component | Path | Responsibility |
 | --- | --- | --- |
 | API | `apps/api` | Coordinates issuance, revocation, gate operational state, pass generation, and +Private announcement writes |
-| Operator dashboard | `apps/dash` | Gives authorized issuers routed Overview, Rights, and Issue views; derives operational summaries from D1 member rows, issues and revokes through the API, and queries chain status separately through the rights subgraph |
+| Operator dashboard | `apps/dash` | Gives authorized issuers routed Overview, Rights, and Issue views; derives operational summaries from D1 member rows, issues and revokes through the API, and queries chain status separately through the rights subgraph. Its Void Worker renders the pages, holds the session in HttpOnly cookies and forwards the browser's api calls ([ADR 0010](./adr/0010-void-pages-and-frontend-workers.md)) |
 | Member app | `apps/app` | Holds member signing rails, answers Signed challenges, lists public member passes from holder addresses and device memory, and discovers +Private rights client-side |
 | Gate | `apps/gate` | Reads presented rights, requests proof when required, and renders an ADMIT or REJECT verdict |
 | EAS on Base | External; `apps/api` | Records Entitlements, issuer delegation, revocation, and Attendance evidence |
@@ -42,7 +42,7 @@ flowchart LR
 
 `@fuda/libs` exposes shared library integrations through separate subpaths, with no root barrel. Browser and backend integrations may coexist, provided that runtime-specific dependencies stay behind their own entry points.
 
-The member app's public pass list and dashboard's issuer reads share `@fuda/libs/query`, a Solid adapter over TanStack Query Core. Each mounted scope owns an independent in-memory client and clears it when disposed. Reads become stale after 30 seconds and refresh on focus or reconnect; the public pass list also refreshes every 30 seconds while visible. Transient read failures retry once, HTTP 4xx failures do not, and writes have no automatic retry.
+The member app's public pass list uses `@fuda/libs/query`, a Solid adapter over TanStack Query Core. Each mounted scope owns an independent in-memory client and clears it when disposed. Reads become stale after 30 seconds and refresh on focus or reconnect; the public pass list also refreshes every 30 seconds while visible. Transient read failures retry once, HTTP 4xx failures do not, and writes have no automatic retry.
 
 Public list keys identify API and graph deployments, holder addresses, and remembered public passes. Dashboard keys identify the API deployment and a session generation. Tokens remain in request closures, and session replacement clears protected cache entries. Restoring a saved token always requires a fresh server validation. Successful issuer mutations reconcile or invalidate cached reads, cancelling older reads so they cannot undo the update.
 
@@ -103,7 +103,7 @@ The deployment's configured values, and what fails when one is missing, are tabu
 - **`apps/api/targets.jsonc` `vars`**, one set per target — the chain addresses and the api's own base: `EAS_ADDRESS`, `SCHEMA_REGISTRY_ADDRESS`, `EAS_SCHEMAS`, `ISSUER_ADDRESS`, `DELEGATION_UID`, `ANNOUNCER_ADDRESS`, `ANNOUNCER_FROM_BLOCK` (the rights-subgraph manifest's generated start block; it is not read by the API), `FACTORY_ADDRESS` (the smart-wallet factory the Bearer holder address is derived from), and `API_BASE_URL` (the absolute base of the `passUrls` in an `/issue` response, and the api entry in the Google Wallet `origins` claim).
 - **Worker secrets** — `SIGNER_PRIVATE_KEY`, `ADMIN_TOKEN`, `BASE_RPC_URL`, the four `GOOGLE_*` names and the five `APPLE_*` names. A wallet platform is all-or-nothing: a missing name answers `501`, never a broken pass.
 - **`USE_FAKE_CHAIN`** — local development only (`apps/api/targets/local/.env`); it swaps in an in-memory chain and is never set in a deployed environment.
-- **Frontend build environment** — `VITE_API_BASE_URL` in all three apps; `VITE_GRAPH_RIGHTS_ENDPOINT` in the member app and dashboard; plus `VITE_APP_ORIGIN` and `VITE_RP_ID` in the member app. Vite bakes these in at build time, so changing one means rebuilding and redeploying that app.
+- **Frontend build environment** — `VITE_API_BASE_URL` in the member app and gate (the dashboard's Worker reads the `API_BASE_URL` var from its `void.config.ts` instead); `VITE_GRAPH_RIGHTS_ENDPOINT` in the member app and dashboard; plus `VITE_APP_ORIGIN` and `VITE_RP_ID` in the member app. Vite bakes these in at build time, so changing one means rebuilding and redeploying that app.
 
 ## Member app responsibility
 

@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./short": "./src/short.ts",
+    "./theme": "./src/theme.ts",
     "./wallet-button": "./src/wallet-button.ts"
   },
   "scripts": {

@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vp dev",
+    "dev": "API_BASE_URL=http://localhost:8787 VOID_INSPECTOR_PORT=false vp dev",
     "build": "vp build",
     "preview": "vp preview",
     "deploy": "void deploy",
@@ -18,12 +18,14 @@
     "@fuda/styles": "workspace:*",
     "@fuda/ui": "workspace:*",
     "cn": "0.2.6",
+    "hono": "^4.13.14",
     "solid-js": "1.9.17",
     "valibot": "^1.1.0",
     "viem": "^2.56.3"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.3.3",
+    "@void/solid": "1.4.0",
     "daisyui": "5.7.28",
     "tailwindcss": "4.3.3",
     "vite": "^8.2.2",

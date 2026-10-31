@@ -115,9 +115,13 @@ start(
 await waitFor(`${API_ORIGIN}/health`, Date.now() + 60_000)
 
 // The surface starts only once the api answers, so the runner's readiness probe
-// on the surface URL means the whole stack is up.
+// on the surface URL means the whole stack is up. A pages surface's Worker reads
+// API_BASE_URL (docs/adr/0010-void-pages-and-frontend-workers.md); a second
+// Void dev server would collide with the api's inspector port, so it has none.
 start(vp, ['dev', '--host', '127.0.0.1', '--port', String(port), '--strictPort'], surfaceDir, {
+  API_BASE_URL: API_ORIGIN,
   VITE_API_BASE_URL: API_ORIGIN,
   VITE_APP_ORIGIN: SURFACES.app.origin,
   VITE_RP_ID: 'localhost',
+  VOID_INSPECTOR_PORT: 'false',
 })

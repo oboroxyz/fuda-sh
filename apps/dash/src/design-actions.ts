@@ -1,61 +1,12 @@
-import type {
-  CardCreateResponse,
-  IssuerCreateResponse,
-  IssuerView,
-  IssueResponse,
-  RevokeResponse,
-} from '@fuda/sdk'
+import type { CardCreateResponse, IssuerCreateResponse, IssuerView } from '@fuda/sdk'
 
 import { commitLogo, createCard, createIssuer, uploadLogo } from './api.ts'
-import type { issueRight, listMembers, Result, revokeRight } from './api.ts'
+import type { Result } from './api.ts'
 import { cardBodyFrom, createFailureOf } from './card-designer.ts'
 import type { CreateFailure, DesignerForm } from './card-designer.ts'
 import type { LogoSet } from './logo.ts'
 import { venueBodyFrom } from './venue.ts'
 import type { VenueForm } from './venue.ts'
-
-export interface DashIo {
-  issueRight: typeof issueRight
-  listMembers: typeof listMembers
-  revokeRight: typeof revokeRight
-}
-
-export interface ActionContext {
-  io: DashIo
-  onUnauthorized: () => void
-  reload: (token: string) => Promise<void>
-  token: string
-}
-
-export const issueAndReload = async (
-  context: ActionContext,
-  body: Record<string, string | number>,
-): Promise<Result<IssueResponse>> => {
-  const result = await context.io.issueRight(context.token, body)
-  if (!result.ok) {
-    if (result.status === 401) {
-      context.onUnauthorized()
-    }
-    return result
-  }
-  await context.reload(context.token)
-  return result
-}
-
-export const revokeAndReload = async (
-  context: ActionContext,
-  uid: string,
-): Promise<Result<RevokeResponse>> => {
-  const result = await context.io.revokeRight(context.token, uid)
-  if (!result.ok) {
-    if (result.status === 401) {
-      context.onUnauthorized()
-    }
-    return result
-  }
-  await context.reload(context.token)
-  return result
-}
 
 // The designer's writes, injectable so the submit path is exercised without a
 // network.
@@ -77,11 +28,11 @@ export type StagedLogo = { ok: true; logoUploadId: string | null } | LogoFailure
 
 // A staged upload is spendable once and expires after 15 minutes, so the picked
 // blobs are uploaded on each attempt rather than an id being kept across them.
-export const stageLogo = async (io: DesignIo, token: string, logo: LogoSet | null): Promise<StagedLogo> => {
+export const stageLogo = async (io: DesignIo, logo: LogoSet | null): Promise<StagedLogo> => {
   if (logo === null) {
     return { logoUploadId: null, ok: true }
   }
-  const result = await io.uploadLogo(token, logo)
+  const result = await io.uploadLogo(logo)
   return result.ok
     ? { logoUploadId: result.body.logoUploadId, ok: true }
     : { ok: false, session: result.status === 401 }
@@ -94,14 +45,13 @@ export const stageLogo = async (io: DesignIo, token: string, logo: LogoSet | nul
 // guessing at a cache-busting value of its own.
 export const applyLogo = async (
   io: DesignIo,
-  token: string,
   logo: LogoSet,
 ): Promise<{ ok: true; issuer: IssuerView } | LogoFailure> => {
-  const staged = await io.uploadLogo(token, logo)
+  const staged = await io.uploadLogo(logo)
   if (!staged.ok) {
     return { ok: false, session: staged.status === 401 }
   }
-  const committed = await io.commitLogo(token, staged.body.logoUploadId)
+  const committed = await io.commitLogo(staged.body.logoUploadId)
   if (!committed.ok) {
     return { ok: false, session: committed.status === 401 }
   }
@@ -124,24 +74,19 @@ const outcomeOf = <T>(result: Result<T>): { ok: true; body: T } | { ok: false; f
 // which leaves the operator's form exactly as they left it.
 export const submitVenue = async (
   io: DesignIo,
-  token: string,
   form: VenueForm,
   logo: LogoSet | null,
 ): Promise<VenueCreateOutcome> => {
-  const staged = await stageLogo(io, token, logo)
+  const staged = await stageLogo(io, logo)
   if (!staged.ok) {
     return { failure: staged.session ? 'session' : 'logo', ok: false }
   }
   const { logoUploadId } = staged
   const body = venueBodyFrom(form, logoUploadId)
-  return body === null ? { failure: 'input', ok: false } : outcomeOf(await io.createIssuer(token, body))
+  return body === null ? { failure: 'input', ok: false } : outcomeOf(await io.createIssuer(body))
 }
 
-export const submitCard = async (
-  io: DesignIo,
-  token: string,
-  form: DesignerForm,
-): Promise<CardCreateOutcome> => {
+export const submitCard = async (io: DesignIo, form: DesignerForm): Promise<CardCreateOutcome> => {
   const body = cardBodyFrom(form)
-  return body === null ? { failure: 'input', ok: false } : outcomeOf(await io.createCard(token, body))
+  return body === null ? { failure: 'input', ok: false } : outcomeOf(await io.createCard(body))
 }
