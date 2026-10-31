@@ -40,3 +40,20 @@ test('a reader-only station shows one waiting line', async ({ app, screen }) => 
   await expect(screen.getByText('present your pass')).toBeVisible()
   await expect(screen.getByRole('textbox', PASTE_BOX)).toBeHidden()
 })
+
+// A desk QR reader is a keyboard: it types the payload and presses Enter. While
+// a verdict fills the screen there is no field, so the page itself must catch
+// the next scan instead of losing it.
+test('a reader scan while a verdict is showing replaces it', async ({ app, browser, screen }) => {
+  const right = await issueBearerRight()
+  await app.open('/?camera=off')
+
+  await browser.keyboard.type(right.qr)
+  await browser.keyboard.press('Enter')
+  const verdict = screen.getByRole('button', /tap to scan again/u)
+  await expect(verdict).toContainText('ADMIT')
+
+  await browser.keyboard.type(right.qr)
+  await browser.keyboard.press('Enter')
+  await expect(verdict).toContainText('ALREADY_USED')
+})
