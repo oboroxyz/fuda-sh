@@ -1,5 +1,6 @@
-// VITE_API_BASE_URL is baked in at build time; local dev talks to `wrangler dev --env local`.
-export const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8787'
+// The scanner reaches the api only through its own Worker, which forwards
+// `/api/*` (docs/adr/0010-void-pages-and-frontend-workers.md).
+export const API_BASE_URL = '/api'
 
 // `?camera=off` runs the gate as a reader-only station: no camera, no paste box,
 // one waiting line. It is a URL flag rather than a build setting because the same

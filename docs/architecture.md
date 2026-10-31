@@ -94,7 +94,7 @@ fuda runs one deployment per chain, and they never share state. Each owns its ow
 
 The Sepolia deployment is live on the apex hostnames today and keeps them until the cutover; the `production` target therefore carries no `routes`, so deploying it early cannot take a hostname from the running one. The local environment is named `local`, not `dev`, so it is never confused with the deployed develop one. Each environment is a target of the api in `apps/api/targets.jsonc`, deployed as its own Void project ([ADR 0009](./adr/0009-void-and-solid.md)). Nothing is migrated at the cutover — see [ADR 0006](./adr/0006-per-chain-environments.md) — so production begins with an empty database and bucket.
 
-Because a frontend bakes `VITE_API_BASE_URL` in at build time, a bundle belongs to exactly one environment: a develop build must be built against the develop api. The deploy order and the one-time chain setup per environment are in the [runbook](./runbook.md).
+Because each frontend's Worker reads the api origin from its `API_BASE_URL` var, a deployment belongs to exactly one environment: a develop deployment must point at the develop api. The deploy order and the one-time chain setup per environment are in the [runbook](./runbook.md).
 
 ## Configuration
 
@@ -103,7 +103,7 @@ The deployment's configured values, and what fails when one is missing, are tabu
 - **`apps/api/targets.jsonc` `vars`**, one set per target — the chain addresses and the api's own base: `EAS_ADDRESS`, `SCHEMA_REGISTRY_ADDRESS`, `EAS_SCHEMAS`, `ISSUER_ADDRESS`, `DELEGATION_UID`, `ANNOUNCER_ADDRESS`, `ANNOUNCER_FROM_BLOCK` (the rights-subgraph manifest's generated start block; it is not read by the API), `FACTORY_ADDRESS` (the smart-wallet factory the Bearer holder address is derived from), and `API_BASE_URL` (the absolute base of the `passUrls` in an `/issue` response, and the api entry in the Google Wallet `origins` claim).
 - **Worker secrets** — `SIGNER_PRIVATE_KEY`, `ADMIN_TOKEN`, `BASE_RPC_URL`, the four `GOOGLE_*` names and the five `APPLE_*` names. A wallet platform is all-or-nothing: a missing name answers `501`, never a broken pass.
 - **`USE_FAKE_CHAIN`** — local development only (`apps/api/targets/local/.env`); it swaps in an in-memory chain and is never set in a deployed environment.
-- **Frontend build environment** — `VITE_API_BASE_URL` in the member app and gate (the dashboard's Worker reads the `API_BASE_URL` var from its `void.config.ts` instead); `VITE_GRAPH_RIGHTS_ENDPOINT` in the member app and dashboard; plus `VITE_APP_ORIGIN` and `VITE_RP_ID` in the member app. Vite bakes these in at build time, so changing one means rebuilding and redeploying that app.
+- **Frontend environment** — each Worker's `API_BASE_URL` var, set in its `void.config.ts`; `VITE_GRAPH_RIGHTS_ENDPOINT` in the member app and dashboard; `VITE_ENS_PAYMASTER_URL` in the dashboard; `VITE_APP_ORIGIN` and `VITE_RP_ID` in the member app. Vite bakes the `VITE_*` values in at build time, so changing one means redeploying that app.
 
 ## Member app responsibility
 

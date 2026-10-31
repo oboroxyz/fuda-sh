@@ -4,16 +4,18 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vp dev",
+    "dev": "API_BASE_URL=http://localhost:8787 VOID_INSPECTOR_PORT=false vp dev",
     "build": "vp build",
     "preview": "vp preview",
     "deploy": "void deploy",
     "test": "vp test"
   },
   "dependencies": {
+    "@fuda/libs": "workspace:*",
     "@fuda/sdk": "workspace:*",
     "@fuda/styles": "workspace:*",
     "@fuda/ui": "workspace:*",
+    "hono": "^4.13.14",
     "solid-js": "1.9.17"
   },
   "devDependencies": {

@@ -6,6 +6,7 @@ interface ViteTypeOptions {
   strictImportMetaEnv: unknown
 }
 
-interface ImportMetaEnv {
-  readonly VITE_API_BASE_URL?: string
-}
+// The gate reads no build-time values: its api origin is the Worker's
+// API_BASE_URL var.
+// oxlint-disable-next-line typescript/no-empty-interface, typescript/no-empty-object-type -- an empty ImportMetaEnv keeps strict typing on with no keys declared
+interface ImportMetaEnv {}

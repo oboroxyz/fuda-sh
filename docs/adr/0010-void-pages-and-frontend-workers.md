@@ -21,21 +21,21 @@ A spike on 2026-10-31 (Void 1.4.0, `@void/solid` 1.4.0) confirmed the pieces:
 
 ## Decision
 
-All three frontends move to Void pages mode with Solid 1.9, in the order `dash`, `app`, `gate`.
+`dash` and `app` move to Void pages mode with Solid 1.9. `gate` gets the same Worker but stays a single-page app, as below.
 
 - **Each frontend Worker is the browser's only backend.** The browser never holds an api token. The Worker keeps the session in an HttpOnly, `SameSite=Lax` cookie on its own host (`Secure` outside local development) and calls the api with `Authorization: Bearer`. The api, its sessions and its tests do not change.
 - **Loaders read and a forwarding route writes.** A loader loads a page's initial data. The browser's other calls (saves, checks, uploads, the ENS claim steps, issue and revoke) go to a same-origin forwarding route, `/api/*`, in the frontend's Worker. It adds the Bearer header from the cookie and passes the api's response through. On an api 401 it also clears the cookie, so the client handles an expired session in one place. It refuses a write whose `Origin` is another site. Separate Worker routes under `/session/*` set or clear the cookie: sign-in, sign-out and entering the dashboard admin token. They are plain routes rather than Void actions, because the browser needs their result as data (did sign-in work, does the operator have a venue) before it navigates.
 - **The api still sees the visitor's IP.** The api rate-limits by `CF-Connecting-IP`. A Worker's subrequest would otherwise arrive from the Worker, putting every visitor in one budget. The frontends and the api share the `fuda.sh` zone, and on a same-zone subrequest Cloudflare takes `CF-Connecting-IP` from `x-real-ip`, so each Worker sets `x-real-ip` to its own visitor's address and never passes the browser's. The shared server code for this lives in `@fuda/libs/worker`.
 - **Sign-in still happens in the browser.** The wallet or passkey signs the api's challenge in an `ssr = false` page. The page then posts the signature to the Worker's session route, which calls `/auth/verify` or `/auth/member/verify` and sets the cookie. The page then navigates to the session's home.
 - **The dashboard admin token is typed in, then kept in a cookie.** A session route stores it in an HttpOnly session cookie (no `Max-Age`) instead of tab memory. An empty token is a session too, for an api without `ADMIN_TOKEN`; the Worker then sends no `Authorization` header. The Worker never holds `ADMIN_TOKEN` as a secret, so the dashboard Worker gets no deployment credential of its own. Signing in as an operator clears the admin cookie, and entering the admin token clears the operator cookie.
-- **Gate verification goes through its Worker.** The scanner page renders only in the browser, and each scan goes through its Worker to `/verify`.
+- **Gate verification goes through its Worker, but the gate is not a pages app.** It has no session and no page worth rendering on the server, and a hardware reader types a scan as soon as the page is open. A pages app mounts only after the router has loaded the page component, so the first keystrokes would arrive before the scanner listens. The gate stays a Void single-page app rendered from `index.html` and adds one Worker route, the same `/api/*` forward, through which each scan reaches `/verify`.
 - **Server-rendered and browser-only pages:**
 
   | App | Server-rendered | `ssr = false` |
   | --- | --- | --- |
   | dash | overview, rights, registration (`/start`), profile, card list and detail, passes | sign-in (`/signin`), issue, card designer and editor, reception |
   | app | top, `/@<handle>` venue and card pages | sign-in, rights list and settings (they read passes this device remembers), signed gate, +Private |
-  | gate | none | the scanner |
+  | gate | (not a pages app) | the scanner, from `index.html` |
 
 - **Route guards move to the Worker.** Which surface a route belongs to and where a signed-out or unregistered session is sent are decided in middleware, which redirects. A signed-out visit goes to the sign-in page, which now has its own URL. For an operator, the middleware reads `/issuers/me` on each page request and shares the venue and its cards with every page; a save re-reads it by refreshing the page's data in place. The pure helpers that make those decisions stay and keep their tests.
 - **Theme and language preferences move to cookies.** They are not secrets, but the server needs them to render the right language and theme on the first response. Cookies replace `localStorage`, and middleware passes them to the pages as shared data.
