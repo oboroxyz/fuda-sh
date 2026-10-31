@@ -24,7 +24,7 @@ const unmountAll = (): void => {
 }
 
 vi.mock(import('../config.ts'), () => ({
-  API_BASE_URL: 'http://localhost:8787',
+  API_BASE_URL: '/api' as const,
   APP_ORIGIN: globalThis.location.origin,
   GRAPH_RIGHTS_ENDPOINT: 'https://graph.example/rights',
   RP_ID: 'localhost',

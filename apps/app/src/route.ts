@@ -109,3 +109,12 @@ export const routeFor = (origin: string, pathname: string, appOrigin: string = A
   }
   return path === '/signin' ? 'signin' : 'rights'
 }
+
+// oxlint-disable-next-line anti-slop/no-runtime-typeof -- Route is an internal parsed union; this narrows its object variants.
+export const isRedirectRoute = (route: Route): route is { redirect: string } =>
+  typeof route === 'object' && 'redirect' in route
+// oxlint-disable-next-line anti-slop/no-runtime-typeof -- Route is an internal parsed union; this narrows its object variants.
+export const isCardRoute = (route: Route): route is CardRoute => typeof route === 'object' && 'card' in route
+// oxlint-disable-next-line anti-slop/no-runtime-typeof -- Route is an internal parsed union; this narrows its object variants.
+export const isHomeRoute = (route: Route): route is { home: string } =>
+  typeof route === 'object' && 'home' in route

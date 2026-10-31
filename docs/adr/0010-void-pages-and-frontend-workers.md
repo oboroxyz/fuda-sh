@@ -34,7 +34,7 @@ All three frontends move to Void pages mode with Solid 1.9, in the order `dash`,
   | App | Server-rendered | `ssr = false` |
   | --- | --- | --- |
   | dash | overview, rights, registration (`/start`), profile, card list and detail, passes | sign-in (`/signin`), issue, card designer and editor, reception |
-  | app | `/@<handle>` venue and card pages, rights list, settings | sign-in, signed gate, +Private |
+  | app | top, `/@<handle>` venue and card pages | sign-in, rights list and settings (they read passes this device remembers), signed gate, +Private |
   | gate | none | the scanner |
 
 - **Route guards move to the Worker.** Which surface a route belongs to and where a signed-out or unregistered session is sent are decided in middleware, which redirects. A signed-out visit goes to the sign-in page, which now has its own URL. For an operator, the middleware reads `/issuers/me` on each page request and shares the venue and its cards with every page; a save re-reads it by refreshing the page's data in place. The pure helpers that make those decisions stay and keep their tests.
@@ -46,6 +46,8 @@ All three frontends move to Void pages mode with Solid 1.9, in the order `dash`,
 - **The hand-written routers go.** Navigation uses `Link` and `useRouter()`, and nested screens use `layout.tsx`. `@void/solid` 1.4.0's `useParams()` keeps the first page's params after client navigation, so pages read `useRouter().params`, which updates.
 - **Session plumbing in the browser goes.** Restoring a saved token, the token store in `@fuda/libs`, and the per-token generation checks in `dash` all existed because the browser held the token. A session change is now a navigation, so they are deleted. Guards that keep a late save from overwriting a newer one are unrelated and stay.
 - **Every frontend runs a Worker.** Gate and dash stop being static-assets-only deployments. Local development and `pnpm e2e` start each frontend with `vp dev`. Two Void dev servers collide on the inspector port 9229, so the stack sets `VOID_INSPECTOR_PORT=false`.
+- **A layout's context never reaches its page.** `@void/solid` creates the page before its layout, so state the member pages share (the pass-list query cache) is module state, not a layout provider.
+- **`/@<handle>` pages are rewritten.** File routes cannot name a segment that starts with `@`, so the app's venue pages live under `pages/venue/` and middleware rewrites `/@<handle>/…` to them, leaving the browser's address alone. A static `routing.rewrites` rule would also catch Vite's own `/@id/` and `/@fs/` module URLs in development. A venue page renders its frame on the server; the Card itself appears once the browser has read what this device remembers.
 - **Page-level flows lose their unit tests.** Components keep their tests, and the Worker's guard, forwarding and session code gain theirs. Wiring that now lives in `pages/` (such as a card draft surviving a trip to the profile) runs only under Void's router, so it is checked in a browser rather than by a unit test.
 - **Browser calls to the api go away.** When all three frontends have moved, nothing calls the api from a browser except the api's own pages and the wallet's paymaster requests. Only then can the api's CORS allowlist be narrowed.
 - **The specs change with each app.** The session, preference and admin-token storage rules in `docs/specs/pass-types-and-flows.md` describe browser storage today. Each app's move updates the rules it changes.

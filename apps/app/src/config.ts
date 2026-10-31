@@ -1,12 +1,14 @@
-// VITE_API_BASE_URL is baked in at build time; local dev talks to `wrangler dev --env local`.
-export const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8787'
+// The browser reaches the api only through its own Worker, which forwards
+// `/api/*` with the member session cookie's credential
+// (docs/adr/0010-void-pages-and-frontend-workers.md).
+export const API_BASE_URL = '/api'
 
 // Public Graph gateway or a same-origin proxy URL. Never put a Studio deploy key in a VITE_* binding.
 export const GRAPH_RIGHTS_ENDPOINT: string = import.meta.env.VITE_GRAPH_RIGHTS_ENDPOINT ?? ''
 
-// The origin the Signed gate must run on — the only one of this Worker's two
-// hostnames that the api's CORS list allows (docs/specs/pass-types-and-flows.md#surfaces). Direct fixed-port
-// development must set VITE_APP_ORIGIN to http://localhost:5173.
+// The origin the member and card pages answer on; the Worker redirects any
+// other host there (docs/specs/pass-types-and-flows.md#surfaces). Local
+// development sets VITE_APP_ORIGIN to http://localhost:5173.
 export const APP_ORIGIN: string = import.meta.env.VITE_APP_ORIGIN ?? 'https://app.fuda.sh'
 
 // The WebAuthn relying-party id for every fuda passkey ceremony (docs/specs/attestation-model.md#wire-constants):

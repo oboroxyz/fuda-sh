@@ -75,3 +75,9 @@ export const watchThemeMode = (
     : () => {
         // A non-system theme has no media-query subscription to release.
       }
+
+// The inline script a server-rendered page runs before its first paint, so the
+// theme is right without a flash; `system` needs the browser's media query,
+// which the server cannot evaluate.
+export const themeScript = (mode: ThemeMode): string =>
+  `(function(m){var d=m==="dark"||(m==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);var r=document.documentElement;r.dataset.themeMode=m;r.dataset.theme=d?"dark":"light";r.classList.toggle("dark",d)})(${JSON.stringify(mode)})`

@@ -29,7 +29,7 @@ const unmountAll = (): void => {
 }
 
 vi.mock(import('./config.ts'), () => ({
-  API_BASE_URL: 'https://api.example',
+  API_BASE_URL: '/api' as const,
   GRAPH_RIGHTS_ENDPOINT: 'https://graph.example',
 }))
 
@@ -135,7 +135,7 @@ describe('member pass query lifecycle', () => {
     const key = memberPassListQueryOptions(
       {
         addresses: [holderB.toUpperCase() as Hex, holderA],
-        apiEndpoint: 'https://api.example',
+        apiEndpoint: '/api',
         graphEndpoint: 'https://graph.example',
         memory: [{ addedAt: 7, holder: holderB.toUpperCase() as Hex, uid: uidB.toUpperCase() as Hex }],
       },
@@ -144,7 +144,7 @@ describe('member pass query lifecycle', () => {
 
     expect(key).toStrictEqual([
       'member-passes',
-      'https://api.example',
+      '/api',
       'https://graph.example',
       [holderA, holderB],
       [{ addedAt: 7, holder: holderB, uid: uidB }],
@@ -196,7 +196,7 @@ describe('member pass query lifecycle', () => {
     await vi.waitFor(() => {
       expect(
         [...root.querySelectorAll('a[target="_blank"]')].map((link) => link.getAttribute('href')),
-      ).toStrictEqual([`https://api.example/pass/${uidA}`])
+      ).toStrictEqual([`/api/pass/${uidA}`])
     })
     input.value = 'not-a-pass'
     input.dispatchEvent(new Event('input', { bubbles: true }))

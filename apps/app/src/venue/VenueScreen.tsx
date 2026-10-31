@@ -26,12 +26,16 @@ export const VenueScreen = (props: {
   locale?: Locale
   search?: string
   fetchVenue?: typeof fetchPublicVenue
+  // The venue the Worker already read for this page; the first load uses it
+  // instead of asking the api again.
+  initial?: Awaited<ReturnType<typeof fetchPublicVenue>>
   replace?: (href: string) => void
 }): JSX.Element => {
   const locale = (): Locale => props.locale ?? DEFAULT_LOCALE
   const search = (): string => props.search ?? location.search
   const [state, setState] = createSignal<VenueLoad>({ kind: 'loading' })
   const [generation, setGeneration] = createSignal(0)
+  let preloaded = props.initial
   createEffect(
     on([() => props.handle, () => props.mode, search, generation], ([handle, mode, query]) => {
       let current = true
@@ -39,7 +43,8 @@ export const VenueScreen = (props: {
       const replace = props.replace ?? replaceLocation
       setState({ kind: 'loading' })
       const load = async (): Promise<void> => {
-        const result = await fetchVenue(handle)
+        const result = preloaded ?? (await fetchVenue(handle))
+        preloaded = undefined
         if (!current) {
           return
         }

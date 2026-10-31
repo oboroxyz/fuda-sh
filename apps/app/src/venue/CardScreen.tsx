@@ -517,6 +517,9 @@ export interface CardScreenProps {
   slug: string | null
   io?: CardScreenIo
   humanBadgeIo?: HumanBadgeIo
+  // The venue the Worker already read for this page; the first load uses it
+  // instead of asking the api again.
+  initial?: Result<PublicVenue>
   storage?: PassMemoryStorage
 }
 
@@ -527,6 +530,7 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
   const [generation, setGeneration] = createSignal(0)
   let issuing = false
   let lifecycle = 0
+  let preloaded = props.initial
 
   // Only probe the device's platform. The browser pass remains available until
   // its wallet is confirmed, and remains the fallback if it is not configured.
@@ -560,7 +564,8 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
       const { storage } = props
       setState({ kind: 'loading' })
       void (async () => {
-        const result = await io.fetchVenue(handle)
+        const result = preloaded ?? (await io.fetchVenue(handle))
+        preloaded = undefined
         if (!current) {
           return
         }

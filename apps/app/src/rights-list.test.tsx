@@ -120,9 +120,9 @@ const memberRow = (overrides: Partial<MemberPassRow>): MemberPassRow => ({
   graph: null,
   memory: null,
   passes: {
-    apple: `http://localhost:8787/pass/${RIGHT}/apple.pkpass`,
-    google: `http://localhost:8787/pass/${RIGHT}/google`,
-    web: `http://localhost:8787/pass/${RIGHT}`,
+    apple: `/api/pass/${RIGHT}/apple.pkpass`,
+    google: `/api/pass/${RIGHT}/google`,
+    web: `/api/pass/${RIGHT}`,
   },
   preview: { decision: 'ADMIT', reason: 'OK' },
   stamps: null,
@@ -353,10 +353,10 @@ describe('pass link availability', () => {
     )
 
     expect(result.rows[0]).toMatchObject({
-      appleHref: `http://localhost:8787/pass/${RIGHT}/apple.pkpass`,
+      appleHref: `/api/pass/${RIGHT}/apple.pkpass`,
       googleHref: google,
     })
-    expect(result.rows[0]?.passes.web).toBe(`http://localhost:8787/pass/${RIGHT}`)
+    expect(result.rows[0]?.passes.web).toBe(`/api/pass/${RIGHT}`)
   })
 
   it('hides Google after 501, bad responses, malformed JSON, and transport errors', async () => {

@@ -36,11 +36,6 @@ const isPageRequest = (c: Context, pathname: string): boolean =>
   !pathname.startsWith('/@') &&
   !/\.[a-z0-9]+$/iu.test(pathname)
 
-// The inline script that applies the theme before the first paint; `system`
-// needs the browser's media query, so the server cannot decide it alone.
-export const themeScript = (mode: ThemeMode): string =>
-  `(function(m){var d=m==="dark"||(m==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);var r=document.documentElement;r.dataset.themeMode=m;r.dataset.theme=d?"dark":"light";r.classList.toggle("dark",d)})(${JSON.stringify(mode)})`
-
 export interface SessionOutcome {
   redirect: string | null
   shared: DashShared

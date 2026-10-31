@@ -1,6 +1,7 @@
+import { themeScript } from '@fuda/ui/theme'
 import { defineMiddleware } from 'void'
 
-import { resolveSession, themeScript } from '../src/server/session.ts'
+import { resolveSession } from '../src/server/session.ts'
 import type { DashShared } from '../src/server/session.ts'
 
 declare module 'void' {

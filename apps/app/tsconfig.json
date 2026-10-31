@@ -5,5 +5,5 @@
     "jsxImportSource": "solid-js",
     "types": ["vite/client"]
   },
-  "include": ["src", "vite.config.ts", "void.config.ts"]
+  "include": ["src", "pages", "middleware", "routes", "vite.config.ts", "void.config.ts"]
 }
