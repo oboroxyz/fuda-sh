@@ -298,6 +298,27 @@ For SSH previews, Dash binds explicitly to IPv4 loopback (`127.0.0.1:5175`) so a
 
 In development mode with the `/api` proxy selected, Dash also displays saved logos from `http://localhost:8787/assets/...` through `/api/assets/...`, preserving the query string. This follows the browser connection, independently of FakeChain or whether the API reads a local or remote R2 bucket. Other asset URLs (including public R2, CDN and signed URLs), explicit API origins, and production builds retain their original URLs.
 
+### End-to-end tests
+
+`pnpm e2e` runs the browser suite in `packages/e2e` against a real local stack. It runs gate, then dash, then app, and stops at the first surface that fails. `pnpm e2e gate` runs one surface. Flags after `--` go to `e2e run`, for example `pnpm e2e app -- --headed`. The first run downloads Chromium into the Playwright cache.
+
+For each surface, the suite does four things:
+
+1. It deletes its D1 state under `packages/e2e/.e2e/state/` and applies the migrations to a fresh copy.
+2. It starts the api with `wrangler dev --env local` on `127.0.0.1:8797`.
+3. It starts the surface's Vite dev server: app on `127.0.0.1:6173`, gate on `6174`, dash on `6175`. These ports sit beside the `pnpm dev` ports, so both can run at once. Starting it is how the suite checks the api is up.
+4. It seeds venues, cards and Rights through the public api routes.
+
+The api reads only `packages/e2e/stack.env` (`USE_FAKE_CHAIN=1`). Passing an env file explicitly makes wrangler skip `apps/api/.dev.vars`, so local secrets never reach a run. Admin routes stay open, and the developer's `.wrangler/state` is never touched.
+
+What the suite does not cover:
+
+- operator passkey sign-in in dash and member passkey sign-in in app (both go through Base Account);
+- the camera scanner;
+- anything that reads the Graph.
+
+The tests assert on roles and visible English text only, so they keep passing when an app is rewritten. Results and traces land in `packages/e2e/.e2e/` (Git-ignored). The suite is not part of `pnpm test` or the pull request checks.
+
 ### Public Card UI preview
 
 For a UI-only walkthrough without an API, start the member app with fictional Wassie Coffee data:

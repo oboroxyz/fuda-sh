@@ -5,24 +5,25 @@
 // The api reads `stack.env` through `--env-file`. An explicit env file makes
 // wrangler skip `apps/api/.dev.vars`, so a developer's local secrets (a signer,
 // an ADMIN_TOKEN) never change what the suite sees.
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import type { ChildProcess } from 'node:child_process'
 import { rmSync } from 'node:fs'
-import { join } from 'node:path'
+import path from 'node:path'
+import { setTimeout as sleep } from 'node:timers/promises'
 
 import { API_ORIGIN, API_PORT, INSPECTOR_PORT, SURFACES, isSurface, repoRoot } from '../stack.config.ts'
 
-const surface = process.argv[2]
+const [surface] = process.argv.slice(2)
 if (surface === undefined || !isSurface(surface)) {
   throw new Error(`usage: stack.ts <${Object.keys(SURFACES).join('|')}>`)
 }
 const { port } = SURFACES[surface]
-const apiDir = join(repoRoot, 'apps/api')
-const surfaceDir = join(repoRoot, 'apps', surface)
-const wrangler = join(repoRoot, 'node_modules/.bin/wrangler')
-const vp = join(repoRoot, 'node_modules/.bin/vp')
-const state = join(repoRoot, 'packages/e2e/.e2e/state', surface)
-const envFile = join(repoRoot, 'packages/e2e/stack.env')
+const apiDir = path.join(repoRoot, 'apps/api')
+const surfaceDir = path.join(repoRoot, 'apps', surface)
+const wrangler = path.join(repoRoot, 'node_modules/.bin/wrangler')
+const vp = path.join(repoRoot, 'node_modules/.bin/vp')
+const state = path.join(repoRoot, 'packages/e2e/.e2e/state', surface)
+const envFile = path.join(repoRoot, 'packages/e2e/stack.env')
 
 const children: ChildProcess[] = []
 const stop = (): void => {
@@ -36,18 +37,13 @@ process.on('exit', stop)
 
 const childEnv = { ...process.env, WRANGLER_SEND_METRICS: 'false' }
 
-const run = async (command: string, args: string[], cwd: string): Promise<void> => {
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn(command, args, { cwd, env: childEnv, stdio: 'inherit' })
-    child.on('error', reject)
-    child.on('exit', (code) => {
-      if (code === 0) {
-        resolve()
-      } else {
-        reject(new Error(`${command} ${args.join(' ')} exited with ${String(code)}`))
-      }
+const run = (command: string, args: string[], cwd: string): void => {
+  const result = spawnSync(command, args, { cwd, env: childEnv, stdio: 'inherit' })
+  if (result.status !== 0) {
+    throw new Error(`${command} ${args.join(' ')} exited with ${String(result.status)}`, {
+      cause: result.error,
     })
-  })
+  }
 }
 
 const start = (command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv = {}): void => {
@@ -61,25 +57,29 @@ const start = (command: string, args: string[], cwd: string, env: NodeJS.Process
   children.push(child)
 }
 
-const waitFor = async (url: string, timeoutMs: number): Promise<void> => {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    try {
-      if ((await fetch(url)).ok) {
-        return
-      }
-    } catch {
-      // Not listening yet.
-    }
-    await new Promise((resolve) => {
-      setTimeout(resolve, 250)
-    })
+const answers = async (url: string): Promise<boolean> => {
+  try {
+    const response = await fetch(url)
+    return response.ok
+  } catch {
+    // Not listening yet.
+    return false
   }
-  throw new Error(`${url} did not answer within ${String(timeoutMs)} ms`)
+}
+
+const waitFor = async (url: string, deadline: number): Promise<void> => {
+  if (await answers(url)) {
+    return
+  }
+  if (Date.now() > deadline) {
+    throw new Error(`${url} did not answer in time`)
+  }
+  await sleep(250)
+  await waitFor(url, deadline)
 }
 
 rmSync(state, { force: true, recursive: true })
-await run(
+run(
   wrangler,
   ['d1', 'migrations', 'apply', 'fuda-beta', '--local', '--env', 'local', '--persist-to', state],
   apiDir,
@@ -108,7 +108,7 @@ start(
   ],
   apiDir,
 )
-await waitFor(`${API_ORIGIN}/health`, 60_000)
+await waitFor(`${API_ORIGIN}/health`, Date.now() + 60_000)
 
 // The surface starts only once the api answers, so the runner's readiness probe
 // on the surface URL means the whole stack is up.

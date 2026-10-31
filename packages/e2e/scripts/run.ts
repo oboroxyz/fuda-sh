@@ -2,7 +2,7 @@
 // turn, gate first, and stops at the first failing surface. With no surface
 // named, all three run.
 import { spawnSync } from 'node:child_process'
-import { join } from 'node:path'
+import path from 'node:path'
 
 import { SURFACES, isSurface, repoRoot } from '../stack.config.ts'
 import type { SurfaceName } from '../stack.config.ts'
@@ -19,10 +19,10 @@ if (unknown.length > 0) {
 }
 const surfaces = named.length === 0 ? ORDER : ORDER.filter((surface) => named.includes(surface))
 
-const e2e = join(repoRoot, 'packages/e2e/node_modules/.bin/e2e')
+const e2e = path.join(repoRoot, 'packages/e2e/node_modules/.bin/e2e')
 for (const surface of surfaces) {
   const result = spawnSync(e2e, ['run', '--config', `${surface}.config.ts`, ...passthrough], {
-    cwd: join(repoRoot, 'packages/e2e'),
+    cwd: path.join(repoRoot, 'packages/e2e'),
     env: { ...process.env, E2E_TELEMETRY_DISABLED: '1' },
     stdio: 'inherit',
   })
