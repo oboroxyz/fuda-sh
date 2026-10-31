@@ -1,3 +1,4 @@
+import { apiHeaders } from '@fuda/libs/worker'
 import type { MembersResponse } from '@fuda/sdk'
 import { apiFetch } from '@fuda/sdk/http'
 import type { Result } from '@fuda/sdk/http'
@@ -28,11 +29,9 @@ export const loadMembers = async (
   apiBaseUrl: string,
   token: string | null,
 ): Promise<MembersProps | Response> => {
-  const result: Result<MembersResponse> = await apiFetch(
-    apiBaseUrl,
-    '/members',
-    token === null || token === '' ? {} : { token },
-  )
+  const result: Result<MembersResponse> = await apiFetch(apiBaseUrl, '/members', {
+    headers: apiHeaders(c, token),
+  })
   if (!result.ok && result.status === 401) {
     return sessionExpired(c)
   }

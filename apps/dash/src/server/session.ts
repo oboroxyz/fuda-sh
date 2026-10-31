@@ -1,5 +1,6 @@
 import { resolveLocale } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
+import { apiHeaders } from '@fuda/libs/worker'
 import type { IssuerMeResponse } from '@fuda/sdk'
 import { apiFetch } from '@fuda/sdk/http'
 import { resolveThemeMode } from '@fuda/ui/theme'
@@ -58,7 +59,9 @@ export const resolveSession = async (c: Context, apiBaseUrl: string): Promise<Se
   if (credential?.kind === 'admin') {
     shared.surface = 'admin'
   } else if (credential?.kind === 'operator') {
-    const me = await apiFetch<IssuerMeResponse>(apiBaseUrl, '/issuers/me', { token: credential.token })
+    const me = await apiFetch<IssuerMeResponse>(apiBaseUrl, '/issuers/me', {
+      headers: apiHeaders(c, credential.token),
+    })
     if (me.ok) {
       shared.surface = 'operator'
       shared.operator = me.body

@@ -1,10 +1,10 @@
+import { apiHeaders, crossOriginWrite } from '@fuda/libs/worker'
 import type { IssuerView, SignInResponse } from '@fuda/sdk'
 import { apiFetch } from '@fuda/sdk/http'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 
 import { endSession, readCredential, startAdminSession, startOperatorSession } from './cookies.ts'
-import { crossOriginWrite } from './origin.ts'
 
 const HexString = v.pipe(v.string(), v.regex(/^0x[0-9a-fA-F]*$/u))
 export const VerifyBody = v.object({ address: HexString, nonce: HexString, signature: HexString })
@@ -23,6 +23,7 @@ export const verifyOperator = async (c: Context, apiBaseUrl: string): Promise<Re
   }
   const result = await apiFetch<SignInResponse>(apiBaseUrl, '/auth/verify', {
     body: JSON.stringify(parsed.output),
+    headers: apiHeaders(c, null),
     method: 'POST',
   })
   if (!result.ok) {
@@ -59,7 +60,11 @@ export const signOut = async (c: Context, apiBaseUrl: string): Promise<Response>
   const credential = readCredential(c)
   endSession(c)
   if (credential?.kind === 'operator') {
-    await apiFetch(apiBaseUrl, '/auth/logout', { body: '{}', method: 'POST', token: credential.token })
+    await apiFetch(apiBaseUrl, '/auth/logout', {
+      body: '{}',
+      headers: apiHeaders(c, credential.token),
+      method: 'POST',
+    })
   }
   return c.json({ ok: true })
 }

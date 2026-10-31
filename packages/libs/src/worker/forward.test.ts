@@ -1,10 +1,20 @@
+// @vitest-environment node
 import { Hono } from 'hono'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { forwardToApi } from './forward.ts'
+import { forwardToApi } from './index.ts'
 
+const COOKIES = ['fuda_operator', 'fuda_admin']
 const app = new Hono()
-app.all('/api/*', async (c) => await forwardToApi(c, 'https://api.example/'))
+app.all(
+  '/api/*',
+  async (c) =>
+    await forwardToApi(c, {
+      apiBaseUrl: 'https://api.example/',
+      expireOnUnauthorized: COOKIES,
+      token: c.req.header('x-test-token') ?? null,
+    }),
+)
 
 const stubApi = (response: Response) => {
   const spy = vi.fn<typeof fetch>().mockResolvedValue(response)
@@ -17,28 +27,36 @@ describe(forwardToApi, () => {
     vi.unstubAllGlobals()
   })
 
-  it('adds the cookie credential and drops a browser-sent authorization header', async () => {
+  it("adds the session's credential and the visitor's IP, dropping the browser's own", async () => {
     const spy = stubApi(Response.json({ ok: true }))
     const res = await app.request('/api/v1/issuers/me?x=1', {
-      headers: { authorization: 'Bearer forged', cookie: 'fuda_operator=session-1' },
+      headers: {
+        authorization: 'Bearer forged',
+        'cf-connecting-ip': '203.0.113.7',
+        'x-real-ip': '1.1.1.1',
+        'x-test-token': 'session-1',
+      },
     })
     expect(res.status).toBe(200)
     const [url, init] = spy.mock.calls[0] ?? []
     expect(url).toBe('https://api.example/v1/issuers/me?x=1')
     expect(new Headers(init?.headers).get('authorization')).toBe('Bearer session-1')
+    // The api rate-limits by visitor: a same-zone subrequest takes its
+    // CF-Connecting-IP from x-real-ip, which only the Worker sets.
+    expect(new Headers(init?.headers).get('x-real-ip')).toBe('203.0.113.7')
   })
 
-  it('forwards the admin token, and no header at all for an empty one', async () => {
+  it('sends no Authorization header for an empty token or none', async () => {
     const spy = stubApi(Response.json({ members: [] }))
-    await app.request('/api/v1/members', { headers: { cookie: 'fuda_admin=deploy-token' } })
-    expect(new Headers(spy.mock.calls[0]?.[1]?.headers).get('authorization')).toBe('Bearer deploy-token')
-    await app.request('/api/v1/members', { headers: { cookie: 'fuda_admin=' } })
+    await app.request('/api/v1/members', { headers: { 'x-test-token': '' } })
+    await app.request('/api/v1/members')
+    expect(new Headers(spy.mock.calls[0]?.[1]?.headers).get('authorization')).toBeNull()
     expect(new Headers(spy.mock.calls[1]?.[1]?.headers).get('authorization')).toBeNull()
   })
 
   it('ends the session when the api answers 401', async () => {
     stubApi(Response.json({ error: 'unauthorized' }, { status: 401 }))
-    const res = await app.request('/api/v1/issuers/me', { headers: { cookie: 'fuda_operator=stale' } })
+    const res = await app.request('/api/v1/issuers/me', { headers: { 'x-test-token': 'stale' } })
     expect(res.status).toBe(401)
     expect(res.headers.getSetCookie().map((cookie) => cookie.split(';')[0])).toStrictEqual([
       'fuda_operator=',
@@ -50,7 +68,7 @@ describe(forwardToApi, () => {
     const spy = stubApi(Response.json({}))
     const res = await app.request('http://dash.example/api/v1/issue', {
       body: '{}',
-      headers: { cookie: 'fuda_admin=x', origin: 'https://evil.example' },
+      headers: { origin: 'https://evil.example', 'x-test-token': 'x' },
       method: 'POST',
     })
     expect(res.status).toBe(403)
