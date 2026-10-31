@@ -1,6 +1,7 @@
 import type { Context } from 'hono'
 
 import { expiredSessionCookies, readCredential } from './cookies.ts'
+import { crossOriginWrite } from './origin.ts'
 
 // Headers the browser's request may pass on to the api. Everything else,
 // including any Authorization the browser sends, is dropped: the credential is
@@ -15,14 +16,12 @@ const apiUrl = (base: string, request: URL, prefix: string): string =>
 // api 401 also ends the session here, so the browser has one way to learn its
 // session is gone: the next page request lands on sign-in.
 export const forwardToApi = async (c: Context, apiBaseUrl: string, prefix = '/api'): Promise<Response> => {
-  const { method } = c.req
-  const origin = c.req.header('origin')
-  const self = new URL(c.req.url)
-  // SameSite=Lax already keeps the cookie off cross-site writes; this refuses
-  // them outright instead of sending them to the api without a credential.
-  if (method !== 'GET' && origin !== undefined && origin !== self.origin) {
-    return c.json({ error: 'forbidden_origin' }, 403)
+  const refused = crossOriginWrite(c)
+  if (refused !== null) {
+    return refused
   }
+  const { method } = c.req
+  const self = new URL(c.req.url)
   const headers = new Headers()
   for (const name of PASSED_REQUEST_HEADERS) {
     const value = c.req.header(name)

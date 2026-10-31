@@ -4,6 +4,7 @@ import type { Context } from 'hono'
 import * as v from 'valibot'
 
 import { endSession, readCredential, startAdminSession, startOperatorSession } from './cookies.ts'
+import { crossOriginWrite } from './origin.ts'
 
 const HexString = v.pipe(v.string(), v.regex(/^0x[0-9a-fA-F]*$/u))
 export const VerifyBody = v.object({ address: HexString, nonce: HexString, signature: HexString })
@@ -12,6 +13,10 @@ export const AdminBody = v.object({ token: v.string() })
 // The browser's half of sign-in is the wallet signature; this half spends it at
 // the api and keeps the session token in a cookie the browser cannot read.
 export const verifyOperator = async (c: Context, apiBaseUrl: string): Promise<Response> => {
+  const refused = crossOriginWrite(c)
+  if (refused !== null) {
+    return refused
+  }
   const parsed = v.safeParse(VerifyBody, await c.req.json().catch(() => null))
   if (!parsed.success) {
     return c.json({ error: 'bad_input' }, 400)
@@ -32,6 +37,10 @@ export const verifyOperator = async (c: Context, apiBaseUrl: string): Promise<Re
 // The admin token is not checked here: an api with ADMIN_TOKEN unset accepts
 // any value, and a wrong one shows as the first admin read's 401.
 export const startAdmin = async (c: Context): Promise<Response> => {
+  const refused = crossOriginWrite(c)
+  if (refused !== null) {
+    return refused
+  }
   const parsed = v.safeParse(AdminBody, await c.req.json().catch(() => null))
   if (!parsed.success) {
     return c.json({ error: 'bad_input' }, 400)
@@ -43,6 +52,10 @@ export const startAdmin = async (c: Context): Promise<Response> => {
 // Local sign-out always succeeds; ending the operator session at the api is
 // best effort, as it was when the browser held the token.
 export const signOut = async (c: Context, apiBaseUrl: string): Promise<Response> => {
+  const refused = crossOriginWrite(c)
+  if (refused !== null) {
+    return refused
+  }
   const credential = readCredential(c)
   endSession(c)
   if (credential?.kind === 'operator') {
