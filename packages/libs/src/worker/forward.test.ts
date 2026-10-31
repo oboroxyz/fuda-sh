@@ -46,6 +46,23 @@ describe(forwardToApi, () => {
     expect(new Headers(init?.headers).get('x-real-ip')).toBe('203.0.113.7')
   })
 
+  it("passes the browser's user agent, and a pass download's file name back", async () => {
+    const spy = stubApi(
+      new Response('pass', {
+        headers: {
+          'content-disposition': 'attachment; filename="pass.pkpass"',
+          'content-type': 'application/vnd.apple.pkpass',
+          'x-internal': 'dropped',
+        },
+      }),
+    )
+    const res = await app.request('/api/pass/x/apple.pkpass', { headers: { 'user-agent': 'iPhone' } })
+    expect(new Headers(spy.mock.calls[0]?.[1]?.headers).get('user-agent')).toBe('iPhone')
+    expect(res.headers.get('content-disposition')).toBe('attachment; filename="pass.pkpass"')
+    expect(res.headers.get('content-type')).toBe('application/vnd.apple.pkpass')
+    expect(res.headers.get('x-internal')).toBeNull()
+  })
+
   it('sends no Authorization header for an empty token or none', async () => {
     const spy = stubApi(Response.json({ members: [] }))
     await app.request('/api/v1/members', { headers: { 'x-test-token': '' } })

@@ -5,7 +5,6 @@ import {
   cardBySlug,
   formatMemberNumber,
   passPlatform,
-  passUrls,
   qrSvg,
   soleCard,
   toQr,
@@ -22,8 +21,8 @@ import { defaultHumanBadgeIo, requestHumanBadge } from '../badges.ts'
 import type { BadgeState, HumanBadgeIo } from '../badges.ts'
 import { cardKey, readCard, readCardMemory, rememberCard } from '../card-memory.ts'
 import type { CardMemoryEntry } from '../card-memory.ts'
-import { API_BASE_URL } from '../config.ts'
 import { applePassAvailable } from '../member-pass-list.ts'
+import { memberPassUrls } from '../pass-links.ts'
 import { rememberPass } from '../pass-memory.ts'
 import type { PassMemoryStorage } from '../pass-memory.ts'
 import { VENUE_COPY } from './copy.ts'
@@ -500,7 +499,7 @@ const defaultIo: CardScreenIo = {
 
 const issuedFrom = (entry: CardMemoryEntry): IssuedCard => ({
   ...entry,
-  passUrls: passUrls(API_BASE_URL, entry.uid),
+  passUrls: memberPassUrls(entry.uid),
   qr: toQr(entry.uid),
 })
 
@@ -635,7 +634,9 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
     }
     await showReady(
       card,
-      { holder, issuedAt, memberNumber, passUrls: result.body.passUrls, qr: result.body.qr, uid },
+      // The api answers its own absolute URLs; the member's links go through
+      // this Worker like every other call (src/pass-links.ts).
+      { holder, issuedAt, memberNumber, passUrls: memberPassUrls(uid), qr: result.body.qr, uid },
       () => ticket === lifecycle,
     )
   }

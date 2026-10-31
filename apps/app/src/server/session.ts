@@ -14,6 +14,9 @@ import { isRedirectRoute, routeFor, safeMemberReturn } from '../route.ts'
 export interface AppShared {
   // The signed-in member's address; null when signed out or not checked.
   address: Hex | null
+  // The api's public origin, for the one link the browser must open there:
+  // the browser pass page (src/pass-links.ts).
+  apiOrigin: string
   locale: Locale
   // The member session could not be checked (the api was unreachable or
   // failing): neither confirmed nor ended, so a member page offers a retry.
@@ -49,6 +52,7 @@ export const resolveSession = async (
 ): Promise<SessionOutcome> => {
   const shared: AppShared = {
     address: null,
+    apiOrigin: apiBaseUrl.replace(/\/$/u, ''),
     locale: resolveLocale(readCookie(c, LOCALE_COOKIE)),
     restoreFailed: false,
     signedIn: false,

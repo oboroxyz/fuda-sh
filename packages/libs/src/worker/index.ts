@@ -36,9 +36,10 @@ export const apiHeaders = (c: Context, token: string | null): ApiHeaders => {
   return headers
 }
 
-// Headers the browser's request may pass on to the api. Everything else,
-// including any Authorization or x-real-ip the browser sends, is dropped.
-const PASSED_REQUEST_HEADERS = ['accept', 'accept-language', 'content-type']
+// Headers the browser's request may pass on to the api (the user agent picks a
+// pass's wallet). Everything else, including any Authorization or x-real-ip the
+// browser sends, is dropped.
+const PASSED_REQUEST_HEADERS = ['accept', 'accept-language', 'content-type', 'user-agent']
 // Content-Disposition carries a pass download's file name.
 const PASSED_RESPONSE_HEADERS = ['cache-control', 'content-disposition', 'content-type', 'retry-after']
 
