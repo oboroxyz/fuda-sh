@@ -4,11 +4,13 @@ import type { JSX } from 'solid-js'
 
 import type { DashCopy } from './copy.ts'
 import { ProfileMenu } from './ProfileMenu.tsx'
+import type { ProfileChoices } from './ProfileMenu.tsx'
 import { navigationRoute } from './router.ts'
 import type { DashRoute, DashSurface, MainDashRoute } from './router.ts'
 import { SignOutButton } from './SignOutButton.tsx'
 
 export interface DashboardShellProps {
+  profiles?: ProfileChoices | null
   appearance: JSX.Element
   venue?: { name: string; publicUrl: string | null } | null
   children: JSX.Element
@@ -64,6 +66,7 @@ const navigationItems = (copy: DashCopy, surface: DashSurface, hasIssuer: boolea
         { label: copy.nav.reception, route: '/reception' },
         { label: copy.nav.card, route: '/cards' },
         { label: copy.nav.passes, route: '/passes' },
+        { label: copy.nav.apps, route: '/apps' },
       ]
     : [{ label: copy.nav.venue, route: '/start' }]
 }
@@ -71,11 +74,13 @@ const navigationItems = (copy: DashCopy, surface: DashSurface, hasIssuer: boolea
 const navigationIcon = (route: MainDashRoute): JSX.Element => {
   const paths = {
     '/': 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',
+    '/apps': 'M9 7H5v12h12v-4 M13 3h8v8 M21 3l-10 10',
     '/cards': 'M3 7h18v13H3z M6 4h12 M3 11h18',
     '/cards/new': 'M4 5h16v14H4z M8 12h8 M12 8v8',
     '/issue': 'M12 3v12 M7 10l5 5 5-5 M4 17v4h16v-4',
     '/passes': 'M3 5h18v14H3z M7 9h4 M7 13h6 M16 9h1 M16 13h1',
     '/profile': 'M4 21V10l8-7 8 7v11 M9 21v-6h6v6',
+    '/profiles/new': 'M4 21V10l8-7 8 7v11 M12 11v6 M9 14h6',
     '/reception': 'M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 14h2v2h-2z M18 14h2v6h-6v-2',
     '/rights': 'M4 4h16v16H4z M8 8h8 M8 12h8 M8 16h5',
     '/start': 'M4 21V10l8-7 8 7v11 M9 21v-6h6v6',
@@ -319,7 +324,12 @@ export const DashboardShell = (props: DashboardShellProps): JSX.Element => {
               {(current) => (
                 // A new route closes the menu by mounting a fresh one.
                 <Show when={props.route} keyed>
-                  <ProfileMenu copy={props.copy} venue={current()} onSignOut={props.onSignOut} />
+                  <ProfileMenu
+                    profiles={props.profiles}
+                    copy={props.copy}
+                    venue={current()}
+                    onSignOut={props.onSignOut}
+                  />
                 </Show>
               )}
             </Show>

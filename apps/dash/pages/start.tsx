@@ -1,4 +1,3 @@
-import { useRouter } from '@void/solid'
 import { createSignal } from 'solid-js'
 import type { JSX } from 'solid-js'
 
@@ -12,7 +11,6 @@ import { VenuePage } from '../src/VenuePage.tsx'
 // Registration: an operator without a venue creates one, then lands on its profile.
 export default function Start(): JSX.Element {
   const copy = useCopy()
-  const router = useRouter()
   const navigate = useNavigate()
   const expired = useSessionExpired()
   const [busy, setBusy] = createSignal(false)
@@ -37,7 +35,7 @@ export default function Start(): JSX.Element {
           }))
           setBusy(false)
           if (outcome.ok) {
-            await router.visit('/profile')
+            window.location.assign('/profile')
           } else if (outcome.failure === 'session') {
             expired()
           } else {

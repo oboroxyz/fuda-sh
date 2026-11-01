@@ -46,15 +46,12 @@ export const useSessionExpired = (): (() => void) => {
   }
 }
 
-export const useSignOut = (): (() => void) => {
-  const router = useRouter()
-  return () => {
-    const run = async (): Promise<void> => {
-      await endSession()
-      await router.visit('/signin')
-    }
-    void run()
-  }
+const signOutAndLeave = async (): Promise<void> => {
+  await endSession()
+  window.location.assign('/signin')
+}
+export const useSignOut = (): (() => void) => () => {
+  void signOutAndLeave()
 }
 
 // A year: preferences outlive sessions.

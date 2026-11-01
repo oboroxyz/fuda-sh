@@ -11,6 +11,7 @@ import type {
   IssuerUpdateRequest,
   IssuerUpdateResponse,
   IssuerView,
+  OwnedIssuersResponse,
   IssueResponse,
   MembersResponse,
   RevokeResponse,
@@ -19,7 +20,7 @@ import type {
   SignInChallengeResponse,
   CardIntegrations,
 } from '@fuda/sdk'
-import { API_VERSION_PREFIX, apiFetch } from '@fuda/sdk/http'
+import { API_VERSION_PREFIX } from '@fuda/sdk/http'
 import type { Result } from '@fuda/sdk/http'
 import * as v from 'valibot'
 
@@ -27,6 +28,7 @@ import { API_BASE_URL } from './config.ts'
 import type { ClaimVoucherResponse } from './ens-claim.ts'
 import { LOGO_VARIANTS } from './logo.ts'
 import type { LogoSet } from './logo.ts'
+import { apiFetch, checkSessionResult, sessionHeaders } from './session-request.ts'
 
 export type { Result } from '@fuda/sdk/http'
 
@@ -59,6 +61,14 @@ export const signInChallenge = async (address: Hex): Promise<Result<SignInChalle
 
 export const issuerMe = async (): Promise<Result<IssuerMeResponse>> =>
   await apiFetch<IssuerMeResponse>(API_BASE_URL, '/issuers/me')
+
+export const ownedIssuers = async (): Promise<Result<OwnedIssuersResponse>> =>
+  await apiFetch<OwnedIssuersResponse>(API_BASE_URL, '/auth/issuers')
+export const switchIssuer = async (issuerId: string): Promise<Result<{ operator: IssuerMeResponse }>> =>
+  await apiFetch<{ operator: IssuerMeResponse }>(API_BASE_URL, '/auth/switch', {
+    body: JSON.stringify({ issuerId }),
+    method: 'POST',
+  })
 
 export const readStampSettings = async (cardId: string): Promise<Result<StampSettings>> =>
   await apiFetch<StampSettings>(API_BASE_URL, `/issuers/me/cards/${encodeURIComponent(cardId)}/stamps`, {})
@@ -193,9 +203,10 @@ export const uploadLogo = async (variants: LogoSet): Promise<Result<LogoUploadRe
     // version prefix has to be added here too.
     const res = await fetch(`${API_BASE_URL.replace(/\/$/u, '')}${API_VERSION_PREFIX}/issuers/logo`, {
       body: form,
+      headers: sessionHeaders(),
       method: 'POST',
     })
-    return await resultOf(UploadBody, res)
+    return checkSessionResult(await resultOf(UploadBody, res))
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : 'network error',

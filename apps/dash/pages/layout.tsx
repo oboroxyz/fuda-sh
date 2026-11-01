@@ -1,10 +1,13 @@
 import '../src/styles.css'
 import { useRouter } from '@void/solid'
-import { Match, Switch } from 'solid-js'
+import { createRenderEffect, createResource, createSignal, Match, Switch, untrack } from 'solid-js'
 import type { JSX } from 'solid-js'
+import { isServer } from 'solid-js/web'
 
+import { ownedIssuers, switchIssuer } from '../src/api.ts'
 import { DashboardShell } from '../src/DashboardShell.tsx'
 import { Appearance, useCopy, useDash, useNavigate, useRoute, useSignOut } from '../src/page-context.tsx'
+import { setSessionVersion } from '../src/session-request.ts'
 import { SignOutButton } from '../src/SignOutButton.tsx'
 
 // Every dashboard page sits in the shell of its surface; sign-in has none.
@@ -15,11 +18,52 @@ export default function Layout(props: { children?: JSX.Element }): JSX.Element {
   const navigate = useNavigate()
   const signOut = useSignOut()
   const router = useRouter()
+  // A state-preserving refresh must not carry an old form into a new cookie session.
+  const renderedVersion = untrack(() => shared.sessionVersion)
+  createRenderEffect(() => {
+    if (!isServer) {
+      if (shared.sessionVersion !== renderedVersion) {
+        window.location.reload()
+        return
+      }
+      setSessionVersion(shared.sessionVersion)
+    }
+  })
+  const [profiles] = createResource(
+    () => !isServer && shared.surface === 'operator',
+    async () => await ownedIssuers(),
+  )
+  const [switchFailed, setSwitchFailed] = createSignal(false)
+  const profileChoices = () => {
+    const result = profiles()
+    return result?.ok === true
+      ? {
+          activeId: shared.operator?.issuer?.id ?? null,
+          issuers: result.body.issuers,
+          onAdd: () => {
+            window.location.assign('/profiles/new')
+          },
+          onSwitch: (issuerId: string) => {
+            const run = async (): Promise<void> => {
+              setSwitchFailed(false)
+              const outcome = await switchIssuer(issuerId)
+              if (outcome.ok) {
+                window.location.assign('/cards')
+              } else {
+                setSwitchFailed(true)
+              }
+            }
+            void run()
+          },
+        }
+      : null
+  }
   const issuer = () => shared.operator?.issuer ?? null
   return (
     <Switch
       fallback={
         <DashboardShell
+          profiles={profileChoices()}
           appearance={<Appearance />}
           copy={copy()}
           hasIssuer={issuer() !== null}
@@ -33,10 +77,12 @@ export default function Layout(props: { children?: JSX.Element }): JSX.Element {
           route={route()}
           surface={shared.surface ?? 'admin'}
         >
+          {switchFailed() ? <p role="alert">{copy().auth.restoreFailed}</p> : null}
           {props.children}
         </DashboardShell>
       }
     >
+      <Match when={router.path === '/oauth/authorize'}>{props.children}</Match>
       <Match when={shared.surface === null}>{props.children}</Match>
       <Match when={shared.restoreFailed}>
         <main class="dash-auth">

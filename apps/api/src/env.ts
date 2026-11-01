@@ -1,5 +1,6 @@
 import type { MemberSession, OperatorSession } from './auth/session.ts'
 import type { ChainClient } from './chain/client.ts'
+import type { AccessGrant } from './connected-apps/store.ts'
 import type { Db } from './db/client.ts'
 import type { AdmitHook } from './verify/admit.ts'
 
@@ -63,6 +64,9 @@ export interface Variables {
   // Set by operatorOrAdmin() on the routes that serve both.
   actingIssuer: string | null
   chain: ChainClient
+  // set by connectedAppAuth(): the approval behind a connected app's access
+  // token, bound to one issuer (docs/specs/connected-apps.md)
+  connected: AccessGrant
   db: Db
   // unix seconds — injectable for tests
   now: () => number

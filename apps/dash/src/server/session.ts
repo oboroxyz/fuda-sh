@@ -11,10 +11,12 @@ import { LOCALE_COOKIE, THEME_COOKIE } from '../cookie-names.ts'
 import type { DashSurface } from '../router.ts'
 import { endSession, readCredential, readPreference } from './cookies.ts'
 import { guardRedirect, SIGN_IN_PATH } from './guard.ts'
+import { sessionVersion } from './session-version.ts'
 
 // What every page knows about the request, from the cookies and one
 // /issuers/me read. Pages read it with `useShared()`.
 export interface DashShared {
+  sessionVersion: string | null
   locale: Locale
   // The operator's venue and cards; null for an admin or signed-out session.
   operator: IssuerMeResponse | null
@@ -47,7 +49,14 @@ export const resolveSession = async (c: Context, apiBaseUrl: string): Promise<Se
   const theme = resolveThemeMode(readPreference(c, THEME_COOKIE))
   const { pathname } = new URL(c.req.url)
   const credential = readCredential(c)
-  const shared: DashShared = { locale, operator: null, restoreFailed: false, surface: null, theme }
+  const shared: DashShared = {
+    locale,
+    operator: null,
+    restoreFailed: false,
+    sessionVersion: await sessionVersion(credential?.token ?? null),
+    surface: null,
+    theme,
+  }
   if (!isPageRequest(c, pathname)) {
     return { redirect: null, shared, token: credential?.token ?? null }
   }
@@ -71,7 +80,8 @@ export const resolveSession = async (c: Context, apiBaseUrl: string): Promise<Se
     }
   }
   return {
-    redirect: guardRedirect(pathname, shared.surface, shared.operator),
+    redirect:
+      pathname === '/oauth/authorize' ? null : guardRedirect(pathname, shared.surface, shared.operator),
     shared,
     token: credential?.token ?? null,
   }

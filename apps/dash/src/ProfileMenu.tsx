@@ -1,3 +1,4 @@
+import type { IssuerSummary } from '@fuda/sdk'
 import { createEffect, createSignal, createUniqueId, onCleanup } from 'solid-js'
 import type { JSX } from 'solid-js'
 
@@ -5,7 +6,15 @@ import type { DashCopy } from './copy.ts'
 import { SignOutButton } from './SignOutButton.tsx'
 import { VenueLinkIcon } from './VenueLinkIcon.tsx'
 
+export interface ProfileChoices {
+  activeId: string | null
+  issuers: IssuerSummary[]
+  onAdd: () => void
+  onSwitch: (issuerId: string) => void
+}
+
 export const ProfileMenu = (props: {
+  profiles?: ProfileChoices | null
   copy: DashCopy
   venue: { name: string; publicUrl: string | null }
   onSignOut: (() => void) | null
@@ -87,26 +96,33 @@ export const ProfileMenu = (props: {
           hidden={!open()}
           class="absolute top-full right-0 left-0 z-40 mt-2 rounded-xl border border-[var(--fuda-border)] bg-[var(--fuda-surface)] p-1 shadow-lg"
         >
+          {props.profiles?.issuers.map((issuer) => (
+            <button
+              class="dash-menu-item btn btn-ghost w-full !border-0 font-normal shadow-none"
+              aria-current={issuer.id === props.profiles?.activeId ? 'true' : undefined}
+              disabled={issuer.id === props.profiles?.activeId}
+              type="button"
+              onClick={() => {
+                setOpen(false)
+                props.profiles?.onSwitch(issuer.id)
+              }}
+            >
+              <span class="min-w-0 text-left">
+                <strong class="block truncate">{issuer.name}</strong>
+                <span class="block truncate text-xs">@{issuer.handle}</span>
+              </span>
+            </button>
+          ))}
           <button
             class="dash-menu-item btn btn-ghost w-full !border-0 font-normal shadow-none"
+            disabled={props.profiles === null || props.profiles === undefined}
             type="button"
-            disabled
+            onClick={() => {
+              setOpen(false)
+              props.profiles?.onAdd()
+            }}
           >
-            <svg
-              aria-hidden="true"
-              class="size-5 shrink-0"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="1.5"
-            >
-              <path
-                d="M4 7h16 M16 3l4 4-4 4 M20 17H4 M8 13l-4 4 4 4"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-            {props.copy.chrome.switchProfile}
+            {props.copy.chrome.addProfile}
           </button>
           {props.onSignOut === null ? null : (
             <div class="mt-1 border-t border-[var(--fuda-border)] pt-1">

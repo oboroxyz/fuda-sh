@@ -101,7 +101,7 @@ describe('staging a logo', () => {
     const result = await uploadLogo(variants)
     expect(result).toStrictEqual({ body: { expiresAt: 1_757_000_900, logoUploadId: 'up_1' }, ok: true })
     const init = spy.mock.calls[0]?.[1]
-    expect(init?.headers).toBeUndefined()
+    expect(new Headers(init?.headers).has('content-type')).toBe(false)
     expect(init?.body).toBeInstanceOf(FormData)
   })
 

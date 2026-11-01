@@ -52,6 +52,10 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Issuer delegation**: The `IssuerDelegation` attestation, referenced by a Right's `refUID`, that lets a gate decide whether the Right's Issuer is allowed to issue. _Avoid_: Whitelist, registry, permission
 
+**Connected app**: A program built outside fuda — typically a browser-only Figma Make app — that an Operator registers in the dashboard and approves for one Issuer, after which it acts for that Issuer through the api with an access token (see `docs/specs/connected-apps.md`). It has a client ID and no secret, never creates an Issuer, and reaches no other Issuer's data. Only the account that registered it may approve it. _Avoid_: Integration (that is a Card's optional service), plugin, API client, partner
+
+**Approval** (of a connected app): The Operator's consent, on fuda's consent page, that one connected app may act for one of their Issuers with a fixed set of scopes. It is held as an access token and ends when revoked from the dashboard, revoked by the app, or expired, or when the app is deleted. _Avoid_: Grant (in UI copy), authorization (in prose; that is the OAuth step), connection
+
 **Gate**: Whatever reads the chain and decides ADMIT or REJECT for a presented Right — fuda's api by default, but any verifier can be a Gate. _Avoid_: Scanner (that is the `apps/gate` device), verifier (in prose), door
 
 **Issuer wallet**: The Crypto wallet through which an Issuer controls its assets and authorizes operations. Its identity is distinct from the people or credentials controlling it, and from a service signer acting on the Issuer's behalf. _Avoid_: Operator wallet (when referring to the shared organization identity), staff wallet

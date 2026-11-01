@@ -1,18 +1,9 @@
-import { apiOriginFor, forwardToApi } from '@fuda/libs/worker'
+import { apiOriginFor } from '@fuda/libs/worker'
 import { defineHandler } from 'void'
 
-import { readCredential, SESSION_COOKIES } from '../../src/server/cookies.ts'
+import { forwardDashboard } from '../../src/server/forward.ts'
 
-// Same-origin access to the api for the browser, carrying the session cookie's
-// credential (docs/adr/0010-void-pages-and-frontend-workers.md).
-const forward = defineHandler(
-  async (c) =>
-    await forwardToApi(c, {
-      apiBaseUrl: apiOriginFor(c.env.API_BASE_URL),
-      expireOnUnauthorized: SESSION_COOKIES,
-      token: readCredential(c)?.token ?? null,
-    }),
-)
+const forward = defineHandler(async (c) => await forwardDashboard(c, apiOriginFor(c.env.API_BASE_URL)))
 
 export const GET = forward
 export const POST = forward

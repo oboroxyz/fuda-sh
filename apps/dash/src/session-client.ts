@@ -1,6 +1,7 @@
 import type { Hex, IssuerView } from '@fuda/sdk'
-import { fetchJson } from '@fuda/sdk/http'
 import type { Result } from '@fuda/sdk/http'
+
+import { fetchJson } from './session-request.ts'
 
 // The browser's side of the Worker's session routes (src/server/session-routes.ts).
 export const verifyOperator = async (body: {

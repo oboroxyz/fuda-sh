@@ -1,5 +1,4 @@
 import { normalizeNonce, SignInChallengeBody, SignInVerifyBody } from '@fuda/sdk'
-import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import * as v from 'valibot'
@@ -9,8 +8,8 @@ import { createSession, deleteSession } from '../auth/session.ts'
 import type { SessionAudience } from '../auth/session.ts'
 import { consumeSignIn, mintSignIn, signInMessage } from '../auth/sign-in.ts'
 import { ChainError } from '../chain/client.ts'
-import { issuers } from '../db/schema.ts'
 import type { AppEnv } from '../env.ts'
+import { issuersOwnedBy } from '../issuers/queries.ts'
 import { issuerView } from '../issuers/views.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { memberAuth } from '../middleware/member-auth.ts'
@@ -77,7 +76,9 @@ const verify = (audience: SessionAudience) => async (c: Context<AppEnv>) => {
     const token = await createSession(db, { address, audience, issuerId: null, now })
     return jsonResponse(c, { address, token })
   }
-  const issuer = await db.select().from(issuers).where(eq(issuers.operatorAddress, address)).get()
+  // An account may own several issuers; a new session starts on the oldest,
+  // and the dashboard switches with POST /issuers/switch.
+  const [issuer] = await issuersOwnedBy(db, address)
   const token = await createSession(db, { address, audience, issuerId: issuer?.id ?? null, now })
   return jsonResponse(c, {
     issuer: issuer === undefined ? null : issuerView(issuer, c.env.API_BASE_URL),

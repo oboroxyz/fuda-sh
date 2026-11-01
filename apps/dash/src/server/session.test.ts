@@ -26,6 +26,11 @@ describe(resolveSession, () => {
     vi.unstubAllGlobals()
   })
 
+  it('leaves OAuth approval accessible without a dashboard session', async () => {
+    const { outcome } = await resolve('/oauth/authorize?client_id=app_1')
+    expect(outcome.redirect).toBeNull()
+  })
+
   it('reads the language and theme preferences, defaulting both', async () => {
     const { outcome } = await resolve('/signin', 'fuda_locale=ja; fuda_theme=dark')
     expect(outcome.shared).toMatchObject({ locale: 'ja', surface: null, theme: 'dark' })
