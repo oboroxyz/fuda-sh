@@ -8,8 +8,17 @@ import type { CardView, IssuerSummary, IssuerView } from './handles.ts'
 // enforces it, and the dashboard, which shows it.
 
 // What an access token may do. A token carries a subset, fixed at approval.
-export const CONNECTED_APP_SCOPES = ['cards:read', 'cards:write'] as const
+export const CONNECTED_APP_SCOPES = [
+  'cards:read',
+  'cards:write',
+  'passes:read',
+  'passes:issue',
+  'passes:revoke',
+] as const
 export type ConnectedAppScope = (typeof CONNECTED_APP_SCOPES)[number]
+
+// What a request with no scope gets. Pass scopes are always asked for by name.
+export const DEFAULT_SCOPES: readonly ConnectedAppScope[] = ['cards:read', 'cards:write']
 
 export const CONNECTED_APP_NAME_MAX_LENGTH = 60
 export const CONNECTED_APP_REDIRECT_URI_MAX = 5
@@ -41,12 +50,31 @@ export const normalizeRedirectUri = (raw: string): string | null => {
   return url.href
 }
 
-// A space-separated scope parameter as OAuth writes it. Empty asks for every
-// scope; an unknown or repeated name makes the whole request invalid.
+const withoutPort = (target: URL): string => `${target.hostname}${target.pathname}${target.search}`
+
+// Whether a normalized redirect URI is registered. A native client listens on
+// whatever loopback port is free, so on loopback http the port is not compared
+// (RFC 8252 §7.3); the host, path and query still are.
+export const isRegisteredRedirect = (registered: readonly string[], requested: string): boolean => {
+  if (registered.includes(requested)) {
+    return true
+  }
+  const url = new URL(requested)
+  if (url.protocol !== 'http:') {
+    return false
+  }
+  return registered.some((raw) => {
+    const candidate = new URL(raw)
+    return candidate.protocol === 'http:' && withoutPort(candidate) === withoutPort(url)
+  })
+}
+
+// A space-separated scope parameter as OAuth writes it. Empty asks for the
+// default scopes; an unknown or repeated name makes the whole request invalid.
 export const parseScope = (raw: string | undefined): ConnectedAppScope[] | null => {
   const names = (raw ?? '').split(' ').filter((name) => name !== '')
   if (names.length === 0) {
-    return [...CONNECTED_APP_SCOPES]
+    return [...DEFAULT_SCOPES]
   }
   if (new Set(names).size !== names.length || !names.every(isScope)) {
     return null
@@ -84,6 +112,8 @@ export const AuthorizeApprovalBody = v.strictObject({
   codeChallengeMethod: v.literal('S256'),
   issuerId: v.pipe(v.string(), v.minLength(1), v.maxLength(64)),
   redirectUri: v.pipe(v.string(), v.maxLength(REDIRECT_URI_MAX_LENGTH)),
+  // RFC 8707: the MCP server the token is for; empty for a connected app.
+  resource: v.optional(v.pipe(v.string(), v.maxLength(REDIRECT_URI_MAX_LENGTH)), ''),
   scope: v.optional(v.pipe(v.string(), v.maxLength(200)), ''),
   state: v.optional(v.pipe(v.string(), v.maxLength(500)), ''),
 })
@@ -97,6 +127,7 @@ export const TokenRequestBody = v.object({
   code_verifier: v.pipe(v.string(), v.regex(PKCE_RE)),
   grant_type: v.string(),
   redirect_uri: v.pipe(v.string(), v.maxLength(REDIRECT_URI_MAX_LENGTH)),
+  resource: v.optional(v.pipe(v.string(), v.maxLength(REDIRECT_URI_MAX_LENGTH))),
 })
 
 export interface ConnectedAppView {
@@ -132,6 +163,8 @@ export interface ConnectedAppGrantsResponse {
 // GET /oauth/authorize — what the consent screen shows before approval.
 export interface AuthorizePreviewResponse {
   app: { clientId: string; name: string }
+  // goes on the way back to the app, including a refusal (RFC 9207)
+  issuer: string
   redirectUri: string
   scope: ConnectedAppScope[]
   issuers: IssuerSummary[]

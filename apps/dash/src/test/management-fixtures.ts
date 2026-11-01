@@ -33,6 +33,7 @@ export const passesResponse: IssuerPassesResponse = {
       claimedAt: 1_780_000_000,
       holder: `0x${'12'.repeat(20)}`,
       memberNumber: 'ABCDEFGHJKLM',
+      source: null,
       stamps: 3,
       status: 'active',
       uid: `0x${'ab'.repeat(32)}`,

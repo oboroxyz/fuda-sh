@@ -2,6 +2,7 @@ import {
   AuthorizeApprovalBody,
   CardBody,
   ConnectedAppBody,
+  isRegisteredRedirect,
   normalizeRedirectUri,
   parseScope,
   TokenRequestBody,
@@ -39,6 +40,7 @@ import { fieldErrorFor } from '../issuers/field-error.ts'
 import { issuersOwnedBy } from '../issuers/queries.ts'
 import { cardView, issuerSummary, issuerView, publicUrlFor } from '../issuers/views.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
+import { authorizationIssuer, mcpResourceFor } from '../mcp/resource.ts'
 import { connectedAppAuth } from '../middleware/connected-app-auth.ts'
 import { operatorAuth } from '../middleware/operator-auth.ts'
 import { DEFAULT_BUDGET, rateLimit } from '../middleware/rate-limit.ts'
@@ -84,22 +86,31 @@ export const deleteV1ConnectedAppsClientId = defineHandler(operatorAuth(), async
 // docs/specs/connected-apps.md#approval
 
 type ApprovalCheck =
-  | { ok: true; app: ConnectedAppView; redirectUri: string; scope: ConnectedAppScope[] }
-  | { ok: false; error: 'invalid_client' | 'bad_redirect_uri' | 'not_app_owner' | 'invalid_scope' }
+  | {
+      ok: true
+      app: ConnectedAppView
+      redirectUri: string
+      resource: string | null
+      scope: ConnectedAppScope[]
+    }
+  | {
+      ok: false
+      error: 'invalid_client' | 'bad_redirect_uri' | 'not_app_owner' | 'invalid_scope' | 'invalid_target'
+    }
 
 // The order matters to the consent page: the first two failures mean the
 // redirect URI cannot be trusted, so the page shows them instead of sending
 // the browser anywhere.
 const checkApproval = async (
   c: Context<AppEnv>,
-  p: { clientId: string; redirectUri: string; scope: string },
+  p: { clientId: string; redirectUri: string; resource: string; scope: string },
 ): Promise<ApprovalCheck> => {
   const app = await findApp(c.get('db'), p.clientId)
   if (app === null) {
     return { error: 'invalid_client', ok: false }
   }
   const redirectUri = normalizeRedirectUri(p.redirectUri)
-  if (redirectUri === null || !app.redirectUris.includes(redirectUri)) {
+  if (redirectUri === null || !isRegisteredRedirect(app.redirectUris, redirectUri)) {
     return { error: 'bad_redirect_uri', ok: false }
   }
   // Only the account that registered the app may approve it.
@@ -107,7 +118,14 @@ const checkApproval = async (
     return { error: 'not_app_owner', ok: false }
   }
   const scope = parseScope(p.scope)
-  return scope === null ? { error: 'invalid_scope', ok: false } : { app, ok: true, redirectUri, scope }
+  if (scope === null) {
+    return { error: 'invalid_scope', ok: false }
+  }
+  const resource = p.resource === '' ? null : mcpResourceFor(p.resource, c.env.API_BASE_URL)
+  if (p.resource !== '' && resource === null) {
+    return { error: 'invalid_target', ok: false }
+  }
+  return { app, ok: true, redirectUri, resource, scope }
 }
 
 const approvalStatus = (error: Extract<ApprovalCheck, { ok: false }>['error']): 400 | 403 =>
@@ -117,6 +135,7 @@ export const getV1OauthAuthorize = defineHandler(operatorAuth(), async (c) => {
   const checked = await checkApproval(c, {
     clientId: c.req.query('client_id') ?? '',
     redirectUri: c.req.query('redirect_uri') ?? '',
+    resource: c.req.query('resource') ?? '',
     scope: c.req.query('scope') ?? '',
   })
   if (!checked.ok) {
@@ -128,6 +147,7 @@ export const getV1OauthAuthorize = defineHandler(operatorAuth(), async (c) => {
   const owned = await issuersOwnedBy(c.get('db'), c.get('operator').address)
   const body: AuthorizePreviewResponse = {
     app: { clientId: checked.app.clientId, name: checked.app.name },
+    issuer: authorizationIssuer(c.env.API_BASE_URL),
     issuers: owned.map((row) => issuerSummary(row, c.env.API_BASE_URL)),
     redirectUri: checked.redirectUri,
     scope: checked.scope,
@@ -158,10 +178,12 @@ export const postV1OauthAuthorize = defineHandler(operatorAuth(), async (c) => {
     issuerId: parsed.output.issuerId,
     now: c.get('now')(),
     redirectUri: checked.redirectUri,
+    resource: checked.resource,
     scope: checked.scope,
   })
   const target = new URL(checked.redirectUri)
   target.searchParams.set('code', code)
+  target.searchParams.set('iss', authorizationIssuer(c.env.API_BASE_URL))
   if (parsed.output.state !== '') {
     target.searchParams.set('state', parsed.output.state)
   }
@@ -193,6 +215,11 @@ export const postV1OauthToken = defineHandler(rateLimit({ budget: DEFAULT_BUDGET
   if (params.grant_type !== 'authorization_code') {
     return errorResponse(c, 'unsupported_grant_type', 400)
   }
+  const resource =
+    params.resource === undefined ? undefined : mcpResourceFor(params.resource, c.env.API_BASE_URL)
+  if (resource === null) {
+    return errorResponse(c, 'invalid_target', 400)
+  }
   const db = c.get('db')
   const app = await findApp(db, params.client_id)
   const origin = c.req.header('Origin')
@@ -205,6 +232,7 @@ export const postV1OauthToken = defineHandler(rateLimit({ budget: DEFAULT_BUDGET
     codeVerifier: params.code_verifier,
     now: c.get('now')(),
     redirectUri: normalizeRedirectUri(params.redirect_uri) ?? '',
+    resource,
   })
   if (issued === null) {
     return errorResponse(c, 'invalid_grant', 400)

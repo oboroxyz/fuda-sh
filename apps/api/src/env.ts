@@ -25,6 +25,8 @@ export interface Bindings {
   // The member-facing origin a published card links to: `https://fuda.sh` in
   // production (the apex redirects /@* to app.fuda.sh), the app dev port locally.
   PUBLIC_BASE_URL: string
+  // The dashboard, where an authorization request lands (docs/specs/mcp.md).
+  DASH_BASE_URL: string
   // Wallet-platform secrets. Each platform is configured only when every one
   // of its names is set and non-empty; otherwise that pass endpoint answers 501.
   GOOGLE_ISSUER_ID?: string

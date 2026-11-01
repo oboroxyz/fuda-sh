@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:test'
+import type { Hex } from 'viem'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { getDb } from '../src/db/client.ts'
@@ -126,16 +127,19 @@ describe('POST /revoke', () => {
     expect(attestation.revocationTime).toBe(0n)
   })
 
-  it('502 chain_error revoking an already-revoked uid', async () => {
+  it('finishes the row when the uid is already revoked on chain', async () => {
     const chain = fakeChain({ signer: ROOT })
     const del = seedRoot(chain)
     const app = appWith({ chain, now: () => NOW })
     const bindings = configuredEnv(del)
     const issueRes = await post(app, bindings, '/v1/issue', { memberId: 'alice' })
-    const issued: { uid: string } = await issueRes.json()
-    await revoke(app, bindings, issued.uid)
+    const issued: { uid: Hex } = await issueRes.json()
+    const attestation = await chain.readAttestation(issued.uid)
+    await chain.revoke(attestation.schema, issued.uid)
     const res = await revoke(app, bindings, issued.uid)
-    expect(res.status).toBe(502)
+    expect(res.status).toBe(200)
+    const again = await revoke(app, bindings, issued.uid)
+    expect(again.status).toBe(200)
   })
 
   it('501 no_signer when the deployment cannot sign', async () => {

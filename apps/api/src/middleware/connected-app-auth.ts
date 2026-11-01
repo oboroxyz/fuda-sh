@@ -15,7 +15,7 @@ const refuse = (c: Context<AppEnv>, header: string, status: 401 | 403): Response
 // The token names one issuer, and every route behind this reads only that one.
 // A browser call must come from one of the token's own app origins, so a token
 // copied into another site's page is refused there even where CORS would allow
-// that site.
+// that site. A token issued for the MCP server does not answer here.
 export const connectedAppAuth =
   (scope: ConnectedAppScope | null): MiddlewareHandler<AppEnv> =>
   async (c, next) => {
@@ -23,7 +23,7 @@ export const connectedAppAuth =
     const header = c.req.header('Authorization') ?? ''
     const token = header.startsWith('Bearer ') ? header.slice('Bearer '.length) : ''
     const grant = token === '' ? null : await resolveAccessToken(c.get('db'), token, c.get('now')())
-    if (grant === null) {
+    if (grant === null || grant.resource !== null) {
       return refuse(c, 'Bearer error="invalid_token"', 401)
     }
     const origin = c.req.header('Origin')

@@ -7,7 +7,13 @@ import { render as solidRender } from 'solid-js/web'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CONSENT_COPY } from './consent-copy.ts'
-import { deniedRedirect, readAuthorizeRequest } from './consent.ts'
+import {
+  approvalBody,
+  approvedScope,
+  deniedRedirect,
+  previewParams,
+  readAuthorizeRequest,
+} from './consent.ts'
 import { OAuthConsentPage } from './OAuthConsentPage.tsx'
 import type { ConsentIo } from './OAuthConsentPage.tsx'
 
@@ -17,6 +23,7 @@ const SEARCH =
 
 const PREVIEW: AuthorizePreviewResponse = {
   app: { clientId: 'app_1', name: 'Shop app' },
+  issuer: 'https://api.fuda.sh',
   issuers: [
     { handle: 'wassie-coffee', id: 'issuer-1', logoUrl: null, name: 'Wassie Coffee' },
     { handle: 'wassie-bar', id: 'issuer-2', logoUrl: null, name: 'Wassie Bar' },
@@ -66,6 +73,21 @@ const buttonNamed = (name: string): HTMLButtonElement => {
   return found
 }
 
+describe('an MCP client request', () => {
+  it('carries resource through to the preview and the approval', () => {
+    const resource = 'https://api.fuda.sh/mcp'
+    const request = readAuthorizeRequest(`${SEARCH}&resource=${encodeURIComponent(resource)}`)
+    expect(previewParams(request).get('resource')).toBe(resource)
+    expect(approvalBody(request, 'issuer-1', '').resource).toBe(resource)
+  })
+
+  it('leaves revoking out unless the operator opts in', () => {
+    const requested = ['passes:read', 'passes:revoke'] as const
+    expect(approvedScope(requested, false)).toBe('passes:read')
+    expect(approvedScope(requested, true)).toBe('passes:read passes:revoke')
+  })
+})
+
 describe(OAuthConsentPage, () => {
   beforeEach(() => {
     root = document.createElement('div')
@@ -92,6 +114,7 @@ describe(OAuthConsentPage, () => {
       codeChallengeMethod: 'S256',
       issuerId: 'issuer-2',
       redirectUri: 'https://shop.figma.site/',
+      resource: '',
       scope: 'cards:write',
       state: 's1',
     })
@@ -102,7 +125,9 @@ describe(OAuthConsentPage, () => {
     const io = ioWith()
     await show(io)
     buttonNamed('Cancel').click()
-    expect(io.assign).toHaveBeenCalledWith('https://shop.figma.site/?error=access_denied&state=s1')
+    expect(io.assign).toHaveBeenCalledWith(
+      'https://shop.figma.site/?error=access_denied&iss=https%3A%2F%2Fapi.fuda.sh&state=s1',
+    )
   })
 
   it('asks for the passkey when there is no session, then checks the request', async () => {
@@ -140,8 +165,8 @@ describe(OAuthConsentPage, () => {
 
 describe(deniedRedirect, () => {
   it('keeps the registered query and leaves out an empty state', () => {
-    expect(deniedRedirect('https://shop.example/cb?x=1', '')).toBe(
-      'https://shop.example/cb?x=1&error=access_denied',
+    expect(deniedRedirect('https://shop.example/cb?x=1', '', 'https://api.fuda.sh')).toBe(
+      'https://shop.example/cb?x=1&error=access_denied&iss=https%3A%2F%2Fapi.fuda.sh',
     )
   })
 })

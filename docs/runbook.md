@@ -489,6 +489,14 @@ Apply `0012_card_description.sql` before deploying the updated Card API and fron
 
 Apply `0017_connected_apps.sql` before deploying the api and dashboard that carry connected apps ([Connected apps](./specs/connected-apps.md)). It only adds tables (`connected_apps`, `connected_app_redirects`, `oauth_codes`, `oauth_tokens`), so older api code keeps running against it. No binding or secret is new: approval reuses the operator session, and the consent page is the dashboard's `/oauth/authorize`. After deployment, smoke-check one app end to end — register it on `dash.fuda.sh/apps`, approve it, exchange the code, `POST /v1/connect/cards` — then revoke the approval and confirm the next call answers `401`.
 
+### MCP server migration
+
+`0019_oauth_resource.sql` adds a nullable `resource` to `oauth_codes` and `oauth_tokens`. Existing tokens stay connected-app tokens and keep working on `/v1/connect/*`. Apply it before deploying the api. `DASH_BASE_URL` is a plain `vars` entry in every target; the MCP metadata names the consent page from it.
+
+### Card capacity and source migration
+
+`0020_card_capacity_and_source.sql` adds `capacity` and `reserved` to `cards` and `source` to `members`, and fills `reserved` from the passes each card has issued. Apply it before deploying the api. Self-serve claims are counted by `reserved` from then on, so older api code running after this migration would leave the count behind; deploy straight after migrating.
+
 ### Several issuers per account migration
 
 Apply `0018_issuers_per_account.sql` before deploying the api and dashboard that let one account own several issuers ([ADR 0011](./adr/0011-several-issuers-per-account.md)). It rebuilds `issuers` without the unique `operator_address`, copying every row and column through a side table inside the migration's transaction; card, stamp, reception, code and token rows keep their issuer ids. Take a D1 backup first (`cf d1 time-travel get-bookmark <database-id>` records the restore point), and confirm afterwards that `SELECT count(*) FROM issuers` is unchanged and `PRAGMA foreign_key_check` returns nothing. Older api code still runs against the rebuilt table, but it answers `issuer_exists` instead of creating a second issuer and its sign-in picks an arbitrary one of an address's issuers, so deploy the api right after the migration.

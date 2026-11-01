@@ -2,13 +2,14 @@ import { LEVEL_CODE, passUrls, toQr } from '@fuda/sdk'
 import type { IssueRequest, IssueResponse, Level } from '@fuda/sdk'
 import type { Hex } from 'viem'
 
-import { ChainError, ZERO_UID } from '../chain/client.ts'
+import { ZERO_UID } from '../chain/client.ts'
 import type { ChainClient } from '../chain/client.ts'
 import type { Db } from '../db/client.ts'
 import { members } from '../db/schema.ts'
 import { encodeEntitlementV1 } from '../eas/codecs.ts'
 import { newest } from '../eas/schemas.ts'
 import type { SchemaSets } from '../eas/schemas.ts'
+import { OrphanedRightError } from './orphaned-right-error.ts'
 
 export interface IssueContext {
   chain: ChainClient
@@ -69,6 +70,7 @@ export interface MemberRowParams {
   cardId: string | null
   // the venue behind that card; it scopes member-number uniqueness
   issuerId: string | null
+  source: string | null
   usageModel: number
   validFrom: number
   validUntil: number
@@ -90,6 +92,7 @@ export const insertMemberRow = async (ctx: IssueContext, row: MemberRowParams): 
       issuerId: row.issuerId,
       level: row.level,
       memberId: row.memberId,
+      source: row.source,
       status: 'active',
       tier: row.tier,
       usageModel: row.usageModel,
@@ -99,7 +102,7 @@ export const insertMemberRow = async (ctx: IssueContext, row: MemberRowParams): 
   } catch (error) {
     // oxlint-disable-next-line no-console -- the orphaned attestation uid is the only trace of an on-chain right with no member row
     console.error('members insert failed after attest', { error, uid: row.uid })
-    throw new ChainError(`members insert failed for attestation ${row.uid}`)
+    throw new OrphanedRightError(`members insert failed for attestation ${row.uid}`)
   }
 }
 
@@ -110,6 +113,7 @@ export interface RightParams {
   body: IssueRequest
   cardId: string | null
   issuerId: string | null
+  source: string | null
 }
 
 // The shared write path for the two public-holder levels: attest, then (only
@@ -122,6 +126,7 @@ export const attestRight = async (ctx: IssueContext, p: RightParams): Promise<Is
     issuerId: p.issuerId,
     level: p.level,
     memberId: p.memberId,
+    source: p.source,
     tier: p.body.tier,
     uid,
     usageModel: p.body.usageModel,

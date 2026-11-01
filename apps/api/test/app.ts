@@ -9,7 +9,8 @@ import type { AppDeps } from '../src/request.ts'
 const methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const
 const routes = import.meta.glob<Partial<Record<(typeof methods)[number], TypedHandler>>>(
   '../routes/**/*.ts',
-  { eager: true },
+  // exhaustive: routes/.well-known is a dot directory.
+  { eager: true, exhaustive: true },
 )
 
 // Only a workerd test adapter: production discovery and registration belong to Void.

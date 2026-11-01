@@ -1,4 +1,4 @@
-import type { AuthorizeApprovalRequest } from '@fuda/sdk'
+import type { AuthorizeApprovalRequest, ConnectedAppScope } from '@fuda/sdk'
 
 // docs/specs/connected-apps.md#approval — the query a connected app sends the
 // browser to `/oauth/authorize` with. Read straight from location.search: the
@@ -8,6 +8,7 @@ export interface AuthorizeRequest {
   codeChallenge: string
   codeChallengeMethod: string
   redirectUri: string
+  resource: string
   responseType: string
   scope: string
   state: string
@@ -21,6 +22,7 @@ export const readAuthorizeRequest = (search: string): AuthorizeRequest => {
     codeChallenge: get('code_challenge'),
     codeChallengeMethod: get('code_challenge_method'),
     redirectUri: get('redirect_uri'),
+    resource: get('resource'),
     responseType: get('response_type'),
     scope: get('scope'),
     state: get('state'),
@@ -33,25 +35,37 @@ export const previewParams = (request: AuthorizeRequest): URLSearchParams =>
     client_id: request.clientId,
     code_challenge_method: request.codeChallengeMethod,
     redirect_uri: request.redirectUri,
+    resource: request.resource,
     response_type: request.responseType,
     scope: request.scope,
   })
 
-export const approvalBody = (request: AuthorizeRequest, issuerId: string): AuthorizeApprovalRequest => ({
+// Revoking cannot be undone, so it stays out of an approval unless the Operator
+// opts in, even when the app asks for it.
+export const approvedScope = (requested: readonly ConnectedAppScope[], allowRevoke: boolean): string =>
+  requested.filter((scope) => scope !== 'passes:revoke' || allowRevoke).join(' ')
+
+export const approvalBody = (
+  request: AuthorizeRequest,
+  issuerId: string,
+  scope: string,
+): AuthorizeApprovalRequest => ({
   clientId: request.clientId,
   codeChallenge: request.codeChallenge,
   codeChallengeMethod: 'S256',
   issuerId,
   redirectUri: request.redirectUri,
-  scope: request.scope,
+  resource: request.resource,
+  scope,
   state: request.state,
 })
 
 // RFC 6749 §4.1.2.1. Only ever built for a redirect URI the api has already
 // matched against the app's registration.
-export const deniedRedirect = (redirectUri: string, state: string): string => {
+export const deniedRedirect = (redirectUri: string, state: string, issuer: string): string => {
   const url = new URL(redirectUri)
   url.searchParams.set('error', 'access_denied')
+  url.searchParams.set('iss', issuer)
   if (state !== '') {
     url.searchParams.set('state', state)
   }

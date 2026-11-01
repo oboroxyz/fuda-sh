@@ -10,6 +10,7 @@ const cardValues = (
   input: CardRequest,
   row: { createdAt: number; id: string; issuerId: string },
 ): typeof cards.$inferInsert => ({
+  capacity: input.capacity,
   category: input.category,
   claimFrom: input.claimFrom,
   claimUntil: input.claimUntil,

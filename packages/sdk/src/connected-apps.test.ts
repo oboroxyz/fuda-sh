@@ -1,7 +1,24 @@
 import * as v from 'valibot'
 import { describe, expect, it } from 'vitest'
 
-import { ConnectedAppBody, normalizeRedirectUri, parseScope } from './connected-apps.ts'
+import { ConnectedAppBody, isRegisteredRedirect, normalizeRedirectUri, parseScope } from './connected-apps.ts'
+
+describe(isRegisteredRedirect, () => {
+  const registered = ['http://127.0.0.1/callback', 'https://shop.example:8443/cb']
+
+  it.each(['http://127.0.0.1:41841/callback', 'https://shop.example:8443/cb'])('accepts %s', (requested) => {
+    expect(isRegisteredRedirect(registered, requested)).toBe(true)
+  })
+
+  it.each([
+    'http://localhost:41841/callback',
+    'http://127.0.0.1:41841/other',
+    'http://127.0.0.1:41841/callback?x=1',
+    'https://shop.example/cb',
+  ])('refuses %s', (requested) => {
+    expect(isRegisteredRedirect(registered, requested)).toBe(false)
+  })
+})
 
 describe(normalizeRedirectUri, () => {
   it('accepts https anywhere and http only on this machine', () => {

@@ -25,14 +25,14 @@ From the dashboard's Apps page (`dash.fuda.sh/apps`), with an Operator session:
 | `GET /connected-apps/grants` | `{ grants: ConnectedAppGrantView[] }` — live tokens this account approved |
 | `DELETE /connected-apps/grants/:id` | `{ revoked: true }`; the token stops working at once; another account's grant is `404` |
 
-A name is 1–60 characters. An app has one to five redirect URIs and an account at most 20 apps. A redirect URI is an absolute `https` URL, or `http` on `localhost`, `127.0.0.1` or `[::1]`, with no fragment and no credentials. URIs are compared exactly after URL normalization, so `https://a.example` and `https://a.example/` are one registration while `/cb` and `/cb/` are two. The client ID is `app_` followed by 32 hex characters and is not a secret.
+A name is 1–60 characters. An app has one to five redirect URIs and an account at most 20 apps. A redirect URI is an absolute `https` URL, or `http` on `localhost`, `127.0.0.1` or `[::1]`, with no fragment and no credentials. URIs are compared exactly after URL normalization, so `https://a.example` and `https://a.example/` are one registration while `/cb` and `/cb/` are two. On loopback `http` the port is not compared, because a native client listens on whatever port is free (RFC 8252); the host, path and query are, so `localhost` and `127.0.0.1` are two registrations. The client ID is `app_` followed by 32 hex characters and is not a secret.
 
 ## Approval
 
-1. The app sends the browser to `https://dash.fuda.sh/oauth/authorize` with `response_type=code`, `client_id`, `redirect_uri`, `code_challenge`, `code_challenge_method=S256`, optional `scope` and optional `state`.
-2. The consent page signs the Operator in with their passkey if needed, then asks the api `GET /oauth/authorize` with the same parameters. The answer names the app, the redirect URI, the scopes, and the Issuers this account owns.
-3. Approval posts `POST /oauth/authorize` `{ clientId, redirectUri, codeChallenge, codeChallengeMethod: 'S256', issuerId, scope, state }`. The api mints a code and answers `{ redirectTo }`, the redirect URI with `code` and `state` added; the page leaves with a full-page redirect.
-4. Cancelling sends the browser to the redirect URI with `error=access_denied` and the `state`.
+1. The app sends the browser to `https://dash.fuda.sh/oauth/authorize` with `response_type=code`, `client_id`, `redirect_uri`, `code_challenge`, `code_challenge_method=S256`, optional `scope`, optional `state` and, for an [MCP client](./mcp.md), `resource`.
+2. The consent page signs the Operator in with their passkey if needed, then asks the api `GET /oauth/authorize` with the same parameters. The answer names the app, the OAuth issuer, the redirect URI, the scopes, and the Issuers this account owns.
+3. Approval posts `POST /oauth/authorize` `{ clientId, redirectUri, codeChallenge, codeChallengeMethod: 'S256', issuerId, resource, scope, state }`. The api mints a code and answers `{ redirectTo }`, the redirect URI with `code`, `iss` (RFC 9207, the api's origin) and `state` added; the page leaves with a full-page redirect.
+4. Cancelling sends the browser to the redirect URI with `error=access_denied`, `iss` and the `state`.
 
 The api checks in this order, and the consent page shows the first two failures without redirecting, because the redirect URI is not yet trusted:
 
@@ -42,6 +42,7 @@ The api checks in this order, and the consent page shows the first two failures 
 | redirect URI not registered for the app                       | `400 bad_redirect_uri` |
 | signed-in account is not the app's owner                      | `403 not_app_owner`    |
 | unknown or repeated scope                                     | `400 invalid_scope`    |
+| `resource` other than this api's MCP server                   | `400 invalid_target`   |
 | `response_type` not `code`, or method not `S256`              | `400 invalid_request`  |
 | `issuerId` not owned by the signed-in account (approval only) | `404 not_found`        |
 
@@ -49,7 +50,7 @@ Both routes require an Operator session; the admin token and an access token ans
 
 ## Token exchange
 
-`POST /oauth/token`, called by the app, as `application/x-www-form-urlencoded` (RFC 6749) or JSON, with `grant_type=authorization_code`, `code`, `client_id`, `redirect_uri` and `code_verifier`. It is rate-limited with the shared hourly D1 counter.
+`POST /oauth/token`, called by the app, as `application/x-www-form-urlencoded` (RFC 6749) or JSON, with `grant_type=authorization_code`, `code`, `client_id`, `redirect_uri`, `code_verifier` and, for an MCP client, `resource`. It is rate-limited with the shared hourly D1 counter.
 
 The answer is `{ access_token, token_type: 'Bearer', expires_in, scope, issuer: { id, handle, name, logoUrl } }`, with `cache-control: no-store`. A code is single-use: it is spent before it is checked, so a wrong verifier also burns it. Errors use RFC 6749 codes:
 
@@ -57,8 +58,9 @@ The answer is `{ access_token, token_type: 'Bearer', expires_in, scope, issuer: 
 | --- | --- |
 | missing or malformed parameters | `400 invalid_request` |
 | `grant_type` other than `authorization_code` | `400 unsupported_grant_type` |
+| `resource` other than this api's MCP server | `400 invalid_target` |
 | unknown client ID, or a browser `Origin` that is not one of the app's redirect-URI origins | `401 invalid_client` |
-| unknown, spent or expired code; another client's code; a different redirect URI; a wrong verifier; an Issuer whose owner changed since approval | `400 invalid_grant` |
+| unknown, spent or expired code; another client's code; a different redirect URI; a `resource` other than the one approved; a wrong verifier; an Issuer whose owner changed since approval | `400 invalid_grant` |
 
 `POST /oauth/revoke` (RFC 7009) takes `token` and `client_id` and answers `200 {}` whether or not the token was live.
 
@@ -73,16 +75,19 @@ Every route takes `Authorization: Bearer <access_token>` and answers `cache-cont
 | `POST /connect/cards` | `cards:write` | `201 { card, issuer, publicUrl }`; `400 bad_slug`, `400 bad_input`, `409 slug_taken` |
 | `GET /connect/cards/:cardId` | `cards:read` | `{ card: CardView, url }`, where `url` is the Card's public page |
 
-A token stops working when it is revoked, when its app is deleted, when it expires, or when its Issuer's owner address no longer matches the address that approved it.
+A token approved with a `resource` answers on [`/mcp`](./mcp.md) and not on these routes. A token stops working when it is revoked, when its app is deleted, when it expires, or when its Issuer's owner address no longer matches the address that approved it.
 
 ## Scopes
 
-| Scope         | Allows                                 |
-| ------------- | -------------------------------------- |
-| `cards:read`  | reading the approved Issuer's Cards    |
+| Scope | Allows |
+| --- | --- |
+| `cards:read` | reading the approved Issuer's Cards |
 | `cards:write` | creating Cards for the approved Issuer |
+| `passes:read` | the [MCP server](./mcp.md)'s pass list for the approved Issuer |
+| `passes:issue` | the MCP server's pass issuing for the approved Issuer |
+| `passes:revoke` | the MCP server's pass revoking for the approved Issuer; the Operator opts in on the consent page |
 
-An empty `scope` requests both. The token carries exactly the scopes approved; the consent page lists them.
+An empty `scope` requests `cards:read` and `cards:write`; pass scopes are asked for by name. The token carries exactly the scopes approved; the consent page lists them, and the routes here use only the card scopes.
 
 ## Lifetimes
 

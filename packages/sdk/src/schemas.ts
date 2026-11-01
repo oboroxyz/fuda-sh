@@ -71,7 +71,13 @@ const unixOrNull = v.optional(v.nullable(v.pipe(v.number(), v.integer(), v.minVa
 // poster can link straight to this card at `fuda.sh/@<handle>/<slug>`. The
 // claim window says when the card is handed out; the validity fields say how
 // long the resulting right lasts, in exactly one of the two shapes.
+export const CARD_CAPACITY_MAX = 1_000_000
+
 const CardFields = v.object({
+  capacity: v.optional(
+    v.nullable(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(CARD_CAPACITY_MAX))),
+    null,
+  ),
   category: v.picklist(CARD_CATEGORIES),
   claimFrom: unixOrNull,
   claimUntil: unixOrNull,
@@ -89,6 +95,9 @@ const CardFields = v.object({
 })
 
 type CardFieldsOutput = v.InferOutput<typeof CardFields>
+
+// The label on a claim link: `?source=spring-flyer`.
+export const ClaimSource = v.pipe(v.string(), v.regex(/^[a-z0-9_-]{1,40}$/u))
 
 export const CardBody = v.pipe(
   CardFields,

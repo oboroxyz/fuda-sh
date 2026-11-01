@@ -7,7 +7,7 @@ import type { JSX } from 'solid-js'
 import type { approveAuthorization, authorizePreview } from './connected-apps-api.ts'
 import type { ConsentCopy } from './consent-copy.ts'
 import type { AuthorizeRequest } from './consent.ts'
-import { approvalBody, deniedRedirect, previewParams } from './consent.ts'
+import { approvalBody, approvedScope, deniedRedirect, previewParams } from './consent.ts'
 
 // The page a connected app sends the browser to (docs/specs/connected-apps.md#approval).
 // It stands apart from the dashboard shell: it signs in with the same passkey
@@ -23,7 +23,13 @@ type View =
   | { kind: 'loading' }
   | { kind: 'sign-in'; pending: boolean; failed: boolean }
   | { kind: 'failed'; error: string }
-  | { kind: 'ready'; preview: AuthorizePreviewResponse; issuerId: string; approving: boolean }
+  | {
+      kind: 'ready'
+      preview: AuthorizePreviewResponse
+      issuerId: string
+      approving: boolean
+      allowRevoke: boolean
+    }
 
 const failureText = (copy: ConsentCopy, error: string): string => copy.failures[error] ?? copy.unknownFailure
 
@@ -58,6 +64,7 @@ export const OAuthConsentPage = (props: OAuthConsentPageProps): JSX.Element => {
         }
         if (result.ok) {
           setView({
+            allowRevoke: false,
             approving: false,
             issuerId: result.body.issuers[0]?.id ?? '',
             kind: 'ready',
@@ -95,7 +102,9 @@ export const OAuthConsentPage = (props: OAuthConsentPageProps): JSX.Element => {
     }
     setView({ ...ready, approving: true })
     const run = async (): Promise<void> => {
-      const result = await props.io.approve(approvalBody(props.request, ready.issuerId))
+      const result = await props.io.approve(
+        approvalBody(props.request, ready.issuerId, approvedScope(ready.preview.scope, ready.allowRevoke)),
+      )
       if (result.ok) {
         props.io.assign(result.body.redirectTo)
       } else {
@@ -151,10 +160,29 @@ export const OAuthConsentPage = (props: OAuthConsentPageProps): JSX.Element => {
         <div class="w-full">
           <p class="mb-2 text-sm text-[var(--fuda-muted)]">{props.copy.permissions}</p>
           <ul class="list-inside list-disc">
-            {preview.scope.map((scope): JSX.Element => (
-              <li>{props.copy.scopes[scope]}</li>
-            ))}
+            {preview.scope
+              .filter((scope) => scope !== 'passes:revoke')
+              .map((scope): JSX.Element => (
+                <li>{props.copy.scopes[scope]}</li>
+              ))}
           </ul>
+          {preview.scope.includes('passes:revoke') ? (
+            <label class="mt-3 flex items-start gap-3">
+              <input
+                checked={current.allowRevoke}
+                class="checkbox mt-0.5"
+                onChange={(event: Event) => {
+                  setView({
+                    ...current,
+                    allowRevoke:
+                      event.currentTarget instanceof HTMLInputElement && event.currentTarget.checked,
+                  })
+                }}
+                type="checkbox"
+              />
+              <span>{props.copy.revokeOptIn}</span>
+            </label>
+          ) : null}
         </div>
         {preview.issuers.length === 0 ? (
           <>
@@ -192,7 +220,7 @@ export const OAuthConsentPage = (props: OAuthConsentPageProps): JSX.Element => {
             class="btn flex-1"
             disabled={current.approving}
             onClick={() => {
-              props.io.assign(deniedRedirect(preview.redirectUri, props.request.state))
+              props.io.assign(deniedRedirect(preview.redirectUri, props.request.state, preview.issuer))
             }}
             type="button"
           >
