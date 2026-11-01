@@ -8,6 +8,7 @@ import { getDb } from '../src/db/client.ts'
 import {
   cards,
   challenges,
+  members,
   connectedAppRedirects,
   connectedApps,
   issuers,
@@ -16,7 +17,9 @@ import {
   rateLimits,
   sessions,
 } from '../src/db/schema.ts'
-import { appWith, fakeChain, testEnv } from './env.ts'
+import { ISSUE_BUDGET, REVOKE_BUDGET } from '../src/mcp/tools.ts'
+import { appWith, fakeChain } from './env.ts'
+import { configuredEnv, NOW, ROOT, seedRoot } from './fixtures.ts'
 import { CARD_INPUT, getJson, postJson, registerVenueWithCard, SECOND_CARD, signIn } from './operator.ts'
 
 const REDIRECT_URI = 'http://localhost:8080/callback'
@@ -25,8 +28,15 @@ const API = 'https://api.fuda.sh'
 const RESOURCE = `${API}/mcp`
 const METADATA_URL = `${API}/.well-known/oauth-protected-resource/mcp`
 
-const bindings = () => testEnv({ API_BASE_URL: API, DASH_BASE_URL: 'https://dash.fuda.sh' })
-const app = appWith({ chain: fakeChain(), now: () => 1000 })
+const chain = fakeChain({ signer: ROOT })
+const delegation = seedRoot(chain)
+const bindings = () => ({
+  ...configuredEnv(delegation),
+  API_BASE_URL: API,
+  DASH_BASE_URL: 'https://dash.fuda.sh',
+})
+const app = appWith({ chain, now: () => NOW })
+const ALL_SCOPES = 'cards:read cards:write passes:read passes:issue passes:revoke'
 
 interface RpcAnswer {
   error?: { code: number; message: string }
@@ -40,6 +50,7 @@ interface RpcAnswer {
 
 const clearTables = async (): Promise<void> => {
   const db = getDb({ DB: env.DB })
+  await db.delete(members)
   await db.delete(oauthTokens)
   await db.delete(oauthCodes)
   await db.delete(connectedAppRedirects)
@@ -58,8 +69,14 @@ interface RpcMessage {
   params?: RpcParams
 }
 
+interface ToolArguments {
+  cardId?: string
+  status?: string
+  uid?: string
+}
+
 interface RpcParams {
-  arguments?: CardInput
+  arguments?: CardInput | ToolArguments
   name?: string
   protocolVersion?: string
 }
@@ -159,7 +176,7 @@ describe('mcp', () => {
     await expect(resource.json()).resolves.toMatchObject({
       authorization_servers: [API],
       resource: RESOURCE,
-      scopes_supported: ['cards:read', 'cards:write'],
+      scopes_supported: ALL_SCOPES.split(' '),
     })
     const server = await app.request('/.well-known/oauth-authorization-server', {}, bindings())
     await expect(server.json()).resolves.toMatchObject({
@@ -175,7 +192,7 @@ describe('mcp', () => {
     const res = await post(null, { id: 1, jsonrpc: '2.0', method: 'initialize' })
     expect(res.status).toBe(401)
     expect(res.headers.get('WWW-Authenticate')).toBe(
-      `Bearer scope="cards:read cards:write", resource_metadata="${METADATA_URL}"`,
+      `Bearer scope="${ALL_SCOPES}", resource_metadata="${METADATA_URL}"`,
     )
   })
 
@@ -338,6 +355,85 @@ describe('mcp', () => {
       name: 'create_card',
     })
     expect(toolValue(ToolError, invalid)).toStrictEqual({ error: 'bad_slug' })
+  })
+
+  describe('passes', () => {
+    const CardId = v.object({ cards: v.array(v.object({ id: v.string() })) })
+    const Issued = v.object({ memberNumber: v.string(), passUrl: v.string(), uid: v.string() })
+
+    const agentWithCard = async (scope = ALL_SCOPES): Promise<{ cardId: string; token: string }> => {
+      const { token } = await approveAndExchange({ resource: RESOURCE, scope })
+      const listed = await rpc(token, 'tools/call', { name: 'list_cards' })
+      return { cardId: toolValue(CardId, listed).cards[0]?.id ?? '', token }
+    }
+
+    const issue = async (token: string, cardId: string): Promise<RpcAnswer> =>
+      await rpc(token, 'tools/call', { arguments: { cardId }, name: 'issue_pass' })
+
+    it('issues a pass, lists it and revokes it', async () => {
+      const { cardId, token } = await agentWithCard()
+      const issued = toolValue(Issued, await issue(token, cardId))
+      expect(issued.passUrl).toBe(`${API}/pass/${issued.uid}`)
+      const listed = await rpc(token, 'tools/call', { arguments: { cardId }, name: 'list_passes' })
+      expect(
+        toolValue(v.object({ passes: v.array(v.object({ status: v.string(), uid: v.string() })) }), listed)
+          .passes,
+      ).toStrictEqual([expect.objectContaining({ status: 'active', uid: issued.uid })])
+      const revoked = await rpc(token, 'tools/call', { arguments: { uid: issued.uid }, name: 'revoke_pass' })
+      expect(revoked.result?.isError).toBe(false)
+      const after = await rpc(token, 'tools/call', { arguments: { status: 'revoked' }, name: 'list_passes' })
+      expect(toolValue(v.object({ page: v.object({ total: v.number() }) }), after).page.total).toBe(1)
+    })
+
+    it('issues while the claim window is closed, unlike the public route', async () => {
+      const { token } = await agentWithCard()
+      const created = await rpc(token, 'tools/call', {
+        arguments: { ...SECOND_CARD, claimFrom: NOW + 1000, claimUntil: NOW + 2000 },
+        name: 'create_card',
+      })
+      const { card } = toolValue(
+        v.object({ card: v.object({ claimable: v.boolean(), id: v.string() }) }),
+        created,
+      )
+      expect(card.claimable).toBe(false)
+      const issued = await issue(token, card.id)
+      expect(issued.result?.isError).toBe(false)
+    })
+
+    it("treats another issuer's card and pass as not found", async () => {
+      const { token } = await agentWithCard()
+      await expect(issue(token, 'no-such-card')).resolves.toMatchObject({
+        result: { isError: true },
+      })
+      const revoked = await rpc(token, 'tools/call', {
+        arguments: { uid: `0x${'ab'.repeat(32)}` },
+        name: 'revoke_pass',
+      })
+      expect(toolValue(ToolError, revoked)).toStrictEqual({ error: 'not_found' })
+    })
+
+    it('stops issuing and revoking at the hourly budget', async () => {
+      const { cardId, token } = await agentWithCard()
+      const db = getDb({ DB: env.DB })
+      const owner = await db.select({ id: issuers.id }).from(issuers).get()
+      const windowStart = Math.floor(NOW / 3600) * 3600
+      await db.insert(rateLimits).values([
+        { count: ISSUE_BUDGET, ip: `mcp-issue:${owner?.id ?? ''}`, windowStart },
+        { count: REVOKE_BUDGET, ip: `mcp-revoke:${owner?.id ?? ''}`, windowStart },
+      ])
+      expect(toolValue(ToolError, await issue(token, cardId))).toStrictEqual({ error: 'rate_limited' })
+      const revoked = await rpc(token, 'tools/call', {
+        arguments: { uid: `0x${'ab'.repeat(32)}` },
+        name: 'revoke_pass',
+      })
+      expect(toolValue(ToolError, revoked)).toStrictEqual({ error: 'rate_limited' })
+    })
+
+    it('never grants pass scopes by default', async () => {
+      const { token } = await approveAndExchange({ resource: RESOURCE })
+      const listed = await rpc(token, 'tools/list')
+      expect(listed.result?.tools?.map((tool) => tool.name)).toStrictEqual(['list_cards', 'create_card'])
+    })
   })
 
   it('answers an unknown tool as a protocol error', async () => {

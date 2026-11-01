@@ -1,4 +1,5 @@
 import type { Copy } from '@fuda/i18n'
+import type { ConnectedAppScope } from '@fuda/sdk'
 
 export interface ConsentCopy {
   title: string
@@ -11,7 +12,8 @@ export interface ConsentCopy {
   redirectsTo: string
   chooseIssuer: string
   permissions: string
-  scopes: Record<'cards:read' | 'cards:write', string>
+  scopes: Record<ConnectedAppScope, string>
+  revokeOptIn: string
   approve: string
   approving: string
   deny: string
@@ -41,7 +43,14 @@ export const CONSENT_COPY = {
     noIssuer: 'Create your profile in the fuda dashboard first, then approve the app.',
     permissions: 'It will be able to',
     redirectsTo: 'Returns to',
-    scopes: { 'cards:read': 'See your cards', 'cards:write': 'Create cards' },
+    revokeOptIn: 'Also allow revoking passes. A revoked pass cannot be restored.',
+    scopes: {
+      'cards:read': 'See your cards',
+      'cards:write': 'Create cards',
+      'passes:issue': 'Issue passes',
+      'passes:read': 'See your passes',
+      'passes:revoke': 'Revoke passes',
+    },
     signIn: 'Sign in with passkey',
     signInFailed: 'Sign-in did not finish. Try again.',
     signInHint: 'Sign in to fuda to approve this app.',
@@ -69,7 +78,14 @@ export const CONSENT_COPY = {
     noIssuer: '先に fuda のダッシュボードでプロフィールを作成してから、アプリを承認してください。',
     permissions: 'できること',
     redirectsTo: '戻り先',
-    scopes: { 'cards:read': 'カードを見る', 'cards:write': 'カードを作る' },
+    revokeOptIn: 'パスの失効も許可する。失効したパスは元に戻せません。',
+    scopes: {
+      'cards:read': 'カードを見る',
+      'cards:write': 'カードを作る',
+      'passes:issue': 'パスを発行する',
+      'passes:read': 'パスを見る',
+      'passes:revoke': 'パスを失効する',
+    },
     signIn: 'パスキーでサインイン',
     signInFailed: 'サインインが完了しませんでした。もう一度お試しください。',
     signInHint: 'このアプリを承認するには fuda にサインインしてください。',

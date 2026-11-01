@@ -79,12 +79,15 @@ A token approved with a `resource` answers on [`/mcp`](./mcp.md) and not on thes
 
 ## Scopes
 
-| Scope         | Allows                                 |
-| ------------- | -------------------------------------- |
-| `cards:read`  | reading the approved Issuer's Cards    |
+| Scope | Allows |
+| --- | --- |
+| `cards:read` | reading the approved Issuer's Cards |
 | `cards:write` | creating Cards for the approved Issuer |
+| `passes:read` | the [MCP server](./mcp.md)'s pass list for the approved Issuer |
+| `passes:issue` | the MCP server's pass issuing for the approved Issuer |
+| `passes:revoke` | the MCP server's pass revoking for the approved Issuer; the Operator opts in on the consent page |
 
-An empty `scope` requests both. The token carries exactly the scopes approved; the consent page lists them.
+An empty `scope` requests `cards:read` and `cards:write`; pass scopes are asked for by name. The token carries exactly the scopes approved; the consent page lists them, and the routes here use only the card scopes.
 
 ## Lifetimes
 

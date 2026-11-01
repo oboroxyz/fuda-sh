@@ -44,5 +44,17 @@ Each tool acts for the token's one Issuer. `tools/list` shows only the tools the
 | --- | --- | --- |
 | `list_cards` | `cards:read` | `{ issuer: { handle, name }, cards }`, oldest first |
 | `create_card` | `cards:write` | `{ card }`; the Card is published at once, under the same rules as `POST /issuers/cards` |
+| `list_passes` | `passes:read` | `{ passes, page, summary, cardStats }`, as `GET /issuers/me/passes`; filters by `cardId` and `status` |
+| `issue_pass` | `passes:issue` | `{ uid, memberNumber, passUrl }` for one Bearer Pass under a Card |
+| `revoke_pass` | `passes:revoke` | `{ revoked: true, uid }`; revokes one Pass on chain, and cannot be undone |
 
-A Card here also has `claimUrl`, the public page where a person gets a pass.
+A Card here also has `claimUrl`, the public page where a person gets a pass. There are two ways to hand out passes:
+
+- **Share `claimUrl`** for a flyer, a post or a newsletter. A pass is issued only when someone opens it and asks for one, inside the Card's claim window.
+- **Call `issue_pass`** for a person being arranged for, and give them `passUrl`. It ignores the claim window, so a Card whose window is closed takes invited guests only. The result leaves out the QR and the wallet links.
+
+An Issuer's budget is 100 `issue_pass` and 20 `revoke_pass` calls an hour, beyond which the tool answers `rate_limited`. `issue_pass` has no idempotency key: each call issues a new Pass, so a client checks `list_passes` after an unclear failure. `revoke_pass` can be repeated safely.
+
+## Approving passes
+
+The server's challenge asks for every scope. The consent page lists them and leaves `passes:revoke` out of the approval unless the Operator ticks a separate box, so a token can only revoke when they chose that.

@@ -115,10 +115,7 @@ export const postMcp = defineHandler(async (c) => {
   if (issuer === undefined) {
     return refuseToken(c, token)
   }
-  const outcome = await tool.run(
-    { db: c.get('db'), issuer, now: c.get('now')(), publicBaseUrl: c.env.PUBLIC_BASE_URL },
-    call.output.arguments,
-  )
+  const outcome = await tool.run({ c, issuer }, call.output.arguments)
   return rpcResult(c, id, {
     content: [{ text: JSON.stringify(outcome.ok ? outcome.value : { error: outcome.error }), type: 'text' }],
     isError: !outcome.ok,

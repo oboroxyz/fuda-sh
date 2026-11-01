@@ -7,7 +7,13 @@ import { render as solidRender } from 'solid-js/web'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CONSENT_COPY } from './consent-copy.ts'
-import { approvalBody, deniedRedirect, previewParams, readAuthorizeRequest } from './consent.ts'
+import {
+  approvalBody,
+  approvedScope,
+  deniedRedirect,
+  previewParams,
+  readAuthorizeRequest,
+} from './consent.ts'
 import { OAuthConsentPage } from './OAuthConsentPage.tsx'
 import type { ConsentIo } from './OAuthConsentPage.tsx'
 
@@ -71,7 +77,13 @@ describe('an MCP client request', () => {
     const resource = 'https://api.fuda.sh/mcp'
     const request = readAuthorizeRequest(`${SEARCH}&resource=${encodeURIComponent(resource)}`)
     expect(previewParams(request).get('resource')).toBe(resource)
-    expect(approvalBody(request, 'issuer-1').resource).toBe(resource)
+    expect(approvalBody(request, 'issuer-1', '').resource).toBe(resource)
+  })
+
+  it('leaves revoking out unless the operator opts in', () => {
+    const requested = ['passes:read', 'passes:revoke'] as const
+    expect(approvedScope(requested, false)).toBe('passes:read')
+    expect(approvedScope(requested, true)).toBe('passes:read passes:revoke')
   })
 })
 

@@ -1,4 +1,5 @@
 import type { Copy } from '@fuda/i18n'
+import type { ConnectedAppScope } from '@fuda/sdk'
 
 export interface AppsCopy {
   title: string
@@ -21,7 +22,7 @@ export interface AppsCopy {
   grantFor: string
   expires: string
   revoke: string
-  scopes: Record<'cards:read' | 'cards:write', string>
+  scopes: Record<ConnectedAppScope, string>
   loading: string
   loadFailed: string
   retry: string
@@ -58,7 +59,13 @@ export const APPS_COPY = {
     grantFor: 'for',
     expires: 'Expires',
     revoke: 'Revoke',
-    scopes: { 'cards:read': 'See cards', 'cards:write': 'Create cards' },
+    scopes: {
+      'cards:read': 'See cards',
+      'cards:write': 'Create cards',
+      'passes:issue': 'Issue passes',
+      'passes:read': 'See passes',
+      'passes:revoke': 'Revoke passes',
+    },
     loading: 'Loading…',
     loadFailed: 'Apps could not be loaded.',
     retry: 'Retry',
@@ -92,7 +99,13 @@ export const APPS_COPY = {
     grantFor: '対象',
     expires: '有効期限',
     revoke: '取り消す',
-    scopes: { 'cards:read': 'カードを見る', 'cards:write': 'カードを作る' },
+    scopes: {
+      'cards:read': 'カードを見る',
+      'cards:write': 'カードを作る',
+      'passes:issue': 'パスを発行する',
+      'passes:read': 'パスを見る',
+      'passes:revoke': 'パスを失効する',
+    },
     loading: '読み込んでいます…',
     loadFailed: 'アプリを読み込めませんでした。',
     retry: '再読み込み',

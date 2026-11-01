@@ -8,8 +8,17 @@ import type { CardView, IssuerSummary, IssuerView } from './handles.ts'
 // enforces it, and the dashboard, which shows it.
 
 // What an access token may do. A token carries a subset, fixed at approval.
-export const CONNECTED_APP_SCOPES = ['cards:read', 'cards:write'] as const
+export const CONNECTED_APP_SCOPES = [
+  'cards:read',
+  'cards:write',
+  'passes:read',
+  'passes:issue',
+  'passes:revoke',
+] as const
 export type ConnectedAppScope = (typeof CONNECTED_APP_SCOPES)[number]
+
+// What a request with no scope gets. Pass scopes are always asked for by name.
+export const DEFAULT_SCOPES: readonly ConnectedAppScope[] = ['cards:read', 'cards:write']
 
 export const CONNECTED_APP_NAME_MAX_LENGTH = 60
 export const CONNECTED_APP_REDIRECT_URI_MAX = 5
@@ -41,12 +50,12 @@ export const normalizeRedirectUri = (raw: string): string | null => {
   return url.href
 }
 
-// A space-separated scope parameter as OAuth writes it. Empty asks for every
-// scope; an unknown or repeated name makes the whole request invalid.
+// A space-separated scope parameter as OAuth writes it. Empty asks for the
+// default scopes; an unknown or repeated name makes the whole request invalid.
 export const parseScope = (raw: string | undefined): ConnectedAppScope[] | null => {
   const names = (raw ?? '').split(' ').filter((name) => name !== '')
   if (names.length === 0) {
-    return [...CONNECTED_APP_SCOPES]
+    return [...DEFAULT_SCOPES]
   }
   if (new Set(names).size !== names.length || !names.every(isScope)) {
     return null

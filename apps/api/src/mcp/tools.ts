@@ -1,20 +1,29 @@
-import { CardBody, CARD_CATEGORIES } from '@fuda/sdk'
-import type { CardView, ConnectedAppScope } from '@fuda/sdk'
-import { eq } from 'drizzle-orm'
+import { CardBody, CARD_CATEGORIES, normalizeUid } from '@fuda/sdk'
+import type { CardView, ConnectedAppScope, IssuerPassStatus } from '@fuda/sdk'
+import { and, eq } from 'drizzle-orm'
+import type { Context } from 'hono'
 import * as v from 'valibot'
 
 import type { Db } from '../db/client.ts'
 import { cards, issuers } from '../db/schema.ts'
+import type { AppEnv } from '../env.ts'
+import { issueForCard } from '../issue/issue-for-card.ts'
 import { insertCard } from '../issuers/create.ts'
 import { fieldErrorFor } from '../issuers/field-error.ts'
+import { readIssuerPasses } from '../issuers/passes.ts'
 import { cardView, publicUrlFor } from '../issuers/views.ts'
+import { spendBudget } from '../middleware/rate-limit.ts'
+import { revokePass } from '../passes/revoke-pass.ts'
+
+// Per issuer, per hour. These bound what a looping agent can spend on the
+// signer or undo; docs/specs/mcp.md#tools.
+export const ISSUE_BUDGET = 100
+export const REVOKE_BUDGET = 20
 
 // docs/specs/mcp.md#tools — every tool acts for the token's one issuer.
 export interface ToolContext {
-  db: Db
+  c: Context<AppEnv>
   issuer: typeof issuers.$inferSelect
-  now: number
-  publicBaseUrl: string
 }
 
 export type ToolOutcome = { ok: true; value: object } | { ok: false; error: string }
@@ -35,10 +44,28 @@ export const issuerOf = async (db: Db, issuerId: string): Promise<typeof issuers
 
 const withClaimUrl = (context: ToolContext, card: CardView): CardView & { claimUrl: string } => ({
   ...card,
-  claimUrl: `${publicUrlFor(context.publicBaseUrl, context.issuer.handle)}/${card.slug}`,
+  claimUrl: `${publicUrlFor(context.c.env.PUBLIC_BASE_URL, context.issuer.handle)}/${card.slug}`,
 })
 
 const unixOrNull = { minimum: 0, type: ['integer', 'null'] }
+
+const PASS_STATUSES = [
+  'active',
+  'revoked',
+  'expired',
+  'not_yet_valid',
+  'consumed',
+  'unknown',
+] as const satisfies readonly IssuerPassStatus[]
+
+const ListPassesArgs = v.strictObject({
+  cardId: v.optional(v.string()),
+  page: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1)), 1),
+  pageSize: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(100)), 25),
+  status: v.optional(v.picklist(PASS_STATUSES)),
+})
+const IssuePassArgs = v.strictObject({ cardId: v.string() })
+const RevokePassArgs = v.strictObject({ uid: v.string() })
 
 /* oxlint-disable eslint/sort-keys -- tool definitions read in the order MCP documents them */
 export const MCP_TOOLS: readonly McpTool[] = [
@@ -51,7 +78,8 @@ export const MCP_TOOLS: readonly McpTool[] = [
     annotations: { readOnlyHint: true },
     scope: 'cards:read',
     run: async (context) => {
-      const rows = await context.db
+      const rows = await context.c
+        .get('db')
         .select()
         .from(cards)
         .where(eq(cards.issuerId, context.issuer.id))
@@ -60,7 +88,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
         ok: true,
         value: {
           issuer: { handle: context.issuer.handle, name: context.issuer.name },
-          cards: rows.map((row) => withClaimUrl(context, cardView(row, context.now))),
+          cards: rows.map((row) => withClaimUrl(context, cardView(row, context.c.get('now')()))),
         },
       }
     },
@@ -97,10 +125,115 @@ export const MCP_TOOLS: readonly McpTool[] = [
       if (!parsed.success) {
         return { ok: false, error: fieldErrorFor(parsed.issues, 'slug', 'bad_slug') }
       }
-      const card = await insertCard(context.db, context.issuer.id, parsed.output, context.now)
+      const now = context.c.get('now')()
+      const card = await insertCard(context.c.get('db'), context.issuer.id, parsed.output, now)
       return card === null
         ? { ok: false, error: 'slug_taken' }
-        : { ok: true, value: { card: withClaimUrl(context, cardView(card, context.now)) } }
+        : { ok: true, value: { card: withClaimUrl(context, cardView(card, now)) } }
+    },
+  },
+  {
+    name: 'list_passes',
+    title: 'List passes',
+    description:
+      "List this profile's passes, newest first, with totals for the profile and for each card. Status comes from fuda's records, not a live chain read.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        cardId: { type: 'string' },
+        status: { type: 'string', enum: PASS_STATUSES },
+        page: { type: 'integer', minimum: 1 },
+        pageSize: { type: 'integer', minimum: 1, maximum: 100 },
+      },
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true },
+    scope: 'passes:read',
+    run: async ({ c, issuer }, args) => {
+      const parsed = v.safeParse(ListPassesArgs, args)
+      if (!parsed.success) {
+        return { ok: false, error: 'bad_input' }
+      }
+      const { cardId, page, pageSize, status } = parsed.output
+      return {
+        ok: true,
+        value: await readIssuerPasses(c.env.DB, issuer.id, c.get('now')(), {
+          cardId: cardId ?? null,
+          page,
+          pageSize,
+          q: '',
+          status: status ?? null,
+        }),
+      }
+    },
+  },
+  {
+    name: 'issue_pass',
+    title: 'Issue pass',
+    description:
+      "Issue one pass under a card, for a person you are arranging it for, and return a passUrl to give them. It works even while the card's claim window is closed. Each call issues a new pass and costs on-chain gas, so do not retry after an unclear failure without checking list_passes. For flyers or posts, share the card's claimUrl instead.",
+    inputSchema: {
+      type: 'object',
+      properties: { cardId: { type: 'string', description: 'The id of a card from list_cards.' } },
+      required: ['cardId'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false },
+    scope: 'passes:issue',
+    run: async ({ c, issuer }, args) => {
+      const parsed = v.safeParse(IssuePassArgs, args)
+      if (!parsed.success) {
+        return { ok: false, error: 'bad_input' }
+      }
+      const db = c.get('db')
+      const card = await db
+        .select()
+        .from(cards)
+        .where(and(eq(cards.id, parsed.output.cardId), eq(cards.issuerId, issuer.id)))
+        .get()
+      if (card === undefined) {
+        return { ok: false, error: 'not_found' }
+      }
+      if (!(await spendBudget(db, `mcp-issue:${issuer.id}`, c.get('now')(), ISSUE_BUDGET))) {
+        return { ok: false, error: 'rate_limited' }
+      }
+      const outcome = await issueForCard(c, card, issuer)
+      return outcome.ok
+        ? {
+            ok: true,
+            value: {
+              memberNumber: outcome.pass.memberNumber,
+              passUrl: outcome.pass.passUrls.web,
+              uid: outcome.pass.uid,
+            },
+          }
+        : { ok: false, error: outcome.error }
+    },
+  },
+  {
+    name: 'revoke_pass',
+    title: 'Revoke pass',
+    description:
+      'Revoke one pass on chain, for example a cancelled or misused ticket. This cannot be undone: the holder can no longer enter with it, and a replacement is a new pass. Confirm with the user first.',
+    inputSchema: {
+      type: 'object',
+      properties: { uid: { type: 'string', description: 'The uid of a pass from list_passes.' } },
+      required: ['uid'],
+      additionalProperties: false,
+    },
+    annotations: { destructiveHint: true, readOnlyHint: false },
+    scope: 'passes:revoke',
+    run: async ({ c, issuer }, args) => {
+      const parsed = v.safeParse(RevokePassArgs, args)
+      const uid = parsed.success ? normalizeUid(parsed.output.uid) : null
+      if (uid === null) {
+        return { ok: false, error: 'bad_uid' }
+      }
+      if (!(await spendBudget(c.get('db'), `mcp-revoke:${issuer.id}`, c.get('now')(), REVOKE_BUDGET))) {
+        return { ok: false, error: 'rate_limited' }
+      }
+      const outcome = await revokePass(c, uid, issuer.id)
+      return outcome.ok ? { ok: true, value: { revoked: true, uid } } : { ok: false, error: outcome.error }
     },
   },
 ]
