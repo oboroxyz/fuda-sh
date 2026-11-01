@@ -25,14 +25,14 @@ From the dashboard's Apps page (`dash.fuda.sh/apps`), with an Operator session:
 | `GET /connected-apps/grants` | `{ grants: ConnectedAppGrantView[] }` — live tokens this account approved |
 | `DELETE /connected-apps/grants/:id` | `{ revoked: true }`; the token stops working at once; another account's grant is `404` |
 
-A name is 1–60 characters. An app has one to five redirect URIs and an account at most 20 apps. A redirect URI is an absolute `https` URL, or `http` on `localhost`, `127.0.0.1` or `[::1]`, with no fragment and no credentials. URIs are compared exactly after URL normalization, so `https://a.example` and `https://a.example/` are one registration while `/cb` and `/cb/` are two. The client ID is `app_` followed by 32 hex characters and is not a secret.
+A name is 1–60 characters. An app has one to five redirect URIs and an account at most 20 apps. A redirect URI is an absolute `https` URL, or `http` on `localhost`, `127.0.0.1` or `[::1]`, with no fragment and no credentials. URIs are compared exactly after URL normalization, so `https://a.example` and `https://a.example/` are one registration while `/cb` and `/cb/` are two. On loopback `http` the port is not compared, because a native client listens on whatever port is free (RFC 8252); the host, path and query are, so `localhost` and `127.0.0.1` are two registrations. The client ID is `app_` followed by 32 hex characters and is not a secret.
 
 ## Approval
 
 1. The app sends the browser to `https://dash.fuda.sh/oauth/authorize` with `response_type=code`, `client_id`, `redirect_uri`, `code_challenge`, `code_challenge_method=S256`, optional `scope`, optional `state` and, for an [MCP client](./mcp.md), `resource`.
-2. The consent page signs the Operator in with their passkey if needed, then asks the api `GET /oauth/authorize` with the same parameters. The answer names the app, the redirect URI, the scopes, and the Issuers this account owns.
-3. Approval posts `POST /oauth/authorize` `{ clientId, redirectUri, codeChallenge, codeChallengeMethod: 'S256', issuerId, resource, scope, state }`. The api mints a code and answers `{ redirectTo }`, the redirect URI with `code` and `state` added; the page leaves with a full-page redirect.
-4. Cancelling sends the browser to the redirect URI with `error=access_denied` and the `state`.
+2. The consent page signs the Operator in with their passkey if needed, then asks the api `GET /oauth/authorize` with the same parameters. The answer names the app, the OAuth issuer, the redirect URI, the scopes, and the Issuers this account owns.
+3. Approval posts `POST /oauth/authorize` `{ clientId, redirectUri, codeChallenge, codeChallengeMethod: 'S256', issuerId, resource, scope, state }`. The api mints a code and answers `{ redirectTo }`, the redirect URI with `code`, `iss` (RFC 9207, the api's origin) and `state` added; the page leaves with a full-page redirect.
+4. Cancelling sends the browser to the redirect URI with `error=access_denied`, `iss` and the `state`.
 
 The api checks in this order, and the consent page shows the first two failures without redirecting, because the redirect URI is not yet trusted:
 

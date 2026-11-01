@@ -5,7 +5,7 @@ import { defineHandler } from 'void'
 
 import { resolveAccessToken } from '../connected-apps/store.ts'
 import type { AppEnv } from '../env.ts'
-import { mcpResource } from '../mcp/resource.ts'
+import { authorizationIssuer, mcpResource } from '../mcp/resource.ts'
 import { issuerOf, MCP_TOOLS } from '../mcp/tools.ts'
 
 // docs/specs/mcp.md — a stateless JSON-RPC endpoint on the 2025-11-25 revision.
@@ -127,7 +127,7 @@ export const noStream = defineHandler((c) => c.body(null, 405, { Allow: 'POST' }
 
 export const getProtectedResourceMetadata = defineHandler((c) =>
   c.json({
-    authorization_servers: [new URL(c.env.API_BASE_URL).origin],
+    authorization_servers: [authorizationIssuer(c.env.API_BASE_URL)],
     bearer_methods_supported: ['header'],
     resource: mcpResource(c.env.API_BASE_URL),
     resource_name: 'fuda',
@@ -139,9 +139,10 @@ export const getAuthorizationServerMetadata = defineHandler((c) => {
   const api = c.env.API_BASE_URL
   return c.json({
     authorization_endpoint: new URL('/oauth/authorize', c.env.DASH_BASE_URL).href,
+    authorization_response_iss_parameter_supported: true,
     code_challenge_methods_supported: ['S256'],
     grant_types_supported: ['authorization_code'],
-    issuer: new URL(api).origin,
+    issuer: authorizationIssuer(api),
     response_types_supported: ['code'],
     revocation_endpoint: new URL('/v1/oauth/revoke', api).href,
     scopes_supported: CONNECTED_APP_SCOPES,

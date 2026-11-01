@@ -50,6 +50,25 @@ export const normalizeRedirectUri = (raw: string): string | null => {
   return url.href
 }
 
+const withoutPort = (target: URL): string => `${target.hostname}${target.pathname}${target.search}`
+
+// Whether a normalized redirect URI is registered. A native client listens on
+// whatever loopback port is free, so on loopback http the port is not compared
+// (RFC 8252 §7.3); the host, path and query still are.
+export const isRegisteredRedirect = (registered: readonly string[], requested: string): boolean => {
+  if (registered.includes(requested)) {
+    return true
+  }
+  const url = new URL(requested)
+  if (url.protocol !== 'http:') {
+    return false
+  }
+  return registered.some((raw) => {
+    const candidate = new URL(raw)
+    return candidate.protocol === 'http:' && withoutPort(candidate) === withoutPort(url)
+  })
+}
+
 // A space-separated scope parameter as OAuth writes it. Empty asks for the
 // default scopes; an unknown or repeated name makes the whole request invalid.
 export const parseScope = (raw: string | undefined): ConnectedAppScope[] | null => {
@@ -144,6 +163,8 @@ export interface ConnectedAppGrantsResponse {
 // GET /oauth/authorize — what the consent screen shows before approval.
 export interface AuthorizePreviewResponse {
   app: { clientId: string; name: string }
+  // goes on the way back to the app, including a refusal (RFC 9207)
+  issuer: string
   redirectUri: string
   scope: ConnectedAppScope[]
   issuers: IssuerSummary[]

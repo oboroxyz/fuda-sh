@@ -1,21 +1,20 @@
 # MCP server
 
-The api is a remote [Model Context Protocol](https://modelcontextprotocol.io) server at `https://api.fuda.sh/mcp`, so a coding agent can act for one Issuer. An MCP client is a [connected app](./connected-apps.md): the Operator registers it in the dashboard, and only the account that registered it may approve it. The server is tested against Claude Code.
+The api is a remote [Model Context Protocol](https://modelcontextprotocol.io) server at `https://api.fuda.sh/mcp`, so a coding agent can act for one Issuer. An MCP client is a [connected app](./connected-apps.md): the Operator registers it in the dashboard, and only the account that registered it may approve it. The server is tested against Claude Code, Codex and OpenCode.
 
 ## Connecting
 
-The [`fuda-mcp-setup` skill](../../skills/fuda-mcp-setup/SKILL.md) walks Claude Code through these steps.
+The [`fuda-mcp-setup` skill](../../skills/fuda-mcp-setup/SKILL.md) walks an agent through these steps, with the configuration for each client.
 
-1. In the dashboard's Apps page, register an app with the return address `http://localhost:8080/callback`.
-2. Add the server with the client ID that page shows:
+1. In the dashboard's Apps page, register an app with the client's return address. Leave the port out: any port is accepted on a loopback address.
 
-   ```bash
-   claude mcp add --transport http --client-id <client ID> --callback-port 8080 fuda https://api.fuda.sh/mcp
-   ```
+   | Client          | Return address              |
+   | --------------- | --------------------------- |
+   | Claude Code     | `http://localhost/callback` |
+   | Codex, OpenCode | `http://127.0.0.1/callback` |
 
-   The URL must be written exactly as here, with no trailing slash; it is the resource a token is approved for.
-
-3. Run `/mcp` in Claude Code, or `claude mcp login fuda`, and approve on the consent page.
+2. Give the client the client ID that page shows and the server's URL, `https://api.fuda.sh/mcp`, written exactly so, with no trailing slash. It is the resource a token is approved for.
+3. Approve on the consent page, from the client's own login command.
 
 An approval names one Issuer and lasts 30 days; there are no refresh tokens. It is listed on the Apps page and can be revoked there.
 
@@ -32,7 +31,7 @@ Any request carrying an `Origin` header answers `403`: no browser page calls thi
 | `GET /.well-known/oauth-protected-resource/mcp` | RFC 9728 metadata: the resource and its authorization server |
 | `GET /.well-known/oauth-authorization-server` | RFC 8414 metadata: the dashboard's consent page and the api's token endpoint |
 
-Approval and token exchange are the [connected-app routes](./connected-apps.md#approval), with the `resource` parameter of RFC 8707 naming `https://api.fuda.sh/mcp`.
+Approval and token exchange are the [connected-app routes](./connected-apps.md#approval), with the `resource` parameter of RFC 8707 naming `https://api.fuda.sh/mcp`. Because the consent page and the token endpoint are on different origins, the authorization response carries `iss` (RFC 9207), and Codex refuses to log in without it.
 
 - A token is bound to what was approved. A token approved with that `resource` answers only on `/mcp`; a token approved without one answers only on `/v1/connect/*`. Each is refused on the other's routes.
 - A missing or unusable token answers `401` with `WWW-Authenticate` carrying `resource_metadata` and `scope`.

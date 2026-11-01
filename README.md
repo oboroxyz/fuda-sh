@@ -117,15 +117,17 @@ Stack: Cloudflare Workers (Hono, Drizzle, D1, R2), viem, valibot, `@noble` crypt
 
 See [Local development](./docs/runbook.md#12-local-development) for setup and startup instructions.
 
-## Use fuda from Claude Code
+## Use fuda from an agent
 
-An agent can manage a store's cards and passes through fuda's [MCP server](./docs/specs/mcp.md). Install the setup skill:
+Claude Code, Codex and OpenCode can manage a store's cards and passes through fuda's [MCP server](./docs/specs/mcp.md). Install the setup skill for yours:
 
 ```bash
 npx skills add oboroxyz/fuda-sh --skill fuda-mcp-setup -a claude-code
+npx skills add oboroxyz/fuda-sh --skill fuda-mcp-setup -a codex
+npx skills add oboroxyz/fuda-sh --skill fuda-mcp-setup -a opencode
 ```
 
-Then ask Claude Code to connect to fuda. It walks you through registering the app in the dashboard and approving it with your passkey. Other agents are not tested yet.
+Then ask the agent to connect to fuda. It walks you through registering the app in the dashboard and approving it with your passkey. Other agents are not tested yet.
 
 ## Documentation
 

@@ -220,7 +220,7 @@ export const OAuthConsentPage = (props: OAuthConsentPageProps): JSX.Element => {
             class="btn flex-1"
             disabled={current.approving}
             onClick={() => {
-              props.io.assign(deniedRedirect(preview.redirectUri, props.request.state))
+              props.io.assign(deniedRedirect(preview.redirectUri, props.request.state, preview.issuer))
             }}
             type="button"
           >

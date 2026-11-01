@@ -186,6 +186,7 @@ describe('mcp', () => {
     const server = await app.request('/.well-known/oauth-authorization-server', {}, bindings())
     await expect(server.json()).resolves.toMatchObject({
       authorization_endpoint: 'https://dash.fuda.sh/oauth/authorize',
+      authorization_response_iss_parameter_supported: true,
       code_challenge_methods_supported: ['S256'],
       issuer: API,
       token_endpoint: `${API}/v1/oauth/token`,
@@ -242,6 +243,61 @@ describe('mcp', () => {
     const preview = await getJson(app, bindings(), `/v1/oauth/authorize?${query.toString()}`, session)
     expect(preview.status).toBe(400)
     await expect(preview.json()).resolves.toStrictEqual({ error: 'invalid_target' })
+  })
+
+  it('approves any loopback port, and names the issuer on the way back', async () => {
+    const { token: session } = await signIn(app, bindings())
+    await registerVenueWithCard(app, bindings(), CARD_INPUT, session)
+    const created = await postJson(
+      app,
+      bindings(),
+      '/v1/connected-apps',
+      { name: 'OpenCode', redirectUris: ['http://127.0.0.1/callback'] },
+      session,
+    )
+    const { app: registered } = await created.json<ConnectedAppResponse>()
+    const me = await getJson(app, bindings(), '/v1/issuers/me', session)
+    const { issuer } = await me.json<{ issuer: { id: string } }>()
+    const redirectUri = 'http://127.0.0.1:41841/callback'
+    const approved = await postJson(
+      app,
+      bindings(),
+      '/v1/oauth/authorize',
+      {
+        clientId: registered.clientId,
+        codeChallenge: await pkceChallenge(VERIFIER),
+        codeChallengeMethod: 'S256',
+        issuerId: issuer.id,
+        redirectUri,
+        resource: RESOURCE,
+      },
+      session,
+    )
+    expect(approved.status).toBe(200)
+    const { redirectTo } = await approved.json<{ redirectTo: string }>()
+    const target = new URL(redirectTo)
+    expect(target.port).toBe('41841')
+    expect(target.searchParams.get('iss')).toBe(API)
+    const exchanged = await app.request(
+      '/v1/oauth/token',
+      {
+        body: new URLSearchParams({
+          client_id: registered.clientId,
+          code: target.searchParams.get('code') ?? '',
+          code_verifier: VERIFIER,
+          grant_type: 'authorization_code',
+          redirect_uri: redirectUri,
+          resource: RESOURCE,
+        }).toString(),
+        headers: {
+          'CF-Connecting-IP': '203.0.113.7',
+          'content-type': 'application/x-www-form-urlencoded',
+        },
+        method: 'POST',
+      },
+      bindings(),
+    )
+    expect(exchanged.status).toBe(200)
   })
 
   it('refuses a token request naming a different resource than the approval', async () => {

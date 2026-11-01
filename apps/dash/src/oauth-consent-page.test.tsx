@@ -23,6 +23,7 @@ const SEARCH =
 
 const PREVIEW: AuthorizePreviewResponse = {
   app: { clientId: 'app_1', name: 'Shop app' },
+  issuer: 'https://api.fuda.sh',
   issuers: [
     { handle: 'wassie-coffee', id: 'issuer-1', logoUrl: null, name: 'Wassie Coffee' },
     { handle: 'wassie-bar', id: 'issuer-2', logoUrl: null, name: 'Wassie Bar' },
@@ -124,7 +125,9 @@ describe(OAuthConsentPage, () => {
     const io = ioWith()
     await show(io)
     buttonNamed('Cancel').click()
-    expect(io.assign).toHaveBeenCalledWith('https://shop.figma.site/?error=access_denied&state=s1')
+    expect(io.assign).toHaveBeenCalledWith(
+      'https://shop.figma.site/?error=access_denied&iss=https%3A%2F%2Fapi.fuda.sh&state=s1',
+    )
   })
 
   it('asks for the passkey when there is no session, then checks the request', async () => {
@@ -162,8 +165,8 @@ describe(OAuthConsentPage, () => {
 
 describe(deniedRedirect, () => {
   it('keeps the registered query and leaves out an empty state', () => {
-    expect(deniedRedirect('https://shop.example/cb?x=1', '')).toBe(
-      'https://shop.example/cb?x=1&error=access_denied',
+    expect(deniedRedirect('https://shop.example/cb?x=1', '', 'https://api.fuda.sh')).toBe(
+      'https://shop.example/cb?x=1&error=access_denied&iss=https%3A%2F%2Fapi.fuda.sh',
     )
   })
 })

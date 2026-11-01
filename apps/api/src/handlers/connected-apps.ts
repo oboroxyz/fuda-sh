@@ -2,6 +2,7 @@ import {
   AuthorizeApprovalBody,
   CardBody,
   ConnectedAppBody,
+  isRegisteredRedirect,
   normalizeRedirectUri,
   parseScope,
   TokenRequestBody,
@@ -39,7 +40,7 @@ import { fieldErrorFor } from '../issuers/field-error.ts'
 import { issuersOwnedBy } from '../issuers/queries.ts'
 import { cardView, issuerSummary, issuerView, publicUrlFor } from '../issuers/views.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
-import { mcpResourceFor } from '../mcp/resource.ts'
+import { authorizationIssuer, mcpResourceFor } from '../mcp/resource.ts'
 import { connectedAppAuth } from '../middleware/connected-app-auth.ts'
 import { operatorAuth } from '../middleware/operator-auth.ts'
 import { DEFAULT_BUDGET, rateLimit } from '../middleware/rate-limit.ts'
@@ -109,7 +110,7 @@ const checkApproval = async (
     return { error: 'invalid_client', ok: false }
   }
   const redirectUri = normalizeRedirectUri(p.redirectUri)
-  if (redirectUri === null || !app.redirectUris.includes(redirectUri)) {
+  if (redirectUri === null || !isRegisteredRedirect(app.redirectUris, redirectUri)) {
     return { error: 'bad_redirect_uri', ok: false }
   }
   // Only the account that registered the app may approve it.
@@ -146,6 +147,7 @@ export const getV1OauthAuthorize = defineHandler(operatorAuth(), async (c) => {
   const owned = await issuersOwnedBy(c.get('db'), c.get('operator').address)
   const body: AuthorizePreviewResponse = {
     app: { clientId: checked.app.clientId, name: checked.app.name },
+    issuer: authorizationIssuer(c.env.API_BASE_URL),
     issuers: owned.map((row) => issuerSummary(row, c.env.API_BASE_URL)),
     redirectUri: checked.redirectUri,
     scope: checked.scope,
@@ -181,6 +183,7 @@ export const postV1OauthAuthorize = defineHandler(operatorAuth(), async (c) => {
   })
   const target = new URL(checked.redirectUri)
   target.searchParams.set('code', code)
+  target.searchParams.set('iss', authorizationIssuer(c.env.API_BASE_URL))
   if (parsed.output.state !== '') {
     target.searchParams.set('state', parsed.output.state)
   }

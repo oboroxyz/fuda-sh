@@ -62,9 +62,10 @@ export const approvalBody = (
 
 // RFC 6749 §4.1.2.1. Only ever built for a redirect URI the api has already
 // matched against the app's registration.
-export const deniedRedirect = (redirectUri: string, state: string): string => {
+export const deniedRedirect = (redirectUri: string, state: string, issuer: string): string => {
   const url = new URL(redirectUri)
   url.searchParams.set('error', 'access_denied')
+  url.searchParams.set('iss', issuer)
   if (state !== '') {
     url.searchParams.set('state', state)
   }
