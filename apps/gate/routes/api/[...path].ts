@@ -1,9 +1,9 @@
-import { forwardToApi } from '@fuda/libs/worker'
+import { apiOriginFor, forwardToApi } from '@fuda/libs/worker'
 import { defineHandler } from 'void'
 
 declare global {
   interface VoidGeneratedEnvBindings {
-    API_BASE_URL: string
+    API_BASE_URL?: string
   }
 }
 
@@ -12,7 +12,11 @@ declare global {
 // visitor's IP is added.
 const forward = defineHandler(
   async (c) =>
-    await forwardToApi(c, { apiBaseUrl: c.env.API_BASE_URL, expireOnUnauthorized: [], token: null }),
+    await forwardToApi(c, {
+      apiBaseUrl: apiOriginFor(c.env.API_BASE_URL),
+      expireOnUnauthorized: [],
+      token: null,
+    }),
 )
 
 export const GET = forward

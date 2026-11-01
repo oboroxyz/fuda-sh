@@ -2,7 +2,7 @@
 import { Hono } from 'hono'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { forwardToApi } from './index.ts'
+import { apiOriginFor, forwardToApi } from './index.ts'
 
 const COOKIES = ['fuda_operator', 'fuda_admin']
 const app = new Hono()
@@ -25,6 +25,26 @@ const stubApi = (response: Response) => {
 describe(forwardToApi, () => {
   afterEach(() => {
     vi.unstubAllGlobals()
+  })
+
+  it.each([
+    [{}, 'https://api.fuda.sh/health'],
+    [{ API_BASE_URL: 'http://localhost:8787' }, 'http://localhost:8787/health'],
+  ])('forwards without requiring a deployment variable: %j', async (bindings, expected) => {
+    const spy = stubApi(Response.json({ ok: true }))
+    const worker = new Hono<{ Bindings: { API_BASE_URL?: string } }>()
+    worker.get(
+      '/api/health',
+      async (c) =>
+        await forwardToApi(c, {
+          apiBaseUrl: apiOriginFor(c.env.API_BASE_URL),
+          expireOnUnauthorized: [],
+          token: null,
+        }),
+    )
+    const response = await worker.request('/api/health', undefined, bindings)
+    expect(response.status).toBe(200)
+    expect(spy.mock.calls[0]?.[0]).toBe(expected)
   })
 
   it("adds the session's credential and the visitor's IP, dropping the browser's own", async () => {

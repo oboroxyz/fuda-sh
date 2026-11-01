@@ -47,3 +47,6 @@ minimumReleaseAgeExclude:
   - '@void/platform@1.4.0'
   - '@void/solid@1.4.0'
   - void@1.4.0
+patchedDependencies:
+  '@void/deploy-cloudflare@1.4.0': patches/@void__deploy-cloudflare@1.4.0.patch
+  void@1.4.0: patches/void@1.4.0.patch

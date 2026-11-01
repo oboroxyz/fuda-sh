@@ -12,7 +12,7 @@ export default defineConfig({
   cloudflare: {
     name: 'fuda-gate',
     routes: [{ custom_domain: true, pattern: 'gate.fuda.sh' }],
-    vars: { API_BASE_URL: process.env.API_BASE_URL ?? 'https://api.fuda.sh' },
+    vars: process.env.API_BASE_URL === undefined ? undefined : { API_BASE_URL: process.env.API_BASE_URL },
   },
   inference: { appType: 'void' },
   target: 'cloudflare',

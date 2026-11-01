@@ -1,3 +1,4 @@
+import { apiOriginFor } from '@fuda/libs/worker'
 import { themeScript } from '@fuda/ui/theme'
 import { defineMiddleware } from 'void'
 
@@ -17,7 +18,7 @@ declare module 'void' {
 
 declare global {
   interface VoidGeneratedEnvBindings {
-    API_BASE_URL: string
+    API_BASE_URL?: string
   }
 }
 
@@ -36,7 +37,7 @@ export default defineMiddleware(async (c, next) => {
   // A `/@<handle>` page arrives rewritten to /venue/; the routing decisions
   // are about the URL the browser asked for.
   const url = c.originalUrl() ?? new URL(c.req.url)
-  const outcome = await resolveSession(c, url, c.env.API_BASE_URL, APP_ORIGIN)
+  const outcome = await resolveSession(c, url, apiOriginFor(c.env.API_BASE_URL), APP_ORIGIN)
   if (outcome.redirect !== null) {
     return c.redirect(outcome.redirect)
   }

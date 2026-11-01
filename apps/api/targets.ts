@@ -49,7 +49,7 @@ export const targetConfig = (name: TargetName): VoidConfig => {
       // config paths from there.
       d1_databases: target.d1_databases.map((d1) => ({ ...d1, migrations_dir: '../../migrations' })),
     },
-    inference: { appType: 'void', bindings: { db: false } },
+    inference: { appType: 'void', bindings: { db: false }, build: 'vp build' },
     worker: { compatibility_date: COMPATIBILITY_DATE, compatibility_flags: COMPATIBILITY_FLAGS },
   }
 }

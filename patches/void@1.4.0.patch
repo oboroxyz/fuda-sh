@@ -1,0 +1,62 @@
+diff --git a/dist/cli/cloudflare-operation-process.mjs b/dist/cli/cloudflare-operation-process.mjs
+index 8856a5efd392af5c31ffe0a5cc078f7169c4c7a5..303f4763786fd1f97fb66cb04e805a2683342e32 100755
+--- a/dist/cli/cloudflare-operation-process.mjs
++++ b/dist/cli/cloudflare-operation-process.mjs
+@@ -944,9 +944,11 @@ async function workerHistory() {
+ 			} : void 0);
+ 			if (called.status !== 0) return called;
+ 			const version = object(parsedJson(called.stdout));
+-			if (version.id !== versionId || !Array.isArray(version.bindings)) throw new Error("Worker version bindings were malformed.");
+-			if (operation.includeSource) return result(0, "", called.stderr, version);
++			if (version.id !== versionId || version.bindings !== void 0 && !Array.isArray(version.bindings)) throw new Error("Worker version bindings were malformed.");
+ 			const resources = await readVersionResources(worker, versionId);
++			if (version.bindings === void 0 && resources.bindings.length !== 0) throw new Error("Worker version bindings were malformed.");
++			version.bindings ??= resources.bindings;
++			if (operation.includeSource) return result(0, "", called.stderr, version);
+ 			return result(0, "", called.stderr, {
+ 				...version,
+ 				resources
+diff --git a/dist/deploy-CdM-LAxX.mjs b/dist/deploy-CdM-LAxX.mjs
+index 212883afbb46bb11261c15feb416d5a9698edc30..ee530d302cc3512bfc5ea6718766ad883bdd9a79 100644
+--- a/dist/deploy-CdM-LAxX.mjs
++++ b/dist/deploy-CdM-LAxX.mjs
+@@ -2735,7 +2735,7 @@ function parseJson(value) {
+ /** Existing-Worker handoffs retain their separate link and binding checks. */
+ function createActiveSecretPinner(options) {
+ 	const { output } = options;
+-	if (!output || options.handoffPending) return;
++	if (!output) return;
+ 	return (activeVersionId, bindings) => pinActiveWorkerSecrets({
+ 		output,
+ 		activeVersionId,
+diff --git a/dist/index.mjs b/dist/index.mjs
+index bd4cc70e5b4170bbd82747d6f79ed953cc0eb407..0dd17a2f2af3d2ba439ad16dc7c922d30b51071a 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -2745,7 +2745,7 @@ const serveWithAssets = __createAssetFallback(${JSON.stringify({
+ * proxy-backed versions.
+ */
+ function compileWorkerEntry(options = {}) {
+-	const { hasQueues = false, versionMetadataBinding, alwaysUseHttps = false, remote, assetsDir = "assets", webSocketClasses = [], runtimeEnvPath = "void/_env", runtimeEmailPath = "void/email", envSchemaModule, sandbox, serveSpaFallback = false, hasEmail = false, live, dev = false, isr, notFound = "none", durableObjects = [] } = options;
++	const { hasQueues = false, hasScheduled = true, versionMetadataBinding, alwaysUseHttps = false, remote, assetsDir = "assets", webSocketClasses = [], runtimeEnvPath = "void/_env", runtimeEmailPath = "void/email", envSchemaModule, sandbox, serveSpaFallback = false, hasEmail = false, live, dev = false, isr, notFound = "none", durableObjects = [] } = options;
+ 	const remotePath = remote?.remotePath;
+ 	const remoteBindingNames = JSON.stringify(remote?.bindingNames);
+ 	const createRemoteEnvCall = `createRemoteEnv(env${remote?.bindingNames ? `, ${remoteBindingNames}` : ""})`;
+@@ -2827,8 +2827,7 @@ ${envValidateCall}${remoteEnvSwap}  const userEnv = __filterInternalBindings(env
+ 	const fetchDeclaration = `const __voidFetch = ${fetchHandler};`;
+ 	const entryClass = `export default class extends WorkerEntrypoint {
+   async fetch(request) { return __voidFetch(request, this.env, this.ctx); }
+-  async scheduled(controller) { return handleScheduled(controller, this.env, this.ctx); }
+-${hasQueues ? `  async queue(batch) { return __voidQueue(batch, this.env, this.ctx); }\n` : ""}${hasEmail ? `  async email(message) {
++${hasScheduled ? "  async scheduled(controller) { return handleScheduled(controller, this.env, this.ctx); }\n" : ""}${hasQueues ? `  async queue(batch) { return __voidQueue(batch, this.env, this.ctx); }\n` : ""}${hasEmail ? `  async email(message) {
+     if (this.env.__VOID_EMAIL_DEPLOYMENT_ID || !__isForwardableEmailMessage(message)) {
+       throw new TypeError("Native email event required");
+     }
+@@ -4559,6 +4558,7 @@ function routingPlugin(root, options) {
+ 			versionMetadataBinding: options.getVersionMetadataBinding?.(),
+ 			alwaysUseHttps: options.routing?.alwaysUseHttps === true && resolvedConfig?.command === "build" && !compileOptions.managedDispatch,
+ 			hasQueues: scan.queues.length > 0,
++			hasScheduled: scan.jobs.length > 0,
+ 			remote,
+ 			assetsDir: resolvedConfig?.build.assetsDir,
+ 			webSocketClasses: [...(scan.websockets ?? []).map((route) => route.className), ...options.websocketTombstones ?? []],

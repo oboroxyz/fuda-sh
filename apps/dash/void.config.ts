@@ -10,7 +10,7 @@ export default defineConfig({
   cloudflare: {
     name: 'fuda-dash',
     routes: [{ custom_domain: true, pattern: 'dash.fuda.sh' }],
-    vars: { API_BASE_URL: process.env.API_BASE_URL ?? 'https://api.fuda.sh' },
+    vars: process.env.API_BASE_URL === undefined ? undefined : { API_BASE_URL: process.env.API_BASE_URL },
   },
   head: {
     link: [

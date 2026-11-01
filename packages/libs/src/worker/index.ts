@@ -6,6 +6,11 @@ import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 // browser's only backend, holds the session in an HttpOnly cookie and calls
 // the api on the browser's behalf (docs/adr/0010-void-pages-and-frontend-workers.md).
 
+// Static-assets-only Workers cannot receive variables before their first
+// code deployment. Keep the hosted api usable without a binding; local dev
+// and alternate deployments can still provide API_BASE_URL explicitly.
+export const apiOriginFor = (override: string | undefined): string => override ?? 'https://api.fuda.sh'
+
 // A write from another site's page is refused before it reaches the api or
 // touches a cookie. SameSite=Lax keeps the cookie off such a request, but a
 // route that sets a session cookie needs this too: without it any page could

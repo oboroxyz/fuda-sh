@@ -1,4 +1,4 @@
-import { forwardToApi } from '@fuda/libs/worker'
+import { apiOriginFor, forwardToApi } from '@fuda/libs/worker'
 import { defineHandler } from 'void'
 
 import { readCredential, SESSION_COOKIES } from '../../src/server/cookies.ts'
@@ -8,7 +8,7 @@ import { readCredential, SESSION_COOKIES } from '../../src/server/cookies.ts'
 const forward = defineHandler(
   async (c) =>
     await forwardToApi(c, {
-      apiBaseUrl: c.env.API_BASE_URL,
+      apiBaseUrl: apiOriginFor(c.env.API_BASE_URL),
       expireOnUnauthorized: SESSION_COOKIES,
       token: readCredential(c)?.token ?? null,
     }),

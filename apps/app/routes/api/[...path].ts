@@ -1,4 +1,4 @@
-import { forwardToApi, readCookie } from '@fuda/libs/worker'
+import { apiOriginFor, forwardToApi, readCookie } from '@fuda/libs/worker'
 import { defineHandler } from 'void'
 
 import { MEMBER_COOKIE } from '../../src/cookie-names.ts'
@@ -8,7 +8,7 @@ import { MEMBER_COOKIE } from '../../src/cookie-names.ts'
 const forward = defineHandler(
   async (c) =>
     await forwardToApi(c, {
-      apiBaseUrl: c.env.API_BASE_URL,
+      apiBaseUrl: apiOriginFor(c.env.API_BASE_URL),
       expireOnUnauthorized: [MEMBER_COOKIE],
       token: readCookie(c, MEMBER_COOKIE),
     }),
