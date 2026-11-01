@@ -4,6 +4,8 @@ The api is a remote [Model Context Protocol](https://modelcontextprotocol.io) se
 
 ## Connecting
 
+The [`fuda-mcp-setup` skill](../../skills/fuda-mcp-setup/SKILL.md) walks Claude Code through these steps.
+
 1. In the dashboard's Apps page, register an app with the return address `http://localhost:8080/callback`.
 2. Add the server with the client ID that page shows:
 

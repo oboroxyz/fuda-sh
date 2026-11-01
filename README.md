@@ -105,6 +105,7 @@ The principle behind that split is **decentralized at the core, hosted rails onl
 │   ├── ens-contracts    ENS resolver contracts and naming scripts
 │   ├── subgraphs/rights the Base query lane the apps read status from
 │   └── substreams       optional ERC-5564 / EAS push lane
+├── skills               agent skills to install, such as MCP setup
 └── docs                 architecture, specs, ADRs, runbook
 ```
 
@@ -116,6 +117,16 @@ Stack: Cloudflare Workers (Hono, Drizzle, D1, R2), viem, valibot, `@noble` crypt
 
 See [Local development](./docs/runbook.md#12-local-development) for setup and startup instructions.
 
+## Use fuda from Claude Code
+
+An agent can manage a store's cards and passes through fuda's [MCP server](./docs/specs/mcp.md). Install the setup skill:
+
+```bash
+npx skills add oboroxyz/fuda-sh --skill fuda-mcp-setup -a claude-code
+```
+
+Then ask Claude Code to connect to fuda. It walks you through registering the app in the dashboard and approving it with your passkey. Other agents are not tested yet.
+
 ## Documentation
 
 - **Architecture**
@@ -124,6 +135,7 @@ See [Local development](./docs/runbook.md#12-local-development) for setup and st
 - **Specifications** ([index](./docs/specs/README.md))
   - [Attestation model](./docs/specs/attestation-model.md) — Entitlement, IssuerDelegation, Attendance, lifecycle, the EAS/D1 authority boundary
   - [Pass types and flows](./docs/specs/pass-types-and-flows.md) — templates, wallet roles, activation, privacy-first issuance, the gate protocol
+  - [MCP server](./docs/specs/mcp.md) — connecting an agent, tokens bound to the server, the tools
   - [ENS naming](./docs/specs/ens-naming.md) — the name hierarchy, the member number, what a name resolves to, name lifecycle
   - [Substreams packages](./docs/specs/substreams.md) — the optional push lane and its compatibility guarantees
 - **Integrations**
