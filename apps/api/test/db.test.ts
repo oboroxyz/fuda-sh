@@ -15,6 +15,7 @@ describe('D1 schema', () => {
       'card_stamp_settings',
       'cards',
       'challenges',
+      'connected_app_events',
       'connected_app_redirects',
       'connected_apps',
       'ens_names',

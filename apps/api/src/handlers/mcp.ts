@@ -3,7 +3,8 @@ import type { Context } from 'hono'
 import * as v from 'valibot'
 import { defineHandler } from 'void'
 
-import { resolveAccessToken } from '../connected-apps/store.ts'
+import { recordEvent, resolveAccessToken } from '../connected-apps/store.ts'
+import type { AccessGrant } from '../connected-apps/store.ts'
 import type { AppEnv } from '../env.ts'
 import { authorizationIssuer, mcpResource } from '../mcp/resource.ts'
 import { issuerOf, MCP_TOOLS } from '../mcp/tools.ts'
@@ -56,6 +57,43 @@ const refuseToken = (c: Context<AppEnv>, token: string): Response => {
   return c.json({ error: 'unauthorized' }, 401)
 }
 
+// A tool call under the token's grant; every write it attempts is recorded.
+const callTool = async (
+  c: Context<AppEnv>,
+  token: string,
+  grant: AccessGrant,
+  id: RequestId,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- JSON-RPC params stay untyped until the schema below parses them
+  params: unknown,
+): Promise<Response> => {
+  const call = v.safeParse(ToolCallParams, params)
+  const tool = call.success ? MCP_TOOLS.find((entry) => entry.name === call.output.name) : undefined
+  if (!call.success || tool === undefined) {
+    return rpcError(c, id, -32_602, 'Unknown tool')
+  }
+  if (!grant.scope.includes(tool.scope)) {
+    c.header('WWW-Authenticate', challenge(c, ['error="insufficient_scope"', `scope="${tool.scope}"`]))
+    return rpcError(c, id, -32_600, 'Insufficient scope', 403)
+  }
+  const issuer = await issuerOf(c.get('db'), grant.issuerId)
+  if (issuer === undefined) {
+    return refuseToken(c, token)
+  }
+  const outcome = await tool.run({ c, issuer }, call.output.arguments)
+  if (!tool.annotations.readOnlyHint) {
+    await recordEvent(c.get('db'), grant, {
+      action: tool.name,
+      error: outcome.ok ? null : outcome.error,
+      now: c.get('now')(),
+      subject: outcome.subject ?? null,
+    })
+  }
+  return rpcResult(c, id, {
+    content: [{ text: JSON.stringify(outcome.ok ? outcome.value : { error: outcome.error }), type: 'text' }],
+    isError: !outcome.ok,
+  })
+}
+
 export const postMcp = defineHandler(async (c) => {
   c.header('cache-control', 'no-store')
   // DNS-rebinding defence: no browser page calls this server.
@@ -102,24 +140,7 @@ export const postMcp = defineHandler(async (c) => {
   if (method !== 'tools/call') {
     return rpcError(c, id, -32_601, 'Method not found', 404)
   }
-  const call = v.safeParse(ToolCallParams, params)
-  const tool = call.success ? MCP_TOOLS.find((entry) => entry.name === call.output.name) : undefined
-  if (!call.success || tool === undefined) {
-    return rpcError(c, id, -32_602, 'Unknown tool')
-  }
-  if (!grant.scope.includes(tool.scope)) {
-    c.header('WWW-Authenticate', challenge(c, ['error="insufficient_scope"', `scope="${tool.scope}"`]))
-    return rpcError(c, id, -32_600, 'Insufficient scope', 403)
-  }
-  const issuer = await issuerOf(c.get('db'), grant.issuerId)
-  if (issuer === undefined) {
-    return refuseToken(c, token)
-  }
-  const outcome = await tool.run({ c, issuer }, call.output.arguments)
-  return rpcResult(c, id, {
-    content: [{ text: JSON.stringify(outcome.ok ? outcome.value : { error: outcome.error }), type: 'text' }],
-    isError: !outcome.ok,
-  })
+  return await callTool(c, token, grant, id, params)
 })
 
 // This revision keeps no server stream to open and no session to end.

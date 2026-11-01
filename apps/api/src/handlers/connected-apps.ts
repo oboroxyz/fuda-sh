@@ -26,8 +26,10 @@ import {
   deleteApp,
   findApp,
   listApps,
+  listEvents,
   listGrants,
   mintCode,
+  recordEvent,
   redeemCode,
   registerApp,
   revokeByToken,
@@ -68,6 +70,10 @@ export const getV1ConnectedAppsGrants = defineHandler(operatorAuth(), async (c) 
   jsonResponse(c, {
     grants: await listGrants(c.get('db'), c.get('operator').address, c.get('now')(), c.env.API_BASE_URL),
   }),
+)
+
+export const getV1ConnectedAppsActivity = defineHandler(operatorAuth(), async (c) =>
+  jsonResponse(c, { events: await listEvents(c.get('db'), c.get('operator').address) }),
 )
 
 export const deleteV1ConnectedAppsGrantsId = defineHandler(operatorAuth(), async (c) =>
@@ -310,9 +316,19 @@ export const getV1ConnectCards = defineHandler(connectedAppAuth('cards:read'), a
 // answer. Synchronous: the card is published when this returns, and no ENS
 // claim is needed for it.
 export const postV1ConnectCards = defineHandler(connectedAppAuth('cards:write'), async (c) => {
+  const record = async (error: string | null, subject: string | null): Promise<void> => {
+    await recordEvent(c.get('db'), c.get('connected'), {
+      action: 'create_card',
+      error,
+      now: c.get('now')(),
+      subject,
+    })
+  }
   const parsed = v.safeParse(CardBody, await c.req.json().catch(() => null))
   if (!parsed.success) {
-    return errorResponse(c, fieldErrorFor(parsed.issues, 'slug', 'bad_slug'), 400)
+    const error = fieldErrorFor(parsed.issues, 'slug', 'bad_slug')
+    await record(error, null)
+    return errorResponse(c, error, 400)
   }
   const issuer = await connectedIssuer(c)
   if (issuer === undefined) {
@@ -320,8 +336,10 @@ export const postV1ConnectCards = defineHandler(connectedAppAuth('cards:write'),
   }
   const card = await insertCard(c.get('db'), issuer.id, parsed.output, c.get('now')())
   if (card === null) {
+    await record('slug_taken', null)
     return errorResponse(c, 'slug_taken', 409)
   }
+  await record(null, card.id)
   return jsonResponse(
     c,
     {

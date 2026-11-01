@@ -10,6 +10,7 @@ import {
   cards,
   challenges,
   members,
+  connectedAppEvents,
   connectedAppRedirects,
   connectedApps,
   issuers,
@@ -51,6 +52,7 @@ interface RpcAnswer {
 
 const clearTables = async (): Promise<void> => {
   const db = getDb({ DB: env.DB })
+  await db.delete(connectedAppEvents)
   await db.delete(members)
   await db.delete(oauthTokens)
   await db.delete(oauthCodes)
@@ -559,6 +561,12 @@ describe('mcp', () => {
           .passes,
       ).toStrictEqual([expect.objectContaining({ status: 'active', uid: issued.uid })])
       const revoked = await rpc(token, 'tools/call', { arguments: { uid: issued.uid }, name: 'revoke_pass' })
+      const events = await getDb({ DB: env.DB }).select().from(connectedAppEvents)
+      expect(events.map(({ action, error, subject }) => ({ action, error, subject }))).toContainEqual({
+        action: 'revoke_pass',
+        error: null,
+        subject: issued.uid,
+      })
       expect(revoked.result?.isError).toBe(false)
       const after = await rpc(token, 'tools/call', { arguments: { status: 'revoked' }, name: 'list_passes' })
       expect(toolValue(v.object({ page: v.object({ total: v.number() }) }), after).page.total).toBe(1)

@@ -278,16 +278,40 @@ export const oauthTokens = sqliteTable(
     clientId: text('client_id')
       .notNull()
       .references(() => connectedApps.clientId),
+    codeHash: text('code_hash'),
     createdAt: integer('created_at').notNull(),
     expiresAt: integer('expires_at').notNull(),
     id: text('id').primaryKey(),
     issuerId: text('issuer_id')
       .notNull()
       .references(() => issuers.id),
+    lastUsedAt: integer('last_used_at'),
     resource: text('resource'),
     revokedAt: integer('revoked_at'),
     scope: text('scope').notNull(),
     tokenHash: text('token_hash').notNull().unique(),
   },
-  (t) => [index('oauth_tokens_address').on(t.address), index('oauth_tokens_client').on(t.clientId)],
+  (t) => [
+    index('oauth_tokens_address').on(t.address),
+    index('oauth_tokens_client').on(t.clientId),
+    index('oauth_tokens_code_hash').on(t.codeHash),
+  ],
+)
+
+// No foreign keys, and the app's name is copied: the record outlives the app.
+export const connectedAppEvents = sqliteTable(
+  'connected_app_events',
+  {
+    action: text('action').notNull(),
+    address: text('address').notNull(),
+    appName: text('app_name').notNull(),
+    clientId: text('client_id').notNull(),
+    createdAt: integer('created_at').notNull(),
+    error: text('error'),
+    id: text('id').primaryKey(),
+    issuerId: text('issuer_id').notNull(),
+    subject: text('subject'),
+    tokenId: text('token_id').notNull(),
+  },
+  (t) => [index('connected_app_events_address').on(t.address, t.createdAt)],
 )

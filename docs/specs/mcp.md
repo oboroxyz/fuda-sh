@@ -16,7 +16,7 @@ The [`fuda-mcp-setup` skill](../../skills/fuda-mcp-setup/SKILL.md) walks an agen
 2. Give the client the client ID that page shows and the server's URL, `https://api.fuda.sh/mcp`, written exactly so, with no trailing slash. It is the resource a token is approved for.
 3. Approve on the consent page, from the client's own login command.
 
-An approval names one Issuer and lasts 30 days; there are no refresh tokens. It is listed on the Apps page and can be revoked there.
+An approval names one Issuer and lasts 30 days; there are no refresh tokens. Logging in again replaces it. It is listed on the Apps page, with when it was last used, and can be revoked there. The same page shows the writes each client attempted ([Activity](./connected-apps.md#activity)).
 
 ## Transport
 
