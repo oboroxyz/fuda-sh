@@ -153,6 +153,7 @@ export const mintCode = async (
     issuerId: string
     now: number
     redirectUri: string
+    resource: string | null
     scope: readonly ConnectedAppScope[]
   },
 ): Promise<string> => {
@@ -168,6 +169,7 @@ export const mintCode = async (
       expiresAt: p.now + CODE_TTL_SECONDS,
       issuerId: p.issuerId,
       redirectUri: p.redirectUri,
+      resource: p.resource,
       scope: p.scope.join(' '),
     }),
   ])
@@ -193,9 +195,18 @@ export interface IssuedToken {
 
 // Spends the code first, so a second redemption finds nothing whatever the
 // outcome of the first: a code is single-use even when its verifier was wrong.
+// `resource` is what the token request named, if anything; the token always
+// carries what was approved.
 export const redeemCode = async (
   db: Db,
-  p: { clientId: string; code: string; codeVerifier: string; now: number; redirectUri: string },
+  p: {
+    clientId: string
+    code: string
+    codeVerifier: string
+    now: number
+    redirectUri: string
+    resource: string | undefined
+  },
 ): Promise<IssuedToken | null> => {
   const spent = await db
     .update(oauthCodes)
@@ -213,6 +224,7 @@ export const redeemCode = async (
     spent === undefined ||
     spent.clientId !== p.clientId ||
     spent.redirectUri !== p.redirectUri ||
+    (p.resource !== undefined && spent.resource !== p.resource) ||
     spent.codeChallenge !== (await pkceChallenge(p.codeVerifier))
   ) {
     return null
@@ -231,6 +243,7 @@ export const redeemCode = async (
     expiresAt: p.now + ACCESS_TOKEN_TTL_SECONDS,
     id: crypto.randomUUID(),
     issuerId: spent.issuerId,
+    resource: spent.resource,
     scope: spent.scope,
     tokenHash: await hashToken(accessToken),
   })
@@ -241,6 +254,8 @@ export interface AccessGrant {
   clientId: string
   id: string
   issuerId: string
+  // the MCP server this token is for; null for the /v1/connect routes
+  resource: string | null
   scope: ConnectedAppScope[]
 }
 
@@ -251,6 +266,7 @@ export const resolveAccessToken = async (db: Db, token: string, now: number): Pr
       clientId: oauthTokens.clientId,
       id: oauthTokens.id,
       issuerId: oauthTokens.issuerId,
+      resource: oauthTokens.resource,
       scope: oauthTokens.scope,
     })
     .from(oauthTokens)

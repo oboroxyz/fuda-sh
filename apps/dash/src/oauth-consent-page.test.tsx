@@ -7,7 +7,7 @@ import { render as solidRender } from 'solid-js/web'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CONSENT_COPY } from './consent-copy.ts'
-import { deniedRedirect, readAuthorizeRequest } from './consent.ts'
+import { approvalBody, deniedRedirect, previewParams, readAuthorizeRequest } from './consent.ts'
 import { OAuthConsentPage } from './OAuthConsentPage.tsx'
 import type { ConsentIo } from './OAuthConsentPage.tsx'
 
@@ -66,6 +66,15 @@ const buttonNamed = (name: string): HTMLButtonElement => {
   return found
 }
 
+describe('an MCP client request', () => {
+  it('carries resource through to the preview and the approval', () => {
+    const resource = 'https://api.fuda.sh/mcp'
+    const request = readAuthorizeRequest(`${SEARCH}&resource=${encodeURIComponent(resource)}`)
+    expect(previewParams(request).get('resource')).toBe(resource)
+    expect(approvalBody(request, 'issuer-1').resource).toBe(resource)
+  })
+})
+
 describe(OAuthConsentPage, () => {
   beforeEach(() => {
     root = document.createElement('div')
@@ -92,6 +101,7 @@ describe(OAuthConsentPage, () => {
       codeChallengeMethod: 'S256',
       issuerId: 'issuer-2',
       redirectUri: 'https://shop.figma.site/',
+      resource: '',
       scope: 'cards:write',
       state: 's1',
     })

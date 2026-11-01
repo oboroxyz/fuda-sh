@@ -84,6 +84,8 @@ export const AuthorizeApprovalBody = v.strictObject({
   codeChallengeMethod: v.literal('S256'),
   issuerId: v.pipe(v.string(), v.minLength(1), v.maxLength(64)),
   redirectUri: v.pipe(v.string(), v.maxLength(REDIRECT_URI_MAX_LENGTH)),
+  // RFC 8707: the MCP server the token is for; empty for a connected app.
+  resource: v.optional(v.pipe(v.string(), v.maxLength(REDIRECT_URI_MAX_LENGTH)), ''),
   scope: v.optional(v.pipe(v.string(), v.maxLength(200)), ''),
   state: v.optional(v.pipe(v.string(), v.maxLength(500)), ''),
 })
@@ -97,6 +99,7 @@ export const TokenRequestBody = v.object({
   code_verifier: v.pipe(v.string(), v.regex(PKCE_RE)),
   grant_type: v.string(),
   redirect_uri: v.pipe(v.string(), v.maxLength(REDIRECT_URI_MAX_LENGTH)),
+  resource: v.optional(v.pipe(v.string(), v.maxLength(REDIRECT_URI_MAX_LENGTH))),
 })
 
 export interface ConnectedAppView {

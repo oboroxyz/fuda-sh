@@ -261,6 +261,7 @@ export const oauthCodes = sqliteTable(
       .notNull()
       .references(() => issuers.id),
     redirectUri: text('redirect_uri').notNull(),
+    resource: text('resource'),
     scope: text('scope').notNull(),
     usedAt: integer('used_at'),
   },
@@ -280,6 +281,7 @@ export const oauthTokens = sqliteTable(
     issuerId: text('issuer_id')
       .notNull()
       .references(() => issuers.id),
+    resource: text('resource'),
     revokedAt: integer('revoked_at'),
     scope: text('scope').notNull(),
     tokenHash: text('token_hash').notNull().unique(),

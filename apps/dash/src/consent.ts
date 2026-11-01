@@ -8,6 +8,7 @@ export interface AuthorizeRequest {
   codeChallenge: string
   codeChallengeMethod: string
   redirectUri: string
+  resource: string
   responseType: string
   scope: string
   state: string
@@ -21,6 +22,7 @@ export const readAuthorizeRequest = (search: string): AuthorizeRequest => {
     codeChallenge: get('code_challenge'),
     codeChallengeMethod: get('code_challenge_method'),
     redirectUri: get('redirect_uri'),
+    resource: get('resource'),
     responseType: get('response_type'),
     scope: get('scope'),
     state: get('state'),
@@ -33,6 +35,7 @@ export const previewParams = (request: AuthorizeRequest): URLSearchParams =>
     client_id: request.clientId,
     code_challenge_method: request.codeChallengeMethod,
     redirect_uri: request.redirectUri,
+    resource: request.resource,
     response_type: request.responseType,
     scope: request.scope,
   })
@@ -43,6 +46,7 @@ export const approvalBody = (request: AuthorizeRequest, issuerId: string): Autho
   codeChallengeMethod: 'S256',
   issuerId,
   redirectUri: request.redirectUri,
+  resource: request.resource,
   scope: request.scope,
   state: request.state,
 })
