@@ -1,8 +1,8 @@
 import type { CardUpdateRequest, IssuerPassesResponse, IssuerPassStatus, OperatorCardView } from '@fuda/sdk'
-import { apiFetch } from '@fuda/sdk/http'
 import type { Result } from '@fuda/sdk/http'
 
 import { API_BASE_URL } from './config.ts'
+import { apiFetch } from './session-request.ts'
 
 export interface PassQuery {
   page: number

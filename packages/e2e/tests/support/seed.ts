@@ -8,23 +8,35 @@ import { API_ORIGIN } from '../../stack.config.ts'
 
 // Each call states the fields it reads, so an api change that drops one fails
 // here with the route named, not later as an undefined in a locator.
+export const apiRequest = async <TSchema extends v.GenericSchema>(
+  path: string,
+  schema: TSchema,
+  options: { body?: string; method?: string; token?: string } = {},
+): Promise<v.InferOutput<TSchema>> => {
+  const headers = new Headers()
+  if (options.body !== undefined) {
+    headers.set('content-type', 'application/json')
+  }
+  if (options.token !== undefined) {
+    headers.set('authorization', `Bearer ${options.token}`)
+  }
+  const response = await fetch(`${API_ORIGIN}/v1${path}`, {
+    body: options.body,
+    headers,
+    method: options.method ?? 'GET',
+  })
+  const text = await response.text()
+  if (!response.ok) {
+    throw new Error(`${path} answered ${String(response.status)}: ${text}`)
+  }
+  return v.parse(schema, JSON.parse(text))
+}
 const post = async <TSchema extends v.GenericSchema>(
   path: string,
   body: string,
   schema: TSchema,
   token?: string,
-): Promise<v.InferOutput<TSchema>> => {
-  const headers = new Headers({ 'content-type': 'application/json' })
-  if (token !== undefined) {
-    headers.set('authorization', `Bearer ${token}`)
-  }
-  const response = await fetch(`${API_ORIGIN}/v1${path}`, { body, headers, method: 'POST' })
-  const text = await response.text()
-  if (!response.ok) {
-    throw new Error(`POST ${path} answered ${String(response.status)}: ${text}`)
-  }
-  return v.parse(schema, JSON.parse(text))
-}
+): Promise<v.InferOutput<TSchema>> => await apiRequest(path, schema, { body, method: 'POST', token })
 
 let counter = 0
 // Handles and slugs share one rule: lowercase ASCII, digits and single hyphens.
@@ -51,16 +63,14 @@ export interface Venue {
 const ChallengeSchema = v.object({ message: v.string(), nonce: v.string() })
 const SessionSchema = v.object({ token: v.string() })
 
-// A venue owned by a throwaway EOA (its signature verifies offline under the
-// fake chain) with one published, claimable Membership Card.
-export const createVenue = async (name = 'E2E Coffee'): Promise<Venue> => {
+export const createOperator = async (): Promise<v.InferOutput<typeof SessionSchema>> => {
   const operator = privateKeyToAccount(generatePrivateKey())
   const challenge = await post(
     '/auth/challenge',
     JSON.stringify({ address: operator.address }),
     ChallengeSchema,
   )
-  const session = await post(
+  return await post(
     '/auth/verify',
     JSON.stringify({
       address: operator.address,
@@ -69,6 +79,12 @@ export const createVenue = async (name = 'E2E Coffee'): Promise<Venue> => {
     }),
     SessionSchema,
   )
+}
+
+// A venue owned by a throwaway EOA (its signature verifies offline under the
+// fake chain) with one published, claimable Membership Card.
+export const createVenue = async (name = 'E2E Coffee'): Promise<Venue> => {
+  const session = await createOperator()
   const handle = uniqueName('e2e')
   await post(
     '/issuers',
