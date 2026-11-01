@@ -1,4 +1,5 @@
-import { isCardSlugReference, isClaimable, isIssuerHandle } from '@fuda/sdk'
+import { ClaimSource, isCardSlugReference, isClaimable, isIssuerHandle } from '@fuda/sdk'
+import * as v from 'valibot'
 import { defineHandler } from 'void'
 
 import { issueForCard } from '../issue/issue-for-card.ts'
@@ -11,13 +12,18 @@ import { rateLimit } from '../middleware/rate-limit.ts'
 // phones, each of which needs one card.
 export const SELF_SERVE_BUDGET = 20
 
-const STATUS = { chain_error: 502, internal: 500, no_signer: 501 } as const satisfies Record<
-  CardIssueError,
-  number
->
+const STATUS = {
+  card_sold_out: 409,
+  chain_error: 502,
+  internal: 500,
+  no_signer: 501,
+} as const satisfies Record<CardIssueError, number>
 
 // Self-serve Bearer issuance (docs/specs/pass-types-and-flows.md#u1-standard-issuance-and-optional-activation):
-// no body, no account.
+// no account, and a body only to say which link the claim came through. A label
+// that fails the rule is dropped, so a mangled link still gets a person their pass.
+const ClaimBody = v.object({ source: ClaimSource })
+
 export const postV1IssuersHandleSlugIssue = defineHandler(
   rateLimit({ budget: SELF_SERVE_BUDGET }),
   async (c) => {
@@ -34,7 +40,8 @@ export const postV1IssuersHandleSlugIssue = defineHandler(
     if (!isClaimable(card, c.get('now')())) {
       return errorResponse(c, 'card_closed', 409)
     }
-    const outcome = await issueForCard(c, card, venue.issuer)
+    const body = v.safeParse(ClaimBody, await c.req.json().catch(() => null))
+    const outcome = await issueForCard(c, card, venue.issuer, body.success ? body.output.source : null)
     return outcome.ok ? jsonResponse(c, outcome.pass) : errorResponse(c, outcome.error, STATUS[outcome.error])
   },
 )

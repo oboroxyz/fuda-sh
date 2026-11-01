@@ -39,7 +39,7 @@ export const cardView = (row: CardRow, now: number, badges?: readonly BadgeKind[
     category: row.category,
     claimFrom: row.claimFrom,
     claimUntil: row.claimUntil,
-    claimable: isClaimable(row, now),
+    claimable: isClaimable(row, now) && (row.capacity === null || row.reserved < row.capacity),
     description: row.description,
     id: row.id,
     slug: row.slug,

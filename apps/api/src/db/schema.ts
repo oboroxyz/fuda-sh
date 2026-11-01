@@ -12,6 +12,7 @@ export const members = sqliteTable(
     issuerId: text('issuer_id'),
     level: text('level', { enum: ['bearer', 'signed', 'private'] }).notNull(),
     memberId: text('member_id').notNull().default(''),
+    source: text('source'),
     status: text('status', { enum: ['active', 'revoked'] })
       .notNull()
       .default('active'),
@@ -53,6 +54,7 @@ export const issuers = sqliteTable(
 export const cards = sqliteTable(
   'cards',
   {
+    capacity: integer('capacity'),
     category: text('category', { enum: ['membership', 'ticket'] }).notNull(),
     claimFrom: integer('claim_from'),
     claimUntil: integer('claim_until'),
@@ -63,6 +65,7 @@ export const cards = sqliteTable(
       .notNull()
       .references(() => issuers.id),
     lockScreen: integer('lock_screen').notNull().default(0),
+    reserved: integer('reserved').notNull().default(0),
     slug: text('slug').notNull().default(''),
     title: text('title').notNull(),
     validFrom: integer('valid_from'),

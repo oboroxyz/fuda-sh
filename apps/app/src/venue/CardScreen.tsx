@@ -15,7 +15,7 @@ import { CardsThree, WalletButton } from '@fuda/ui'
 import { createEffect, createSignal, For, on, onCleanup } from 'solid-js'
 import type { JSX } from 'solid-js'
 
-import { cardFailureOf, fetchVenue, googleSaveUrl, issueCard } from '../api.ts'
+import { cardFailureOf, claimSourceFrom, fetchVenue, googleSaveUrl, issueCard } from '../api.ts'
 import type { CardFailure } from '../api.ts'
 import { defaultHumanBadgeIo, requestHumanBadge } from '../badges.ts'
 import type { BadgeState, HumanBadgeIo } from '../badges.ts'
@@ -61,7 +61,7 @@ export interface CardScreenIo {
   appleAvailable: (url: string) => Promise<boolean>
   fetchVenue: (handle: string) => Promise<Result<PublicVenue>>
   googleSaveUrl: (url: string) => Promise<string | null>
-  issueCard: (handle: string, slug: string) => Promise<Result<SelfServeIssueResponse>>
+  issueCard: (handle: string, slug: string, source: string | null) => Promise<Result<SelfServeIssueResponse>>
 }
 
 export interface CardScreenViewProps {
@@ -611,7 +611,7 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
     const ticket = lifecycle
     const { handle, storage } = props
     setState({ card, kind: 'issuing' })
-    const result = await io.issueCard(handle, card.card.slug)
+    const result = await io.issueCard(handle, card.card.slug, claimSourceFrom(window.location.search))
     const current = ticket === lifecycle
     if (current) {
       issuing = false

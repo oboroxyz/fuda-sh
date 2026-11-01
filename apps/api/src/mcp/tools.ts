@@ -1,5 +1,12 @@
-import { CardBody, CARD_CATEGORIES, normalizeUid } from '@fuda/sdk'
-import type { CardView, ConnectedAppScope, IssuerPassStatus } from '@fuda/sdk'
+import {
+  CARD_CAPACITY_MAX,
+  CardBody,
+  CARD_CATEGORIES,
+  ClaimSource,
+  isOrderedWindow,
+  normalizeUid,
+} from '@fuda/sdk'
+import type { ConnectedAppScope, IssuerPassStatus } from '@fuda/sdk'
 import { and, eq } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
@@ -42,9 +49,11 @@ export interface McpTool {
 export const issuerOf = async (db: Db, issuerId: string): Promise<typeof issuers.$inferSelect | undefined> =>
   await db.select().from(issuers).where(eq(issuers.id, issuerId)).get()
 
-const withClaimUrl = (context: ToolContext, card: CardView): CardView & { claimUrl: string } => ({
-  ...card,
-  claimUrl: `${publicUrlFor(context.c.env.PUBLIC_BASE_URL, context.issuer.handle)}/${card.slug}`,
+const toolCard = ({ c, issuer }: ToolContext, row: typeof cards.$inferSelect) => ({
+  ...cardView(row, c.get('now')()),
+  capacity: row.capacity,
+  claimUrl: `${publicUrlFor(c.env.PUBLIC_BASE_URL, issuer.handle)}/${row.slug}`,
+  issued: row.reserved,
 })
 
 const unixOrNull = { minimum: 0, type: ['integer', 'null'] }
@@ -62,9 +71,30 @@ const ListPassesArgs = v.strictObject({
   cardId: v.optional(v.string()),
   page: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1)), 1),
   pageSize: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(100)), 25),
+  source: v.optional(ClaimSource),
   status: v.optional(v.picklist(PASS_STATUSES)),
 })
-const IssuePassArgs = v.strictObject({ cardId: v.string() })
+const IssuePassArgs = v.strictObject({ cardId: v.string(), source: v.optional(ClaimSource) })
+const CardLimitsArgs = v.strictObject({
+  capacity: v.optional(
+    v.nullable(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(CARD_CAPACITY_MAX))),
+  ),
+  cardId: v.string(),
+  claimFrom: v.optional(v.nullable(v.pipe(v.number(), v.integer(), v.minValue(0)))),
+  claimUntil: v.optional(v.nullable(v.pipe(v.number(), v.integer(), v.minValue(0)))),
+})
+
+const capacitySchema = {
+  description: 'The most passes this card may ever issue; null for no limit. A revoked pass still counts.',
+  maximum: CARD_CAPACITY_MAX,
+  minimum: 1,
+  type: ['integer', 'null'],
+}
+const sourceSchema = {
+  description: 'A label for where this pass came from: lowercase letters, digits, hyphens and underscores.',
+  pattern: '^[a-z0-9_-]{1,40}$',
+  type: 'string',
+}
 const RevokePassArgs = v.strictObject({ uid: v.string() })
 
 /* oxlint-disable eslint/sort-keys -- tool definitions read in the order MCP documents them */
@@ -73,7 +103,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: 'list_cards',
     title: 'List cards',
     description:
-      "List this profile's cards, oldest first. Each card has a claimUrl: the public page where a person gets a pass.",
+      "List this profile's cards, oldest first, with passes issued and any capacity. Each card has a claimUrl: the public page where a person gets a pass. To see which link people came through, append ?source=<label> to it for each flyer or post, then filter list_passes by that source.",
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: true },
     scope: 'cards:read',
@@ -88,7 +118,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
         ok: true,
         value: {
           issuer: { handle: context.issuer.handle, name: context.issuer.name },
-          cards: rows.map((row) => withClaimUrl(context, cardView(row, context.c.get('now')()))),
+          cards: rows.map((row) => toolCard(context, row)),
         },
       }
     },
@@ -102,6 +132,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
       type: 'object',
       properties: {
         category: { type: 'string', enum: CARD_CATEGORIES },
+        capacity: capacitySchema,
         title: { type: 'string', minLength: 1, maxLength: 60 },
         slug: {
           type: 'string',
@@ -129,7 +160,51 @@ export const MCP_TOOLS: readonly McpTool[] = [
       const card = await insertCard(context.c.get('db'), context.issuer.id, parsed.output, now)
       return card === null
         ? { ok: false, error: 'slug_taken' }
-        : { ok: true, value: { card: withClaimUrl(context, cardView(card, now)) } }
+        : { ok: true, value: { card: toolCard(context, card) } }
+    },
+  },
+  {
+    name: 'update_card_limits',
+    title: 'Update card limits',
+    description:
+      'Change how many passes a card may issue and when people can claim it. Only the fields you send change. Lowering capacity below the passes already issued stops new ones and leaves those passes alone. A closed claim window makes the card invite-only: issue_pass still works.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        cardId: { type: 'string', description: 'The id of a card from list_cards.' },
+        capacity: capacitySchema,
+        claimFrom: unixOrNull,
+        claimUntil: unixOrNull,
+      },
+      required: ['cardId'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false },
+    scope: 'cards:write',
+    run: async (context, args) => {
+      const parsed = v.safeParse(CardLimitsArgs, args)
+      if (!parsed.success) {
+        return { ok: false, error: 'bad_input' }
+      }
+      const { cardId, ...limits } = parsed.output
+      const db = context.c.get('db')
+      const where = and(eq(cards.id, cardId), eq(cards.issuerId, context.issuer.id))
+      const card = await db.select().from(cards).where(where).get()
+      if (card === undefined) {
+        return { ok: false, error: 'not_found' }
+      }
+      const next = { ...card, ...limits }
+      if (!isOrderedWindow(next.claimFrom, next.claimUntil)) {
+        return { ok: false, error: 'bad_input' }
+      }
+      const [updated] = await db
+        .update(cards)
+        .set({ capacity: next.capacity, claimFrom: next.claimFrom, claimUntil: next.claimUntil })
+        .where(where)
+        .returning()
+      return updated === undefined
+        ? { ok: false, error: 'not_found' }
+        : { ok: true, value: { card: toolCard(context, updated) } }
     },
   },
   {
@@ -141,6 +216,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
       type: 'object',
       properties: {
         cardId: { type: 'string' },
+        source: sourceSchema,
         status: { type: 'string', enum: PASS_STATUSES },
         page: { type: 'integer', minimum: 1 },
         pageSize: { type: 'integer', minimum: 1, maximum: 100 },
@@ -154,7 +230,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
       if (!parsed.success) {
         return { ok: false, error: 'bad_input' }
       }
-      const { cardId, page, pageSize, status } = parsed.output
+      const { cardId, page, pageSize, source, status } = parsed.output
       return {
         ok: true,
         value: await readIssuerPasses(c.env.DB, issuer.id, c.get('now')(), {
@@ -162,6 +238,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
           page,
           pageSize,
           q: '',
+          source: source ?? null,
           status: status ?? null,
         }),
       }
@@ -174,7 +251,10 @@ export const MCP_TOOLS: readonly McpTool[] = [
       "Issue one pass under a card, for a person you are arranging it for, and return a passUrl to give them. It works even while the card's claim window is closed. Each call issues a new pass and costs on-chain gas, so do not retry after an unclear failure without checking list_passes. For flyers or posts, share the card's claimUrl instead.",
     inputSchema: {
       type: 'object',
-      properties: { cardId: { type: 'string', description: 'The id of a card from list_cards.' } },
+      properties: {
+        cardId: { type: 'string', description: 'The id of a card from list_cards.' },
+        source: sourceSchema,
+      },
       required: ['cardId'],
       additionalProperties: false,
     },
@@ -197,7 +277,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
       if (!(await spendBudget(db, `mcp-issue:${issuer.id}`, c.get('now')(), ISSUE_BUDGET))) {
         return { ok: false, error: 'rate_limited' }
       }
-      const outcome = await issueForCard(c, card, issuer)
+      const outcome = await issueForCard(c, card, issuer, parsed.output.source ?? null)
       return outcome.ok
         ? {
             ok: true,

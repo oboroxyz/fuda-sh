@@ -219,6 +219,7 @@ Errors are `{ "error": "<code>" }` with these statuses. Every gate _decision_ is
 | `invalid_request`, `invalid_client`, `invalid_grant`, `unsupported_grant_type`, `invalid_scope` | 400/401 | the RFC 6749 codes of `/oauth/authorize`, `/oauth/token` and `/oauth/revoke`; [Connected apps](./connected-apps.md#token-exchange) lists when each is returned |
 | `insufficient_scope` | 403 | a connected-app access token without the route's scope |
 | `card_closed` | 409 | self-serve claim outside the card's claim window |
+| `card_sold_out` | 409 | self-serve claim on a card at its capacity |
 | `media_not_configured` | 501 | logo upload without the `MEDIA_BUCKET` binding |
 | `bad_upload` | 400 | logo multipart malformed, or a variant failing its signature, dimension or size check |
 | `upload_not_found` | 400 | staged logo id unknown, expired, already spent, or another session's |
@@ -292,7 +293,7 @@ Issuance is synchronous: the endpoint submits the attestation transaction and wa
 }
 ```
 
-**`POST /issuers/:handle/:slug/issue`** is the self-serve Bearer path behind `fuda.sh/@<handle>/<slug>` (docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route). It takes no body: the card fixes `tier` (0), `usageModel` (`SINGLE_USE` for a `ticket`, `MULTI_USE` otherwise) and the validity window — `validUntil` = claim time plus `validity_days` for a relative card, the card's own `valid_from`/`valid_until` for an absolute one, and 0 for a card that never expires. A claim outside the card's claim window answers `409 card_closed` before anything is attested. The api generates the member number, derives the holder exactly as the admin Bearer path does (nonce preimage = the member number), attests, and answers the Bearer `/issue` shape plus `memberNumber`.
+**`POST /issuers/:handle/:slug/issue`** is the self-serve Bearer path behind `fuda.sh/@<handle>/<slug>` (docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route). Its only body is an optional `{ source }` label ([capacity and source](./pass-types-and-flows.md#capacity-and-source)): the card fixes `tier` (0), `usageModel` (`SINGLE_USE` for a `ticket`, `MULTI_USE` otherwise) and the validity window — `validUntil` = claim time plus `validity_days` for a relative card, the card's own `valid_from`/`valid_until` for an absolute one, and 0 for a card that never expires. A claim outside the card's claim window answers `409 card_closed` before anything is attested. The api generates the member number, derives the holder exactly as the admin Bearer path does (nonce preimage = the member number), attests, and answers the Bearer `/issue` shape plus `memberNumber`.
 
 All three `passUrls` are absolute against `API_BASE_URL` and always present, even where a wallet platform is unconfigured (that route answers `501`). A +Private issuance answers the other arm — `{ "uid", "level": "private", "announced": true, "announceTx" }` — with no `holder`, no `qr` and no `passUrls`, because a +Private right has no pass ([passes](./pass-types-and-flows.md#passes)).
 

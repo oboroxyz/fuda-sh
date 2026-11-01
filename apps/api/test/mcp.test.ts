@@ -1,5 +1,6 @@
 import type { CardInput, ConnectedAppResponse, TokenResponse } from '@fuda/sdk'
 import { env } from 'cloudflare:test'
+import { eq } from 'drizzle-orm'
 import * as v from 'valibot'
 import { beforeEach, describe, expect, it } from 'vitest'
 
@@ -70,7 +71,11 @@ interface RpcMessage {
 }
 
 interface ToolArguments {
+  capacity?: number | null
   cardId?: string
+  claimFrom?: number | null
+  claimUntil?: number | null
+  source?: string
   status?: string
   uid?: string
 }
@@ -357,6 +362,124 @@ describe('mcp', () => {
     expect(toolValue(ToolError, invalid)).toStrictEqual({ error: 'bad_slug' })
   })
 
+  describe('capacity and source', () => {
+    const Limited = v.object({
+      card: v.object({ capacity: v.nullable(v.number()), id: v.string(), issued: v.number() }),
+    })
+    const Total = v.object({ page: v.object({ total: v.number() }) })
+
+    const claim = async (slug: string, body?: string): Promise<number> => {
+      const res = await app.request(
+        `/v1/issuers/${CARD_INPUT.handle}/${slug}/issue`,
+        { body, headers: { 'CF-Connecting-IP': '203.0.113.9' }, method: 'POST' },
+        bindings(),
+      )
+      return res.status
+    }
+
+    const limitedCard = async (capacity: number): Promise<{ cardId: string; token: string }> => {
+      const { token } = await approveAndExchange({ resource: RESOURCE, scope: ALL_SCOPES })
+      const created = await rpc(token, 'tools/call', {
+        arguments: { ...SECOND_CARD, capacity },
+        name: 'create_card',
+      })
+      return { cardId: toolValue(Limited, created).card.id, token }
+    }
+
+    const totalOf = async (token: string, args: ToolArguments): Promise<number> => {
+      const listed = await rpc(token, 'tools/call', { arguments: args, name: 'list_passes' })
+      return toolValue(Total, listed).page.total
+    }
+
+    it('stops every way of issuing at capacity, and says the card is not claimable', async () => {
+      const { cardId, token } = await limitedCard(1)
+      await expect(claim(SECOND_CARD.slug)).resolves.toBe(200)
+      const refused = await app.request(
+        `/v1/issuers/${CARD_INPUT.handle}/${SECOND_CARD.slug}/issue`,
+        { headers: { 'CF-Connecting-IP': '203.0.113.9' }, method: 'POST' },
+        bindings(),
+      )
+      expect(refused.status).toBe(409)
+      await expect(refused.json()).resolves.toStrictEqual({ error: 'card_sold_out' })
+      const issued = await rpc(token, 'tools/call', { arguments: { cardId }, name: 'issue_pass' })
+      expect(toolValue(ToolError, issued)).toStrictEqual({ error: 'card_sold_out' })
+      const listed = await rpc(token, 'tools/call', { name: 'list_cards' })
+      const { cards: rows } = toolValue(
+        v.object({
+          cards: v.array(v.object({ claimable: v.boolean(), id: v.string(), issued: v.number() })),
+        }),
+        listed,
+      )
+      expect(rows.find((row) => row.id === cardId)).toStrictEqual({ claimable: false, id: cardId, issued: 1 })
+    })
+
+    it('takes every place exactly once when claims arrive together', async () => {
+      const { cardId, token } = await limitedCard(3)
+      const answers = await Promise.all(Array.from({ length: 6 }, async () => await claim(SECOND_CARD.slug)))
+      expect(answers.filter((status) => status === 200)).toHaveLength(3)
+      expect(answers.filter((status) => status === 409)).toHaveLength(3)
+      await expect(totalOf(token, { cardId })).resolves.toBe(3)
+    })
+
+    it('gives the place back when the chain write fails', async () => {
+      const { cardId, token } = await limitedCard(1)
+      chain.failWrites = true
+      const failed = await claim(SECOND_CARD.slug)
+      chain.failWrites = false
+      expect(failed).toBe(502)
+      const issued = await rpc(token, 'tools/call', { arguments: { cardId }, name: 'issue_pass' })
+      expect(issued.result?.isError).toBe(false)
+    })
+
+    it('does not give a place back for a right already on chain', async () => {
+      const { cardId } = await limitedCard(1)
+      await env.DB.exec(
+        `CREATE TRIGGER fail_member BEFORE INSERT ON members BEGIN SELECT RAISE(ABORT, 'no'); END`,
+      )
+      const failed = await claim(SECOND_CARD.slug)
+      await env.DB.exec('DROP TRIGGER fail_member')
+      expect(failed).toBe(502)
+      const row = await getDb({ DB: env.DB })
+        .select({ reserved: cards.reserved })
+        .from(cards)
+        .where(eq(cards.id, cardId))
+        .get()
+      expect(row?.reserved).toBe(1)
+    })
+
+    it('changes only the limits it is given', async () => {
+      const { cardId, token } = await limitedCard(5)
+      const closed = await rpc(token, 'tools/call', {
+        arguments: { cardId, claimUntil: NOW - 1 },
+        name: 'update_card_limits',
+      })
+      expect(toolValue(Limited, closed).card.capacity).toBe(5)
+      await expect(claim(SECOND_CARD.slug)).resolves.toBe(409)
+      const open = await rpc(token, 'tools/call', {
+        arguments: { capacity: null, cardId, claimUntil: null },
+        name: 'update_card_limits',
+      })
+      expect(toolValue(Limited, open).card.capacity).toBeNull()
+      await expect(claim(SECOND_CARD.slug)).resolves.toBe(200)
+      const backwards = await rpc(token, 'tools/call', {
+        arguments: { cardId, claimFrom: NOW + 10, claimUntil: NOW },
+        name: 'update_card_limits',
+      })
+      expect(toolValue(ToolError, backwards)).toStrictEqual({ error: 'bad_input' })
+    })
+
+    it('records where a pass came from, and drops a label that fails the rule', async () => {
+      const { cardId, token } = await limitedCard(5)
+      await claim(SECOND_CARD.slug, JSON.stringify({ source: 'spring-flyer' }))
+      await claim(SECOND_CARD.slug, JSON.stringify({ source: 'Not Valid!' }))
+      await claim(SECOND_CARD.slug)
+      await rpc(token, 'tools/call', { arguments: { cardId, source: 'guest-list' }, name: 'issue_pass' })
+      await expect(totalOf(token, { source: 'spring-flyer' })).resolves.toBe(1)
+      await expect(totalOf(token, { source: 'guest-list' })).resolves.toBe(1)
+      await expect(totalOf(token, { cardId })).resolves.toBe(4)
+    })
+  })
+
   describe('passes', () => {
     const CardId = v.object({ cards: v.array(v.object({ id: v.string() })) })
     const Issued = v.object({ memberNumber: v.string(), passUrl: v.string(), uid: v.string() })
@@ -432,7 +555,11 @@ describe('mcp', () => {
     it('never grants pass scopes by default', async () => {
       const { token } = await approveAndExchange({ resource: RESOURCE })
       const listed = await rpc(token, 'tools/list')
-      expect(listed.result?.tools?.map((tool) => tool.name)).toStrictEqual(['list_cards', 'create_card'])
+      expect(listed.result?.tools?.map((tool) => tool.name)).toStrictEqual([
+        'list_cards',
+        'create_card',
+        'update_card_limits',
+      ])
     })
   })
 

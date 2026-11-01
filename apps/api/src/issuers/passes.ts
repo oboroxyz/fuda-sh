@@ -9,6 +9,7 @@ export interface IssuerPassFilters {
   page: number
   pageSize: number
   q: string
+  source: string | null
   status: IssuerPassStatus | null
 }
 
@@ -29,6 +30,7 @@ const PassResultRow = v.object({
   claimedAt: v.number(),
   holder: v.nullable(v.string()),
   memberNumber: v.string(),
+  source: v.nullable(v.string()),
   stamps: v.number(),
   status: v.picklist(ISSUER_PASS_STATUSES),
   uid: v.string(),
@@ -59,6 +61,7 @@ const PASS_ROWS = `
     m.member_id AS memberNumber,
     m.holder AS holder,
     m.created_at AS claimedAt,
+    m.source AS source,
     m.valid_from AS validFrom,
     m.valid_until AS validUntil,
     c.id AS cardId,
@@ -105,6 +108,10 @@ const filteredWhere = (filters: IssuerPassFilters): FilteredWhere => {
   if (filters.cardId !== null) {
     clauses.push('pass_rows.cardId = ?')
     params.push(filters.cardId)
+  }
+  if (filters.source !== null) {
+    clauses.push('pass_rows.source = ?')
+    params.push(filters.source)
   }
   if (filters.status !== null) {
     clauses.push('pass_rows.status = ?')
@@ -195,6 +202,7 @@ export const readIssuerPasses = async (
     claimedAt: row.claimedAt,
     holder: row.holder,
     memberNumber: row.memberNumber,
+    source: row.source,
     stamps: asNumber(row.stamps),
     status: row.status,
     uid: row.uid,

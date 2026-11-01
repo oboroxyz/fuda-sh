@@ -47,7 +47,7 @@ export interface AnnouncementLog {
 }
 
 export class ChainError extends Error {
-  override readonly name = 'ChainError'
+  override readonly name: string = 'ChainError'
 }
 
 export class NoSignerError extends Error {

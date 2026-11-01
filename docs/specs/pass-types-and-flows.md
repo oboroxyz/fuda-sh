@@ -218,6 +218,12 @@ The shared `fuda.sh/@<handle>` link redirects at the zone to `app.fuda.sh/@<hand
 
 **A U1 card cannot be limited to one per person.** U1's defining property is that the member has no identity at claim time: no account, no contact detail, no key. The member app remembers a claimed card on the device and shows it again instead of issuing a second one, and the per-IP budget bounds automated abuse, but neither is identity: a cleared browser, a private window, or a second device yields another card. Enforcing one-per-person needs a stable member key, which is what U2 and U3 already have — a `private` member gives the issuer a meta-address, and a `private + loyalty` member additionally has a stable persistent-value holder — so the constraint belongs to those templates, or to a card that deliberately requires a passkey before it is claimed and so gives up U1's one-tap sign-up.
 
+### Capacity and source
+
+A Card may have a **capacity**, the most Passes it can ever issue. A Card at capacity reads `claimable: false`, and issuing answers `409 card_sold_out` before the signer spends anything, so concurrent claims cannot pass it. A revoked Pass still counts; raise the capacity to hand out more. Lowering it below the Passes issued stops new ones and leaves those Passes alone. Capacity is set through the [MCP server](./mcp.md); the dashboard's forms neither show nor change it.
+
+A claim link may carry a **source**, `?source=spring-flyer`: 1–40 lowercase letters, digits, hyphens or underscores. `POST /issuers/:handle/:slug/issue` takes it as an optional body `{ source }`, and one that breaks the rule is dropped rather than refusing the claim. It is held off chain and read only by the owning Issuer. Anyone can edit a link, so a source is good for counting and never decides anything.
+
 ## Gate protocol
 
 ### Bearer entry (`POST /verify`)

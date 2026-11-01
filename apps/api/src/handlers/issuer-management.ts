@@ -160,6 +160,7 @@ export const getV1IssuersMePasses = defineHandler(operatorAuth(), async (c) => {
     page,
     pageSize,
     q,
+    source: null,
     status,
   })
   // One badge read for the page, so the operator's own list shows the same fact

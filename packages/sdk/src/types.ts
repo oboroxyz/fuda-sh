@@ -148,6 +148,8 @@ export interface IssuerPassView {
   card: { id: string; slug: string; title: string; category: CardCategory } | null
   holder: string | null
   claimedAt: number
+  // the claim link's label, or null; self-reported, so good for counting only
+  source: string | null
   stamps: number
   status: IssuerPassStatus
   validFrom: number | null
