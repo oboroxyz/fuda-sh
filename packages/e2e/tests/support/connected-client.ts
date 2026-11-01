@@ -66,3 +66,28 @@ export const startConnectedClient = async (verifier: string) => {
     },
   }
 }
+
+// Where an agent's local client waits for its authorization code.
+export const startCallback = async () => {
+  const { promise: code, resolve } = Promise.withResolvers<string>()
+  const server = createServer((request, response) => {
+    const received = new URL(request.url ?? '/', 'http://localhost').searchParams.get('code')
+    if (received !== null) {
+      resolve(received)
+    }
+    response.end('You can close this window.')
+  })
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  const address = v.parse(v.object({ port: v.number() }), server.address())
+  return {
+    close: async (): Promise<void> => {
+      const stopped = once(server, 'close')
+      server.closeAllConnections()
+      server.close()
+      await stopped
+    },
+    code,
+    redirectUri: `http://localhost:${String(address.port)}/callback`,
+  }
+}

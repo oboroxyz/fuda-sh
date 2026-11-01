@@ -54,6 +54,7 @@ export const issueBearerRight = async (): Promise<BearerRight> =>
   await post('/issue', JSON.stringify({ memberId: uniqueName('member'), usageModel: 0 }), BearerRightSchema)
 
 export interface Venue {
+  operatorToken: string
   cardSlug: string
   cardTitle: string
   handle: string
@@ -107,5 +108,5 @@ export const createVenue = async (name = 'E2E Coffee'): Promise<Venue> => {
     v.unknown(),
     session.token,
   )
-  return { cardSlug, cardTitle, handle, name }
+  return { cardSlug, cardTitle, handle, name, operatorToken: session.token }
 }
