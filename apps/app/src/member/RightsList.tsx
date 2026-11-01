@@ -1,13 +1,13 @@
 import { DEFAULT_LOCALE, pick } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
-import { useQuery, useQueryScope } from '@fuda/libs/query'
 import type { QueryClient } from '@fuda/libs/query'
-/** @jsxImportSource hono/jsx/dom */
+import { createQuery, createQueryScope } from '@fuda/libs/query'
 import { asHex, brandTextColor, fetchRightsByHolder, normalizeUid } from '@fuda/sdk'
 import type { GraphRight, Hex, PassCardView } from '@fuda/sdk'
 import { short } from '@fuda/ui'
-import { useEffect, useState } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import { createEffect, createSignal, For, on } from 'solid-js'
+import type { JSX } from 'solid-js'
+import { Dynamic } from 'solid-js/web'
 
 import { fetchPassCard, fetchStampSummary, verifyUid } from '../api.ts'
 import { API_BASE_URL, GRAPH_RIGHTS_ENDPOINT } from '../config.ts'
@@ -66,7 +66,7 @@ const metaUri = (value: string): JSX.Element | null => {
 }
 
 const graphCard = (right: GraphRight, copy: MemberCopy['passes']): JSX.Element => (
-  <li class="card member-pass" key={right.id}>
+  <li class="card member-pass">
     <div class="card-body gap-2">
       <div class={right.revokedAt === null ? 'badge badge-success' : 'badge badge-error'}>
         {right.revokedAt === null ? copy.active : copy.revoked}
@@ -138,7 +138,7 @@ const plainFace = (row: MemberPassRow, copy: MemberCopy['passes']): JSX.Element 
 const venueFace = (card: PassCardView, copy: MemberCopy['passes']): JSX.Element => (
   <div
     class="member-pass-preview"
-    style={{ backgroundColor: card.brandColor, color: brandTextColor(card.brandColor) }}
+    style={{ 'background-color': card.brandColor, color: brandTextColor(card.brandColor) }}
   >
     <div class="flex items-center gap-3">
       {card.logoUrl === null ? null : (
@@ -146,7 +146,7 @@ const venueFace = (card: PassCardView, copy: MemberCopy['passes']): JSX.Element 
           alt=""
           class="size-10 flex-none rounded-xl bg-white/10 object-cover"
           loading="lazy"
-          onError={(event: Event & { currentTarget: HTMLImageElement }) => {
+          onError={(event) => {
             event.currentTarget.hidden = true
           }}
           src={card.logoUrl}
@@ -168,7 +168,7 @@ const memberCard = (row: MemberPassRow, locale: Locale, copy: MemberCopy['passes
   const publicPass = hasPublicPass(row)
   const status = memberStatus(row, locale, copy)
   return (
-    <li class="min-w-0" key={row.uid}>
+    <li class="min-w-0">
       {row.card === null ? plainFace(row, copy) : venueFace(row.card, copy)}
       <div class="member-pass-actions">
         <div class={row.preview?.decision === 'ADMIT' ? 'badge badge-success' : 'badge badge-error'}>
@@ -189,15 +189,7 @@ const memberCard = (row: MemberPassRow, locale: Locale, copy: MemberCopy['passes
   )
 }
 
-export const RightsListView = ({
-  state,
-  locale = DEFAULT_LOCALE,
-  search = '',
-}: {
-  search?: string
-  state: RightsListState | MemberListState
-  locale?: Locale
-}): JSX.Element => {
+const listView = (state: RightsListState | MemberListState, locale: Locale, search: string): JSX.Element => {
   const copy = pick(MEMBER_COPY, locale).passes
   if (state.kind === 'idle') {
     return <p class="text-sm opacity-70">{copy.idle}</p>
@@ -218,7 +210,9 @@ export const RightsListView = ({
       return <p class="member-empty">{copy.noRights}</p>
     }
     return (
-      <ul class="flex flex-col gap-5">{state.rights.map((right): JSX.Element => graphCard(right, copy))}</ul>
+      <ul class="flex flex-col gap-5">
+        <For each={state.rights}>{(right) => graphCard(right, copy)}</For>
+      </ul>
     )
   }
   if (state.result.rows.length === 0) {
@@ -253,24 +247,33 @@ export const RightsListView = ({
           {copy.noMatches}
         </p>
       ) : (
-        <ul class="flex flex-col gap-6">{rows.map((row): JSX.Element => memberCard(row, locale, copy))}</ul>
+        <ul class="flex flex-col gap-6">
+          <For each={rows}>{(row) => memberCard(row, locale, copy)}</For>
+        </ul>
       )}
     </>
   )
 }
 
-export const QueryRecoveryNotice = ({
-  locale = DEFAULT_LOCALE,
-  onNavigate,
-}: { locale?: Locale; onNavigate?: (path: string) => void } = {}): JSX.Element => {
-  const copy = pick(MEMBER_COPY, locale).passes
+export const RightsListView = (props: {
+  search?: string
+  state: RightsListState | MemberListState
+  locale?: Locale
+}): JSX.Element => <>{listView(props.state, props.locale ?? DEFAULT_LOCALE, props.search ?? '')}</>
+
+export const QueryRecoveryNotice = (props: {
+  locale?: Locale
+  onNavigate?: (path: string) => void
+}): JSX.Element => {
+  const copy = (): MemberCopy['passes'] => pick(MEMBER_COPY, props.locale ?? DEFAULT_LOCALE).passes
   return (
     <div class="alert alert-warning">
-      {copy.privateNotice}{' '}
+      {copy().privateNotice}{' '}
       <a
         class="link"
         href="/private"
         onClick={(event) => {
+          const { onNavigate } = props
           if (
             onNavigate !== undefined &&
             event.button === 0 &&
@@ -284,7 +287,7 @@ export const QueryRecoveryNotice = ({
           }
         }}
       >
-        {copy.privateRights}
+        {copy().privateRights}
       </a>
     </div>
   )
@@ -308,9 +311,6 @@ const problemNotice = (
   }
   return <div class="alert alert-error">{problem.message}</div>
 }
-
-const fieldValue = (target: EventTarget | null): string | null =>
-  target instanceof HTMLInputElement ? target.value : null
 
 const defaultIo: MemberPassListIo = {
   appleAvailable: applePassAvailable,
@@ -338,53 +338,53 @@ const queryUidFromLocation = (): Hex | null => {
   return raw === null ? null : normalizeUid(raw)
 }
 
-export const RightsList = ({
-  variant = 'passes',
-  locale = DEFAULT_LOCALE,
-  initialAddress,
-  io = defaultIo,
-  injected: givenInjected,
-  memory: givenMemory,
-  queryClient: givenQueryClient,
-  queryUid,
-  onNavigate,
-}: RightsListProps): JSX.Element => {
-  const copy = pick(MEMBER_COPY, locale)
-  const localQueryClient = useQueryScope()
-  const queryClient = givenQueryClient ?? localQueryClient
-  const injected = givenInjected === undefined ? injectedProvider() : givenInjected
-  const [addresses, setAddresses] = useState<Hex[]>(initialAddress === undefined ? [] : [initialAddress])
-  const [memory, setMemory] = useState<PassMemoryEntry[]>(() => [...(givenMemory ?? readPassMemory())])
-  const [manual, setManual] = useState('')
-  const [search, setSearch] = useState('')
-  const [problem, setProblem] = useState<MemberProblem | null>(null)
-  const uid = queryUid === undefined ? queryUidFromLocation() : queryUid
-  const listQuery = useQuery(
-    queryClient,
+export const RightsList = (props: RightsListProps): JSX.Element => {
+  const variant = (): 'lookup' | 'passes' => props.variant ?? 'passes'
+  const locale = (): Locale => props.locale ?? DEFAULT_LOCALE
+  const copy = (): MemberCopy => pick(MEMBER_COPY, locale())
+  const io = props.io ?? defaultIo
+  const localQueryClient = createQueryScope()
+  const queryClient = props.queryClient ?? localQueryClient
+  const injected = props.injected === undefined ? injectedProvider() : props.injected
+  const [addresses, setAddresses] = createSignal<Hex[]>(
+    props.initialAddress === undefined ? [] : [props.initialAddress],
+  )
+  const [memory, setMemory] = createSignal<PassMemoryEntry[]>([...(props.memory ?? readPassMemory())])
+  const [manual, setManual] = createSignal('')
+  const [search, setSearch] = createSignal('')
+  const [problem, setProblem] = createSignal<MemberProblem | null>(null)
+  const uid = props.queryUid === undefined ? queryUidFromLocation() : props.queryUid
+  const listQuery = createQuery(queryClient, () =>
     memberPassListQueryOptions(
       {
-        addresses,
+        addresses: addresses(),
         apiEndpoint: API_BASE_URL,
         graphEndpoint: GRAPH_RIGHTS_ENDPOINT,
-        memory,
+        memory: memory(),
       },
       io,
     ),
   )
-  const recoveryQuery = useQuery(queryClient, memberPassRecoveryQueryOptions(uid, API_BASE_URL, io))
-  const state = memberListState(listQuery.data, listQuery.error)
-  const recoveryProblem =
-    recoveryQuery.error === null || recoveryQuery.error instanceof PrivatePassRecoveryError
-      ? recoveryQuery.error
-      : new Error(`${copy.passes.recoveryFailed} ${recoveryQuery.error.message}`)
-  const queryProblem = recoveryProblem ?? (listQuery.data === undefined ? null : listQuery.error)
+  const recoveryQuery = createQuery(queryClient, () => memberPassRecoveryQueryOptions(uid, API_BASE_URL, io))
+  const queryProblem = (): MemberProblem | null => {
+    const recoveryError = recoveryQuery().error
+    const recoveryProblem =
+      recoveryError === null || recoveryError instanceof PrivatePassRecoveryError
+        ? recoveryError
+        : new Error(`${copy().passes.recoveryFailed} ${recoveryError.message}`)
+    return recoveryProblem ?? (listQuery().data === undefined ? null : listQuery().error)
+  }
 
-  useEffect(() => {
-    if (recoveryQuery.data === undefined || recoveryQuery.data === null) {
-      return
-    }
-    setMemory(rememberPass(recoveryQuery.data))
-  }, [recoveryQuery.data])
+  createEffect(
+    on(
+      () => recoveryQuery().data,
+      (recovered) => {
+        if (recovered !== undefined && recovered !== null) {
+          setMemory(rememberPass(recovered))
+        }
+      },
+    ),
+  )
 
   const addAddress = (address: Hex): void => {
     setAddresses((stored) => withConnectedAddress(stored, address))
@@ -400,7 +400,7 @@ export const RightsList = ({
   }
 
   const lookup = (): void => {
-    const holder = asHex(manual.trim(), 20)
+    const holder = asHex(manual().trim(), 20)
     if (holder === null) {
       setProblem('invalidAddress')
       return
@@ -409,14 +409,18 @@ export const RightsList = ({
     addAddress(holder)
   }
 
-  const Container = variant === 'lookup' ? 'section' : 'main'
-  const visibleState: RightsListState | MemberListState =
-    variant === 'lookup' && addresses.length === 0 ? { kind: 'idle' } : state
+  const visibleState = (): RightsListState | MemberListState =>
+    variant() === 'lookup' && addresses().length === 0
+      ? { kind: 'idle' }
+      : memberListState(listQuery().data, listQuery().error)
   return (
-    <Container class={variant === 'lookup' ? 'flex flex-col gap-4' : 'member-page flex flex-col gap-6'}>
-      {variant === 'passes' ? (
+    <Dynamic
+      component={variant() === 'lookup' ? 'section' : 'main'}
+      class={variant() === 'lookup' ? 'flex flex-col gap-4' : 'member-page flex flex-col gap-6'}
+    >
+      {variant() === 'passes' ? (
         <>
-          <h1 class="member-heading">{copy.nav.rights}</h1>
+          <h1 class="member-heading">{copy().nav.rights}</h1>
           <div class="relative">
             <svg
               aria-hidden="true"
@@ -433,14 +437,11 @@ export const RightsList = ({
             <input
               class="member-pass-search input input-bordered w-full rounded-full!"
               type="search"
-              aria-label={copy.passes.search}
-              placeholder={copy.passes.search}
-              value={search}
+              aria-label={copy().passes.search}
+              placeholder={copy().passes.search}
+              value={search()}
               onInput={(event) => {
-                const value = fieldValue(event.currentTarget)
-                if (value !== null) {
-                  setSearch(value)
-                }
+                setSearch(event.currentTarget.value)
               }}
             />
           </div>
@@ -455,7 +456,7 @@ export const RightsList = ({
                 void connect(async () => await Promise.resolve(injected))
               }}
             >
-              {copy.passes.browserWallet}
+              {copy().passes.browserWallet}
             </button>
           )}
           <form
@@ -467,24 +468,21 @@ export const RightsList = ({
           >
             <input
               class="input input-bordered grow font-mono"
-              aria-label={copy.passes.address}
-              placeholder={copy.passes.placeholder}
-              value={manual}
+              aria-label={copy().passes.address}
+              placeholder={copy().passes.placeholder}
+              value={manual()}
               onInput={(event) => {
-                const value = fieldValue(event.currentTarget)
-                if (value !== null) {
-                  setManual(value)
-                }
+                setManual(event.currentTarget.value)
               }}
             />
             <button class="btn" type="submit">
-              {copy.passes.lookup}
+              {copy().passes.lookup}
             </button>
           </form>
         </div>
       )}
-      {problemNotice(problem ?? queryProblem, locale, onNavigate)}
-      <RightsListView locale={locale} state={visibleState} search={search} />
-    </Container>
+      {problemNotice(problem() ?? queryProblem(), locale(), props.onNavigate)}
+      <RightsListView locale={locale()} state={visibleState()} search={search()} />
+    </Dynamic>
   )
 }

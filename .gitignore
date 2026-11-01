@@ -224,9 +224,8 @@ dist/
 .worktrees/
 docs/internal
 
-# Playwright (generated)
-test-results/
-playwright-report/
+# e2e suite output (packages/e2e)
+.e2e/
 
 # Local screenshots and review evidence (not product assets)
 /artifacts/
@@ -234,7 +233,6 @@ playwright-report/
 # Local Worker secrets (per-package)
 .dev.vars
 .dev.vars.*
-!.dev.vars.example
 
 # Signing key material. The Apple Pass Type ID certificate, its private key and
 # the WWDR intermediate belong outside this repository entirely — they are read
@@ -255,5 +253,6 @@ playwright-report/
 # Vitest coverage output
 coverage/
 
-# Superpowers SDD scratch state (specs/ and plans/ are committed while active)
-.superpowers/sdd/
+# Void local state and generated Cloudflare config (void.lock.json is committed)
+.void/
+.void-wrangler.jsonc

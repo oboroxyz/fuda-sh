@@ -84,7 +84,3 @@ export const authenticateWallet = async <T>(
 
   return { ok: true, session: verified.body }
 }
-
-export { createTokenStore } from './token-store.ts'
-export { createSessionGeneration } from './session-generation.ts'
-export type { SessionGeneration } from './session-generation.ts'

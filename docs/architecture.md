@@ -28,8 +28,8 @@ flowchart LR
 
 | Component | Path | Responsibility |
 | --- | --- | --- |
-| API | `apps/api` | Coordinates issuance, revocation, gate operational state, pass generation, and +Private announcement writes |
-| Operator dashboard | `apps/dash` | Gives authorized issuers routed Overview, Rights, and Issue views; derives operational summaries from D1 member rows, issues and revokes through the API, and queries chain status separately through the rights subgraph |
+| API | `apps/api` | Coordinates issuance, revocation, gate operational state, pass generation, and +Private announcement writes. Void discovers its server routes and runs shared request middleware ([ADR 0012](./adr/0012-void-api-routing.md)) |
+| Operator dashboard | `apps/dash` | Gives authorized issuers routed Overview, Rights, and Issue views; derives operational summaries from D1 member rows, issues and revokes through the API, and queries chain status separately through the rights subgraph. Its Void Worker renders the pages, holds the session in HttpOnly cookies and forwards the browser's api calls ([ADR 0010](./adr/0010-void-pages-and-frontend-workers.md)) |
 | Member app | `apps/app` | Holds member signing rails, answers Signed challenges, lists public member passes from holder addresses and device memory, and discovers +Private rights client-side |
 | Gate | `apps/gate` | Reads presented rights, requests proof when required, and renders an ADMIT or REJECT verdict |
 | EAS on Base | External; `apps/api` | Records Entitlements, issuer delegation, revocation, and Attendance evidence |
@@ -42,7 +42,7 @@ flowchart LR
 
 `@fuda/libs` exposes shared library integrations through separate subpaths, with no root barrel. Browser and backend integrations may coexist, provided that runtime-specific dependencies stay behind their own entry points.
 
-The member app's public pass list and dashboard's issuer reads share `@fuda/libs/query`, a Hono JSX adapter over TanStack Query Core. Each mounted scope owns an independent in-memory client and clears it when disposed. Reads become stale after 30 seconds and refresh on focus or reconnect; the public pass list also refreshes every 30 seconds while visible. Transient read failures retry once, HTTP 4xx failures do not, and writes have no automatic retry.
+The member app's public pass list uses `@fuda/libs/query`, a Solid adapter over TanStack Query Core. Each mounted scope owns an independent in-memory client and clears it when disposed. Reads become stale after 30 seconds and refresh on focus or reconnect; the public pass list also refreshes every 30 seconds while visible. Transient read failures retry once, HTTP 4xx failures do not, and writes have no automatic retry.
 
 Public list keys identify API and graph deployments, holder addresses, and remembered public passes. Dashboard keys identify the API deployment and a session generation. Tokens remain in request closures, and session replacement clears protected cache entries. Restoring a saved token always requires a fresh server validation. Successful issuer mutations reconcile or invalidate cached reads, cancelling older reads so they cannot undo the update.
 
@@ -56,6 +56,7 @@ This cache supports presentation, not authorization or admission decisions. It i
 - **Private discovery is client-side.** The member app derives viewing keys and matches ERC-5564 announcements locally after fetching raw candidates from the public rights subgraph. The API and D1 are not involved in discovery.
 - **Push and query lanes are independent.** The rights subgraph reads EAS and the Announcer directly. Stopping the optional Substreams push lane does not stop discovery, right cards, dashboard on-chain status, issuance, or gate checks.
 - **Admin routes fail closed.** Issue, revoke and member listing require `ADMIN_TOKEN` wherever a signer or `BASE_RPC_URL` is configured; a deployment with either binding and no token locks them rather than opening them.
+- **A connected app reaches one Issuer.** Its access token names the Issuer chosen at approval and the routes it reaches read only that Issuer; it cannot create an Issuer or act as the Operator. Only the account that registered the app can approve it.
 - **The public verify endpoints are unauthenticated by design.** `GET /verify/:uid` and `POST /verify` take a uid that is public on chain, so anyone who learns one can preview it. `GET /verify/:uid` is a read-only preview and never consumes a slot; a bare `POST /verify` is an admission, so it burns a SINGLE_USE right's slot. What that buys an attacker, and why Signed is the answer for rights that must resist it, is in the attestation model's [threat model of the public verify endpoints](./specs/attestation-model.md#api-payloads-that-touch-attestations).
 
 ## UX and decentralization
@@ -88,22 +89,22 @@ fuda runs one deployment per chain, and they never share state. Each owns its ow
 
 |  | Chain | D1 | R2 | Hostnames | Branch |
 | --- | --- | --- | --- | --- | --- |
-| local | in-memory fake (`USE_FAKE_CHAIN`) | the local simulated database | simulated; `fuda-media-local` only under `wrangler dev --remote` | none | any |
+| local | in-memory fake (`USE_FAKE_CHAIN`) | the local simulated database | simulated; `fuda-media-local` only for remote-binding runs | none | any |
 | develop | Base Sepolia | `fuda-beta` | `fuda-media-dev` | `*.fuda.sh` today, `*.dev.fuda.sh` after the mainnet cutover | `develop` |
 | production | Base mainnet | `fuda` | `fuda-media` | `*.fuda.sh` from the cutover | `main` |
 
-The Sepolia deployment is live on the apex hostnames today and keeps them until the cutover; `env.production` therefore carries no `routes`, so deploying it early cannot take a hostname from the running one. The local environment is named `local`, not `dev`, so it is never confused with the deployed develop one. Nothing is migrated at the cutover — see [ADR 0006](./adr/0006-per-chain-environments.md) — so production begins with an empty database and bucket.
+The Sepolia deployment is live on the apex hostnames today and keeps them until the cutover; the `production` target therefore carries no `routes`, so deploying it early cannot take a hostname from the running one. The local environment is named `local`, not `dev`, so it is never confused with the deployed develop one. Each environment is a target of the api in `apps/api/targets.jsonc`, deployed as its own Void project ([ADR 0009](./adr/0009-void-and-solid.md)). Nothing is migrated at the cutover — see [ADR 0006](./adr/0006-per-chain-environments.md) — so production begins with an empty database and bucket.
 
-Because a frontend bakes `VITE_API_BASE_URL` in at build time, a bundle belongs to exactly one environment: a develop build must be built against the develop api. The deploy order and the one-time chain setup per environment are in the [runbook](./runbook.md).
+Because each frontend's Worker uses `https://api.fuda.sh` unless its optional `API_BASE_URL` var overrides it, a deployment belongs to exactly one environment: a develop deployment must point at the develop api. The deploy order and the one-time chain setup per environment are in the [runbook](./runbook.md).
 
 ## Configuration
 
 The deployment's configured values, and what fails when one is missing, are tabulated once in the attestation model's [chain fixtures](./specs/attestation-model.md#chain-fixtures) and [configured values](./specs/attestation-model.md#configured-values). In outline:
 
-- **`apps/api/wrangler.jsonc` `vars`** — the chain addresses and the api's own base: `EAS_ADDRESS`, `SCHEMA_REGISTRY_ADDRESS`, `EAS_SCHEMAS`, `ISSUER_ADDRESS`, `DELEGATION_UID`, `ANNOUNCER_ADDRESS`, `ANNOUNCER_FROM_BLOCK` (the rights-subgraph manifest's generated start block; it is not read by the API), `FACTORY_ADDRESS` (the smart-wallet factory the Bearer holder address is derived from), and `API_BASE_URL` (the absolute base of the `passUrls` in an `/issue` response, and the api entry in the Google Wallet `origins` claim).
+- **`apps/api/targets.jsonc` `vars`**, one set per target — the chain addresses and the api's own base: `EAS_ADDRESS`, `SCHEMA_REGISTRY_ADDRESS`, `EAS_SCHEMAS`, `ISSUER_ADDRESS`, `DELEGATION_UID`, `ANNOUNCER_ADDRESS`, `ANNOUNCER_FROM_BLOCK` (the rights-subgraph manifest's generated start block; it is not read by the API), `FACTORY_ADDRESS` (the smart-wallet factory the Bearer holder address is derived from), and `API_BASE_URL` (the absolute base of the `passUrls` in an `/issue` response, and the api entry in the Google Wallet `origins` claim).
 - **Worker secrets** — `SIGNER_PRIVATE_KEY`, `ADMIN_TOKEN`, `BASE_RPC_URL`, the four `GOOGLE_*` names and the five `APPLE_*` names. A wallet platform is all-or-nothing: a missing name answers `501`, never a broken pass.
-- **`USE_FAKE_CHAIN`** — local development only (`apps/api/.dev.vars`); it swaps in an in-memory chain and is never set in a deployed environment.
-- **Frontend build environment** — `VITE_API_BASE_URL` in all three apps; `VITE_GRAPH_RIGHTS_ENDPOINT` in the member app and dashboard; plus `VITE_APP_ORIGIN` and `VITE_RP_ID` in the member app. Vite bakes these in at build time, so changing one means rebuilding and redeploying that app.
+- **`USE_FAKE_CHAIN`** — local development only (`apps/api/targets/local/.env`); it swaps in an in-memory chain and is never set in a deployed environment.
+- **Frontend environment** — each Worker's optional `API_BASE_URL` var, emitted by `void.config.ts` only when explicitly set in the shell (otherwise the Worker defaults to `https://api.fuda.sh`); `VITE_GRAPH_RIGHTS_ENDPOINT` in the member app and dashboard; `VITE_ENS_PAYMASTER_URL` in the dashboard; `VITE_APP_ORIGIN` and `VITE_RP_ID` in the member app. Vite bakes the `VITE_*` values in at build time, so changing one means redeploying that app.
 
 ## Member app responsibility
 

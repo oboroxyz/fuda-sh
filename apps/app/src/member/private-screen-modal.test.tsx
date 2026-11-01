@@ -1,18 +1,33 @@
 // @vitest-environment happy-dom
-/** @jsxImportSource hono/jsx/dom */
 import { setTimeout } from 'node:timers/promises'
 
 import { challengeMessage } from '@fuda/sdk'
 import type { GraphAnnouncement, Hex } from '@fuda/sdk'
 import { buildAnnouncementMetadata, generateStealthAddress } from '@fuda/stealth-address'
-import { render } from 'hono/jsx/dom'
+import type { JSX } from 'solid-js'
+import { render as solidRender } from 'solid-js/web'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as stealth from '../private-member.ts'
 import { PrivateScreen } from './PrivateScreen.tsx'
 
+const disposers: (() => void)[] = []
+// Solid delegates events to the document, so a host must be attached to
+// receive clicks.
+const render = (view: () => JSX.Element, host: HTMLElement): void => {
+  if (!host.isConnected) {
+    document.body.append(host)
+  }
+  disposers.push(solidRender(view, host))
+}
+const unmountAll = (): void => {
+  for (const dispose of disposers.splice(0)) {
+    dispose()
+  }
+}
+
 vi.mock(import('../config.ts'), () => ({
-  API_BASE_URL: 'http://localhost:8787',
+  API_BASE_URL: '/api' as const,
   APP_ORIGIN: globalThis.location.origin,
   GRAPH_RIGHTS_ENDPOINT: 'https://graph.example/rights',
   RP_ID: 'localhost',
@@ -60,7 +75,7 @@ const openDialog = (): HTMLDialogElement => {
   return dialog
 }
 const unlock = async (): Promise<void> => {
-  render(<PrivateScreen io={io} />, root)
+  render(() => <PrivateScreen io={io} />, root)
   await setTimeout(0)
   button('Use existing passkey').click()
   await vi.waitFor(() => {
@@ -78,7 +93,7 @@ describe('Private discovery dialogs', () => {
     document.body.appendChild(root)
   })
   afterEach(() => {
-    render(<div />, root)
+    unmountAll()
     root.replaceChildren()
     root.remove()
     vi.restoreAllMocks()

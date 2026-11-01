@@ -1,6 +1,6 @@
 # ADR 0006: one deployment per chain, with no state carried between them
 
-- **Status**: Accepted 2026-09-07. The Sepolia deployment is live; the mainnet environment exists in `apps/api/wrangler.jsonc` as `env.production` and is deployed at the release cutover.
+- **Status**: Accepted 2026-09-07. The Sepolia deployment is live; the mainnet environment is the `production` target in `apps/api/targets.jsonc` (a Wrangler named environment until [ADR 0009](0009-void-and-solid.md)) and is deployed at the release cutover.
 - **Scope**: how many deployed environments fuda has, what each owns, and what happens to member data when the product moves from testnet to mainnet.
 
 ## Context

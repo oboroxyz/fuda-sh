@@ -1,15 +1,30 @@
 // @vitest-environment happy-dom
-/** @jsxImportSource hono/jsx/dom */
 import { setTimeout } from 'node:timers/promises'
 
-import { render, useState } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import { createSignal, Show } from 'solid-js'
+import type { JSX } from 'solid-js'
+import { render as solidRender } from 'solid-js/web'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { PrivateScreen } from './PrivateScreen.tsx'
 
+const disposers: (() => void)[] = []
+// Solid delegates events to the document, so a host must be attached to
+// receive clicks.
+const render = (view: () => JSX.Element, host: HTMLElement): void => {
+  if (!host.isConnected) {
+    document.body.append(host)
+  }
+  disposers.push(solidRender(view, host))
+}
+const unmountAll = (): void => {
+  for (const dispose of disposers.splice(0)) {
+    dispose()
+  }
+}
+
 vi.mock(import('../config.ts'), () => ({
-  API_BASE_URL: 'http://localhost:8787',
+  API_BASE_URL: '/api' as const,
   APP_ORIGIN: globalThis.location.origin,
   GRAPH_RIGHTS_ENDPOINT: 'https://graph.example/rights',
   RP_ID: 'localhost',
@@ -18,11 +33,13 @@ vi.mock(import('../config.ts'), () => ({
 const root = document.createElement('div')
 type PrivateIo = NonNullable<Parameters<typeof PrivateScreen>[0]['io']>
 
-const Harness = ({ io }: { io: PrivateIo }): JSX.Element => {
-  const [mounted, setMounted] = useState(true)
+const Harness = (props: { io: PrivateIo }): JSX.Element => {
+  const [mounted, setMounted] = createSignal(true)
   return (
     <>
-      {mounted ? <PrivateScreen io={io} /> : null}
+      <Show when={mounted()}>
+        <PrivateScreen io={props.io} />
+      </Show>
       <button
         type="button"
         onClick={() => {
@@ -45,7 +62,7 @@ const click = (label: string): void => {
 
 describe('PrivateScreen lifetime', () => {
   afterEach(() => {
-    render(<div />, root)
+    unmountAll()
     root.replaceChildren()
   })
 
@@ -71,7 +88,7 @@ describe('PrivateScreen lifetime', () => {
           stealthSigner: vi.fn<() => () => Promise<never>>(),
         }),
     }
-    render(<Harness io={io as never} />, root)
+    render(() => <Harness io={io as never} />, root)
     await setTimeout(0)
     click('Use existing passkey')
     await vi.waitFor(() => {
@@ -84,7 +101,7 @@ describe('PrivateScreen lifetime', () => {
     await setTimeout(0)
 
     expect(keysFromPrf).not.toHaveBeenCalled()
-    render(<Harness io={io as never} />, root)
+    render(() => <Harness io={io as never} />, root)
     expect(root.textContent).toContain('Use existing passkey')
     expect(root.textContent).not.toContain('Your meta-address')
   })
@@ -110,7 +127,7 @@ describe('PrivateScreen lifetime', () => {
           stealthSigner: vi.fn<() => () => Promise<never>>(),
         }),
     }
-    render(<Harness io={io as never} />, root)
+    render(() => <Harness io={io as never} />, root)
     await setTimeout(0)
     click('Use existing passkey')
     await vi.waitFor(() => {

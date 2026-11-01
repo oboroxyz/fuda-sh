@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
-/** @jsxImportSource hono/jsx/dom */
 import { setTimeout } from 'node:timers/promises'
 
 import type { GraphRight, Hex, VerifyResponse } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
-import { render, useState } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import { createSignal, Show } from 'solid-js'
+import type { JSX } from 'solid-js'
+import { render as solidRender } from 'solid-js/web'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { MemberPassListIo } from './member-pass-list.ts'
@@ -13,8 +13,23 @@ import { memberPassListQueryOptions } from './member-pass-query.ts'
 import { RightsList } from './member/RightsList.tsx'
 import { PASS_MEMORY_KEY } from './pass-memory.ts'
 
+const disposers: (() => void)[] = []
+// Solid delegates events to the document, so a host must be attached to
+// receive clicks.
+const render = (view: () => JSX.Element, host: HTMLElement): void => {
+  if (!host.isConnected) {
+    document.body.append(host)
+  }
+  disposers.push(solidRender(view, host))
+}
+const unmountAll = (): void => {
+  for (const dispose of disposers.splice(0)) {
+    dispose()
+  }
+}
+
 vi.mock(import('./config.ts'), () => ({
-  API_BASE_URL: 'https://api.example',
+  API_BASE_URL: '/api' as const,
   GRAPH_RIGHTS_ENDPOINT: 'https://graph.example',
 }))
 
@@ -66,16 +81,17 @@ const fixture = () => ({
 const root = document.createElement('div')
 let removeMounted: (() => void) | undefined
 
-const Mount = ({ children }: { children: JSX.Element }): JSX.Element | null => {
-  const [mounted, setMounted] = useState(true)
+const Mount = (props: { children: JSX.Element }): JSX.Element => {
+  const [mounted, setMounted] = createSignal(true)
   removeMounted = () => {
     setMounted(false)
   }
-  return mounted ? children : null
+  return <Show when={mounted()}>{props.children}</Show>
 }
 
-const mount = (child: JSX.Element): void => {
-  render(<Mount>{child}</Mount>, root)
+// The child is built inside Mount, so unmounting disposes it and its queries.
+const mount = (child: () => JSX.Element): void => {
+  render(() => <Mount>{child()}</Mount>, root)
 }
 
 const lookup = async (holder: Hex): Promise<void> => {
@@ -109,6 +125,7 @@ describe('member pass query lifecycle', () => {
   afterEach(async () => {
     removeMounted?.()
     await setTimeout(0)
+    unmountAll()
     root.replaceChildren()
     root.remove()
     vi.restoreAllMocks()
@@ -118,7 +135,7 @@ describe('member pass query lifecycle', () => {
     const key = memberPassListQueryOptions(
       {
         addresses: [holderB.toUpperCase() as Hex, holderA],
-        apiEndpoint: 'https://api.example',
+        apiEndpoint: '/api',
         graphEndpoint: 'https://graph.example',
         memory: [{ addedAt: 7, holder: holderB.toUpperCase() as Hex, uid: uidB.toUpperCase() as Hex }],
       },
@@ -127,7 +144,7 @@ describe('member pass query lifecycle', () => {
 
     expect(key).toStrictEqual([
       'member-passes',
-      'https://api.example',
+      '/api',
       'https://graph.example',
       [holderA, holderB],
       [{ addedAt: 7, holder: holderB, uid: uidB }],
@@ -137,14 +154,14 @@ describe('member pass query lifecycle', () => {
 
   it('refreshes stale public status on focus and replaces ACTIVE with REVOKED', async () => {
     const io = fixture()
-    mount(
+    mount(() => (
       <RightsList
         injected={null}
         io={io}
         memory={[{ addedAt: 1, holder: holderA, uid: uidA }]}
         queryUid={null}
-      />,
-    )
+      />
+    ))
     await vi.waitFor(() => {
       expect(root.textContent).toContain('ACTIVE')
     })
@@ -169,7 +186,7 @@ describe('member pass query lifecycle', () => {
       right(uidA, holderA, 'Coffee & Co.'),
       right(uidB, holderA, 'Weekend Club'),
     ])
-    mount(<RightsList initialAddress={holderA} injected={null} io={io} memory={[]} queryUid={null} />)
+    mount(() => <RightsList initialAddress={holderA} injected={null} io={io} memory={[]} queryUid={null} />)
     await vi.waitFor(() => {
       expect(root.querySelectorAll('a[target="_blank"]')).toHaveLength(2)
     })
@@ -179,7 +196,7 @@ describe('member pass query lifecycle', () => {
     await vi.waitFor(() => {
       expect(
         [...root.querySelectorAll('a[target="_blank"]')].map((link) => link.getAttribute('href')),
-      ).toStrictEqual([`https://api.example/pass/${uidA}`])
+      ).toStrictEqual([`/api/pass/${uidA}`])
     })
     input.value = 'not-a-pass'
     input.dispatchEvent(new Event('input', { bubbles: true }))
@@ -202,7 +219,7 @@ describe('member pass query lifecycle', () => {
       .mockImplementation(
         async (holder) => await Promise.resolve(holder === holderB ? [right(uidB, holderB)] : []),
       )
-    mount(<RightsList variant="lookup" injected={null} io={io} memory={[]} queryUid={null} />)
+    mount(() => <RightsList variant="lookup" injected={null} io={io} memory={[]} queryUid={null} />)
     await lookup(holderA)
     await vi.waitFor(() => {
       expect(io.fetchRights).toHaveBeenCalledWith(holderA)
@@ -221,7 +238,7 @@ describe('member pass query lifecycle', () => {
     const io = fixture()
     const pending = Promise.withResolvers<Result<VerifyResponse>>()
     io.verify.mockReturnValue(pending.promise)
-    mount(<RightsList injected={null} io={io} memory={[]} queryUid={uidA} />)
+    mount(() => <RightsList injected={null} io={io} memory={[]} queryUid={uidA} />)
     await vi.waitFor(() => {
       expect(io.verify).toHaveBeenCalledWith(uidA)
     })
@@ -234,7 +251,7 @@ describe('member pass query lifecycle', () => {
 
   it('remembers a query pass once while its list continues to refresh on focus', async () => {
     const io = fixture()
-    mount(<RightsList injected={null} io={io} memory={[]} queryUid={uidA} />)
+    mount(() => <RightsList injected={null} io={io} memory={[]} queryUid={uidA} />)
     await vi.waitFor(() => {
       expect(root.textContent).toContain('ACTIVE')
       expect(localStorage.getItem(PASS_MEMORY_KEY)).not.toBeNull()

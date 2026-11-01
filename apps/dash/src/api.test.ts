@@ -14,10 +14,11 @@ import {
 } from './api.ts'
 
 const UID = `0x${'ab'.repeat(32)}`
-const TOKEN = 's3cret'
-const HEADERS = { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' }
-// A bodyless GET carries no content-type, so it stays a CORS-simple request.
-const GET_HEADERS = { authorization: `Bearer ${TOKEN}` }
+// No authorization header: the Worker's /api adds the session's credential
+// from its cookie (src/server/forward.ts).
+const HEADERS = { 'content-type': 'application/json' }
+// A bodyless GET carries no content-type.
+const GET_HEADERS = {}
 
 // `fetch` is the only thing stubbed: the client is exercised through its real
 // request/response handling. A sync stub is fine — the client awaits its result.
@@ -30,22 +31,22 @@ const stubFetch = (impl: (url: string, init: RequestInit) => Response) => {
 const json = (body: unknown, status: number): Response => Response.json(body, { status })
 
 describe(listMembers, () => {
-  it('GETs /members with the admin token as a bearer credential', async () => {
+  it("GETs /members through the Worker's same-origin /api", async () => {
     const spy = stubFetch(() => json({ members: [] }, 200))
-    const result = await listMembers(TOKEN)
+    const result = await listMembers()
     expect(result).toStrictEqual({ body: { members: [] }, ok: true })
     expect(spy).toHaveBeenCalledWith('/api/v1/members', { headers: GET_HEADERS })
   })
 
-  it('maps a 401 to a failure carrying the status, so the dash can ask for the token again', async () => {
+  it('maps a 401 to a failure carrying the status, so the page can send the operator to sign-in', async () => {
     stubFetch(() => json({ error: 'unauthorized' }, 401))
-    const result = await listMembers('wrong')
+    const result = await listMembers()
     expect(result).toStrictEqual({ error: 'unauthorized', network: false, ok: false, status: 401 })
   })
 
   it('treats a 5xx as a network condition, falling back to the status for its message', async () => {
     stubFetch(() => new Response('<html>gateway</html>', { status: 502 }))
-    const result = await listMembers(TOKEN)
+    const result = await listMembers()
     expect(result).toStrictEqual({ error: 'api 502', network: true, ok: false, status: 502 })
   })
 
@@ -53,7 +54,7 @@ describe(listMembers, () => {
     stubFetch(() => {
       throw new Error('fetch failed')
     })
-    const result = await listMembers(TOKEN)
+    const result = await listMembers()
     expect(result).toStrictEqual({ error: 'fetch failed', network: true, ok: false, status: 0 })
   })
 })
@@ -62,7 +63,7 @@ describe(issueRight, () => {
   it('POSTs /issue with the json body', async () => {
     const body = { memberId: 'alice', tier: 1, usageModel: 1 }
     const spy = stubFetch(() => json({ uid: UID }, 200))
-    await issueRight(TOKEN, body)
+    await issueRight(body)
     expect(spy).toHaveBeenCalledWith('/api/v1/issue', {
       body: JSON.stringify(body),
       headers: HEADERS,
@@ -72,7 +73,7 @@ describe(issueRight, () => {
 
   it('surfaces the api error code verbatim', async () => {
     stubFetch(() => json({ error: 'bad_input' }, 400))
-    const result = await issueRight(TOKEN, { holder: '0x00', tier: 1, usageModel: 1 })
+    const result = await issueRight({ holder: '0x00', tier: 1, usageModel: 1 })
     expect(result).toStrictEqual({ error: 'bad_input', network: false, ok: false, status: 400 })
   })
 })
@@ -80,7 +81,7 @@ describe(issueRight, () => {
 describe(revokeRight, () => {
   it('POSTs /revoke with the uid', async () => {
     const spy = stubFetch(() => json({ revoked: true, uid: UID }, 200))
-    const result = await revokeRight(TOKEN, UID)
+    const result = await revokeRight(UID)
     expect(result).toStrictEqual({ body: { revoked: true, uid: UID }, ok: true })
     expect(spy).toHaveBeenCalledWith('/api/v1/revoke', {
       body: JSON.stringify({ uid: UID }),
@@ -97,16 +98,16 @@ const variants = { logo1x: pngOf(1), logo2x: pngOf(2), logo3x: pngOf(3), master:
 describe('staging a logo', () => {
   it('POSTs the four variants as multipart, leaving the boundary to the browser', async () => {
     const spy = stubFetch(() => json({ expiresAt: 1_757_000_900, logoUploadId: 'up_1' }, 201))
-    const result = await uploadLogo(TOKEN, variants)
+    const result = await uploadLogo(variants)
     expect(result).toStrictEqual({ body: { expiresAt: 1_757_000_900, logoUploadId: 'up_1' }, ok: true })
     const init = spy.mock.calls[0]?.[1]
-    expect(init?.headers).toStrictEqual({ authorization: `Bearer ${TOKEN}` })
+    expect(new Headers(init?.headers).has('content-type')).toBe(false)
     expect(init?.body).toBeInstanceOf(FormData)
   })
 
   it('sends every variant under its own field name', async () => {
     const spy = stubFetch(() => json({ expiresAt: 1, logoUploadId: 'up_1' }, 201))
-    await uploadLogo(TOKEN, variants)
+    await uploadLogo(variants)
     const body = spy.mock.calls[0]?.[1].body
     const names = body instanceof FormData ? [...body.keys()] : []
     expect(names).toStrictEqual(['master', 'logo1x', 'logo2x', 'logo3x'])
@@ -114,7 +115,7 @@ describe('staging a logo', () => {
 
   it('keeps the api error code, so an unconfigured bucket is not read as an outage', async () => {
     stubFetch(() => json({ error: 'media_not_configured' }, 501))
-    const result = await uploadLogo(TOKEN, variants)
+    const result = await uploadLogo(variants)
     expect(result).toStrictEqual({ error: 'media_not_configured', network: false, ok: false, status: 501 })
   })
 
@@ -122,7 +123,7 @@ describe('staging a logo', () => {
     stubFetch(() => {
       throw new Error('fetch failed')
     })
-    const result = await uploadLogo(TOKEN, variants)
+    const result = await uploadLogo(variants)
     expect(result).toStrictEqual({ error: 'fetch failed', network: true, ok: false, status: 0 })
   })
 })
@@ -130,7 +131,7 @@ describe('staging a logo', () => {
 describe('committing a logo', () => {
   it('POSTs the staged id as json', async () => {
     const spy = stubFetch(() => json({ issuer: { handle: 'wassie-coffee' } }, 200))
-    const result = await commitLogo(TOKEN, 'up_1')
+    const result = await commitLogo('up_1')
     expect(result.ok).toBe(true)
     expect(spy).toHaveBeenCalledWith('/api/v1/issuers/logo/commit', {
       body: JSON.stringify({ logoUploadId: 'up_1' }),
@@ -157,7 +158,7 @@ describe('default Card requests', () => {
       }
       const spy = stubFetch(() => json({ issuer }, 200))
 
-      await updateDefaultCard(TOKEN, { slug })
+      await updateDefaultCard({ slug })
 
       expect(spy).toHaveBeenCalledWith('/api/v1/issuers/me/default-card', {
         body: JSON.stringify({ slug }),
@@ -172,11 +173,11 @@ describe('Card integration requests', () => {
   it("reads and saves the selected Card's integrations on their own route", async () => {
     const value = { badges: ['human'] }
     const spy = stubFetch(() => json(value, 200))
-    await expect(readCardIntegrations(TOKEN, 'card-1')).resolves.toStrictEqual({ body: value, ok: true })
+    await expect(readCardIntegrations('card-1')).resolves.toStrictEqual({ body: value, ok: true })
     expect(spy).toHaveBeenLastCalledWith('/api/v1/issuers/me/cards/card-1/integrations', {
       headers: GET_HEADERS,
     })
-    await updateCardIntegrations(TOKEN, 'card-2', { badges: [] })
+    await updateCardIntegrations('card-2', { badges: [] })
     expect(spy).toHaveBeenLastCalledWith('/api/v1/issuers/me/cards/card-2/integrations', {
       body: JSON.stringify({ badges: [] }),
       headers: HEADERS,
@@ -189,9 +190,9 @@ describe('Card stamp policy requests', () => {
   it('reads and saves the selected Card without using a venue-wide endpoint', async () => {
     const settings = { dailyLimit: 2, enabled: true, goal: 12 }
     const spy = stubFetch(() => json(settings, 200))
-    await expect(readStampSettings(TOKEN, 'card-1')).resolves.toStrictEqual({ body: settings, ok: true })
+    await expect(readStampSettings('card-1')).resolves.toStrictEqual({ body: settings, ok: true })
     expect(spy).toHaveBeenLastCalledWith('/api/v1/issuers/me/cards/card-1/stamps', { headers: GET_HEADERS })
-    await updateStampSettings(TOKEN, 'card-2', settings)
+    await updateStampSettings('card-2', settings)
     expect(spy).toHaveBeenLastCalledWith('/api/v1/issuers/me/cards/card-2/stamps', {
       body: JSON.stringify(settings),
       headers: HEADERS,

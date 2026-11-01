@@ -14,11 +14,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  checks:
-    name: Select packages and check code
+  plan:
+    name: Select packages
     runs-on: ubuntu-22.04
-    timeout-minutes: 15
+    timeout-minutes: 5
     outputs:
+      json: ${{ steps.plan.outputs.json }}
       packages: ${{ steps.plan.outputs.packages }}
       subgraph: ${{ steps.plan.outputs.subgraph }}
       rust: ${{ steps.plan.outputs.rust }}
@@ -39,26 +40,40 @@ jobs:
           else
             python3 .github/scripts/ci.py plan > /tmp/ci-plan.json
           fi
+          echo "json=$(cat /tmp/ci-plan.json)" >> "$GITHUB_OUTPUT"
           cat /tmp/ci-plan.json >> "$GITHUB_STEP_SUMMARY"
+
+  checks:
+    name: Format, lint and type check
+    needs: plan
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup
         with:
-          subgraph: ${{ steps.plan.outputs.subgraph }}
+          subgraph: ${{ needs.plan.outputs.subgraph }}
       - name: Format
         run: pnpm format:check
       - name: Lint and type check affected packages
-        run: python3 .github/scripts/ci.py check /tmp/ci-plan.json
+        env:
+          PLAN: ${{ needs.plan.outputs.json }}
+        run: |
+          printf '%s' "$PLAN" > /tmp/ci-plan.json
+          python3 .github/scripts/ci.py check /tmp/ci-plan.json
 
   packages:
     name: Test ${{ matrix.package }}
-    needs: checks
-    if: needs.checks.outputs.packages != '[]'
+    needs: plan
+    if: needs.plan.outputs.packages != '[]'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
-      max-parallel: 4
       matrix:
-        package: ${{ fromJSON(needs.checks.outputs.packages) }}
+        package: ${{ fromJSON(needs.plan.outputs.packages) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -71,8 +86,8 @@ jobs:
 
   subgraph:
     name: Subgraph
-    needs: checks
-    if: needs.checks.outputs.subgraph == 'true'
+    needs: plan
+    if: needs.plan.outputs.subgraph == 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     steps:
@@ -93,14 +108,14 @@ jobs:
 
   substreams:
     name: Test ${{ matrix.package }}
-    needs: checks
-    if: needs.checks.outputs.rust != '[]'
+    needs: plan
+    if: needs.plan.outputs.rust != '[]'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        package: ${{ fromJSON(needs.checks.outputs.rust) }}
+        package: ${{ fromJSON(needs.plan.outputs.rust) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -127,7 +142,7 @@ jobs:
   ci:
     name: CI
     if: always()
-    needs: [checks, packages, subgraph, substreams]
+    needs: [plan, checks, packages, subgraph, substreams]
     runs-on: ubuntu-22.04
     timeout-minutes: 2
     steps:

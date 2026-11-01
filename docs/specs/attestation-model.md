@@ -147,14 +147,14 @@ Attested with `recipient = holder` and `refUID = rightUID`.
 
 | Key | Location | Meaning |
 | --- | --- | --- |
-| `EAS_SCHEMAS` | `wrangler.jsonc` `vars` | Accepted-version set per record type: `[{ uid, version }]`, one entry per type at launch |
-| `DELEGATION_UID` | `wrangler.jsonc` `vars` | UID of the root IssuerDelegation that every issued Entitlement references |
-| `ISSUER_ADDRESS` | `wrangler.jsonc` `vars` | The configured root attester; the gate accepts only delegations attested by this address |
-| `ANNOUNCER_ADDRESS` | `wrangler.jsonc` `vars` | The ERC-5564 Announcer `/issue` writes +Private announcements to |
-| `ANNOUNCER_FROM_BLOCK` | `wrangler.jsonc` `vars` | Graph-manifest generation source for both rights-subgraph data-source start blocks; it is not read by the API |
-| `FACTORY_ADDRESS` | `wrangler.jsonc` `vars` | Coinbase Smart Wallet factory used to derive Bearer holder addresses |
-| `PUBLIC_BASE_URL` | `wrangler.jsonc` `vars` | The member-facing origin a published card links to (`https://fuda.sh`; the apex redirects `/@*` to `app.fuda.sh`). `POST /issuers` and `GET /issuers/me` build `publicUrl` from it, never from the request URL |
-| `API_BASE_URL` | `wrangler.jsonc` `vars` | Absolute base for the `passUrls` in `/issue` responses; its origin is the api entry in the Google Wallet `origins` claim, which also lists `https://dash.fuda.sh` and `https://app.fuda.sh` |
+| `EAS_SCHEMAS` | `apps/api/targets.jsonc` `vars` | Accepted-version set per record type: `[{ uid, version }]`, one entry per type at launch |
+| `DELEGATION_UID` | `apps/api/targets.jsonc` `vars` | UID of the root IssuerDelegation that every issued Entitlement references |
+| `ISSUER_ADDRESS` | `apps/api/targets.jsonc` `vars` | The configured root attester; the gate accepts only delegations attested by this address |
+| `ANNOUNCER_ADDRESS` | `apps/api/targets.jsonc` `vars` | The ERC-5564 Announcer `/issue` writes +Private announcements to |
+| `ANNOUNCER_FROM_BLOCK` | `apps/api/targets.jsonc` `vars` | Graph-manifest generation source for both rights-subgraph data-source start blocks; it is not read by the API |
+| `FACTORY_ADDRESS` | `apps/api/targets.jsonc` `vars` | Coinbase Smart Wallet factory used to derive Bearer holder addresses |
+| `PUBLIC_BASE_URL` | `apps/api/targets.jsonc` `vars` | The member-facing origin a published card links to (`https://fuda.sh`; the apex redirects `/@*` to `app.fuda.sh`). `POST /issuers` and `GET /issuers/me` build `publicUrl` from it, never from the request URL |
+| `API_BASE_URL` | `apps/api/targets.jsonc` `vars` | Absolute base for the `passUrls` in `/issue` responses; its origin is the api entry in the Google Wallet `origins` claim, which also lists `https://dash.fuda.sh` and `https://app.fuda.sh` |
 | Signer key (`SIGNER_PRIVATE_KEY`) | Worker secret | Signs Entitlement, IssuerDelegation, and Attendance transactions; endpoints answer `501 no_signer` without |
 | `ADMIN_TOKEN` | Worker secret | Bearer token for `/issue`, `/revoke`, `/members`. Required whenever a chain binding is configured: with `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL` set and no token the admin routes answer `401 unauthorized` and every response carries `x-auth-mode: locked`; with no token and neither binding (local dev) they are open and responses carry `x-auth-mode: open` |
 | `BASE_RPC_URL` | Worker secret | Base Sepolia RPC; falls back to the public endpoint |
@@ -163,7 +163,7 @@ Attested with `recipient = holder` and `refUID = rightUID`.
 
 Issuance always writes the newest version in the set; verification accepts every listed version and decodes through a per-version codec (`decodeEntitlementV1 → toCanonical`, the identity for v1). A future v2 is added by appending a set entry and a codec, with no change to gate logic. Deprecation policies, `refUID` supersession chains, and touch-time migration are deliberately not in the MVP.
 
-`USE_FAKE_CHAIN=1` is a local-development opt-in only (`apps/api/.dev.vars`): it swaps in an in-memory chain and is ignored whenever a signer or an RPC binding is present. It is never set in a deployed environment. Wrangler named environments do not inherit top-level `vars` or `d1_databases`, so the `env.local` block in `apps/api/wrangler.jsonc` repeats them in full with deterministic fake-chain values.
+`USE_FAKE_CHAIN=1` is a local-development opt-in only (`apps/api/targets/local/.env`): it swaps in an in-memory chain and is ignored whenever a signer or an RPC binding is present. It is never set in a deployed environment. Each target block in `apps/api/targets.jsonc` is complete, and the `local` block carries deterministic fake-chain values.
 
 Migrations under `apps/api/migrations/` are hand-written SQL; there is no drizzle-kit snapshot. Before any future `drizzle-kit generate`, bootstrap the baseline snapshot first, or the generator re-emits every table as a new migration.
 
@@ -209,10 +209,17 @@ Errors are `{ "error": "<code>" }` with these statuses. Every gate _decision_ is
 | `bad_signature` | 401 | operator/member auth signature does not verify for the address; the nonce is burned |
 | `bad_handle` | 400 | `POST /issuers` handle fails the Handle rule or is reserved |
 | `handle_taken` | 409 | `POST /issuers` handle already belongs to an issuer |
-| `issuer_exists` | 409 | `POST /issuers` from an operator address that already owns an issuer |
+| `issuer_limit` | 409 | `POST /issuers` from an account that already owns ten issuers |
+| `issuer_exists` | 409 | no longer returned (an account may own several issuers, [ADR 0009](../adr/0011-several-issuers-per-account.md)); kept in the sdk's code list for older clients |
 | `bad_slug` | 400 | `POST /issuers/cards` slug fails the card-slug rule or is reserved |
-| `slug_taken` | 409 | `POST /issuers/cards` slug already used by another card of the same venue |
+| `slug_taken` | 409 | `POST /issuers/cards` or `POST /connect/cards` slug already used by another card of the same venue |
+| `bad_redirect_uri` | 400 | connected-app registration or approval with a redirect URI that is unsafe or not registered ([Connected apps](./connected-apps.md)) |
+| `not_app_owner` | 403 | connected-app approval by an account other than the one that registered the app |
+| `app_limit` | 409 | connected-app registration past 20 apps per account |
+| `invalid_request`, `invalid_client`, `invalid_grant`, `unsupported_grant_type`, `invalid_scope` | 400/401 | the RFC 6749 codes of `/oauth/authorize`, `/oauth/token` and `/oauth/revoke`; [Connected apps](./connected-apps.md#token-exchange) lists when each is returned |
+| `insufficient_scope` | 403 | a connected-app access token without the route's scope |
 | `card_closed` | 409 | self-serve claim outside the card's claim window |
+| `card_sold_out` | 409 | self-serve claim on a card at its capacity |
 | `media_not_configured` | 501 | logo upload without the `MEDIA_BUCKET` binding |
 | `bad_upload` | 400 | logo multipart malformed, or a variant failing its signature, dimension or size check |
 | `upload_not_found` | 400 | staged logo id unknown, expired, already spent, or another session's |
@@ -286,11 +293,11 @@ Issuance is synchronous: the endpoint submits the attestation transaction and wa
 }
 ```
 
-**`POST /issuers/:handle/:slug/issue`** is the self-serve Bearer path behind `fuda.sh/@<handle>/<slug>` (docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route). It takes no body: the card fixes `tier` (0), `usageModel` (`SINGLE_USE` for a `ticket`, `MULTI_USE` otherwise) and the validity window — `validUntil` = claim time plus `validity_days` for a relative card, the card's own `valid_from`/`valid_until` for an absolute one, and 0 for a card that never expires. A claim outside the card's claim window answers `409 card_closed` before anything is attested. The api generates the member number, derives the holder exactly as the admin Bearer path does (nonce preimage = the member number), attests, and answers the Bearer `/issue` shape plus `memberNumber`.
+**`POST /issuers/:handle/:slug/issue`** is the self-serve Bearer path behind `fuda.sh/@<handle>/<slug>` (docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route). Its only body is an optional `{ source }` label ([capacity and source](./pass-types-and-flows.md#capacity-and-source)): the card fixes `tier` (0), `usageModel` (`SINGLE_USE` for a `ticket`, `MULTI_USE` otherwise) and the validity window — `validUntil` = claim time plus `validity_days` for a relative card, the card's own `valid_from`/`valid_until` for an absolute one, and 0 for a card that never expires. A claim outside the card's claim window answers `409 card_closed` before anything is attested. The api generates the member number, derives the holder exactly as the admin Bearer path does (nonce preimage = the member number), attests, and answers the Bearer `/issue` shape plus `memberNumber`.
 
 All three `passUrls` are absolute against `API_BASE_URL` and always present, even where a wallet platform is unconfigured (that route answers `501`). A +Private issuance answers the other arm — `{ "uid", "level": "private", "announced": true, "announceTx" }` — with no `holder`, no `qr` and no `passUrls`, because a +Private right has no pass ([passes](./pass-types-and-flows.md#passes)).
 
-**`POST /revoke`** takes `{ "uid": "0x…64" }`, calls `revoke(entitlementSchemaUid, uid)` on EAS, then marks the member row `revoked`. Response `{ "revoked": true, "uid" }`. Errors: `400 bad_uid`, `501 no_signer`, `502 chain_error` (an unknown or already-revoked UID both revert on EAS and surface here; the member row is left untouched).
+**`POST /revoke`** takes `{ "uid": "0x…64" }`, calls `revoke(entitlementSchemaUid, uid)` on EAS, then marks the member row `revoked`. Response `{ "revoked": true, "uid" }`. Errors: `400 bad_uid`, `501 no_signer`, `502 chain_error` (an unknown UID reverts on EAS and surfaces here; the member row is left untouched). A UID already revoked on chain skips the transaction and marks the row, so a retry after a lost answer ends in the same state.
 
 **`GET /verify/:uid` and `POST /verify`** require `uid` to match `/^0x[0-9a-fA-F]{64}$/` (`400 bad_uid`). `POST /verify` takes `{ "qr": "fuda:v1:0x…64" }` (`400 bad_qr` otherwise). Both return the decoded records:
 
@@ -377,7 +384,7 @@ Authenticated venue reception shares the same `slots` table but evaluates slot a
 
 `challenges` rows are one-time and short-lived: `POST /verify-signed` consumes a nonce with a conditional `UPDATE … WHERE used_at IS NULL AND created_at > now − 300`, and `POST /challenge` opportunistically deletes rows older than the 300 s TTL on every mint, so the table holds only live nonces. `rate_limits` is the generic per-IP fixed hourly-window primitive. Its route thresholds and shared counter semantics are documented in the [runbook](../runbook.md#13-rate-limit-state).
 
-Issuer onboarding adds four things (`0004_issuers.sql`, extended by `0005_member_number_per_issuer.sql` and `0006_card_slug.sql`): `issuers` (one row per operator address: `handle` UNIQUE, `name`, `tagline`, `brand_color`, `operator_address` UNIQUE, `created_at`), `cards` (`issuer_id`, `slug` with `(issuer_id, slug)` UNIQUE, `title`, `category` in `membership|ticket`, `description`, `lock_screen`, `venue_lat`, `venue_lng`, the claim window `claim_from`/`claim_until`, and one validity rule — either `validity_days` (relative to the claim) or `valid_from`/`valid_until` (absolute), never both), `sessions` (`token_hash` PK — only the SHA-256 of the bearer token is stored — `address`, `audience` (`operator` or `member`, existing rows default to `operator`), nullable `issuer_id`, `created_at`, `expires_at` = created + 30 days), and on `members` the nullable `card_id` and `issuer_id` of a self-serve right. A generated member number is unique per **issuer**: a partial unique index on `(issuer_id, member_id) WHERE issuer_id IS NOT NULL`, because the number is an ENS label under the issuer ([ENS naming](./ens-naming.md#member-number)). Admin-issued rows leave both columns NULL and keep their free-text `member_id`. Sign-in nonces reuse the `challenges` table under an `operator:<address>` or `member:<address>` subject, with the gate's TTL and sweep. Member sessions never have an issuer binding. An issuer is a product and branding entity only: every attestation is still made by the fuda signer under `DELEGATION_UID`, and no per-issuer IssuerDelegation exists.
+Issuer onboarding adds four things (`0004_issuers.sql`, extended by `0005_member_number_per_issuer.sql` and `0006_card_slug.sql`): `issuers` (`handle` UNIQUE, `name`, `tagline`, `brand_color`, `operator_address`, `created_at`; an operator address may own several rows since `0018_issuers_per_account.sql`, indexed on `(operator_address, created_at)`), `cards` (`issuer_id`, `slug` with `(issuer_id, slug)` UNIQUE, `title`, `category` in `membership|ticket`, `description`, `lock_screen`, `venue_lat`, `venue_lng`, the claim window `claim_from`/`claim_until`, and one validity rule — either `validity_days` (relative to the claim) or `valid_from`/`valid_until` (absolute), never both), `sessions` (`token_hash` PK — only the SHA-256 of the bearer token is stored — `address`, `audience` (`operator` or `member`, existing rows default to `operator`), nullable `issuer_id` — the one issuer the session acts for, set once and never moved; another issuer of the same address takes another session — `created_at`, `expires_at` = created + 30 days), and on `members` the nullable `card_id` and `issuer_id` of a self-serve right. A generated member number is unique per **issuer**: a partial unique index on `(issuer_id, member_id) WHERE issuer_id IS NOT NULL`, because the number is an ENS label under the issuer ([ENS naming](./ens-naming.md#member-number)). Admin-issued rows leave both columns NULL and keep their free-text `member_id`. Sign-in nonces reuse the `challenges` table under an `operator:<address>` or `member:<address>` subject, with the gate's TTL and sweep. Member sessions never have an issuer binding. An issuer is a product and branding entity only: every attestation is still made by the fuda signer under `DELEGATION_UID`, and no per-issuer IssuerDelegation exists.
 
 ### Announcement discovery
 

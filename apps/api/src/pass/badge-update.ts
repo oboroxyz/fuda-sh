@@ -4,7 +4,7 @@ import type { Context } from 'hono'
 
 import { readBadges } from '../badges/store.ts'
 import type { AppEnv } from '../env.ts'
-import { waitUntilOf } from '../routes/verify.ts'
+import { waitUntilOf } from '../handlers/verify.ts'
 
 const updateBadgePass = async (c: Context<AppEnv>, uid: Hex): Promise<void> => {
   const cfg = googleConfigFrom(c.env)

@@ -1,0 +1,17 @@
+{
+  "name": "@fuda/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "e2e": "node scripts/run.ts"
+  },
+  "devDependencies": {
+    "@e2e-dev/web": "0.15.3",
+    "@types/node": "^24.0.0",
+    "e2e": "0.21.3",
+    "valibot": "^1.4.2",
+    "viem": "^2.56.3",
+    "wrangler": "4.141.0"
+  }
+}

@@ -1,9 +1,9 @@
-/** @jsxImportSource hono/jsx/dom */
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import { Show } from 'solid-js'
+import type { JSX } from 'solid-js'
 
-export const FieldLabel = ({ label, optional }: { label: string; optional?: string }): JSX.Element => (
+export const FieldLabel = (props: { label: string; optional?: string }): JSX.Element => (
   <span class="flex items-center gap-2">
-    <span>{label}</span>
-    {optional === undefined ? null : <span class="text-moderate text-xs">{optional}</span>}
+    <span>{props.label}</span>
+    <Show when={props.optional}>{(optional) => <span class="text-moderate text-xs">{optional()}</span>}</Show>
   </span>
 )

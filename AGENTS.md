@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Guidance for AI coding agents working in this repository. `CLAUDE.md` imports this file via `@AGENTS.md`.
+Guidance for AI coding agents working in this repository.
 
 ## Start of task
 
@@ -22,13 +22,13 @@ Author code, specifications, and designs from scratch within this repository's b
 
 Save screenshots, recordings, and review evidence under `artifacts/<YYYY-MM-DD>-<task>/` at the repository root. This directory is Git-ignored: leave its contents local and exclude them from commits and merges unless the user explicitly requests otherwise. Use `/tmp` for disposable capture scripts, browser profiles, downloads, and intermediate logs.
 
-When handing off captures, provide their absolute paths and identify the viewport, locale, theme, and any fictional data. Keep application assets, reusable tests, and canonical documentation in their normal tracked locations; do not make builds or tests depend on `artifacts/` or `/tmp`. The separate `.superpowers/` lifecycle below still applies to design specs and implementation plans.
+When handing off captures, provide their absolute paths and identify the viewport, locale, theme, and any fictional data. Keep application assets, reusable tests, and canonical documentation in their normal tracked locations; do not make builds or tests depend on `artifacts/` or `/tmp`.
 
 ## Toolchain
 
-Vite+ (`vp`) drives frontend development and builds, workspace tests, linting, and formatting. Package-level `vite.config.ts` files configure app and test behavior; the root `vite.config.ts` holds shared lint and formatting policy. The API dev server uses Wrangler. Before changing lint rules, read the root file's header and the comments beside the relevant configuration; they record the structural exceptions and dependency constraints.
+Vite+ (`vp`) drives frontend development and builds, workspace tests, linting, and formatting. Package-level `vite.config.ts` files configure app and test behavior; the root `vite.config.ts` holds shared lint and formatting policy. The API dev server uses the local Void target through `vp dev`. Database operations use `void db`; only the E2E built-Worker harness depends directly on Wrangler. Before changing lint rules, read the root file's header and the comments beside the relevant configuration; they record the structural exceptions and dependency constraints.
 
-- Use the root `package.json` scripts as entry points, including `pnpm lint`, `pnpm format`, and `pnpm check`. Install with `pnpm install --frozen-lockfile`; pnpm provisions the repository's Node version. These commands are entry points, not a requirement to run every command at every workflow checkpoint; follow the verification cadence in `.agents/rules/superpowers-policy.md`.
+- Use the root `package.json` scripts as entry points, including `pnpm lint`, `pnpm format`, and `pnpm check`. Install with `pnpm install --frozen-lockfile`; pnpm provisions the repository's Node version. These commands are entry points, not a requirement to run every command at every workflow checkpoint; follow the verification cadence in `.agents/rules/workflow-policy.md`.
 - Keep lint strict. Suppress a rule only at the narrowest applicable line and include the reason: `// oxlint-disable-next-line <rule> -- <why>`.
 - When upgrading Vite+, update the linked `oxlint`, `oxfmt`, and `vite-plus-core` overrides in `pnpm-workspace.yaml` together. The comments in that file explain why their versions must remain aligned.
 
@@ -42,8 +42,8 @@ When changing frontend UI or styling under `apps/app`, `apps/dash`, `apps/gate`,
 
 When building a variable-length, multi-row D1 statement, batch it below D1's limit of 100 bound parameters per statement.
 
-### Superpowers workflow and artifact policy
+### Workflow and documentation policy
 
-The full policy lives in `.agents/rules/superpowers-policy.md` (`.claude/rules/` is a symlink to `.agents/rules/`). Agents that resolve `@`-imports load it via the line below; other agents must read that file directly.
+The full policy lives in `.agents/rules/workflow-policy.md` (`.claude/rules/` is a symlink to `.agents/rules/`). Agents that resolve `@`-imports load it via the line below; other agents must read that file directly.
 
-@.agents/rules/superpowers-policy.md
+@.agents/rules/workflow-policy.md

@@ -1,8 +1,7 @@
-import { passUrls } from '@fuda/sdk'
 import type { GraphRight, Hex, PassCardView, PassUrls, StampSummary, VerifyResponse } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
 
-import { API_BASE_URL } from './config.ts'
+import { memberPassUrls } from './pass-links.ts'
 import type { PassMemoryEntry } from './pass-memory.ts'
 
 export interface MemberPassRow {
@@ -172,7 +171,7 @@ const linksOf = async (
   uid: Hex,
   io: Pick<MemberPassListIo, 'appleAvailable' | 'googleHref'>,
 ): Promise<Pick<MemberPassRow, 'appleHref' | 'googleHref' | 'passes'>> => {
-  const passes = passUrls(API_BASE_URL, uid)
+  const passes = memberPassUrls(uid)
   const [googleHref, appleAvailable] = await Promise.all([
     settledValue(io.googleHref(passes.google)),
     settledValue(io.appleAvailable(passes.apple)),
@@ -183,7 +182,7 @@ const linksOf = async (
 const unlinkedPassesOf = (uid: Hex): Pick<MemberPassRow, 'appleHref' | 'googleHref' | 'passes'> => ({
   appleHref: null,
   googleHref: null,
-  passes: passUrls(API_BASE_URL, uid),
+  passes: memberPassUrls(uid),
 })
 
 const rowsFrom = (memory: readonly PassMemoryEntry[], graph: readonly GraphRight[]): RowSeed[] => {

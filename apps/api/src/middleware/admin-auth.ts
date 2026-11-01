@@ -43,7 +43,7 @@ const warnLockedOnce = (): void => {
     lockedWarned = true
     // oxlint-disable-next-line no-console -- a misconfigured deploy must be visible in wrangler tail
     console.error(
-      '[fuda-api] ADMIN_TOKEN is unset while a chain binding (SIGNER_PRIVATE_KEY or BASE_RPC_URL) is set: admin routes are locked. Run `wrangler secret put ADMIN_TOKEN`.',
+      '[fuda-api] ADMIN_TOKEN is unset while a chain binding (SIGNER_PRIVATE_KEY or BASE_RPC_URL) is set: admin routes are locked. Run `void secret put ADMIN_TOKEN` in the API target directory.',
     )
   }
 }

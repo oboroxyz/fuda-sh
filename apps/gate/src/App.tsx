@@ -1,7 +1,6 @@
 import { Scanner } from '@fuda/ui'
-/** @jsxImportSource hono/jsx/dom */
-import { useCallback, useEffect, useRef, useState } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import { Show, createSignal, onCleanup, onMount } from 'solid-js'
+import type { JSX } from 'solid-js'
 
 import { admitQr, previewUid } from './api.ts'
 import { cameraMode } from './config.ts'
@@ -11,34 +10,29 @@ import { Verdict } from './Verdict.tsx'
 import { EMPTY_WEDGE, wedgeKey } from './wedge.ts'
 
 export const App = (): JSX.Element => {
-  const [state, setState] = useState<DisplayState | null>(null)
-  const [busy, setBusy] = useState(false)
+  const [state, setState] = createSignal<DisplayState | null>(null)
+  let busy = false
 
-  const onInput = useCallback(
-    async (text: string) => {
-      if (busy) {
-        return
-      }
-      const input = classifyInput(text)
-      if (input.kind === 'invalid') {
-        setState(unreadableInput())
-        return
-      }
-      setBusy(true)
-      const result = input.kind === 'preview' ? await previewUid(input.uid) : await admitQr(input.qr)
-      setState(displayState(input.kind, result))
-      setBusy(false)
-    },
-    [busy],
-  )
+  const onInput = async (text: string): Promise<void> => {
+    if (busy) {
+      return
+    }
+    const input = classifyInput(text)
+    if (input.kind === 'invalid') {
+      setState(unreadableInput())
+      return
+    }
+    busy = true
+    const result = input.kind === 'preview' ? await previewUid(input.uid) : await admitQr(input.qr)
+    setState(displayState(input.kind, result))
+    busy = false
+  }
 
   // A desk scanner keeps reading while a verdict fills the screen, where there
   // is no input to type into. The document catches those keystrokes so the next
   // member's scan replaces the verdict instead of being lost (see wedge.ts).
   // Keys typed into the Scanner's own box are left to the box.
-  const latest = useRef(onInput)
-  latest.current = onInput
-  useEffect(() => {
+  onMount(() => {
     let buffer = EMPTY_WEDGE
     const onKey = (event: KeyboardEvent): void => {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
@@ -50,36 +44,41 @@ export const App = (): JSX.Element => {
         // The verdict is a button: its Enter activation would clear the state
         // this scan is about to set.
         event.preventDefault()
-        void latest.current(step.done)
+        void onInput(step.done)
       }
     }
     document.addEventListener('keydown', onKey)
-    return () => {
+    onCleanup(() => {
       document.removeEventListener('keydown', onKey)
-    }
-  }, [])
+    })
+  })
 
   return (
     <main class="min-h-screen">
       <header class="navbar bg-base-200">
         <span class="px-2 text-xl font-bold">fuda gate</span>
       </header>
-      {state === null ? (
-        <Scanner
-          autoFocus
-          cameraMode={cameraMode(window.location.search)}
-          onInput={(t) => {
-            void onInput(t)
-          }}
-        />
-      ) : (
-        <Verdict
-          state={state}
-          onDone={() => {
-            setState(null)
-          }}
-        />
-      )}
+      <Show
+        when={state()}
+        fallback={
+          <Scanner
+            autoFocus
+            cameraMode={cameraMode(window.location.search)}
+            onInput={(t) => {
+              void onInput(t)
+            }}
+          />
+        }
+      >
+        {(current) => (
+          <Verdict
+            state={current()}
+            onDone={() => {
+              setState(null)
+            }}
+          />
+        )}
+      </Show>
     </main>
   )
 }

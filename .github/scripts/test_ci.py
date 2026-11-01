@@ -90,7 +90,7 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(len(plan['rust']), 2)
 
     def test_api_configuration_checks_subgraph_generation(self):
-        self.write('apps/api/wrangler.jsonc')
+        self.write('apps/api/targets.jsonc')
         plan = self.plan()
         self.assertEqual(plan['packages'], ['apps/api'])
         self.assertTrue(plan['subgraph'])

@@ -11,16 +11,16 @@ import type {
   IssuerUpdateRequest,
   IssuerUpdateResponse,
   IssuerView,
+  OwnedIssuersResponse,
   IssueResponse,
   MembersResponse,
   RevokeResponse,
   ReceptionResponse,
   StampSettings,
   SignInChallengeResponse,
-  SignInResponse,
   CardIntegrations,
 } from '@fuda/sdk'
-import { API_VERSION_PREFIX, apiFetch } from '@fuda/sdk/http'
+import { API_VERSION_PREFIX } from '@fuda/sdk/http'
 import type { Result } from '@fuda/sdk/http'
 import * as v from 'valibot'
 
@@ -28,87 +28,68 @@ import { API_BASE_URL } from './config.ts'
 import type { ClaimVoucherResponse } from './ens-claim.ts'
 import { LOGO_VARIANTS } from './logo.ts'
 import type { LogoSet } from './logo.ts'
+import { apiFetch, checkSessionResult, sessionHeaders } from './session-request.ts'
 
 export type { Result } from '@fuda/sdk/http'
 
-// The admin token lives only in memory for the tab's lifetime (docs/specs/pass-types-and-flows.md#surfaces). It is
-// fuda's API authorization, not a user account: an api with ADMIN_TOKEN unset
-// serves every admin route without authorization and ignores this header.
-export const listMembers = async (token: string): Promise<Result<MembersResponse>> =>
-  await apiFetch<MembersResponse>(API_BASE_URL, '/members', { token })
+// Every call goes to the dashboard Worker's same-origin `/api`, which adds the
+// session's credential from its HttpOnly cookie
+// (docs/adr/0010-void-pages-and-frontend-workers.md). The browser holds no token.
+export const listMembers = async (): Promise<Result<MembersResponse>> =>
+  await apiFetch<MembersResponse>(API_BASE_URL, '/members')
 
-export const issueRight = async (
-  token: string,
-  body: Record<string, string | number>,
-): Promise<Result<IssueResponse>> =>
+export const issueRight = async (body: Record<string, string | number>): Promise<Result<IssueResponse>> =>
   await apiFetch<IssueResponse>(API_BASE_URL, '/issue', {
     body: JSON.stringify(body),
     method: 'POST',
-    token,
   })
 
-export const revokeRight = async (token: string, uid: string): Promise<Result<RevokeResponse>> =>
+export const revokeRight = async (uid: string): Promise<Result<RevokeResponse>> =>
   await apiFetch<RevokeResponse>(API_BASE_URL, '/revoke', {
     body: JSON.stringify({ uid }),
     method: 'POST',
-    token,
   })
 
 // Operator sign-in (docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route):
-// the passkey wallet signs the api's message and receives a session token. The
-// admin token above is a deployment credential; a session token is an identity.
+// the passkey wallet signs the api's message. The verify goes through the
+// Worker's session route, which keeps the session token in a cookie.
 export const signInChallenge = async (address: Hex): Promise<Result<SignInChallengeResponse>> =>
   await apiFetch<SignInChallengeResponse>(API_BASE_URL, '/auth/challenge', {
     body: JSON.stringify({ address }),
     method: 'POST',
   })
 
-export const signInVerify = async (body: {
-  address: Hex
-  nonce: Hex
-  signature: Hex
-}): Promise<Result<SignInResponse>> =>
-  await apiFetch<SignInResponse>(API_BASE_URL, '/auth/verify', {
-    body: JSON.stringify(body),
+export const issuerMe = async (): Promise<Result<IssuerMeResponse>> =>
+  await apiFetch<IssuerMeResponse>(API_BASE_URL, '/issuers/me')
+
+export const ownedIssuers = async (): Promise<Result<OwnedIssuersResponse>> =>
+  await apiFetch<OwnedIssuersResponse>(API_BASE_URL, '/auth/issuers')
+export const switchIssuer = async (issuerId: string): Promise<Result<{ operator: IssuerMeResponse }>> =>
+  await apiFetch<{ operator: IssuerMeResponse }>(API_BASE_URL, '/auth/switch', {
+    body: JSON.stringify({ issuerId }),
     method: 'POST',
   })
 
-export const signOut = async (token: string): Promise<Result<{ loggedOut: true }>> =>
-  await apiFetch<{ loggedOut: true }>(API_BASE_URL, '/auth/logout', { body: '{}', method: 'POST', token })
-
-export const issuerMe = async (token: string): Promise<Result<IssuerMeResponse>> =>
-  await apiFetch<IssuerMeResponse>(API_BASE_URL, '/issuers/me', { token })
-
-export const readStampSettings = async (token: string, cardId: string): Promise<Result<StampSettings>> =>
-  await apiFetch<StampSettings>(API_BASE_URL, `/issuers/me/cards/${encodeURIComponent(cardId)}/stamps`, {
-    token,
-  })
+export const readStampSettings = async (cardId: string): Promise<Result<StampSettings>> =>
+  await apiFetch<StampSettings>(API_BASE_URL, `/issuers/me/cards/${encodeURIComponent(cardId)}/stamps`, {})
 
 export const updateStampSettings = async (
-  token: string,
   cardId: string,
   body: StampSettings,
 ): Promise<Result<StampSettings>> =>
   await apiFetch<StampSettings>(API_BASE_URL, `/issuers/me/cards/${encodeURIComponent(cardId)}/stamps`, {
     body: JSON.stringify(body),
     method: 'PUT',
-    token,
   })
 
-export const readCardIntegrations = async (
-  token: string,
-  cardId: string,
-): Promise<Result<CardIntegrations>> =>
+export const readCardIntegrations = async (cardId: string): Promise<Result<CardIntegrations>> =>
   await apiFetch<CardIntegrations>(
     API_BASE_URL,
     `/issuers/me/cards/${encodeURIComponent(cardId)}/integrations`,
-    {
-      token,
-    },
+    {},
   )
 
 export const updateCardIntegrations = async (
-  token: string,
   cardId: string,
   body: CardIntegrations,
 ): Promise<Result<CardIntegrations>> =>
@@ -118,49 +99,31 @@ export const updateCardIntegrations = async (
     {
       body: JSON.stringify(body),
       method: 'PUT',
-      token,
     },
   )
 
-export const receiveAtReception = async (
-  token: string,
-  qr: string,
-  requestId: string,
-): Promise<Result<ReceptionResponse>> =>
+export const receiveAtReception = async (qr: string, requestId: string): Promise<Result<ReceptionResponse>> =>
   await apiFetch<ReceptionResponse>(API_BASE_URL, '/issuers/me/reception', {
     body: JSON.stringify({ qr, requestId }),
     method: 'POST',
-    token,
   })
 
-export const checkHandle = async (token: string, handle: string): Promise<Result<HandleCheckResponse>> =>
-  await apiFetch<HandleCheckResponse>(API_BASE_URL, `/issuers/check?handle=${encodeURIComponent(handle)}`, {
-    token,
-  })
+export const checkHandle = async (handle: string): Promise<Result<HandleCheckResponse>> =>
+  await apiFetch<HandleCheckResponse>(API_BASE_URL, `/issuers/check?handle=${encodeURIComponent(handle)}`, {})
 
-export const checkCardSlug = async (token: string, slug: string): Promise<Result<CardCheckResponse>> =>
-  await apiFetch<CardCheckResponse>(API_BASE_URL, `/issuers/cards/check?slug=${encodeURIComponent(slug)}`, {
-    token,
-  })
+export const checkCardSlug = async (slug: string): Promise<Result<CardCheckResponse>> =>
+  await apiFetch<CardCheckResponse>(API_BASE_URL, `/issuers/cards/check?slug=${encodeURIComponent(slug)}`, {})
 
-export const createIssuer = async (
-  token: string,
-  body: IssuerCreateRequest,
-): Promise<Result<IssuerCreateResponse>> =>
+export const createIssuer = async (body: IssuerCreateRequest): Promise<Result<IssuerCreateResponse>> =>
   await apiFetch<IssuerCreateResponse>(API_BASE_URL, '/issuers', {
     body: JSON.stringify(body),
     method: 'POST',
-    token,
   })
 
-export const updateIssuer = async (
-  token: string,
-  body: IssuerUpdateRequest,
-): Promise<Result<IssuerUpdateResponse>> =>
+export const updateIssuer = async (body: IssuerUpdateRequest): Promise<Result<IssuerUpdateResponse>> =>
   await apiFetch<IssuerUpdateResponse>(API_BASE_URL, '/issuers/me', {
     body: JSON.stringify(body),
     method: 'PUT',
-    token,
   })
 
 export interface DefaultCardUpdateRequest {
@@ -172,21 +135,18 @@ export interface DefaultCardUpdateResponse {
 }
 
 export const updateDefaultCard = async (
-  token: string,
   body: DefaultCardUpdateRequest,
 ): Promise<Result<DefaultCardUpdateResponse>> =>
   await apiFetch<DefaultCardUpdateResponse>(API_BASE_URL, '/issuers/me/default-card', {
     body: JSON.stringify(body),
     method: 'PUT',
-    token,
   })
 
 // One more card for the venue this session already owns.
-export const createCard = async (token: string, body: CardRequest): Promise<Result<CardCreateResponse>> =>
+export const createCard = async (body: CardRequest): Promise<Result<CardCreateResponse>> =>
   await apiFetch<CardCreateResponse>(API_BASE_URL, '/issuers/cards', {
     body: JSON.stringify(body),
     method: 'POST',
-    token,
   })
 
 // The venue's logo. `POST /issuers/logo` stages the four PNGs for 15 minutes
@@ -233,7 +193,7 @@ const resultOf = async <T>(schema: v.GenericSchema<unknown, T>, res: Response): 
 // that header wins over the caller's. A multipart body must carry the boundary
 // the browser chose, so this one call goes through `fetch` directly and maps the
 // response exactly as `apiFetch` would.
-export const uploadLogo = async (token: string, variants: LogoSet): Promise<Result<LogoUploadResponse>> => {
+export const uploadLogo = async (variants: LogoSet): Promise<Result<LogoUploadResponse>> => {
   const form = new FormData()
   for (const variant of LOGO_VARIANTS) {
     form.append(variant, variants[variant], `${variant}.png`)
@@ -243,10 +203,10 @@ export const uploadLogo = async (token: string, variants: LogoSet): Promise<Resu
     // version prefix has to be added here too.
     const res = await fetch(`${API_BASE_URL.replace(/\/$/u, '')}${API_VERSION_PREFIX}/issuers/logo`, {
       body: form,
-      headers: { authorization: `Bearer ${token}` },
+      headers: sessionHeaders(),
       method: 'POST',
     })
-    return await resultOf(UploadBody, res)
+    return checkSessionResult(await resultOf(UploadBody, res))
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : 'network error',
@@ -258,29 +218,23 @@ export const uploadLogo = async (token: string, variants: LogoSet): Promise<Resu
 }
 
 // Points the venue this session already owns at a staged upload.
-export const commitLogo = async (
-  token: string,
-  logoUploadId: string,
-): Promise<Result<{ issuer: IssuerView }>> =>
+export const commitLogo = async (logoUploadId: string): Promise<Result<{ issuer: IssuerView }>> =>
   await apiFetch<{ issuer: IssuerView }>(API_BASE_URL, '/issuers/logo/commit', {
     body: JSON.stringify({ logoUploadId }),
     method: 'POST',
-    token,
   })
 
 // The venue's ENS name. Signing the voucher and recording the claim are two
 // calls because a wallet prompt and a chain confirmation sit between them
 // (docs/specs/ens-naming.md#issuer-claim-and-renewal).
-export const claimVoucher = async (token: string): Promise<Result<ClaimVoucherResponse>> =>
+export const claimVoucher = async (): Promise<Result<ClaimVoucherResponse>> =>
   await apiFetch<ClaimVoucherResponse>(API_BASE_URL, '/issuers/me/ens/claim-voucher', {
     body: '{}',
     method: 'POST',
-    token,
   })
 
-export const confirmEnsClaim = async (token: string, txHash: Hex): Promise<Result<EnsClaimView>> =>
+export const confirmEnsClaim = async (txHash: Hex): Promise<Result<EnsClaimView>> =>
   await apiFetch<EnsClaimView>(API_BASE_URL, '/issuers/me/ens/claimed', {
     body: JSON.stringify({ txHash }),
     method: 'POST',
-    token,
   })

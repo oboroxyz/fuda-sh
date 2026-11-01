@@ -1,8 +1,7 @@
-/** @jsxImportSource hono/jsx/dom */
 import type { GraphAttendance, GraphDelegation, GraphRight } from '@fuda/sdk'
 import { short } from '@fuda/ui'
-import { useState } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import { createSignal, For } from 'solid-js'
+import type { JSX } from 'solid-js'
 
 import type { DashCopy } from './copy.ts'
 import { graphOnChainStatusIo, loadOnChainStatus } from './on-chain-status.ts'
@@ -55,7 +54,7 @@ const delegationState = (copy: DashCopy['chain'], { active, revokedAt }: GraphDe
   return active ? copy.active : copy.inactive
 }
 
-export const OnChainStatusView = ({ copy, state }: OnChainStatusViewProps): JSX.Element => {
+const statusView = (copy: DashCopy['chain'], state: OnChainStatusState): JSX.Element => {
   if (state.kind === 'idle') {
     return <p class="text-sm opacity-70">{copy.idle}</p>
   }
@@ -83,48 +82,52 @@ export const OnChainStatusView = ({ copy, state }: OnChainStatusViewProps): JSX.
   return (
     <div class="flex flex-col gap-3">
       <h3 class="font-bold">{copy.statusHeading}</h3>
-      {state.rights.map((right): JSX.Element => (
-        <article class="rounded-box border-base-300 border p-3" key={right.id}>
-          <div class="font-mono text-xs break-all">{right.id}</div>
-          <div>{right.revokedAt === null ? copy.active : `${copy.revokedAt} ${right.revokedAt}`}</div>
-          <div>{`${copy.holder} ${short(right.holder)}`}</div>
-          <div class="dash-chain-reference">
-            {right.delegation === null
-              ? `${copy.unresolvedDelegation} ${right.refUID}`
-              : `${copy.delegation} ${right.delegation.id}`}
-          </div>
-          <ul>
-            {(state.attendances[right.id] ?? []).map((attendance): JSX.Element => (
-              // Template literal on purpose: hono/jsx/dom cannot render a BigInt child (it
-              // is neither string nor number, so buildNode treats it as a vnode and throws).
-              <li key={attendance.id}>{`${copy.enteredAt} ${attendance.enteredAt}`}</li>
-            ))}
-          </ul>
-        </article>
-      ))}
+      <For each={state.rights}>
+        {(right) => (
+          <article class="rounded-box border-base-300 border p-3">
+            <div class="font-mono text-xs break-all">{right.id}</div>
+            <div>{right.revokedAt === null ? copy.active : `${copy.revokedAt} ${right.revokedAt}`}</div>
+            <div>{`${copy.holder} ${short(right.holder)}`}</div>
+            <div class="dash-chain-reference">
+              {right.delegation === null
+                ? `${copy.unresolvedDelegation} ${right.refUID}`
+                : `${copy.delegation} ${right.delegation.id}`}
+            </div>
+            <ul>
+              <For each={state.attendances[right.id] ?? []}>
+                {(attendance) => <li>{`${copy.enteredAt} ${attendance.enteredAt}`}</li>}
+              </For>
+            </ul>
+          </article>
+        )}
+      </For>
       <h3 class="font-bold">{copy.delegations}</h3>
       <ul class="flex flex-col gap-2">
-        {state.delegations.map((delegation): JSX.Element => (
-          <li class="rounded-box border-base-300 border p-2" key={delegation.id}>
-            <div class="dash-chain-name">{`${delegationState(copy, delegation)} ${delegation.name}`}</div>
-            <div class="font-mono text-xs break-all">{delegation.id}</div>
-          </li>
-        ))}
+        <For each={state.delegations}>
+          {(delegation) => (
+            <li class="rounded-box border-base-300 border p-2">
+              <div class="dash-chain-name">{`${delegationState(copy, delegation)} ${delegation.name}`}</div>
+              <div class="font-mono text-xs break-all">{delegation.id}</div>
+            </li>
+          )}
+        </For>
       </ul>
     </div>
   )
 }
 
-const fieldValue = (target: EventTarget | null): string | null =>
-  target instanceof HTMLInputElement ? target.value : null
+export const OnChainStatusView = (props: OnChainStatusViewProps): JSX.Element => (
+  <>{statusView(props.copy, props.state)}</>
+)
 
-export const OnChainStatus = ({ copy, endpoint }: OnChainStatusProps): JSX.Element => {
-  const [holder, setHolder] = useState('')
-  const [state, setState] = useState<OnChainStatusState>({ kind: 'idle' })
+export const OnChainStatus = (props: OnChainStatusProps): JSX.Element => {
+  const [holder, setHolder] = createSignal('')
+  const [state, setState] = createSignal<OnChainStatusState>({ kind: 'idle' })
   const load = async (): Promise<void> => {
-    if (state.kind === 'loading') {
+    if (state().kind === 'loading') {
       return
     }
+    const { endpoint } = props
     if (endpoint === '') {
       setState({ kind: 'error', message: UNCONFIGURED })
       return
@@ -133,7 +136,7 @@ export const OnChainStatus = ({ copy, endpoint }: OnChainStatusProps): JSX.Eleme
     try {
       setState({
         kind: 'ready',
-        ...(await loadOnChainStatus(graphOnChainStatusIo, endpoint, holder)),
+        ...(await loadOnChainStatus(graphOnChainStatusIo, endpoint, holder())),
       })
     } catch (error) {
       setState({
@@ -144,8 +147,8 @@ export const OnChainStatus = ({ copy, endpoint }: OnChainStatusProps): JSX.Eleme
   }
   return (
     <section class="card bg-base-200 p-4">
-      <h2 class="mb-2 text-lg font-bold">{copy.title}</h2>
-      <p class="mb-4 text-sm opacity-70">{copy.description}</p>
+      <h2 class="mb-2 text-lg font-bold">{props.copy.title}</h2>
+      <p class="mb-4 text-sm opacity-70">{props.copy.description}</p>
       <form
         class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end"
         onSubmit={(event) => {
@@ -154,25 +157,22 @@ export const OnChainStatus = ({ copy, endpoint }: OnChainStatusProps): JSX.Eleme
         }}
       >
         <div class="flex min-w-0 grow flex-col gap-1">
-          <label for="chain-holder">{copy.holderLabel}</label>
+          <label for="chain-holder">{props.copy.holderLabel}</label>
           <input
             id="chain-holder"
             class="input input-bordered w-full font-mono"
-            placeholder={copy.holderPlaceholder}
-            value={holder}
+            placeholder={props.copy.holderPlaceholder}
+            value={holder()}
             onInput={(event) => {
-              const value = fieldValue(event.currentTarget)
-              if (value !== null) {
-                setHolder(value)
-              }
+              setHolder(event.currentTarget.value)
             }}
           />
         </div>
-        <button class="btn btn-primary" type="submit" disabled={state.kind === 'loading'}>
-          {state.kind === 'loading' ? copy.querying : copy.query}
+        <button class="btn btn-primary" type="submit" disabled={state().kind === 'loading'}>
+          {state().kind === 'loading' ? props.copy.querying : props.copy.query}
         </button>
       </form>
-      <OnChainStatusView copy={copy} state={state} />
+      <OnChainStatusView copy={props.copy} state={state()} />
     </section>
   )
 }

@@ -1,12 +1,27 @@
 // @vitest-environment happy-dom
-/** @jsxImportSource hono/jsx/dom */
 import type { PublicVenue } from '@fuda/sdk'
-import { render } from 'hono/jsx/dom'
+import type { JSX } from 'solid-js'
+import { render as solidRender } from 'solid-js/web'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { fetchVenue } from '../api.ts'
 import { StoreHome } from './StoreHome.tsx'
 import { VenueScreen } from './VenueScreen.tsx'
+
+const disposers: (() => void)[] = []
+// Solid delegates events to the document, so a host must be attached to
+// receive clicks.
+const render = (view: () => JSX.Element, host: HTMLElement): void => {
+  if (!host.isConnected) {
+    document.body.append(host)
+  }
+  disposers.push(solidRender(view, host))
+}
+const unmountAll = (): void => {
+  for (const dispose of disposers.splice(0)) {
+    dispose()
+  }
+}
 
 const membership: PublicVenue['cards'][number] = {
   category: 'membership',
@@ -33,13 +48,14 @@ const venue: PublicVenue = {
 
 describe('store entry and display', () => {
   afterEach(() => {
+    unmountAll()
     document.body.replaceChildren()
     localStorage.clear()
   })
 
   it('shows a branded default-card QR and switches manually without issuing or navigating', async () => {
     const host = document.createElement('div')
-    render(<StoreHome venue={venue} origin="https://app.fuda.sh" />, host)
+    render(() => <StoreHome venue={venue} origin="https://app.fuda.sh" />, host)
     expect(host.querySelector('main')?.style.backgroundColor).toBe('#6F4320')
     expect({
       description: host.textContent?.includes('Private description'),
@@ -57,17 +73,19 @@ describe('store entry and display', () => {
     })
     expect(host.querySelector('[role="img"]')?.innerHTML).not.toBe(firstQr)
     expect(host.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe('Tasting')
-    render(<></>, host)
+    unmountAll()
   })
 
   it('does not display a claim QR for a closed default and allows explicit alternative selection', async () => {
     const host = document.createElement('div')
     render(
-      <StoreHome
-        venue={{ ...venue, cards: [{ ...membership, claimable: false }, venue.cards[1]] }}
-        origin="https://app.fuda.sh"
-        locale="ja"
-      />,
+      () => (
+        <StoreHome
+          venue={{ ...venue, cards: [{ ...membership, claimable: false }, venue.cards[1]] }}
+          origin="https://app.fuda.sh"
+          locale="ja"
+        />
+      ),
       host,
     )
     expect(host.querySelector('[role="img"]')).toBeNull()
@@ -76,7 +94,7 @@ describe('store entry and display', () => {
     await vi.waitFor(() => {
       expect(host.querySelector('[role="img"]')).not.toBeNull()
     })
-    render(<></>, host)
+    unmountAll()
   })
 
   it('replaces the bare URL with the default claim URL, retaining query parameters', async () => {
@@ -84,23 +102,27 @@ describe('store entry and display', () => {
     const replace = vi.fn<(href: string) => void>()
     const fetch = vi.fn<typeof fetchVenue>(async () => await Promise.resolve({ body: venue, ok: true }))
     render(
-      <VenueScreen handle="coffee" mode="entry" search="?lang=ja" fetchVenue={fetch} replace={replace} />,
+      () => (
+        <VenueScreen handle="coffee" mode="entry" search="?lang=ja" fetchVenue={fetch} replace={replace} />
+      ),
       host,
     )
     await vi.waitFor(() => {
       expect(replace).toHaveBeenCalledWith('/@coffee/membership?lang=ja')
     })
     expect(fetch).toHaveBeenCalledOnce()
-    render(<></>, host)
+    unmountAll()
   })
 
   it('explains a missing default and lets the store explicitly choose its single remaining Card', async () => {
     const host = document.createElement('div')
     render(
-      <StoreHome
-        venue={{ ...venue, cards: [membership], defaultCardSlug: 'missing' }}
-        origin="https://app.fuda.sh"
-      />,
+      () => (
+        <StoreHome
+          venue={{ ...venue, cards: [membership], defaultCardSlug: 'missing' }}
+          origin="https://app.fuda.sh"
+        />
+      ),
       host,
     )
     expect(host.textContent).toContain('The featured card is not available')
@@ -115,13 +137,13 @@ describe('store entry and display', () => {
         'https://app.fuda.sh/@coffee/membership',
       )
     })
-    render(<></>, host)
+    unmountAll()
   })
 
   it('supports roving focus and arrow, Home and End navigation in the Card tabs', async () => {
     const host = document.createElement('div')
     document.body.replaceChildren(host)
-    render(<StoreHome venue={venue} origin="https://app.fuda.sh" />, host)
+    render(() => <StoreHome venue={venue} origin="https://app.fuda.sh" />, host)
     const [first, second] = host.querySelectorAll<HTMLButtonElement>('[role="tab"]')
     first.focus()
     first.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowRight' }))
@@ -141,27 +163,29 @@ describe('store entry and display', () => {
       expect(document.activeElement).toBe(second)
     })
     expect(host.querySelector('[role="tabpanel"]')?.getAttribute('aria-labelledby')).toBe(second.id)
-    render(<></>, host)
+    unmountAll()
   })
 
   it('keeps the explicit all-cards chooser accessible despite a configured default', async () => {
     const host = document.createElement('div')
     const replace = vi.fn<(href: string) => void>()
     render(
-      <VenueScreen
-        handle="coffee"
-        mode="entry"
-        search="?cards=all"
-        fetchVenue={async () => await Promise.resolve({ body: venue, ok: true })}
-        replace={replace}
-      />,
+      () => (
+        <VenueScreen
+          handle="coffee"
+          mode="entry"
+          search="?cards=all"
+          fetchVenue={async () => await Promise.resolve({ body: venue, ok: true })}
+          replace={replace}
+        />
+      ),
       host,
     )
     await vi.waitFor(() => {
       expect(host.textContent).toContain('Pick a card')
     })
     expect(replace).not.toHaveBeenCalled()
-    render(<></>, host)
+    unmountAll()
   })
 
   it('keeps an iPad on the display page without redirecting it', async () => {
@@ -169,19 +193,21 @@ describe('store entry and display', () => {
     const host = document.createElement('div')
     const replace = vi.fn<(href: string) => void>()
     render(
-      <VenueScreen
-        handle="coffee"
-        mode="home"
-        search=""
-        fetchVenue={async () => await Promise.resolve({ body: venue, ok: true })}
-        replace={replace}
-      />,
+      () => (
+        <VenueScreen
+          handle="coffee"
+          mode="home"
+          search=""
+          fetchVenue={async () => await Promise.resolve({ body: venue, ok: true })}
+          replace={replace}
+        />
+      ),
       host,
     )
     await vi.waitFor(() => {
       expect(host.querySelector('[data-claim-link]')).not.toBeNull()
     })
     expect(replace).not.toHaveBeenCalled()
-    render(<></>, host)
+    unmountAll()
   })
 })

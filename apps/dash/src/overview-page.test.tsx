@@ -1,17 +1,20 @@
-/** @jsxImportSource hono/jsx/dom */
+// @vitest-environment happy-dom
 import { pick } from '@fuda/i18n'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
 import { DASH_COPY } from './copy.ts'
 import { completeMembersLoad } from './members-state.ts'
 import type { MembersState } from './members-state.ts'
 import type { MemberRowView } from './members-view.ts'
 import { OverviewPage } from './OverviewPage.tsx'
-import { findViewNodes, viewText, walkView } from './test/test-view.ts'
+import type { OverviewPageProps } from './OverviewPage.tsx'
+import { cleanup, mount, spacedText } from './test/render.tsx'
 
 const UID = `0x${'ab'.repeat(32)}` as const
 const copy = pick(DASH_COPY, 'en').overview
+
+const show = (props: OverviewPageProps): HTMLElement => mount(() => <OverviewPage {...props} />)
+const shown = (props: OverviewPageProps): string => spacedText(show(props))
 
 const rows: readonly MemberRowView[] = [
   {
@@ -53,23 +56,25 @@ const rows: readonly MemberRowView[] = [
 ]
 
 describe(OverviewPage, () => {
+  afterEach(cleanup)
+
   it('shows populated member counts and configured client status', () => {
     const ready = completeMembersLoad(rows)
 
-    expect(
-      viewText(OverviewPage({ apiBaseUrl: 'https://api.fuda.sh', copy, graphEndpoint: '', state: ready })),
-    ).toContain('Total rights 3 Active rights 2 Revoked rights 1')
-    expect(
-      viewText(OverviewPage({ apiBaseUrl: 'https://api.fuda.sh', copy, graphEndpoint: '', state: ready })),
-    ).toContain('API Connected https://api.fuda.sh Graph index Not configured')
+    expect(shown({ apiBaseUrl: 'https://api.fuda.sh', copy, graphEndpoint: '', state: ready })).toContain(
+      'Total rights 3 Active rights 2 Revoked rights 1',
+    )
+    expect(shown({ apiBaseUrl: 'https://api.fuda.sh', copy, graphEndpoint: '', state: ready })).toContain(
+      'API Connected https://api.fuda.sh Graph index Not configured',
+    )
   })
 
   it('shows zero counts only after a successful empty response', () => {
     const ready = completeMembersLoad([])
 
-    expect(
-      viewText(OverviewPage({ apiBaseUrl: 'x', copy, graphEndpoint: 'https://graph.example', state: ready })),
-    ).toContain('Total rights 0 Active rights 0 Revoked rights 0')
+    expect(shown({ apiBaseUrl: 'x', copy, graphEndpoint: 'https://graph.example', state: ready })).toContain(
+      'Total rights 0 Active rights 0 Revoked rights 0',
+    )
   })
 
   it.each([
@@ -79,21 +84,23 @@ describe(OverviewPage, () => {
     'shows the configured Graph URL without claiming connectivity when $kind',
     (state) => {
       const graphEndpoint = `https://graph.example/${'a'.repeat(80)}`
-      const view = OverviewPage({ apiBaseUrl: 'x', copy, graphEndpoint, state })
-      const graphCard = findViewNodes(view, 'div').find((node) =>
-        findViewNodes(node, 'dt').some((term) => viewText(term) === 'Graph index'),
+      const host = show({ apiBaseUrl: 'x', copy, graphEndpoint, state })
+      const graphCard = [...host.querySelectorAll('dl > div')].find(
+        (node) => spacedText(node.querySelector('dt')) === 'Graph index',
       )
-      const endpoint = findViewNodes(graphCard, 'dd').find((node) => viewText(node) === graphEndpoint)
+      const endpoint = [...(graphCard?.querySelectorAll('dd') ?? [])].find(
+        (node) => spacedText(node) === graphEndpoint,
+      )
 
-      expect(viewText(graphCard)).toContain(`Graph index Configured ${graphEndpoint}`)
-      expect(viewText(graphCard)).not.toContain('Connected')
-      expect(endpoint?.props.class).toContain('break-all')
+      expect(spacedText(graphCard)).toContain(`Graph index Configured ${graphEndpoint}`)
+      expect(spacedText(graphCard)).not.toContain('Connected')
+      expect(endpoint?.className).toContain('break-all')
     },
   )
 
   it('uses checking status and no numeric counts during the initial load', () => {
     const loading: MembersState = { kind: 'loading', previousRows: null }
-    const text = viewText(OverviewPage({ apiBaseUrl: 'x', copy, graphEndpoint: '', state: loading }))
+    const text = shown({ apiBaseUrl: 'x', copy, graphEndpoint: '', state: loading })
 
     expect(text).toContain('API Checking x Graph index Not configured')
     expect(text).not.toContain('Total rights 0')
@@ -103,16 +110,14 @@ describe(OverviewPage, () => {
     const initialError: MembersState = { kind: 'error', message: 'fetch failed', previousRows: null }
 
     expect(
-      viewText(
-        OverviewPage({ apiBaseUrl: 'x', copy, graphEndpoint: 'https://graph.example', state: initialError }),
-      ),
+      shown({ apiBaseUrl: 'x', copy, graphEndpoint: 'https://graph.example', state: initialError }),
     ).not.toContain('Total rights 0')
   })
 
   it('labels retained values while refreshing', () => {
     const refreshing: MembersState = { kind: 'loading', previousRows: rows }
 
-    expect(viewText(OverviewPage({ apiBaseUrl: 'x', copy, graphEndpoint: '', state: refreshing }))).toContain(
+    expect(shown({ apiBaseUrl: 'x', copy, graphEndpoint: '', state: refreshing })).toContain(
       'Refreshing rights',
     )
   })
@@ -120,7 +125,7 @@ describe(OverviewPage, () => {
   it('labels retained values as stale after a failed refresh', () => {
     const staleError: MembersState = { kind: 'error', message: 'fetch failed', previousRows: rows }
 
-    expect(viewText(OverviewPage({ apiBaseUrl: 'x', copy, graphEndpoint: '', state: staleError }))).toContain(
+    expect(shown({ apiBaseUrl: 'x', copy, graphEndpoint: '', state: staleError })).toContain(
       'Showing last loaded values',
     )
   })
@@ -141,28 +146,23 @@ describe(OverviewPage, () => {
   ] as const)(
     'explains initial and refresh load failures in %s while preserving the last counts',
     (locale, errorPrefix, stale, counts) => {
-      const render = (previousRows: readonly MemberRowView[] | null): JSX.Element =>
-        OverviewPage({
+      const showError = (previousRows: readonly MemberRowView[] | null): HTMLElement =>
+        show({
           apiBaseUrl: 'x',
           copy: DASH_COPY[locale].overview,
           graphEndpoint: '',
           state: { kind: 'error', message: 'D1_UNAVAILABLE [42]', previousRows },
         })
-      const initial = render(null)
-      const refreshed = render(rows)
+      const initial = showError(null)
+      const refreshed = showError(rows)
 
-      for (const view of [initial, refreshed]) {
-        const alert = walkView(view).find((node) => node.props.role === 'alert')
-        expect(viewText(alert)).toBe(`${errorPrefix}: D1_UNAVAILABLE [42]`)
+      for (const host of [initial, refreshed]) {
+        expect(spacedText(host.querySelector('[role="alert"]'))).toBe(`${errorPrefix}: D1_UNAVAILABLE [42]`)
       }
-      expect(
-        findViewNodes(initial, 'div')
-          .filter((node) => node.props.class === 'stat-value')
-          .map(viewText),
-      ).toStrictEqual(['—', '—', '—'])
-      expect(viewText(initial)).not.toContain(stale)
-      expect(viewText(refreshed)).toContain(stale)
-      expect(viewText(refreshed)).toContain(counts)
+      expect([...initial.querySelectorAll('.stat-value')].map(spacedText)).toStrictEqual(['—', '—', '—'])
+      expect(spacedText(initial)).not.toContain(stale)
+      expect(spacedText(refreshed)).toContain(stale)
+      expect(spacedText(refreshed)).toContain(counts)
     },
   )
 })

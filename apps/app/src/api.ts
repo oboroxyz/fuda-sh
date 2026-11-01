@@ -1,4 +1,4 @@
-import { passUrls } from '@fuda/sdk'
+import { ClaimSource, passUrls } from '@fuda/sdk'
 import type {
   ChallengeResponse,
   Hex,
@@ -12,6 +12,7 @@ import type {
 } from '@fuda/sdk'
 import { apiFetch, fetchJson } from '@fuda/sdk/http'
 import type { Result } from '@fuda/sdk/http'
+import * as v from 'valibot'
 
 import { API_BASE_URL } from './config.ts'
 import { googlePassHref } from './member-pass-list.ts'
@@ -56,18 +57,33 @@ export const fetchPassCard = async (uid: Hex): Promise<PassCardView | null> => {
 export const fetchVenue = async (handle: string): Promise<Result<PublicVenue>> =>
   await apiFetch<PublicVenue>(API_BASE_URL, `/issuers/${encodeURIComponent(handle)}`, { method: 'GET' })
 
-// Self-serve Bearer issuance of one card: no body, no account. The api answers
-// 429 `rate_limited`, 501 `no_signer`, 502 `chain_error` or 404 `not_found`
-// (for an unknown handle as well as an unknown slug).
-export const issueCard = async (handle: string, slug: string): Promise<Result<SelfServeIssueResponse>> =>
-  await apiFetch<SelfServeIssueResponse>(
-    API_BASE_URL,
-    `/issuers/${encodeURIComponent(handle)}/${encodeURIComponent(slug)}/issue`,
-    { method: 'POST' },
-  )
+// The label on the link a person arrived through, `?source=spring-flyer`, if it
+// has the shape the api keeps (docs/specs/pass-types-and-flows.md#capacity-and-source).
+export const claimSourceFrom = (search: string): string | null => {
+  const parsed = v.safeParse(ClaimSource, new URLSearchParams(search).get('source'))
+  return parsed.success ? parsed.output : null
+}
+
+// Self-serve Bearer issuance of one card: no account. The api answers 429
+// `rate_limited`, 409 `card_closed` or `card_sold_out`, 501 `no_signer`, 502
+// `chain_error` or 404 `not_found` (for an unknown handle as well as an unknown slug).
+export const issueCard = async (
+  handle: string,
+  slug: string,
+  source: string | null,
+): Promise<Result<SelfServeIssueResponse>> => {
+  const path = `/issuers/${encodeURIComponent(handle)}/${encodeURIComponent(slug)}/issue`
+  return source === null
+    ? await apiFetch<SelfServeIssueResponse>(API_BASE_URL, path, { method: 'POST' })
+    : await apiFetch<SelfServeIssueResponse>(API_BASE_URL, path, {
+        body: JSON.stringify({ source }),
+        method: 'POST',
+      })
+}
 
 export type CardFailure =
   | 'card_closed'
+  | 'card_sold_out'
   | 'chain_error'
   | 'network'
   | 'no_signer'
@@ -83,7 +99,7 @@ export const cardFailureOf = (result: { status: number; error: string }): CardFa
       return 'not_found'
     }
     case 409: {
-      return 'card_closed'
+      return result.error === 'card_sold_out' ? 'card_sold_out' : 'card_closed'
     }
     case 429: {
       return 'rate_limited'

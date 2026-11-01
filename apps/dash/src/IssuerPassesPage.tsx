@@ -1,12 +1,11 @@
-/** @jsxImportSource hono/jsx/dom */
 import { formatMemberNumber } from '@fuda/sdk'
-import type { CardView, IssuerPassStatus, IssuerPassView } from '@fuda/sdk'
-import { useEffect, useState } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import type { CardView, IssuerPassesResponse, IssuerPassStatus, IssuerPassView } from '@fuda/sdk'
+import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from 'solid-js'
+import type { JSX } from 'solid-js'
 
 import { hasHumanBadge } from './badges-view.ts'
 import { formatInstant } from './card-designer.ts'
-import { useIssuerPasses } from './issuer-passes-state.ts'
+import { createIssuerPasses } from './issuer-passes-state.ts'
 import type { PassesLoad } from './issuer-passes-state.ts'
 import type { PassQuery } from './management-api.ts'
 import type { ManagementCopy } from './management-copy.ts'
@@ -46,83 +45,94 @@ const humanBadge = (pass: IssuerPassView, copy: ManagementCopy): JSX.Element =>
 const showsHuman = (passes: readonly IssuerPassView[]): boolean =>
   passes.some((pass) => hasHumanBadge(pass.badges))
 
-const PassTable = ({ passes, copy }: { passes: IssuerPassView[]; copy: ManagementCopy }): JSX.Element => (
-  <div class="dash-management-table overflow-x-auto" role="region" aria-label={copy.passesTitle} tabIndex={0}>
+const PassTable = (props: { passes: IssuerPassView[]; copy: ManagementCopy }): JSX.Element => (
+  <div
+    class="dash-management-table overflow-x-auto"
+    role="region"
+    aria-label={props.copy.passesTitle}
+    tabIndex={0}
+  >
     <table class="table w-full min-w-250 text-sm">
       <thead>
         <tr>
-          <th scope="col">{copy.member}</th>
-          <th scope="col">{copy.card}</th>
-          <th scope="col">{copy.claimedAt}</th>
+          <th scope="col">{props.copy.member}</th>
+          <th scope="col">{props.copy.card}</th>
+          <th scope="col">{props.copy.claimedAt}</th>
           <th scope="col" class="text-right">
-            {copy.stamps}
+            {props.copy.stamps}
           </th>
-          <th scope="col">{copy.status}</th>
-          {showsHuman(passes) ? <th scope="col">{copy.verifiedHuman}</th> : null}
-          <th scope="col">{copy.expires}</th>
-          <th scope="col">{copy.address}</th>
+          <th scope="col">{props.copy.status}</th>
+          {showsHuman(props.passes) ? <th scope="col">{props.copy.verifiedHuman}</th> : null}
+          <th scope="col">{props.copy.expires}</th>
+          <th scope="col">{props.copy.address}</th>
         </tr>
       </thead>
       <tbody>
-        {passes.map((pass): JSX.Element => (
-          <tr key={pass.uid}>
-            <th scope="row" class="min-w-44 font-normal">
-              <p class="font-mono font-medium">
-                {pass.memberNumber === '' ? pass.uid : formatMemberNumber(pass.memberNumber)}
-              </p>
-              {pass.memberNumber === '' ? null : (
-                <p class="mt-1 font-mono text-xs text-[var(--fuda-muted)]" title={pass.uid}>
-                  {pass.uid.slice(0, 10)}…{pass.uid.slice(-6)}
+        <For each={props.passes}>
+          {(pass) => (
+            <tr>
+              <th scope="row" class="min-w-44 font-normal">
+                <p class="font-mono font-medium">
+                  {pass.memberNumber === '' ? pass.uid : formatMemberNumber(pass.memberNumber)}
                 </p>
-              )}
-            </th>
-            <td class="max-w-48 min-w-36">{pass.card?.title ?? copy.notRecorded}</td>
-            <td class="min-w-36 text-xs whitespace-nowrap">{formatInstant(pass.claimedAt)}</td>
-            <td class="text-right tabular-nums">{pass.stamps.toLocaleString()}</td>
-            <td>
-              <span class="badge badge-ghost whitespace-nowrap">{copy.statuses[pass.status]}</span>
-            </td>
-            {showsHuman(passes) ? <td>{humanBadge(pass, copy)}</td> : null}
-            <td class="min-w-32 text-xs whitespace-nowrap">{expiryText(pass, copy)}</td>
-            <td class="max-w-56 min-w-40">
-              <code class="text-xs">{pass.holder ?? copy.notRecorded}</code>
-            </td>
-          </tr>
-        ))}
+                {pass.memberNumber === '' ? null : (
+                  <p class="mt-1 font-mono text-xs text-[var(--fuda-muted)]" title={pass.uid}>
+                    {pass.uid.slice(0, 10)}…{pass.uid.slice(-6)}
+                  </p>
+                )}
+              </th>
+              <td class="max-w-48 min-w-36">{pass.card?.title ?? props.copy.notRecorded}</td>
+              <td class="min-w-36 text-xs whitespace-nowrap">{formatInstant(pass.claimedAt)}</td>
+              <td class="text-right tabular-nums">{pass.stamps.toLocaleString()}</td>
+              <td>
+                <span class="badge badge-ghost whitespace-nowrap">{props.copy.statuses[pass.status]}</span>
+              </td>
+              {showsHuman(props.passes) ? <td>{humanBadge(pass, props.copy)}</td> : null}
+              <td class="min-w-32 text-xs whitespace-nowrap">{expiryText(pass, props.copy)}</td>
+              <td class="max-w-56 min-w-40">
+                <code class="text-xs">{pass.holder ?? props.copy.notRecorded}</code>
+              </td>
+            </tr>
+          )}
+        </For>
       </tbody>
     </table>
   </div>
 )
 
-export const IssuerPassesPage = ({
-  cards,
-  copy,
-  load,
-}: {
+export const IssuerPassesPage = (props: {
   cards: CardView[]
   copy: ManagementCopy
   load: PassesLoad
 }): JSX.Element => {
-  const [search, setSearch] = useState('')
-  const [query, setQuery] = useState<PassQuery>({ page: 1, pageSize: PAGE_SIZE })
-  const { state, refresh } = useIssuerPasses(load, query)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const q = search.trim()
-      setQuery((current) => ((current.q ?? '') === q ? current : { ...current, page: 1, q }))
-    }, SEARCH_DELAY_MS)
-    return () => {
-      clearTimeout(timer)
-    }
-  }, [search])
+  const [search, setSearch] = createSignal('')
+  const [query, setQuery] = createSignal<PassQuery>({ page: 1, pageSize: PAGE_SIZE })
+  const { state, refresh } = createIssuerPasses(props.load, query)
+  createEffect(
+    on(search, (value) => {
+      const timer = setTimeout(() => {
+        const q = value.trim()
+        setQuery((current) => ((current.q ?? '') === q ? current : { ...current, page: 1, q }))
+      }, SEARCH_DELAY_MS)
+      onCleanup(() => {
+        clearTimeout(timer)
+      })
+    }),
+  )
 
-  const pages =
-    state.kind === 'ready' ? Math.max(1, Math.ceil(state.data.page.total / PAGE_SIZE)) : query.page
-  useEffect(() => {
-    if (state.kind === 'ready' && query.page > pages) {
-      setQuery((current) => ({ ...current, page: pages }))
+  const ready = (): IssuerPassesResponse | null => {
+    const current = state()
+    return current.kind === 'ready' ? current.data : null
+  }
+  const pages = createMemo(() => {
+    const data = ready()
+    return data === null ? query().page : Math.max(1, Math.ceil(data.page.total / PAGE_SIZE))
+  })
+  createEffect(() => {
+    if (ready() !== null && query().page > pages()) {
+      setQuery((current) => ({ ...current, page: pages() }))
     }
-  }, [state.kind, pages, query.page])
+  })
   const clear = (): void => {
     setSearch('')
     setQuery({ page: 1, pageSize: PAGE_SIZE })
@@ -132,142 +142,138 @@ export const IssuerPassesPage = ({
     <section class="dash-page flex min-w-0 flex-col gap-6">
       <header class="dash-page-header">
         <div class="flex flex-wrap items-center justify-between gap-3">
-          <h1 class="dash-page-title">{copy.passesTitle}</h1>
-          <button class="btn btn-sm" type="button" disabled={state.kind === 'loading'} onClick={refresh}>
-            {copy.refresh}
+          <h1 class="dash-page-title">{props.copy.passesTitle}</h1>
+          <button class="btn btn-sm" type="button" disabled={state().kind === 'loading'} onClick={refresh}>
+            {props.copy.refresh}
           </button>
         </div>
-        <p class="text-[var(--fuda-muted)]">{copy.passesDescription}</p>
+        <p class="text-[var(--fuda-muted)]">{props.copy.passesDescription}</p>
       </header>
-      <ManagementSummary state={state} copy={copy} />
+      <ManagementSummary state={state()} copy={props.copy} />
       <div class="space-y-1 text-xs text-[var(--fuda-muted)]">
-        <p>{copy.countHint}</p>
-        {state.kind === 'ready' && state.data.summary.unknown > 0 ? (
-          <p>{copy.unknownHint.replace('{count}', String(state.data.summary.unknown))}</p>
+        <p>{props.copy.countHint}</p>
+        {(ready()?.summary.unknown ?? 0) > 0 ? (
+          <p>{props.copy.unknownHint.replace('{count}', String(ready()?.summary.unknown ?? 0))}</p>
         ) : null}
       </div>
       <div class="card overflow-hidden">
         <div class="flex flex-wrap items-end gap-3 border-b border-[var(--fuda-border)] p-4">
           <label class="flex min-w-0 flex-1 basis-56 flex-col gap-1.5 text-sm">
-            <span>{copy.searchPasses}</span>
+            <span>{props.copy.searchPasses}</span>
             <input
               class="input w-full"
               type="search"
-              value={search}
+              value={search()}
               maxLength={120}
-              placeholder={copy.searchPassesPlaceholder}
+              placeholder={props.copy.searchPassesPlaceholder}
               onInput={(event) => {
-                if (event.currentTarget instanceof HTMLInputElement) {
-                  setSearch(event.currentTarget.value)
-                }
+                setSearch(event.currentTarget.value)
               }}
             />
           </label>
           <label class="flex min-w-0 flex-col gap-1.5 text-sm">
-            <span>{copy.card}</span>
+            <span>{props.copy.card}</span>
             <select
               class="select max-w-full sm:max-w-52"
               name="cardId"
-              value={query.cardId ?? ''}
-              onChange={(event) => {
-                if (event.currentTarget instanceof HTMLSelectElement) {
-                  const cardId = event.currentTarget.value
-                  setQuery((current) => ({ ...current, cardId, page: 1 }))
-                }
+              value={query().cardId ?? ''}
+              onInput={(event) => {
+                const cardId = event.currentTarget.value
+                setQuery((current) => ({ ...current, cardId, page: 1 }))
               }}
             >
-              <option value="">{copy.allCards}</option>
-              {cards.map((card): JSX.Element => (
-                <option key={card.id} value={card.id}>
-                  {card.title}
-                </option>
-              ))}
+              <option value="">{props.copy.allCards}</option>
+              <For each={props.cards}>{(card) => <option value={card.id}>{card.title}</option>}</For>
             </select>
           </label>
           <label class="flex flex-col gap-1.5 text-sm">
-            <span>{copy.status}</span>
+            <span>{props.copy.status}</span>
             <select
               class="select"
               name="status"
-              value={query.status ?? ''}
-              onChange={(event) => {
-                if (event.currentTarget instanceof HTMLSelectElement) {
-                  const { value } = event.currentTarget
-                  const status = STATUSES.find((candidate) => candidate === value)
-                  setQuery((current) => ({ ...current, page: 1, status }))
-                }
+              value={query().status ?? ''}
+              onInput={(event) => {
+                const { value } = event.currentTarget
+                const status = STATUSES.find((candidate) => candidate === value)
+                setQuery((current) => ({ ...current, page: 1, status }))
               }}
             >
-              <option value="">{copy.allStatuses}</option>
-              {STATUSES.map((status): JSX.Element => (
-                <option key={status} value={status}>
-                  {copy.statuses[status]}
-                </option>
-              ))}
+              <option value="">{props.copy.allStatuses}</option>
+              <For each={STATUSES}>
+                {(status) => <option value={status}>{props.copy.statuses[status]}</option>}
+              </For>
             </select>
           </label>
         </div>
-        {state.kind === 'loading' ? (
+        {state().kind === 'loading' ? (
           <p class="p-6 text-sm" role="status">
-            {copy.loading}
+            {props.copy.loading}
           </p>
         ) : null}
-        {state.kind === 'failed' ? (
+        {state().kind === 'failed' ? (
           <div role="alert" class="flex flex-wrap items-center gap-3 p-6 text-sm">
-            <p>{copy.loadFailed}</p>
+            <p>{props.copy.loadFailed}</p>
             <button class="btn btn-sm" type="button" onClick={refresh}>
-              {copy.retry}
+              {props.copy.retry}
             </button>
           </div>
         ) : null}
-        {state.kind === 'ready' ? (
-          <>
-            {state.data.passes.length === 0 ? (
-              <div class="flex flex-col items-start gap-3 p-6">
-                <p role="status">{state.data.summary.total === 0 ? copy.noPasses : copy.noPassesMatch}</p>
-                {state.data.summary.total === 0 ? null : (
-                  <button class="btn btn-sm" type="button" onClick={clear}>
-                    {copy.clearFilters}
+        <Show when={ready()}>
+          {(data) => (
+            <>
+              {data().passes.length === 0 ? (
+                <div class="flex flex-col items-start gap-3 p-6">
+                  <p role="status">
+                    {data().summary.total === 0 ? props.copy.noPasses : props.copy.noPassesMatch}
+                  </p>
+                  {data().summary.total === 0 ? null : (
+                    <button class="btn btn-sm" type="button" onClick={clear}>
+                      {props.copy.clearFilters}
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <PassTable passes={data().passes} copy={props.copy} />
+              )}
+              <div class="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--fuda-border)] px-4 py-3 text-xs">
+                <p class="text-[var(--fuda-muted)]">
+                  {props.copy.results.replace('{count}', data().page.total.toLocaleString())}
+                </p>
+                <div class="flex flex-wrap items-center gap-3">
+                  <p>
+                    {props.copy.page
+                      .replace('{page}', String(query().page))
+                      .replace('{pages}', String(pages()))}
+                  </p>
+                  <button
+                    class="btn btn-sm"
+                    type="button"
+                    disabled={query().page <= 1}
+                    onClick={() => {
+                      setQuery((current) => ({ ...current, page: current.page - 1 }))
+                    }}
+                  >
+                    {props.copy.previous}
                   </button>
-                )}
+                  <button
+                    class="btn btn-sm"
+                    type="button"
+                    disabled={query().page >= pages()}
+                    onClick={() => {
+                      setQuery((current) => ({ ...current, page: current.page + 1 }))
+                    }}
+                  >
+                    {props.copy.next}
+                  </button>
+                </div>
               </div>
-            ) : (
-              <PassTable passes={state.data.passes} copy={copy} />
-            )}
-            <div class="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--fuda-border)] px-4 py-3 text-xs">
-              <p class="text-[var(--fuda-muted)]">
-                {copy.results.replace('{count}', state.data.page.total.toLocaleString())}
-              </p>
-              <div class="flex flex-wrap items-center gap-3">
-                <p>{copy.page.replace('{page}', String(query.page)).replace('{pages}', String(pages))}</p>
-                <button
-                  class="btn btn-sm"
-                  type="button"
-                  disabled={query.page <= 1}
-                  onClick={() => {
-                    setQuery((current) => ({ ...current, page: current.page - 1 }))
-                  }}
-                >
-                  {copy.previous}
-                </button>
-                <button
-                  class="btn btn-sm"
-                  type="button"
-                  disabled={query.page >= pages}
-                  onClick={() => {
-                    setQuery((current) => ({ ...current, page: current.page + 1 }))
-                  }}
-                >
-                  {copy.next}
-                </button>
-              </div>
-            </div>
-          </>
-        ) : null}
+            </>
+          )}
+        </Show>
       </div>
       <div class="space-y-1 text-xs text-[var(--fuda-muted)]">
-        <p>{copy.localTime}</p>
-        <p>{copy.snapshotHint}</p>
+        <p>{props.copy.localTime}</p>
+        <p>{props.copy.snapshotHint}</p>
       </div>
     </section>
   )

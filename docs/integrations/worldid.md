@@ -76,7 +76,7 @@ Each refusal names its reason in the log. A badge that never arrives is otherwis
 
 ### 3. The routes
 
-[`apps/api/src/routes/badges.ts`](../../apps/api/src/routes/badges.ts)
+[`apps/api/src/handlers/badges.ts`](../../apps/api/src/handlers/badges.ts)
 
 `POST /v1/badges/:kind/context` returns the RP-signed context. `POST /v1/badges/:kind` takes `{ uid, payload }`, verifies, and stores. Both are rate-limited, both are `no-store`, and both answer **`501 badges_not_configured`** while the verifier is unconfigured — an unconfigured deployment looks like the feature does not exist rather than like it is broken.
 
@@ -84,7 +84,7 @@ A badge is refused for a Right that would not be admitted: the route resolves th
 
 ### 4. Badges in the gate verdict
 
-[`apps/api/src/routes/verify.ts`](../../apps/api/src/routes/verify.ts)
+[`apps/api/src/handlers/verify.ts`](../../apps/api/src/handlers/verify.ts)
 
 `badgesFor` catches a failed read and returns an empty list, and an empty list means **no `badges` key at all** — a Right without one keeps the exact response shape it had before badges existed. The read is advisory in the same way the Attendance hook is: it can never turn a scan into a failure, and a missing table looks like a healthy verdict. Confirm the table by SQL, never by a verdict.
 
@@ -94,7 +94,7 @@ A badge is refused for a Right that would not be admitted: the route resolves th
 
 [`apps/app/src/badges.ts`](../../apps/app/src/badges.ts) · [`apps/app/src/venue/CardScreen.tsx`](../../apps/app/src/venue/CardScreen.tsx)
 
-Headless `@worldcoin/idkit-core` in a hono/jsx/dom app — the React widget is never imported. The request asks for `any(proof_of_human, mnc)`: a deployment in Japan serves many members who hold a My Number Card credential and have never been to an Orb, and the nullifier does not depend on which credential produced it.
+Headless `@worldcoin/idkit-core` in a Solid app — the React widget is never imported. The request asks for `any(proof_of_human, mnc)`: a deployment in Japan serves many members who hold a My Number Card credential and have never been to an Orb, and the nullifier does not depend on which credential produced it.
 
 The hand-off URI is rendered as a link and a QR rather than assigned to `location.href`: `pollUntilCompletion()` only resolves while the page is alive, and navigating away loses a verification the member has already completed. A failure shows the vendor's own code under the button, because a silent button is indistinguishable from a broken one.
 

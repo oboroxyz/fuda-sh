@@ -1,15 +1,25 @@
 // @vitest-environment happy-dom
-/** @jsxImportSource hono/jsx/dom */
 import { setTimeout } from 'node:timers/promises'
 
 import { pick } from '@fuda/i18n'
-import { render, useState } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import { createSignal, Show } from 'solid-js'
+import type { JSX } from 'solid-js'
+import { render as solidRender } from 'solid-js/web'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DASH_COPY } from './copy.ts'
 import { DashboardShell } from './DashboardShell.tsx'
 import type { DashRoute, DashSurface } from './router.ts'
+
+const disposers: (() => void)[] = []
+const render = (view: () => JSX.Element, host: HTMLElement): void => {
+  disposers.push(solidRender(view, host))
+}
+const unmountAll = (): void => {
+  for (const dispose of disposers.splice(0)) {
+    dispose()
+  }
+}
 
 let breakpoint: MediaQueryList
 let root: HTMLDivElement
@@ -17,33 +27,39 @@ let dispose: (() => void) | undefined
 let changeRoute: ((route: DashRoute) => void) | undefined
 const signOut = vi.fn<() => void>()
 const start = (surface: DashSurface = 'operator', hasIssuer = true): void => {
-  const Harness = (): JSX.Element | null => {
-    const [mounted, setMounted] = useState(true)
-    const [route, setRoute] = useState<DashRoute>(surface === 'operator' ? '/cards' : '/')
+  const Harness = (): JSX.Element => {
+    const [mounted, setMounted] = createSignal(true)
+    const [route, setRoute] = createSignal<DashRoute>(surface === 'operator' ? '/cards' : '/')
     dispose = () => {
       setMounted(false)
     }
-    changeRoute = setRoute
-    return mounted ? (
-      <DashboardShell
-        appearance={<span>Appearance</span>}
-        copy={pick(DASH_COPY, 'en')}
-        hasIssuer={hasIssuer}
-        onNavigate={setRoute}
-        onSignOut={signOut}
-        route={route}
-        surface={surface}
-        venue={
-          surface === 'operator' && hasIssuer
-            ? { name: 'Fuda Coffee Roasters', publicUrl: 'https://fuda.test/@coffee' }
-            : null
-        }
-      >
-        <p>Page content</p>
-      </DashboardShell>
-    ) : null
+    changeRoute = (next) => {
+      setRoute(next)
+    }
+    return (
+      <Show when={mounted()}>
+        <DashboardShell
+          appearance={<span>Appearance</span>}
+          copy={pick(DASH_COPY, 'en')}
+          hasIssuer={hasIssuer}
+          onNavigate={(next) => {
+            setRoute(next)
+          }}
+          onSignOut={signOut}
+          route={route()}
+          surface={surface}
+          venue={
+            surface === 'operator' && hasIssuer
+              ? { name: 'Fuda Coffee Roasters', publicUrl: 'https://fuda.test/@coffee' }
+              : null
+          }
+        >
+          <p>Page content</p>
+        </DashboardShell>
+      </Show>
+    )
   }
-  render(<Harness />, root)
+  render(() => <Harness />, root)
 }
 const button = (label: string): HTMLButtonElement => {
   const found = [...root.querySelectorAll('button')].find(
@@ -68,6 +84,7 @@ describe('dashboard navigation', () => {
   afterEach(async () => {
     dispose?.()
     await setTimeout(0)
+    unmountAll()
     root.remove()
     vi.restoreAllMocks()
   })
@@ -80,7 +97,8 @@ describe('dashboard navigation', () => {
     await vi.waitFor(() => {
       expect(trigger.getAttribute('aria-expanded')).toBe('true')
     })
-    expect(button('Switch profile').disabled).toBe(true)
+    // No profile list is passed here, so the menu offers only sign-out.
+    expect(root.querySelector('[role="group"]')).toBeNull()
     expect(root.querySelector('nav a[href="/profile"]')?.textContent).toBe('Profile')
     expect(root.querySelector('a[href="https://fuda.test/@coffee"]')?.closest('[hidden]')).toBeNull()
   })
@@ -251,7 +269,7 @@ describe('dashboard navigation', () => {
     (hasIssuer) => {
       start('operator', hasIssuer)
       expect([...root.querySelectorAll('nav a')].map((link) => link.getAttribute('href'))).toStrictEqual(
-        hasIssuer ? ['/profile', '/reception', '/cards', '/passes'] : ['/start'],
+        hasIssuer ? ['/profile', '/reception', '/cards', '/passes', '/apps'] : ['/start'],
       )
     },
   )
@@ -260,7 +278,7 @@ describe('dashboard navigation', () => {
     start()
     button('Open menu').click()
     await setTimeout(0)
-    const lastLink = root.querySelector<HTMLAnchorElement>('nav a[href="/passes"]')!
+    const lastLink = root.querySelector<HTMLAnchorElement>('nav a[href="/apps"]')!
     lastLink.focus()
     lastLink.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Tab' }))
     expect(document.activeElement).toBe(button('Close menu'))

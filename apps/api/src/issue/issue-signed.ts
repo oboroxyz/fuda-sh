@@ -18,5 +18,6 @@ export const issueSigned = async (
     issuerId: null,
     level: 'signed',
     memberId: holder,
+    source: null,
   })
 }

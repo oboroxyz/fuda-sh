@@ -1,15 +1,16 @@
-/** @jsxImportSource hono/jsx/dom */
 import { cn } from 'cn'
-import { useEffect, useId, useRef, useState } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import { createEffect, createSignal, createUniqueId, For, on, onCleanup, onMount, Show } from 'solid-js'
+import type { JSX } from 'solid-js'
 
 import type { DashCopy } from './copy.ts'
 import { ProfileMenu } from './ProfileMenu.tsx'
+import type { ProfileChoices } from './ProfileMenu.tsx'
 import { navigationRoute } from './router.ts'
 import type { DashRoute, DashSurface, MainDashRoute } from './router.ts'
 import { SignOutButton } from './SignOutButton.tsx'
 
 export interface DashboardShellProps {
+  profiles?: ProfileChoices | null
   appearance: JSX.Element
   venue?: { name: string; publicUrl: string | null } | null
   children: JSX.Element
@@ -65,6 +66,7 @@ const navigationItems = (copy: DashCopy, surface: DashSurface, hasIssuer: boolea
         { label: copy.nav.reception, route: '/reception' },
         { label: copy.nav.card, route: '/cards' },
         { label: copy.nav.passes, route: '/passes' },
+        { label: copy.nav.apps, route: '/apps' },
       ]
     : [{ label: copy.nav.venue, route: '/start' }]
 }
@@ -72,11 +74,13 @@ const navigationItems = (copy: DashCopy, surface: DashSurface, hasIssuer: boolea
 const navigationIcon = (route: MainDashRoute): JSX.Element => {
   const paths = {
     '/': 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',
+    '/apps': 'M9 7H5v12h12v-4 M13 3h8v8 M21 3l-10 10',
     '/cards': 'M3 7h18v13H3z M6 4h12 M3 11h18',
     '/cards/new': 'M4 5h16v14H4z M8 12h8 M12 8v8',
     '/issue': 'M12 3v12 M7 10l5 5 5-5 M4 17v4h16v-4',
     '/passes': 'M3 5h18v14H3z M7 9h4 M7 13h6 M16 9h1 M16 13h1',
     '/profile': 'M4 21V10l8-7 8 7v11 M9 21v-6h6v6',
+    '/profiles/new': 'M4 21V10l8-7 8 7v11 M12 11v6 M9 14h6',
     '/reception': 'M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 14h2v2h-2z M18 14h2v6h-6v-2',
     '/rights': 'M4 4h16v16H4z M8 8h8 M8 12h8 M8 16h5',
     '/start': 'M4 21V10l8-7 8 7v11 M9 21v-6h6v6',
@@ -95,41 +99,36 @@ const navigationIcon = (route: MainDashRoute): JSX.Element => {
   )
 }
 
-const Navigation = ({
-  copy,
-  hasIssuer,
-  onNavigate,
-  onSelection,
-  route,
-  surface,
-}: NavigationProps): JSX.Element => (
-  <nav aria-label={copy.chrome.navigation}>
+const Navigation = (props: NavigationProps): JSX.Element => (
+  <nav aria-label={props.copy.chrome.navigation}>
     <ul class="menu w-full gap-1.5 px-2 py-4">
-      {navigationItems(copy, surface, hasIssuer).map((item): JSX.Element => (
-        <li key={item.route}>
-          <a
-            aria-current={navigationRoute(route) === item.route ? 'page' : undefined}
-            class={cn('dash-menu-item', navigationRoute(route) === item.route && 'menu-active')}
-            href={item.route}
-            onClick={(event: MouseEvent): void => {
-              if (!isPrimaryNavigation(event)) {
-                return
-              }
-              event.preventDefault()
-              onSelection?.()
-              onNavigate(item.route)
-            }}
-          >
-            {navigationIcon(item.route)}
-            <span>{item.label}</span>
-          </a>
-        </li>
-      ))}
+      <For each={navigationItems(props.copy, props.surface, props.hasIssuer)}>
+        {(item) => (
+          <li>
+            <a
+              aria-current={navigationRoute(props.route) === item.route ? 'page' : undefined}
+              class={cn('dash-menu-item', navigationRoute(props.route) === item.route && 'menu-active')}
+              href={item.route}
+              onClick={(event) => {
+                if (!isPrimaryNavigation(event)) {
+                  return
+                }
+                event.preventDefault()
+                props.onSelection?.()
+                props.onNavigate(item.route)
+              }}
+            >
+              {navigationIcon(item.route)}
+              <span>{item.label}</span>
+            </a>
+          </li>
+        )}
+      </For>
     </ul>
   </nav>
 )
 
-const Brand = ({ copy }: { copy: DashCopy['chrome'] }): JSX.Element => (
+const Brand = (props: { copy: DashCopy['chrome'] }): JSX.Element => (
   <div>
     <p class="flex items-center gap-2 text-xl font-bold">
       <svg
@@ -146,45 +145,38 @@ const Brand = ({ copy }: { copy: DashCopy['chrome'] }): JSX.Element => (
           stroke-linejoin="round"
         />
       </svg>
-      <span>{copy.brand}</span>
+      <span>{props.copy.brand}</span>
     </p>
   </div>
 )
 
-export const DashboardShell = ({
-  appearance,
-  venue = null,
-  children,
-  copy,
-  hasIssuer,
-  onNavigate,
-  onSignOut,
-  route,
-  surface,
-}: DashboardShellProps): JSX.Element => {
-  const drawerId = useId()
-  const [open, setOpen] = useState(false)
-  const [desktop, setDesktop] = useState(() => desktopBreakpoint()?.matches ?? false)
-  const opener = useRef<HTMLButtonElement | null>(null)
-  const sidebar = useRef<HTMLElement | null>(null)
-  const modal = open && !desktop
-  const restoreFocus = useRef(false)
+export const DashboardShell = (props: DashboardShellProps): JSX.Element => {
+  const drawerId = createUniqueId()
+  const venue = (): { name: string; publicUrl: string | null } | null => props.venue ?? null
+  const [open, setOpen] = createSignal(false)
+  const [desktop, setDesktop] = createSignal(desktopBreakpoint()?.matches ?? false)
+  let opener: HTMLButtonElement | undefined
+  let sidebar: HTMLElement | undefined
+  const modal = (): boolean => open() && !desktop()
+  let restoreFocus = false
   const closeDrawer = (): void => {
-    restoreFocus.current = true
+    restoreFocus = true
     setOpen(false)
   }
 
-  const previousRoute = useRef(route)
-  useEffect(() => {
-    if (previousRoute.current !== route) {
-      previousRoute.current = route
-      if (open) {
-        closeDrawer()
-      }
-    }
-  }, [route])
+  createEffect(
+    on(
+      () => props.route,
+      () => {
+        if (open()) {
+          closeDrawer()
+        }
+      },
+      { defer: true },
+    ),
+  )
 
-  useEffect(() => {
+  onMount(() => {
     const breakpoint = desktopBreakpoint()
     if (breakpoint === null) {
       return
@@ -196,37 +188,38 @@ export const DashboardShell = ({
       }
     }
     breakpoint.addEventListener('change', changed)
-    return () => {
+    onCleanup(() => {
       breakpoint.removeEventListener('change', changed)
-    }
-  }, [])
+    })
+  })
 
-  useEffect(() => {
-    if (modal) {
-      let frame = 0
-      const focusDrawer = (): void => {
-        const panel = sidebar.current
-        const first = panel?.querySelector<HTMLElement>('button, a')
-        if (!first || panel?.contains(document.activeElement) === true) {
-          return
+  createEffect(
+    on(modal, (isModal) => {
+      if (isModal) {
+        let frame = 0
+        const focusDrawer = (): void => {
+          const first = sidebar?.querySelector<HTMLElement>('button, a')
+          if (!first || sidebar?.contains(document.activeElement) === true) {
+            return
+          }
+          // daisyUI delays visibility while the drawer begins its transition.
+          // Browsers ignore focus until that transition makes the control visible.
+          if (getComputedStyle(first).visibility === 'hidden') {
+            frame = requestAnimationFrame(focusDrawer)
+            return
+          }
+          first.focus()
         }
-        // daisyUI delays visibility while the drawer begins its transition.
-        // Browsers ignore focus until that transition makes the control visible.
-        if (getComputedStyle(first).visibility === 'hidden') {
-          frame = requestAnimationFrame(focusDrawer)
-          return
-        }
-        first.focus()
+        focusDrawer()
+        onCleanup(() => {
+          cancelAnimationFrame(frame)
+        })
+      } else if (restoreFocus) {
+        restoreFocus = false
+        opener?.focus()
       }
-      focusDrawer()
-      return () => {
-        cancelAnimationFrame(frame)
-      }
-    } else if (restoreFocus.current) {
-      restoreFocus.current = false
-      opener.current?.focus()
-    }
-  }, [modal])
+    }),
+  )
 
   return (
     <div class="dash-app drawer md:drawer-open min-h-svh bg-[var(--fuda-bg)] text-[var(--fuda-text)] print:block">
@@ -234,22 +227,22 @@ export const DashboardShell = ({
         id={drawerId}
         class="drawer-toggle"
         type="checkbox"
-        checked={open}
+        checked={open()}
         tabIndex={-1}
-        aria-label={copy.chrome.openMenu}
-        onChange={(event) => {
-          if (event.currentTarget instanceof HTMLInputElement) {
-            setOpen(event.currentTarget.checked)
-          }
+        aria-label={props.copy.chrome.openMenu}
+        onInput={(event) => {
+          setOpen(event.currentTarget.checked)
         }}
       />
-      <div class="drawer-content min-w-0" inert={modal}>
+      <div class="drawer-content min-w-0" inert={modal()}>
         <header class="sticky top-0 z-20 flex h-14 items-center gap-4 border-b border-[var(--fuda-border)] bg-[var(--fuda-surface)] px-4 md:hidden print:hidden!">
-          <Brand copy={copy.chrome} />
+          <Brand copy={props.copy.chrome} />
           <button
-            ref={opener}
-            aria-label={copy.chrome.openMenu}
-            aria-expanded={open}
+            ref={(el) => {
+              opener = el
+            }}
+            aria-label={props.copy.chrome.openMenu}
+            aria-expanded={open()}
             aria-controls={`${drawerId}-side`}
             class="btn btn-ghost btn-square ml-auto"
             type="button"
@@ -261,31 +254,33 @@ export const DashboardShell = ({
           </button>
         </header>
         <main class="mx-auto w-full max-w-6xl min-w-0 p-4 sm:px-6 sm:py-8 lg:px-8 lg:py-10 print:p-0">
-          {children}
+          {props.children}
         </main>
       </div>
       <div class="drawer-side z-30 md:z-auto">
         <label
           for={drawerId}
           class="drawer-overlay"
-          aria-label={copy.chrome.closeMenu}
+          aria-label={props.copy.chrome.closeMenu}
           onClick={(event) => {
             event.preventDefault()
             closeDrawer()
           }}
         />
         <aside
-          ref={sidebar}
+          ref={(el) => {
+            sidebar = el
+          }}
           id={`${drawerId}-side`}
           class="dash-sidebar flex min-h-dvh w-64 flex-col border-r border-[var(--fuda-border)] bg-[var(--fuda-surface)] pb-6 print:hidden!"
-          role={modal ? 'dialog' : undefined}
-          aria-modal={modal ? 'true' : undefined}
-          aria-label={copy.chrome.navigation}
+          role={modal() ? 'dialog' : undefined}
+          aria-modal={modal() ? 'true' : undefined}
+          aria-label={props.copy.chrome.navigation}
           onKeyDown={(event) => {
             if (event.target instanceof Element && event.target.closest('dialog') !== null) {
               return
             }
-            if (!modal) {
+            if (!modal()) {
               return
             }
             if (event.key === 'Escape') {
@@ -297,7 +292,7 @@ export const DashboardShell = ({
               return
             }
             const controls = [
-              ...(sidebar.current?.querySelectorAll<HTMLElement>('a[href], button:not([disabled])') ?? []),
+              ...(sidebar?.querySelectorAll<HTMLElement>('a[href], button:not([disabled])') ?? []),
             ]
             const visibleControls = controls.filter(
               (element) => element.closest('dialog:not([open]), [hidden], [inert]') === null,
@@ -314,36 +309,54 @@ export const DashboardShell = ({
           }}
         >
           <div class="flex h-14 shrink-0 items-center justify-between gap-2 px-5">
-            <Brand copy={copy.chrome} />
+            <Brand copy={props.copy.chrome} />
             <button
               class="btn btn-ghost btn-square md:hidden!"
-              aria-label={copy.chrome.closeMenu}
+              aria-label={props.copy.chrome.closeMenu}
               type="button"
               onClick={closeDrawer}
             >
               <span aria-hidden="true">×</span>
             </button>
           </div>
-          {surface === 'operator' && venue !== null ? (
-            <ProfileMenu key={route} copy={copy} venue={venue} onSignOut={onSignOut} />
+          {props.surface === 'operator' ? (
+            <Show when={venue()}>
+              {(current) => (
+                // A new route closes the menu by mounting a fresh one.
+                <Show when={props.route} keyed>
+                  <ProfileMenu
+                    profiles={props.profiles}
+                    copy={props.copy}
+                    venue={current()}
+                    onSignOut={props.onSignOut}
+                  />
+                </Show>
+              )}
+            </Show>
           ) : null}
-          {Navigation({
-            copy,
-            hasIssuer,
-            onNavigate,
-            onSelection: () => {
-              if (open) {
+          <Navigation
+            copy={props.copy}
+            hasIssuer={props.hasIssuer}
+            onNavigate={props.onNavigate}
+            onSelection={() => {
+              if (open()) {
                 closeDrawer()
               }
-            },
-            route,
-            surface,
-          })}
+            }}
+            route={props.route}
+            surface={props.surface}
+          />
           <div class="mt-auto flex flex-col gap-3">
-            {onSignOut === null || (surface === 'operator' && venue !== null) ? null : (
-              <SignOutButton copy={copy.auth} onSignOut={onSignOut} menu />
+            {props.onSignOut === null || (props.surface === 'operator' && venue() !== null) ? null : (
+              <SignOutButton
+                copy={props.copy.auth}
+                onSignOut={() => {
+                  props.onSignOut?.()
+                }}
+                menu
+              />
             )}
-            <div class="px-5">{appearance}</div>
+            <div class="px-5">{props.appearance}</div>
           </div>
         </aside>
       </div>

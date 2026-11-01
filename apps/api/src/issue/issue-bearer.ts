@@ -11,7 +11,7 @@ export { IssueConfigError } from './issue-right.ts'
 export const issueBearer = async (
   ctx: IssueContext,
   body: IssueRequest & { memberId: string },
-  card: { cardId: string; issuerId: string } | null = null,
+  card: { cardId: string; issuerId: string; source: string | null } | null = null,
 ): Promise<IssueResponse> => {
   const holder = await bearerHolder(ctx.chain, ctx.issuerAddress, body.memberId)
   return await attestRight(ctx, {
@@ -21,5 +21,6 @@ export const issueBearer = async (
     issuerId: card?.issuerId ?? null,
     level: 'bearer',
     memberId: body.memberId,
+    source: card?.source ?? null,
   })
 }

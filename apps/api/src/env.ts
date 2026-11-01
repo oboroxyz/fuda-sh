@@ -1,5 +1,8 @@
+import type { CloudEnv } from 'void'
+
 import type { MemberSession, OperatorSession } from './auth/session.ts'
 import type { ChainClient } from './chain/client.ts'
+import type { AccessGrant } from './connected-apps/store.ts'
 import type { Db } from './db/client.ts'
 import type { AdmitHook } from './verify/admit.ts'
 
@@ -22,6 +25,8 @@ export interface Bindings {
   // The member-facing origin a published card links to: `https://fuda.sh` in
   // production (the apex redirects /@* to app.fuda.sh), the app dev port locally.
   PUBLIC_BASE_URL: string
+  // The dashboard, where an authorization request lands (docs/specs/mcp.md).
+  DASH_BASE_URL: string
   // Wallet-platform secrets. Each platform is configured only when every one
   // of its names is set and non-empty; otherwise that pass endpoint answers 501.
   GOOGLE_ISSUER_ID?: string
@@ -42,7 +47,7 @@ export interface Bindings {
   // Issuer subname claim. Every route that signs or confirms a claim answers 503
   // unless all five are configured, matching the gateway's fail-closed rule.
   // The two URLs are secrets because an Alchemy endpoint carries its API key in
-  // the path and `wrangler.jsonc` is checked in; the policy id is inert without
+  // the path and `targets.jsonc` is checked in; the policy id is inert without
   // them. ENS_VOUCHER_KEY signs claim and renew vouchers and is a separate role
   // from every other key (docs/specs/ens-naming.md#issuer-claim-and-renewal).
   ENS_REGISTRAR_ADDRESS?: string
@@ -63,6 +68,9 @@ export interface Variables {
   // Set by operatorOrAdmin() on the routes that serve both.
   actingIssuer: string | null
   chain: ChainClient
+  // set by connectedAppAuth(): the approval behind a connected app's access
+  // token, bound to one issuer (docs/specs/connected-apps.md)
+  connected: AccessGrant
   db: Db
   // unix seconds — injectable for tests
   now: () => number
@@ -74,7 +82,4 @@ export interface Variables {
   member: MemberSession
 }
 
-export interface AppEnv {
-  Bindings: Bindings
-  Variables: Variables
-}
+export type AppEnv = CloudEnv

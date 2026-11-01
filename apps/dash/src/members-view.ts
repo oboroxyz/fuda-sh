@@ -1,6 +1,6 @@
 import { passUrls, TIER_LABEL, toQr } from '@fuda/sdk'
 import type { Hex, Level, MemberRow, PassUrls } from '@fuda/sdk'
-import { short } from '@fuda/ui'
+import { short } from '@fuda/ui/short'
 
 import { hasHumanBadge } from './badges-view.ts'
 

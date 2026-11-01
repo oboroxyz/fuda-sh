@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   cardFailureOf,
+  claimSourceFrom,
   challenge,
   fetchVenue,
   googleSaveUrl,
@@ -29,7 +30,7 @@ describe(challenge, () => {
     const spy = stubFetch(() => json(body, 200))
     const result = await challenge(UID)
     expect(result).toStrictEqual({ body, ok: true })
-    expect(spy).toHaveBeenCalledWith('http://localhost:8787/v1/challenge', {
+    expect(spy).toHaveBeenCalledWith('/api/v1/challenge', {
       body: JSON.stringify({ uid: UID }),
       headers: { 'content-type': 'application/json' },
       method: 'POST',
@@ -51,7 +52,7 @@ describe(verifySigned, () => {
     const spy = stubFetch(() => json(verdict, 200))
     const result = await verifySigned(body)
     expect(result).toStrictEqual({ body: verdict, ok: true })
-    expect(spy).toHaveBeenCalledWith('http://localhost:8787/v1/verify-signed', {
+    expect(spy).toHaveBeenCalledWith('/api/v1/verify-signed', {
       body: JSON.stringify(body),
       headers: { 'content-type': 'application/json' },
       method: 'POST',
@@ -79,7 +80,7 @@ describe(verifyUid, () => {
     const spy = stubFetch(() => json(body, 200))
 
     await expect(verifyUid(UID)).resolves.toStrictEqual({ body, ok: true })
-    expect(spy).toHaveBeenCalledWith(`http://localhost:8787/v1/verify/${UID}`, { headers: {}, method: 'GET' })
+    expect(spy).toHaveBeenCalledWith(`/api/v1/verify/${UID}`, { headers: {}, method: 'GET' })
   })
 })
 
@@ -104,7 +105,7 @@ describe(fetchVenue, () => {
     const spy = stubFetch(() => json(body, 200))
 
     await expect(fetchVenue('wassie-coffee')).resolves.toStrictEqual({ body, ok: true })
-    expect(spy).toHaveBeenCalledWith('http://localhost:8787/v1/issuers/wassie-coffee', {
+    expect(spy).toHaveBeenCalledWith('/api/v1/issuers/wassie-coffee', {
       headers: {},
       method: 'GET',
     })
@@ -126,20 +127,37 @@ describe(issueCard, () => {
   it('POSTs the self-serve issue for one card slug, without a body', async () => {
     const spy = stubFetch(() => json({ uid: UID }, 200))
 
-    await expect(issueCard('wassie-coffee', 'regular')).resolves.toStrictEqual({
+    await expect(issueCard('wassie-coffee', 'regular', null)).resolves.toStrictEqual({
       body: { uid: UID },
       ok: true,
     })
-    expect(spy).toHaveBeenCalledWith('http://localhost:8787/v1/issuers/wassie-coffee/regular/issue', {
+    expect(spy).toHaveBeenCalledWith('/api/v1/issuers/wassie-coffee/regular/issue', {
       headers: {},
       method: 'POST',
     })
   })
 
+  it('sends the claim link label when there is one', async () => {
+    const spy = stubFetch(() => json({ uid: UID }, 200))
+    await issueCard('wassie-coffee', 'regular', 'spring-flyer')
+    expect(spy.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ source: 'spring-flyer' }))
+  })
+
+  it('keeps only a claim link label the api would accept', () => {
+    expect(claimSourceFrom('?source=spring-flyer')).toBe('spring-flyer')
+    expect(claimSourceFrom('?source=Not%20Valid')).toBeNull()
+    expect(claimSourceFrom('')).toBeNull()
+  })
+
+  it('tells a card with no places left from a closed one', () => {
+    expect(cardFailureOf({ error: 'card_sold_out', status: 409 })).toBe('card_sold_out')
+    expect(cardFailureOf({ error: 'card_closed', status: 409 })).toBe('card_closed')
+  })
+
   it('keeps the 429 rate_limited code from the api', async () => {
     stubFetch(() => json({ error: 'rate_limited' }, 429))
 
-    await expect(issueCard('wassie-coffee', 'regular')).resolves.toStrictEqual({
+    await expect(issueCard('wassie-coffee', 'regular', null)).resolves.toStrictEqual({
       error: 'rate_limited',
       network: false,
       ok: false,

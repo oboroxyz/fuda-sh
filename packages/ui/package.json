@@ -5,6 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./short": "./src/short.ts",
+    "./theme": "./src/theme.ts",
     "./wallet-button": "./src/wallet-button.ts"
   },
   "scripts": {
@@ -13,9 +15,11 @@
   "dependencies": {
     "@fuda/styles": "workspace:*",
     "cn": "0.2.6",
-    "hono": "^4.13.5"
+    "hono": "^4.13.14",
+    "solid-js": "1.9.17"
   },
   "devDependencies": {
+    "vite-plugin-solid": "2.11.14",
     "vitest": "4.1.11"
   }
 }

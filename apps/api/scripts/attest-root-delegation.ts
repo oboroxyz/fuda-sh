@@ -1,6 +1,6 @@
 // One-time CLI: attests the root IssuerDelegation — the signer delegating
 // issuance to itself — and prints ISSUER_ADDRESS / DELEGATION_UID for
-// wrangler.jsonc. Runs under tsx (node), not workerd. Needs SIGNER_PRIVATE_KEY
+// targets.jsonc. Runs under tsx (node), not workerd. Needs SIGNER_PRIVATE_KEY
 // and optionally BASE_RPC_URL. Idempotence is the operator's: run it once per
 // deployment; a second run mints a second, equally valid delegation.
 import { createPublicClient, createWalletClient, http, isHex, parseEventLogs } from 'viem'
@@ -34,7 +34,7 @@ const existing = process.env.DELEGATION_UID
 if (existing !== undefined && existing !== '' && existing !== ZERO_UID) {
   // oxlint-disable-next-line no-console -- a one-time CLI warning; the operator is the only reader
   console.warn(
-    `warning: DELEGATION_UID is already set to ${existing}. This run attests a second root delegation; keep whichever uid wrangler.jsonc ends up naming.`,
+    `warning: DELEGATION_UID is already set to ${existing}. This run attests a second root delegation; keep whichever uid targets.jsonc ends up naming.`,
   )
 }
 
@@ -70,13 +70,13 @@ if (log === undefined) {
   throw new Error(`no Attested event in ${txHash}`)
 }
 
-// oxlint-disable-next-line no-console -- a one-time CLI printing the values the operator pastes into wrangler.jsonc
+// oxlint-disable-next-line no-console -- a one-time CLI printing the values the operator pastes into targets.jsonc
 console.log(
   [
     `tx ${txHash}`,
     `schema ${schema}`,
     '',
-    'Paste into wrangler.jsonc vars:',
+    'Paste into the target’s vars in targets.jsonc:',
     `ISSUER_ADDRESS=${account.address}`,
     `DELEGATION_UID=${log.args.uid}`,
   ].join('\n'),

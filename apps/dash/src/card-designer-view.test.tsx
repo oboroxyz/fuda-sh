@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
-/** @jsxImportSource hono/jsx/dom */
 import type { IssuerView } from '@fuda/sdk'
-import { render } from 'hono/jsx/dom'
-import { describe, expect, it, vi } from 'vitest'
+import { render } from 'solid-js/web'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { EMPTY_FORM, withCategory } from './card-designer.ts'
 import type { DesignerForm } from './card-designer.ts'
@@ -12,7 +11,7 @@ import { DASH_COPY } from './copy.ts'
 import { EMPTY_LOGO } from './logo.ts'
 import { LogoField } from './LogoField.tsx'
 import type { LogoFieldProps } from './LogoField.tsx'
-import { findViewNodes, viewProps, viewText, walkView } from './test/test-view.ts'
+import { cleanup, mount, spacedText } from './test/render.tsx'
 
 const filled: DesignerForm = { ...EMPTY_FORM, handle: 'wassie-coffee', name: 'Wassie Coffee' }
 
@@ -31,10 +30,12 @@ const logoField = (overrides: Partial<LogoFieldProps> = {}): LogoFieldProps => (
   ...overrides,
 })
 
+const showDesigner = (props: CardDesignerViewProps): HTMLElement =>
+  mount(() => <CardDesignerView {...props} />)
+const showLogo = (props: LogoFieldProps): HTMLElement => mount(() => <LogoField {...props} />)
+
 const submitOf = (props: CardDesignerViewProps): boolean =>
-  walkView(CardDesignerView(props)).some(
-    (node) => node.props.type === 'submit' && node.props.disabled === true,
-  )
+  showDesigner(props).querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled === true
 
 const designer = (overrides: Partial<CardDesignerViewProps> = {}): CardDesignerViewProps => ({
   busy: false,
@@ -63,7 +64,7 @@ const designer = (overrides: Partial<CardDesignerViewProps> = {}): CardDesignerV
 })
 
 const inputWithId = (props: CardDesignerViewProps, id: string): boolean =>
-  walkView(CardDesignerView(props)).some((node) => node.props.id === id)
+  showDesigner(props).querySelector(`#${id}`) !== null
 
 const issuer: IssuerView = {
   brandColor: '#6F4320',
@@ -77,6 +78,8 @@ const issuer: IssuerView = {
 }
 
 describe(CardDesignerView, () => {
+  afterEach(cleanup)
+
   it('does not publish an old draft after the designer is unmounted', () => {
     const frames: FrameRequestCallback[] = []
     // oxlint-disable-next-line promise/prefer-await-to-callbacks -- capture the browser callback API to test effects that run after unmount.
@@ -87,31 +90,34 @@ describe(CardDesignerView, () => {
     const onDraftChange = vi.fn<(form: DesignerForm) => void>()
     const root = document.createElement('div')
     vi.useFakeTimers()
+    let dispose: (() => void) | undefined
     try {
-      render(
-        <CardDesigner
-          busy={false}
-          copy={DASH_COPY.en.designer}
-          failure={null}
-          initialDraft={{ ...filled, title: 'Previous session draft' }}
-          issuer={issuer}
-          logoCopy={DASH_COPY.en.logo}
-          onCheckHandle={async () => await Promise.resolve('available')}
-          onCheckSlug={async () => await Promise.resolve('available')}
-          onDraftChange={onDraftChange}
-          onEditProfile={vi.fn<() => void>()}
-          onSubmit={vi.fn<() => void>()}
-        />,
+      dispose = render(
+        () => (
+          <CardDesigner
+            busy={false}
+            copy={DASH_COPY.en.designer}
+            failure={null}
+            initialDraft={{ ...filled, title: 'Previous session draft' }}
+            issuer={issuer}
+            logoCopy={DASH_COPY.en.logo}
+            onCheckHandle={async () => await Promise.resolve('available')}
+            onCheckSlug={async () => await Promise.resolve('available')}
+            onDraftChange={onDraftChange}
+            onEditProfile={vi.fn<() => void>()}
+            onSubmit={vi.fn<() => void>()}
+          />
+        ),
         root,
       )
-      render(null, root)
+      dispose()
       onDraftChange.mockClear()
       for (const frame of frames.splice(0)) {
         frame(0)
       }
       expect(onDraftChange).not.toHaveBeenCalled()
     } finally {
-      render(null, root)
+      dispose?.()
       vi.clearAllTimers()
       vi.useRealTimers()
       requestFrame.mockRestore()
@@ -127,19 +133,22 @@ describe(CardDesignerView, () => {
     },
   ])('previews the saved issuer logo: $logoUrl', ({ logoUrl, expected }) => {
     const root = document.createElement('div')
+    let dispose: (() => void) | undefined
     try {
-      render(
-        <CardDesigner
-          busy={false}
-          copy={DASH_COPY.en.designer}
-          failure={null}
-          issuer={{ ...issuer, logoUrl }}
-          logoCopy={DASH_COPY.en.logo}
-          onCheckHandle={async () => await Promise.resolve('available')}
-          onCheckSlug={async () => await Promise.resolve('available')}
-          onEditProfile={vi.fn<() => void>()}
-          onSubmit={vi.fn<() => void>()}
-        />,
+      dispose = render(
+        () => (
+          <CardDesigner
+            busy={false}
+            copy={DASH_COPY.en.designer}
+            failure={null}
+            issuer={{ ...issuer, logoUrl }}
+            logoCopy={DASH_COPY.en.logo}
+            onCheckHandle={async () => await Promise.resolve('available')}
+            onCheckSlug={async () => await Promise.resolve('available')}
+            onEditProfile={vi.fn<() => void>()}
+            onSubmit={vi.fn<() => void>()}
+          />
+        ),
         root,
       )
       const preview = root.querySelector('.dash-card-preview')
@@ -152,14 +161,14 @@ describe(CardDesignerView, () => {
         src: image?.getAttribute('src') ?? null,
       }).toStrictEqual({ alt: expected === null ? null : '', src: expected })
     } finally {
-      render(null, root)
+      dispose?.()
     }
   })
 
   it('offers one multiline card description for onboarding', () => {
-    const view = CardDesignerView(designer({ form: { ...filled, description: 'First line\nSecond line' } }))
-    const [textarea] = findViewNodes(view, 'textarea')
-    expect(textarea?.props).toMatchObject({
+    const host = showDesigner(designer({ form: { ...filled, description: 'First line\nSecond line' } }))
+    const textarea = host.querySelector('textarea')
+    expect({ id: textarea?.id, maxLength: textarea?.maxLength, value: textarea?.value }).toStrictEqual({
       id: 'card-description',
       maxLength: 2000,
       value: 'First line\nSecond line',
@@ -169,49 +178,51 @@ describe(CardDesignerView, () => {
   })
 
   it('previews the venue name and title in the brand colour', () => {
-    const view = CardDesignerView(designer({ form: { ...filled, brandColor: '#1F513F' } }))
-    const preview = walkView(view).find((node) => node.props.class === 'dash-card-preview')
-    expect(viewText(preview)).toContain('Wassie Coffee')
-    expect(viewText(preview)).toContain('Membership')
-    expect(viewProps(preview!).style).toStrictEqual({ background: '#1F513F', color: '#FFFFFF' })
+    const preview = showDesigner(
+      designer({ form: { ...filled, brandColor: '#1F513F' } }),
+    ).querySelector<HTMLElement>('.dash-card-preview')!
+    expect(spacedText(preview)).toContain('Wassie Coffee')
+    expect(spacedText(preview)).toContain('Membership')
+    expect({ background: preview.style.background, color: preview.style.color }).toStrictEqual({
+      background: '#1F513F',
+      color: '#FFFFFF',
+    })
   })
 
   it.each(['#5CF794', '#0073EB', '#C389FF', '#777777'])(
     'uses black preview text when it has better contrast on %s',
     (brandColor) => {
-      const view = CardDesignerView(designer({ form: { ...filled, brandColor } }))
-      const preview = walkView(view).find((node) => node.props.class === 'dash-card-preview')
-      expect(viewProps(preview!).style).toMatchObject({ color: '#000000' })
+      const preview = showDesigner(designer({ form: { ...filled, brandColor } })).querySelector<HTMLElement>(
+        '.dash-card-preview',
+      )!
+      expect(preview.style.color).toBe('#000000')
     },
   )
 
   it('keeps venue colour controls out of the card form', () => {
-    const view = CardDesignerView(designer({ form: { ...filled, brandColor: '#1D3A6E' } }))
-    const swatches = walkView(view).filter((node) => String(node.props.class).includes('dash-swatch'))
-    const selected = swatches.filter((node) => node.props['aria-pressed'] === true)
-    expect(swatches).toHaveLength(0)
-    expect(selected).toHaveLength(0)
+    const host = showDesigner(designer({ form: { ...filled, brandColor: '#1D3A6E' } }))
+    expect(host.querySelectorAll('.dash-swatch')).toHaveLength(0)
+    expect(host.querySelectorAll('[aria-pressed]')).toHaveLength(0)
   })
 
   it('keeps handle status out of the card form', () => {
-    const reserved = CardDesignerView(designer({ status: { handle: 'reserved', slug: 'available' } }))
-    const idle = CardDesignerView(designer({ form: EMPTY_FORM, status: { handle: 'idle', slug: 'idle' } }))
-    expect(viewText(reserved)).not.toContain('This name is reserved.')
-    expect(viewText(idle)).not.toContain('This name is reserved.')
-    expect(viewText(idle)).not.toContain('Available')
+    const reserved = showDesigner(designer({ status: { handle: 'reserved', slug: 'available' } }))
+    const idle = showDesigner(designer({ form: EMPTY_FORM, status: { handle: 'idle', slug: 'idle' } }))
+    expect(spacedText(reserved)).not.toContain('This name is reserved.')
+    expect(spacedText(idle)).not.toContain('This name is reserved.')
+    expect(spacedText(idle)).not.toContain('Available')
   })
 
   it('shows the card link under the venue handle', () => {
-    const view = CardDesignerView(designer({ form: { ...filled, slug: 'summer' } }))
-    const field = walkView(view).find((node) => node.props.id === 'card-slug')
-    expect(viewText(view)).toContain('Card link')
-    expect(viewText(view)).toContain('fuda.sh/@wassie-coffee/')
-    expect(viewProps(field!).value).toBe('summer')
+    const host = showDesigner(designer({ form: { ...filled, slug: 'summer' } }))
+    expect(spacedText(host)).toContain('Card link')
+    expect(spacedText(host)).toContain('fuda.sh/@wassie-coffee/')
+    expect(host.querySelector<HTMLInputElement>('#card-slug')?.value).toBe('summer')
   })
 
   it('labels every verdict the card link can reach', () => {
     const label = (slug: CardDesignerViewProps['status']['slug']): string =>
-      viewText(CardDesignerView(designer({ status: { handle: 'available', slug } })))
+      spacedText(showDesigner(designer({ status: { handle: 'available', slug } })))
     expect(label('available')).toContain('Available')
     expect(label('taken')).toContain('Already used')
     expect(label('format')).toContain('Use lowercase letters, digits and hyphens.')
@@ -244,8 +255,8 @@ describe(CardDesignerView, () => {
 
   it('asks for both ends of the claim window as optional instants', () => {
     const view = designer()
-    expect(viewText(CardDesignerView(view))).toContain('Claim window')
-    expect(viewText(CardDesignerView(view))).toContain('Leave both empty')
+    expect(spacedText(showDesigner(view))).toContain('Claim window')
+    expect(spacedText(showDesigner(view))).toContain('Leave both empty')
     expect(inputWithId(view, 'claim-from')).toBe(true)
     expect(inputWithId(view, 'claim-until')).toBe(true)
   })
@@ -267,61 +278,61 @@ describe(CardDesignerView, () => {
     })
     const both = designer({ form: { ...filled, validUntil: '2026-09-04T22:00', validityDays: 30 } })
     expect(submitOf(inverted)).toBe(true)
-    expect(viewText(CardDesignerView(inverted))).toContain('cannot close before it opens')
+    expect(spacedText(showDesigner(inverted))).toContain('cannot close before it opens')
     expect(submitOf(both)).toBe(true)
-    expect(viewText(CardDesignerView(both))).toContain('Pick one')
-    expect(viewText(CardDesignerView(designer()))).not.toContain('Pick one')
+    expect(spacedText(showDesigner(both))).toContain('Pick one')
+    expect(spacedText(showDesigner(designer()))).not.toContain('Pick one')
   })
 
   it('reports a denied location, a taken link and a taken card link', () => {
-    expect(viewText(CardDesignerView(designer({ locationDenied: true })))).toContain('Location unavailable.')
-    expect(viewText(CardDesignerView(designer({ failure: 'taken' })))).toContain(
-      'That link is already taken.',
-    )
-    expect(viewText(CardDesignerView(designer({ failure: 'slugTaken' })))).toContain(
+    expect(spacedText(showDesigner(designer({ locationDenied: true })))).toContain('Location unavailable.')
+    expect(spacedText(showDesigner(designer({ failure: 'taken' })))).toContain('That link is already taken.')
+    expect(spacedText(showDesigner(designer({ failure: 'slugTaken' })))).toContain(
       'That card link is already used.',
     )
-    expect(viewText(CardDesignerView(designer({ failure: 'slugInvalid' })))).toContain(
+    expect(spacedText(showDesigner(designer({ failure: 'slugInvalid' })))).toContain(
       'That card link cannot be used.',
     )
   })
 })
 
 describe('the logo field', () => {
+  afterEach(cleanup)
+
   it('offers the picker with the minimum source size and nothing held yet', () => {
-    const view = LogoField(logoField())
-    const input = walkView(view).find((node) => node.props.type === 'file')
-    expect(viewProps(input!).accept).toBe('image/png,image/jpeg,image/webp')
-    expect(viewText(view)).toContain('at least 660×660')
-    expect(findViewNodes(view, 'img')).toHaveLength(0)
+    const host = showLogo(logoField())
+    expect(host.querySelector<HTMLInputElement>('input[type="file"]')?.accept).toBe(
+      'image/png,image/jpeg,image/webp',
+    )
+    expect(spacedText(host)).toContain('at least 660×660')
+    expect(host.querySelectorAll('img')).toHaveLength(0)
   })
 
   it('keeps venue logo fields out of the card designer', () => {
-    const [field] = findViewNodes(CardDesignerView(designer()), LogoField)
-    expect(field).toBeUndefined()
+    expect(showDesigner(designer()).querySelector('input[type="file"]')).toBeNull()
   })
 
   it('previews the generated master and offers to remove it once a file is held', () => {
     const pick = { previewUrl: 'blob:master', variants: LOGO_BLOBS }
-    const view = LogoField(logoField({ state: { pick, rejection: null } }))
-    const [image] = findViewNodes(view, 'img')
-    expect(image?.props.src).toBe('blob:master')
-    expect(viewText(view)).toContain('Remove')
+    const host = showLogo(logoField({ state: { pick, rejection: null } }))
+    expect(host.querySelector('img')?.getAttribute('src')).toBe('blob:master')
+    expect(spacedText(host)).toContain('Remove')
   })
 
   it('explains why the pipeline refused a file, and holds nothing after it', () => {
-    const view = LogoField(logoField({ state: { pick: null, rejection: 'tooSmall' } }))
-    expect(viewText(view)).toContain('That image is too small')
-    expect(findViewNodes(view, 'img')).toHaveLength(0)
+    const host = showLogo(logoField({ state: { pick: null, rejection: 'tooSmall' } }))
+    expect(spacedText(host)).toContain('That image is too small')
+    expect(host.querySelectorAll('img')).toHaveLength(0)
   })
 
   it('hides the remove action where the mark is already live', () => {
     const pick = { previewUrl: 'blob:master', variants: LOGO_BLOBS }
-    const view = LogoField(logoField({ onClear: null, state: { pick, rejection: null } }))
-    expect(viewText(view)).not.toContain('Remove')
+    expect(
+      spacedText(showLogo(logoField({ onClear: null, state: { pick, rejection: null } }))),
+    ).not.toContain('Remove')
   })
 
   it('says a failed upload left the card alone', () => {
-    expect(viewText(CardDesignerView(designer({ failure: 'logo' })))).toContain('Could not upload the logo')
+    expect(spacedText(showDesigner(designer({ failure: 'logo' })))).toContain('Could not upload the logo')
   })
 })

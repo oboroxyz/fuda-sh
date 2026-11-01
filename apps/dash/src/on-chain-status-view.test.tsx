@@ -1,39 +1,20 @@
+// @vitest-environment happy-dom
 import type { GraphAttendance, GraphDelegation, GraphRight } from '@fuda/sdk'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
 import { DASH_COPY } from './copy.ts'
+import type { DashCopy } from './copy.ts'
 import { OnChainStatusView } from './OnChainStatus.tsx'
-import { walkView } from './test/test-view.ts'
+import type { OnChainStatusState } from './OnChainStatus.tsx'
+import { cleanup, mount, spacedText } from './test/render.tsx'
 
 const copy = DASH_COPY.ja.chain
 
 const RIGHT_UID = `0x${'aa'.repeat(32)}` as const
 const DELEGATION_UID = `0x${'bb'.repeat(32)}` as const
 
-interface ViewNode {
-  props: { children?: unknown }
-}
-
-const isViewNode = (value: unknown): value is ViewNode => {
-  if (typeof value !== 'object' || value === null || !('props' in value)) {
-    return false
-  }
-  const { props } = value
-  return typeof props === 'object' && props !== null
-}
-
-const isTextChild = (value: unknown): value is bigint | number | string =>
-  typeof value === 'string' || typeof value === 'number' || typeof value === 'bigint'
-
-const viewText = (value: unknown): string => {
-  if (isTextChild(value)) {
-    return String(value)
-  }
-  if (Array.isArray(value)) {
-    return value.map(viewText).join(' ')
-  }
-  return isViewNode(value) ? viewText(value.props.children) : ''
-}
+const show = (props: { copy: DashCopy['chain']; state: OnChainStatusState }): HTMLElement =>
+  mount(() => <OnChainStatusView copy={props.copy} state={props.state} />)
 
 const delegation: GraphDelegation = {
   active: true,
@@ -68,9 +49,11 @@ const attendance: GraphAttendance = {
 }
 
 describe(OnChainStatusView, () => {
+  afterEach(cleanup)
+
   it('renders a right whose delegation is unresolved without hiding the other rights', () => {
-    const text = viewText(
-      OnChainStatusView({
+    const text = spacedText(
+      show({
         copy,
         state: {
           attendances: {},
@@ -87,7 +70,7 @@ describe(OnChainStatusView, () => {
   })
 
   it('marks resolved and unresolved delegation identifiers for wrapping on narrow screens', () => {
-    const view = OnChainStatusView({
+    const host = show({
       copy,
       state: {
         attendances: {},
@@ -96,8 +79,8 @@ describe(OnChainStatusView, () => {
         rights: [{ ...right, delegation: null }, right],
       },
     })
-    const references = walkView(view).filter((node) => node.props.class === 'dash-chain-reference')
-    expect(references.map(viewText)).toStrictEqual([
+    const references = [...host.querySelectorAll('.dash-chain-reference')]
+    expect(references.map(spacedText)).toStrictEqual([
       `未解決の委任 ${DELEGATION_UID}`,
       `委任 ${DELEGATION_UID}`,
     ])
@@ -105,7 +88,7 @@ describe(OnChainStatusView, () => {
 
   it('wraps an unbroken 80-character name on the populated delegation container', () => {
     const name = 'a'.repeat(80)
-    const view = OnChainStatusView({
+    const host = show({
       copy: DASH_COPY.en.chain,
       state: {
         attendances: { [RIGHT_UID]: [attendance] },
@@ -114,15 +97,17 @@ describe(OnChainStatusView, () => {
         rights: [right],
       },
     })
-    const nameContainer = walkView(view).find((node) => node.props.children === `ACTIVE ${name}`)
+    const nameContainer = [...host.querySelectorAll('div')].find(
+      (node) => node.textContent === `ACTIVE ${name}`,
+    )
 
-    expect(nameContainer?.props.class).toBe('dash-chain-name')
-    expect(viewText(view)).toContain('Entered at 55')
+    expect(nameContainer?.className).toBe('dash-chain-name')
+    expect(spacedText(host)).toContain('Entered at 55')
   })
 
   it('renders chain rights, delegations, and attendance without a D1 member row', () => {
-    const text = viewText(
-      OnChainStatusView({
+    const text = spacedText(
+      show({
         copy,
         state: {
           attendances: { [RIGHT_UID]: [attendance] },
@@ -140,37 +125,33 @@ describe(OnChainStatusView, () => {
   })
 
   it('renders explicit loading, empty, and error states', () => {
-    expect(viewText(OnChainStatusView({ copy, state: { kind: 'idle' } }))).toContain('保有者を入力')
-    expect(viewText(OnChainStatusView({ copy, state: { kind: 'loading' } }))).toContain('読み込み中')
+    expect(spacedText(show({ copy, state: { kind: 'idle' } }))).toContain('保有者を入力')
+    expect(spacedText(show({ copy, state: { kind: 'loading' } }))).toContain('読み込み中')
     expect(
-      viewText(
-        OnChainStatusView({ copy, state: { attendances: {}, delegations: [], kind: 'ready', rights: [] } }),
-      ),
+      spacedText(show({ copy, state: { attendances: {}, delegations: [], kind: 'ready', rights: [] } })),
     ).toContain('オンチェーン権利が見つかりません')
-    expect(
-      viewText(OnChainStatusView({ copy, state: { kind: 'error', message: 'Graph unavailable' } })),
-    ).toContain('Graph unavailable')
+    expect(spacedText(show({ copy, state: { kind: 'error', message: 'Graph unavailable' } }))).toContain(
+      'Graph unavailable',
+    )
   })
 
   it('keeps error details verbatim inside a localized alert', () => {
-    const view = OnChainStatusView({ copy, state: { kind: 'error', message: 'GRAPH_TIMEOUT [42]' } })
-    expect(viewText(view)).toContain('チェーン検索に失敗しました。')
-    expect(viewText(view)).toContain('GRAPH_TIMEOUT [42]')
-    expect(walkView(view).some((node) => node.props.role === 'alert')).toBe(true)
+    const host = show({ copy, state: { kind: 'error', message: 'GRAPH_TIMEOUT [42]' } })
+    expect(spacedText(host)).toContain('チェーン検索に失敗しました。')
+    expect(spacedText(host)).toContain('GRAPH_TIMEOUT [42]')
+    expect(host.querySelector('[role="alert"]')).not.toBeNull()
   })
 
   it('keeps external text that matches translated copy as raw details', () => {
     const state = { kind: 'error', message: 'Chain lookup failed.' } as const
-    expect(viewText(OnChainStatusView({ copy: DASH_COPY.en.chain, state }))).toBe(
+    expect(spacedText(show({ copy: DASH_COPY.en.chain, state }))).toBe(
       'Chain lookup failed. Chain lookup failed.',
     )
-    expect(viewText(OnChainStatusView({ copy, state }))).toBe(
-      'チェーン検索に失敗しました。 Chain lookup failed.',
-    )
+    expect(spacedText(show({ copy, state }))).toBe('チェーン検索に失敗しました。 Chain lookup failed.')
   })
 
   it('renders revoked BigInt timestamps and inactive delegations as strings', () => {
-    const view = OnChainStatusView({
+    const host = show({
       copy,
       state: {
         attendances: { [RIGHT_UID]: [attendance] },
@@ -182,10 +163,8 @@ describe(OnChainStatusView, () => {
         rights: [{ ...right, revokedAt: 88n }],
       },
     })
-    expect(viewText(view)).toContain('取り消し日時 88')
-    expect(viewText(view)).toContain('取り消し日時 99 root')
-    expect(viewText(view)).toContain('無効 root')
-    const children = new Set(walkView(view).map((node) => node.props.children))
-    expect([55n, 88n, 99n].filter((timestamp) => children.has(timestamp))).toStrictEqual([])
+    expect(spacedText(host)).toContain('取り消し日時 88')
+    expect(spacedText(host)).toContain('取り消し日時 99 root')
+    expect(spacedText(host)).toContain('無効 root')
   })
 })

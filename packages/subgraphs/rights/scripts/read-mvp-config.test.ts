@@ -20,9 +20,9 @@ const schemas = {
   issuerDelegation: [{ uid: UID_C, version: 1 }],
 }
 
-const writeWrangler = async (config: unknown): Promise<string> => {
+const writeTargets = async (config: unknown): Promise<string> => {
   const directory = await mkdtemp(path.join(tmpdir(), 'fuda-graph-config-'))
-  const configPath = path.join(directory, 'wrangler.jsonc')
+  const configPath = path.join(directory, 'targets.jsonc')
   await writeFile(configPath, JSON.stringify(config))
   return configPath
 }
@@ -34,16 +34,18 @@ const vars = (overrides: Record<string, string> = {}) => ({
 })
 
 describe(readMvpGraphConfig, () => {
-  it('accepts JSONC comments and trailing commas from Wrangler', async () => {
+  it('accepts JSONC comments and trailing commas', async () => {
     const directory = await mkdtemp(path.join(tmpdir(), 'fuda-graph-config-'))
-    const configPath = path.join(directory, 'wrangler.jsonc')
+    const configPath = path.join(directory, 'targets.jsonc')
     await writeFile(
       configPath,
       `{
-        // Wrangler configuration remains JSONC.
-        "vars": {
-          "ANNOUNCER_FROM_BLOCK": "7",
-          "EAS_SCHEMAS": ${JSON.stringify(JSON.stringify(schemas))},
+        // The api targets file is JSONC.
+        "develop": {
+          "vars": {
+            "ANNOUNCER_FROM_BLOCK": "7",
+            "EAS_SCHEMAS": ${JSON.stringify(JSON.stringify(schemas))},
+          },
         },
       }`,
     )
@@ -51,8 +53,8 @@ describe(readMvpGraphConfig, () => {
     expect(readMvpGraphConfig(configPath).announcerFromBlock).toBe(7)
   })
 
-  it('reads every schema family and version from top-level production vars', async () => {
-    const configPath = await writeWrangler({ vars: vars() })
+  it('reads every schema family and version from the develop target by default', async () => {
+    const configPath = await writeTargets({ develop: { vars: vars() } })
 
     expect(readMvpGraphConfig(configPath)).toStrictEqual({
       announcerFromBlock: 12_345,
@@ -67,13 +69,13 @@ describe(readMvpGraphConfig, () => {
     })
   })
 
-  it('reads an explicitly selected Wrangler environment', async () => {
-    const configPath = await writeWrangler({
-      env: { dev: { vars: vars({ ANNOUNCER_FROM_BLOCK: '99' }) } },
-      vars: vars(),
+  it('reads an explicitly selected target', async () => {
+    const configPath = await writeTargets({
+      develop: { vars: vars() },
+      production: { vars: vars({ ANNOUNCER_FROM_BLOCK: '99' }) },
     })
 
-    expect(readMvpGraphConfig(configPath, { environment: 'dev' }).announcerFromBlock).toBe(99)
+    expect(readMvpGraphConfig(configPath, { target: 'production' }).announcerFromBlock).toBe(99)
   })
 
   it.each([
@@ -115,7 +117,7 @@ describe(readMvpGraphConfig, () => {
     ['zero start block', vars({ ANNOUNCER_FROM_BLOCK: '0' })],
     ['negative start block', vars({ ANNOUNCER_FROM_BLOCK: '-1' })],
   ])('rejects %s', async (_name, selectedVars) => {
-    const configPath = await writeWrangler({ vars: selectedVars })
+    const configPath = await writeTargets({ develop: { vars: selectedVars } })
 
     expect(() => readMvpGraphConfig(configPath)).toThrow(Error)
   })

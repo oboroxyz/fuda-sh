@@ -1,76 +1,81 @@
-/** @jsxImportSource hono/jsx/dom */
-import { useEffect, useId, useRef, useState } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import type { IssuerSummary } from '@fuda/sdk'
+import { createEffect, createSignal, createUniqueId, onCleanup } from 'solid-js'
+import type { JSX } from 'solid-js'
 
 import type { DashCopy } from './copy.ts'
 import { SignOutButton } from './SignOutButton.tsx'
 import { VenueLinkIcon } from './VenueLinkIcon.tsx'
 
-export const ProfileMenu = ({
-  copy,
-  venue,
-  onSignOut,
-}: {
+export interface ProfileChoices {
+  activeId: string | null
+  issuers: IssuerSummary[]
+  onAdd: () => void
+  onSwitch: (issuerId: string) => void
+}
+
+export const ProfileMenu = (props: {
+  profiles?: ProfileChoices | null
   copy: DashCopy
   venue: { name: string; publicUrl: string | null }
   onSignOut: (() => void) | null
 }): JSX.Element => {
-  const [open, setOpen] = useState(false)
-  const menuId = useId()
-  const container = useRef<HTMLDivElement | null>(null)
-  const trigger = useRef<HTMLButtonElement | null>(null)
+  const [open, setOpen] = createSignal(false)
+  const menuId = createUniqueId()
+  let container: HTMLDivElement | undefined
+  let trigger: HTMLButtonElement | undefined
 
-  useEffect(() => {
-    if (!open) {
+  createEffect(() => {
+    if (!open()) {
       return
     }
     const outside = (event: PointerEvent): void => {
-      if (event.target instanceof Node && container.current?.contains(event.target) === false) {
+      if (event.target instanceof Node && container?.contains(event.target) === false) {
         setOpen(false)
       }
     }
     document.addEventListener('pointerdown', outside)
-    return () => {
+    onCleanup(() => {
       document.removeEventListener('pointerdown', outside)
-    }
-  }, [open])
+    })
+  })
 
   return (
     <div class="min-w-0 space-y-2 border-y border-[var(--fuda-border)] p-3">
       <div
-        ref={container}
+        ref={(el) => {
+          container = el
+        }}
         class="dropdown relative block"
         onKeyDown={(event) => {
           if (event.target instanceof Element && event.target.closest('dialog') !== null) {
             return
           }
-          if (event.key === 'Escape' && open) {
+          if (event.key === 'Escape' && open()) {
             event.preventDefault()
             event.stopPropagation()
             setOpen(false)
-            trigger.current?.focus()
+            trigger?.focus()
           }
         }}
         onFocusOut={(event) => {
-          if (
-            event.relatedTarget instanceof Node &&
-            container.current?.contains(event.relatedTarget) === false
-          ) {
+          if (event.relatedTarget instanceof Node && container?.contains(event.relatedTarget) === false) {
             setOpen(false)
           }
         }}
       >
         <button
-          ref={trigger}
+          ref={(el) => {
+            trigger = el
+          }}
           class="font-display flex h-auto min-h-11 w-full items-center justify-between gap-2 px-2 py-2 text-left"
           type="button"
-          aria-expanded={open ? 'true' : 'false'}
+          aria-expanded={open() ? 'true' : 'false'}
           aria-controls={menuId}
           onClick={() => {
-            setOpen(!open)
+            setOpen(!open())
           }}
         >
-          <span class="min-w-0 flex-1 wrap-anywhere">{venue.name}</span>
+          <span class="min-w-0 flex-1 wrap-anywhere">{props.venue.name}</span>
           <svg
             aria-hidden="true"
             class="size-4 shrink-0"
@@ -80,7 +85,7 @@ export const ProfileMenu = ({
             stroke-width="1.5"
           >
             <path
-              d={open ? 'm6 15 6-6 6 6' : 'm6 9 6 6 6-6'}
+              d={open() ? 'm6 15 6-6 6 6' : 'm6 9 6 6 6-6'}
               stroke-linecap="round"
               stroke-linejoin="round"
             />
@@ -88,46 +93,59 @@ export const ProfileMenu = ({
         </button>
         <div
           id={menuId}
-          hidden={!open}
+          hidden={!open()}
           class="absolute top-full right-0 left-0 z-40 mt-2 rounded-xl border border-[var(--fuda-border)] bg-[var(--fuda-surface)] p-1 shadow-lg"
         >
+          {props.profiles?.issuers.map((issuer) => (
+            <button
+              class="dash-menu-item btn btn-ghost w-full !border-0 font-normal shadow-none"
+              aria-current={issuer.id === props.profiles?.activeId ? 'true' : undefined}
+              disabled={issuer.id === props.profiles?.activeId}
+              type="button"
+              onClick={() => {
+                setOpen(false)
+                props.profiles?.onSwitch(issuer.id)
+              }}
+            >
+              <span class="min-w-0 text-left">
+                <strong class="block truncate">{issuer.name}</strong>
+                <span class="block truncate text-xs">@{issuer.handle}</span>
+              </span>
+            </button>
+          ))}
           <button
             class="dash-menu-item btn btn-ghost w-full !border-0 font-normal shadow-none"
+            disabled={props.profiles === null || props.profiles === undefined}
             type="button"
-            disabled
+            onClick={() => {
+              setOpen(false)
+              props.profiles?.onAdd()
+            }}
           >
-            <svg
-              aria-hidden="true"
-              class="size-5 shrink-0"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="1.5"
-            >
-              <path
-                d="M4 7h16 M16 3l4 4-4 4 M20 17H4 M8 13l-4 4 4 4"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-            {copy.chrome.switchProfile}
+            {props.copy.chrome.addProfile}
           </button>
-          {onSignOut === null ? null : (
+          {props.onSignOut === null ? null : (
             <div class="mt-1 border-t border-[var(--fuda-border)] pt-1">
-              <SignOutButton copy={copy.auth} onSignOut={onSignOut} menu />
+              <SignOutButton
+                copy={props.copy.auth}
+                onSignOut={() => {
+                  props.onSignOut?.()
+                }}
+                menu
+              />
             </div>
           )}
         </div>
       </div>
-      {venue.publicUrl === null ? null : (
+      {props.venue.publicUrl === null ? null : (
         <a
           class="link link-hover flex items-start gap-2 px-2 text-xs text-[var(--fuda-muted)]"
-          href={venue.publicUrl}
+          href={props.venue.publicUrl}
           target="_blank"
           rel="noopener noreferrer"
         >
           <VenueLinkIcon kind="globe" />
-          <span class="min-w-0 wrap-anywhere">{venue.publicUrl}</span>
+          <span class="min-w-0 wrap-anywhere">{props.venue.publicUrl}</span>
         </a>
       )}
     </div>

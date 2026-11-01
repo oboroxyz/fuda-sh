@@ -1,8 +1,7 @@
-/** @jsxImportSource hono/jsx/dom */
+// @vitest-environment happy-dom
 import type { IssueResponse } from '@fuda/sdk'
-import type * as HonoDom from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createSignal } from 'solid-js'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { Result } from './api.ts'
 import { DASH_COPY } from './copy.ts'
@@ -10,38 +9,10 @@ import type { IssueForm as Form } from './issue-form.ts'
 import { IssueForm, IssueFormView } from './IssueForm.tsx'
 import type { IssueFormViewProps } from './IssueForm.tsx'
 import { graphOnChainStatusIo } from './on-chain-status.ts'
-import { OnChainStatus, OnChainStatusView } from './OnChainStatus.tsx'
-import type { OnChainStatusViewProps } from './OnChainStatus.tsx'
+import { OnChainStatus } from './OnChainStatus.tsx'
 import { QrBlock } from './QrBlock.tsx'
-import { SignInView } from './SignIn.tsx'
-import { findViewNodes, viewProps, viewText, walkView } from './test/test-view.ts'
-
-// Control hook scheduling only; form validation, callbacks and SingleFlight remain real.
-const hooks = vi.hoisted(() => ({ index: 0, slots: new Map<number, unknown>() }))
-vi.mock(import('hono/jsx/dom'), async (importOriginal) => ({
-  ...(await importOriginal()),
-  useRef: <T,>(initial: T): { current: T } => {
-    const { index } = hooks
-    hooks.index += 1
-    if (!hooks.slots.has(index)) {
-      hooks.slots.set(index, { current: initial })
-    }
-    return hooks.slots.get(index) as { current: T }
-  },
-  useState: (<T,>(initial: T): [T, (value: T) => void] => {
-    const { index } = hooks
-    hooks.index += 1
-    if (!hooks.slots.has(index)) {
-      hooks.slots.set(index, initial)
-    }
-    return [
-      hooks.slots.get(index) as T,
-      (value): void => {
-        hooks.slots.set(index, value)
-      },
-    ]
-  }) as typeof HonoDom.useState,
-}))
+import { SignIn } from './SignIn.tsx'
+import { cleanup, flush, mount, spacedText, typeInto } from './test/render.tsx'
 
 const copy = DASH_COPY.ja.issue
 const UID = `0x${'aa'.repeat(32)}` as const
@@ -63,8 +34,8 @@ const publicBody: IssueResponse = {
   qr,
   uid: UID,
 }
-const view = (patch: Partial<IssueFormViewProps> = {}): JSX.Element =>
-  IssueFormView({
+const view = (patch: Partial<IssueFormViewProps> = {}): HTMLElement => {
+  const value: IssueFormViewProps = {
     body,
     busy: false,
     copy,
@@ -73,20 +44,22 @@ const view = (patch: Partial<IssueFormViewProps> = {}): JSX.Element =>
     onSubmit: (): void => {},
     result: null,
     ...patch,
-  })
-const submitButton = (node: unknown) => walkView(node).find((item) => item.props.type === 'submit')!
-
-const chainText = (rendered: JSX.Element): string => {
-  const props = viewProps(findViewNodes(rendered, OnChainStatusView)[0]) as unknown as OnChainStatusViewProps
-  return viewText(OnChainStatusView(props))
+  }
+  return mount(() => <IssueFormView {...value} />)
 }
+const submitButton = (host: ParentNode): HTMLButtonElement =>
+  host.querySelector<HTMLButtonElement>('button[type="submit"]')!
+const submit = (host: ParentNode): void => {
+  host.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+}
+const liveStatus = (host: ParentNode): Element | undefined =>
+  [...host.querySelectorAll('[role="status"]')].find((node) => spacedText(node) !== '')
 
 describe('localized operation views', () => {
-  beforeEach(() => {
+  afterEach(() => {
+    cleanup()
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
-    hooks.index = 0
-    hooks.slots.clear()
   })
 
   it.each([
@@ -94,21 +67,19 @@ describe('localized operation views', () => {
     ['signed', '保有者アドレス', 'Signed — ゲートでメンバーのウォレットが署名'],
     ['private', 'ステルスメタアドレス', '+Private — メタアドレスからステルスアドレスを生成'],
   ] as const)('labels every %s control and explains the selected level', (level, identity, description) => {
-    const rendered = view({ form: { ...form, level } })
-    const labels = findViewNodes(rendered, 'label')
-    expect(labels.map(viewText)).toStrictEqual(
+    const host = view({ form: { ...form, level } })
+    const labels = [...host.querySelectorAll('label')]
+    expect(labels.map(spacedText)).toStrictEqual(
       expect.arrayContaining([identity, '権利レベル', 'ティア', '利用モデル']),
     )
-    const controls = walkView(rendered).filter(
-      (node) => 'value' in node.props && ('onInput' in node.props || 'onChange' in node.props),
-    )
-    expect(
-      controls.every((control) =>
-        labels.some((label) => label.props.for === control.props.id && control.props.id !== undefined),
+    const controls = [...host.querySelectorAll('input, select')]
+    expect({
+      described: [...host.querySelectorAll('p')].map(spacedText).join(' ').includes(description),
+      labelled: controls.every((control) =>
+        labels.some((label) => label.htmlFor === control.id && control.id !== ''),
       ),
-    ).toBe(true)
-    expect(findViewNodes(rendered, 'p').map(viewText).join(' ')).toContain(description)
-    expect(labels.map(viewText).includes('メンバー ID（任意の代表 ID）')).toBe(level === 'private')
+      optionalMemberId: labels.map(spacedText).includes('メンバー ID（任意の代表 ID）'),
+    }).toStrictEqual({ described: true, labelled: true, optionalMemberId: level === 'private' })
   })
 
   it('blocks invalid and busy submissions and uses the busy label', () => {
@@ -117,15 +88,13 @@ describe('localized operation views', () => {
       { body: null, busy: false },
       { body, busy: true },
     ]) {
-      const rendered = view({ ...props, onSubmit })
-      expect(submitButton(rendered).props.disabled).toBe(true)
-      ;(
-        walkView(rendered).find((node) => 'onSubmit' in node.props)!.props.onSubmit as (event: Event) => void
-      )({ preventDefault: (): void => {} } as Event)
+      const host = view({ ...props, onSubmit })
+      expect(submitButton(host).disabled).toBe(true)
+      submit(host)
     }
     expect(onSubmit).not.toHaveBeenCalled()
-    expect(viewText(submitButton(view({ busy: true })))).toBe('発行中')
-    expect(submitButton(view()).props.disabled).toBe(false)
+    expect(spacedText(submitButton(view({ busy: true })))).toBe('発行中')
+    expect(submitButton(view()).disabled).toBe(false)
   })
 
   it.each([
@@ -133,122 +102,117 @@ describe('localized operation views', () => {
     ['ja', '発行中'],
   ] as const)('announces the issue busy state in a localized live region in %s', (locale, message) => {
     const busy = view({ busy: true, copy: DASH_COPY[locale].issue })
-    const status = walkView(busy).find((node) => node.props.role === 'status')
+    const status = busy.querySelector('[role="status"]')
 
-    expect(viewText(status)).toBe(message)
-    expect(status?.props['aria-live']).toBe('polite')
-    expect(submitButton(busy).props.disabled).toBe(true)
-    expect(
-      walkView(view({ copy: DASH_COPY[locale].issue })).filter(
-        (node) => node.props.role === 'status' && viewText(node) !== '',
-      ),
-    ).toHaveLength(0)
+    expect(spacedText(status)).toBe(message)
+    expect(status?.getAttribute('aria-live')).toBe('polite')
+    expect(submitButton(busy).disabled).toBe(true)
+    expect(liveStatus(view({ copy: DASH_COPY[locale].issue }))).toBeUndefined()
   })
 
   it.each(['bearer', 'signed'] as const)(
     'announces %s success and preserves holder, pass URL and QR payload',
     (level) => {
-      const rendered = view({ result: { body: { ...publicBody, level }, ok: true } })
-      const status = walkView(rendered).find((node) => node.props.role === 'status' && viewText(node) !== '')!
-      expect(status.props['aria-live']).toBe('polite')
-      expect(viewText(status)).toContain(`発行しました ${level}`)
-      expect(viewText(status)).toContain(holder)
-      expect(findViewNodes(rendered, 'a')[0].props.href).toBe(`https://api.fuda.sh/pass/${UID}`)
-      expect(findViewNodes(rendered, QrBlock)[0].props).toMatchObject({ label: '発行した権利の QR', qr })
+      const host = view({ result: { body: { ...publicBody, level }, ok: true } })
+      const status = liveStatus(host)!
+      const image = host.querySelector('div[role="img"]')
+      expect({
+        live: status.getAttribute('aria-live'),
+        pass: host.querySelector('a')?.getAttribute('href'),
+        qr: { label: image?.getAttribute('aria-label'), payload: image?.nextElementSibling?.textContent },
+        status: spacedText(status).includes(`発行しました ${level}`) && spacedText(status).includes(holder),
+      }).toStrictEqual({
+        live: 'polite',
+        pass: `https://api.fuda.sh/pass/${UID}`,
+        qr: { label: '発行した権利の QR', payload: qr },
+        status: true,
+      })
     },
   )
 
   it('announces private discovery and transaction prefix without a public pass', () => {
-    const rendered = view({
+    const host = view({
       result: { body: { announceTx: UID, announced: true, level: 'private', uid: UID }, ok: true },
     })
-    expect(viewText(rendered)).toContain('アナウンスしました')
-    expect(viewText(rendered)).toContain('メンバーがアプリで検出します。')
-    expect(viewText(rendered)).toContain('トランザクション 0xaaaaaaaa…')
+    expect(spacedText(host)).toContain('アナウンスしました')
+    expect(spacedText(host)).toContain('メンバーがアプリで検出します。')
+    expect(spacedText(host)).toContain('トランザクション 0xaaaaaaaa…')
     expect({
-      links: findViewNodes(rendered, 'a').length,
-      qrs: findViewNodes(rendered, QrBlock).length,
+      links: host.querySelectorAll('a').length,
+      qrs: host.querySelectorAll('div[role="img"]').length,
     }).toStrictEqual({ links: 0, qrs: 0 })
-    expect(
-      walkView(rendered).some((node) => node.props.role === 'status' && node.props['aria-live'] === 'polite'),
-    ).toBe(true)
+    expect(liveStatus(host)?.getAttribute('aria-live')).toBe('polite')
   })
 
   it('retains machine errors verbatim inside localized alert context', () => {
-    const rendered = view({ result: { error: 'RPC_DENIED [42]', network: false, ok: false, status: 503 } })
-    const alert = walkView(rendered).find((node) => node.props.role === 'alert')!
-    expect(viewText(alert)).toBe('発行に失敗しました: RPC_DENIED [42]')
+    const host = view({ result: { error: 'RPC_DENIED [42]', network: false, ok: false, status: 503 } })
+    expect(spacedText(host.querySelector('[role="alert"]'))).toBe('発行に失敗しました: RPC_DENIED [42]')
   })
 
   it('labels the QR image and retains the entire readable payload', () => {
-    const rendered = QrBlock({ label: '発行した権利の QR', qr })
-    const image = walkView(rendered).find((node) => node.props.role === 'img')!
-    expect(image.props['aria-label']).toBe('発行した権利の QR')
-    const markup = image.props.dangerouslySetInnerHTML as { __html: string }
-    expect(markup.__html).toContain('<svg')
-    expect(viewText(findViewNodes(rendered, 'code')[0])).toBe(qr)
+    const host = mount(() => <QrBlock label="発行した権利の QR" qr={qr} />)
+    const image = host.querySelector('div[role="img"]')!
+    expect(image.getAttribute('aria-label')).toBe('発行した権利の QR')
+    expect(image.innerHTML).toContain('<svg')
+    expect(host.querySelector('code')?.textContent).toBe(qr)
   })
 
   it.each(['  token  ', ''])(
     'labels the token, exposes appearance and error, and accepts trimmed value %j',
     (value) => {
       const onToken = vi.fn<(token: string) => void>()
-      const rendered = SignInView({
-        appearance: <aside>appearance controls</aside>,
-        copy: DASH_COPY.ja.auth,
-        error: '権限がありません: UNAUTHORIZED',
-        onPasskey: (): void => {},
-        onToken,
-        onValue: (): void => {},
-        pending: false,
-        value,
-      })
-      const password = walkView(rendered).find((node) => node.props.type === 'password')!
-      const [label] = findViewNodes(rendered, 'label')
-      expect({ label: viewText(label), target: label.props.for }).toStrictEqual({
+      const host = mount(() => (
+        <SignIn
+          appearance={<aside>appearance controls</aside>}
+          copy={DASH_COPY.ja.auth}
+          error="権限がありません: UNAUTHORIZED"
+          onPasskey={(): void => {}}
+          onToken={onToken}
+          pending={false}
+        />
+      ))
+      const password = host.querySelector<HTMLInputElement>('input[type="password"]')!
+      const label = host.querySelector('label')!
+      expect({ label: spacedText(label), target: label.htmlFor }).toStrictEqual({
         label: '管理トークン',
-        target: password.props.id,
+        target: password.id,
       })
-      expect(viewText(walkView(rendered).find((node) => node.props.role === 'alert'))).toContain(
-        'UNAUTHORIZED',
-      )
+      expect(spacedText(host.querySelector('[role="alert"]'))).toContain('UNAUTHORIZED')
       expect({
-        hasAppearance: viewText(rendered).includes('appearance controls'),
-        passwordId: password.props.id,
+        hasAppearance: spacedText(host).includes('appearance controls'),
+        passwordId: password.id,
       }).toStrictEqual({ hasAppearance: true, passwordId: 'admin-token' })
-      const authForm = walkView(rendered).find((node) => 'onSubmit' in node.props)!
-      expect(viewText(authForm)).not.toContain('appearance controls')
-      ;(authForm.props.onSubmit as (event: Event) => void)({ preventDefault: (): void => {} } as Event)
+      expect(spacedText(host.querySelector('form'))).not.toContain('appearance controls')
+      typeInto(password, value)
+      submit(host)
       expect(onToken).toHaveBeenCalledExactlyOnceWith(value.trim())
     },
   )
 
   it('renders the brand mark before the centered dashboard title', () => {
-    const rendered = SignInView({
-      appearance: <aside />,
-      copy: DASH_COPY.en.auth,
-      error: null,
-      onPasskey: (): void => {},
-      onToken: (): void => {},
-      onValue: (): void => {},
-      pending: false,
-      value: '',
-    })
-    const authNodes = walkView(rendered)
-    const logoIndex = authNodes.findIndex(
-      (node) => node.tag === 'svg' && node.props['aria-label'] === 'fuda.',
-    )
-    const titleIndex = authNodes.findIndex(
-      (node) => node.tag === 'h1' && viewText(node) === 'fuda. dashboard',
-    )
+    const host = mount(() => (
+      <SignIn
+        appearance={<aside />}
+        copy={DASH_COPY.en.auth}
+        error={null}
+        onPasskey={(): void => {}}
+        onToken={(): void => {}}
+        pending={false}
+      />
+    ))
+    const logo = host.querySelector('svg[aria-label="fuda."]')!
+    const title = host.querySelector('h1')!
+    const order = [...host.querySelectorAll('svg[aria-label="fuda."], h1')]
 
     expect({
-      logoBeforeTitle: logoIndex > 0 && titleIndex > logoIndex,
-      logoClass: authNodes[logoIndex]?.props.class,
-      titleClass: authNodes[titleIndex]?.props.class,
+      logoBeforeTitle: order[0] === logo && order[1] === title,
+      logoClass: logo.getAttribute('class'),
+      title: spacedText(title),
+      titleClass: title.className,
     }).toStrictEqual({
       logoBeforeTitle: true,
       logoClass: 'dash-auth-logo',
+      title: 'fuda. dashboard',
       titleClass: 'dash-auth-title',
     })
   })
@@ -259,60 +223,48 @@ describe('localized operation views', () => {
       .fn<(payload: Record<string, string | number>) => Promise<Result<IssueResponse>>>()
       .mockReturnValueOnce(pending.promise)
       .mockResolvedValueOnce({ body: publicBody, ok: true })
-    const render = (): IssueFormViewProps => {
-      hooks.index = 0
-      return viewProps(
-        findViewNodes(IssueForm({ copy, onIssue }), IssueFormView)[0],
-      ) as unknown as IssueFormViewProps
-    }
-    render().onChange({ memberId: ' alice ' })
-    const ready = render()
-    ready.onSubmit()
-    ready.onSubmit()
+    const host = mount(() => <IssueForm copy={copy} onIssue={onIssue} />)
+    typeInto(host.querySelector<HTMLInputElement>('#issue-member-id')!, ' alice ')
+
+    submit(host)
+    submit(host)
     expect(onIssue).toHaveBeenCalledExactlyOnceWith(body)
-    expect(render().busy).toBe(true)
+    expect(submitButton(host).disabled).toBe(true)
+
     pending.resolve({ error: 'RPC_DENIED [42]', network: false, ok: false, status: 503 })
     await vi.waitFor(() => {
-      expect(render().busy).toBe(false)
+      expect(submitButton(host).disabled).toBe(false)
     })
-    expect(render().result).toMatchObject({ error: 'RPC_DENIED [42]', ok: false })
-    render().onSubmit()
+    expect(spacedText(host.querySelector('[role="alert"]'))).toContain('RPC_DENIED [42]')
+
+    submit(host)
     await vi.waitFor(() => {
-      expect(render().result).toStrictEqual({ body: publicBody, ok: true })
+      expect(spacedText(liveStatus(host))).toContain(holder)
     })
     expect(onIssue).toHaveBeenCalledTimes(2)
   })
 
   it('queries the injected Graph endpoint and holder with localized loading and empty states', async () => {
-    vi.stubGlobal('HTMLInputElement', Object)
     const pending = Promise.withResolvers<[]>()
     const rights = vi.spyOn(graphOnChainStatusIo, 'rightsByHolder').mockReturnValue(pending.promise)
-    const render = (): JSX.Element => {
-      hooks.index = 0
-      return OnChainStatus({ copy: DASH_COPY.ja.chain, endpoint: 'https://index.example/rights' })
-    }
-    const initial = render()
-    const input = walkView(initial).find((node) => node.props.id === 'chain-holder')!
-    expect(findViewNodes(initial, 'label').map(viewText)).toContain('保有者アドレス')
-    ;(input.props.onInput as (event: Event) => void)({ currentTarget: { value: holder } } as unknown as Event)
-    const ready = render()
-    ;(walkView(ready).find((node) => 'onSubmit' in node.props)!.props.onSubmit as (event: Event) => void)({
-      preventDefault: (): void => {},
-    } as Event)
+    const host = mount(() => (
+      <OnChainStatus copy={DASH_COPY.ja.chain} endpoint="https://index.example/rights" />
+    ))
+    expect([...host.querySelectorAll('label')].map(spacedText)).toContain('保有者アドレス')
+
+    typeInto(host.querySelector<HTMLInputElement>('#chain-holder')!, holder)
+    submit(host)
     expect(rights).toHaveBeenCalledExactlyOnceWith('https://index.example/rights', holder)
-    const busy = submitButton(render())
-    expect({ disabled: busy.props.disabled, label: viewText(busy) }).toStrictEqual({
+    expect({ disabled: submitButton(host).disabled, label: spacedText(submitButton(host)) }).toStrictEqual({
       disabled: true,
       label: '検索中',
     })
+
     pending.resolve([])
     await vi.waitFor(() => {
-      const props = viewProps(
-        findViewNodes(render(), OnChainStatusView)[0],
-      ) as unknown as OnChainStatusViewProps
-      expect(viewText(OnChainStatusView(props))).toContain('オンチェーン権利が見つかりません。')
+      expect(spacedText(host)).toContain('オンチェーン権利が見つかりません。')
     })
-    expect(submitButton(render()).props.disabled).toBe(false)
+    expect(submitButton(host).disabled).toBe(false)
   })
 
   it.each([
@@ -322,21 +274,13 @@ describe('localized operation views', () => {
     'renders localized configuration or unknown-error fallback for endpoint %j',
     async (endpoint, message) => {
       const rights = vi.spyOn(graphOnChainStatusIo, 'rightsByHolder').mockRejectedValue('offline')
-      const render = (): JSX.Element => {
-        hooks.index = 0
-        return OnChainStatus({ copy: DASH_COPY.ja.chain, endpoint })
-      }
-      ;(
-        walkView(render()).find((node) => 'onSubmit' in node.props)!.props.onSubmit as (event: Event) => void
-      )({ preventDefault: (): void => {} } as Event)
+      const host = mount(() => <OnChainStatus copy={DASH_COPY.ja.chain} endpoint={endpoint} />)
+      submit(host)
       await vi.waitFor(() => {
-        const props = viewProps(
-          findViewNodes(render(), OnChainStatusView)[0],
-        ) as unknown as OnChainStatusViewProps
-        expect(viewText(OnChainStatusView(props))).toBe(message)
+        expect(spacedText(host.querySelector('[role="alert"]'))).toBe(message)
       })
       expect(rights).toHaveBeenCalledTimes(endpoint === '' ? 0 : 1)
-      expect(submitButton(render()).props.disabled).toBe(false)
+      expect(submitButton(host).disabled).toBe(false)
     },
   )
 
@@ -347,20 +291,17 @@ describe('localized operation views', () => {
     'retranslates internal Graph errors after a language change for endpoint %j',
     async (endpoint, english, japanese) => {
       vi.spyOn(graphOnChainStatusIo, 'rightsByHolder').mockRejectedValue('offline')
-      const render = (language: 'en' | 'ja'): JSX.Element => {
-        hooks.index = 0
-        return OnChainStatus({ copy: DASH_COPY[language].chain, endpoint })
-      }
-      ;(
-        walkView(render('en')).find((node) => 'onSubmit' in node.props)!.props.onSubmit as (
-          event: Event,
-        ) => void
-      )({ preventDefault: (): void => {} } as Event)
+      const [language, setLanguage] = createSignal<'en' | 'ja'>('en')
+      const host = mount(() => <OnChainStatus copy={DASH_COPY[language()].chain} endpoint={endpoint} />)
+      const alertText = (): string => spacedText(host.querySelector('[role="alert"]'))
+      submit(host)
       await vi.waitFor(() => {
-        expect(chainText(render('en'))).toBe(english)
+        expect(alertText()).toBe(english)
       })
-      expect(chainText(render('ja'))).toBe(japanese)
-      expect(chainText(render('en'))).toBe(english)
+      setLanguage('ja')
+      expect(alertText()).toBe(japanese)
+      setLanguage('en')
+      expect(alertText()).toBe(english)
     },
   )
 
@@ -376,19 +317,17 @@ describe('localized operation views', () => {
   ])('uses the current language when an in-flight Graph query rejects with %j', async (failure, message) => {
     const pending = Promise.withResolvers<[]>()
     vi.spyOn(graphOnChainStatusIo, 'rightsByHolder').mockReturnValue(pending.promise)
-    const render = (language: 'en' | 'ja'): JSX.Element => {
-      hooks.index = 0
-      return OnChainStatus({ copy: DASH_COPY[language].chain, endpoint: 'https://index.example/rights' })
-    }
-    ;(
-      walkView(render('en')).find((node) => 'onSubmit' in node.props)!.props.onSubmit as (
-        event: Event,
-      ) => void
-    )({ preventDefault: (): void => {} } as Event)
-    expect(chainText(render('ja'))).toBe('オンチェーンステータスを読み込み中です。')
+    const [language, setLanguage] = createSignal<'en' | 'ja'>('en')
+    const host = mount(() => (
+      <OnChainStatus copy={DASH_COPY[language()].chain} endpoint="https://index.example/rights" />
+    ))
+    submit(host)
+    setLanguage('ja')
+    expect(spacedText(host.querySelector('[role="status"]'))).toBe('オンチェーンステータスを読み込み中です。')
     pending.reject(failure)
+    await flush()
     await vi.waitFor(() => {
-      expect(chainText(render('ja'))).toBe(message)
+      expect(host.querySelector('[role="alert"]')?.textContent).toBe(message)
     })
   })
 })

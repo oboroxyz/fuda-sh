@@ -1,4 +1,3 @@
-/** @jsxImportSource hono/jsx/dom */
 import { DEFAULT_LOCALE, pick } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
 import {
@@ -6,7 +5,6 @@ import {
   cardBySlug,
   formatMemberNumber,
   passPlatform,
-  passUrls,
   qrSvg,
   soleCard,
   toQr,
@@ -14,17 +12,17 @@ import {
 import type { CardView, PassUrls, PublicCard, PublicVenue, SelfServeIssueResponse } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
 import { CardsThree, WalletButton } from '@fuda/ui'
-import { useCallback, useEffect, useRef, useState } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import { createEffect, createSignal, For, on, onCleanup } from 'solid-js'
+import type { JSX } from 'solid-js'
 
-import { cardFailureOf, fetchVenue, googleSaveUrl, issueCard } from '../api.ts'
+import { cardFailureOf, claimSourceFrom, fetchVenue, googleSaveUrl, issueCard } from '../api.ts'
 import type { CardFailure } from '../api.ts'
 import { defaultHumanBadgeIo, requestHumanBadge } from '../badges.ts'
 import type { BadgeState, HumanBadgeIo } from '../badges.ts'
 import { cardKey, readCard, readCardMemory, rememberCard } from '../card-memory.ts'
 import type { CardMemoryEntry } from '../card-memory.ts'
-import { API_BASE_URL } from '../config.ts'
 import { applePassAvailable } from '../member-pass-list.ts'
+import { memberPassUrls } from '../pass-links.ts'
 import { rememberPass } from '../pass-memory.ts'
 import type { PassMemoryStorage } from '../pass-memory.ts'
 import { VENUE_COPY } from './copy.ts'
@@ -63,7 +61,7 @@ export interface CardScreenIo {
   appleAvailable: (url: string) => Promise<boolean>
   fetchVenue: (handle: string) => Promise<Result<PublicVenue>>
   googleSaveUrl: (url: string) => Promise<string | null>
-  issueCard: (handle: string, slug: string) => Promise<Result<SelfServeIssueResponse>>
+  issueCard: (handle: string, slug: string, source: string | null) => Promise<Result<SelfServeIssueResponse>>
 }
 
 export interface CardScreenViewProps {
@@ -102,7 +100,7 @@ interface VenueBrand {
 const brandCard = (venue: VenueBrand, body: JSX.Element): JSX.Element => (
   <div
     class="venue-brand"
-    style={{ backgroundColor: venue.brandColor, color: brandTextColor(venue.brandColor) }}
+    style={{ 'background-color': venue.brandColor, color: brandTextColor(venue.brandColor) }}
   >
     <div class="flex items-center gap-3">
       {venue.logoUrl === null ? null : (
@@ -110,7 +108,7 @@ const brandCard = (venue: VenueBrand, body: JSX.Element): JSX.Element => (
           alt=""
           class="size-10 flex-none rounded-xl bg-white/10 object-cover"
           loading="lazy"
-          onError={(event: Event & { currentTarget: HTMLImageElement }) => {
+          onError={(event) => {
             event.currentTarget.hidden = true
           }}
           src={venue.logoUrl}
@@ -165,7 +163,7 @@ const rowInvitation = (card: CardView, held: boolean, copy: VenueCopy): string =
 }
 
 const chooserRow = (venue: PublicVenue, card: CardView, held: boolean, copy: VenueCopy): JSX.Element => (
-  <li key={card.slug}>
+  <li>
     <a
       class={
         card.claimable || held ? 'venue-choice hover:border-base-content/40' : 'venue-choice border-dashed'
@@ -206,7 +204,7 @@ const chooser = (venue: PublicVenue, heldSlugs: readonly string[], copy: VenueCo
       <p class="venue-empty">{copy.noCards(venue.name)}</p>
     ) : (
       <ul class="flex flex-col gap-3">
-        {venue.cards.map((card): JSX.Element => chooserRow(venue, card, heldSlugs.includes(card.slug), copy))}
+        <For each={venue.cards}>{(card) => chooserRow(venue, card, heldSlugs.includes(card.slug), copy)}</For>
       </ul>
     )}
   </>
@@ -322,7 +320,7 @@ const humanBadgeControl = (
           class="w-36 max-w-full bg-white p-2"
           // qrSvg builds the markup locally from the URI; the URI only decides
           // which modules are dark, and never reaches the document as markup.
-          dangerouslySetInnerHTML={{ __html: qrSvg(badge.connectorUri, { modulePx: 144 }) }}
+          innerHTML={qrSvg(badge.connectorUri, { modulePx: 144 })}
         />
         <p class="text-center text-xs leading-5 text-[var(--fuda-muted)]">{copy.keepOpen}</p>
       </div>
@@ -331,7 +329,14 @@ const humanBadgeControl = (
   const busy = badge.kind === 'opening' || badge.kind === 'waiting'
   return (
     <div class="flex flex-col items-center gap-2">
-      <button class="btn btn-outline btn-sm" type="button" disabled={busy} onClick={onVerifyHuman}>
+      <button
+        class="btn btn-outline btn-sm"
+        type="button"
+        disabled={busy}
+        onClick={() => {
+          onVerifyHuman()
+        }}
+      >
         {busy ? <span class="loading loading-spinner loading-xs" aria-hidden="true" /> : null}
         {busy ? copy.verifyingHuman : copy.verifyHuman}
       </button>
@@ -352,35 +357,35 @@ const qrBlock = (card: PublicCard, issued: IssuedCard, copy: VenueCopy): JSX.Ele
       class="w-44 max-w-full bg-white p-3"
       // The markup is built locally by qrSvg from the right's uid — no remote or
       // venue-entered content reaches it.
-      dangerouslySetInnerHTML={{ __html: qrSvg(issued.qr, { modulePx: 120 }) }}
+      innerHTML={qrSvg(issued.qr, { modulePx: 120 })}
     />
     <p class="text-center text-xs leading-5 text-[var(--fuda-muted)]">{copy.showQr}</p>
   </div>
 )
 
-const shell = (children: JSX.Element): JSX.Element => VenueLayout({ children })
-
-export const CardScreenView = ({
-  locale = DEFAULT_LOCALE,
-  onIssue,
-  onReload,
-  onVerifyHuman,
-  state,
-}: CardScreenViewProps): JSX.Element => {
+// One screen per state. Nothing here takes typing, so rebuilding the screen on
+// a state change loses no input.
+const screenOf = (
+  state: CardScreenState,
+  locale: Locale,
+  onIssue: () => void,
+  onReload: () => void,
+  onVerifyHuman: () => void,
+): JSX.Element => {
   const copy = pick(VENUE_COPY, locale)
   if (state.kind === 'loading') {
-    return shell(
+    return (
       <div class="venue-panel flex min-h-44 items-center justify-center gap-3" role="status">
         <span class="loading loading-spinner loading-sm" aria-hidden="true" />
         <p class="text-sm text-[var(--fuda-muted)]">{copy.loading}</p>
-      </div>,
+      </div>
     )
   }
   if (state.kind === 'not_found') {
-    return shell(notFound(state.venue, copy))
+    return notFound(state.venue, copy)
   }
   if (state.kind === 'choose') {
-    return shell(
+    return (
       <>
         {state.defaultUnavailable === true ? (
           <p class="alert alert-soft" role="status">
@@ -388,24 +393,34 @@ export const CardScreenView = ({
           </p>
         ) : null}
         {chooser(state.venue, state.heldSlugs, copy)}
-      </>,
+      </>
     )
   }
   if (state.kind === 'error') {
-    return shell(
+    return (
       <>
         {state.card === null ? null : landingCard(state.card)}
         <div role="alert" class="alert alert-error">
           {copy.failure[state.failure]}
         </div>
-        <button class="btn" type="button" onClick={state.card === null ? onReload : onIssue}>
+        <button
+          class="btn"
+          type="button"
+          onClick={() => {
+            if (state.card === null) {
+              onReload()
+            } else {
+              onIssue()
+            }
+          }}
+        >
           {copy.tryAgain}
         </button>
-      </>,
+      </>
     )
   }
   if (state.kind === 'ready') {
-    return shell(
+    return (
       <>
         <section class="venue-held-card">
           {memberCard(state.card, state.issued, copy, locale)}
@@ -413,14 +428,14 @@ export const CardScreenView = ({
         </section>
         {passActions(state.card, state.issued, state.googleHref, state.appleHref, copy, locale)}
         {humanBadgeControl(state.badge, onVerifyHuman, copy)}
-      </>,
+      </>
     )
   }
   const busy = state.kind === 'issuing'
   // A card outside its claim window would only earn a 409, so the screen says
   // so instead of offering a button that cannot work.
   if (!state.card.card.claimable) {
-    return shell(
+    return (
       <>
         {landingCard(state.card)}
         {cardDescription(state.card)}
@@ -430,15 +445,22 @@ export const CardScreenView = ({
         <a class="btn" href={venueHref(state.card.handle)}>
           {copy.seeAllCards(state.card.name)}
         </a>
-      </>,
+      </>
     )
   }
-  return shell(
+  return (
     <>
       {landingCard(state.card)}
       {cardDescription(state.card)}
       <div class="venue-primary">
-        <button class="btn btn-primary w-full" type="button" disabled={busy} onClick={onIssue}>
+        <button
+          class="btn btn-primary w-full"
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            onIssue()
+          }}
+        >
           {busy ? <span class="loading loading-spinner loading-xs" aria-hidden="true" /> : <CardsThree />}
           {busy ? copy.gettingCard : copy.getFreeCard(nounOf(state.card, copy))}
         </button>
@@ -446,9 +468,27 @@ export const CardScreenView = ({
           {busy ? copy.keepOpen : copy.noSignUp}
         </p>
       </div>
-    </>,
+    </>
   )
 }
+
+export const CardScreenView = (props: CardScreenViewProps): JSX.Element => (
+  <VenueLayout>
+    {screenOf(
+      props.state,
+      props.locale ?? DEFAULT_LOCALE,
+      () => {
+        props.onIssue()
+      },
+      () => {
+        props.onReload()
+      },
+      () => {
+        props.onVerifyHuman()
+      },
+    )}
+  </VenueLayout>
+)
 
 const defaultIo: CardScreenIo = {
   appleAvailable: applePassAvailable,
@@ -459,7 +499,7 @@ const defaultIo: CardScreenIo = {
 
 const issuedFrom = (entry: CardMemoryEntry): IssuedCard => ({
   ...entry,
-  passUrls: passUrls(API_BASE_URL, entry.uid),
+  passUrls: memberPassUrls(entry.uid),
   qr: toQr(entry.uid),
 })
 
@@ -476,104 +516,105 @@ export interface CardScreenProps {
   slug: string | null
   io?: CardScreenIo
   humanBadgeIo?: HumanBadgeIo
+  // The venue the Worker already read for this page; the first load uses it
+  // instead of asking the api again.
+  initial?: Result<PublicVenue>
   storage?: PassMemoryStorage
 }
 
-export const CardScreen = ({
-  handle,
-  locale = DEFAULT_LOCALE,
-  slug,
-  io = defaultIo,
-  humanBadgeIo = defaultHumanBadgeIo,
-  storage,
-}: CardScreenProps): JSX.Element => {
-  const [state, setState] = useState<CardScreenState>({ kind: 'loading' })
-  const [generation, setGeneration] = useState(0)
-  const issuing = useRef(false)
-  const lifecycle = useRef(0)
+export const CardScreen = (props: CardScreenProps): JSX.Element => {
+  const io = props.io ?? defaultIo
+  const humanBadgeIo = props.humanBadgeIo ?? defaultHumanBadgeIo
+  const [state, setState] = createSignal<CardScreenState>({ kind: 'loading' })
+  const [generation, setGeneration] = createSignal(0)
+  let issuing = false
+  let lifecycle = 0
+  let preloaded = props.initial
 
   // Only probe the device's platform. The browser pass remains available until
   // its wallet is confirmed, and remains the fallback if it is not configured.
-  const showReady = useCallback(
-    async (card: PublicCard, issued: IssuedCard, isCurrent: () => boolean): Promise<void> => {
-      setState({
-        appleHref: null,
-        badge: humanBadgeStateOf(card),
-        card,
-        googleHref: null,
-        issued,
-        kind: 'ready',
+  const showReady = async (card: PublicCard, issued: IssuedCard, isCurrent: () => boolean): Promise<void> => {
+    setState({
+      appleHref: null,
+      badge: humanBadgeStateOf(card),
+      card,
+      googleHref: null,
+      issued,
+      kind: 'ready',
+    })
+    const platform = passPlatform(globalThis.navigator?.userAgent ?? '')
+    const googleHref = platform === 'google' ? await io.googleSaveUrl(issued.passUrls.google) : null
+    const appleReady = platform === 'apple' && (await io.appleAvailable(issued.passUrls.apple))
+    const appleHref = appleReady ? issued.passUrls.apple : null
+    if ((googleHref !== null || appleHref !== null) && isCurrent()) {
+      setState((previous) =>
+        previous.kind === 'ready' && previous.issued.uid === issued.uid
+          ? { ...previous, appleHref, googleHref }
+          : previous,
+      )
+    }
+  }
+
+  createEffect(
+    on([generation, () => props.handle, () => props.slug], ([, handle, slug]) => {
+      lifecycle += 1
+      issuing = false
+      let current = true
+      const { storage } = props
+      setState({ kind: 'loading' })
+      void (async () => {
+        const result = preloaded ?? (await io.fetchVenue(handle))
+        preloaded = undefined
+        if (!current) {
+          return
+        }
+        if (!result.ok) {
+          const failure = cardFailureOf(result)
+          setState(
+            failure === 'not_found'
+              ? { kind: 'not_found', venue: null }
+              : { card: null, failure, kind: 'error' },
+          )
+          return
+        }
+        const venue = result.body
+        // A link that named a card opens that card; a bare venue address opens
+        // its only card, or asks the member to pick when there are several.
+        const picked = slug === null ? soleCard(venue) : cardBySlug(venue, slug)
+        if (picked === null) {
+          setState(
+            slug === null
+              ? { heldSlugs: heldSlugsOf(venue, storage), kind: 'choose', venue }
+              : { kind: 'not_found', venue },
+          )
+          return
+        }
+        const remembered = readCard(handle, picked.card.slug, storage)
+        if (remembered === null) {
+          setState({ card: picked, kind: 'landing' })
+          return
+        }
+        await showReady(picked, issuedFrom(remembered), () => current)
+      })()
+      onCleanup(() => {
+        current = false
+        lifecycle += 1
       })
-      const platform = passPlatform(globalThis.navigator?.userAgent ?? '')
-      const googleHref = platform === 'google' ? await io.googleSaveUrl(issued.passUrls.google) : null
-      const appleReady = platform === 'apple' && (await io.appleAvailable(issued.passUrls.apple))
-      const appleHref = appleReady ? issued.passUrls.apple : null
-      if ((googleHref !== null || appleHref !== null) && isCurrent()) {
-        setState((previous) =>
-          previous.kind === 'ready' && previous.issued.uid === issued.uid
-            ? { ...previous, appleHref, googleHref }
-            : previous,
-        )
-      }
-    },
-    [io],
+    }),
   )
 
-  useEffect(() => {
-    lifecycle.current += 1
-    issuing.current = false
-    let current = true
-    setState({ kind: 'loading' })
-    void (async () => {
-      const result = await io.fetchVenue(handle)
-      if (!current) {
-        return
-      }
-      if (!result.ok) {
-        const failure = cardFailureOf(result)
-        setState(
-          failure === 'not_found'
-            ? { kind: 'not_found', venue: null }
-            : { card: null, failure, kind: 'error' },
-        )
-        return
-      }
-      const venue = result.body
-      // A link that named a card opens that card; a bare venue address opens
-      // its only card, or asks the member to pick when there are several.
-      const picked = slug === null ? soleCard(venue) : cardBySlug(venue, slug)
-      if (picked === null) {
-        setState(
-          slug === null
-            ? { heldSlugs: heldSlugsOf(venue, storage), kind: 'choose', venue }
-            : { kind: 'not_found', venue },
-        )
-        return
-      }
-      const remembered = readCard(handle, picked.card.slug, storage)
-      if (remembered === null) {
-        setState({ card: picked, kind: 'landing' })
-        return
-      }
-      await showReady(picked, issuedFrom(remembered), () => current)
-    })()
-    return () => {
-      current = false
-      lifecycle.current += 1
-    }
-  }, [generation, handle, io, showReady, slug, storage])
-
   const issue = async (card: PublicCard): Promise<void> => {
-    if (issuing.current) {
+    if (issuing) {
       return
     }
-    issuing.current = true
-    const ticket = lifecycle.current
+    issuing = true
+    const ticket = lifecycle
+    const { handle, storage } = props
     setState({ card, kind: 'issuing' })
-    const result = await io.issueCard(handle, card.card.slug)
-    const current = ticket === lifecycle.current
+    const result = await io.issueCard(handle, card.card.slug, claimSourceFrom(window.location.search))
+    const current = ticket === lifecycle
     if (current) {
-      issuing.current = false
+      issuing = false
     }
     if (!result.ok) {
       if (!current) {
@@ -593,31 +634,31 @@ export const CardScreen = ({
     }
     await showReady(
       card,
-      { holder, issuedAt, memberNumber, passUrls: result.body.passUrls, qr: result.body.qr, uid },
-      () => ticket === lifecycle.current,
+      // The api answers its own absolute URLs; the member's links go through
+      // this Worker like every other call (src/pass-links.ts).
+      { holder, issuedAt, memberNumber, passUrls: memberPassUrls(uid), qr: result.body.qr, uid },
+      () => ticket === lifecycle,
     )
   }
 
   const onIssue = (): void => {
-    if (state.kind === 'landing') {
-      void issue(state.card)
+    const current = state()
+    if (current.kind === 'landing') {
+      void issue(current.card)
       return
     }
     // A failed issue keeps the card it was reading, so the button retries it.
-    if (state.kind === 'error' && state.card !== null) {
-      void issue(state.card)
+    if (current.kind === 'error' && current.card !== null) {
+      void issue(current.card)
     }
-  }
-
-  const onReload = (): void => {
-    setGeneration((value) => value + 1)
   }
 
   const onVerifyHuman = (): void => {
-    if (state.kind !== 'ready') {
+    const current = state()
+    if (current.kind !== 'ready') {
       return
     }
-    const { uid } = state.issued
+    const { uid } = current.issued
     void requestHumanBadge(humanBadgeIo, uid, (badge) => {
       setState((previous) =>
         previous.kind === 'ready' && previous.issued.uid === uid ? { ...previous, badge } : previous,
@@ -627,11 +668,13 @@ export const CardScreen = ({
 
   return (
     <CardScreenView
-      locale={locale}
+      locale={props.locale}
       onIssue={onIssue}
-      onReload={onReload}
+      onReload={() => {
+        setGeneration((value) => value + 1)
+      }}
       onVerifyHuman={onVerifyHuman}
-      state={state}
+      state={state()}
     />
   )
 }

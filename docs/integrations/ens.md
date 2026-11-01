@@ -277,12 +277,12 @@ Rerun the calls to establish current state; the private name will answer new add
 
 | File | What |
 | --- | --- |
-| [`routes/ens-gateway.ts`](../../apps/api/src/routes/ens-gateway.ts) | `POST /ens/gateway`: rate limit, EIP-3668 error shapes, `no-store` |
+| [`handlers/ens-gateway.ts`](../../apps/api/src/handlers/ens-gateway.ts) | `POST /ens/gateway`: rate limit, EIP-3668 error shapes, `no-store` |
 | [`gateway.ts`](../../apps/api/src/ens/gateway.ts) | decode `resolve(bytes,bytes)`, check selector and node, lookup, sign |
 | [`lookup.ts`](../../apps/api/src/ens/lookup.ts) | answers only `offchain` and `claimed` rows, expiry-aware |
 | [`mirror.ts`](../../apps/api/src/ens/mirror.ts) | member names at issuance, venue names on claim, darkening on revoke |
 | [`resolution.ts`](../../apps/api/src/ens/resolution.ts) | the +Private path: counter reservation, HMAC-derived ephemeral key, ERC-5564 stealth address |
-| [`routes/ens-claim.ts`](../../apps/api/src/routes/ens-claim.ts) | voucher signing, receipt-confirmed recording, paymaster sponsorship |
+| [`handlers/ens-claim.ts`](../../apps/api/src/handlers/ens-claim.ts) | voucher signing, receipt-confirmed recording, paymaster sponsorship |
 | [`conformance.test.ts`](../../apps/api/src/ens/conformance.test.ts) | hex vectors shared with the Solidity suite |
 
 Handle and member-number grammar are shared by every surface: [`packages/sdk/src/member-number.ts`](../../packages/sdk/src/member-number.ts).

@@ -33,7 +33,7 @@ def manifests(root, base=None):
 
 
 def documentation(path):
-    return path.endswith('.md') or path.startswith(('docs/', '.agents/', '.claude/', '.superpowers/'))
+    return path.endswith('.md') or path.startswith(('docs/', '.agents/', '.claude/'))
 
 
 def make_plan(root, base=None):
@@ -64,7 +64,7 @@ def make_plan(root, base=None):
         'full': full,
         'packages': packages,
         'rust': rust,
-        'subgraph': full or any(path.startswith(GRAPH + '/') or path == 'apps/api/wrangler.jsonc' for path in changed),
+        'subgraph': full or any(path.startswith(GRAPH + '/') or path == 'apps/api/targets.jsonc' for path in changed),
     }
 
 
@@ -107,8 +107,8 @@ def main():
             run('pnpm', '--filter', './' + path, 'run', 'test')
         if path == 'apps/api':
             run('pnpm', '--filter', 'api', 'run', 'test:scripts')
-        # app's test and ens-contracts' test already include their builds.
-        if path in ('apps/dash', 'apps/gate'):
+        # ens-contracts' test already includes its build.
+        if path in ('apps/app', 'apps/dash', 'apps/gate'):
             run('pnpm', '--filter', './' + path, 'run', 'build')
 
 

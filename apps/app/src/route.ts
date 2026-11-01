@@ -2,6 +2,11 @@ import { isIssuerHandle } from '@fuda/sdk'
 
 import { APP_ORIGIN } from './config.ts'
 
+// The member top. Imported where it is a link target: Solid inlines a literal
+// `href="/"` into its template as the unquoted `href=/>`, which some HTML
+// parsers (happy-dom among them) read as a self-closing tag with no href.
+export const TOP_PATH = '/'
+
 export type Route =
   | 'top'
   | 'signin'
@@ -104,3 +109,12 @@ export const routeFor = (origin: string, pathname: string, appOrigin: string = A
   }
   return path === '/signin' ? 'signin' : 'rights'
 }
+
+// oxlint-disable-next-line anti-slop/no-runtime-typeof -- Route is an internal parsed union; this narrows its object variants.
+export const isRedirectRoute = (route: Route): route is { redirect: string } =>
+  typeof route === 'object' && 'redirect' in route
+// oxlint-disable-next-line anti-slop/no-runtime-typeof -- Route is an internal parsed union; this narrows its object variants.
+export const isCardRoute = (route: Route): route is CardRoute => typeof route === 'object' && 'card' in route
+// oxlint-disable-next-line anti-slop/no-runtime-typeof -- Route is an internal parsed union; this narrows its object variants.
+export const isHomeRoute = (route: Route): route is { home: string } =>
+  typeof route === 'object' && 'home' in route

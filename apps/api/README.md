@@ -2,15 +2,33 @@
 
 Cloudflare Worker (Hono) implementing the fuda endpoints: `GET /health`, `POST /issue`, `GET /verify/:uid`, `POST /verify`, `POST /revoke`, `GET /members`, `POST /challenge`, `POST /verify-signed`, `POST /ens/gateway`, and the passes (`GET /pass/:uid` plus the Google Wallet and Apple Wallet endpoints).
 
+## Server routing
+
+Void discovers HTTP method exports in `routes/`. Each file re-exports its `defineHandler` from `src/handlers/`; shared business logic stays outside the route tree. `targets/{local,develop,production}/routes` link to that same directory, and ordered target middleware loads `src/middleware.ts` for request dependencies, CORS, auth-mode headers, cache policy and error responses. There is no separate production Hono router or Worker entry.
+
+Keep programmatic endpoints under `routes/v1/`. Pass, asset, ENS gateway and health URLs stay unversioned because deployed wallets and contracts retain them. Workerd tests discover those same files through `test/app.ts`, with injectable chain, time and admission hooks; browser E2E exercises Void's built Worker. See [ADR 0012](../../docs/adr/0012-void-api-routing.md).
+
 ## Run locally
 
 ```bash
-cp .dev.vars.example .dev.vars
+cp .env.example targets/local/.env
 pnpm --filter api migrate:local
 pnpm --filter api dev
 ```
 
-With `USE_FAKE_CHAIN=1` set in `.dev.vars` (the default in the example file) and no `SIGNER_PRIVATE_KEY` / `BASE_RPC_URL`, the api runs against an in-memory `FakeChain` instead of Base Sepolia for chain state and writes — no signer or funds needed. EOA signatures verify offline. Local smart-wallet signatures (including Base Account passkeys) use read-only verification against the default Base Sepolia RPC; they still require network access and a valid signature. Tests that construct `FakeChain` without a verifier remain offline. `src/index.ts` seeds a root `IssuerDelegation` on first request and logs the `ISSUER_ADDRESS` / `DELEGATION_UID` it used; `wrangler.jsonc`'s `env.local.vars` block already carries the matching (deterministic) values, and `pnpm --filter api dev` runs `wrangler dev --env local`, so the quick start above works as written. Both the top-level and the `env.local` D1 block name the same database, so `migrate:local` targets the same local database that `--env local` then serves; `--env local` reads `.dev.vars.local` when present and falls back to `.dev.vars` otherwise. Setting either `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL` always wins over `USE_FAKE_CHAIN` — the fake chain is never constructed in production, only under this explicit local opt-in. Either binding also arms the admin lock: set `ADMIN_TOKEN` in `.dev.vars` alongside it, or `/issue`, `/revoke` and `/members` answer `401` with `x-auth-mode: locked`.
+With `USE_FAKE_CHAIN=1` set in `targets/local/.env` (the default in the example file) and no `SIGNER_PRIVATE_KEY` / `BASE_RPC_URL`, the api runs against an in-memory `FakeChain` instead of Base Sepolia for chain state and writes — no signer or funds needed. EOA signatures verify offline. Local smart-wallet signatures (including Base Account passkeys) use read-only verification against the default Base Sepolia RPC; they still require network access and a valid signature. Tests that construct `FakeChain` without a verifier remain offline. `src/runtime.ts` seeds a root `IssuerDelegation` on first request and logs the `ISSUER_ADDRESS` / `DELEGATION_UID` it used; the `local` block of `targets.jsonc` already carries the matching (deterministic) values, and `pnpm --filter api dev` runs the `local` Void target, so the quick start above works as written. `migrate:local` applies migrations to the same local database (`targets/local/.void/`) that `pnpm --filter api dev` then serves, and `pnpm --filter api d1:local "…"` runs SQL against it after a `migrate:local`. Setting either `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL` always wins over `USE_FAKE_CHAIN` — the fake chain is never constructed in production, only under this explicit local opt-in. Either binding also arms the admin lock: set `ADMIN_TOKEN` in `targets/local/.env` alongside it, or `/issue`, `/revoke` and `/members` answer `401` with `x-auth-mode: locked`.
+
+## Targets
+
+The api deploys with Void, which has no named environments, so each target is its own Void project under `targets/`: `local` (never deployed), `develop` (the live Base Sepolia Worker `fuda-api` on `api.fuda.sh`) and `production` (Base mainnet, deployed at the cutover). [`targets.jsonc`](targets.jsonc) holds each target's Worker name, routes, D1 and R2 bindings and `vars`; [`targets.ts`](targets.ts) turns one block into that project's `void.config.ts`. Each project's `routes` link shares the API route tree, and its ordered middleware files re-export [`src/middleware.ts`](src/middleware.ts). The tests run on the `develop` vars with D1 and R2 simulated (`vite.config.ts`).
+
+| Script                                    | Target       |
+| ----------------------------------------- | ------------ |
+| `dev`, `migrate:local`, `d1:local`        | `local`      |
+| `deploy`, `migrate:remote`                | `develop`    |
+| `deploy:production`, `migrate:production` | `production` |
+
+The `migrate:*` scripts use `void db migrate`, with `--remote` for deployed D1. Each target’s `db/migrations` symlink shares the hand-written SQL in `migrations/`. Schema inference stays off: deploy does not generate or apply migrations. Remote D1 keeps its `d1_migrations` history; the patched local CLI adopts that history into `_void_migrations` while preserving existing data and the old table. No reset is needed. Local SQL uses `void db execute` through `d1:local`, with SQL as a positional argument. Remote scripts select the Cloudflare account with `void connect --platform cloudflare` before migration.
 
 ## Attendance
 
@@ -64,7 +82,7 @@ Entry for a discovered +Private right is the unchanged `/verify-signed` flow, si
 
 `GET /pass/:uid` renders a self-contained HTML page (inline SVG QR, tier, holder, live status) for any uid a `members` row exists for; a uid fuda never issued answers `404 not_found`. A +Private row also answers `404 not_found` — its holder is a one-time stealth address only the member can recover, and the `/issue` response for it carries no `passUrls`, so there is no pass page for it to render. `GET /pass/:uid/google` answers `{ saveUrl }` (a signed Google Wallet save link) when the four `GOOGLE_*` secrets are set and `501 google_not_configured` otherwise; `GET /pass/:uid/apple.pkpass` streams a `.pkpass` when the five `APPLE_*` secrets are set and `501 apple_not_configured` otherwise. Both answer `404 not_found` for an unknown uid and for a +Private row before any platform check. The pass page carries an "Add to Google Wallet" button that stays hidden unless the Google endpoint answers `200`. Open the downloaded `.pkpass` on an iPhone, or run `openssl smime -verify -in signature -inform DER -content manifest.json -noverify` after unzipping.
 
-The `apps/gate`, `apps/dash` and `apps/app` frontends call the api at `VITE_API_BASE_URL` (baked in at build time; defaults to `http://localhost:8787` for local dev). `corsPolicy()` in `src/middleware/cors.ts` allows any `http://localhost:<port>` or `http://127.0.0.1:<port>` origin in addition to the fixed production origins, so all three frontends' dev servers (ports 5174, 5175 and 5173) work against a locally running api without further configuration.
+The `apps/gate`, `apps/dash` and `apps/app` frontends call the api from their own Workers at `API_BASE_URL` (`http://localhost:8787` in their dev scripts), never from the browser ([ADR 0010](../../docs/adr/0010-void-pages-and-frontend-workers.md)). Each Worker sends the visitor's address in `x-real-ip`, which Cloudflare turns into `CF-Connecting-IP` on a same-zone subrequest, so the rate limits still count visitors. `corsPolicy()` in `src/middleware/cors.ts` still allows the three production origins and any `http://localhost:<port>` or `http://127.0.0.1:<port>` origin, for the single-page apps deployed before the Workers; the runbook narrows it once those are replaced.
 
 ## Tests
 
@@ -82,7 +100,7 @@ Migrations under `migrations/` are hand-written SQL for the MVP — there is no 
 
 ## One-time chain setup, secrets and deploy
 
-Covered in [`docs/runbook.md`](../../docs/runbook.md) — chain setup order, `wrangler secret put` names, wallet-platform setup, deploy order and the live smoke/manual checks. `apps/api/src/env.ts` is the source of truth for every deployed binding name; the local-only `USE_FAKE_CHAIN` opt-in lives in `DevBindings` in `apps/api/src/index.ts` instead.
+Covered in [`docs/runbook.md`](../../docs/runbook.md) — chain setup order, `void secret put` names, wallet-platform setup, deploy order and the live smoke/manual checks. `apps/api/src/env.ts` is the source of truth for every deployed binding name; the local-only `USE_FAKE_CHAIN` opt-in lives in `DevBindings` in `apps/api/src/runtime.ts` instead.
 
 ## Smoke test
 
@@ -97,7 +115,7 @@ API_URL=https://api.fuda.sh ADMIN_TOKEN=… pnpm --filter api smoke:live --ladde
 pnpm --filter api smoke:live
 ```
 
-`--ladder` (or `SMOKE_LADDERS`) takes a comma-separated list of `bearer`, `signed`, or `all`; the default runs both supported ladders. `private` is rejected before any issuance, including in a mixed list. `API_URL` defaults to `http://localhost:8787`, so the script also works against a locally running `wrangler dev` (with or without `USE_FAKE_CHAIN=1`, as long as a signer is available to `/issue`/`/revoke`).
+`--ladder` (or `SMOKE_LADDERS`) takes a comma-separated list of `bearer`, `signed`, or `all`; the default runs both supported ladders. `private` is rejected before any issuance, including in a mixed list. `API_URL` defaults to `http://localhost:8787`, so the script also works against a locally running `pnpm --filter api dev` (with or without `USE_FAKE_CHAIN=1`, as long as a signer is available to `/issue`/`/revoke`).
 
 Every returned issue UID is revoked in `finally`, including when an assertion or later request fails. Signed holder keys are generated afresh per run. If the revoke request fails, the script exits non-zero; use the logged issue UID to retry `/revoke`. An interrupted process or an issue response lost after on-chain issuance still requires operational reconciliation.
 

@@ -3,7 +3,16 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "jsxImportSource": "hono/jsx",
-    "types": ["@cloudflare/workers-types", "@cloudflare/vitest-pool-workers/types"]
+    "types": ["@cloudflare/workers-types", "@cloudflare/vitest-pool-workers/types", "vite-plus/client"]
   },
-  "include": ["src", "test", "scripts", "vite.config.ts", "drizzle.config.ts"]
+  "include": [
+    "routes",
+    "src",
+    "test",
+    "scripts",
+    "targets",
+    "targets.ts",
+    "vite.config.ts",
+    "drizzle.config.ts"
+  ]
 }

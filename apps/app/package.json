@@ -4,11 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vp dev",
+    "dev": "API_BASE_URL=http://localhost:8787 VITE_APP_ORIGIN=http://localhost:5173 VITE_RP_ID=localhost VOID_INSPECTOR_PORT=false vp dev",
     "build": "vp build",
     "preview": "vp preview",
-    "deploy": "vp build && wrangler deploy",
-    "test": "vp build && vp test"
+    "deploy": "void deploy",
+    "test": "vp test"
   },
   "dependencies": {
     "@fuda/i18n": "workspace:*",
@@ -18,16 +18,20 @@
     "@fuda/styles": "workspace:*",
     "@fuda/ui": "workspace:*",
     "@worldcoin/idkit-core": "^4.3.0",
-    "hono": "^4.13.5",
+    "hono": "^4.13.14",
+    "solid-js": "1.9.17",
+    "valibot": "^1.4.2",
     "viem": "^2.56.3"
   },
   "devDependencies": {
     "@base-org/account": "2.5.10",
-    "@cloudflare/workers-types": "^4.20250905.0",
     "@tailwindcss/vite": "4.3.3",
+    "@void/solid": "1.4.0",
     "daisyui": "5.7.28",
     "tailwindcss": "4.3.3",
     "vite": "^8.2.2",
-    "vitest": "4.1.11"
+    "vite-plugin-solid": "2.11.14",
+    "vitest": "4.1.11",
+    "void": "1.4.0"
   }
 }

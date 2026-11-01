@@ -1,8 +1,7 @@
-/** @jsxImportSource hono/jsx/dom */
 import { TIER_LABEL, USAGE_MODEL } from '@fuda/sdk'
 import type { IssueResponse } from '@fuda/sdk'
-import { useRef, useState } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import { createMemo, createSignal, For } from 'solid-js'
+import type { JSX } from 'solid-js'
 
 import type { Result } from './api.ts'
 import type { DashCopy } from './copy.ts'
@@ -10,7 +9,6 @@ import { issueBodyFrom } from './issue-form.ts'
 import type { IssueForm as Form } from './issue-form.ts'
 import { QrBlock } from './QrBlock.tsx'
 import { createSingleFlight } from './single-flight.ts'
-import type { SingleFlight } from './single-flight.ts'
 
 export interface IssueFormProps {
   copy: DashCopy['issue']
@@ -65,144 +63,129 @@ const outcome = (copy: DashCopy['issue'], result: Result<IssueResponse>): JSX.El
   )
 }
 
-export const IssueFormView = ({
-  body,
-  busy,
-  copy,
-  form,
-  onChange,
-  onSubmit,
-  result,
-}: IssueFormViewProps): JSX.Element => {
+export const IssueFormView = (props: IssueFormViewProps): JSX.Element => {
   const onText =
     (patch: (v: string) => Partial<Form>) =>
     (e: Event): void => {
       const v = fieldValue(e.currentTarget)
       if (v !== null) {
-        onChange(patch(v))
+        props.onChange(patch(v))
       }
     }
-  const description = {
-    bearer: copy.bearerDescription,
-    private: copy.privateDescription,
-    signed: copy.signedDescription,
-  }[form.level]
+  const description = (): string =>
+    ({
+      bearer: props.copy.bearerDescription,
+      private: props.copy.privateDescription,
+      signed: props.copy.signedDescription,
+    })[props.form.level]
   return (
     <form
       class="card bg-base-200 flex max-w-xl flex-col gap-3 p-6"
       onSubmit={(e) => {
         e.preventDefault()
-        if (body !== null && !busy) {
-          onSubmit()
+        if (props.body !== null && !props.busy) {
+          props.onSubmit()
         }
       }}
     >
       <header class="dash-page-header mb-3">
-        <h1 class="dash-page-title">{copy.title}</h1>
-        <p class="opacity-70">{copy.description}</p>
+        <h1 class="dash-page-title">{props.copy.title}</h1>
+        <p class="opacity-70">{props.copy.description}</p>
       </header>
-      <label for="issue-level">{copy.levelLabel}</label>
+      <label for="issue-level">{props.copy.levelLabel}</label>
       <select
         id="issue-level"
         aria-describedby="issue-level-description"
         class="select w-full"
-        value={form.level}
-        onChange={onText((v) => (isLevel(v) ? { level: v } : {}))}
+        value={props.form.level}
+        onInput={onText((v) => (isLevel(v) ? { level: v } : {}))}
       >
         <option value="bearer">Bearer</option>
         <option value="signed">Signed</option>
         <option value="private">+Private</option>
       </select>
       <p id="issue-level-description" class="text-sm opacity-70">
-        {description}
+        {description()}
       </p>
-      {form.level === 'bearer' ? (
+      {props.form.level === 'bearer' ? (
         <>
-          <label for="issue-member-id">{copy.memberId}</label>
+          <label for="issue-member-id">{props.copy.memberId}</label>
           <input
             id="issue-member-id"
             class="input w-full"
-            value={form.memberId}
+            value={props.form.memberId}
             onInput={onText((v) => ({ memberId: v }))}
           />
         </>
       ) : null}
-      {form.level === 'signed' ? (
+      {props.form.level === 'signed' ? (
         <>
-          <label for="issue-holder">{copy.holder}</label>
+          <label for="issue-holder">{props.copy.holder}</label>
           <input
             id="issue-holder"
             class="input w-full font-mono"
             placeholder="0x…"
-            value={form.holder}
+            value={props.form.holder}
             onInput={onText((v) => ({ holder: v }))}
           />
         </>
       ) : null}
-      {form.level === 'private' ? (
+      {props.form.level === 'private' ? (
         <>
-          <label for="issue-meta-address">{copy.stealthMetaAddress}</label>
+          <label for="issue-meta-address">{props.copy.stealthMetaAddress}</label>
           <input
             id="issue-meta-address"
             class="input w-full font-mono"
             placeholder="0x…"
-            value={form.stealthMetaAddress}
+            value={props.form.stealthMetaAddress}
             onInput={onText((v) => ({ stealthMetaAddress: v }))}
           />
-          <label for="issue-member-id">{copy.memberIdOptional}</label>
+          <label for="issue-member-id">{props.copy.memberIdOptional}</label>
           <input
             id="issue-member-id"
             class="input w-full"
-            value={form.memberId}
+            value={props.form.memberId}
             onInput={onText((v) => ({ memberId: v }))}
           />
         </>
       ) : null}
       <div class="grid gap-3 sm:grid-cols-2">
         <div class="flex min-w-0 flex-col gap-1">
-          <label for="issue-tier">{copy.tier}</label>
+          <label for="issue-tier">{props.copy.tier}</label>
           <select
             id="issue-tier"
             class="select w-full"
-            value={String(form.tier)}
-            onChange={onText((v) => ({ tier: Number(v) }))}
+            value={String(props.form.tier)}
+            onInput={onText((v) => ({ tier: Number(v) }))}
           >
-            {TIER_LABEL.map((label, i): JSX.Element => (
-              <option key={label} value={String(i)}>
-                {label}
-              </option>
-            ))}
+            <For each={TIER_LABEL}>{(label, i) => <option value={String(i())}>{label}</option>}</For>
           </select>
         </div>
         <div class="flex min-w-0 flex-col gap-1">
-          <label for="issue-usage">{copy.usageModel}</label>
+          <label for="issue-usage">{props.copy.usageModel}</label>
           <select
             id="issue-usage"
             class="select w-full"
-            value={String(form.usageModel)}
-            onChange={onText((v) => ({ usageModel: Number(v) }))}
+            value={String(props.form.usageModel)}
+            onInput={onText((v) => ({ usageModel: Number(v) }))}
           >
-            {USAGE.map((u): JSX.Element => (
-              <option key={u.label} value={String(u.value)}>
-                {u.label}
-              </option>
-            ))}
+            <For each={USAGE}>{(u) => <option value={String(u.value)}>{u.label}</option>}</For>
           </select>
         </div>
       </div>
-      <button class="btn btn-primary" type="submit" disabled={body === null || busy}>
-        {busy ? copy.submitting : copy.submit}
+      <button class="btn btn-primary" type="submit" disabled={props.body === null || props.busy}>
+        {props.busy ? props.copy.submitting : props.copy.submit}
       </button>
       <p role="status" aria-live="polite" class="sr-only">
-        {busy ? copy.submitting : ''}
+        {props.busy ? props.copy.submitting : ''}
       </p>
-      {result === null ? null : outcome(copy, result)}
+      {props.result === null ? null : outcome(props.copy, props.result)}
     </form>
   )
 }
 
-export const IssueForm = ({ copy, onIssue }: IssueFormProps): JSX.Element => {
-  const [form, setForm] = useState<Form>({
+export const IssueForm = (props: IssueFormProps): JSX.Element => {
+  const [form, setForm] = createSignal<Form>({
     holder: '',
     level: 'bearer',
     memberId: '',
@@ -210,16 +193,16 @@ export const IssueForm = ({ copy, onIssue }: IssueFormProps): JSX.Element => {
     tier: 1,
     usageModel: 1,
   })
-  const [result, setResult] = useState<Result<IssueResponse> | null>(null)
-  const [busy, setBusy] = useState(false)
-  const flight = useRef<SingleFlight<'issue'> | null>(null)
-  flight.current ??= createSingleFlight<'issue'>()
-  const body = issueBodyFrom(form)
+  const [result, setResult] = createSignal<Result<IssueResponse> | null>(null)
+  const [busy, setBusy] = createSignal(false)
+  const flight = createSingleFlight<'issue'>()
+  const body = createMemo(() => issueBodyFrom(form()))
   const submit = async (): Promise<void> => {
-    if (body === null || flight.current === null) {
+    const current = body()
+    if (current === null) {
       return
     }
-    const pending = flight.current.run('issue', async () => await onIssue(body))
+    const pending = flight.run('issue', async () => await props.onIssue(current))
     if (pending === null) {
       return
     }
@@ -233,17 +216,17 @@ export const IssueForm = ({ copy, onIssue }: IssueFormProps): JSX.Element => {
   }
   return (
     <IssueFormView
-      body={body}
-      busy={busy}
-      copy={copy}
-      form={form}
+      body={body()}
+      busy={busy()}
+      copy={props.copy}
+      form={form()}
       onChange={(patch) => {
-        setForm({ ...form, ...patch })
+        setForm({ ...form(), ...patch })
       }}
       onSubmit={() => {
         void submit()
       }}
-      result={result}
+      result={result()}
     />
   )
 }

@@ -7,6 +7,8 @@ autoInstallPeers: false
 # Node is provisioned by pnpm itself via package.json devEngines.runtime
 # (onFail: download); no .node-version / version manager needed.
 allowBuilds:
+  # Void's local DB commands open the same D1 SQLite file as the dev server.
+  better-sqlite3: true
   esbuild: true
   workerd: true
 # vite-plus pins oxlint/oxfmt exactly; ultracite floats. Without these overrides
@@ -35,3 +37,14 @@ minimumReleaseAgeExclude:
   - '@cloudflare/workerd-linux-64@1.20260910.1 || 1.20260925.1'
   - '@cloudflare/workerd-linux-arm64@1.20260910.1 || 1.20260925.1'
   - '@cloudflare/workerd-windows-64@1.20260910.1 || 1.20260925.1'
+  # Void 1.4.0 (2026-10-30) ships @void/solid's pages mode, adopted before the age window passed.
+  - '@void/deploy-cloudflare@1.4.0'
+  - '@void/deploy-core@1.4.0'
+  - '@void/edge@1.4.0'
+  - '@void/isr@1.4.0'
+  - '@void/platform@1.4.0'
+  - '@void/solid@1.4.0'
+  - void@1.4.0
+patchedDependencies:
+  '@void/deploy-cloudflare@1.4.0': patches/@void__deploy-cloudflare@1.4.0.patch
+  void@1.4.0: patches/void@1.4.0.patch

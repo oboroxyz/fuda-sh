@@ -12,4 +12,4 @@ export interface MvpGraphConfig {
   announcerFromBlock: number
 }
 
-export function readMvpGraphConfig(path: string, options?: { environment?: string }): MvpGraphConfig
+export function readMvpGraphConfig(path: string, options?: { target?: string }): MvpGraphConfig

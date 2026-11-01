@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "source": {
+    "name": "fuda-gate",
+    "routes": [
+      {
+        "custom_domain": true,
+        "pattern": "gate.fuda.sh"
+      }
+    ]
+  },
+  "resolved": {
+    "name": "fuda-gate",
+    "routes": [
+      {
+        "custom_domain": true,
+        "pattern": "gate.fuda.sh"
+      }
+    ],
+    "account_id": "4d8de8be5b03d5f77ca1be4e3c0db5b2",
+    "keep_vars": true,
+    "compatibility_date": "2025-09-01"
+  },
+  "text": "{\n  \"name\": \"fuda-gate\",\n  \"routes\": [\n    {\n      \"custom_domain\": true,\n      \"pattern\": \"gate.fuda.sh\"\n    }\n  ],\n  \"account_id\": \"4d8de8be5b03d5f77ca1be4e3c0db5b2\",\n  \"keep_vars\": true,\n  \"compatibility_date\": \"2025-09-01\"\n}\n"
+}

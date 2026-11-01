@@ -1,5 +1,4 @@
-/** @jsxImportSource hono/jsx/dom */
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import type { JSX } from 'solid-js'
 
 import type { DashCopy } from './copy.ts'
 import { claimIsBusy } from './ens-claim.ts'
@@ -28,36 +27,39 @@ const progressLine = (copy: DashCopy['ens'], state: ClaimState): string | null =
   return state.kind === 'confirming' ? copy.confirming : null
 }
 
-export const EnsClaim = ({ copy, name, onClaim, ownerAddress, state }: EnsClaimProps): JSX.Element => {
-  const busy = claimIsBusy(state)
-  const progress = progressLine(copy, state)
-  const claimed = state.kind === 'claimed'
+export const EnsClaim = (props: EnsClaimProps): JSX.Element => {
+  const progress = (): string | null => progressLine(props.copy, props.state)
+  const claimed = (): boolean => props.state.kind === 'claimed'
+  const claimedName = (): string | undefined =>
+    props.state.kind === 'claimed' ? props.state.name : undefined
+  const failure = (): string | null =>
+    props.state.kind === 'failed' ? props.copy.failures[props.state.failure] : null
   return (
-    <section aria-label={copy.title} class="flex flex-col gap-2 pt-2">
+    <section aria-label={props.copy.title} class="flex flex-col gap-2 pt-2">
       <div class="flex flex-wrap items-center gap-2">
         <VenueLinkIcon kind="link" />
-        {claimed ? (
+        {claimed() ? (
           <a
             class="link link-hover text-sm wrap-anywhere"
-            href={`${EXPLORER}${ownerAddress}`}
+            href={`${EXPLORER}${props.ownerAddress}`}
             rel="noopener noreferrer"
             target="_blank"
-            title={copy.explorer}
+            title={props.copy.explorer}
           >
-            {state.name}
+            {claimedName()}
           </a>
         ) : (
-          <span class="text-sm wrap-anywhere">{name}</span>
+          <span class="text-sm wrap-anywhere">{props.name}</span>
         )}
-        {claimed ? (
+        {claimed() ? (
           <svg
-            aria-label={copy.claimedLabel}
+            aria-label={props.copy.claimedLabel}
             class="text-primary size-4 shrink-0"
             fill="currentColor"
             role="img"
             viewBox="0 0 24 24"
           >
-            <title>{copy.claimedLabel}</title>
+            <title>{props.copy.claimedLabel}</title>
             <path d="m12 2 2.6 1.8 3.2.2 1.2 3 2.5 2-.7 3.1.7 3.1-2.5 2-1.2 3-3.2.2L12 22l-2.6-1.8-3.2-.2-1.2-3-2.5-2 .7-3.1L2.5 8.8l2.5-2 1.2-3 3.2-.2L12 2Z" />
             <path
               d="m8 12 2.5 2.5L16 9"
@@ -69,18 +71,25 @@ export const EnsClaim = ({ copy, name, onClaim, ownerAddress, state }: EnsClaimP
             />
           </svg>
         ) : (
-          <button class="btn btn-primary btn-xs" disabled={busy} onClick={onClaim} type="button">
-            {state.kind === 'failed' ? copy.retry : copy.claim}
+          <button
+            class="btn btn-primary btn-xs"
+            disabled={claimIsBusy(props.state)}
+            onClick={() => {
+              props.onClaim()
+            }}
+            type="button"
+          >
+            {props.state.kind === 'failed' ? props.copy.retry : props.copy.claim}
           </button>
         )}
       </div>
-      {state.kind === 'failed' ? (
+      {failure() === null ? null : (
         <p class="text-error text-sm" role="alert">
-          {copy.failures[state.failure]}
+          {failure()}
         </p>
-      ) : null}
+      )}
 
-      {progress === null ? null : <p class="text-sm opacity-70">{progress}</p>}
+      {progress() === null ? null : <p class="text-sm opacity-70">{progress()}</p>}
     </section>
   )
 }

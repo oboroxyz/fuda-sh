@@ -1,13 +1,23 @@
 // @vitest-environment happy-dom
-/** @jsxImportSource hono/jsx/dom */
 import type { IssuerView, OperatorCardView } from '@fuda/sdk'
-import { render, useState } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import { createSignal } from 'solid-js'
+import type { JSX } from 'solid-js'
+import { render as solidRender } from 'solid-js/web'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CardEditPage } from './CardEditPage.tsx'
 import type { CardEditPageProps } from './CardEditPage.tsx'
 import { DASH_COPY } from './copy.ts'
+
+const disposers: (() => void)[] = []
+const render = (view: () => JSX.Element, host: HTMLElement): void => {
+  disposers.push(solidRender(view, host))
+}
+const unmountAll = (): void => {
+  for (const dispose of disposers.splice(0)) {
+    dispose()
+  }
+}
 
 const issuer: IssuerView = {
   brandColor: '#0073EB',
@@ -80,13 +90,13 @@ describe(CardEditPage, () => {
     document.body.append(root)
   })
   afterEach(() => {
-    render(null, root)
+    unmountAll()
     root.remove()
   })
 
   it('hydrates and saves without losing seconds, custom days, location or public URL identity', async () => {
     const p = props()
-    render(<CardEditPage {...p} />, root)
+    render(() => <CardEditPage {...p} />, root)
     await waitForm()
     const title = root.querySelector<HTMLInputElement>('#card-title')!
     title.value = 'Updated'
@@ -122,7 +132,7 @@ describe(CardEditPage, () => {
     const p = props()
     const loaded = { ...card, ...location }
     vi.spyOn(p, 'load').mockResolvedValue({ body: { card: loaded }, ok: true })
-    render(<CardEditPage {...p} />, root)
+    render(() => <CardEditPage {...p} />, root)
     await waitForm()
     submit()
     await vi.waitFor(() => {
@@ -141,7 +151,7 @@ describe(CardEditPage, () => {
       .fn<CardEditPageProps['save']>()
       .mockReturnValueOnce(pending.promise)
       .mockResolvedValue({ body: { card }, ok: true })
-    render(<CardEditPage {...p} save={save} />, root)
+    render(() => <CardEditPage {...p} save={save} />, root)
     await waitForm()
     submit()
     submit()
@@ -160,7 +170,7 @@ describe(CardEditPage, () => {
 
   it('loads optional Membership stamps on expansion and saves settings for that card', async () => {
     const p = props()
-    render(<CardEditPage {...p} />, root)
+    render(() => <CardEditPage {...p} />, root)
     await waitForm()
     expect(p.settings.load).not.toHaveBeenCalled()
     const details = root.querySelector('details')!
@@ -188,11 +198,13 @@ describe(CardEditPage, () => {
     const p = props()
     const ticket = { ...card, category: 'ticket' } as const
     render(
-      <CardEditPage
-        {...p}
-        card={ticket}
-        load={async () => await Promise.resolve({ body: { card: ticket }, ok: true })}
-      />,
+      () => (
+        <CardEditPage
+          {...p}
+          card={ticket}
+          load={async () => await Promise.resolve({ body: { card: ticket }, ok: true })}
+        />
+      ),
       root,
     )
     await waitForm()
@@ -208,7 +220,7 @@ describe(CardEditPage, () => {
   // saves the badge list rather than a card field.
   it('loads integrations on expansion and saves the World ID switch for that card', async () => {
     const p = props()
-    render(<CardEditPage {...p} />, root)
+    render(() => <CardEditPage {...p} />, root)
     await waitForm()
     expect(p.integrations.load).not.toHaveBeenCalled()
     const details = root.querySelector<HTMLDetailsElement>('details[data-testid="card-integrations"]')!
@@ -245,23 +257,23 @@ describe(CardEditPage, () => {
   it('keeps an unsaved switch across a parent re-render with a fresh io object', async () => {
     const p = props()
     const Host = (): JSX.Element => {
-      const [tick, setTick] = useState(0)
+      const [tick, setTick] = createSignal(0)
       return (
         <>
           <button
             type="button"
             data-testid="rerender"
             onClick={() => {
-              setTick(tick + 1)
+              setTick(tick() + 1)
             }}
           >
-            Rerender {tick}
+            Rerender {tick()}
           </button>
           <CardEditPage {...p} integrations={{ load: p.integrations.load, save: p.integrations.save }} />
         </>
       )
     }
-    render(<Host />, root)
+    render(() => <Host />, root)
     await waitForm()
     const details = root.querySelector<HTMLDetailsElement>('details[data-testid="card-integrations"]')!
     details.open = true
@@ -295,7 +307,7 @@ describe(CardEditPage, () => {
       .mockReturnValueOnce(pending.promise)
       .mockResolvedValue({ body: { card: other }, ok: true })
     const Switcher = (): JSX.Element => {
-      const [selected, setSelected] = useState(card)
+      const [selected, setSelected] = createSignal<CardEditPageProps['card']>(card)
       return (
         <>
           <button
@@ -306,11 +318,11 @@ describe(CardEditPage, () => {
           >
             Switch
           </button>
-          <CardEditPage {...p} card={selected} load={load} />
+          <CardEditPage {...p} card={selected()} load={load} />
         </>
       )
     }
-    render(<Switcher />, root)
+    render(() => <Switcher />, root)
     await vi.waitFor(() => {
       expect(load).toHaveBeenCalledWith('card-1')
     })

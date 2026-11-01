@@ -1,12 +1,22 @@
 // @vitest-environment happy-dom
-/** @jsxImportSource hono/jsx/dom */
-import { render } from 'hono/jsx/dom'
+import type { JSX } from 'solid-js'
+import { render as solidRender } from 'solid-js/web'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DASH_COPY } from './copy.ts'
 import { PublishedCard } from './PublishedCard.tsx'
 import type { PublishedCardProps } from './PublishedCard.tsx'
 import { membershipCard, passesResponse, ticketCard } from './test/management-fixtures.ts'
+
+const disposers: (() => void)[] = []
+const render = (view: () => JSX.Element, host: HTMLElement): void => {
+  disposers.push(solidRender(view, host))
+}
+const unmountAll = (): void => {
+  for (const dispose of disposers.splice(0)) {
+    dispose()
+  }
+}
 
 let root: HTMLDivElement
 
@@ -39,14 +49,14 @@ describe('Card list', () => {
     document.body.append(root)
   })
   afterEach(() => {
-    render(null, root)
+    unmountAll()
     root.remove()
     vi.restoreAllMocks()
   })
 
   it('renders card data and real aggregate counts without card previews', async () => {
     const p = props()
-    render(<PublishedCard {...p} />, root)
+    render(() => <PublishedCard {...p} />, root)
     await vi.waitFor(() => {
       expect(rows()).toHaveLength(2)
     })
@@ -60,7 +70,7 @@ describe('Card list', () => {
   })
 
   it('offers creation, edit and public links without card previews', () => {
-    render(<PublishedCard {...props()} />, root)
+    render(() => <PublishedCard {...props()} />, root)
     expect(root.querySelector('.dash-card-preview')).toBeNull()
     expect(root.querySelector('a[href="/cards/new"]')?.textContent).toBe('+ Add card')
     expect(root.querySelector('a[href="/cards/membership/edit"]')?.textContent).toBe('Edit')
@@ -71,7 +81,7 @@ describe('Card list', () => {
 
   it('starts an empty venue on its first card without asking for anything else first', () => {
     const p = props()
-    render(<PublishedCard {...p} cards={[]} />, root)
+    render(() => <PublishedCard {...p} cards={[]} />, root)
     expect(root.textContent).toContain('Create your first card')
     const button = [...root.querySelectorAll('button')].find((node) => node.textContent === '+ Add card')
     button?.click()
@@ -80,7 +90,10 @@ describe('Card list', () => {
 
   it('links to the store display while keeping the existing home Card on its explicit claim route', () => {
     const p = props()
-    render(<PublishedCard {...p} cards={[{ ...membershipCard, id: 'home-card', slug: 'home' }]} />, root)
+    render(
+      () => <PublishedCard {...p} cards={[{ ...membershipCard, id: 'home-card', slug: 'home' }]} />,
+      root,
+    )
 
     expect(root.querySelector('a[href="https://fuda.sh/@coffee/home"]')?.textContent).toBe(
       'Open store display',
@@ -94,7 +107,7 @@ describe('Card list', () => {
     const onDefaultCard = vi.fn<PublishedCardProps['onDefaultCard']>().mockReturnValue(pending.promise)
     p.issuer = { ...p.issuer, defaultCardSlug: membershipCard.slug }
     p.onDefaultCard = onDefaultCard
-    render(<PublishedCard {...p} />, root)
+    render(() => <PublishedCard {...p} />, root)
 
     expect(rows()[0]?.textContent).toContain('Default')
     const clear = [...rows()[0].querySelectorAll('button')].find(
@@ -115,7 +128,7 @@ describe('Card list', () => {
   it('serializes the default action state for assistive technology', () => {
     const p = props()
     p.issuer = { ...p.issuer, defaultCardSlug: membershipCard.slug }
-    render(<PublishedCard {...p} />, root)
+    render(() => <PublishedCard {...p} />, root)
 
     const pressed = [...root.querySelectorAll('button[aria-pressed]')]
     expect(pressed).toHaveLength(2)
@@ -128,7 +141,7 @@ describe('Card list', () => {
     const p = props()
     const onDefaultCard = vi.fn<PublishedCardProps['onDefaultCard']>().mockReturnValue(pending.promise)
     p.onDefaultCard = onDefaultCard
-    render(<PublishedCard {...p} />, root)
+    render(() => <PublishedCard {...p} />, root)
     const setDefault = [...rows()[1].querySelectorAll('button')].find(
       (node) => node.textContent === 'Set as default',
     )!
@@ -148,7 +161,7 @@ describe('Card list', () => {
     const onDefaultCard = vi.fn<PublishedCardProps['onDefaultCard']>().mockResolvedValue(false)
     p.issuer = { ...p.issuer, defaultCardSlug: null }
     p.onDefaultCard = onDefaultCard
-    render(<PublishedCard {...p} />, root)
+    render(() => <PublishedCard {...p} />, root)
 
     const setDefault = [...rows()[1].querySelectorAll('button')].find(
       (node) => node.textContent === 'Set as default',
@@ -163,7 +176,7 @@ describe('Card list', () => {
   })
 
   it('filters by type and name, and offers a reset after no matches', async () => {
-    render(<PublishedCard {...props()} />, root)
+    render(() => <PublishedCard {...props()} />, root)
     await vi.waitFor(() => {
       expect(rows()[0]?.textContent).toContain('40')
     })
@@ -192,7 +205,7 @@ describe('Card list', () => {
       .spyOn(navigator.clipboard, 'writeText')
       .mockResolvedValueOnce()
       .mockRejectedValueOnce(new Error('denied'))
-    render(<PublishedCard {...props()} />, root)
+    render(() => <PublishedCard {...props()} />, root)
     await vi.waitFor(() => {
       expect(rows()).toHaveLength(2)
     })
@@ -210,12 +223,14 @@ describe('Card list', () => {
   it('shows statistics errors rather than presenting missing counts as zero', async () => {
     const p = props()
     render(
-      <PublishedCard
-        {...p}
-        loadPasses={async () =>
-          await Promise.resolve({ error: 'offline', network: true, ok: false, status: 0 })
-        }
-      />,
+      () => (
+        <PublishedCard
+          {...p}
+          loadPasses={async () =>
+            await Promise.resolve({ error: 'offline', network: true, ok: false, status: 0 })
+          }
+        />
+      ),
       root,
     )
     await vi.waitFor(() => {

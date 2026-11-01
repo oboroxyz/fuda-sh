@@ -1,5 +1,4 @@
-/** @jsxImportSource hono/jsx/dom */
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import type { JSX } from 'solid-js'
 
 import type { DashCopy } from './copy.ts'
 import { apiConnectionStatus, countMembers, graphIsConfigured, memberSnapshot } from './members-state.ts'
@@ -23,24 +22,31 @@ const apiStatusCopy = (copy: DashCopy['overview'], state: MembersState): string 
   return copy.checking
 }
 
-export const OverviewPage = ({ apiBaseUrl, copy, graphEndpoint, state }: OverviewPageProps): JSX.Element => {
-  const snapshot = memberSnapshot(state)
-  const initialLoading = state.kind === 'loading' && snapshot === null
-  const counts = snapshot === null ? null : countMembers(snapshot.rows)
-  let stateMessage: string | null = null
-  if (snapshot !== null) {
-    if (snapshot.refreshing) {
-      stateMessage = copy.refreshing
-    } else if (snapshot.stale) {
-      stateMessage = copy.stale
-    }
+export const OverviewPage = (props: OverviewPageProps): JSX.Element => {
+  const snapshot = (): ReturnType<typeof memberSnapshot> => memberSnapshot(props.state)
+  const initialLoading = (): boolean => props.state.kind === 'loading' && snapshot() === null
+  const counts = (): ReturnType<typeof countMembers> | null => {
+    const current = snapshot()
+    return current === null ? null : countMembers(current.rows)
   }
+  const stateMessage = (): string | null => {
+    const current = snapshot()
+    if (current === null) {
+      return null
+    }
+    if (current.refreshing) {
+      return props.copy.refreshing
+    }
+    return current.stale ? props.copy.stale : null
+  }
+  const errorMessage = (): string | null =>
+    props.state.kind === 'error' ? `${props.copy.errorPrefix}: ${props.state.message}` : null
 
-  const countValue = (value: number | null): JSX.Element | string => {
+  const countValue = (value: number | null): JSX.Element => {
     if (value !== null) {
       return String(value)
     }
-    if (initialLoading) {
+    if (initialLoading()) {
       return (
         <span aria-hidden="true" class="dash-skeleton">
           …
@@ -53,32 +59,34 @@ export const OverviewPage = ({ apiBaseUrl, copy, graphEndpoint, state }: Overvie
   return (
     <section class="flex flex-col gap-6">
       <header class="dash-page-header">
-        <h1 class="dash-page-title">{copy.title}</h1>
-        <p class="opacity-70">{copy.description}</p>
+        <h1 class="dash-page-title">{props.copy.title}</h1>
+        <p class="opacity-70">{props.copy.description}</p>
       </header>
 
-      <section class="flex flex-col gap-3" aria-label={copy.title}>
-        {state.kind === 'error' ? (
-          <p role="alert" class="alert alert-error">{`${copy.errorPrefix}: ${state.message}`}</p>
-        ) : null}
-        {stateMessage === null ? null : <p class="text-sm opacity-70">{stateMessage}</p>}
+      <section class="flex flex-col gap-3" aria-label={props.copy.title}>
+        {errorMessage() === null ? null : (
+          <p role="alert" class="alert alert-error">
+            {errorMessage()}
+          </p>
+        )}
+        {stateMessage() === null ? null : <p class="text-sm opacity-70">{stateMessage()}</p>}
         <div class="dash-overview-cards">
           <div class="dash-stat">
-            <div class="stat-title">{copy.total}</div>
-            <div class="stat-value">{countValue(counts?.total ?? null)}</div>
+            <div class="stat-title">{props.copy.total}</div>
+            <div class="stat-value">{countValue(counts()?.total ?? null)}</div>
           </div>
           <div class="dash-stat">
-            <div class="stat-title">{copy.active}</div>
-            <div class="stat-value">{countValue(counts?.active ?? null)}</div>
+            <div class="stat-title">{props.copy.active}</div>
+            <div class="stat-value">{countValue(counts()?.active ?? null)}</div>
           </div>
           <div class="dash-stat">
-            <div class="stat-title">{copy.revoked}</div>
-            <div class="stat-value">{countValue(counts?.revoked ?? null)}</div>
+            <div class="stat-title">{props.copy.revoked}</div>
+            <div class="stat-value">{countValue(counts()?.revoked ?? null)}</div>
           </div>
         </div>
-        {initialLoading ? (
+        {initialLoading() ? (
           <p aria-live="polite" class="sr-only">
-            {copy.checking}
+            {props.copy.checking}
           </p>
         ) : null}
       </section>
@@ -86,15 +94,17 @@ export const OverviewPage = ({ apiBaseUrl, copy, graphEndpoint, state }: Overvie
       <section class="card bg-base-200 p-4">
         <dl class="grid gap-4 sm:grid-cols-2">
           <div>
-            <dt class="font-medium">{copy.api}</dt>
-            <dd>{apiStatusCopy(copy, state)}</dd>
-            <dd class="font-mono text-xs break-all opacity-70">{apiBaseUrl}</dd>
+            <dt class="font-medium">{props.copy.api}</dt>
+            <dd>{apiStatusCopy(props.copy, props.state)}</dd>
+            <dd class="font-mono text-xs break-all opacity-70">{props.apiBaseUrl}</dd>
           </div>
           <div>
-            <dt class="font-medium">{copy.graph}</dt>
-            <dd>{graphIsConfigured(graphEndpoint) ? copy.configured : copy.notConfigured}</dd>
-            {graphIsConfigured(graphEndpoint) ? (
-              <dd class="font-mono text-xs break-all opacity-70">{graphEndpoint}</dd>
+            <dt class="font-medium">{props.copy.graph}</dt>
+            <dd>
+              {graphIsConfigured(props.graphEndpoint) ? props.copy.configured : props.copy.notConfigured}
+            </dd>
+            {graphIsConfigured(props.graphEndpoint) ? (
+              <dd class="font-mono text-xs break-all opacity-70">{props.graphEndpoint}</dd>
             ) : null}
           </div>
         </dl>

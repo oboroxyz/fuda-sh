@@ -1,34 +1,25 @@
 import { authenticateWallet } from '@fuda/libs/auth'
 import type { SignInFailure } from '@fuda/libs/auth'
-import type { Hex, IssuerMeResponse } from '@fuda/sdk'
-import type { Result } from '@fuda/sdk/http'
+import type { Hex, IssuerView } from '@fuda/sdk'
 
-import type { signInChallenge, signInVerify } from './api.ts'
+import type { signInChallenge } from './api.ts'
+import type { verifyOperator } from './session-client.ts'
 import type { Eip1193Provider } from './wallet.ts'
 
 export interface SignInIo {
   challenge: typeof signInChallenge
-  issuerMe: (token: string) => Promise<Result<IssuerMeResponse>>
   personalSign: (provider: Eip1193Provider, address: Hex, message: string) => Promise<Hex>
   provider: () => Promise<Eip1193Provider>
   requestAccount: (provider: Eip1193Provider) => Promise<Hex>
-  verify: typeof signInVerify
+  verify: typeof verifyOperator
 }
 
 export type { SignInFailure } from '@fuda/libs/auth'
-export type SignInOutcome =
-  | { ok: true; token: string; issuer: IssuerMeResponse }
-  | { ok: false; failure: SignInFailure }
+// The session itself is a cookie the Worker set; the browser learns only
+// whether the operator already has a venue, which decides where it lands.
+export type SignInOutcome = { ok: true; hasIssuer: boolean } | { ok: false; failure: SignInFailure }
 
 export const signInWithPasskey = async (io: SignInIo): Promise<SignInOutcome> => {
-  const verified = await authenticateWallet(io)
-  if (!verified.ok) {
-    return verified
-  }
-  const { token } = verified.session
-  const me = await io.issuerMe(token)
-  // The session is valid even when the follow-up read fails; the operator
-  // simply starts on the designer, and /issuers rejects a duplicate anyway.
-  const issuer: IssuerMeResponse = me.ok ? me.body : { cards: [], ens: null, issuer: null, publicUrl: null }
-  return { issuer, ok: true, token }
+  const verified = await authenticateWallet<{ issuer: IssuerView | null }>(io)
+  return verified.ok ? { hasIssuer: verified.session.issuer !== null, ok: true } : verified
 }

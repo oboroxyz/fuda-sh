@@ -55,6 +55,7 @@ export const VENUE_COPY = {
     defaultUnavailable: 'The featured card is not available right now. You can check the other cards below.',
     failure: {
       card_closed: 'This card is no longer being handed out.',
+      card_sold_out: 'All of these cards have been handed out.',
       chain_error: 'Cards cannot be issued right now. Please try again later.',
       network: 'Could not reach fuda. Check your connection and try again.',
       no_signer: 'Cards cannot be issued right now. Please try again later.',
@@ -99,6 +100,7 @@ export const VENUE_COPY = {
     defaultUnavailable: 'おすすめのカードは現在配布していません。ほかのカードは下の一覧で確認できます。',
     failure: {
       card_closed: 'このカードの配布は終了しました。',
+      card_sold_out: 'このカードは上限枚数に達しました。',
       chain_error: '現在カードを発行できません。しばらくしてからもう一度お試しください。',
       network: 'fudaに接続できませんでした。通信状況を確認して、もう一度お試しください。',
       no_signer: '現在カードを発行できません。しばらくしてからもう一度お試しください。',

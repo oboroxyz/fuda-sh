@@ -3,13 +3,19 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "imports": {
+    "#api/*": "./src/*"
+  },
   "scripts": {
-    "dev": "wrangler dev --env local",
-    "deploy": "wrangler deploy",
+    "dev": "cd targets/local && vp dev --port 8787",
+    "deploy": "cd targets/develop && void deploy",
+    "deploy:production": "cd targets/production && void deploy",
     "test": "vp test",
     "test:scripts": "vp test --config vite.scripts.config.ts",
-    "migrate:local": "wrangler d1 migrations apply fuda-beta --local",
-    "migrate:remote": "wrangler d1 migrations apply fuda-beta --remote",
+    "migrate:local": "cd targets/local && void db migrate",
+    "migrate:remote": "cd targets/develop && void connect --platform cloudflare && void db migrate --remote",
+    "migrate:production": "cd targets/production && void connect --platform cloudflare && void db migrate --remote",
+    "d1:local": "cd targets/local && void db execute",
     "register-schemas": "tsx scripts/register-schemas.ts",
     "attest-root-delegation": "tsx scripts/attest-root-delegation.ts",
     "smoke:live": "tsx scripts/smoke-live.ts",
@@ -24,7 +30,7 @@
     "@worldcoin/idkit-core": "^4.3.0",
     "@worldcoin/idkit-server": "^1.1.1",
     "drizzle-orm": "^0.45.2",
-    "hono": "^4.9.0",
+    "hono": "^4.13.14",
     "valibot": "^1.1.0",
     "viem": "^2.37.0"
   },
@@ -33,7 +39,9 @@
     "@cloudflare/workers-types": "^4.20250905.0",
     "asn1js": "3.0.10",
     "drizzle-kit": "^0.31.0",
+    "jsonc-parser": "3.3.1",
     "pkijs": "3.4.0",
-    "vitest": "4.1.11"
+    "vitest": "4.1.11",
+    "void": "1.4.0"
   }
 }

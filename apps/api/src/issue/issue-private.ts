@@ -54,6 +54,7 @@ export const issuePrivate = async (
     issuerId: null,
     level: 'private',
     memberId: body.memberId ?? '',
+    source: null,
     tier: body.tier,
     uid,
     usageModel: body.usageModel,

@@ -1,0 +1,12 @@
+import { apiOriginFor } from '@fuda/libs/worker'
+import { defineHandler } from 'void'
+
+import { forwardDashboard } from '../../src/server/forward.ts'
+
+const forward = defineHandler(async (c) => await forwardDashboard(c, apiOriginFor(c.env.API_BASE_URL)))
+
+export const GET = forward
+export const POST = forward
+export const PUT = forward
+export const PATCH = forward
+export const DELETE = forward

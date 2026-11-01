@@ -1,5 +1,4 @@
-/** @jsxImportSource hono/jsx/dom */
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import type { JSX } from 'solid-js'
 
 import { assetUrlForDisplay } from './config.ts'
 import type { DashCopy } from './copy.ts'
@@ -18,51 +17,50 @@ export interface LogoFieldProps {
   state: LogoState
 }
 
-export const LogoField = ({
-  busy,
-  copy,
-  id,
-  label,
-  onClear,
-  onPick,
-  savedUrl,
-  state,
-}: LogoFieldProps): JSX.Element => {
-  const previewUrl = state.pick?.previewUrl ?? savedUrl
+export const LogoField = (props: LogoFieldProps): JSX.Element => {
+  const previewUrl = (): string | null | undefined => props.state.pick?.previewUrl ?? props.savedUrl
   return (
     <div class="flex min-w-0 flex-col gap-2">
-      <label for={id}>{label}</label>
+      <label for={props.id}>{props.label}</label>
       <input
         accept={SOURCE_ACCEPT}
-        aria-label={copy.choose}
+        aria-label={props.copy.choose}
         class="file-input w-full min-w-0"
-        disabled={busy}
-        id={id}
-        onChange={(e) => {
-          if (!(e.currentTarget instanceof HTMLInputElement)) {
-            return
-          }
+        disabled={props.busy}
+        id={props.id}
+        onInput={(e) => {
           const file = e.currentTarget.files?.[0]
           // Permit choosing the same source again after a rejection or removal.
           e.currentTarget.value = ''
           if (file !== undefined) {
-            onPick(file)
+            props.onPick(file)
           }
         }}
         type="file"
       />
-      <span class="text-sm opacity-70">{busy ? copy.updating : copy.hint}</span>
-      {state.rejection === null ? null : (
+      <span class="text-sm opacity-70">{props.busy ? props.copy.updating : props.copy.hint}</span>
+      {props.state.rejection === null ? null : (
         <p class="text-error text-sm" role="alert">
-          {copy.rejections[state.rejection]}
+          {props.copy.rejections[props.state.rejection]}
         </p>
       )}
-      {previewUrl === null || previewUrl === undefined ? null : (
+      {previewUrl() === null || previewUrl() === undefined ? null : (
         <div class="mt-2 flex flex-col items-start gap-2">
-          <img alt={copy.previewAlt} class="dash-logo-preview" src={assetUrlForDisplay(previewUrl)} />
-          {onClear === null || state.pick === null ? null : (
-            <button class="btn btn-ghost btn-sm" disabled={busy} onClick={onClear} type="button">
-              {copy.remove}
+          <img
+            alt={props.copy.previewAlt}
+            class="dash-logo-preview"
+            src={assetUrlForDisplay(previewUrl() ?? '')}
+          />
+          {props.onClear === null || props.state.pick === null ? null : (
+            <button
+              class="btn btn-ghost btn-sm"
+              disabled={props.busy}
+              onClick={() => {
+                props.onClear?.()
+              }}
+              type="button"
+            >
+              {props.copy.remove}
             </button>
           )}
         </div>

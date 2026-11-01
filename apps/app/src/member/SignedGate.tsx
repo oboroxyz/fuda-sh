@@ -1,11 +1,10 @@
-/** @jsxImportSource hono/jsx/dom */
 import { DEFAULT_LOCALE, pick } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
 import { normalizeUid, parseQr } from '@fuda/sdk'
 import type { Hex } from '@fuda/sdk'
 import { Scanner, short } from '@fuda/ui'
-import { useEffect, useState } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import { createSignal, onCleanup, Show } from 'solid-js'
+import type { JSX } from 'solid-js'
 
 import { challenge, verifySigned } from '../api.ts'
 import { displayOf, enterSigned } from '../signed-gate.ts'
@@ -31,26 +30,19 @@ const passkeyRail = async (): Promise<Eip1193Provider> => {
 // wallet → verify → full-screen verdict. The rail is any EIP-1193 provider —
 // either a browser-injected wallet or the Base Account passkey wallet, which
 // the member picks once a pass uid is on screen.
-export const SignedGate = ({
-  provider,
-  locale = DEFAULT_LOCALE,
-}: {
-  provider?: Eip1193Provider | null
-  locale?: Locale
-}): JSX.Element => {
-  const c = pick(ENTRY_COPY, locale)
-  const [uid, setUid] = useState<Hex | null>(null)
-  const [state, setState] = useState<SignedDisplay | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [lifetime] = useState(() => new AbortController())
-  const injected = provider === undefined ? injectedProvider() : provider
+export const SignedGate = (props: { provider?: Eip1193Provider | null; locale?: Locale }): JSX.Element => {
+  const locale = (): Locale => props.locale ?? DEFAULT_LOCALE
+  const c = (): (typeof ENTRY_COPY)[Locale] => pick(ENTRY_COPY, locale())
+  const [uid, setUid] = createSignal<Hex | null>(null)
+  const [state, setState] = createSignal<SignedDisplay | null>(null)
+  const [busy, setBusy] = createSignal(false)
+  const lifetime = new AbortController()
+  const injected = (): Eip1193Provider | null =>
+    props.provider === undefined ? injectedProvider() : props.provider
 
-  useEffect(
-    () => () => {
-      lifetime.abort()
-    },
-    [lifetime],
-  )
+  onCleanup(() => {
+    lifetime.abort()
+  })
 
   // The rail arrives as a thunk so a lazily-loaded one is resolved inside the
   // try: a failed chunk fetch reads as a REJECT verdict, not an unhandled throw.
@@ -84,56 +76,65 @@ export const SignedGate = ({
     }
   }
 
-  if (state !== null) {
-    return (
-      <Verdict
-        locale={locale}
-        state={state}
-        onDone={() => {
-          setState(null)
-        }}
-      />
-    )
-  }
   return (
-    <main class="member-page member-page-narrow flex flex-col items-center gap-6">
-      <h1 class="member-heading text-center">{c.signedTitle}</h1>
-      <p class="text-center text-sm leading-relaxed text-[var(--fuda-muted)]">{c.signedIntro}</p>
-      <Scanner
-        labels={c.scanner}
-        onInput={(text) => {
-          const u = uidOf(text)
-          if (u !== null) {
-            setUid(u)
-          }
-        }}
-      />
-      {uid === null ? null : (
-        <div class="flex flex-col items-center gap-2">
-          <button
-            type="button"
-            class="btn btn-primary"
-            disabled={busy}
-            onClick={() => {
-              void enter(uid, passkeyRail)
+    <Show
+      when={state()}
+      fallback={
+        <main class="member-page member-page-narrow flex flex-col items-center gap-6">
+          <h1 class="member-heading text-center">{c().signedTitle}</h1>
+          <p class="text-center text-sm leading-relaxed text-[var(--fuda-muted)]">{c().signedIntro}</p>
+          <Scanner
+            labels={c().scanner}
+            onInput={(text) => {
+              const u = uidOf(text)
+              if (u !== null) {
+                setUid(u)
+              }
             }}
-          >
-            {busy ? c.signing : c.passkeyWallet(short(uid))}
-          </button>
-          {injected === null ? null : (
-            <button
-              type="button"
-              class="btn btn-ghost"
-              disabled={busy}
-              onClick={() => {
-                void enter(uid, async () => await Promise.resolve(injected))
-              }}
-            >
-              {busy ? c.signing : c.browserWallet(short(uid))}
-            </button>
-          )}
-        </div>
+          />
+          <Show when={uid()}>
+            {(target) => (
+              <div class="flex flex-col items-center gap-2">
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  disabled={busy()}
+                  onClick={() => {
+                    void enter(target(), passkeyRail)
+                  }}
+                >
+                  {busy() ? c().signing : c().passkeyWallet(short(target()))}
+                </button>
+                <Show when={injected()}>
+                  {(wallet) => (
+                    <button
+                      type="button"
+                      class="btn btn-ghost"
+                      disabled={busy()}
+                      onClick={() => {
+                        const rail = wallet()
+                        void enter(target(), async () => await Promise.resolve(rail))
+                      }}
+                    >
+                      {busy() ? c().signing : c().browserWallet(short(target()))}
+                    </button>
+                  )}
+                </Show>
+              </div>
+            )}
+          </Show>
+        </main>
+      }
+    >
+      {(verdict) => (
+        <Verdict
+          locale={locale()}
+          state={verdict()}
+          onDone={() => {
+            setState(null)
+          }}
+        />
       )}
-    </main>
+    </Show>
   )
 }

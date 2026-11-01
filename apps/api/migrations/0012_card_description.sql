@@ -1,3 +1,4 @@
+-- void:allow-destructive
 -- Retain existing onboarding text in its original order before removing
 -- the two fields that misleadingly suggested configured benefits.
 ALTER TABLE cards ADD COLUMN description TEXT NOT NULL DEFAULT '';

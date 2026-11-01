@@ -1,8 +1,7 @@
-/** @jsxImportSource hono/jsx/dom */
 import { pick } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
-import { useEffect, useId, useRef, useState } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import { createSignal, createUniqueId, For, onCleanup, onMount } from 'solid-js'
+import type { JSX } from 'solid-js'
 
 import { ENTRY_COPY } from './entry-copy.ts'
 
@@ -17,7 +16,7 @@ const paths = {
 }
 
 type IconKind = keyof typeof paths
-export const PrivateIcon = ({ kind }: { kind: IconKind }): JSX.Element => (
+export const PrivateIcon = (props: { kind: IconKind }): JSX.Element => (
   <svg
     aria-hidden="true"
     class="size-5 shrink-0"
@@ -28,17 +27,11 @@ export const PrivateIcon = ({ kind }: { kind: IconKind }): JSX.Element => (
     stroke-linecap="round"
     stroke-linejoin="round"
   >
-    <path d={paths[kind]} />
+    <path d={paths[props.kind]} />
   </svg>
 )
 
-export const PrivateAction = ({
-  label,
-  kind,
-  onClick,
-  disabled,
-  busy = false,
-}: {
+export const PrivateAction = (props: {
   label: string
   kind: IconKind
   onClick: (button: HTMLButtonElement) => void
@@ -48,30 +41,28 @@ export const PrivateAction = ({
   <button
     type="button"
     class="btn btn-ghost btn-square size-11 shrink-0 p-0"
-    aria-label={label}
-    title={label}
-    disabled={disabled}
+    aria-label={props.label}
+    title={props.label}
+    disabled={props.disabled}
     onClick={(event) => {
-      if (event.currentTarget instanceof HTMLButtonElement) {
-        onClick(event.currentTarget)
-      }
+      props.onClick(event.currentTarget)
     }}
   >
-    {busy ? (
+    {props.busy === true ? (
       <span class="loading loading-spinner loading-sm" aria-hidden="true" />
     ) : (
-      <PrivateIcon kind={kind} />
+      <PrivateIcon kind={props.kind} />
     )}
-    <span class="sr-only">{label}</span>
+    <span class="sr-only">{props.label}</span>
   </button>
 )
 
-export const PrivateCopy = ({ value, locale }: { value: string; locale: Locale }): JSX.Element => {
-  const c = pick(ENTRY_COPY, locale)
-  const [copied, setCopied] = useState<'done' | 'failed' | 'idle'>('idle')
+export const PrivateCopy = (props: { value: string; locale: Locale }): JSX.Element => {
+  const c = (): (typeof ENTRY_COPY)[Locale] => pick(ENTRY_COPY, props.locale)
+  const [copied, setCopied] = createSignal<'done' | 'failed' | 'idle'>('idle')
   const copy = async (): Promise<void> => {
     try {
-      await navigator.clipboard.writeText(value)
+      await navigator.clipboard.writeText(props.value)
       setCopied('done')
     } catch {
       setCopied('failed')
@@ -81,39 +72,36 @@ export const PrivateCopy = ({ value, locale }: { value: string; locale: Locale }
     <div class="relative size-11 shrink-0">
       <PrivateAction
         kind="copy"
-        label={c.copy[copied]}
+        label={c().copy[copied()]}
         onClick={() => {
           void copy()
         }}
       />
       <span class="bg-base-100 absolute top-full right-0 z-10 w-max max-w-40 rounded text-xs" role="status">
-        {copied === 'idle' ? '' : c.copy[copied]}
+        {copied() === 'idle' ? '' : c().copy[copied()]}
       </span>
     </div>
   )
 }
 
-export const PrivateDialog = ({
-  title,
-  closeLabel,
-  onClose,
-  children,
-  opener,
-}: {
+// Opens modally on mount and, on unmount, returns focus to the control that
+// opened it (or a live sibling when that control is now disabled).
+export const PrivateDialog = (props: {
   title: string
   closeLabel: string
   onClose: () => void
   children: JSX.Element
   opener: HTMLElement | null
 }): JSX.Element => {
-  const titleId = useId()
-  const dialog = useRef<HTMLDialogElement | null>(null)
-  const closeButton = useRef<HTMLButtonElement | null>(null)
-  useEffect(() => {
-    const node = dialog.current
+  const titleId = createUniqueId()
+  let dialog: HTMLDialogElement | undefined
+  let closeButton: HTMLButtonElement | undefined
+  onMount(() => {
+    const node = dialog
+    const { opener } = props
     node?.showModal()
-    closeButton.current?.focus({ preventScroll: true })
-    return () => {
+    closeButton?.focus({ preventScroll: true })
+    onCleanup(() => {
       node?.close()
       if (opener instanceof HTMLElement && opener.isConnected) {
         const target = opener.matches(':disabled')
@@ -121,17 +109,21 @@ export const PrivateDialog = ({
           : opener
         target?.focus({ preventScroll: true })
       }
-    }
-  }, [opener])
+    })
+  })
   const close = (): void => {
-    dialog.current?.close()
+    dialog?.close()
   }
   return (
     <dialog
       class="modal"
-      ref={dialog}
+      ref={(el) => {
+        dialog = el
+      }}
       aria-labelledby={titleId}
-      onClose={onClose}
+      onClose={() => {
+        props.onClose()
+      }}
       onClick={(event) => {
         if (event.target === event.currentTarget) {
           close()
@@ -140,12 +132,19 @@ export const PrivateDialog = ({
     >
       <div class="modal-box max-w-md">
         <h2 id={titleId} class="text-lg font-bold">
-          {title}
+          {props.title}
         </h2>
-        {children}
+        {props.children}
         <div class="modal-action">
-          <button ref={closeButton} type="button" class="btn" onClick={close}>
-            {closeLabel}
+          <button
+            ref={(el) => {
+              closeButton = el
+            }}
+            type="button"
+            class="btn"
+            onClick={close}
+          >
+            {props.closeLabel}
           </button>
         </div>
       </div>
@@ -153,22 +152,23 @@ export const PrivateDialog = ({
   )
 }
 
-export const PrivateDetails = ({
-  fields,
-  locale,
-}: {
+export const PrivateDetails = (props: {
   fields: { label: string; value: string }[]
   locale: Locale
 }): JSX.Element => (
   <dl class="mt-5 flex flex-col gap-5">
-    {fields.map(({ label, value }): JSX.Element => (
-      <div key={label}>
-        <dt class="text-sm font-semibold">{label}</dt>
-        <dd class="mt-1 flex items-start gap-2">
-          <span class="min-w-0 grow font-mono text-xs leading-relaxed break-all select-text">{value}</span>
-          <PrivateCopy value={value} locale={locale} />
-        </dd>
-      </div>
-    ))}
+    <For each={props.fields}>
+      {(field) => (
+        <div>
+          <dt class="text-sm font-semibold">{field.label}</dt>
+          <dd class="mt-1 flex items-start gap-2">
+            <span class="min-w-0 grow font-mono text-xs leading-relaxed break-all select-text">
+              {field.value}
+            </span>
+            <PrivateCopy value={field.value} locale={props.locale} />
+          </dd>
+        </div>
+      )}
+    </For>
   </dl>
 )

@@ -1,12 +1,11 @@
-/** @jsxImportSource hono/jsx/dom */
+// @vitest-environment happy-dom
 import { pick } from '@fuda/i18n'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
 import { DASH_COPY } from './copy.ts'
 import type { ClaimState } from './ens-claim.ts'
 import { EnsClaim } from './EnsClaim.tsx'
-import { viewProps, viewText, walkView } from './test/test-view.ts'
+import { cleanup, mount, textOf } from './test/render.tsx'
 
 const copy = pick(DASH_COPY, 'en').ens
 const NAME = 'wassie-coffee.fuda.eth'
@@ -17,50 +16,50 @@ const noop = (): void => {
   // the button's press is exercised by the state machine's own tests
 }
 
-const render = (state: ClaimState): JSX.Element =>
-  EnsClaim({ copy, name: NAME, onClaim: noop, ownerAddress: OWNER, state })
+const show = (state: ClaimState): HTMLElement =>
+  mount(() => <EnsClaim copy={copy} name={NAME} onClaim={noop} ownerAddress={OWNER} state={state} />)
 
 describe(EnsClaim, () => {
-  it('names the venue before it is claimed and offers the button', () => {
-    const view = render({ kind: 'unclaimed' })
+  afterEach(cleanup)
 
-    expect(viewText(view)).toContain(NAME)
-    expect(viewText(view)).toContain(copy.claim)
-    expect(walkView(view).some((node) => viewProps(node).disabled === true)).toBe(false)
+  it('names the venue before it is claimed and offers the button', () => {
+    const host = show({ kind: 'unclaimed' })
+
+    expect(textOf(host)).toContain(NAME)
+    expect(textOf(host)).toContain(copy.claim)
+    expect(host.querySelector('button')?.disabled).toBe(false)
   })
 
   it('disables the button and says which leg is in flight', () => {
-    const submitting = render({ kind: 'submitting', name: NAME })
+    const host = show({ kind: 'submitting', name: NAME })
 
-    expect(viewText(submitting)).toContain(copy.submitting)
-    expect(walkView(submitting).some((node) => viewProps(node).disabled === true)).toBe(true)
+    expect(textOf(host)).toContain(copy.submitting)
+    expect(host.querySelector('button')?.disabled).toBe(true)
   })
 
   it.each([TX, null])('links the claimed name to its owner with transaction %s', (claimTxHash) => {
-    const view = render({ claimTxHash, kind: 'claimed', name: NAME })
+    const host = show({ claimTxHash, kind: 'claimed', name: NAME })
 
-    expect(viewText(view)).toContain(copy.claimedLabel)
-    expect(walkView(view).map((node) => viewProps(node).href)).toContain(
-      `https://sepolia.etherscan.io/address/${OWNER}`,
-    )
-    const link = walkView(view).find((node) => viewProps(node).href !== undefined)!
-    expect(viewText(link)).toBe(NAME)
-    expect(viewProps(link).target).toBe('_blank')
-    expect(viewText(view)).not.toContain(copy.claim)
+    expect(textOf(host)).toContain(copy.claimedLabel)
+    const link = host.querySelector('a')
+    expect(link?.getAttribute('href')).toBe(`https://sepolia.etherscan.io/address/${OWNER}`)
+    expect(textOf(link)).toBe(NAME)
+    expect(link?.getAttribute('target')).toBe('_blank')
+    expect(host.querySelector('button')).toBeNull()
   })
 
   it('gives each failure its own sentence and offers a retry', () => {
-    const rejected = render({ failure: 'rejected', kind: 'failed' })
-    const unsponsored = render({ failure: 'unsponsored', kind: 'failed' })
+    const rejected = show({ failure: 'rejected', kind: 'failed' })
+    const unsponsored = show({ failure: 'unsponsored', kind: 'failed' })
 
-    expect(viewText(rejected)).toContain(copy.failures.rejected)
-    expect(viewText(unsponsored)).toContain(copy.failures.unsponsored)
-    expect(viewText(rejected)).toContain(copy.retry)
+    expect(textOf(rejected)).toContain(copy.failures.rejected)
+    expect(textOf(unsponsored)).toContain(copy.failures.unsponsored)
+    expect(textOf(rejected)).toContain(copy.retry)
   })
 
   it('marks the failure line for assistive technology', () => {
-    const view = render({ failure: 'network', kind: 'failed' })
+    const host = show({ failure: 'network', kind: 'failed' })
 
-    expect(walkView(view).some((node) => viewProps(node).role === 'alert')).toBe(true)
+    expect(host.querySelector('[role="alert"]')).not.toBeNull()
   })
 })

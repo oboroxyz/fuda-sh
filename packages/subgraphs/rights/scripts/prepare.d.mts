@@ -1,6 +1,6 @@
 export interface PrepareOptions {
   rootDir: string
-  wranglerPath: string
+  targetsPath: string
   networkConfigPath: string
   templatePath: string
 }

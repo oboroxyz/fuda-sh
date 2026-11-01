@@ -1,16 +1,9 @@
+// Shared Solid components and the renderer-independent helpers the apps use.
+// `wallet-button.ts` is also exported on its own path for apps/api, which
+// renders it on the server with `hono/html`.
 export { createQrDetector } from './barcode.ts'
 export type { BarcodeDetectorLike, DetectedBarcode } from './barcode.ts'
-export { Scanner } from './Scanner.tsx'
 export { short } from './short.ts'
-export { IconButton } from './IconButton.tsx'
-export type { IconButtonProps } from './IconButton.tsx'
-export { LanguageSwitcher, ThemeToggle } from './controls.tsx'
-export type {
-  LanguageOption,
-  LanguageSwitcherProps,
-  ThemeControlLabels,
-  ThemeToggleProps,
-} from './controls.tsx'
 export {
   applyThemeMode,
   nextThemeMode,
@@ -22,10 +15,21 @@ export {
   watchThemeMode,
 } from './theme.ts'
 export type { ThemeEnvironment, ThemeMode } from './theme.ts'
+export type { WalletButtonProps } from './wallet-button.ts'
+export { CardsThree } from './CardsThree.tsx'
 export { ConfirmAction } from './ConfirmAction.tsx'
 export type { ConfirmActionProps } from './ConfirmAction.tsx'
+export { LanguageSwitcher, ThemeToggle } from './controls.tsx'
+export type {
+  LanguageOption,
+  LanguageSwitcherProps,
+  ThemeControlLabels,
+  ThemeToggleProps,
+} from './controls.tsx'
 export { FingerprintSimple } from './FingerprintSimple.tsx'
-export { WalletButton } from './WalletButton.tsx'
-export { CardsThree } from './CardsThree.tsx'
 export { FudaMark } from './FudaMark.tsx'
-export type { WalletButtonProps } from './wallet-button.ts'
+export { IconButton } from './IconButton.tsx'
+export type { IconButtonProps } from './IconButton.tsx'
+export { Scanner } from './Scanner.tsx'
+export type { ScannerLabels, ScannerProps } from './Scanner.tsx'
+export { WalletButton } from './WalletButton.tsx'

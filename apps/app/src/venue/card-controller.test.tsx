@@ -1,9 +1,9 @@
 import type { Locale } from '@fuda/i18n'
 // @vitest-environment happy-dom
-/** @jsxImportSource hono/jsx/dom */
 import type { PublicVenue } from '@fuda/sdk'
-import { render, useState } from 'hono/jsx/dom'
-import type { JSX } from 'hono/jsx/dom/jsx-runtime'
+import { createSignal } from 'solid-js'
+import type { JSX } from 'solid-js'
+import { render as solidRender } from 'solid-js/web'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { readCard, rememberCard } from '../card-memory.ts'
@@ -11,6 +11,21 @@ import { readPassMemory } from '../pass-memory.ts'
 import { CardScreen } from './CardScreen.tsx'
 import type { CardScreenIo } from './CardScreen.tsx'
 import { VenueLayout } from './VenueLayout.tsx'
+
+const disposers: (() => void)[] = []
+// Solid delegates events to the document, so a host must be attached to
+// receive clicks.
+const render = (view: () => JSX.Element, host: HTMLElement): void => {
+  if (!host.isConnected) {
+    document.body.append(host)
+  }
+  disposers.push(solidRender(view, host))
+}
+const unmountAll = (): void => {
+  for (const dispose of disposers.splice(0)) {
+    dispose()
+  }
+}
 
 const venue: PublicVenue = {
   brandColor: '#ffffff',
@@ -46,6 +61,7 @@ const io = (): CardScreenIo => ({
 
 describe('venue controller', () => {
   afterEach(() => {
+    unmountAll()
     document.body.replaceChildren()
     localStorage.clear()
   })
@@ -53,14 +69,16 @@ describe('venue controller', () => {
   it('shows an accessible fuda icon and no return link', () => {
     const host = document.createElement('div')
     render(
-      <VenueLayout>
-        <p>Card content</p>
-      </VenueLayout>,
+      () => (
+        <VenueLayout>
+          <p>Card content</p>
+        </VenueLayout>
+      ),
       host,
     )
     expect(host.querySelector('header svg[role="img"]')?.getAttribute('aria-label')).toBe('fuda.')
     expect(host.querySelector('header a')).toBeNull()
-    render(<></>, host)
+    unmountAll()
   })
 
   it('opens a saved card without issuing again', async () => {
@@ -73,19 +91,19 @@ describe('venue controller', () => {
     const host = document.createElement('div')
     document.body.replaceChildren(host)
     const deps = io()
-    render(<CardScreen handle={venue.handle} slug={null} io={deps} storage={localStorage} />, host)
+    render(() => <CardScreen handle={venue.handle} slug={null} io={deps} storage={localStorage} />, host)
     await vi.waitFor(() => {
       expect(host.querySelector('.venue-qr [role="img"]')).not.toBeNull()
     })
     expect(deps.issueCard).not.toHaveBeenCalled()
     expect(host.querySelector('a[href="/"]')).toBeNull()
-    render(<></>, host)
+    unmountAll()
   })
 
   it('issues once when the primary action is clicked twice before rendering', async () => {
     const host = document.createElement('div')
     const deps = io()
-    render(<CardScreen handle={venue.handle} slug={null} io={deps} storage={localStorage} />, host)
+    render(() => <CardScreen handle={venue.handle} slug={null} io={deps} storage={localStorage} />, host)
     await vi.waitFor(() => {
       expect(host.querySelector('button')).not.toBeNull()
     })
@@ -96,7 +114,7 @@ describe('venue controller', () => {
       expect(host.textContent).toContain('Could not reach fuda')
     })
     expect(deps.issueCard).toHaveBeenCalledOnce()
-    render(<></>, host)
+    unmountAll()
   })
 
   it('keeps a saved card and pending wallet check when its language changes', async () => {
@@ -118,7 +136,7 @@ describe('venue controller', () => {
     }
     const host = document.createElement('div')
     const LocaleHost = (): JSX.Element => {
-      const [locale, setLocale] = useState<Locale>('en')
+      const [locale, setLocale] = createSignal<Locale>('en')
       return (
         <>
           <button
@@ -130,11 +148,11 @@ describe('venue controller', () => {
           >
             Japanese
           </button>
-          <CardScreen handle={venue.handle} slug={null} io={deps} locale={locale} />
+          <CardScreen handle={venue.handle} slug={null} io={deps} locale={locale()} />
         </>
       )
     }
-    render(<LocaleHost />, host)
+    render(() => <LocaleHost />, host)
     await vi.waitFor(() => {
       expect(host.textContent).toContain('Issued Jan 31, 2026')
     })
@@ -155,7 +173,7 @@ describe('venue controller', () => {
     expect(deps.fetchVenue).toHaveBeenCalledOnce()
     expect(deps.appleAvailable).toHaveBeenCalledOnce()
     expect(deps.issueCard).not.toHaveBeenCalled()
-    render(<></>, host)
+    unmountAll()
   })
 
   it('changes language during issuance without restarting the request or clearing its error', async () => {
@@ -169,23 +187,23 @@ describe('venue controller', () => {
     }
     const host = document.createElement('div')
     const LocaleHost = (): JSX.Element => {
-      const [locale, setLocale] = useState<Locale>('en')
+      const [locale, setLocale] = createSignal<Locale>('en')
       return (
         <>
           <button
             data-locale
             type="button"
             onClick={() => {
-              setLocale(locale === 'en' ? 'ja' : 'en')
+              setLocale(locale() === 'en' ? 'ja' : 'en')
             }}
           >
             Change language
           </button>
-          <CardScreen handle={venue.handle} slug={null} io={deps} locale={locale} />
+          <CardScreen handle={venue.handle} slug={null} io={deps} locale={locale()} />
         </>
       )
     }
-    render(<LocaleHost />, host)
+    render(() => <LocaleHost />, host)
     await vi.waitFor(() => {
       expect(host.textContent).toContain('Get your free membership card')
     })
@@ -206,7 +224,7 @@ describe('venue controller', () => {
     })
     expect(deps.fetchVenue).toHaveBeenCalledOnce()
     expect(deps.issueCard).toHaveBeenCalledOnce()
-    render(<></>, host)
+    unmountAll()
   })
 
   it.each(['success', 'failure'])(
@@ -216,7 +234,7 @@ describe('venue controller', () => {
       const deps = { ...io(), issueCard: async () => await pending.promise }
       const host = document.createElement('div')
       const RouteHost = (): JSX.Element => {
-        const [slug, setSlug] = useState<string | null>(null)
+        const [slug, setSlug] = createSignal<string | null>(null)
         return (
           <>
             <button
@@ -228,11 +246,11 @@ describe('venue controller', () => {
             >
               Change route
             </button>
-            <CardScreen handle={venue.handle} slug={slug} io={deps} />
+            <CardScreen handle={venue.handle} slug={slug()} io={deps} />
           </>
         )
       }
-      render(<RouteHost />, host)
+      render(() => <RouteHost />, host)
       await vi.waitFor(() => {
         expect(host.querySelector('main button')).not.toBeNull()
       })
@@ -265,7 +283,7 @@ describe('venue controller', () => {
       expect(host.textContent).toContain('No card here')
       expect(readCard(venue.handle, 'regular')?.uid ?? null).toBe(outcome === 'success' ? uid : null)
       expect(readPassMemory().map((pass) => pass.uid)).toStrictEqual(outcome === 'success' ? [uid] : [])
-      render(<></>, host)
+      unmountAll()
     },
   )
 })

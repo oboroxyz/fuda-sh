@@ -90,7 +90,7 @@ describe('issuer onboarding', () => {
     await expect(me.json()).resolves.toMatchObject({ cards: [], issuer: { handle: 'wassie-coffee' } })
   })
 
-  it('rejects a bad handle, a taken handle and a second issuer', async () => {
+  it('rejects a bad handle and a taken handle', async () => {
     const app = appWith({ chain: fakeChain(), now: () => NOW })
     const { token } = await signIn(app, publicEnv())
     const bad = await postJson(app, publicEnv(), '/v1/issuers', { ...CARD_INPUT, handle: 'Auth' }, token)
@@ -106,8 +106,6 @@ describe('issuer onboarding', () => {
     )
     await expect(missing.json()).resolves.toStrictEqual({ error: 'bad_input' })
     await postJson(app, publicEnv(), '/v1/issuers', CARD_INPUT, token)
-    const again = await postJson(app, publicEnv(), '/v1/issuers', { ...CARD_INPUT, handle: 'second' }, token)
-    await expect(again.json()).resolves.toStrictEqual({ error: 'issuer_exists' })
     const { token: otherToken } = await signIn(app, publicEnv(), other)
     const taken = await postJson(app, publicEnv(), '/v1/issuers', CARD_INPUT, otherToken)
     expect(taken.status).toBe(409)
