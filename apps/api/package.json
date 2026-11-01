@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "imports": {
+    "#api/*": "./src/*"
+  },
   "scripts": {
     "dev": "cd targets/local && vp dev --port 8787",
     "deploy": "cd targets/develop && void deploy",
@@ -27,7 +30,7 @@
     "@worldcoin/idkit-core": "^4.3.0",
     "@worldcoin/idkit-server": "^1.1.1",
     "drizzle-orm": "^0.45.2",
-    "hono": "^4.9.0",
+    "hono": "^4.13.14",
     "valibot": "^1.1.0",
     "viem": "^2.37.0"
   },

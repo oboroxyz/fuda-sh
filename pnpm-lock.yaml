@@ -69,8 +69,8 @@ importers:
         specifier: ^0.45.2
         version: 0.45.2(@cloudflare/workers-types@4.20260702.1)(better-sqlite3@13.0.3)(kysely@0.29.7)(mysql2@3.24.6(@types/node@24.13.3))(pg@8.23.1)
       hono:
-        specifier: ^4.9.0
-        version: 4.13.5
+        specifier: ^4.13.14
+        version: 4.13.14
       valibot:
         specifier: ^1.1.0
         version: 1.4.2(typescript@7.0.2)
@@ -395,8 +395,8 @@ importers:
         specifier: 0.2.6
         version: 0.2.6
       hono:
-        specifier: ^4.13.5
-        version: 4.13.5
+        specifier: ^4.13.14
+        version: 4.13.14
       solid-js:
         specifier: 1.9.17
         version: 1.9.17
@@ -4529,10 +4529,6 @@ packages:
 
   hono@4.13.14:
     resolution: {integrity: sha512-yhRLQ21U6qa9Hsu2N7Qcbh8tE+WKEcoErjIo56LeSGiGXGp9sA7UpE86Ui9uexb61KakiGwuHMn2QdV7w6i6kQ==}
-    engines: {node: '>=16.9.0'}
-
-  hono@4.13.5:
-    resolution: {integrity: sha512-O6+/eCYRkzzzy0rPWwKLiGBR1nFuUPZynnwjxN1MBA62NNqbT0wQEzQyK2gSO5yDIDB336sXQleAhOHrzlYyKw==}
     engines: {node: '>=16.9.0'}
 
   html-entities@2.3.3:
@@ -9018,8 +9014,6 @@ snapshots:
       function-bind: 1.1.2
 
   hono@4.13.14: {}
-
-  hono@4.13.5: {}
 
   html-entities@2.3.3: {}
 

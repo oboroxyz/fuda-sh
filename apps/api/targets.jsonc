@@ -114,7 +114,7 @@
   // carries no routes and must never be deployed.
   //
   // ISSUER_ADDRESS/DELEGATION_UID/EAS_SCHEMAS below are deterministic outputs
-  // of FakeChain's default signer and seedRootDelegation (see src/index.ts) —
+  // of FakeChain's default signer and seedRootDelegation (see src/runtime.ts) —
   // the fake chain built on the first request re-derives the same UIDs and
   // address, so this block never needs regenerating.
   "local": {

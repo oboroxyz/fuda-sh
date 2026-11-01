@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { cloudflareTest, readD1Migrations } from '@cloudflare/vitest-pool-workers'
 import { defineConfig } from 'vitest/config'
@@ -13,7 +14,7 @@ import { COMPATIBILITY_DATE, COMPATIBILITY_FLAGS, TARGETS } from './targets.ts'
 export default defineConfig({
   plugins: [
     cloudflareTest(async () => ({
-      main: './src/index.ts',
+      main: './test/worker.ts',
       miniflare: {
         bindings: {
           ...TARGETS.develop.vars,
@@ -26,6 +27,10 @@ export default defineConfig({
       },
     })),
   ],
+  resolve: {
+    // Void's build plugin applies the same runtime-only entry in Workers.
+    alias: [{ find: /^void$/u, replacement: fileURLToPath(import.meta.resolve('void/handler')) }],
+  },
   test: {
     include: ['test/**/*.test.ts', 'src/**/*.test.ts'],
     setupFiles: ['./test/setup.ts'],

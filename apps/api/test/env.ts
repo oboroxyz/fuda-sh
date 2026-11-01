@@ -1,11 +1,11 @@
 import { env } from 'cloudflare:test'
 import type { Hex } from 'viem'
 
-import { createApp } from '../src/app.ts'
-import type { AppDeps } from '../src/app.ts'
 import { FakeChain } from '../src/chain/fake-chain.ts'
 import type { Bindings } from '../src/env.ts'
-import type { DevBindings } from '../src/index.ts'
+import type { AppDeps } from '../src/request.ts'
+import type { DevBindings } from '../src/runtime.ts'
+import { createApp } from './app.ts'
 
 // `env` carries the develop target's vars (see vite.config.ts), which include a
 // live ENS topology. Strip the local-dev chain opt-in, any signer or RPC, and

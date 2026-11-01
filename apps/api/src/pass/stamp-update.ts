@@ -3,7 +3,7 @@ import type { Hex, StampSummary } from '@fuda/sdk'
 import type { Context } from 'hono'
 
 import type { AppEnv } from '../env.ts'
-import { waitUntilOf } from '../routes/verify.ts'
+import { waitUntilOf } from '../handlers/verify.ts'
 import { readStampSummary } from '../stamps/store.ts'
 
 const sameDisplay = (left: StampSummary, right: StampSummary): boolean =>

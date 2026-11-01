@@ -28,7 +28,7 @@ flowchart LR
 
 | Component | Path | Responsibility |
 | --- | --- | --- |
-| API | `apps/api` | Coordinates issuance, revocation, gate operational state, pass generation, and +Private announcement writes |
+| API | `apps/api` | Coordinates issuance, revocation, gate operational state, pass generation, and +Private announcement writes. Void discovers its server routes and runs shared request middleware ([ADR 0012](./adr/0012-void-api-routing.md)) |
 | Operator dashboard | `apps/dash` | Gives authorized issuers routed Overview, Rights, and Issue views; derives operational summaries from D1 member rows, issues and revokes through the API, and queries chain status separately through the rights subgraph. Its Void Worker renders the pages, holds the session in HttpOnly cookies and forwards the browser's api calls ([ADR 0010](./adr/0010-void-pages-and-frontend-workers.md)) |
 | Member app | `apps/app` | Holds member signing rails, answers Signed challenges, lists public member passes from holder addresses and device memory, and discovers +Private rights client-side |
 | Gate | `apps/gate` | Reads presented rights, requests proof when required, and renders an ADMIT or REJECT verdict |

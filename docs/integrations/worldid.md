@@ -76,7 +76,7 @@ Each refusal names its reason in the log. A badge that never arrives is otherwis
 
 ### 3. The routes
 
-[`apps/api/src/routes/badges.ts`](../../apps/api/src/routes/badges.ts)
+[`apps/api/src/handlers/badges.ts`](../../apps/api/src/handlers/badges.ts)
 
 `POST /v1/badges/:kind/context` returns the RP-signed context. `POST /v1/badges/:kind` takes `{ uid, payload }`, verifies, and stores. Both are rate-limited, both are `no-store`, and both answer **`501 badges_not_configured`** while the verifier is unconfigured — an unconfigured deployment looks like the feature does not exist rather than like it is broken.
 
@@ -84,7 +84,7 @@ A badge is refused for a Right that would not be admitted: the route resolves th
 
 ### 4. Badges in the gate verdict
 
-[`apps/api/src/routes/verify.ts`](../../apps/api/src/routes/verify.ts)
+[`apps/api/src/handlers/verify.ts`](../../apps/api/src/handlers/verify.ts)
 
 `badgesFor` catches a failed read and returns an empty list, and an empty list means **no `badges` key at all** — a Right without one keeps the exact response shape it had before badges existed. The read is advisory in the same way the Attendance hook is: it can never turn a scan into a failure, and a missing table looks like a healthy verdict. Confirm the table by SQL, never by a verdict.
 

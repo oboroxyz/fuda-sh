@@ -1,6 +1,6 @@
 # ADR 0009: move the apps onto Void, with Solid for the frontends
 
-- **Status**: Accepted 2026-10-31. Every app has moved: `gate`, `dash` and `app` are Solid 1.9 Void static SPAs, and `apps/api` is a Void app with one project per target. None has been deployed with Void yet. [ADR 0010](0010-void-pages-and-frontend-workers.md) supersedes the decision below not to server-render the frontends. The browser end-to-end suite (`packages/e2e`, `pnpm e2e`) is the safety net.
+- **Status**: Accepted 2026-10-31. Every app has moved: `gate`, `dash` and `app` are Solid 1.9 Void static SPAs, and `apps/api` is a Void app with one project per target. None has been deployed with Void yet. [ADR 0010](0010-void-pages-and-frontend-workers.md) supersedes the decision below not to server-render the frontends. [ADR 0012](0012-void-api-routing.md) supersedes the API middleware bridge with native Void server routing. The browser end-to-end suite (`packages/e2e`, `pnpm e2e`) is the safety net.
 - **Scope**: `apps/gate`, `apps/dash`, `apps/app`, `packages/ui` and `apps/api`.
 
 ## Context

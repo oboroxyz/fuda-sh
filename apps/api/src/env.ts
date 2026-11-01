@@ -1,3 +1,5 @@
+import type { CloudEnv } from 'void'
+
 import type { MemberSession, OperatorSession } from './auth/session.ts'
 import type { ChainClient } from './chain/client.ts'
 import type { AccessGrant } from './connected-apps/store.ts'
@@ -78,7 +80,4 @@ export interface Variables {
   member: MemberSession
 }
 
-export interface AppEnv {
-  Bindings: Bindings
-  Variables: Variables
-}
+export type AppEnv = CloudEnv
