@@ -6,7 +6,7 @@
 // The rights subgraph's `graph:prepare` also reads `develop.vars` from this file
 // (packages/subgraphs/rights/README.md), so it stays plain JSONC.
 //
-// Secrets (`wrangler secret put`, never `vars`): SIGNER_PRIVATE_KEY,
+// Secrets (`void secret put`, never `vars`): SIGNER_PRIVATE_KEY,
 // ENS_GATEWAY_SIGNER_KEY, ENS_GATEWAY_SECRET, ENS_VOUCHER_KEY,
 // ENS_SEPOLIA_RPC_URL, ENS_PAYMASTER_UPSTREAM (the last two are secrets
 // because an Alchemy endpoint carries its API key in the path and this file
@@ -92,7 +92,7 @@
     "name": "fuda-api-production",
     "routes": [],
     "d1_databases": [
-      { "binding": "DB", "database_name": "fuda", "database_id": "PLACEHOLDER-RUN-WRANGLER-D1-CREATE-FUDA" },
+      { "binding": "DB", "database_name": "fuda", "database_id": "PLACEHOLDER-CREATE-PRODUCTION-D1" },
     ],
     "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "fuda-media" }],
     "vars": {

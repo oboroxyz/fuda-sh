@@ -10,7 +10,7 @@ pnpm --filter api migrate:local
 pnpm --filter api dev
 ```
 
-With `USE_FAKE_CHAIN=1` set in `targets/local/.env` (the default in the example file) and no `SIGNER_PRIVATE_KEY` / `BASE_RPC_URL`, the api runs against an in-memory `FakeChain` instead of Base Sepolia for chain state and writes — no signer or funds needed. EOA signatures verify offline. Local smart-wallet signatures (including Base Account passkeys) use read-only verification against the default Base Sepolia RPC; they still require network access and a valid signature. Tests that construct `FakeChain` without a verifier remain offline. `src/index.ts` seeds a root `IssuerDelegation` on first request and logs the `ISSUER_ADDRESS` / `DELEGATION_UID` it used; the `local` block of `targets.jsonc` already carries the matching (deterministic) values, and `pnpm --filter api dev` runs the `local` Void target, so the quick start above works as written. `migrate:local` applies migrations to the same local database (`targets/local/.void/`) that `pnpm --filter api dev` then serves, and `pnpm --filter api d1:local --command "…"` runs SQL against it after a `migrate:local`. Setting either `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL` always wins over `USE_FAKE_CHAIN` — the fake chain is never constructed in production, only under this explicit local opt-in. Either binding also arms the admin lock: set `ADMIN_TOKEN` in `targets/local/.env` alongside it, or `/issue`, `/revoke` and `/members` answer `401` with `x-auth-mode: locked`.
+With `USE_FAKE_CHAIN=1` set in `targets/local/.env` (the default in the example file) and no `SIGNER_PRIVATE_KEY` / `BASE_RPC_URL`, the api runs against an in-memory `FakeChain` instead of Base Sepolia for chain state and writes — no signer or funds needed. EOA signatures verify offline. Local smart-wallet signatures (including Base Account passkeys) use read-only verification against the default Base Sepolia RPC; they still require network access and a valid signature. Tests that construct `FakeChain` without a verifier remain offline. `src/index.ts` seeds a root `IssuerDelegation` on first request and logs the `ISSUER_ADDRESS` / `DELEGATION_UID` it used; the `local` block of `targets.jsonc` already carries the matching (deterministic) values, and `pnpm --filter api dev` runs the `local` Void target, so the quick start above works as written. `migrate:local` applies migrations to the same local database (`targets/local/.void/`) that `pnpm --filter api dev` then serves, and `pnpm --filter api d1:local "…"` runs SQL against it after a `migrate:local`. Setting either `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL` always wins over `USE_FAKE_CHAIN` — the fake chain is never constructed in production, only under this explicit local opt-in. Either binding also arms the admin lock: set `ADMIN_TOKEN` in `targets/local/.env` alongside it, or `/issue`, `/revoke` and `/members` answer `401` with `x-auth-mode: locked`.
 
 ## Targets
 
@@ -22,7 +22,7 @@ The api deploys with Void, which has no named environments, so each target is it
 | `deploy`, `migrate:remote`                | `develop`    |
 | `deploy:production`, `migrate:production` | `production` |
 
-Void does not manage the D1 migrations (`inference.bindings.db` is off): the `migrate:*` scripts build the target and run `wrangler d1 migrations apply` against its generated `dist/ssr/wrangler.json`.
+The `migrate:*` scripts use `void db migrate`, with `--remote` for deployed D1. Each target’s `db/migrations` symlink shares the hand-written SQL in `migrations/`. Schema inference stays off: deploy does not generate or apply migrations. Remote D1 keeps its `d1_migrations` history; the patched local CLI adopts that history into `_void_migrations` while preserving existing data and the old table. No reset is needed. Local SQL uses `void db execute` through `d1:local`, with SQL as a positional argument. Remote scripts select the Cloudflare account with `void connect --platform cloudflare` before migration.
 
 ## Attendance
 
@@ -94,7 +94,7 @@ Migrations under `migrations/` are hand-written SQL for the MVP — there is no 
 
 ## One-time chain setup, secrets and deploy
 
-Covered in [`docs/runbook.md`](../../docs/runbook.md) — chain setup order, `wrangler secret put` names, wallet-platform setup, deploy order and the live smoke/manual checks. `apps/api/src/env.ts` is the source of truth for every deployed binding name; the local-only `USE_FAKE_CHAIN` opt-in lives in `DevBindings` in `apps/api/src/index.ts` instead.
+Covered in [`docs/runbook.md`](../../docs/runbook.md) — chain setup order, `void secret put` names, wallet-platform setup, deploy order and the live smoke/manual checks. `apps/api/src/env.ts` is the source of truth for every deployed binding name; the local-only `USE_FAKE_CHAIN` opt-in lives in `DevBindings` in `apps/api/src/index.ts` instead.
 
 ## Smoke test
 
@@ -109,7 +109,7 @@ API_URL=https://api.fuda.sh ADMIN_TOKEN=… pnpm --filter api smoke:live --ladde
 pnpm --filter api smoke:live
 ```
 
-`--ladder` (or `SMOKE_LADDERS`) takes a comma-separated list of `bearer`, `signed`, or `all`; the default runs both supported ladders. `private` is rejected before any issuance, including in a mixed list. `API_URL` defaults to `http://localhost:8787`, so the script also works against a locally running `wrangler dev` (with or without `USE_FAKE_CHAIN=1`, as long as a signer is available to `/issue`/`/revoke`).
+`--ladder` (or `SMOKE_LADDERS`) takes a comma-separated list of `bearer`, `signed`, or `all`; the default runs both supported ladders. `private` is rejected before any issuance, including in a mixed list. `API_URL` defaults to `http://localhost:8787`, so the script also works against a locally running `pnpm --filter api dev` (with or without `USE_FAKE_CHAIN=1`, as long as a signer is available to `/issue`/`/revoke`).
 
 Every returned issue UID is revoked in `finally`, including when an assertion or later request fails. Signed holder keys are generated afresh per run. If the revoke request fails, the script exits non-zero; use the logged issue UID to retry `/revoke`. An interrupted process or an issue response lost after on-chain issuance still requires operational reconciliation.
 

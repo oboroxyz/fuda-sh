@@ -1,3 +1,4 @@
+-- void:allow-destructive
 -- A member number is unique per issuer, not per card
 -- (docs/specs/ens-naming.md#member-number): the ENS label is
 -- `<member-no>.<issuer>.fuda.eth`, so two cards of one venue minting the same

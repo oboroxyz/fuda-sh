@@ -26,7 +26,7 @@ When handing off captures, provide their absolute paths and identify the viewpor
 
 ## Toolchain
 
-Vite+ (`vp`) drives frontend development and builds, workspace tests, linting, and formatting. Package-level `vite.config.ts` files configure app and test behavior; the root `vite.config.ts` holds shared lint and formatting policy. The API dev server uses Wrangler. Before changing lint rules, read the root file's header and the comments beside the relevant configuration; they record the structural exceptions and dependency constraints.
+Vite+ (`vp`) drives frontend development and builds, workspace tests, linting, and formatting. Package-level `vite.config.ts` files configure app and test behavior; the root `vite.config.ts` holds shared lint and formatting policy. The API dev server uses the local Void target through `vp dev`. Database operations use `void db`; only the E2E built-Worker harness depends directly on Wrangler. Before changing lint rules, read the root file's header and the comments beside the relevant configuration; they record the structural exceptions and dependency constraints.
 
 - Use the root `package.json` scripts as entry points, including `pnpm lint`, `pnpm format`, and `pnpm check`. Install with `pnpm install --frozen-lockfile`; pnpm provisions the repository's Node version. These commands are entry points, not a requirement to run every command at every workflow checkpoint; follow the verification cadence in `.agents/rules/workflow-policy.md`.
 - Keep lint strict. Suppress a rule only at the narrowest applicable line and include the reason: `// oxlint-disable-next-line <rule> -- <why>`.

@@ -68,3 +68,68 @@ index bd4cc70e5b4170bbd82747d6f79ed953cc0eb407..0dd17a2f2af3d2ba439ad16dc7c922d3
  			remote,
  			assetsDir: resolvedConfig?.build.assetsDir,
  			webSocketClasses: [...(scan.websockets ?? []).map((route) => route.className), ...options.websocketTombstones ?? []],
+diff --git a/dist/local-d1-CAwAs9GH.mjs b/dist/local-d1-CAwAs9GH.mjs
+index 4785107548e926a26c0d2c65f472b9d587cec06d..0b32ff19ddff9fbb0aca544434c631ab474ca50d 100644
+--- a/dist/local-d1-CAwAs9GH.mjs
++++ b/dist/local-d1-CAwAs9GH.mjs
+@@ -3,6 +3,7 @@ import { b as readRootWranglerConfig } from "./wrangler-I-scB_1t.mjs";
+ import { r as getMiniflareDatabasePath } from "./runner-3uGC-oLF.mjs";
+ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+ import { createHash } from "node:crypto";
++import { i as materializeCloudflareConfig } from "./cloudflare-config-CH1AylZT.mjs";
+ //#region src/local-d1.ts
+ const LOCAL_D1_STATE_FILE = "local-d1.json";
+ const VITE_CONFIG_NAMES = [
+@@ -16,6 +17,7 @@ const VITE_CONFIG_NAMES = [
+ function readConfiguredDatabaseId(root, bindingName) {
+ 	let rootConfig;
+ 	try {
++		materializeCloudflareConfig(root);
+ 		rootConfig = readRootWranglerConfig(root);
+ 	} catch (error) {
+ 		throw new Error(`db: cannot read malformed Wrangler configuration in ${root}.`, { cause: error });
+diff --git a/dist/runner-3uGC-oLF.mjs b/dist/runner-3uGC-oLF.mjs
+index 1f3ad3d30f010f8baa4d2cae278fbfef9ad0a6fb..ff366fde8d0442b41e8eebd2e8d5af0614175f20 100644
+--- a/dist/runner-3uGC-oLF.mjs
++++ b/dist/runner-3uGC-oLF.mjs
+@@ -7,6 +7,7 @@ import { createHash, createHmac } from "node:crypto";
+ //#region src/migrations/runner.ts
+ const SQLITE_INTERNAL_TABLES = /* @__PURE__ */ new Set([
+ 	"_cf_METADATA",
++	"d1_migrations",
+ 	"_migrations",
+ 	"_void_migrations",
+ 	"__drizzle_migrations"
+@@ -40,7 +41,7 @@ async function getAppliedMigrations(dbPath) {
+ 	const db = await openSqliteDatabase(dbPath, { readonly: true });
+ 	try {
+ 		let tableName = null;
+-		for (const candidate of ["_void_migrations", "_migrations"]) if (db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='${candidate}'`).get()) {
++		for (const candidate of ["_void_migrations", "_migrations", "d1_migrations"]) if (db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='${candidate}'`).get()) {
+ 			tableName = candidate;
+ 			break;
+ 		}
+@@ -64,19 +65,20 @@ function getMiniflareDatabasePath(persistRoot, databaseId) {
+ 	return join(persistRoot, "v3", "d1", uniqueKey, `${hash}.sqlite`);
+ }
+ /**
+-* Move the legacy `_migrations` rows into `_void_migrations`. The check runs inside an
++* Adopt legacy Void and Wrangler D1 history without dropping the D1 tracking table. The check runs inside an
+ * IMMEDIATE transaction so two local runners cannot both copy and drop the old table.
+ */
+ function upgradeTrackingTable(db) {
+ 	db.transaction(() => {
+-		if (!db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='_migrations'").get()) return;
++		const legacyTables = ["_migrations", "d1_migrations"].filter((name) => db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(name));
++		if (legacyTables.length === 0) return;
+ 		db.exec(`
+       CREATE TABLE IF NOT EXISTS _void_migrations (
+         name TEXT PRIMARY KEY,
+         applied_at TEXT DEFAULT (datetime('now'))
+       )
+     `);
+-		db.exec(`INSERT OR IGNORE INTO _void_migrations (name, applied_at) SELECT name, applied_at FROM _migrations`);
++		for (const table of legacyTables) db.exec(`INSERT OR IGNORE INTO _void_migrations (name, applied_at) SELECT name, applied_at FROM ${table}`);
+ 		db.exec(`DROP TABLE IF EXISTS _migrations`);
+ 	}).immediate();
+ }

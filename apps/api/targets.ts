@@ -36,10 +36,9 @@ export const TARGETS = readTargets()
 export const COMPATIBILITY_DATE = '2025-09-01'
 export const COMPATIBILITY_FLAGS = ['nodejs_compat']
 
-// The Void config of one target. Migrations stay Wrangler's: `db: false` keeps
-// Void from inferring a D1 database of its own, so it neither generates nor
-// applies migrations, and `pnpm migrate:*` runs `wrangler d1 migrations apply`
-// against the config Void generates.
+// SQL stays hand-written and shared through each target's db/migrations link.
+// Disable schema inference so deploy never generates or applies migrations;
+// the explicit migrate:* commands use Void's database CLI.
 export const targetConfig = (name: TargetName): VoidConfig => {
   const target = TARGETS[name]
   return {
