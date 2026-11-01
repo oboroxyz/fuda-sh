@@ -14,7 +14,7 @@ export default defineConfig({
     routes: [{ custom_domain: true, pattern: 'gate.fuda.sh' }],
     vars: process.env.API_BASE_URL === undefined ? undefined : { API_BASE_URL: process.env.API_BASE_URL },
   },
-  inference: { appType: 'void' },
+  inference: { appType: 'void', build: 'vp build' },
   target: 'cloudflare',
   worker: { compatibility_date: '2025-09-01' },
 })

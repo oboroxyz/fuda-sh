@@ -17,7 +17,7 @@ index 8856a5efd392af5c31ffe0a5cc078f7169c4c7a5..303f4763786fd1f97fb66cb04e805a26
  				...version,
  				resources
 diff --git a/dist/deploy-CdM-LAxX.mjs b/dist/deploy-CdM-LAxX.mjs
-index 212883afbb46bb11261c15feb416d5a9698edc30..ee530d302cc3512bfc5ea6718766ad883bdd9a79 100644
+index 212883afbb46bb11261c15feb416d5a9698edc30..e59683adb4f716d1ae3ce3a8b44f4d39d3967cd9 100644
 --- a/dist/deploy-CdM-LAxX.mjs
 +++ b/dist/deploy-CdM-LAxX.mjs
 @@ -2735,7 +2735,7 @@ function parseJson(value) {
@@ -29,6 +29,14 @@ index 212883afbb46bb11261c15feb416d5a9698edc30..ee530d302cc3512bfc5ea6718766ad88
  	return (activeVersionId, bindings) => pinActiveWorkerSecrets({
  		output,
  		activeVersionId,
+@@ -5351,6 +5351,7 @@ async function publishCloudflareWorker(input) {
+ 			initialCloudflareCandidate,
+ 			assertUploaderStillPinned,
+ 			approvedKv: approvedHandoffKv,
++			staticAssetsBinding: readConfigEntryString(parseRootWranglerConfig(generatedConfigPath).assets, "binding"),
+ 			queueConsumerCleanup
+ 		}),
+ 		runWrangler: activationRunner,
 diff --git a/dist/index.mjs b/dist/index.mjs
 index bd4cc70e5b4170bbd82747d6f79ed953cc0eb407..0dd17a2f2af3d2ba439ad16dc7c922d30b51071a 100644
 --- a/dist/index.mjs

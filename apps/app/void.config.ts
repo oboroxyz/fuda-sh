@@ -41,7 +41,7 @@ export default defineConfig({
     ],
     title: 'app - fuda.sh',
   },
-  inference: { appType: 'void' },
+  inference: { appType: 'void', build: 'vp build' },
   target: 'cloudflare',
   worker: { compatibility_date: '2025-09-01' },
 })

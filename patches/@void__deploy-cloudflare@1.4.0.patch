@@ -1,5 +1,5 @@
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 70257723ad39795f122ef4023ca0457eecc1be6a..1786ec4d3adbb2feeb2d760753da8ea37b7bd2a4 100644
+index 70257723ad39795f122ef4023ca0457eecc1be6a..a9d6683c514b91c0eca5a770aa76f487cde22a8b 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -437,7 +437,8 @@ function assertExistingCloudflareConfig(existing, config, built = false, approve
@@ -7,8 +7,8 @@ index 70257723ad39795f122ef4023ca0457eecc1be6a..1786ec4d3adbb2feeb2d760753da8ea3
  		const expected = existing.runtime[field] ?? (field === "compatibility_flags" ? [] : void 0);
  		const actual = config[field] ?? (field === "compatibility_flags" ? [] : void 0);
 -		const equal = field === "compatibility_flags" ? stringSetEqual(actual, expected) : isDeepStrictEqual(actual, expected);
-+		// Attaching Void code to an assets-only site requires AsyncLocalStorage.
-+		const equal = field === "compatibility_flags" ? stringSetEqual(actual, expected) || isAssetsOnlyWorker(existing) && stringSetEqual(actual, [...expected, "nodejs_als"]) : isDeepStrictEqual(actual, expected);
++		// Attaching Void code requires AsyncLocalStorage; preserve every existing flag.
++		const equal = field === "compatibility_flags" ? stringSetEqual(actual, expected) || stringSetEqual(actual, [...expected, "nodejs_als"]) : isDeepStrictEqual(actual, expected);
  		if ((built || config[field] !== void 0) && !equal) throw new Error(`Keep the existing Worker's ${field} when linking. Update it in a later deployment.`);
  	}
  	const vars = isRecord(config.vars) ? config.vars : {};
