@@ -36,17 +36,16 @@ export const TARGETS = readTargets()
 export const COMPATIBILITY_DATE = '2025-09-01'
 export const COMPATIBILITY_FLAGS = ['nodejs_compat']
 
-// SQL stays hand-written and shared through each target's db/migrations link.
-// Disable schema inference so deploy never generates or applies migrations;
-// the explicit migrate:* commands use Void's database CLI.
+// SQL stays hand-written and shared through each target's db/migrations link,
+// the one directory Void accepts. Because Void finds migrations there, `void
+// deploy` also applies pending ones before it uploads the Worker. Disabling
+// schema inference keeps it from generating migrations of its own.
 export const targetConfig = (name: TargetName): VoidConfig => {
   const target = TARGETS[name]
   return {
     cloudflare: {
       ...target,
-      // Each target is a Void project in `targets/<name>/`, and Void resolves
-      // config paths from there.
-      d1_databases: target.d1_databases.map((d1) => ({ ...d1, migrations_dir: '../../migrations' })),
+      d1_databases: target.d1_databases.map((d1) => ({ ...d1, migrations_dir: './db/migrations' })),
     },
     inference: { appType: 'void', bindings: { db: false }, build: 'vp build' },
     worker: { compatibility_date: COMPATIBILITY_DATE, compatibility_flags: COMPATIBILITY_FLAGS },
