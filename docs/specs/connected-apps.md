@@ -107,12 +107,12 @@ Codes and access tokens are random 32-byte values; only their SHA-256 hashes are
 
 ## CORS
 
-`/oauth/token`, `/oauth/revoke` and `/connect/*` answer CORS for fuda's own origins and also for:
+`/oauth/token`, `/oauth/revoke` and `/connect/*` answer CORS for:
 
 - any `https://<name>.figma.site` origin, where Figma Make publishes sites;
 - the origin of any registered redirect URI.
 
-Every other route keeps fuda's own allow-list, so a connected app's page cannot call the dashboard routes from a browser. A CORS answer only lets a page read the response: the token endpoint and the resource routes still require a browser `Origin` to be one of the app's own redirect-URI origins. An app whose page runs at another origin, such as Figma Make's editor preview, must register a redirect URI on that origin.
+No other route answers CORS for these origins, so a connected app's page cannot call the dashboard routes from a browser. A CORS answer only lets a page read the response: the token endpoint and the resource routes still require a browser `Origin` to be one of the app's own redirect-URI origins. An app whose page runs at another origin, such as Figma Make's editor preview, must register a redirect URI on that origin.
 
 ## Multiple Issuers per account
 
