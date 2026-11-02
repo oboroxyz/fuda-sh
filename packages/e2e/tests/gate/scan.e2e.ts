@@ -57,3 +57,10 @@ test('a reader scan while a verdict is showing replaces it', async ({ app, brows
   await browser.keyboard.press('Enter')
   await expect(verdict).toContainText('ALREADY_USED')
 })
+
+test('an unknown address under /api is not answered with the scanner', async ({ app, screen }) => {
+  await app.open('/api/v1/issuers/nobody-here')
+
+  await expect(screen.getByText(/not_found/u)).toBeVisible()
+  await expect(screen.getByRole('textbox', PASTE_BOX)).toBeHidden()
+})

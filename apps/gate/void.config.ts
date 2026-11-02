@@ -15,6 +15,10 @@ export default defineConfig({
     vars: process.env.API_BASE_URL === undefined ? undefined : { API_BASE_URL: process.env.API_BASE_URL },
   },
   inference: { appType: 'void', build: 'vp build' },
+  // The scanner is the only page, at `/`. Without this, the Worker asks the assets
+  // about any GET that answered 404, and the assets' single-page fallback would
+  // turn an api 404 from `/api/*` into index.html with a 200.
+  routing: { notFound: 'none' },
   target: 'cloudflare',
   worker: { compatibility_date: '2025-09-01' },
 })
