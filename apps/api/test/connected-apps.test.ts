@@ -4,6 +4,7 @@ import type {
   ConnectCardResponse,
   ConnectCardsResponse,
   ConnectIssuerResponse,
+  ConnectedAppEventsResponse,
   ConnectedAppGrantsResponse,
   ConnectedAppResponse,
   PublicVenue,
@@ -17,6 +18,7 @@ import { getDb } from '../src/db/client.ts'
 import {
   cards,
   challenges,
+  connectedAppEvents,
   connectedAppRedirects,
   connectedApps,
   issuers,
@@ -42,6 +44,7 @@ const app = appWith({ chain: fakeChain(), now: () => clock })
 
 const clearTables = async (): Promise<void> => {
   const database = db()
+  await database.delete(connectedAppEvents)
   await database.delete(oauthTokens)
   await database.delete(oauthCodes)
   await database.delete(connectedAppRedirects)
@@ -175,6 +178,96 @@ describe('connected apps', () => {
     const issued = await res.json<TokenResponse>()
     return issued.access_token
   }
+
+  describe('token lifecycle', () => {
+    const issuerStatus = async (token: string): Promise<number> => {
+      const res = await withToken('/v1/connect/issuer', token)
+      return res.status
+    }
+
+    it('ends the token a code issued when that code is presented again', async () => {
+      const owner = await ownerWithApp()
+      const code = await codeFor(owner)
+      const first = await exchange(tokenRequest(owner, code))
+      const { access_token: token } = await first.json<TokenResponse>()
+      await expect(issuerStatus(token)).resolves.toBe(200)
+
+      const replay = await exchange(tokenRequest(owner, code))
+      expect(replay.status).toBe(400)
+      await expect(issuerStatus(token)).resolves.toBe(401)
+    })
+
+    it('leaves other tokens alone when an unknown code is presented', async () => {
+      const owner = await ownerWithApp()
+      const token = await accessTokenFor(owner)
+      const res = await exchange(tokenRequest(owner, 'f'.repeat(64)))
+      expect(res.status).toBe(400)
+      await expect(issuerStatus(token)).resolves.toBe(200)
+    })
+
+    it('replaces the live token when the same app is approved for the same issuer again', async () => {
+      const owner = await ownerWithApp()
+      const first = await accessTokenFor(owner)
+      const second = await accessTokenFor(owner)
+      await expect(issuerStatus(first)).resolves.toBe(401)
+      await expect(issuerStatus(second)).resolves.toBe(200)
+      const { grants } = await bodyOf<ConnectedAppGrantsResponse>(
+        getJson(app, bindings(), '/v1/connected-apps/grants', owner.session),
+      )
+      expect(grants).toHaveLength(1)
+    })
+
+    it('reports when an approval was last used, to the hour', async () => {
+      const owner = await ownerWithApp()
+      const token = await accessTokenFor(owner)
+      const lastUsed = async (): Promise<number | null | undefined> => {
+        const { grants } = await bodyOf<ConnectedAppGrantsResponse>(
+          getJson(app, bindings(), '/v1/connected-apps/grants', owner.session),
+        )
+        return grants[0]?.lastUsedAt
+      }
+      await expect(lastUsed()).resolves.toBeNull()
+      await issuerStatus(token)
+      await expect(lastUsed()).resolves.toBe(clock)
+      const firstUse = clock
+      clock += 60
+      await issuerStatus(token)
+      await expect(lastUsed()).resolves.toBe(firstUse)
+      clock += 3600
+      await issuerStatus(token)
+      await expect(lastUsed()).resolves.toBe(clock)
+    })
+
+    it('records card writes for the owner, and keeps them after the app is deleted', async () => {
+      const owner = await ownerWithApp()
+      const token = await accessTokenFor(owner)
+      const created = await withToken('/v1/connect/cards', token, {
+        body: SECOND_CARD,
+        method: 'POST',
+      })
+      expect(created.status).toBe(201)
+      const { card } = await created.json<CardCreateResponse>()
+      const repeated = await withToken('/v1/connect/cards', token, { body: SECOND_CARD, method: 'POST' })
+      expect(repeated.status).toBe(409)
+
+      const stranger = await signIn(app, bindings(), other)
+      const foreign = await getJson(app, bindings(), '/v1/connected-apps/activity', stranger.token)
+      await expect(foreign.json()).resolves.toStrictEqual({ events: [] })
+
+      await deleteWith(`/v1/connected-apps/${owner.clientId}`, owner.session)
+      const { events } = await bodyOf<ConnectedAppEventsResponse>(
+        getJson(app, bindings(), '/v1/connected-apps/activity', owner.session),
+      )
+      expect(
+        events
+          .map(({ appName, error, issuerHandle, subject }) => ({ appName, error, issuerHandle, subject }))
+          .toSorted((x, y) => String(x.error).localeCompare(String(y.error))),
+      ).toStrictEqual([
+        { appName: 'Shop app', error: null, issuerHandle: 'wassie-coffee', subject: card.id },
+        { appName: 'Shop app', error: 'slug_taken', issuerHandle: 'wassie-coffee', subject: null },
+      ])
+    })
+  })
 
   describe('connected app flow', () => {
     it('approves, exchanges a code and creates a card the venue page then shows, without an ENS claim', async () => {

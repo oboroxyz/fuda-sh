@@ -22,7 +22,8 @@ From the dashboard's Apps page (`dash.fuda.sh/apps`), with an Operator session:
 | `GET /connected-apps` | `{ apps: ConnectedAppView[] }` — this account's apps only |
 | `POST /connected-apps` `{ name, redirectUris }` | `201 { app }`; `400 bad_redirect_uri`, `400 bad_input`, `409 app_limit` |
 | `DELETE /connected-apps/:clientId` | `{ deleted: true }`; deletes the app with every code and token it holds; another account's app is `404` |
-| `GET /connected-apps/grants` | `{ grants: ConnectedAppGrantView[] }` — live tokens this account approved |
+| `GET /connected-apps/grants` | `{ grants: ConnectedAppGrantView[] }` — live tokens this account approved, with `lastUsedAt`, accurate to the hour and null until first use |
+| `GET /connected-apps/activity` | `{ events: ConnectedAppEventView[] }` — the latest 50 writes this account's approved apps attempted, newest first; see [Activity](#activity) |
 | `DELETE /connected-apps/grants/:id` | `{ revoked: true }`; the token stops working at once; another account's grant is `404` |
 
 A name is 1–60 characters. An app has one to five redirect URIs and an account at most 20 apps. A redirect URI is an absolute `https` URL, or `http` on `localhost`, `127.0.0.1` or `[::1]`, with no fragment and no credentials. URIs are compared exactly after URL normalization, so `https://a.example` and `https://a.example/` are one registration while `/cb` and `/cb/` are two. On loopback `http` the port is not compared, because a native client listens on whatever port is free (RFC 8252); the host, path and query are, so `localhost` and `127.0.0.1` are two registrations. The client ID is `app_` followed by 32 hex characters and is not a secret.
@@ -46,7 +47,7 @@ The api checks in this order, and the consent page shows the first two failures 
 | `response_type` not `code`, or method not `S256`              | `400 invalid_request`  |
 | `issuerId` not owned by the signed-in account (approval only) | `404 not_found`        |
 
-Both routes require an Operator session; the admin token and an access token answer `401`.
+Both routes require an Operator session; the admin token and an access token answer `401`. No dashboard page may be framed by another site (`frame-ancestors 'none'`), so a page elsewhere cannot steer a signed-in Operator's click on the approval button.
 
 ## Token exchange
 
@@ -62,6 +63,8 @@ The answer is `{ access_token, token_type: 'Bearer', expires_in, scope, issuer: 
 | unknown client ID, or a browser `Origin` that is not one of the app's redirect-URI origins | `401 invalid_client` |
 | unknown, spent or expired code; another client's code; a different redirect URI; a `resource` other than the one approved; a wrong verifier; an Issuer whose owner changed since approval | `400 invalid_grant` |
 
+Presenting a spent code again also ends the token that code issued, because one of the two callers should not have had it. A new token replaces any live token for the same app, Issuer and resource, so logging in again leaves one approval. A client ID used from two devices therefore keeps only the latest; register one app per device to keep both.
+
 `POST /oauth/revoke` (RFC 7009) takes `token` and `client_id` and answers `200 {}` whether or not the token was live.
 
 ## Resource routes
@@ -75,7 +78,7 @@ Every route takes `Authorization: Bearer <access_token>` and answers `cache-cont
 | `POST /connect/cards` | `cards:write` | `201 { card, issuer, publicUrl }`; `400 bad_slug`, `400 bad_input`, `409 slug_taken` |
 | `GET /connect/cards/:cardId` | `cards:read` | `{ card: CardView, url }`, where `url` is the Card's public page |
 
-A token approved with a `resource` answers on [`/mcp`](./mcp.md) and not on these routes. A token stops working when it is revoked, when its app is deleted, when it expires, or when its Issuer's owner address no longer matches the address that approved it.
+A token approved with a `resource` answers on [`/mcp`](./mcp.md) and not on these routes. A token stops working when it is revoked, when its app is deleted, when it expires, when its code is presented again, when a newer approval replaces it, or when its Issuer's owner address no longer matches the address that approved it.
 
 ## Scopes
 
@@ -88,6 +91,10 @@ A token approved with a `resource` answers on [`/mcp`](./mcp.md) and not on thes
 | `passes:revoke` | the MCP server's pass revoking for the approved Issuer; the Operator opts in on the consent page |
 
 An empty `scope` requests `cards:read` and `cards:write`; pass scopes are asked for by name. The token carries exactly the scopes approved; the consent page lists them, and the routes here use only the card scopes.
+
+## Activity
+
+Every write an approved app attempts is recorded: `create_card`, `update_card_limits`, `issue_pass` and `revoke_pass`, with the app's name, the Issuer, what it acted on (`subject`, a Card id or a Right's uid where known) and the error if it failed. Reads are not recorded, and neither are request bodies. A record outlives the app and its tokens, and is only visible to the account that approved them. Failing to write a record does not fail the write it describes, which may already be on chain.
 
 ## Lifetimes
 

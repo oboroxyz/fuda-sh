@@ -31,4 +31,8 @@ export default defineMiddleware(async (c, next) => {
     script: [{ innerHTML: themeScript(outcome.shared.theme) }],
   })
   await next()
+  // The approval button acts in one click for a signed-in Operator, so no other
+  // site may put these pages in a frame and steer that click.
+  c.header('Content-Security-Policy', "frame-ancestors 'none'")
+  c.header('X-Frame-Options', 'DENY')
 })

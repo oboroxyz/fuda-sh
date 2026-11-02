@@ -154,10 +154,27 @@ export interface ConnectedAppGrantView {
   scope: ConnectedAppScope[]
   createdAt: number
   expiresAt: number
+  // null until the token is first used; accurate to the hour
+  lastUsedAt: number | null
 }
 
 export interface ConnectedAppGrantsResponse {
   grants: ConnectedAppGrantView[]
+}
+
+// One write an approved app attempted. `error` is null when it succeeded.
+export interface ConnectedAppEventView {
+  id: string
+  appName: string
+  action: string
+  issuerHandle: string | null
+  subject: string | null
+  error: string | null
+  createdAt: number
+}
+
+export interface ConnectedAppEventsResponse {
+  events: ConnectedAppEventView[]
 }
 
 // GET /oauth/authorize — what the consent screen shows before approval.

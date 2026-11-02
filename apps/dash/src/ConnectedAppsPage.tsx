@@ -1,4 +1,9 @@
-import type { ConnectedAppGrantView, ConnectedAppRequest, ConnectedAppView } from '@fuda/sdk'
+import type {
+  ConnectedAppEventView,
+  ConnectedAppGrantView,
+  ConnectedAppRequest,
+  ConnectedAppView,
+} from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
 import { createEffect, createSignal, on, onCleanup } from 'solid-js'
 import type { JSX } from 'solid-js'
@@ -9,6 +14,7 @@ import { formatInstant } from './card-designer.ts'
 // docs/specs/connected-apps.md#registering-an-app — the operator's own apps and
 // the approvals they have given, each of which can be ended here.
 export interface ConnectedAppsIo {
+  activity: () => Promise<Result<{ events: ConnectedAppEventView[] }>>
   grants: () => Promise<Result<{ grants: ConnectedAppGrantView[] }>>
   list: () => Promise<Result<{ apps: ConnectedAppView[] }>>
   register: (body: ConnectedAppRequest) => Promise<Result<{ app: ConnectedAppView }>>
@@ -19,7 +25,12 @@ export interface ConnectedAppsIo {
 type Loaded =
   | { kind: 'loading' }
   | { kind: 'failed' }
-  | { kind: 'ready'; apps: ConnectedAppView[]; grants: ConnectedAppGrantView[] }
+  | {
+      kind: 'ready'
+      apps: ConnectedAppView[]
+      events: ConnectedAppEventView[]
+      grants: ConnectedAppGrantView[]
+    }
 
 export const redirectLines = (text: string): string[] =>
   text
@@ -57,13 +68,22 @@ export const ConnectedAppsPage = (props: ConnectedAppsPageProps): JSX.Element =>
     on(revision, () => {
       let live = true
       const run = async (): Promise<void> => {
-        const [apps, grants] = await Promise.all([props.io.list(), props.io.grants()])
+        const [apps, grants, activity] = await Promise.all([
+          props.io.list(),
+          props.io.grants(),
+          props.io.activity(),
+        ])
         if (!live) {
           return
         }
         setLoaded(
-          apps.ok && grants.ok
-            ? { apps: apps.body.apps, grants: grants.body.grants, kind: 'ready' }
+          apps.ok && grants.ok && activity.ok
+            ? {
+                apps: apps.body.apps,
+                events: activity.body.events,
+                grants: grants.body.grants,
+                kind: 'ready',
+              }
             : { kind: 'failed' },
         )
       }
@@ -181,7 +201,10 @@ export const ConnectedAppsPage = (props: ConnectedAppsPageProps): JSX.Element =>
                 </p>
                 <p class="text-sm text-[var(--fuda-muted)]">
                   {grant.scope.map((scope) => props.copy.scopes[scope]).join(' · ')} · {props.copy.expires}{' '}
-                  {formatInstant(grant.expiresAt)}
+                  {formatInstant(grant.expiresAt)} ·{' '}
+                  {grant.lastUsedAt === null
+                    ? props.copy.neverUsed
+                    : `${props.copy.lastUsed} ${formatInstant(grant.lastUsedAt)}`}
                 </p>
               </div>
               <button
@@ -196,6 +219,37 @@ export const ConnectedAppsPage = (props: ConnectedAppsPageProps): JSX.Element =>
               </button>
             </article>
           ))}
+        </section>
+        <section class="flex flex-col gap-3">
+          <h2 class="text-lg font-bold">{props.copy.activityTitle}</h2>
+          <p class="text-sm text-[var(--fuda-muted)]">{props.copy.activityHint}</p>
+          {current.events.length === 0 ? (
+            <p class="text-[var(--fuda-muted)]">{props.copy.noActivity}</p>
+          ) : null}
+          <ul class="flex flex-col gap-2">
+            {current.events.map((event): JSX.Element => (
+              <li class="flex flex-col gap-1 border-b border-[var(--fuda-border)] pb-2">
+                <p>
+                  <strong>{event.appName}</strong> · {props.copy.actions[event.action] ?? event.action}
+                  {event.issuerHandle === null ? null : (
+                    <span class="text-[var(--fuda-muted)]"> @{event.issuerHandle}</span>
+                  )}
+                  {event.error === null ? null : (
+                    <span class="text-[var(--fuda-danger)]">
+                      {' '}
+                      · {props.copy.activityFailed} ({event.error})
+                    </span>
+                  )}
+                </p>
+                <p class="text-sm text-[var(--fuda-muted)]">
+                  {formatInstant(event.createdAt)}
+                  {event.subject === null ? null : (
+                    <span class="font-mono break-all"> · {event.subject}</span>
+                  )}
+                </p>
+              </li>
+            ))}
+          </ul>
         </section>
       </>
     )

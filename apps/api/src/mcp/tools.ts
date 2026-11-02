@@ -33,7 +33,10 @@ export interface ToolContext {
   issuer: typeof issuers.$inferSelect
 }
 
-export type ToolOutcome = { ok: true; value: object } | { ok: false; error: string }
+// `subject` names what a write acted on, for the connected-app activity record.
+export type ToolOutcome =
+  | { ok: true; subject?: string; value: object }
+  | { ok: false; error: string; subject?: string }
 
 export interface McpTool {
   annotations: { destructiveHint?: boolean; readOnlyHint: boolean }
@@ -160,7 +163,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
       const card = await insertCard(context.c.get('db'), context.issuer.id, parsed.output, now)
       return card === null
         ? { ok: false, error: 'slug_taken' }
-        : { ok: true, value: { card: toolCard(context, card) } }
+        : { ok: true, subject: card.id, value: { card: toolCard(context, card) } }
     },
   },
   {
@@ -204,7 +207,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
         .returning()
       return updated === undefined
         ? { ok: false, error: 'not_found' }
-        : { ok: true, value: { card: toolCard(context, updated) } }
+        : { ok: true, subject: updated.id, value: { card: toolCard(context, updated) } }
     },
   },
   {
@@ -281,13 +284,14 @@ export const MCP_TOOLS: readonly McpTool[] = [
       return outcome.ok
         ? {
             ok: true,
+            subject: outcome.pass.uid,
             value: {
               memberNumber: outcome.pass.memberNumber,
               passUrl: outcome.pass.passUrls.web,
               uid: outcome.pass.uid,
             },
           }
-        : { ok: false, error: outcome.error }
+        : { ok: false, error: outcome.error, subject: card.id }
     },
   },
   {
@@ -310,10 +314,12 @@ export const MCP_TOOLS: readonly McpTool[] = [
         return { ok: false, error: 'bad_uid' }
       }
       if (!(await spendBudget(c.get('db'), `mcp-revoke:${issuer.id}`, c.get('now')(), REVOKE_BUDGET))) {
-        return { ok: false, error: 'rate_limited' }
+        return { ok: false, error: 'rate_limited', subject: uid }
       }
       const outcome = await revokePass(c, uid, issuer.id)
-      return outcome.ok ? { ok: true, value: { revoked: true, uid } } : { ok: false, error: outcome.error }
+      return outcome.ok
+        ? { ok: true, subject: uid, value: { revoked: true, uid } }
+        : { ok: false, error: outcome.error, subject: uid }
     },
   },
 ]

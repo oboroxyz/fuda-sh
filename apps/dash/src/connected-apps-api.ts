@@ -2,6 +2,7 @@ import type {
   AuthorizeApprovalRequest,
   AuthorizeApprovalResponse,
   AuthorizePreviewResponse,
+  ConnectedAppEventsResponse,
   ConnectedAppGrantsResponse,
   ConnectedAppRequest,
   ConnectedAppResponse,
@@ -44,6 +45,9 @@ export const deleteConnectedApp = async (clientId: string): Promise<Result<{ del
 
 export const listGrants = async (): Promise<Result<ConnectedAppGrantsResponse>> =>
   await apiFetch<ConnectedAppGrantsResponse>(API_BASE_URL, '/connected-apps/grants')
+
+export const listActivity = async (): Promise<Result<ConnectedAppEventsResponse>> =>
+  await apiFetch<ConnectedAppEventsResponse>(API_BASE_URL, '/connected-apps/activity')
 
 export const revokeGrant = async (id: string): Promise<Result<{ revoked: true }>> =>
   await apiFetch<{ revoked: true }>(API_BASE_URL, `/connected-apps/grants/${encodeURIComponent(id)}`, {

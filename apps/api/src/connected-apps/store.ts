@@ -1,5 +1,6 @@
 import { CONNECTED_APP_SCOPES, normalizeRedirectUri } from '@fuda/sdk'
 import type {
+  ConnectedAppEventView,
   ConnectedAppGrantView,
   ConnectedAppRequest,
   ConnectedAppScope,
@@ -9,7 +10,14 @@ import { and, asc, count, desc, eq, gt, inArray, isNull, lt } from 'drizzle-orm'
 
 import { hashToken } from '../auth/session.ts'
 import type { Db } from '../db/client.ts'
-import { connectedAppRedirects, connectedApps, issuers, oauthCodes, oauthTokens } from '../db/schema.ts'
+import {
+  connectedAppEvents,
+  connectedAppRedirects,
+  connectedApps,
+  issuers,
+  oauthCodes,
+  oauthTokens,
+} from '../db/schema.ts'
 import { toHex } from '../hex.ts'
 import { issuerSummary } from '../issuers/views.ts'
 
@@ -17,6 +25,10 @@ import { issuerSummary } from '../issuers/views.ts'
 export const CODE_TTL_SECONDS = 10 * 60
 export const ACCESS_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
 export const APPS_PER_OWNER = 20
+// How stale "last used" may be, so that using a token does not mean a D1 write
+// on every request.
+export const LAST_USED_PRECISION_SECONDS = 60 * 60
+export const EVENTS_LISTED = 50
 
 // The prefix makes a leaked token recognisable in a log or a secret scanner;
 // only the hash is stored, as for sessions.
@@ -195,6 +207,9 @@ export interface IssuedToken {
 
 // Spends the code first, so a second redemption finds nothing whatever the
 // outcome of the first: a code is single-use even when its verifier was wrong.
+// A second redemption also ends the token the first one issued, because one of
+// the two callers should not have had the code (RFC 6749 §4.1.2). A new token
+// replaces the live ones for the same app, Issuer and resource.
 // `resource` is what the token request named, if anything; the token always
 // carries what was approved.
 export const redeemCode = async (
@@ -208,20 +223,21 @@ export const redeemCode = async (
     resource: string | undefined
   },
 ): Promise<IssuedToken | null> => {
+  const codeHash = await hashToken(p.code)
   const spent = await db
     .update(oauthCodes)
     .set({ usedAt: p.now })
-    .where(
-      and(
-        eq(oauthCodes.codeHash, await hashToken(p.code)),
-        isNull(oauthCodes.usedAt),
-        gt(oauthCodes.expiresAt, p.now),
-      ),
-    )
+    .where(and(eq(oauthCodes.codeHash, codeHash), isNull(oauthCodes.usedAt), gt(oauthCodes.expiresAt, p.now)))
     .returning()
     .get()
+  if (spent === undefined) {
+    await db
+      .update(oauthTokens)
+      .set({ revokedAt: p.now })
+      .where(and(eq(oauthTokens.codeHash, codeHash), isNull(oauthTokens.revokedAt)))
+    return null
+  }
   if (
-    spent === undefined ||
     spent.clientId !== p.clientId ||
     spent.redirectUri !== p.redirectUri ||
     (p.resource !== undefined && spent.resource !== p.resource) ||
@@ -236,21 +252,37 @@ export const redeemCode = async (
     return null
   }
   const accessToken = `${ACCESS_TOKEN_PREFIX}${randomHex(32)}`
-  await db.insert(oauthTokens).values({
-    address: spent.address,
-    clientId: spent.clientId,
-    createdAt: p.now,
-    expiresAt: p.now + ACCESS_TOKEN_TTL_SECONDS,
-    id: crypto.randomUUID(),
-    issuerId: spent.issuerId,
-    resource: spent.resource,
-    scope: spent.scope,
-    tokenHash: await hashToken(accessToken),
-  })
+  await db.batch([
+    db
+      .update(oauthTokens)
+      .set({ revokedAt: p.now })
+      .where(
+        and(
+          eq(oauthTokens.clientId, spent.clientId),
+          eq(oauthTokens.issuerId, spent.issuerId),
+          eq(oauthTokens.address, spent.address),
+          spent.resource === null ? isNull(oauthTokens.resource) : eq(oauthTokens.resource, spent.resource),
+          isNull(oauthTokens.revokedAt),
+        ),
+      ),
+    db.insert(oauthTokens).values({
+      address: spent.address,
+      clientId: spent.clientId,
+      codeHash,
+      createdAt: p.now,
+      expiresAt: p.now + ACCESS_TOKEN_TTL_SECONDS,
+      id: crypto.randomUUID(),
+      issuerId: spent.issuerId,
+      resource: spent.resource,
+      scope: spent.scope,
+      tokenHash: await hashToken(accessToken),
+    }),
+  ])
   return { accessToken, expiresIn: ACCESS_TOKEN_TTL_SECONDS, issuer, scope: scopeList(spent.scope) }
 }
 
 export interface AccessGrant {
+  address: string
   clientId: string
   id: string
   issuerId: string
@@ -263,9 +295,11 @@ export interface AccessGrant {
 export const resolveAccessToken = async (db: Db, token: string, now: number): Promise<AccessGrant | null> => {
   const row = await db
     .select({
+      address: oauthTokens.address,
       clientId: oauthTokens.clientId,
       id: oauthTokens.id,
       issuerId: oauthTokens.issuerId,
+      lastUsedAt: oauthTokens.lastUsedAt,
       resource: oauthTokens.resource,
       scope: oauthTokens.scope,
     })
@@ -280,7 +314,14 @@ export const resolveAccessToken = async (db: Db, token: string, now: number): Pr
       ),
     )
     .get()
-  return row === undefined ? null : { ...row, scope: scopeList(row.scope) }
+  if (row === undefined) {
+    return null
+  }
+  const { lastUsedAt, ...grant } = row
+  if (lastUsedAt === null || lastUsedAt <= now - LAST_USED_PRECISION_SECONDS) {
+    await db.update(oauthTokens).set({ lastUsedAt: now }).where(eq(oauthTokens.id, grant.id))
+  }
+  return { ...grant, scope: scopeList(grant.scope) }
 }
 
 // RFC 7009: the app ends its own token. Unknown tokens are not an error.
@@ -319,6 +360,7 @@ export const listGrants = async (
     expiresAt: token.expiresAt,
     id: token.id,
     issuer: issuerSummary(issuer, baseUrl),
+    lastUsedAt: token.lastUsedAt,
     scope: scopeList(token.scope),
   }))
 }
@@ -331,4 +373,54 @@ export const revokeGrant = async (db: Db, address: string, id: string, now: numb
     .returning({ id: oauthTokens.id })
     .get()
   return revoked !== undefined
+}
+
+// One attempted write by an approved app. The write has already happened by
+// now, on chain perhaps, so a failure to record it must not turn it into an error.
+export const recordEvent = async (
+  db: Db,
+  grant: AccessGrant,
+  event: { action: string; error: string | null; now: number; subject: string | null },
+): Promise<void> => {
+  try {
+    const app = await db
+      .select({ name: connectedApps.name })
+      .from(connectedApps)
+      .where(eq(connectedApps.clientId, grant.clientId))
+      .get()
+    await db.insert(connectedAppEvents).values({
+      action: event.action,
+      address: grant.address,
+      appName: app?.name ?? grant.clientId,
+      clientId: grant.clientId,
+      createdAt: event.now,
+      error: event.error,
+      id: crypto.randomUUID(),
+      issuerId: grant.issuerId,
+      subject: event.subject,
+      tokenId: grant.id,
+    })
+  } catch (error) {
+    // oxlint-disable-next-line no-console -- a lost record must be visible in the Worker's logs
+    console.error('[fuda-api] could not record a connected-app event', event.action, error)
+  }
+}
+
+export const listEvents = async (db: Db, address: string): Promise<ConnectedAppEventView[]> => {
+  const rows = await db
+    .select({ event: connectedAppEvents, handle: issuers.handle })
+    .from(connectedAppEvents)
+    .leftJoin(issuers, eq(issuers.id, connectedAppEvents.issuerId))
+    .where(eq(connectedAppEvents.address, address))
+    .orderBy(desc(connectedAppEvents.createdAt), asc(connectedAppEvents.id))
+    .limit(EVENTS_LISTED)
+  return rows.map(({ event, handle }) => ({
+    action: event.action,
+    appName: event.appName,
+    createdAt: event.createdAt,
+    error: event.error,
+    id: event.id,
+    issuerHandle: handle,
+    subject: event.subject,
+  }))
 }

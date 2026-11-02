@@ -3,6 +3,7 @@ import type { JSX } from 'solid-js'
 import { APPS_COPY } from '../src/apps-copy.ts'
 import {
   deleteConnectedApp,
+  listActivity,
   listConnectedApps,
   listGrants,
   registerConnectedApp,
@@ -18,6 +19,7 @@ export default function Apps(): JSX.Element {
     <ConnectedAppsPage
       copy={APPS_COPY[shared.locale]}
       io={{
+        activity: guarded(listActivity),
         grants: guarded(listGrants),
         list: guarded(listConnectedApps),
         register: guarded(registerConnectedApp),

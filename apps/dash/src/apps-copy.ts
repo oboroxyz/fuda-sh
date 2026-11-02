@@ -21,7 +21,14 @@ export interface AppsCopy {
   noGrants: string
   grantFor: string
   expires: string
+  lastUsed: string
+  neverUsed: string
   revoke: string
+  activityTitle: string
+  activityHint: string
+  noActivity: string
+  activityFailed: string
+  actions: Record<string, string>
   scopes: Record<ConnectedAppScope, string>
   loading: string
   loadFailed: string
@@ -58,7 +65,19 @@ export const APPS_COPY = {
     noGrants: 'No app is approved right now.',
     grantFor: 'for',
     expires: 'Expires',
+    lastUsed: 'Last used',
+    neverUsed: 'Not used yet',
     revoke: 'Revoke',
+    activityTitle: 'Recent activity',
+    activityHint: 'The latest changes your approved apps tried to make.',
+    noActivity: 'No app has changed anything yet.',
+    activityFailed: 'Failed',
+    actions: {
+      create_card: 'Created a card',
+      issue_pass: 'Issued a pass',
+      revoke_pass: 'Revoked a pass',
+      update_card_limits: 'Changed card limits',
+    },
     scopes: {
       'cards:read': 'See cards',
       'cards:write': 'Create cards',
@@ -98,7 +117,19 @@ export const APPS_COPY = {
     noGrants: '承認中のアプリはありません。',
     grantFor: '対象',
     expires: '有効期限',
+    lastUsed: '最終利用',
+    neverUsed: '未使用',
     revoke: '取り消す',
+    activityTitle: '最近の操作',
+    activityHint: '承認したアプリが行おうとした最近の変更です。',
+    noActivity: 'アプリによる変更はまだありません。',
+    activityFailed: '失敗',
+    actions: {
+      create_card: 'カードを作成',
+      issue_pass: 'パスを発行',
+      revoke_pass: 'パスを失効',
+      update_card_limits: 'カードの上限を変更',
+    },
     scopes: {
       'cards:read': 'カードを見る',
       'cards:write': 'カードを作る',

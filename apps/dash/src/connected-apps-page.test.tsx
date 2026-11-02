@@ -23,10 +23,36 @@ const GRANT = {
   expiresAt: 2_000_000_000,
   id: 'grant-1',
   issuer: { handle: 'wassie-coffee', id: 'issuer-1', logoUrl: null, name: 'Wassie Coffee' },
+  lastUsedAt: null,
   scope: ['cards:read' as const, 'cards:write' as const],
 }
 
 const ioWith = (): ConnectedAppsIo => ({
+  activity: vi.fn<ConnectedAppsIo['activity']>().mockResolvedValue({
+    body: {
+      events: [
+        {
+          action: 'revoke_pass',
+          appName: 'Agent',
+          createdAt: 1_800_000_000,
+          error: null,
+          id: 'event-1',
+          issuerHandle: 'coffee',
+          subject: 'uid-1',
+        },
+        {
+          action: 'issue_pass',
+          appName: 'Agent',
+          createdAt: 1_800_000_000,
+          error: 'card_sold_out',
+          id: 'event-2',
+          issuerHandle: 'coffee',
+          subject: 'card-1',
+        },
+      ],
+    },
+    ok: true,
+  }),
   grants: vi.fn<ConnectedAppsIo['grants']>().mockResolvedValue({ body: { grants: [GRANT] }, ok: true }),
   list: vi.fn<ConnectedAppsIo['list']>().mockResolvedValue({ body: { apps: [APP] }, ok: true }),
   register: vi.fn<ConnectedAppsIo['register']>().mockResolvedValue({
@@ -64,6 +90,15 @@ describe(ConnectedAppsPage, () => {
     await setTimeout(0)
     expect(root.textContent).toContain('app_1')
     expect(root.textContent).toContain('Wassie Coffee')
+  })
+
+  it('shows when an approval was last used, and what apps did, including failures', async () => {
+    render(() => <ConnectedAppsPage copy={APPS_COPY.en} io={ioWith()} />, root)
+    await setTimeout(0)
+    expect(root.textContent).toContain('Not used yet')
+    expect(root.textContent).toContain('Revoked a pass')
+    expect(root.textContent).toContain('uid-1')
+    expect(root.textContent).toContain('Failed (card_sold_out)')
   })
 
   it('revokes an approval, and deletes an app only on the second press', async () => {
