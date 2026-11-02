@@ -216,7 +216,7 @@ Run each first deploy interactively, from one machine. For an existing static-as
 - **Readiness.** Before sending traffic, Void checks the new version through a version metadata binding or a Version URL. If it stops at that check, enable Version URLs for that Worker, or add a version metadata binding under `cloudflare` in `void.config.ts`, then retry.
 - **Venue URLs (app only).** The app Worker answers every path before the static assets, and its middleware serves `/@<handle>` from `pages/venue/`. After the first app deploy, confirm that `curl -sI 'https://app.fuda.sh/@<handle>/<card>?source=qr'` answers `200` with `content-type: text/html` and no `location` header. A redirect to `%40` means the asset layer saw the request first.
 - **Visitor IPs.** Rate limits must still count each visitor. After the frontends are live, issue a few self-serve cards from one phone and check that the api's `rate_limits` rows carry that phone's address, not a Cloudflare one (`2a06:98c0:3600::103` is the Worker egress address a cross-zone subrequest would show).
-- **Then narrow CORS.** Once all three frontends run their Workers, no fuda page calls the api from the browser any more, apart from the wallet's paymaster requests, which have their own wildcard rule. Only then remove `app`, `dash` and `gate` from the api's CORS allowlist in `apps/api/src/middleware/cors.ts`. Doing it earlier breaks the old single-page apps that are still deployed.
+- **Keep the Workers in place first.** The api answers no CORS for fuda's own hosts, so a frontend still deployed as a single-page app that calls the api directly stops working. Deploy the frontends' Workers before an api that has this rule. A self-hosted or local frontend must go through its Worker too.
 
 ## 9. Live smoke
 
