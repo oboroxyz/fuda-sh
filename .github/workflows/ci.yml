@@ -24,7 +24,7 @@ jobs:
       subgraph: ${{ steps.plan.outputs.subgraph }}
       rust: ${{ steps.plan.outputs.rust }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -43,16 +43,29 @@ jobs:
           echo "json=$(cat /tmp/ci-plan.json)" >> "$GITHUB_OUTPUT"
           cat /tmp/ci-plan.json >> "$GITHUB_STEP_SUMMARY"
 
+  lockfile:
+    name: Verify Actions lockfile
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - run: gh extension install github/gh-actions-lock --pin v0.4.0
+      - run: gh actions-lock --verify
+
   checks:
     name: Format, lint and type check
     needs: plan
     runs-on: ubuntu-22.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup
+      - uses: $/.github/actions/setup
         with:
           subgraph: ${{ needs.plan.outputs.subgraph }}
       - name: Format
@@ -75,10 +88,10 @@ jobs:
       matrix:
         package: ${{ fromJSON(needs.plan.outputs.packages) }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup
+      - uses: $/.github/actions/setup
       - name: Test and build
         env:
           PACKAGE_PATH: ${{ matrix.package }}
@@ -91,10 +104,10 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup
+      - uses: $/.github/actions/setup
         with:
           subgraph: 'true'
       - run: pnpm graph:prepare
@@ -117,7 +130,7 @@ jobs:
       matrix:
         package: ${{ fromJSON(needs.plan.outputs.rust) }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
       - name: Install protobuf compiler and Rust
@@ -125,7 +138,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y protobuf-compiler
           rustup toolchain install 1.96.1 --profile minimal --target wasm32-unknown-unknown
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - uses: actions/cache@v6.1.0
         with:
           path: |
             ~/.cargo/registry
@@ -142,7 +155,7 @@ jobs:
   ci:
     name: CI
     if: always()
-    needs: [plan, checks, packages, subgraph, substreams]
+    needs: [plan, lockfile, checks, packages, subgraph, substreams]
     runs-on: ubuntu-22.04
     timeout-minutes: 2
     steps:
