@@ -15,7 +15,7 @@
     "@fuda/sdk": "workspace:*",
     "@fuda/styles": "workspace:*",
     "@fuda/ui": "workspace:*",
-    "hono": "^4.13.14",
+    "hono": "^4.13.16",
     "solid-js": "1.9.17"
   },
   "devDependencies": {
@@ -25,6 +25,6 @@
     "vite": "^8.2.2",
     "vite-plugin-solid": "2.11.14",
     "vitest": "4.1.11",
-    "void": "1.4.0"
+    "void": "1.5.0"
   }
 }

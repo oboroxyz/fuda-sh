@@ -1,8 +1,8 @@
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 70257723ad39795f122ef4023ca0457eecc1be6a..a9d6683c514b91c0eca5a770aa76f487cde22a8b 100644
+index ce3b163..3b3be9f 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -437,7 +437,8 @@ function assertExistingCloudflareConfig(existing, config, built = false, approve
+@@ -434,7 +434,8 @@ function assertExistingCloudflareConfig(existing, config, built = false, approve
  	]) {
  		const expected = existing.runtime[field] ?? (field === "compatibility_flags" ? [] : void 0);
  		const actual = config[field] ?? (field === "compatibility_flags" ? [] : void 0);

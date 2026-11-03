@@ -16,7 +16,7 @@
     "@base-org/account": "2.5.10",
     "@fuda/sdk": "workspace:*",
     "@tanstack/query-core": "5.102.8",
-    "hono": "^4.13.14",
+    "hono": "^4.13.16",
     "solid-js": "1.9.17",
     "viem": "^2.56.3"
   },

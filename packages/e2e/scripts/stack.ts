@@ -9,7 +9,7 @@
 // suite sees.
 import { spawn, spawnSync } from 'node:child_process'
 import type { ChildProcess } from 'node:child_process'
-import { rmSync } from 'node:fs'
+import { rmSync, symlinkSync } from 'node:fs'
 import path from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 
@@ -83,6 +83,9 @@ const waitFor = async (url: string, deadline: number): Promise<void> => {
 
 rmSync(state, { force: true, recursive: true })
 run(vp, ['build'], apiDir)
+// The built config keeps the target's `./db/migrations`, which wrangler resolves
+// from the config's own directory.
+symlinkSync('../../db', path.join(apiDir, 'dist/ssr/db'))
 run(
   wrangler,
   ['d1', 'migrations', 'apply', 'fuda-beta', '--local', '-c', apiConfig, '--persist-to', state],
