@@ -29,22 +29,31 @@ overrides:
 minimumReleaseAge: 4320
 minimumReleaseAgeExclude:
   - cn@0.2.6
-  - miniflare@5.20260908.0-alpha || 5.20260910.0-alpha || 5.20260925.0-alpha
+  - miniflare@5.20260908.0-alpha || 5.20260910.0-alpha || 5.20260925.0-alpha || 5.20261101.0-beta
   - wrangler@4.130.0 || 4.131.0 || 4.141.0
-  - workerd@1.20260910.1 || 1.20260925.1
-  - '@cloudflare/workerd-darwin-64@1.20260910.1 || 1.20260925.1'
-  - '@cloudflare/workerd-darwin-arm64@1.20260910.1 || 1.20260925.1'
-  - '@cloudflare/workerd-linux-64@1.20260910.1 || 1.20260925.1'
-  - '@cloudflare/workerd-linux-arm64@1.20260910.1 || 1.20260925.1'
-  - '@cloudflare/workerd-windows-64@1.20260910.1 || 1.20260925.1'
-  # Void 1.4.0 (2026-10-30) ships @void/solid's pages mode, adopted before the age window passed.
-  - '@void/deploy-cloudflare@1.4.0'
-  - '@void/deploy-core@1.4.0'
-  - '@void/edge@1.4.0'
-  - '@void/isr@1.4.0'
-  - '@void/platform@1.4.0'
-  - '@void/solid@1.4.0'
-  - void@1.4.0
+  - workerd@1.20260910.1 || 1.20260925.1 || 1.20261101.1
+  - '@cloudflare/workerd-darwin-64@1.20260910.1 || 1.20260925.1 || 1.20261101.1'
+  - '@cloudflare/workerd-darwin-arm64@1.20260910.1 || 1.20260925.1 || 1.20261101.1'
+  - '@cloudflare/workerd-linux-64@1.20260910.1 || 1.20260925.1 || 1.20261101.1'
+  - '@cloudflare/workerd-linux-arm64@1.20260910.1 || 1.20260925.1 || 1.20261101.1'
+  - '@cloudflare/workerd-windows-64@1.20260910.1 || 1.20260925.1 || 1.20261101.1'
+  # Void 1.5.0 (2026-11-02) and the fresh releases it requires, adopted before the age window passed.
+  - '@void/deploy-cloudflare@1.5.0'
+  - '@void/deploy-core@1.5.0'
+  - '@void/edge@1.5.0'
+  - '@void/isr@1.5.0'
+  - '@void/platform@1.5.0'
+  - '@void/solid@1.5.0'
+  - void@1.5.0
+  - '@cloudflare/build-output-utils@0.9.7'
+  - '@cloudflare/codemods@0.7.1'
+  - '@cloudflare/config@0.29.1'
+  - '@cloudflare/runtime-types@0.1.20'
+  - '@cloudflare/vite-plugin@2.0.0-beta.v.9'
+  - '@cloudflare/workers-auth@0.15.4'
+  - '@cloudflare/workers-types@5.20261102.1'
+  - '@cloudflare/workers-utils@0.50.2'
+  - hono@4.13.16
 patchedDependencies:
-  '@void/deploy-cloudflare@1.4.0': patches/@void__deploy-cloudflare@1.4.0.patch
-  void@1.4.0: patches/void@1.4.0.patch
+  '@void/deploy-cloudflare@1.5.0': patches/@void__deploy-cloudflare@1.5.0.patch
+  void@1.5.0: patches/void@1.5.0.patch

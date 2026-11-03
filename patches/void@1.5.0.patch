@@ -1,8 +1,8 @@
 diff --git a/dist/cli/cloudflare-operation-process.mjs b/dist/cli/cloudflare-operation-process.mjs
-index 8856a5efd392af5c31ffe0a5cc078f7169c4c7a5..303f4763786fd1f97fb66cb04e805a2683342e32 100755
+index 802e56f..9f0dbd7 100755
 --- a/dist/cli/cloudflare-operation-process.mjs
 +++ b/dist/cli/cloudflare-operation-process.mjs
-@@ -944,9 +944,11 @@ async function workerHistory() {
+@@ -941,9 +941,11 @@ async function workerHistory() {
  			} : void 0);
  			if (called.status !== 0) return called;
  			const version = object(parsedJson(called.stdout));
@@ -16,11 +16,11 @@ index 8856a5efd392af5c31ffe0a5cc078f7169c4c7a5..303f4763786fd1f97fb66cb04e805a26
  			return result(0, "", called.stderr, {
  				...version,
  				resources
-diff --git a/dist/deploy-CdM-LAxX.mjs b/dist/deploy-CdM-LAxX.mjs
-index 212883afbb46bb11261c15feb416d5a9698edc30..e59683adb4f716d1ae3ce3a8b44f4d39d3967cd9 100644
---- a/dist/deploy-CdM-LAxX.mjs
-+++ b/dist/deploy-CdM-LAxX.mjs
-@@ -2735,7 +2735,7 @@ function parseJson(value) {
+diff --git a/dist/deploy-CwmCcTlq.mjs b/dist/deploy-CwmCcTlq.mjs
+index 3ecd322..2939ac1 100644
+--- a/dist/deploy-CwmCcTlq.mjs
++++ b/dist/deploy-CwmCcTlq.mjs
+@@ -2726,7 +2726,7 @@ function parseJson(value) {
  /** Existing-Worker handoffs retain their separate link and binding checks. */
  function createActiveSecretPinner(options) {
  	const { output } = options;
@@ -29,7 +29,7 @@ index 212883afbb46bb11261c15feb416d5a9698edc30..e59683adb4f716d1ae3ce3a8b44f4d39
  	return (activeVersionId, bindings) => pinActiveWorkerSecrets({
  		output,
  		activeVersionId,
-@@ -5351,6 +5351,7 @@ async function publishCloudflareWorker(input) {
+@@ -5331,6 +5331,7 @@ async function publishCloudflareWorker(input) {
  			initialCloudflareCandidate,
  			assertUploaderStillPinned,
  			approvedKv: approvedHandoffKv,
@@ -38,10 +38,10 @@ index 212883afbb46bb11261c15feb416d5a9698edc30..e59683adb4f716d1ae3ce3a8b44f4d39
  		}),
  		runWrangler: activationRunner,
 diff --git a/dist/index.mjs b/dist/index.mjs
-index bd4cc70e5b4170bbd82747d6f79ed953cc0eb407..0dd17a2f2af3d2ba439ad16dc7c922d30b51071a 100644
+index 8e6da2e..ce8e2da 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -2745,7 +2745,7 @@ const serveWithAssets = __createAssetFallback(${JSON.stringify({
+@@ -2986,7 +2986,7 @@ const serveWithAssets = __createAssetFallback(${JSON.stringify({
  * proxy-backed versions.
  */
  function compileWorkerEntry(options = {}) {
@@ -50,7 +50,7 @@ index bd4cc70e5b4170bbd82747d6f79ed953cc0eb407..0dd17a2f2af3d2ba439ad16dc7c922d3
  	const remotePath = remote?.remotePath;
  	const remoteBindingNames = JSON.stringify(remote?.bindingNames);
  	const createRemoteEnvCall = `createRemoteEnv(env${remote?.bindingNames ? `, ${remoteBindingNames}` : ""})`;
-@@ -2827,8 +2827,7 @@ ${envValidateCall}${remoteEnvSwap}  const userEnv = __filterInternalBindings(env
+@@ -3068,8 +3068,7 @@ ${envValidateCall}${remoteEnvSwap}  const userEnv = __filterInternalBindings(env
  	const fetchDeclaration = `const __voidFetch = ${fetchHandler};`;
  	const entryClass = `export default class extends WorkerEntrypoint {
    async fetch(request) { return __voidFetch(request, this.env, this.ctx); }
@@ -60,7 +60,7 @@ index bd4cc70e5b4170bbd82747d6f79ed953cc0eb407..0dd17a2f2af3d2ba439ad16dc7c922d3
      if (this.env.__VOID_EMAIL_DEPLOYMENT_ID || !__isForwardableEmailMessage(message)) {
        throw new TypeError("Native email event required");
      }
-@@ -4559,6 +4558,7 @@ function routingPlugin(root, options) {
+@@ -4823,6 +4822,7 @@ function routingPlugin(root, options) {
  			versionMetadataBinding: options.getVersionMetadataBinding?.(),
  			alwaysUseHttps: options.routing?.alwaysUseHttps === true && resolvedConfig?.command === "build" && !compileOptions.managedDispatch,
  			hasQueues: scan.queues.length > 0,
@@ -68,16 +68,16 @@ index bd4cc70e5b4170bbd82747d6f79ed953cc0eb407..0dd17a2f2af3d2ba439ad16dc7c922d3
  			remote,
  			assetsDir: resolvedConfig?.build.assetsDir,
  			webSocketClasses: [...(scan.websockets ?? []).map((route) => route.className), ...options.websocketTombstones ?? []],
-diff --git a/dist/local-d1-CAwAs9GH.mjs b/dist/local-d1-CAwAs9GH.mjs
-index 4785107548e926a26c0d2c65f472b9d587cec06d..0b32ff19ddff9fbb0aca544434c631ab474ca50d 100644
---- a/dist/local-d1-CAwAs9GH.mjs
-+++ b/dist/local-d1-CAwAs9GH.mjs
-@@ -3,6 +3,7 @@ import { b as readRootWranglerConfig } from "./wrangler-I-scB_1t.mjs";
- import { r as getMiniflareDatabasePath } from "./runner-3uGC-oLF.mjs";
+diff --git a/dist/local-d1-CKfek6Z4.mjs b/dist/local-d1-CKfek6Z4.mjs
+index 97ce7e7..82be7fc 100644
+--- a/dist/local-d1-CKfek6Z4.mjs
++++ b/dist/local-d1-CKfek6Z4.mjs
+@@ -3,6 +3,7 @@ import { b as readRootWranglerConfig } from "./wrangler-p-kLCJqF.mjs";
+ import { r as getMiniflareDatabasePath } from "./runner-5MCSimKx.mjs";
  import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
  import { createHash } from "node:crypto";
-+import { i as materializeCloudflareConfig } from "./cloudflare-config-CH1AylZT.mjs";
- //#region src/local-d1.ts
++import { i as materializeCloudflareConfig } from "./cloudflare-config-Chet188_.mjs";
+ // src/local-d1.ts
  const LOCAL_D1_STATE_FILE = "local-d1.json";
  const VITE_CONFIG_NAMES = [
 @@ -16,6 +17,7 @@ const VITE_CONFIG_NAMES = [
@@ -88,12 +88,12 @@ index 4785107548e926a26c0d2c65f472b9d587cec06d..0b32ff19ddff9fbb0aca544434c631ab
  		rootConfig = readRootWranglerConfig(root);
  	} catch (error) {
  		throw new Error(`db: cannot read malformed Wrangler configuration in ${root}.`, { cause: error });
-diff --git a/dist/runner-3uGC-oLF.mjs b/dist/runner-3uGC-oLF.mjs
-index 1f3ad3d30f010f8baa4d2cae278fbfef9ad0a6fb..ff366fde8d0442b41e8eebd2e8d5af0614175f20 100644
---- a/dist/runner-3uGC-oLF.mjs
-+++ b/dist/runner-3uGC-oLF.mjs
+diff --git a/dist/runner-5MCSimKx.mjs b/dist/runner-5MCSimKx.mjs
+index 819c72f..6c8b91b 100644
+--- a/dist/runner-5MCSimKx.mjs
++++ b/dist/runner-5MCSimKx.mjs
 @@ -7,6 +7,7 @@ import { createHash, createHmac } from "node:crypto";
- //#region src/migrations/runner.ts
+ // src/migrations/runner.ts
  const SQLITE_INTERNAL_TABLES = /* @__PURE__ */ new Set([
  	"_cf_METADATA",
 +	"d1_migrations",

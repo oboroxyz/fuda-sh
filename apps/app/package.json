@@ -18,7 +18,7 @@
     "@fuda/styles": "workspace:*",
     "@fuda/ui": "workspace:*",
     "@worldcoin/idkit-core": "^4.3.0",
-    "hono": "^4.13.14",
+    "hono": "^4.13.16",
     "solid-js": "1.9.17",
     "valibot": "^1.4.2",
     "viem": "^2.56.3"
@@ -26,12 +26,12 @@
   "devDependencies": {
     "@base-org/account": "2.5.10",
     "@tailwindcss/vite": "4.3.3",
-    "@void/solid": "1.4.0",
+    "@void/solid": "1.5.0",
     "daisyui": "5.7.28",
     "tailwindcss": "4.3.3",
     "vite": "^8.2.2",
     "vite-plugin-solid": "2.11.14",
     "vitest": "4.1.11",
-    "void": "1.4.0"
+    "void": "1.5.0"
   }
 }
