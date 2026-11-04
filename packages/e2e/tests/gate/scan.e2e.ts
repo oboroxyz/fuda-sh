@@ -1,7 +1,8 @@
 import { test } from '@e2e-dev/web'
 import { expect } from 'e2e'
+import * as v from 'valibot'
 
-import { issueBearerRight } from '../support/seed.ts'
+import { apiRequest, createVenue, issueBearerRight } from '../support/seed.ts'
 
 const PASTE_BOX = 'paste fuda:v1:… or 0x…'
 
@@ -63,4 +64,43 @@ test('an unknown address under /api is not answered with the scanner', async ({ 
 
   await expect(screen.getByText(/not_found/u)).toBeVisible()
   await expect(screen.getByRole('textbox', PASTE_BOX)).toBeHidden()
+})
+
+const claimPass = async (venue: Awaited<ReturnType<typeof createVenue>>): Promise<string> => {
+  const issued = await apiRequest(
+    `/issuers/${venue.handle}/${venue.cardSlug}/issue`,
+    v.object({ qr: v.string() }),
+    {
+      body: '{}',
+      method: 'POST',
+    },
+  )
+  return issued.qr
+}
+
+test("a gate set to a shop admits its pass and turns away another shop's", async ({ app, screen }) => {
+  const shop = await createVenue('Shop A')
+  const other = await createVenue('Shop B')
+  const qr = await claimPass(shop)
+
+  const verdict = screen.getByRole('button', /tap to scan again/u)
+  const present = screen.getByRole('textbox', PASTE_BOX)
+
+  await app.open(`/?venue=${other.handle}`)
+  await expect(screen.getByText(`checking for @${other.handle}`)).toBeVisible()
+  await present.fill(qr)
+  await screen.getByRole('button', 'Check').tap()
+  await expect(verdict).toContainText('WRONG_VENUE')
+
+  await app.open(`/?venue=${shop.handle}`)
+  await expect(screen.getByText(`checking for @${shop.handle}`)).toBeVisible()
+  await present.fill(qr)
+  await screen.getByRole('button', 'Check').tap()
+  await expect(verdict).toContainText('ADMIT')
+})
+
+test('a gate with no venue says so', async ({ app, screen }) => {
+  await app.open('/')
+
+  await expect(screen.getByText(/no venue set/u)).toBeVisible()
 })
