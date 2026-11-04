@@ -439,6 +439,7 @@ describe('venue reception stamps', () => {
 
   it('fires the Attendance hook once for a successful replayed reception', async () => {
     const f = await setup()
+    await db.update(cards).set({ attendance: 1 })
     const hookEntries: number[] = []
     const app = appWith({
       chain: f.chain,
