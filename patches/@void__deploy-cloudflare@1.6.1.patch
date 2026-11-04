@@ -1,5 +1,5 @@
 diff --git a/dist/index.mjs b/dist/index.mjs
-index ce3b163..3b3be9f 100644
+index 1a76726..35ab128 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -434,7 +434,8 @@ function assertExistingCloudflareConfig(existing, config, built = false, approve
