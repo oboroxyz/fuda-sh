@@ -240,6 +240,24 @@ export const stampCredits = sqliteTable(
   (t) => [primaryKey({ columns: [t.issuerId, t.uid, t.day, t.ordinal] })],
 )
 
+export const stampAdjustments = sqliteTable(
+  'stamp_adjustments',
+  {
+    at: integer('at').notNull(),
+    delta: integer('delta').notNull(),
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    issuerId: text('issuer_id')
+      .notNull()
+      .references(() => issuers.id),
+    kind: text('kind', { enum: ['adjust', 'redeem'] }).notNull(),
+    note: text('note').notNull(),
+    operatorAddress: text('operator_address').notNull(),
+    requestId: text('request_id').notNull().unique(),
+    uid: text('uid').notNull(),
+  },
+  (t) => [index('stamp_adjustments_pass').on(t.issuerId, t.uid, t.id)],
+)
+
 export const receptionRequests = sqliteTable('reception_requests', {
   entryLogId: integer('entry_log_id')
     .notNull()
