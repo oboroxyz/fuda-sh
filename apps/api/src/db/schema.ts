@@ -54,6 +54,9 @@ export const issuers = sqliteTable(
 export const cards = sqliteTable(
   'cards',
   {
+    // docs/specs/attestation-model.md#entitlement-lifecycle: 1 when a scan writes a public
+    // Attendance. Only an on-chain card can have it on.
+    attendance: integer('attendance').notNull().default(0),
     capacity: integer('capacity'),
     category: text('category', { enum: ['membership', 'ticket'] }).notNull(),
     claimFrom: integer('claim_from'),

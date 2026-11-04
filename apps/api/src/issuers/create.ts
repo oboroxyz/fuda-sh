@@ -1,3 +1,4 @@
+import { defaultAttendance } from '@fuda/sdk'
 import type { CardRequest, IssuerCreateRequest } from '@fuda/sdk'
 
 import { attachIssuer } from '../auth/session.ts'
@@ -10,6 +11,7 @@ const cardValues = (
   input: CardRequest,
   row: { createdAt: number; id: string; issuerId: string },
 ): typeof cards.$inferInsert => ({
+  attendance: (input.attendance ?? defaultAttendance(input.category, input.record)) ? 1 : 0,
   capacity: input.capacity,
   category: input.category,
   claimFrom: input.claimFrom,

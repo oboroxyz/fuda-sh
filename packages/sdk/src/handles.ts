@@ -111,6 +111,13 @@ export const CARD_CATEGORIES: readonly CardCategory[] = ['membership', 'ticket']
 // right cannot move between the two without a new uid.
 export type CardRecord = 'offchain' | 'onchain'
 export const CARD_RECORDS: readonly CardRecord[] = ['offchain', 'onchain']
+
+// docs/specs/attestation-model.md#entitlement-lifecycle: whether a scan writes a
+// public Attendance. It exists only on an on-chain card, and a ticket starts
+// with it on while a membership starts with it off, because the record is
+// permanent and a membership's visits are a person's habits.
+export const defaultAttendance = (category: CardCategory, record: CardRecord): boolean =>
+  record === 'onchain' && category === 'ticket'
 export const isCardCategory = (raw: string): raw is CardCategory =>
   CARD_CATEGORIES.some((category) => category === raw)
 
@@ -158,6 +165,8 @@ export interface CardView extends ClaimWindow, CardValidity {
 // Operator-only card hydration includes the stored fields that are intentionally
 // absent from public CardView responses.
 export interface OperatorCardView extends CardView {
+  // Always false on an off-chain card, which has no Attendance to write.
+  attendance: boolean
   lockScreen: boolean
   record: CardRecord
   venue: { lat: number; lng: number } | null

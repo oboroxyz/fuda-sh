@@ -30,6 +30,7 @@ const issuer: IssuerView = {
   tagline: '',
 }
 const card: OperatorCardView = {
+  attendance: false,
   category: 'membership',
   claimFrom: 1_780_000_013,
   claimUntil: null,

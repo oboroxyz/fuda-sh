@@ -125,7 +125,7 @@ export const postV1IssuersMeReception = defineHandler(operatorAuth(), async (c) 
   }
   if (receipt.response.decision === 'ADMIT') {
     if (inserted && out.decision === 'ADMIT') {
-      notifyAdmission(
+      await notifyAdmission(
         {
           canonical: out.canonical,
           db,

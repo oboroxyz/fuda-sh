@@ -1,10 +1,11 @@
 import { LEVEL_CODE, USAGE_MODEL } from '@fuda/sdk'
 import type { EntryPath, Reason } from '@fuda/sdk'
+import { eq } from 'drizzle-orm'
 import type { Hex } from 'viem'
 
 import { ZERO_ADDRESS } from '../chain/client.ts'
 import type { Db } from '../db/client.ts'
-import { entryLog, slots } from '../db/schema.ts'
+import { cards, entryLog, members, slots } from '../db/schema.ts'
 import type { Entitlement } from '../eas/codecs.ts'
 
 // The MVP issues one slot per right; named so a later multi-slot right can add
@@ -94,7 +95,28 @@ export type AdmitOutcome =
   | { admitted: true; entryLogId: number }
   | { admitted: false; reason: 'ALREADY_USED' }
 
-export const notifyAdmission = (ctx: AdmitContext, entryLogId: number): void => {
+// One read, for an on-chain right only: whether the card it was issued under
+// writes an Attendance (docs/specs/attestation-model.md#entitlement-lifecycle). A right with no
+// card, which is what admin issuance makes, keeps the old behavior and records.
+// An unreadable card fails closed: a public record is permanent, a lost one is
+// not.
+const cardRecordsAttendance = async (db: Db, uid: Hex): Promise<boolean> => {
+  try {
+    const row = await db
+      .select({ attendance: cards.attendance })
+      .from(members)
+      .innerJoin(cards, eq(cards.id, members.cardId))
+      .where(eq(members.attestationUid, uid))
+      .get()
+    return row === undefined || row.attendance !== 0
+  } catch (error) {
+    // oxlint-disable-next-line no-console -- without the card the choice is unknown, so no public record is written; this line is the only trace
+    console.warn('[fuda-api] could not read the card for an Attendance', error)
+    return false
+  }
+}
+
+export const notifyAdmission = async (ctx: AdmitContext, entryLogId: number): Promise<void> => {
   // No Attendance for a +Private right
   // (docs/specs/attestation-model.md#entitlement-lifecycle): a public record would publish the visit history +Private exists to hide.
   if (ctx.canonical.level === LEVEL_CODE.private) {
@@ -103,6 +125,9 @@ export const notifyAdmission = (ctx: AdmitContext, entryLogId: number): void => 
   // An offchain right keeps its visits in D1 (docs/specs/attestation-model.md#offchain-rights),
   // and has no holder for an Attendance to name.
   if (ctx.canonical.holder === ZERO_ADDRESS) {
+    return
+  }
+  if (!(await cardRecordsAttendance(ctx.db, ctx.uid))) {
     return
   }
   try {
@@ -140,6 +165,6 @@ export const admitAndHook = async (ctx: AdmitContext): Promise<AdmitOutcome> => 
       uid: ctx.uid,
     })
   }
-  notifyAdmission(ctx, entryLogId)
+  await notifyAdmission(ctx, entryLogId)
   return { admitted: true, entryLogId }
 }

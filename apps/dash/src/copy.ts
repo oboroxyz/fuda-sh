@@ -150,6 +150,8 @@ export interface DashCopy {
     recordOffchain: string
     recordOnchain: string
     recordHint: string
+    attendanceLabel: string
+    attendanceHint: string
     cardDescriptionLabel: string
     cardDescriptionPlaceholder: string
     cardDescriptionHint: string
@@ -551,6 +553,9 @@ export const DASH_COPY = {
       recordOnchain: 'Public on the blockchain',
       recordHint:
         'Private passes are issued at once and leave no public record of each pass. Public passes can be checked by anyone, take a little longer to issue, and cannot be erased. This cannot be changed later.',
+      attendanceLabel: 'Record each visit',
+      attendanceHint:
+        'Writes a public record on the blockchain every time this card is scanned. Anyone can see it and it cannot be erased. Tickets start with this on, memberships with it off.',
       cardDescriptionLabel: 'Description',
       cardDescriptionPlaceholder: 'Tell people what this card is for and how to use it.',
       cardDescriptionHint: 'Shown on the card’s welcome page.',
@@ -954,6 +959,9 @@ export const DASH_COPY = {
       recordOnchain: 'ブロックチェーンで公開',
       recordHint:
         '非公開のパスはすぐに発行でき、1枚ごとの公開記録が残りません。公開のパスは誰でも確認できますが、発行に少し時間がかかり、記録は消せません。あとから変更できません。',
+      attendanceLabel: '来場を記録する',
+      attendanceHint:
+        'このカードを読み取るたびに、ブロックチェーンへ公開の記録を書き込みます。誰でも見られ、消せません。チケットは初期設定でオン、会員カードはオフです。',
       cardDescriptionLabel: '説明',
       cardDescriptionPlaceholder: 'カードの内容や利用方法を入力してください。',
       cardDescriptionHint: 'カードの受け取りページに表示されます。',
