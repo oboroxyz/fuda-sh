@@ -87,9 +87,13 @@ export const SignedGate = (props: { provider?: Eip1193Provider | null; locale?: 
             labels={c().scanner}
             onInput={(text) => {
               const u = uidOf(text)
-              if (u !== null) {
-                setUid(u)
+              if (u === null) {
+                // The camera stops at the first code it reads; dismissing this
+                // brings the scanner back for another try.
+                setState({ detail: c().signedUnreadable, title: 'REJECT', tone: 'red' })
+                return
               }
+              setUid(u)
             }}
           />
           <Show when={uid()}>
