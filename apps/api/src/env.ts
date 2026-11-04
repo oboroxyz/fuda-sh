@@ -44,6 +44,13 @@ export interface Bindings {
   APPLE_CERT_PEM?: string
   APPLE_KEY_PEM?: string
   APPLE_WWDR_PEM?: string
+  // Unset, installed passes stay snapshots. Set, pass.json names the Wallet web service
+  // (docs/specs/pass-types-and-flows.md#apple-wallet-updates).
+  APPLE_WEB_SERVICE_SECRET?: string
+  // The mTLS binding that holds the Pass Type ID certificate, which is what APNs
+  // authenticates a pass update by. Absent, nothing is pushed and the web service still
+  // answers, so a member can pull to refresh.
+  APPLE_PUSH_CERT?: Pick<Fetcher, 'fetch'>
   // ENS transport is disabled unless all four names are configured. The two
   // keys are Worker secrets; parent and resolver allowlist are plain bindings.
   ENS_GATEWAY_SECRET?: string
