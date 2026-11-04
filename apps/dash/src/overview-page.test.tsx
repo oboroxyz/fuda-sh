@@ -157,7 +157,9 @@ describe(OverviewPage, () => {
       const refreshed = showError(rows)
 
       for (const host of [initial, refreshed]) {
-        expect(spacedText(host.querySelector('[role="alert"]'))).toBe(`${errorPrefix}: D1_UNAVAILABLE [42]`)
+        expect(spacedText(host.querySelector('[role="alert"]'))).toBe(
+          `${errorPrefix}: ${locale === 'ja' ? '処理を完了できませんでした。もう一度お試しください。' : 'Something went wrong. Try again.'} (D1_UNAVAILABLE [42])`,
+        )
       }
       expect([...initial.querySelectorAll('.stat-value')].map(spacedText)).toStrictEqual(['—', '—', '—'])
       expect(spacedText(initial)).not.toContain(stale)

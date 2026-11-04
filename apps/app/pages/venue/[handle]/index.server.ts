@@ -21,7 +21,10 @@ export const head = defineHead<Props>((_c, props) =>
           { content: `${props.venue.body.name} - fuda`, property: 'og:title' },
           ...(props.venue.body.tagline === ''
             ? []
-            : [{ content: props.venue.body.tagline, name: 'description' }]),
+            : [
+                { content: props.venue.body.tagline, name: 'description' },
+                { content: props.venue.body.tagline, property: 'og:description' },
+              ]),
         ],
         title: `${props.venue.body.name} - fuda`,
       }

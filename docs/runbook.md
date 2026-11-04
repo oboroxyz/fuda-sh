@@ -570,3 +570,9 @@ The repository's `Require lockfile` Actions policy is active for `.github/workfl
 Dependabot checks GitHub Actions weekly, with a three-day cooldown and grouped updates. Its pull requests update the matching lockfile entries for `uses:` lines in onboarded workflows. A bump inside `.github/actions/setup/action.yml` may still need `gh actions-lock` rerun before the `lockfile` job passes. npm updates remain manual until [Dependabot supports pnpm 11](https://github.com/dependabot/dependabot-core/issues/14794), including the independent Subgraph. Cargo updates for the Substreams crates are also manual so they can be reviewed against The Graph compatibility requirements. Upgrade Vite+, its core alias, lint/format overrides, Vitest, and Ultracite together following the alignment comments in `pnpm-workspace.yaml`, then verify with `pnpm check` and `pnpm test`. Dependency update PRs remain subject to CI; automatic merging is not configured.
 
 GitHub Secret scanning and push protection are enabled in the repository's **Settings → Code security**. Keep them enabled independently of CI; they protect supported secret patterns and do not replace the `.gitignore` rules for local key material.
+
+### Check dashboard errors and page previews
+
+The dashboard translates known API errors into the current page language. For an unrecognized error, support can read the code in parentheses after the general message. The API response keeps its original code.
+
+After a frontend deployment, check the app and dashboard HTML titles, descriptions and Open Graph locale with Japanese and English `Accept-Language` headers and with a saved language choice. Without either, both use Japanese. The static gate uses Japanese metadata. A venue share link uses the saved venue name and tagline. Share services can cache earlier previews.

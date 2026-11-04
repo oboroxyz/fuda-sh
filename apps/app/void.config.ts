@@ -1,3 +1,4 @@
+import { DEFAULT_LOCALE, PAGE_COPY, pick } from '@fuda/i18n'
 import { defineConfig } from 'void/config'
 
 // Void pages behind the member app's own Worker
@@ -6,8 +7,7 @@ import { defineConfig } from 'void/config'
 // API_BASE_URL is where. `pnpm dev` points it at the local api through the
 // environment. `void deploy` records the generated config in `void.lock.json`,
 // which is committed (docs/runbook.md).
-const DESCRIPTION =
-  'Issue membership, loyalty, and ticket cards in minutes. Add them to Apple & Google Wallet. No app, no lock-in, verifiable by anyone.'
+const PAGE = pick(PAGE_COPY, DEFAULT_LOCALE)
 
 export default defineConfig({
   cloudflare: {
@@ -27,19 +27,19 @@ export default defineConfig({
     meta: [
       { charset: 'utf-8' },
       { content: 'width=device-width, initial-scale=1, viewport-fit=cover', name: 'viewport' },
-      { content: DESCRIPTION, name: 'description' },
+      { content: PAGE.description, name: 'description' },
       { content: 'website', property: 'og:type' },
       { content: 'fuda.', property: 'og:site_name' },
-      { content: 'app - fuda.sh', property: 'og:title' },
-      { content: DESCRIPTION, property: 'og:description' },
+      { content: PAGE.appTitle, property: 'og:title' },
+      { content: PAGE.description, property: 'og:description' },
       { content: 'https://app.fuda.sh/', property: 'og:url' },
       { content: 'https://fuda.sh/assets/ogp.png', property: 'og:image' },
       { content: '1200', property: 'og:image:width' },
       { content: '630', property: 'og:image:height' },
-      { content: 'en_US', property: 'og:locale' },
+      { content: PAGE.ogLocale, property: 'og:locale' },
       { content: 'summary_large_image', name: 'twitter:card' },
     ],
-    title: 'app - fuda.sh',
+    title: PAGE.appTitle,
   },
   inference: { appType: 'void', build: 'vp build' },
   target: 'cloudflare',

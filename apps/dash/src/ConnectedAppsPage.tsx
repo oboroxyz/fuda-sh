@@ -237,7 +237,7 @@ export const ConnectedAppsPage = (props: ConnectedAppsPageProps): JSX.Element =>
                   {event.error === null ? null : (
                     <span class="text-[var(--fuda-danger)]">
                       {' '}
-                      · {props.copy.activityFailed} ({event.error})
+                      · {props.copy.activityFailed} {props.copy.errorMessage(event.error)}
                     </span>
                   )}
                 </p>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { DEFAULT_LOCALE, LOCALES, pick, resolveLocale } from './index.ts'
+import { DEFAULT_LOCALE, LOCALES, PAGE_COPY, pick, resolveLocale } from './index.ts'
 
 describe('locale contract', () => {
   it('supports English and Japanese with Japanese as the default', () => {
@@ -41,5 +41,21 @@ describe('locale contract', () => {
 
   it('selects the complete dictionary branch', () => {
     expect(pick({ en: { title: 'Rights' }, ja: { title: '権利' } }, 'ja')).toStrictEqual({ title: '権利' })
+  })
+})
+
+describe('page metadata', () => {
+  it('uses Japanese titles and share copy when no language is known', () => {
+    const copy = pick(PAGE_COPY, resolveLocale(null))
+    expect(copy.appTitle).toBe('パス - fuda.sh')
+    expect(copy.dashTitle).toBe('お店の管理 - fuda.sh')
+    expect(copy.description).toContain('会員証')
+    expect(copy.ogLocale).toBe('ja_JP')
+  })
+
+  it('uses the same saved-choice and browser order as the page', () => {
+    expect(pick(PAGE_COPY, resolveLocale(null, 'en-US')).ogLocale).toBe('en_US')
+    expect(pick(PAGE_COPY, resolveLocale('ja', 'en-US')).dashTitle).toBe('お店の管理 - fuda.sh')
+    expect(pick(PAGE_COPY, resolveLocale('en', 'ja-JP')).appTitle).toBe('app - fuda.sh')
   })
 })

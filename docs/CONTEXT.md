@@ -104,7 +104,7 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Issuer name**: The ENS subname for an Issuer (`<issuer>.fuda.eth`, label = Handle), resolving to the Issuer's wallet — offchain-first and onchain-claimable. A claimed Issuer name follows registry ownership and expiry independently of Issuer delegation revocation. Under it, each Right's Member number is a member label (`<member-no>.<issuer>.fuda.eth`, see `docs/specs/ens-naming.md`); Members as people and Operators are never named. A name never makes an Issuer legitimate. _Avoid_: Venue name, ENS handle, username, member name (that names a Right, not a person)
 
-**Operator**: A person acting for a Venue at the dashboard or the gate (floor staff). Not an on-chain party, and never ENS-named. _Avoid_: Staff, admin (that is fuda's API authorization), issuer
+**Operator**: A person acting for a Venue at the dashboard or the gate (floor staff). Not an on-chain party, and never ENS-named. Operator-facing API errors use the selected language; an unrecognized code appears in parentheses after a general message for support. _Avoid_: Staff, admin (that is fuda's API authorization), issuer
 
 **Meta-address**: The ERC-5564 spending + viewing public pair, derived locally from the Member's PRF passkey, that the Member gives the Issuer to enable +Private issuance — the only thing the Issuer ever learns. Every +Private Right still lands on a fresh stealth address derived from it per issuance. _Avoid_: Stealth address (that is the per-Right Holder), public key, member address
 

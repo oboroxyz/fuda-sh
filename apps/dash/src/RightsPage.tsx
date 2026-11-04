@@ -219,7 +219,7 @@ export const RightsPage = (props: RightsPageProps): JSX.Element => {
         </div>
         {props.members.kind === 'error' ? (
           <p role="alert" class="alert alert-error">
-            {`${props.copy.rights.errorPrefix}: ${props.members.message}`}
+            {`${props.copy.rights.errorPrefix}: ${props.copy.rights.errorMessage(props.members.message)}`}
           </p>
         ) : null}
         {props.members.kind === 'loading' || props.members.kind === 'idle' ? (
