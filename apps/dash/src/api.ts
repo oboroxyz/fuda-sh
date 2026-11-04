@@ -59,9 +59,6 @@ export const signInChallenge = async (address: Hex): Promise<Result<SignInChalle
     method: 'POST',
   })
 
-export const issuerMe = async (): Promise<Result<IssuerMeResponse>> =>
-  await apiFetch<IssuerMeResponse>(API_BASE_URL, '/issuers/me')
-
 export const ownedIssuers = async (): Promise<Result<OwnedIssuersResponse>> =>
   await apiFetch<OwnedIssuersResponse>(API_BASE_URL, '/auth/issuers')
 export const switchIssuer = async (issuerId: string): Promise<Result<{ operator: IssuerMeResponse }>> =>

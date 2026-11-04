@@ -10,7 +10,7 @@ import { baseAccountProvider, requestAccount, sendSponsoredCall } from './wallet
 // The claim as the registrar takes it. The voucher's own fields go on the wire
 // unchanged: the signature covers every one of them, so re-deriving any here
 // would only invent a way to disagree with what fuda signed.
-export const claimCallData = (voucher: ClaimVoucher): Hex =>
+const claimCallData = (voucher: ClaimVoucher): Hex =>
   encodeFunctionData({
     abi: FUDA_REGISTRAR_ABI,
     args: [

@@ -28,7 +28,7 @@ export interface PassView {
   stamps: StampSummary | null
 }
 
-export const shortAddress = (a: Hex): string => `${a.slice(0, 6)}…${a.slice(-4)}`
+const shortAddress = (a: Hex): string => `${a.slice(0, 6)}…${a.slice(-4)}`
 
 const statusOf = (outcome: PassOutcome): PassView['status'] => {
   if (outcome === null) {

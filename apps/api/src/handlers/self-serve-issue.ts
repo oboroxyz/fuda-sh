@@ -10,7 +10,7 @@ import { rateLimit } from '../middleware/rate-limit.ts'
 
 // Self-serve issuances per IP per hour: a venue's whole queue is a handful of
 // phones, each of which needs one card.
-export const SELF_SERVE_BUDGET = 20
+const SELF_SERVE_BUDGET = 20
 
 const STATUS = {
   card_sold_out: 409,

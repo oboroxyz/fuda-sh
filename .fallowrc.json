@@ -1,0 +1,22 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  "entry": [
+    "src/index.{ts,tsx,js,jsx}",
+    "src/main.{ts,tsx,js,jsx}",
+    "apps/*/pages/**/*.{ts,tsx}",
+    "apps/*/routes/**/*.{ts,tsx}",
+    "apps/*/middleware/**/*.{ts,tsx}",
+    "apps/*/void.config.ts",
+    "apps/api/targets/*/void.config.ts",
+    "apps/api/targets/*/middleware/*.ts",
+    "apps/api/test/worker.ts",
+    "packages/e2e/*.config.ts",
+    "packages/e2e/scripts/*.ts",
+    "packages/e2e/tests/**/*.e2e.ts"
+  ],
+  "ignorePatterns": ["packages/subgraphs/**", "packages/substreams/**"],
+  "ignoreDependencies": ["@fuda/styles", "daisyui", "esbuild"],
+  "workspaces": {
+    "patterns": ["apps/*", "packages/*"]
+  }
+}

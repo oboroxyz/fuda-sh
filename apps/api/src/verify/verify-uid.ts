@@ -27,7 +27,7 @@ export type VerifyOutcome =
       canonical: Entitlement
     }
 
-export const toEntitlementView = (e: Entitlement): EntitlementView => ({
+const toEntitlementView = (e: Entitlement): EntitlementView => ({
   holder: e.holder,
   issuer: e.issuer,
   level: e.level,

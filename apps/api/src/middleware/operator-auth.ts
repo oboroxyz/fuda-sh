@@ -1,18 +1,13 @@
 import type { MiddlewareHandler } from 'hono'
 
-import { resolveSession } from '../auth/session.ts'
 import type { AppEnv } from '../env.ts'
+import { bearerSession } from './bearer-session.ts'
 
 // A session token from POST /auth/verify. The admin token is deliberately not
 // accepted here: an issuer belongs to the passkey address that created it, and
 // the admin bearer has no address to own one.
 export const operatorAuth = (): MiddlewareHandler<AppEnv> => async (c, next) => {
-  const header = c.req.header('Authorization') ?? ''
-  const token = header.startsWith('Bearer ') ? header.slice('Bearer '.length) : ''
-  const resolved =
-    token === ''
-      ? { kind: 'invalid' as const }
-      : await resolveSession(c.get('db'), token, c.get('now')(), 'operator')
+  const resolved = await bearerSession(c, 'operator')
   if (resolved.kind !== 'valid') {
     return c.json({ error: 'unauthorized' }, 401)
   }

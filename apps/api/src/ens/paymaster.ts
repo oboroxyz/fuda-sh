@@ -1,4 +1,3 @@
-import { FUDA_REGISTRAR_ABI } from '@fuda/ens-contracts'
 import { decodeFunctionData, isAddress, isAddressEqual, isHex, parseAbi, toFunctionSelector } from 'viem'
 import type { Address, Hex } from 'viem'
 
@@ -50,9 +49,3 @@ export const sponsorable = (callData: string, registrar: string): boolean => {
   }
   return calls.every((call) => allowed(call, registrar))
 }
-
-// Kept beside the selector set so a change to the registrar ABI that renames a
-// sponsored function fails here rather than silently widening what fuda pays for.
-export const SPONSORED_FUNCTIONS = FUDA_REGISTRAR_ABI.filter(
-  (item) => item.type === 'function' && (item.name === 'claim' || item.name === 'renew'),
-)

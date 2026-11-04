@@ -75,8 +75,3 @@ export const stealthResolutions = sqliteTable(
     index('stealth_resolutions_ens_name_id').on(table.ensNameId),
   ],
 )
-
-export type EnsNameRow = typeof ensNames.$inferSelect
-export type NewEnsNameRow = typeof ensNames.$inferInsert
-export type StealthResolutionRow = typeof stealthResolutions.$inferSelect
-export type NewStealthResolutionRow = typeof stealthResolutions.$inferInsert

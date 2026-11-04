@@ -1,4 +1,5 @@
 import { buildGoogleSaveUrl, googleConfigFrom } from '@fuda/pass'
+import type { GooglePassInput } from '@fuda/pass'
 import type { AppleLogo } from '@fuda/pass/apple'
 import { passPlatform } from '@fuda/sdk'
 import type { PassCardResponse } from '@fuda/sdk'
@@ -10,7 +11,7 @@ import { errorResponse, jsonResponse } from '../json.ts'
 import { readLogoObject } from '../media/store.ts'
 import { loadPassRow } from '../pass/pass-row.ts'
 import { passView } from '../pass/pass-view.ts'
-import type { PassOutcome } from '../pass/pass-view.ts'
+import type { PassOutcome, PassRow } from '../pass/pass-view.ts'
 import { PassPage } from '../pass/PassPage.tsx'
 import { readStampSummary } from '../stamps/store.ts'
 import { badgesFor, resolveVerdict } from './verify.ts'
@@ -35,6 +36,26 @@ const appleLogo = async (c: Context<AppEnv>, logoPrefix: string | null): Promise
     logo1x: new Uint8Array(logo1x.body),
     logo2x: new Uint8Array(logo2x.body),
     logo3x: new Uint8Array(logo3x.body),
+  }
+}
+
+// What a wallet pass shows, read when the pass is built. The badge read is
+// advisory like every other: `badgesFor` swallows a lookup failure, so it can
+// never turn a pass request into an error.
+const walletPassInput = async (c: Context<AppEnv>, row: PassRow): Promise<GooglePassInput> => {
+  const [stamps, badges] = await Promise.all([
+    readStampSummary(c.get('db'), row.uid, c.get('now')()),
+    badgesFor(c, row.uid),
+  ])
+  const view = passView(row, null, stamps)
+  return {
+    badges,
+    branding: view.branding,
+    holderShort: view.holderShort,
+    qr: view.qr,
+    stamps: view.stamps,
+    tierLabel: view.tier,
+    uid: row.uid,
   }
 }
 
@@ -98,26 +119,12 @@ export const getPassUidGoogle = defineHandler(async (c) => {
   }
   // Badges ride along in the generated object, so a member who badged first and
   // saved the pass afterwards sees the badge without waiting for a patch (there
-  // is nothing to patch until a save completes). The read is advisory like every
-  // other badge read: `badgesFor` swallows a lookup failure, so it can never
-  // turn a pass request into an error.
-  const [stamps, badges] = await Promise.all([
-    readStampSummary(c.get('db'), found.row.uid, c.get('now')()),
-    badgesFor(c, found.row.uid),
-  ])
-  const view = passView(found.row, null, stamps)
+  // is nothing to patch until a save completes).
+  const input = await walletPassInput(c, found.row)
   try {
     const saveUrl = await buildGoogleSaveUrl(
       cfg,
-      {
-        badges,
-        branding: view.branding,
-        holderShort: view.holderShort,
-        qr: view.qr,
-        stamps: view.stamps,
-        tierLabel: view.tier,
-        uid: found.row.uid,
-      },
+      input,
       [new URL(c.env.API_BASE_URL).origin, 'https://dash.fuda.sh', 'https://app.fuda.sh'],
       c.get('now')(),
     )
@@ -147,26 +154,9 @@ export const getPassUidApplePkpass = defineHandler(async (c) => {
   // The same snapshot as the Google save link, and the only way an iPhone shows
   // a badge at all: there is no push channel for an installed pass, so a member
   // who badges then adds (or re-adds) the pass gets it from the download.
-  const [stamps, badges] = await Promise.all([
-    readStampSummary(c.get('db'), found.row.uid, c.get('now')()),
-    badgesFor(c, found.row.uid),
-  ])
-  const view = passView(found.row, null, stamps)
+  const input = await walletPassInput(c, found.row)
   try {
-    const pkpass = await buildPkpass(
-      cfg,
-      {
-        badges,
-        branding: view.branding,
-        holderShort: view.holderShort,
-        qr: view.qr,
-        stamps: view.stamps,
-        tierLabel: view.tier,
-        uid: found.row.uid,
-      },
-      c.get('now')(),
-      await appleLogo(c, found.row.logoPrefix),
-    )
+    const pkpass = await buildPkpass(cfg, input, c.get('now')(), await appleLogo(c, found.row.logoPrefix))
     return new Response(pkpass, {
       headers: {
         'cache-control': 'no-store',

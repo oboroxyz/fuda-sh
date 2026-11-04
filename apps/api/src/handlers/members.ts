@@ -8,7 +8,7 @@ import { members } from '../db/schema.ts'
 import { jsonResponse } from '../json.ts'
 import { operatorOrAdmin } from '../middleware/operator-or-admin.ts'
 
-export const MEMBERS_LIMIT = 200
+const MEMBERS_LIMIT = 200
 
 // A venue sees its own members; fuda's admin token sees the deployment's.
 // Scoping by `issuer_id` rather than by card keeps a venue's second card in the

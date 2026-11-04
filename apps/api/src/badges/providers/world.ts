@@ -208,8 +208,7 @@ export const worldVerifier: BadgeVerifier = {
     }
     // signRequest()'s output is not shaped like RpContext: sig -> signature,
     // createdAt -> created_at, expiresAt -> expires_at, and rp_id is added
-    // here (it never comes from signRequest). See
-    // apps/api/scripts/world-spike.ts, which established this mapping.
+    // here (it never comes from signRequest).
     // The signing key never leaves this call: it is a Worker secret and
     // never reaches a client, a log, or a response body.
     const signed = signRequest({ action: config.action, signingKeyHex: config.signingKeyHex })

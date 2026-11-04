@@ -3,7 +3,8 @@ import { and, eq } from 'drizzle-orm'
 import * as v from 'valibot'
 import { defineHandler } from 'void'
 
-import { cards, members } from '../db/schema.ts'
+import { members } from '../db/schema.ts'
+import { ownedCard } from '../issuers/owned-card.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { operatorAuth } from '../middleware/operator-auth.ts'
 import { scheduleStampPassUpdate } from '../pass/stamp-update.ts'
@@ -14,16 +15,7 @@ import { qrOutcome } from '../verify/qr-admission.ts'
 import { resolveVerdict, verdictBody, waitUntilOf } from './verify.ts'
 
 export const getV1IssuersMeCardsCardIdStamps = defineHandler(operatorAuth(), async (c) => {
-  const { issuerId } = c.get('operator')
-  if (issuerId === null) {
-    return errorResponse(c, 'not_found', 404)
-  }
-  const card = await c
-    .get('db')
-    .select({ id: cards.id })
-    .from(cards)
-    .where(and(eq(cards.id, c.req.param().cardId), eq(cards.issuerId, issuerId)))
-    .get()
+  const card = await ownedCard(c, c.req.param().cardId)
   if (card === undefined) {
     return errorResponse(c, 'not_found', 404)
   }
@@ -33,16 +25,7 @@ export const getV1IssuersMeCardsCardIdStamps = defineHandler(operatorAuth(), asy
 
 export const putV1IssuersMeCardsCardIdStamps = defineHandler(operatorAuth(), async (c) => {
   c.header('cache-control', 'no-store')
-  const { issuerId } = c.get('operator')
-  if (issuerId === null) {
-    return errorResponse(c, 'not_found', 404)
-  }
-  const card = await c
-    .get('db')
-    .select({ category: cards.category, id: cards.id })
-    .from(cards)
-    .where(and(eq(cards.id, c.req.param().cardId), eq(cards.issuerId, issuerId)))
-    .get()
+  const card = await ownedCard(c, c.req.param().cardId)
   if (card === undefined) {
     return errorResponse(c, 'not_found', 404)
   }
@@ -68,7 +51,7 @@ export const putV1IssuersMeCardsCardIdStamps = defineHandler(operatorAuth(), asy
        goal = excluded.goal
      RETURNING card_id AS cardId`,
   )
-    .bind(parsed.output.dailyLimit, parsed.output.enabled ? 1 : 0, parsed.output.goal, card.id, issuerId)
+    .bind(parsed.output.dailyLimit, parsed.output.enabled ? 1 : 0, parsed.output.goal, card.id, card.issuerId)
     .first<{ cardId: string }>()
   if (saved === null) {
     return errorResponse(c, 'stamps_not_supported', 409)

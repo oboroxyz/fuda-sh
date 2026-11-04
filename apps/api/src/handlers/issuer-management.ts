@@ -7,6 +7,7 @@ import { defineHandler } from 'void'
 import { badgesByUid, withBadges } from '../badges/advisory.ts'
 import { cards, cardStampSettings } from '../db/schema.ts'
 import { readCardIntegrations, writeCardIntegrations } from '../integrations/store.ts'
+import { ownedCard } from '../issuers/owned-card.ts'
 import { readIssuerPasses } from '../issuers/passes.ts'
 import { operatorCardView } from '../issuers/views.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
@@ -31,16 +32,7 @@ const positiveInteger = (raw: string | undefined, fallback: number): number | nu
 
 export const getV1IssuersMeCardsCardId = defineHandler(operatorAuth(), async (c) => {
   c.header('cache-control', 'no-store')
-  const { issuerId } = c.get('operator')
-  if (issuerId === null) {
-    return errorResponse(c, 'not_found', 404)
-  }
-  const card = await c
-    .get('db')
-    .select()
-    .from(cards)
-    .where(and(eq(cards.id, c.req.param().cardId), eq(cards.issuerId, issuerId)))
-    .get()
+  const card = await ownedCard(c, c.req.param().cardId)
   return card === undefined
     ? errorResponse(c, 'not_found', 404)
     : jsonResponse(c, { card: operatorCardView(card, c.get('now')()) })
@@ -99,16 +91,7 @@ export const putV1IssuersMeCardsCardId = defineHandler(operatorAuth(), async (c)
 // here, never a change to the Card contract.
 export const getV1IssuersMeCardsCardIdIntegrations = defineHandler(operatorAuth(), async (c) => {
   c.header('cache-control', 'no-store')
-  const { issuerId } = c.get('operator')
-  if (issuerId === null) {
-    return errorResponse(c, 'not_found', 404)
-  }
-  const card = await c
-    .get('db')
-    .select({ id: cards.id })
-    .from(cards)
-    .where(and(eq(cards.id, c.req.param().cardId), eq(cards.issuerId, issuerId)))
-    .get()
+  const card = await ownedCard(c, c.req.param().cardId)
   return card === undefined
     ? errorResponse(c, 'not_found', 404)
     : jsonResponse(c, await readCardIntegrations(c.get('db'), card.id))
