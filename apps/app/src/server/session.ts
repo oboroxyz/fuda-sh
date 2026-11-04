@@ -1,7 +1,7 @@
 import { resolveLocale } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
 import { apiHeaders, clearCookie, readCookie } from '@fuda/libs/worker'
-import type { Hex, MemberSessionResponse } from '@fuda/sdk'
+import type { MemberSessionResponse } from '@fuda/sdk'
 import { apiFetch } from '@fuda/sdk/http'
 import { resolveThemeMode } from '@fuda/ui/theme'
 import type { ThemeMode } from '@fuda/ui/theme'
@@ -12,8 +12,6 @@ import { isRedirectRoute, routeFor, safeMemberReturn } from '../route.ts'
 
 // What every page knows about the request. Pages read it with `useShared()`.
 export interface AppShared {
-  // The signed-in member's address; null when signed out or not checked.
-  address: Hex | null
   // The api's public origin, for the one link the browser must open there:
   // the browser pass page (src/pass-links.ts).
   apiOrigin: string
@@ -51,7 +49,6 @@ export const resolveSession = async (
   appOrigin: string,
 ): Promise<SessionOutcome> => {
   const shared: AppShared = {
-    address: null,
     apiOrigin: apiBaseUrl.replace(/\/$/u, ''),
     locale: resolveLocale(readCookie(c, LOCALE_COOKIE)),
     restoreFailed: false,
@@ -87,7 +84,6 @@ export const resolveSession = async (
     headers: apiHeaders(c, token),
   })
   if (me.ok) {
-    shared.address = me.body.address
     return { redirect: null, shared, token }
   }
   if (me.status === 401) {

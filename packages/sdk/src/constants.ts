@@ -102,6 +102,9 @@ export const ERROR_CODES = [
   'bad_address',
   'bad_challenge',
   'bad_signature',
+  'bad_passkey',
+  'passkey_limit',
+  'last_passkey',
   'bad_handle',
   'handle_taken',
   // No longer returned: an account may own several issuers (ADR 0011). Kept

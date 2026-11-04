@@ -186,7 +186,14 @@ describe('member pass query lifecycle', () => {
       right(uidA, holderA, 'Coffee & Co.'),
       right(uidB, holderA, 'Weekend Club'),
     ])
-    mount(() => <RightsList initialAddress={holderA} injected={null} io={io} memory={[]} queryUid={null} />)
+    mount(() => (
+      <RightsList
+        injected={null}
+        io={io}
+        memory={[{ addedAt: 1, holder: holderA, uid: uidA }]}
+        queryUid={null}
+      />
+    ))
     await vi.waitFor(() => {
       expect(root.querySelectorAll('a[target="_blank"]')).toHaveLength(2)
     })

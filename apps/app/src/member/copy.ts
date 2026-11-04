@@ -1,18 +1,21 @@
 import type { Copy } from '@fuda/i18n'
-import type { SignInFailure } from '@fuda/libs/auth'
 import type { Reason } from '@fuda/sdk'
+
+import type { PasskeyFailure } from './auth.ts'
 
 const EN = {
   auth: {
     checking: 'Checking your session…',
-    description: 'Use your passkey to create an account or sign in.',
+    createAccount: 'Create a passkey',
+    creating: 'Creating…',
+    description: 'Sign in to keep your passes on every device. You do not need an account to use a pass.',
     failed: 'Could not check your session',
     failures: {
+      cancelled: 'No passkey was used. You can try again, or create one if you have none.',
       network: 'The sign-in service could not be reached. Try again.',
-      rejected: 'The signature was not accepted. Request a fresh sign-in.',
-      unavailable: 'The sign-in service could not verify this wallet. Try again later.',
-      wallet: 'The wallet request was cancelled or unavailable. You can try again.',
-    } satisfies Record<SignInFailure, string>,
+      rejected: 'That passkey was not accepted. Try another, or create one.',
+      unavailable: 'The sign-in service is not available right now. Try again later.',
+    } satisfies Record<PasskeyFailure, string>,
     preserved: 'Your saved session is still on this device.',
     redirecting: 'Taking you to fuda…',
     signOutLocal: 'Sign out locally',
@@ -71,6 +74,29 @@ const EN = {
     usage: 'usage model',
     view: 'View pass',
   },
+  passkeys: {
+    add: 'Add a passkey',
+    adding: 'Adding…',
+    cancel: 'Keep it',
+    created: 'Added {date}',
+    failures: {
+      cancelled: 'No passkey was added. You can try again.',
+      limit: 'This account already has the most passkeys it can hold. Remove one first.',
+      network: 'The service could not be reached. Try again.',
+      rejected: 'That passkey was not accepted. Try again.',
+      remove: 'That passkey could not be removed. An account must keep at least one.',
+      unavailable: 'This is not available right now. Try again later.',
+    },
+    hint: 'On a new phone, sign in with your current passkey, then add one here. Moving between iPhone and Android needs this, because passkeys do not sync across them.',
+    loadFailed: 'Could not load your passkeys.',
+    name: 'Passkey {number}',
+    remove: 'Remove',
+    removeTitle: 'Remove this passkey?',
+    removeWarning:
+      'You will no longer be able to sign in with it. Remove it if the device is lost or no longer yours.',
+    synced: 'synced',
+    title: 'Passkeys',
+  },
   settings: {
     appearance: 'Appearance',
     changeLanguage: 'Change language',
@@ -90,13 +116,16 @@ export const MEMBER_COPY = {
   ja: {
     auth: {
       checking: 'サインイン状態を確認中…',
-      description: 'パスキーで登録・サインインできます。',
+      createAccount: 'パスキーを作成',
+      creating: '作成中…',
+      description:
+        'サインインすると、どの端末でもパスを表示できます。パスを使うだけならアカウントは不要です。',
       failed: 'サインイン状態を確認できませんでした',
       failures: {
+        cancelled: 'パスキーは使われませんでした。もう一度試すか、お持ちでなければ作成してください。',
         network: '認証サービスに接続できませんでした。もう一度お試しください。',
-        rejected: '署名を確認できませんでした。サインインをやり直してください。',
-        unavailable: 'このウォレットを確認できませんでした。しばらくしてからお試しください。',
-        wallet: 'ウォレットの操作が中断されたか、利用できませんでした。もう一度お試しください。',
+        rejected: 'このパスキーは受け付けられませんでした。別のパスキーを試すか、作成してください。',
+        unavailable: '認証サービスを利用できません。しばらくしてからお試しください。',
       },
       preserved: 'サインイン情報はこの端末に保存されています。',
       redirecting: 'fuda に移動しています…',
@@ -154,6 +183,29 @@ export const MEMBER_COPY = {
       unavailable: '状態を確認できません',
       usage: '利用形式',
       view: 'パスを見る',
+    },
+    passkeys: {
+      add: 'パスキーを追加',
+      adding: '追加中…',
+      cancel: '残す',
+      created: '{date} に追加',
+      failures: {
+        cancelled: 'パスキーは追加されませんでした。もう一度お試しください。',
+        limit: 'このアカウントのパスキーは上限に達しています。先に1つ削除してください。',
+        network: 'サービスに接続できませんでした。もう一度お試しください。',
+        rejected: 'このパスキーは受け付けられませんでした。もう一度お試しください。',
+        remove: 'このパスキーは削除できませんでした。アカウントには最低1つ必要です。',
+        unavailable: '現在ご利用いただけません。しばらくしてからお試しください。',
+      },
+      hint: '新しいスマホでは、今のパスキーでサインインしてから、ここで追加します。iPhone と Android の間ではパスキーが同期されないので、この操作が必要です。',
+      loadFailed: 'パスキーを読み込めませんでした。',
+      name: 'パスキー {number}',
+      remove: '削除',
+      removeTitle: 'このパスキーを削除しますか？',
+      removeWarning:
+        '削除すると、このパスキーではサインインできなくなります。端末をなくしたときや手放すときに削除してください。',
+      synced: '同期あり',
+      title: 'パスキー',
     },
     settings: {
       appearance: '表示',

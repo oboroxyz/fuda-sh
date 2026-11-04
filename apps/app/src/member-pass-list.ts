@@ -228,11 +228,12 @@ export const loadMemberPassList = async (
     .filter(({ preview }) => isPublicPreview(preview))
     .map(({ entry }) => entry)
   let rights: GraphRight[] = []
-  let indexUnavailable = !input.graphConfigured
+  const holders = uniqueAddresses(input.addresses, publicMemory)
+  // With no holder to look up, as for a member with only offchain passes, there is
+  // nothing the index could have added, so its absence is not worth a warning.
+  let indexUnavailable = !input.graphConfigured && holders.length > 0
   if (input.graphConfigured) {
-    const fetched = await Promise.allSettled(
-      uniqueAddresses(input.addresses, publicMemory).map(async (holder) => await io.fetchRights(holder)),
-    )
+    const fetched = await Promise.allSettled(holders.map(async (holder) => await io.fetchRights(holder)))
     rights = fetched.flatMap((result) => {
       if (result.status === 'rejected') {
         indexUnavailable = true

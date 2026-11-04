@@ -25,8 +25,6 @@ const resolve = async (
   return { outcome, res }
 }
 
-const ADDRESS = `0x${'ab'.repeat(20)}`
-
 describe(resolveSession, () => {
   afterEach(() => {
     vi.unstubAllGlobals()
@@ -37,12 +35,12 @@ describe(resolveSession, () => {
     expect(outcome.redirect).toBe('/signin?return=%2Frights%3Fuid%3Dx')
   })
 
-  it("checks a member session and shares the member's address", async () => {
-    const spy = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ address: ADDRESS }))
+  it('checks a member session', async () => {
+    const spy = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ accountId: 'account-1' }))
     vi.stubGlobal('fetch', spy)
     const { outcome } = await resolve('/settings', 'fuda_member=session-1; fuda_locale=ja')
     expect(outcome).toMatchObject({ redirect: null, token: 'session-1' })
-    expect(outcome.shared).toMatchObject({ address: ADDRESS, locale: 'ja', signedIn: true })
+    expect(outcome.shared).toMatchObject({ locale: 'ja', signedIn: true })
     expect(new Headers(spy.mock.calls[0]?.[1]?.headers).get('authorization')).toBe('Bearer session-1')
   })
 

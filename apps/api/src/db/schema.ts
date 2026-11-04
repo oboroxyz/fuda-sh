@@ -99,7 +99,52 @@ export const offchainRoots = sqliteTable('offchain_roots', {
   txHash: text('tx_hash'),
 })
 
+// A member account: its passkeys are its only identity (docs/specs/pass-types-and-flows.md#member-sign-in).
+export const accounts = sqliteTable('accounts', {
+  createdAt: integer('created_at').notNull(),
+  id: text('id').primaryKey(),
+  userHandle: text('user_handle').notNull().unique(),
+})
+
+export const passkeys = sqliteTable(
+  'passkeys',
+  {
+    accountId: text('account_id')
+      .notNull()
+      .references(() => accounts.id),
+    backedUp: integer('backed_up').notNull(),
+    counter: integer('counter').notNull(),
+    createdAt: integer('created_at').notNull(),
+    credentialId: text('credential_id').primaryKey(),
+    lastUsedAt: integer('last_used_at'),
+    publicKey: text('public_key').notNull(),
+    transports: text('transports').notNull(),
+  },
+  (t) => [index('passkeys_account').on(t.accountId)],
+)
+
+export const passkeyChallenges = sqliteTable('passkey_challenges', {
+  accountId: text('account_id'),
+  challenge: text('challenge').primaryKey(),
+  createdAt: integer('created_at').notNull(),
+  purpose: text('purpose', { enum: ['register', 'login', 'add'] }).notNull(),
+  userHandle: text('user_handle'),
+})
+
+export const memberPasses = sqliteTable(
+  'member_passes',
+  {
+    accountId: text('account_id')
+      .notNull()
+      .references(() => accounts.id),
+    addedAt: integer('added_at').notNull(),
+    uid: text('uid').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.accountId, t.uid] })],
+)
+
 export const sessions = sqliteTable('sessions', {
+  accountId: text('account_id'),
   address: text('address').notNull(),
   audience: text('audience', { enum: ['member', 'operator'] })
     .notNull()

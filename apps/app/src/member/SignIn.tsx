@@ -1,18 +1,19 @@
 import { AUTH_COPY, DEFAULT_LOCALE, pick } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
-import type { SignInFailure } from '@fuda/libs/auth'
 import { FingerprintSimple } from '@fuda/ui'
 import type { JSX } from 'solid-js'
 
 import { TOP_PATH } from '../route.ts'
+import type { PasskeyFailure } from './auth.ts'
 import { MEMBER_COPY } from './copy.ts'
 
 export const SignIn = (props: {
   locale?: Locale
-  busy: boolean
-  failure: SignInFailure | null
+  busy: 'create' | 'signin' | null
+  failure: PasskeyFailure | null
   onCancel: () => void
   onNavigate: (path: string) => void
+  onCreate: () => void
   onSignIn: () => void
 }): JSX.Element => {
   const locale = (): Locale => props.locale ?? DEFAULT_LOCALE
@@ -44,16 +45,28 @@ export const SignIn = (props: {
         )}
         <button
           class="btn btn-primary w-full"
-          disabled={props.busy}
+          disabled={props.busy !== null}
           type="button"
           onClick={() => {
             props.onSignIn()
           }}
         >
           <FingerprintSimple />
-          {props.busy ? pick(AUTH_COPY, locale()).signingIn : pick(AUTH_COPY, locale()).signInWithPasskey}
+          {props.busy === 'signin'
+            ? pick(AUTH_COPY, locale()).signingIn
+            : pick(AUTH_COPY, locale()).signInWithPasskey}
         </button>
-        {props.busy ? (
+        <button
+          class="btn btn-outline w-full"
+          disabled={props.busy !== null}
+          type="button"
+          onClick={() => {
+            props.onCreate()
+          }}
+        >
+          {props.busy === 'create' ? copy().auth.creating : copy().auth.createAccount}
+        </button>
+        {props.busy === null ? null : (
           <button
             class="btn btn-ghost w-full"
             type="button"
@@ -63,7 +76,7 @@ export const SignIn = (props: {
           >
             {copy().common.cancel}
           </button>
-        ) : null}
+        )}
       </section>
     </main>
   )

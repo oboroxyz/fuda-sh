@@ -338,7 +338,7 @@ The dashboard suite also covers connected-app registration, full-page PKCE appro
 
 What the suite does not cover:
 
-- operator passkey sign-in in dash and member passkey sign-in in app (both go through Base Account);
+- operator passkey sign-in in dash (through Base Account) and member passkey sign-in in app (a real authenticator);
 - the camera scanner;
 - anything that reads the Graph.
 
@@ -444,6 +444,12 @@ Five routes use the fixed hourly D1 counter and require `CF-Connecting-IP`:
 | `POST /v1/oauth/revoke`                | 120                      |
 
 The counter is keyed by IP and hour, not route: requests across these routes share a count, with each route applying its own threshold. Rejected requests also increment it. Announcement discovery is a browser-to-Graph query and does not pass through the API. The gate routes (`/verify`, `/challenge`, `/verify-signed`) and the admin routes (`/issue`, `/revoke`, `/members`) are never budgeted.
+
+## Member passkeys
+
+`WEBAUTHN_RP_ID` and `WEBAUTHN_ORIGINS` in each api target name the domain member passkeys belong to and the origins allowed to use them. **A passkey cannot move to another domain**, so changing `WEBAUTHN_RP_ID` strands every member's passkey. At the mainnet cutover, `develop` moves to `*.dev.fuda.sh`: set its origin to `https://app.dev.fuda.sh` and leave its RP ID as `fuda.sh`, or accept that develop members start again.
+
+To drive sign-in locally without a device, use Chromium's virtual authenticator through the DevTools protocol (`WebAuthn.addVirtualAuthenticator`).
 
 ## Offchain jobs
 

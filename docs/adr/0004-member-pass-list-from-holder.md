@@ -1,6 +1,6 @@
 # ADR 0004: a member's pass list is derived from holder addresses, not from a fuda account
 
-- **Status**: Accepted 2026-09-06. Implementation planned on the Graph integration branch (`/rights` in the member app is the seam); the activation half waits for the B1 P5 work.
+- **Status**: Superseded for offchain rights by [ADR 0014](0014-offchain-default-pass-types.md) decision 7: an account keeps a server-side list of its passes, and a passkey is a login. Decisions 1 and 2 still describe how on-chain rights are found from an address. Accepted 2026-09-06. Implementation planned on the Graph integration branch (`/rights` in the member app is the seam); the activation half waits for the B1 P5 work.
 - **Scope**: how the member app shows "my passes" across Bearer, Signed and +Private rights, and what identifies the member while doing so.
 - **Numbering**: 0003 is taken by the Graph push/query lanes ADR on the same branch.
 

@@ -1,1 +1,1 @@
-export { getV1AuthMemberMe as GET } from '#api/handlers/auth.ts'
+export { getV1AuthMemberMe as GET } from '#api/handlers/member-auth.ts'
