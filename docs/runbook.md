@@ -451,6 +451,10 @@ The counter is keyed by IP and hour, not route: requests across these routes sha
 
 To drive sign-in locally without a device, use Chromium's virtual authenticator through the DevTools protocol (`WebAuthn.addVirtualAuthenticator`).
 
+**Sensitive use.** Enrollment outcomes are only counts, in `member_secret_outcomes`. To see how many members a passkey provider without PRF is stopping: `void db execute "SELECT outcome, total FROM member_secret_outcomes"`, with `--remote` from the target's directory. Many `no_prf` is the signal for the fallback in ADR 0014, decision 4. A member who has lost every passkey holding a copy cannot be helped from the database, because it holds only ciphertext. The Issuer revokes the pass and the member claims a new one.
+
+Migration `0027_sensitive_use.sql` moves `cards.identity` to a new column to widen its CHECK, and keeps each Card's value.
+
 ## Offchain jobs
 
 Two jobs in `apps/api/crons/` run on every api target: roots hourly, and failed revocations every 15 minutes. Each target links the directory the way it links `routes`. The first deploy that includes them adds a `scheduled` handler and cron triggers to the Worker; confirm both on the Worker's Triggers page in Cloudflare. Crons make Void republish every trigger, so each target must declare `routes`, `workers_dev` and `preview_urls` in `targets.jsonc`, matching what Cloudflare has, or the deploy stops with "dashboard-managed routes or visibility". The migrations run before that check, so a stopped deploy can leave them applied; they only add tables and columns, so the live version keeps working and no restore is needed.
