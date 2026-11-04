@@ -70,6 +70,12 @@ describe(withTitle, () => {
 })
 
 describe(cardBodyFrom, () => {
+  it('sends who can use a pass, and refuses a passkey on an on-chain card', () => {
+    expect(cardBodyFrom({ ...filled, slug: 'summer' })?.identity).toBe('none')
+    expect(cardBodyFrom({ ...filled, identity: 'passkey', slug: 'summer' })?.identity).toBe('passkey')
+    expect(cardBodyFrom({ ...filled, identity: 'passkey', record: 'onchain', slug: 'summer' })).toBeNull()
+  })
+
   it('sends where passes are recorded, offchain unless chosen', () => {
     expect(cardBodyFrom({ ...filled, slug: 'summer' })?.record).toBe('offchain')
     expect(cardBodyFrom({ ...filled, record: 'onchain', slug: 'summer' })?.record).toBe('onchain')
