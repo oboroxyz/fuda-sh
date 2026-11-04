@@ -34,7 +34,7 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Member**: The person who holds a Right. Holding one takes no identity at fuda; a Member who signs in has an Account. _Avoid_: User, customer
 
-**Account**: What a Member signs in to: a set of passkeys and the Passes kept on them, with no address and no email. Optional, and unrelated to the Issuer's Member id. _Avoid_: Profile, wallet
+**Account**: What a person signs in to: a set of passkeys, with no address and no email. As a Member, it keeps Passes and is optional, and it is unrelated to the Issuer's Member id. As an Operator, it owns Issuers. One account serves both. _Avoid_: Profile, wallet
 
 **Holder**: The address a Right is attested to (`recipient`): an unclaimed Claimable smart account for Bearer, the member's wallet for Signed, a stealth address for +Private. A Holder is an address; a Member is a person. _Avoid_: Owner, recipient (in prose), member address
 
@@ -64,7 +64,7 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Gate**: Whatever reads the chain and decides ADMIT or REJECT for a presented Right — fuda's api by default, but any verifier can be a Gate. _Avoid_: Scanner (that is the `apps/gate` device), verifier (in prose), door
 
-**Issuer wallet**: The Crypto wallet through which an Issuer controls its assets and authorizes operations. Its identity is distinct from the people or credentials controlling it, and from a service signer acting on the Issuer's behalf. _Avoid_: Operator wallet (when referring to the shared organization identity), staff wallet
+**Issuer wallet**: The Crypto wallet through which an Issuer controls its assets and authorizes operations. Optional: an Issuer owned by an Account has none. Its identity is distinct from the people or credentials controlling it, and from a service signer acting on the Issuer's behalf. _Avoid_: Operator wallet (when referring to the shared organization identity), staff wallet
 
 **Owner credential**: A key or wallet with full control of an Issuer wallet. Several owner credentials can control the same Issuer wallet; changing a credential does not create another Issuer. An Owner credential grants wallet control, not a limited operational role. _Avoid_: Operator (that is a person), Holder (that is the recipient of a Right)
 
@@ -104,7 +104,7 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Issuer name**: The ENS subname for an Issuer (`<issuer>.fuda.eth`, label = Handle), resolving to the Issuer's wallet — offchain-first and onchain-claimable. A claimed Issuer name follows registry ownership and expiry independently of Issuer delegation revocation. Under it, each Right's Member number is a member label (`<member-no>.<issuer>.fuda.eth`, see `docs/specs/ens-naming.md`); Members as people and Operators are never named. A name never makes an Issuer legitimate. _Avoid_: Venue name, ENS handle, username, member name (that names a Right, not a person)
 
-**Operator**: A person acting for a Venue at the dashboard or the gate (floor staff). Not an on-chain party, and never ENS-named. _Avoid_: Staff, admin (that is fuda's API authorization), issuer
+**Operator**: A person acting for a Venue at the dashboard or the gate (floor staff). Signs in with an Account's passkey, or with a Crypto wallet for an Issuer that wallet owns. Not an on-chain party, and never ENS-named. _Avoid_: Staff, admin (that is fuda's API authorization), issuer
 
 **Meta-address**: The ERC-5564 spending + viewing public pair, derived locally from the Member's PRF passkey, that the Member gives the Issuer to enable +Private issuance — the only thing the Issuer ever learns. Every +Private Right still lands on a fresh stealth address derived from it per issuance. _Avoid_: Stealth address (that is the per-Right Holder), public key, member address
 

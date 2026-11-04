@@ -338,7 +338,7 @@ The dashboard suite also covers connected-app registration, full-page PKCE appro
 
 What the suite does not cover:
 
-- operator passkey sign-in in dash (through Base Account) and member passkey sign-in in app (a real authenticator);
+- operator and member passkey sign-in (a real authenticator), and wallet sign-in in dash (through Base Account);
 - the camera scanner;
 - anything that reads the Graph.
 
@@ -445,11 +445,13 @@ Five routes use the fixed hourly D1 counter and require `CF-Connecting-IP`:
 
 The counter is keyed by IP and hour, not route: requests across these routes share a count, with each route applying its own threshold. Rejected requests also increment it. Announcement discovery is a browser-to-Graph query and does not pass through the API. The gate routes (`/verify`, `/challenge`, `/verify-signed`) and the admin routes (`/issue`, `/revoke`, `/members`) are never budgeted.
 
-## Member passkeys
+## Passkeys
 
-`WEBAUTHN_RP_ID` and `WEBAUTHN_ORIGINS` in each api target name the domain member passkeys belong to and the origins allowed to use them. **A passkey cannot move to another domain**, so changing `WEBAUTHN_RP_ID` strands every member's passkey. At the mainnet cutover, `develop` moves to `*.dev.fuda.sh`: set its origin to `https://app.dev.fuda.sh` and leave its RP ID as `fuda.sh`, or accept that develop members start again.
+`WEBAUTHN_RP_ID` and `WEBAUTHN_ORIGINS` in each api target name the domain passkeys belong to and the origins allowed to use them, comma-separated. Members and operators share them: `https://app.fuda.sh,https://dash.fuda.sh` when deployed, `http://localhost:5173,http://localhost:5175` locally. A dashboard whose origin is missing from the list answers `401 bad_passkey` to every ceremony. **A passkey cannot move to another domain**, so changing `WEBAUTHN_RP_ID` strands every passkey. At the mainnet cutover, `develop` moves to `*.dev.fuda.sh`: set its origins to `https://app.dev.fuda.sh,https://dash.dev.fuda.sh` and leave its RP ID as `fuda.sh`, or accept that develop members and operators start again.
 
-To drive sign-in locally without a device, use Chromium's virtual authenticator through the DevTools protocol (`WebAuthn.addVirtualAuthenticator`).
+To drive sign-in locally without a device, use Chromium's virtual authenticator through the DevTools protocol (`WebAuthn.addVirtualAuthenticator`). Open the dashboard at `http://localhost:5175`, not `127.0.0.1`, because the local RP ID is `localhost`.
+
+A dev server's first server-rendered page after its Vite cache is empty can answer `500 useShared(): must be used inside a pages component`, and the next request succeeds. It is a dev-only re-optimization race.
 
 ## Offchain jobs
 
