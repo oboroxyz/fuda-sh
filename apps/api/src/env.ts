@@ -67,6 +67,9 @@ export interface Bindings {
   WORLD_RP_ID?: string
   WORLD_ACTION?: string
   WORLD_RP_SIGNING_KEY?: string
+  // Cloudflare Turnstile secret for the public claim route. Unset, the bot check
+  // is skipped (docs/specs/pass-types-and-flows.md#claim-bot-check).
+  TURNSTILE_SECRET_KEY?: string
 }
 
 export interface Variables {

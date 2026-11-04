@@ -34,6 +34,7 @@ export const testEnv = (overrides: Partial<Bindings> = {}): Bindings => {
     GOOGLE_SA_EMAIL: undefined,
     GOOGLE_SA_KEY_PEM: undefined,
     SIGNER_PRIVATE_KEY: undefined,
+    TURNSTILE_SECRET_KEY: undefined,
     USE_FAKE_CHAIN: undefined,
     WORLD_ACTION: undefined,
     WORLD_APP_ID: undefined,
