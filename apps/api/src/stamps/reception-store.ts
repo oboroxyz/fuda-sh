@@ -59,6 +59,7 @@ export const recordReception = async (binding: D1Database, db: Db, input: Recept
       WHERE e.reception_id = ?2 AND e.decision = 'ADMIT'
         AND NOT EXISTS (SELECT 1 FROM reception_requests WHERE id = ?2)
         AND COALESCE(s.enabled, 0) = 1
+        AND c.identity != 'sensitive'
         AND (SELECT COUNT(*) FROM stamp_credits WHERE issuer_id = ?1 AND uid = e.uid AND day = ?3)
           < COALESCE(s.daily_limit, 1)
       ON CONFLICT (entry_log_id) DO NOTHING
@@ -90,6 +91,15 @@ export const recordReception = async (binding: D1Database, db: Db, input: Recept
       ON CONFLICT (id) DO NOTHING
     `)
       .bind(id, issuerId, JSON.stringify(verdict), day, verdict.entitlement?.level === 2 ? 1 : 0),
+    binding
+      .prepare(`
+      UPDATE entry_log SET decision = NULL, reason = NULL, path = NULL, reception_id = NULL
+      WHERE reception_id = ?1 AND uid IN (
+        SELECT m.attestation_uid FROM members m JOIN cards c ON c.id = m.card_id
+        WHERE c.identity = 'sensitive'
+      )
+    `)
+      .bind(id),
   ])
   const receipt = await readReception(db, id)
   if (receipt === undefined) {
