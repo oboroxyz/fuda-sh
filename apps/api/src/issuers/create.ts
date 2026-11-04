@@ -5,6 +5,7 @@ import type { OperatorSession } from '../auth/session.ts'
 import type { Db } from '../db/client.ts'
 import { cards, issuers } from '../db/schema.ts'
 import { claimLogoUpload } from '../media/store.ts'
+import { ownerColumns } from './queries.ts'
 
 const cardValues = (
   input: CardRequest,
@@ -73,7 +74,7 @@ export const insertIssuer = async (
     id: issuerId,
     logoPrefix,
     name: input.name,
-    operatorAddress: operator.address,
+    ...ownerColumns(operator.principal),
     tagline: input.tagline,
   })
   await (bindSession ? db.batch([insert, attachIssuer(db, operator.tokenHash, issuerId)]) : insert)

@@ -109,7 +109,7 @@ Member ENS names resolve to a holder address, so only on-chain types get them.
 - [ADR 0002](0002-unfiltered-announcement-log.md) and [ADR 0003](0003-graph-push-query-lanes.md): the announcement log loses its product use. Graph queries remain only for on-chain rights, and the Graph fallback design waits for this decision.
 - [ADR 0004](0004-member-pass-list-from-holder.md): superseded for offchain rights, as above.
 - [ADR 0005](0005-hybrid-ensv2-resolver.md): one-time +Private resolution is no longer needed, and member names shrink to on-chain types.
-- [ADR 0008](0008-shared-issuer-wallet.md): no conflict. It already keeps automated issuer keys out of wallet ownership.
+- [ADR 0008](0008-shared-issuer-wallet.md): no conflict. It already keeps automated issuer keys out of wallet ownership. It now also records that operators sign in with an account's passkey, with a wallet optional.
 
 ## Consequences
 

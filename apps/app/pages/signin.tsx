@@ -1,8 +1,9 @@
+import { cancelPasskeyCeremony } from '@fuda/libs/auth'
 import { useRouter } from '@void/solid'
 import { createSignal, onCleanup } from 'solid-js'
 import type { JSX } from 'solid-js'
 
-import { cancelPasskeyCeremony, createPasskeyAccount, signInWithPasskey } from '../src/member/auth.ts'
+import { memberPasskeys } from '../src/member/auth.ts'
 import type { PasskeyFailure, PasskeyOutcome } from '../src/member/auth.ts'
 import { SignIn } from '../src/member/SignIn.tsx'
 import { useApp, useNavigate } from '../src/page-context.tsx'
@@ -51,14 +52,14 @@ export default function SignInPage(): JSX.Element {
       locale={shared.locale}
       onCancel={cancel}
       onCreate={() => {
-        run('create', createPasskeyAccount)
+        run('create', memberPasskeys.create)
       }}
       onNavigate={(path) => {
         cancel()
         navigate(path)
       }}
       onSignIn={() => {
-        run('signin', signInWithPasskey)
+        run('signin', memberPasskeys.signIn)
       }}
     />
   )

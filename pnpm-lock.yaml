@@ -125,9 +125,6 @@ importers:
       '@fuda/ui':
         specifier: workspace:*
         version: link:../../packages/ui
-      '@simplewebauthn/browser':
-        specifier: ^14.0.0
-        version: 14.0.0
       '@worldcoin/idkit-core':
         specifier: ^4.3.0
         version: 4.3.0
@@ -324,6 +321,9 @@ importers:
       '@fuda/sdk':
         specifier: workspace:*
         version: link:../sdk
+      '@simplewebauthn/browser':
+        specifier: ^14.0.0
+        version: 14.0.0
       '@tanstack/query-core':
         specifier: 5.102.8
         version: 5.102.8

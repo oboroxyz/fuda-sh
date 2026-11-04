@@ -3,6 +3,9 @@ import type { Result } from '@fuda/sdk/http'
 
 import type { Eip1193Provider } from '../wallet/index.ts'
 
+export { cancelPasskeyCeremony, passkeyClient } from './passkey.ts'
+export type { AddPasskeyOutcome, PasskeyFailure, PasskeyOutcome } from './passkey.ts'
+
 export interface WalletSignInIo<T> {
   challenge: (address: Hex) => Promise<Result<SignInChallengeResponse>>
   personalSign: (provider: Eip1193Provider, address: Hex, message: string) => Promise<Hex>

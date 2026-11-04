@@ -13,7 +13,7 @@ interface ReceptionInput {
   issuerId: string
   uid: Hex
   now: number
-  operatorAddress: string
+  operatorKey: string
   singleUse: boolean
   verdict: VerifyResponse
 }
@@ -23,7 +23,7 @@ interface ReceptionInput {
 // reception_id also protects simultaneous retries. Each statement binds <100
 // values regardless of the configured daily limit.
 export const recordReception = async (binding: D1Database, db: Db, input: ReceptionInput) => {
-  const { id, issuerId, uid, now, operatorAddress, singleUse, verdict } = input
+  const { id, issuerId, uid, now, operatorKey, singleUse, verdict } = input
   const day = japanDay(now)
   const results = await binding.batch([
     binding
@@ -64,7 +64,7 @@ export const recordReception = async (binding: D1Database, db: Db, input: Recept
           < COALESCE(s.daily_limit, 1)
       ON CONFLICT (entry_log_id) DO NOTHING
     `)
-      .bind(issuerId, id, day, now, operatorAddress),
+      .bind(issuerId, id, day, now, operatorKey),
     binding
       .prepare(`
       INSERT INTO reception_requests (id, issuer_id, uid, entry_log_id, response)

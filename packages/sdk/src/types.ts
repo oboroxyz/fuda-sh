@@ -174,13 +174,18 @@ export interface SignInResponse {
   token: string
   issuer: IssuerView | null
 }
+export interface OperatorSignInResponse extends SignInResponse {
+  accountId: string
+}
+// A session names an account or the wallet that signed in, never both.
+export type OperatorMeResponse = { accountId: string; address: null } | { accountId: null; address: Hex }
 export interface MemberSessionResponse {
   accountId: string
 }
 export interface MemberSignInResponse extends MemberSessionResponse {
   token: string
 }
-export interface MemberPasskeyView {
+export interface PasskeyView {
   id: string
   backedUp: boolean
   createdAt: number
@@ -188,8 +193,8 @@ export interface MemberPasskeyView {
   holdsSecret: boolean
   lastUsedAt: number | null
 }
-export interface MemberPasskeysResponse {
-  passkeys: MemberPasskeyView[]
+export interface PasskeysResponse {
+  passkeys: PasskeyView[]
 }
 // docs/specs/pass-types-and-flows.md#sensitive-use
 export interface MemberSecretCopyView {

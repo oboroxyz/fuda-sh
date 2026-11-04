@@ -3,7 +3,7 @@ import { env } from 'cloudflare:test'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { createSession } from '../src/auth/session.ts'
+import { createMemberSession } from '../src/auth/session.ts'
 import { saveBadge } from '../src/badges/store.ts'
 import { getDb } from '../src/db/client.ts'
 import {
@@ -243,12 +243,7 @@ describe('operator Card management', () => {
   it('requires an operator session and hides missing or foreign Cards', async () => {
     const { app, card } = await createOwnedCard()
     const { token: foreignToken } = await signIn(app, bindings(), other)
-    const memberToken = await createSession(db(), {
-      address: operator.address,
-      audience: 'member',
-      issuerId: null,
-      now: NOW,
-    })
+    const memberToken = await createMemberSession(db(), crypto.randomUUID(), NOW)
 
     const unauthorized = await Promise.all(
       [undefined, memberToken].map(
@@ -472,12 +467,7 @@ describe('GET /issuers/me/passes', () => {
 
   it('requires an operator session', async () => {
     const app = appWith({ chain: fakeChain(), now: () => NOW })
-    const memberToken = await createSession(db(), {
-      address: operator.address,
-      audience: 'member',
-      issuerId: null,
-      now: NOW,
-    })
+    const memberToken = await createMemberSession(db(), crypto.randomUUID(), NOW)
     const responses = await Promise.all(
       [undefined, memberToken].map(
         async (token) => await getJson(app, bindings(), '/v1/issuers/me/passes', token),

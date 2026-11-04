@@ -338,7 +338,7 @@ The dashboard suite also covers connected-app registration, full-page PKCE appro
 
 What the suite does not cover:
 
-- operator passkey sign-in in dash (through Base Account) and member passkey sign-in in app (a real authenticator);
+- operator and member passkey sign-in (a real authenticator), and wallet sign-in in dash (through Base Account);
 - the camera scanner;
 - anything that reads the Graph.
 
@@ -447,11 +447,13 @@ Five routes use the fixed hourly D1 counter and require `CF-Connecting-IP`:
 
 The counter is keyed by IP and hour, not route: requests across these routes share a count, with each route applying its own threshold. Rejected requests also increment it. Announcement discovery is a browser-to-Graph query and does not pass through the API. The gate routes (`/verify`, `/challenge`, `/verify-signed`) and the admin routes (`/issue`, `/revoke`, `/members`) are never budgeted.
 
-## Member passkeys
+## Passkeys
 
-`WEBAUTHN_RP_ID` and `WEBAUTHN_ORIGINS` in each api target name the domain member passkeys belong to and the origins allowed to use them. **A passkey cannot move to another domain**, so changing `WEBAUTHN_RP_ID` strands every member's passkey. At the mainnet cutover, `develop` moves to `*.dev.fuda.sh`: set its origin to `https://app.dev.fuda.sh` and leave its RP ID as `fuda.sh`, or accept that develop members start again.
+`WEBAUTHN_RP_ID` and `WEBAUTHN_ORIGINS` in each api target name the domain passkeys belong to and the origins allowed to use them, comma-separated. Members and operators share them: `https://app.fuda.sh,https://dash.fuda.sh` when deployed, `http://localhost:5173,http://localhost:5175` locally. A dashboard whose origin is missing from the list answers `401 bad_passkey` to every ceremony. **A passkey cannot move to another domain**, so changing `WEBAUTHN_RP_ID` strands every passkey. At the mainnet cutover, `develop` moves to `*.dev.fuda.sh`: set its origins to `https://app.dev.fuda.sh,https://dash.dev.fuda.sh` and leave its RP ID as `fuda.sh`, or accept that develop members and operators start again.
 
-To drive sign-in locally without a device, use Chromium's virtual authenticator through the DevTools protocol (`WebAuthn.addVirtualAuthenticator`).
+To drive sign-in locally without a device, use Chromium's virtual authenticator through the DevTools protocol (`WebAuthn.addVirtualAuthenticator`). Open the dashboard at `http://localhost:5175`, not `127.0.0.1`, because the local RP ID is `localhost`.
+
+A dev server's first server-rendered page after its Vite cache is empty can answer `500 useShared(): must be used inside a pages component`, and the next request succeeds. It is a dev-only re-optimization race.
 
 **Sensitive use.** Enrollment outcomes are only counts, in `member_secret_outcomes`. To see how many members a passkey provider without PRF is stopping: `void db execute "SELECT outcome, total FROM member_secret_outcomes"`, with `--remote` from the target's directory. Many `no_prf` is the signal for the fallback in ADR 0014, decision 4. A member who has lost every passkey holding a copy cannot be helped from the database, because it holds only ciphertext. The Issuer revokes the pass and the member claims a new one. Start over requires a fresh assertion from an existing account passkey. It clears recovery data, not old passes; another device with the old keys can still enter until revocation. With no account passkey left, the member creates a new account. Recovery writes require the member-secret-derived write token, whose hash is enrolled with the first copy. Never replace ciphertext or reset recovery on the strength of a session alone. Migration `0027_sensitive_use.sql` includes this hash column and the new challenge purposes, so apply it with the API release before the app. Check both language warnings, credential-free claim/challenge/presentation requests, passkey-confirmed reset, and two failed concurrent vault writes recovering both entries. The existing self-serve IP budget also applies to Sensitive claims. PR 37 adds Turnstile once both changes land; no Turnstile protection is shipped here.
 

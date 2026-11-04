@@ -5,7 +5,7 @@ import { expect } from 'e2e'
 import { uniqueName } from '../support/seed.ts'
 
 // The e2e api runs without ADMIN_TOKEN, so an empty token signs in. Operator
-// passkey sign-in goes through Base Account and is not automated here.
+// passkey and wallet sign-in need an authenticator or a wallet and are not automated here.
 const signInAsAdmin = async (screen: Screen): Promise<void> => {
   await screen.getByText('Sign in with an admin token instead').tap()
   await screen.getByRole('button', 'Continue').tap()

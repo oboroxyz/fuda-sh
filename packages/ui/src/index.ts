@@ -27,6 +27,8 @@ export type {
   ThemeToggleProps,
 } from './controls.tsx'
 export { FingerprintSimple } from './FingerprintSimple.tsx'
+export { PasskeySection } from './PasskeySection.tsx'
+export type { PasskeySectionCopy } from './PasskeySection.tsx'
 export { FudaMark } from './FudaMark.tsx'
 export { IconButton } from './IconButton.tsx'
 export type { IconButtonProps } from './IconButton.tsx'

@@ -312,7 +312,7 @@ describe('member passkey sign-in', () => {
       const { accountId, token } = await register(first)
       await expect(statusOf(add(second, token))).resolves.toBe(200)
       await expect(jsonOf(login(second))).resolves.toMatchObject({ accountId })
-      const listed = await jsonOf<MemberPasskeysResponse>(request('/v1/auth/member/passkeys', { token }))
+      const listed = await jsonOf<PasskeysResponse>(request('/v1/auth/member/passkeys', { token }))
       expect(listed.passkeys.map(({ id }) => id).toSorted()).toStrictEqual(
         [first.credentialId, second.credentialId].toSorted(),
       )

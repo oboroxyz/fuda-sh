@@ -1,13 +1,5 @@
 import type { SelfServeIssueResponse } from '@fuda/sdk'
 import { apiFetch, fetchJson } from '@fuda/sdk/http'
-import type { Result } from '@fuda/sdk/http'
-import { startAuthentication, startRegistration, WebAuthnAbortService } from '@simplewebauthn/browser'
-import type {
-  AuthenticationResponseJSON,
-  PublicKeyCredentialCreationOptionsJSON,
-  PublicKeyCredentialRequestOptionsJSON,
-  RegistrationResponseJSON,
-} from '@simplewebauthn/browser'
 
 import { cardFailureOf, issuePasskeyCard } from '../api.ts'
 import type { CardFailure } from '../api.ts'

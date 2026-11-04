@@ -23,14 +23,17 @@ type ParsedName = NonNullable<ReturnType<typeof parseFudaEnsName>>
 // sends every never-claimed name to the gateway, and the answer is the wallet
 // a claim would make the owner. That wallet is the registered operator's, so
 // it is read from `issuers` rather than mirrored at registration, where a later
-// claim voucher would overwrite the row and take the name dark.
+// claim voucher would overwrite the row and take the name dark. A venue an account
+// owns has no wallet, so its name resolves to nothing until one claims it.
 const unclaimedIssuer = async (db: Db, handle: string): Promise<EnsLookupResult | null> => {
   const issuer = await db
     .select({ operatorAddress: issuers.operatorAddress })
     .from(issuers)
     .where(eq(issuers.handle, handle))
     .get()
-  return issuer === undefined || !isAddress(issuer.operatorAddress, { strict: false })
+  return issuer?.operatorAddress === null ||
+    issuer === undefined ||
+    !isAddress(issuer.operatorAddress, { strict: false })
     ? null
     : { address: getAddress(issuer.operatorAddress), expiresAt: null, type: 'address' }
 }

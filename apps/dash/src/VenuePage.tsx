@@ -18,6 +18,8 @@ export interface VenuePageProps {
   busy: boolean
   copy: DashCopy
   ens: JSX.Element | null
+  // The account's passkeys, on a venue an account owns.
+  passkeys?: JSX.Element
   failure: CreateFailure | null
   issuer: IssuerView | null
   publicUrl: string | null
@@ -175,6 +177,7 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
           onUpdate={saveVenue}
           logo={logoProps}
         />
+        {props.passkeys}
         <div class="dash-actions">
           <a
             class="btn"

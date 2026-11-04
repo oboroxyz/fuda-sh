@@ -7,11 +7,11 @@ API paths below are under `/v1` unless shown otherwise. The [Figma Make guide](.
 ## Rules
 
 - **Approval is OAuth 2.0 authorization code with PKCE**, for public clients only: an app has a client ID and no client secret, and every authorization must carry an `S256` code challenge. `plain` and requests without a challenge are refused. There are no refresh tokens; when an access token ends, the app sends the Operator through approval again.
-- **Only the account that registered an app may approve it.** The account is the Operator's signed-in passkey address. Approval by any other account answers `403 not_app_owner`; third-party consent is not offered.
-- **An approval names one Issuer.** The Operator chooses the Issuer on the consent page from those their address owns. The access token reaches that Issuer's data only; another Issuer's Card answers `404 not_found`, never `403`, so a token cannot learn which ids exist elsewhere.
+- **Only the account that registered an app may approve it.** The account is the owner the Operator signed in as: a passkey account, or a wallet address. Approval by any other account answers `403 not_app_owner`; third-party consent is not offered.
+- **An approval names one Issuer.** The Operator chooses the Issuer on the consent page from those they own. The access token reaches that Issuer's data only; another Issuer's Card answers `404 not_found`, never `403`, so a token cannot learn which ids exist elsewhere.
 - **No account or Issuer is created from outside.** No connected-app route creates an Issuer or an Operator session. An Operator without an Issuer is sent to the dashboard to create one before approving.
 - **Card creation is synchronous.** `POST /connect/cards` publishes the Card before it answers, under the same Card rules and errors as the dashboard's `POST /issuers/cards`.
-- **Wallets are not required.** Approval uses the dashboard's existing passkey sign-in; the app never sees an Operator credential.
+- **Wallets are not required.** Approval uses the dashboard's sign-in, with a passkey or a wallet; the app never sees an Operator credential.
 
 ## Registering an app
 
@@ -116,4 +116,4 @@ No other route answers CORS for these origins, so a connected app's page cannot 
 
 ## Multiple Issuers per account
 
-An account may own several Issuers ([ADR 0011](../adr/0011-several-issuers-per-account.md)). The consent page lists every Issuer the signed-in address owns, oldest first, and the Operator approves an app for one of them; approving the same app for another Issuer is a second approval with its own token. Codes and tokens are keyed by Issuer, so a token approved for one Issuer answers `404` for another Issuer's Card even when the same account owns both. The Issuer the dashboard session is currently acting for plays no part: the choice on the consent page is what binds the token.
+An account may own several Issuers ([ADR 0011](../adr/0011-several-issuers-per-account.md)). The consent page lists every Issuer the signed-in owner holds, oldest first, and the Operator approves an app for one of them; approving the same app for another Issuer is a second approval with its own token. Codes and tokens are keyed by Issuer, so a token approved for one Issuer answers `404` for another Issuer's Card even when the same account owns both. The Issuer the dashboard session is currently acting for plays no part: the choice on the consent page is what binds the token.

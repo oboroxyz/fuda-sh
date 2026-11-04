@@ -10,7 +10,7 @@ type CardRow = typeof cards.$inferSelect
 
 export const issuerView = (row: IssuerRow, baseUrl: string): IssuerView => {
   // Annotated (not cast): written only from ADDRESS_RE-validated input.
-  const operatorAddress: Hex = `0x${row.operatorAddress.slice(2)}`
+  const address: Hex = `0x${(row.operatorAddress ?? '').slice(2)}`
   return {
     brandColor: row.brandColor,
     createdAt: row.createdAt,
@@ -19,7 +19,7 @@ export const issuerView = (row: IssuerRow, baseUrl: string): IssuerView => {
     id: row.id,
     logoUrl: logoUrlFor(baseUrl, row.handle, row.logoPrefix),
     name: row.name,
-    operatorAddress,
+    operatorAddress: row.operatorAddress === null ? null : address,
     tagline: row.tagline,
   }
 }

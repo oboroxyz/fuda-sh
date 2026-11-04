@@ -170,7 +170,7 @@ export const loginOptions = async (
   rp: RelyingParty,
   now: number,
 ): Promise<PublicKeyCredentialRequestOptionsJSON> => {
-  // No allowCredentials: the member has not said who they are, so the system lists
+  // No allowCredentials: the person has not said who they are, so the system lists
   // every passkey it holds for this site.
   const options = await generateAuthenticationOptions({ rpID: rp.id, userVerification: 'required' })
   await storeChallenge(db, {

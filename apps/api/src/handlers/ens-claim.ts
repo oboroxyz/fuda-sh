@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import { getAddress } from 'viem'
+import type { Address } from 'viem'
 import { defineHandler } from 'void'
 
 import { ZERO_UID } from '../chain/client.ts'
@@ -78,11 +79,16 @@ const deploymentDelegation = async (
   return result.reason === 'DELEGATION_UNAVAILABLE' ? 'unreadable' : 'refused'
 }
 
-// Signs the authorization the registrar checks and records the claim as pending.
-// It does not send anything: the operator's own wallet submits, sponsored through
-// POST /ens/paymaster (docs/specs/ens-naming.md#issuer-claim-and-renewal).
-export const postV1IssuersMeEnsClaimVoucher = defineHandler(operatorAuth(), async (c) => {
-  c.header('cache-control', 'no-store')
+interface ClaimContext {
+  config: ClaimConfig
+  issuer: NonNullable<Awaited<ReturnType<typeof operatorIssuer>>>
+  owner: Address
+}
+
+// What both claim routes need before they touch the chain. An ENS name is held by a
+// wallet (docs/adr/0008-shared-issuer-wallet.md), so a session that names an account
+// has nothing to claim with.
+const claimContext = async (c: Context<AppEnv>): Promise<ClaimContext | Response> => {
   const config = claimConfigFrom(c.env)
   if (config === null) {
     return errorResponse(c, 'ens_not_configured', 503)
@@ -91,6 +97,23 @@ export const postV1IssuersMeEnsClaimVoucher = defineHandler(operatorAuth(), asyn
   if (issuer === null) {
     return errorResponse(c, 'not_found', 404)
   }
+  const { principal } = c.get('operator')
+  return principal.kind === 'wallet'
+    ? { config, issuer, owner: getAddress(principal.address) }
+    : errorResponse(c, 'wallet_required', 409)
+}
+
+const claimRoute = (run: (c: Context<AppEnv>, context: ClaimContext) => Promise<Response>) =>
+  defineHandler(operatorAuth(), async (c) => {
+    c.header('cache-control', 'no-store')
+    const context = await claimContext(c)
+    return context instanceof Response ? context : await run(c, context)
+  })
+
+// Signs the authorization the registrar checks and records the claim as pending.
+// It does not send anything: the operator's own wallet submits, sponsored through
+// POST /ens/paymaster (docs/specs/ens-naming.md#issuer-claim-and-renewal).
+export const postV1IssuersMeEnsClaimVoucher = claimRoute(async (c, { config, issuer, owner }) => {
   const existing = await claimed(c, config, issuer.handle)
   if (existing?.status === 'claimed') {
     return errorResponse(c, 'already_claimed', 409)
@@ -105,7 +128,6 @@ export const postV1IssuersMeEnsClaimVoucher = defineHandler(operatorAuth(), asyn
   if (delegation === 'refused') {
     return errorResponse(c, 'not_delegated', 403)
   }
-  const owner = getAddress(c.get('operator').address)
   let voucher: Awaited<ReturnType<typeof signClaimVoucher>>
   try {
     // Read the nonce fresh every time: an abandoned prompt leaves the previous
@@ -140,22 +162,12 @@ export const postV1IssuersMeEnsClaimVoucher = defineHandler(operatorAuth(), asyn
 
 // Records the claim only after the chain confirms it. An unverifiable hash leaves
 // the name pending, which is recoverable; recording an unconfirmed claim is not.
-export const postV1IssuersMeEnsClaimed = defineHandler(operatorAuth(), async (c) => {
-  c.header('cache-control', 'no-store')
-  const config = claimConfigFrom(c.env)
-  if (config === null) {
-    return errorResponse(c, 'ens_not_configured', 503)
-  }
-  const issuer = await operatorIssuer(c)
-  if (issuer === null) {
-    return errorResponse(c, 'not_found', 404)
-  }
+export const postV1IssuersMeEnsClaimed = claimRoute(async (c, { config, issuer, owner }) => {
   const parsed = v.safeParse(TxHashBody, await c.req.json().catch(() => null))
   const txHash = parsed.success ? asHex(parsed.output.txHash, 32) : null
   if (txHash === null) {
     return errorResponse(c, 'bad_input', 400)
   }
-  const owner = getAddress(c.get('operator').address)
   let event: ReturnType<typeof claimedEvent>
   let receiptReverted = false
   try {

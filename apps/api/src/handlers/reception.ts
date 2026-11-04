@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm'
 import * as v from 'valibot'
 import { defineHandler } from 'void'
 
+import { principalKey } from '../auth/principal.ts'
 import { members } from '../db/schema.ts'
 import { ownedCard } from '../issuers/owned-card.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
@@ -116,7 +117,7 @@ export const postV1IssuersMeReception = defineHandler(operatorAuth(), async (c) 
     id,
     issuerId,
     now,
-    operatorAddress: operator.address,
+    operatorKey: principalKey(operator.principal),
     singleUse: out.decision === 'ADMIT' && out.canonical.usageModel === USAGE_MODEL.SINGLE_USE,
     uid,
     verdict: verdictBody(out),

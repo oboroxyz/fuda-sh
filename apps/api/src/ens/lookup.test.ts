@@ -3,7 +3,7 @@ import { getAddress } from 'viem'
 import { describe, expect, it } from 'vitest'
 
 import { getDb } from '../db/client.ts'
-import { issuers } from '../db/schema.ts'
+import { accounts, issuers } from '../db/schema.ts'
 import { lookupEnsName } from './lookup.ts'
 import { ensNames } from './schema.ts'
 
@@ -143,6 +143,24 @@ describe('ENS lookup', () => {
       ).resolves.toBeNull()
     },
   )
+
+  it('resolves nothing for a venue an account owns, since it has no wallet', async () => {
+    const database = getDb({ DB: env.DB })
+    const accountId = crypto.randomUUID()
+    await database.insert(accounts).values({ createdAt: 1, id: accountId, userHandle: accountId })
+    await database.insert(issuers).values({
+      brandColor: '#000000',
+      createdAt: 1,
+      handle: 'passkey-only',
+      id: crypto.randomUUID(),
+      name: 'Passkey only',
+      ownerAccountId: accountId,
+    })
+
+    await expect(
+      lookupEnsName(database, { name: 'passkey-only.fuda.eth', now: 10, parentName: 'fuda.eth' }),
+    ).resolves.toBeNull()
+  })
 
   it('hides an expired name but includes its exact expiry instant', async () => {
     await insertIssuerName('expired', { expiry: 9 })

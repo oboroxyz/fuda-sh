@@ -5,6 +5,7 @@ export interface ConsentCopy {
   title: string
   signInHint: string
   signIn: string
+  signInWithWallet: string
   signingIn: string
   signInFailed: string
   loading: string
@@ -54,6 +55,7 @@ export const CONSENT_COPY = {
     signIn: 'Sign in with passkey',
     signInFailed: 'Sign-in did not finish. Try again.',
     signInHint: 'Sign in to fuda to approve this app.',
+    signInWithWallet: 'Sign in with a wallet',
     signingIn: 'Waiting for your passkey…',
     title: 'Approve an app',
     unknownFailure: 'The request could not be checked. Try again.',
@@ -89,6 +91,7 @@ export const CONSENT_COPY = {
     signIn: 'パスキーでサインイン',
     signInFailed: 'サインインが完了しませんでした。もう一度お試しください。',
     signInHint: 'このアプリを承認するには fuda にサインインしてください。',
+    signInWithWallet: 'ウォレットでサインイン',
     signingIn: 'パスキーを待っています…',
     title: 'アプリの承認',
     unknownFailure: 'リクエストを確認できませんでした。もう一度お試しください。',

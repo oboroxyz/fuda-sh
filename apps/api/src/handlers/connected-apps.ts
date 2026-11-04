@@ -21,6 +21,7 @@ import type { Context } from 'hono'
 import * as v from 'valibot'
 import { defineHandler } from 'void'
 
+import { principalKey } from '../auth/principal.ts'
 import {
   appHasOrigin,
   deleteApp,
@@ -50,8 +51,10 @@ import { DEFAULT_BUDGET, rateLimit } from '../middleware/rate-limit.ts'
 // --- Registration and approvals, from the dashboard -------------------------
 // docs/specs/connected-apps.md#registering-an-app
 
+const ownerKey = (c: Context<AppEnv>): string => principalKey(c.get('operator').principal)
+
 export const getV1ConnectedApps = defineHandler(operatorAuth(), async (c) =>
-  jsonResponse(c, { apps: await listApps(c.get('db'), c.get('operator').address) }),
+  jsonResponse(c, { apps: await listApps(c.get('db'), ownerKey(c)) }),
 )
 
 export const postV1ConnectedApps = defineHandler(operatorAuth(), async (c) => {
@@ -62,28 +65,28 @@ export const postV1ConnectedApps = defineHandler(operatorAuth(), async (c) => {
     )
     return errorResponse(c, redirectIssue ? 'bad_redirect_uri' : 'bad_input', 400)
   }
-  const app = await registerApp(c.get('db'), c.get('operator').address, parsed.output, c.get('now')())
+  const app = await registerApp(c.get('db'), ownerKey(c), parsed.output, c.get('now')())
   return app === null ? errorResponse(c, 'app_limit', 409) : jsonResponse(c, { app }, 201)
 })
 
 export const getV1ConnectedAppsGrants = defineHandler(operatorAuth(), async (c) =>
   jsonResponse(c, {
-    grants: await listGrants(c.get('db'), c.get('operator').address, c.get('now')(), c.env.API_BASE_URL),
+    grants: await listGrants(c.get('db'), ownerKey(c), c.get('now')(), c.env.API_BASE_URL),
   }),
 )
 
 export const getV1ConnectedAppsActivity = defineHandler(operatorAuth(), async (c) =>
-  jsonResponse(c, { events: await listEvents(c.get('db'), c.get('operator').address) }),
+  jsonResponse(c, { events: await listEvents(c.get('db'), ownerKey(c)) }),
 )
 
 export const deleteV1ConnectedAppsGrantsId = defineHandler(operatorAuth(), async (c) =>
-  (await revokeGrant(c.get('db'), c.get('operator').address, c.req.param().id, c.get('now')()))
+  (await revokeGrant(c.get('db'), ownerKey(c), c.req.param().id, c.get('now')()))
     ? jsonResponse(c, { revoked: true })
     : errorResponse(c, 'not_found', 404),
 )
 
 export const deleteV1ConnectedAppsClientId = defineHandler(operatorAuth(), async (c) =>
-  (await deleteApp(c.get('db'), c.get('operator').address, c.req.param().clientId))
+  (await deleteApp(c.get('db'), ownerKey(c), c.req.param().clientId))
     ? jsonResponse(c, { deleted: true })
     : errorResponse(c, 'not_found', 404),
 )
@@ -120,7 +123,7 @@ const checkApproval = async (
     return { error: 'bad_redirect_uri', ok: false }
   }
   // Only the account that registered the app may approve it.
-  if (app.owner !== c.get('operator').address) {
+  if (app.owner !== ownerKey(c)) {
     return { error: 'not_app_owner', ok: false }
   }
   const scope = parseScope(p.scope)
@@ -150,7 +153,7 @@ export const getV1OauthAuthorize = defineHandler(operatorAuth(), async (c) => {
   if (c.req.query('response_type') !== 'code' || c.req.query('code_challenge_method') !== 'S256') {
     return errorResponse(c, 'invalid_request', 400)
   }
-  const owned = await issuersOwnedBy(c.get('db'), c.get('operator').address)
+  const owned = await issuersOwnedBy(c.get('db'), c.get('operator').principal)
   const body: AuthorizePreviewResponse = {
     app: { clientId: checked.app.clientId, name: checked.app.name },
     issuer: authorizationIssuer(c.env.API_BASE_URL),
@@ -170,15 +173,14 @@ export const postV1OauthAuthorize = defineHandler(operatorAuth(), async (c) => {
   if (!checked.ok) {
     return errorResponse(c, checked.error, approvalStatus(checked.error))
   }
-  const { address } = c.get('operator')
   // The issuer must be the signed-in account's own, read from the issuers
   // table rather than the session, so a token never reaches past it.
-  const owned = await issuersOwnedBy(c.get('db'), address)
+  const owned = await issuersOwnedBy(c.get('db'), c.get('operator').principal)
   if (!owned.some((row) => row.id === parsed.output.issuerId)) {
     return errorResponse(c, 'not_found', 404)
   }
   const code = await mintCode(c.get('db'), {
-    address,
+    address: ownerKey(c),
     clientId: checked.app.clientId,
     codeChallenge: parsed.output.codeChallenge,
     issuerId: parsed.output.issuerId,

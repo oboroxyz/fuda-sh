@@ -10,7 +10,16 @@ const testing = process.env.VITEST !== undefined
 
 // Dependencies the dev server would otherwise discover on a page's first
 // request, re-optimize and reload in the middle of it, failing that render.
-const PREBUNDLED = ['@base-org/account', 'cn', 'hono/html', 'uqr', 'valibot', 'viem', 'viem/chains']
+const PREBUNDLED = [
+  '@base-org/account',
+  '@simplewebauthn/browser',
+  'cn',
+  'hono/html',
+  'uqr',
+  'valibot',
+  'viem',
+  'viem/chains',
+]
 
 // Pinned dev port (5173 is reserved for apps/app). The Worker calls the api
 // itself, so there is no dev proxy.

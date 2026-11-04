@@ -1,3 +1,4 @@
+import { PasskeySection } from '@fuda/ui'
 import { createEffect, createSignal, on, Show } from 'solid-js'
 import type { JSX } from 'solid-js'
 
@@ -8,11 +9,20 @@ import { initialClaimState, reconcileClaimState, runClaim } from '../src/ens-cla
 import { readPendingEnsClaim, reconcilePendingEnsClaim, writePendingEnsClaim } from '../src/ens-pending.ts'
 import { submitClaim } from '../src/ens-submit.ts'
 import { EnsClaim } from '../src/EnsClaim.tsx'
-import { useCopy, useNavigate, useOperator, useRefresh, useSessionExpired } from '../src/page-context.tsx'
+import { operatorPasskeys } from '../src/operator-sign-in.ts'
+import {
+  useCopy,
+  useDash,
+  useNavigate,
+  useOperator,
+  useRefresh,
+  useSessionExpired,
+} from '../src/page-context.tsx'
 import { commitVenueLogo, handleCheck, saveVenue } from '../src/venue-actions.ts'
 import { VenuePage } from '../src/VenuePage.tsx'
 
 export default function Profile(): JSX.Element {
+  const shared = useDash()
   const copy = useCopy()
   const refresh = useRefresh()
   const navigate = useNavigate()
@@ -79,7 +89,7 @@ export default function Profile(): JSX.Element {
         copy={copy().ens}
         name={ens()?.name ?? ''}
         onClaim={onClaim}
-        ownerAddress={issuer()?.operatorAddress ?? ''}
+        ownerAddress={issuer()?.operatorAddress ?? null}
         state={claim()}
       />
     </Show>
@@ -107,6 +117,19 @@ export default function Profile(): JSX.Element {
       }}
       onNavigate={navigate}
       onUpdate={async (body) => await refreshed(await saveVenue(body, expired))}
+      passkeys={
+        <Show when={issuer()?.operatorAddress === null}>
+          <div class="card px-6 py-8">
+            <PasskeySection
+              copy={copy().passkeys}
+              formatDate={(unix) =>
+                new Date(unix * 1000).toLocaleDateString(shared.locale === 'ja' ? 'ja-JP' : 'en-US')
+              }
+              io={operatorPasskeys}
+            />
+          </div>
+        </Show>
+      }
       publicUrl={publicUrl()}
     />
   )

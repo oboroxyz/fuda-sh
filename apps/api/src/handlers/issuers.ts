@@ -20,7 +20,7 @@ import type { Context } from 'hono'
 import * as v from 'valibot'
 import { defineHandler } from 'void'
 
-import { createSession, sessionIssuerId } from '../auth/session.ts'
+import { createOperatorSession, sessionIssuerId } from '../auth/session.ts'
 import { configuredBadgeKinds } from '../badges/verifier.ts'
 import { cards, issuers } from '../db/schema.ts'
 import { issuerEnsName } from '../ens/names.ts'
@@ -84,8 +84,8 @@ export const getV1IssuersMe = defineHandler(operatorAuth(), async (c) => {
 // a venue whose handle happened to match it.
 export const getV1AuthIssuers = defineHandler(operatorAuth(), async (c) => {
   c.header('cache-control', 'no-store')
-  const { address, issuerId } = c.get('operator')
-  const owned = await issuersOwnedBy(c.get('db'), address)
+  const { issuerId, principal } = c.get('operator')
+  const owned = await issuersOwnedBy(c.get('db'), principal)
   const body: OwnedIssuersResponse = {
     activeIssuerId: issuerId,
     issuers: owned.map((row) => issuerSummary(row, c.env.API_BASE_URL)),
@@ -105,16 +105,15 @@ export const postV1AuthSwitch = defineHandler(operatorAuth(), async (c) => {
     return errorResponse(c, 'bad_input', 400)
   }
   const db = c.get('db')
-  const { address } = c.get('operator')
-  const owned = await issuersOwnedBy(db, address)
+  const { principal } = c.get('operator')
+  const owned = await issuersOwnedBy(db, principal)
   if (!owned.some((row) => row.id === parsed.output.issuerId)) {
     return errorResponse(c, 'not_found', 404)
   }
-  const token = await createSession(db, {
-    address,
-    audience: 'operator',
+  const token = await createOperatorSession(db, {
     issuerId: parsed.output.issuerId,
     now: c.get('now')(),
+    principal,
   })
   const body: IssuerSwitchResponse = { operator: await meResponse(c, parsed.output.issuerId), token }
   return jsonResponse(c, body)
@@ -220,7 +219,7 @@ export const postV1Issuers = defineHandler(operatorAuth(), async (c) => {
   const db = c.get('db')
   const operator = c.get('operator')
   const [owned, taken] = await Promise.all([
-    issuersOwnedBy(db, operator.address),
+    issuersOwnedBy(db, operator.principal),
     db.select({ id: issuers.id }).from(issuers).where(eq(issuers.handle, parsed.output.handle)).get(),
   ])
   // An account may own several issuers, up to a cap that keeps one account
@@ -255,11 +254,10 @@ export const postV1Issuers = defineHandler(operatorAuth(), async (c) => {
   // it, and the other is answered a session of its own like any additional one.
   const bound = bindSession && (await sessionIssuerId(db, operator.tokenHash)) === issuerId
   if (!bound) {
-    created.token = await createSession(db, {
-      address: operator.address,
-      audience: 'operator',
+    created.token = await createOperatorSession(db, {
       issuerId: found.issuer.id,
       now: c.get('now')(),
+      principal: operator.principal,
     })
   }
   return jsonResponse(c, created, 201)

@@ -30,6 +30,16 @@ describe(EnsClaim, () => {
     expect(host.querySelector('button')?.disabled).toBe(false)
   })
 
+  it('says a wallet is needed instead of offering a claim, when no wallet owns the venue', () => {
+    const host = mount(() => (
+      <EnsClaim copy={copy} name={NAME} onClaim={noop} ownerAddress={null} state={{ kind: 'unclaimed' }} />
+    ))
+
+    expect(textOf(host)).toContain(NAME)
+    expect(textOf(host)).toContain(copy.walletRequired)
+    expect(host.querySelector('button')).toBeNull()
+  })
+
   it('disables the button and says which leg is in flight', () => {
     const host = show({ kind: 'submitting', name: NAME })
 
