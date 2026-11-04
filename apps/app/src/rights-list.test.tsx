@@ -33,7 +33,8 @@ const mount = (view: () => JSX.Element): HTMLElement => {
   })
   return host
 }
-const showView = (props: RightsListViewProps): HTMLElement => mount(() => <RightsListView locale="en" {...props} />)
+const showView = (props: RightsListViewProps): HTMLElement =>
+  mount(() => <RightsListView locale="en" {...props} />)
 const viewText = (host: HTMLElement): string => host.textContent ?? ''
 const hrefsOf = (host: HTMLElement): string[] =>
   [...host.querySelectorAll('[href]')].map((node) => node.getAttribute('href') ?? '')

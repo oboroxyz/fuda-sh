@@ -23,6 +23,9 @@ describe('locale contract', () => {
     expect(resolveLocale(null, 'ja-JP,ja;q=0.9,en;q=0.8')).toBe('ja')
     expect(resolveLocale(null, 'fr-FR,en;q=0.5,ja;q=0.7')).toBe('ja')
     expect(resolveLocale(null, 'en;q=0.3, JA;q=0.4')).toBe('ja')
+  })
+
+  it('breaks a tie by order and skips a range refused with q=0', () => {
     expect(resolveLocale(null, 'ja,en')).toBe('ja')
     expect(resolveLocale(null, 'en,ja')).toBe('en')
     expect(resolveLocale(null, 'ja;q=0, en;q=0.1')).toBe('en')

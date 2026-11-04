@@ -12,7 +12,7 @@ const preferredLocale = (acceptLanguage: string): Locale | null => {
   let best: { locale: Locale; quality: number } | null = null
   for (const range of acceptLanguage.split(',')) {
     const [tag = '', ...params] = range.split(';').map((part) => part.trim().toLowerCase())
-    const primary = tag.split('-')[0]
+    const [primary] = tag.split('-')
     if (primary !== 'en' && primary !== 'ja') {
       continue
     }

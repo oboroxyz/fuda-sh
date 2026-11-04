@@ -52,6 +52,7 @@ describe(resolveSession, () => {
     const nothing = await resolve('/signin')
     expect(nothing.outcome.shared.locale).toBe('ja')
   })
+
   it("loads an operator session's venue and routes it to its home", async () => {
     const spy = vi.fn<typeof fetch>().mockResolvedValue(Response.json(me))
     vi.stubGlobal('fetch', spy)

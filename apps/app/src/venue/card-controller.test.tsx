@@ -174,7 +174,10 @@ describe('venue controller', () => {
     const host = document.createElement('div')
     document.body.replaceChildren(host)
     const deps = io()
-    render(() => <CardScreen handle={venue.handle} slug={null} io={deps} storage={localStorage} locale="en" />, host)
+    render(
+      () => <CardScreen handle={venue.handle} slug={null} io={deps} storage={localStorage} locale="en" />,
+      host,
+    )
     await vi.waitFor(() => {
       expect(host.querySelector('.venue-qr [role="img"]')).not.toBeNull()
     })
@@ -186,7 +189,10 @@ describe('venue controller', () => {
   it('issues once when the primary action is clicked twice before rendering', async () => {
     const host = document.createElement('div')
     const deps = io()
-    render(() => <CardScreen handle={venue.handle} slug={null} io={deps} storage={localStorage} locale="en" />, host)
+    render(
+      () => <CardScreen handle={venue.handle} slug={null} io={deps} storage={localStorage} locale="en" />,
+      host,
+    )
     await vi.waitFor(() => {
       expect(host.querySelector('button')).not.toBeNull()
     })

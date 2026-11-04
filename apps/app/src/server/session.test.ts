@@ -19,7 +19,9 @@ const resolve = async (
     outcome = await resolveSession(c, new URL(c.req.url), 'https://api.example', APP)
     return c.text('ok')
   })
-  const res = await app.request(`${origin}${path}`, { headers: { 'accept-language': acceptLanguage, cookie } })
+  const res = await app.request(`${origin}${path}`, {
+    headers: { 'accept-language': acceptLanguage, cookie },
+  })
   if (outcome === undefined) {
     throw new Error('the handler did not run')
   }

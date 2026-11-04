@@ -228,7 +228,9 @@ describe('member pass query lifecycle', () => {
       .mockImplementation(
         async (holder) => await Promise.resolve(holder === holderB ? [right(uidB, holderB)] : []),
       )
-    mount(() => <RightsList locale="en" variant="lookup" injected={null} io={io} memory={[]} queryUid={null} />)
+    mount(() => (
+      <RightsList locale="en" variant="lookup" injected={null} io={io} memory={[]} queryUid={null} />
+    ))
     await lookup(holderA)
     await vi.waitFor(() => {
       expect(io.fetchRights).toHaveBeenCalledWith(holderA)
