@@ -31,6 +31,8 @@
   // (branch `develop`); production takes the apex hostnames.
   "develop": {
     "name": "fuda-api",
+    "workers_dev": false,
+    "preview_urls": true,
     // api.fuda.sh is a custom domain of this Worker.
     "routes": [{ "pattern": "api.fuda.sh", "custom_domain": true }],
     // D1 has no rename, and `database_id` is what actually binds, so this
@@ -94,6 +96,8 @@
   // under the wrong configuration.
   "production": {
     "name": "fuda-api-production",
+    "workers_dev": false,
+    "preview_urls": true,
     "routes": [],
     "d1_databases": [
       { "binding": "DB", "database_name": "fuda", "database_id": "PLACEHOLDER-CREATE-PRODUCTION-D1" },
@@ -127,6 +131,8 @@
   // address, so this block never needs regenerating.
   "local": {
     "name": "fuda-api-local",
+    "workers_dev": false,
+    "preview_urls": false,
     "routes": [],
     "d1_databases": [
       {

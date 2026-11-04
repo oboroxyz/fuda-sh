@@ -13,7 +13,10 @@ const TargetSchema = v.object({
   name: v.string(),
   r2_buckets: v.array(v.object({ binding: v.string(), bucket_name: v.string() })),
   routes: v.array(v.object({ custom_domain: v.boolean(), pattern: v.string() })),
+  // Void republishes triggers once a target has crons, and refuses to guess these two.
+  preview_urls: v.boolean(),
   vars: v.record(v.string(), v.string()),
+  workers_dev: v.boolean(),
 })
 const TargetsSchema = v.object({ develop: TargetSchema, local: TargetSchema, production: TargetSchema })
 

@@ -454,7 +454,7 @@ To drive sign-in locally without a device, use Chromium's virtual authenticator 
 
 ## Offchain jobs
 
-Two jobs in `apps/api/crons/` run on every api target: roots hourly, and failed revocations every 15 minutes. Each target links the directory the way it links `routes`. The first deploy that includes them adds a `scheduled` handler and cron triggers to the Worker; confirm both on the Worker's Triggers page in Cloudflare.
+Two jobs in `apps/api/crons/` run on every api target: roots hourly, and failed revocations every 15 minutes. Each target links the directory the way it links `routes`. The first deploy that includes them adds a `scheduled` handler and cron triggers to the Worker; confirm both on the Worker's Triggers page in Cloudflare. Crons make Void republish every trigger, so each target must declare `routes`, `workers_dev` and `preview_urls` in `targets.jsonc`, matching what Cloudflare has, or the deploy stops with "dashboard-managed routes or visibility". The migrations run before that check, so a stopped deploy can leave them applied; they only add tables and columns, so the live version keeps working and no restore is needed.
 
 Failures only reach the Worker logs, as `offchain root not anchored` and `offchain revocation retry failed`. Nothing alerts on them, and no pass stops working, so check when you can. The usual cause is the signer running out of ETH, because both jobs and on-chain issuance spend from it:
 
