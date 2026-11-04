@@ -1,6 +1,6 @@
 # ADR 0014: Offchain rights by default, with on-chain rights as an option
 
-- **Status**: Accepted 2026-11-04 for the Standard and On-chain types, which are built along with roots, member passkey sign-in and the member list. Recovery from a saved pass and from a backup is built too. Everything else here is still proposed and not built: Identified, Sensitive use, delegated keys, and the removals.
+- **Status**: Accepted 2026-11-04 for the Standard and On-chain types, which are built along with roots, member passkey sign-in and the member list. Recovery from a saved pass and from a backup is built too. The per-Card Attendance setting (decision 8) is built. Everything else here is still proposed and not built: Identified, Sensitive use, delegated keys, and the removals.
 - **Scope**: the pass types an Issuer can choose, how each is verified and recovered, which keys sign them, and what leaves the product.
 
 ## Context
@@ -99,7 +99,7 @@ Moving between iOS and Android does not carry a passkey across, so the new phone
 
 ### 8. Attendance and names
 
-Attendance stays in D1 for offchain rights. On-chain types may also record it on chain, on by default for tickets and off for memberships.
+Attendance stays in D1 for offchain rights. On-chain types may also record it on chain, on by default for tickets and off for memberships. It is a setting on each on-chain Card, chosen at creation and editable, and the Card's own flag decides at every scan. An on-chain visit record is public and permanent, so a membership that wrote one would expose a person's visits.
 
 Member ENS names resolve to a holder address, so only on-chain types get them.
 

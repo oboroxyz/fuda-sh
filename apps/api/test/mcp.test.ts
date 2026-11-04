@@ -407,6 +407,23 @@ describe('mcp', () => {
     expect(rows.map((row) => row.slug)).toContain(SECOND_CARD.slug)
   })
 
+  it('sets Attendance on an on-chain card and refuses it on an off-chain one', async () => {
+    const { token } = await approveAndExchange({ resource: RESOURCE })
+    const Attendance = v.object({ card: v.object({ attendance: v.boolean() }) })
+    const ticket = await rpc(token, 'tools/call', { arguments: SECOND_CARD, name: 'create_card' })
+    expect(toolValue(Attendance, ticket).card.attendance).toBe(true)
+    const membership = await rpc(token, 'tools/call', {
+      arguments: { ...SECOND_CARD, attendance: true, category: 'membership', slug: 'club' },
+      name: 'create_card',
+    })
+    expect(toolValue(Attendance, membership).card.attendance).toBe(true)
+    const offchain = await rpc(token, 'tools/call', {
+      arguments: { ...SECOND_CARD, attendance: true, record: 'offchain', slug: 'plain' },
+      name: 'create_card',
+    })
+    expect(toolValue(ToolError, offchain)).toStrictEqual({ error: 'bad_input' })
+  })
+
   it('reports a card rule as a tool error', async () => {
     const { token } = await approveAndExchange({ resource: RESOURCE })
     await rpc(token, 'tools/call', { arguments: SECOND_CARD, name: 'create_card' })

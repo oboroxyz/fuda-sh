@@ -44,7 +44,7 @@ Each tool acts for the token's one Issuer. `tools/list` shows only the tools the
 | Tool | Scope | Result |
 | --- | --- | --- |
 | `list_cards` | `cards:read` | `{ issuer: { handle, name }, cards }`, oldest first |
-| `create_card` | `cards:write` | `{ card }`; the Card is published at once, under the same rules as `POST /issuers/cards`, and may set a `capacity` and a `record` (`offchain` by default, fixed once created) |
+| `create_card` | `cards:write` | `{ card }`; the Card is published at once, under the same rules as `POST /issuers/cards`, and may set a `capacity`, a `record` (`offchain` by default, fixed once created) and, for an `onchain` Card, `attendance` (whether each scan writes a public Attendance; on for a ticket and off for a membership unless set, refused on an offchain Card). The returned Card carries `attendance` |
 | `update_card_limits` | `cards:write` | `{ card }`; changes only the `capacity`, `claimFrom` and `claimUntil` it is given |
 | `list_passes` | `passes:read` | `{ passes, page, summary, cardStats }`, as `GET /issuers/me/passes`; filters by `cardId`, `source` and `status` |
 | `issue_pass` | `passes:issue` | `{ uid, memberNumber, passUrl }` for one Bearer Pass under a Card, with an optional `source`; `card_sold_out` at capacity |
