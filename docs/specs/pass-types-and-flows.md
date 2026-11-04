@@ -10,107 +10,41 @@ API paths below omit `/v1` except where shown explicitly; pass, asset, gateway, 
 
 Templates and the self-serve handle route are the product model. The api derives a right's level from the keys present in the request on the admin `POST /issue`; the self-serve route `POST /issuers/:handle/:slug/issue` issues `standard` (Bearer) rights, or Identified ones on a passkey Card, under the issuer's card (see [Issuer onboarding and the handle route](#issuer-onboarding-and-the-handle-route)); the `fuda.sh` apex redirects `/@*` to `app.fuda.sh`; other apex handling is outside this repository.
 
-**The template is the issuer's choice, made at issuance time.** The intended design is that the issuer configures which templates are available and sets the default, an authorized operator selects one when issuing a right, and a self-service flow such as `fuda.sh/@wassie-coffee` binds the route to a template in advance. None of this is implemented: no setting or request field names a template, and templates exist only in this document. Today the level follows from the rule above, so `private` is reachable only through the admin route, and nothing issues the two linked rights of `private + loyalty`.
+**The template is the issuer's choice, made at issuance time.** The intended design is that the issuer configures which templates are available and sets the default, an authorized operator selects one when issuing a right, and a self-service flow such as `fuda.sh/@wassie-coffee` binds the route to a template in advance. None of this is implemented: no setting or request field names a template, and templates exist only in this document. Today the level follows from the rule above.
 
-The onboarding flow behind each column is detailed in the U1–U4 sections below. U4 is a v2 design and is not implemented; its column shows the intended product behaviour, not something the api offers today. Activation is also not implemented, which limits the U1 column as footnotes 1 and 2 state. Legend: ◎ effortless · ◯ supported, with some setup or conditions · △ partial · − not provided.
+The onboarding flow behind each column is detailed in the sections below. U4 is a v2 design and is not implemented; its column shows the intended product behaviour, not something the api offers today. Legend: ◎ effortless · ◯ supported, with some setup or conditions · △ partial · − not provided.
 
-|  | **U1: `standard`** | **U2: `private`** | **U3: `private + loyalty`** | **U4: `anonymous`**<br>v2 design — not implemented |
-| --- | --- | --- | --- | --- |
-| **Typical uses** | shop membership and stamp cards / retail loyalty / community, coworking, gym, club / event and concert tickets / recurring venue or event passes | employee badges / restricted offices, labs, data centers / backstage and crew access / privacy-sensitive memberships | private club + loyalty / employee access + cafeteria points / coworking + credits / private events + member history | the U2 cases where no per-visit on-chain record may exist at all, and revocation may lag one root rotation |
-| **Sign-up** — what it takes to get the first pass | **◎**<br>save the pass in one-tap and use it right away | **◯**<br>create a passkey before save | **◯**<br>create a passkey before save; the loyalty card itself works right away | **◯**<br>create a passkey before enrolment; first entry waits for the next root rotation |
-| **Ownability** — the card is controlled by your own key | **△** ¹ | **◯** | **◯** | **◯** ⁵ |
-| **Restore** — getting the card back on a new phone | **◎** ² | **◯** ³ | **◯** ³ | **◯** ⁵ |
-| **Decentralization** — the card keeps working without fuda | **△** ¹ | **◯** | **◯** | **◯** |
-| **Private** — your visits stay unlinkable to you on-chain | − | **◯** | **◯**<br>access / − loyalty ⁴ | **◎**<br>no per-member record on chain |
-| **Loyalty** — points and history build up in one place | **◯** | − | **◯** | − |
-| **Name** — `<member-no>.<issuer>.fuda.eth`, see [ENS naming](./ens-naming.md) | **◯**<br>resolves to the stable holder | **◯**<br>resolves to a fresh stealth address per lookup | **◯**<br>two numbers: access rotates, loyalty is stable | **△**<br>derived member number; resolution not yet specified |
+|  | **U1: `standard`** | **U4: `anonymous`**<br>v2 design — not implemented |
+| --- | --- | --- |
+| **Typical uses** | shop membership and stamp cards / retail loyalty / community, coworking, gym, club / event and concert tickets / recurring venue or event passes | privacy-sensitive memberships where no per-visit on-chain record may exist at all, and revocation may lag one root rotation |
+| **Sign-up** — what it takes to get the first pass | **◎**<br>save the pass in one-tap and use it right away | **◯**<br>create a passkey before enrolment; first entry waits for the next root rotation |
+| **Ownability** — the card is controlled by your own key | **△** ¹ | **◯** ³ |
+| **Restore** — getting the card back on a new phone | **◎** ² | **◯** ³ |
+| **Decentralization** — the card keeps working without fuda | **△** ¹ | **◯** |
+| **Private** — your visits stay unlinkable to you on-chain | − | **◎**<br>no per-member record on chain |
+| **Loyalty** — points and history build up in one place | **◯** | − |
+| **Name** — `<member-no>.<issuer>.fuda.eth`, see [ENS naming](./ens-naming.md) | **◯**<br>resolves to the stable holder | **△**<br>derived member number; resolution not yet specified |
 
-1. A `standard` right starts unclaimed, with fuda controlling the holder account. Activation is designed to replace fuda with the member's passkey or EOA at the same address, making ownership and open-rail control ◯. It is not implemented, so a `standard` right stays under fuda's key today.
-2. Today the pass comes back with the platform's own device restore or a pass re-download; a member's own key cannot find an unactivated right. The rest of this note describes the design once Activation exists. An activated member key comes back through standard passkey sync (iCloud Keychain, Google Password Manager) or the external wallet's backup. The chain adds what the OS cannot: the right itself is an on-chain attestation at a stable holder address, never data stored on the phone, so a restored key at the same address brings back the card, points, and history unchanged — and because the holder is a smart account, an owner key can be rotated, or the issuer can re-attest to a new holder as a last resort.
-3. +Private keys derive from the PRF passkey, and the same OS-standard passkey sync restores that credential on a new device. From the restored keys, every stealth right can be re-enumerated deterministically from on-chain announcements — no fuda server is needed to rebuild the list. If the platform does not sync the PRF credential and it is lost, the derived keys are gone, and recovery falls back to re-issuing the rights to freshly enrolled keys.
-4. `private + loyalty` deliberately splits into two rights: the private-access right is unlinkable, while the loyalty (persistent-value) right uses a stable public holder by design. The two must not be correlated at the gate.
-5. U4 keys derive from a passkey-held identity secret that is also exportable (ADR 0001, decision 8), so a `fuda.sh` passkey is not the only key that can hold it. The membership tree and the member's Merkle path are rebuilt from the issuer's on-chain root attestations, with no fuda server.
+1. A `standard` right is held by a fuda-owned account, and the member never holds its key. A member's own key can hold a right only through direct Signed issuance on the admin route, to an address the member controls.
+2. The pass comes back with the platform's own device restore, a pass re-download, a saved link or a backup file (see [Keeping a pass without a provider](#keeping-a-pass-without-a-provider)). The right itself is an on-chain attestation at a stable holder address, never data stored on the phone, so a restored pass brings back the card, points and history unchanged.
+3. U4 keys derive from a passkey-held identity secret that is also exportable (ADR 0001, decision 8), so a `fuda.sh` passkey is not the only key that can hold it. The membership tree and the member's Merkle path are rebuilt from the issuer's on-chain root attestations, with no fuda server.
 
-## U1. Standard issuance and optional activation
+## Standard issuance
 
-U1 uses `standard` for shops, communities, loyalty cards, stamps, tickets, and other rights where instant acquisition matters more than hiding the right's public history.
-
-Steps 1 to 4 are implemented. **Activation (steps 5 and 6, the diagram and the passkey note below) is a design and is not implemented**: no route adds or removes an owner, and no Claim key is issued. A member key can hold a right today only through direct Signed issuance on the admin route.
+Standard uses `standard` for shops, communities, loyalty cards, stamps, tickets, and other rights where instant acquisition matters more than hiding the right's public history.
 
 1. The member opens a handle route such as `fuda.sh/@wassie-coffee` and requests a card without creating an account or connecting a crypto wallet.
-2. fuda creates an opaque member identifier and derives a counterfactual claimable-smart-account address. The address is known before the account is deployed.
+2. fuda creates an opaque member identifier and derives a counterfactual smart-account address that fuda owns. The address is known before the account is deployed.
 3. The issuer attests the Entitlement to that address and returns Apple, Google, and browser-based pass destinations after the on-chain UID is confirmed.
 4. The member can immediately present the saved pass as Bearer.
-5. Later, the member may activate the same right by adding a passkey—the default—or an EOA as an owner of the existing smart account. fuda removes its initial owner.
-6. The holder address, Entitlement UID, pass, points, and Attendance history remain unchanged. The activated right can answer a Signed gate challenge.
 
-```mermaid
-sequenceDiagram
-    participant M as Member
-    participant W as Claimable smart account
-    participant EAS as EAS
-    Note over W: counterfactual address<br/>owners: [fuda]
-    EAS-->>W: Entitlement holder = this address
-    M->>W: activate — add passkey or EOA owner
-    W->>W: remove fuda owner
-    Note over W: same address<br/>owners: [member key]
-    Note over EAS: same Entitlement — nothing reissued
-```
-
-The default passkey ceremony requests WebAuthn PRF support so the credential is ready for a later U2 enrollment when the device supports it. U1 activation does **not** derive or publish a meta-address, issue a stealth right, or silently enable +Private. Lack of PRF support blocks only a later private enrollment, not ordinary Signed activation.
-
-Direct issuance to a member's EOA or compatible smart wallet remains an open compatibility path for a right that starts as Signed. It needs no activation, but a direct EOA does not provide the stable-holder/account-owner separation of the U1 claimable-smart-account path.
-
-## U2. Privacy-first issuance
-
-Unlike U1, U2 uses `private` for employee badges, sensitive rooms, and other rights whose stable ownership must not become public before the member uses them. It starts as Signed +Private and never passes through a public Bearer stage.
-
-1. The member enrolls a compatible PRF passkey and derives spending and viewing keys locally.
-2. The member gives the issuer only the resulting meta-address.
-3. For every right, the issuer derives a fresh ERC-5564 stealth address, attests the Entitlement to it, and emits an announcement.
-4. The member scans announcements and discovers matching rights client-side.
-5. At the gate, the member recovers the right's one-time key locally and signs the ordinary Signed challenge.
-
-```mermaid
-flowchart LR
-    PK[Passkey PRF] --> S[Member secret]
-    S --> K["Spending + viewing keys<br/>→ meta-address"]
-    K -->|given to issuer| I[Issuer]
-    I -->|ECDH per issuance| SA[Fresh stealth address]
-    SA --> E[(Entitlement)]
-    SA --> AN[ERC-5564 announcement]
-    AN -->|match client-side| D[Member discovers right]
-    D -->|sign with recovered key| G[Gate ADMIT]
-```
-
-The issuance response does not identify the stealth destination. Each private right uses a different holder, so on-chain observers cannot link it to the member or to the member's other private rights.
-
-**Discovery.** The member app pages raw announcements from the rights subgraph through its configured public Graph endpoint and matches them locally with the viewing key; the api is not involved and never learns which rows are the member's. Pages use a stable `(blockNumber, id)` cursor, and Graph `BigInt` scalars remain JavaScript `bigint` values. Matching runs the ECDH against the row's ephemeral key, checks the announcement's view tag against byte 0 of the resulting shared secret, and only then derives the stealth address to compare. The rights subgraph indexes the Announcer directly. Discovery does not consume the optional Substreams push lane and continues when no Substreams process is running.
-
-**Interoperability caveat.** fuda's shared secret is the `keccak256` of the **compressed** 33-byte ECDH point. An ERC-5564 scanner that hashes a different encoding of the same point derives different addresses, so it will not discover fuda's announcements and fuda will not discover the ones it publishes; the meta-address format and the announcement layout are otherwise standard scheme 1.
-
-**Same meta-address on every device** holds for a passkey that the platform syncs (iCloud Keychain, Google Password Manager). A device-bound passkey yields a different member secret, hence a different meta-address, and rights issued to the first one are not discoverable from the second. The app also re-uses one stored WebAuthn `user.id`, so a second "create passkey" replaces the credential instead of adding one; if the browser blocks that storage the id is per-ceremony, and a member who enrolls twice ends up with two passkeys, two meta-addresses, and rights only the first one can find.
-
-**Privacy boundary.** Unlinkability holds against chain observers, not against the issuer; see the [+Private privacy boundary](./attestation-model.md#api-payloads-that-touch-attestations).
-
-Moving a U1 right into +Private or a U2 right into a stable holder requires a new attestation. The old and new rights must not publish an on-chain lineage link, because that would defeat the privacy boundary.
-
-## U3. Private access with persistent value
-
-U3 uses `private + loyalty` for cases that need U2-style unlinkable access alongside a U1-style long-lived relationship such as points, payments, or public membership history. It deliberately creates two rights:
-
-| Right | Holder | Verification | Purpose |
-| --- | --- | --- | --- |
-| Private access | fresh ERC-5564 stealth address | Signed +Private | enter without exposing a stable identity |
-| Persistent value | claimable smart account or member wallet | Bearer or Signed | retain points, balance, and history |
-
-The member presents only the private-access right at a private gate. The gate must not also request the persistent-value right, and admission must not automatically award value against it. Either action would correlate the stealth right with the member's persistent history. Value actions happen as a separate, explicit interaction.
+The member never takes control of that account, so a Standard right is always Bearer. A right that must answer a Signed gate challenge is issued directly to an address the member controls, a member EOA or a compatible smart wallet, through the admin `POST /issue`.
 
 ## U4. Anonymous membership (v2 design, not implemented)
 
-**Status.** U4 is the post-hackathon v2 template decided in [ADR 0001](../adr/0001-eas-native-target-architecture.md). Nothing in this section exists today: no api route accepts `anonymous`, the gate has no proof path, and the member app has no enrolment screen. The section records the intended product flow so the template has a home next to U1–U3; the ADR is its only source, and what the ADR leaves open is listed as such below.
+**Status.** U4 is the post-hackathon v2 template decided in [ADR 0001](../adr/0001-eas-native-target-architecture.md). Nothing in this section exists today: no api route accepts `anonymous`, the gate has no proof path, and the member app has no enrolment screen. The section records the intended product flow so the template has a home next to U1; the ADR is its only source, and what the ADR leaves open is listed as such below.
 
-U4 uses `anonymous` for the U2 cases where even a per-right stealth holder is too much on-chain footprint: the venue must publish no per-visit record and should not learn which of its members entered. Where U2 hides a stable holder behind a fresh stealth address per right, U4 has no per-member on-chain record at all. The member proves membership in an issuer-attested group. No Entitlement is attested for the right; its verification level is marked by the record type.
+U4 uses `anonymous` for privacy-sensitive memberships where the venue must publish no per-visit record and should not learn which of its members entered. U4 has no per-member on-chain record at all. The member proves membership in an issuer-attested group. No Entitlement is attested for the right; its verification level is marked by the record type.
 
 1. The member enrols a passkey and derives an identity secret locally. The secret is exportable, so the passkey bound to `fuda.sh` is not the only key that can hold it.
 2. The member gives the issuer an identity commitment — a leaf, not an address.
@@ -138,7 +72,7 @@ flowchart LR
 
 **Member number and name.** A U4 member number is derived, not issued: `encode28(H(secret, issuer))` plus the standard check character from [ENS naming](./ens-naming.md#member-number). It is recomputable without fuda and differs per issuer. What a U4 name resolves to is not yet specified.
 
-**Relationship to +Private.** Proved is a third verification level and coexists with +Private. The stealth-address templates stay; deprecating them for access is a later, separate decision. Stealth addresses remain the rail for receiving value, so U4 changes only how access is proved.
+**Verification level.** Proved would be a third verification level beside Bearer and Signed.
 
 **Not yet specified.** The ADR does not decide, and this section does not invent: the proof system and circuit; how the proof binds to the gate challenge and resists replay; the wire shape of a Proved gate exchange; whether a Proved right has a pass; the receipt format and where the daily root is timestamped; name resolution for a U4 right.
 
@@ -280,7 +214,7 @@ The card-creation preview links to Profile for editing the issuer’s shared nam
 
 The dashboard card list uses the same “Your Cards” heading and description for zero, one or multiple cards. The bottom creation action appears only while the list is empty and opens the designer. The text link `+ Add card` appears beside the heading and opens the designer without reloading the page. Neither depends on the venue's ENS name.
 
-**Card management.** The dashboard Card list is a searchable table with Card name/slug, issued and active Pass counts, category, claim and validity settings, public URL, copy action, and Edit link. Card previews appear in the designer, not the list. Category filtering and refresh are available. Counts are venue-scoped and include all recorded non-private issuance. Missing statistics display an unavailable marker rather than zero; errors offer retry.
+**Card management.** The dashboard Card list is a searchable table with Card name/slug, issued and active Pass counts, category, claim and validity settings, public URL, copy action, and Edit link. Card previews appear in the designer, not the list. Category filtering and refresh are available. Counts are venue-scoped and include all recorded issuance. Missing statistics display an unavailable marker rather than zero; errors offer retry.
 
 The Card list marks the default Card and lets the operator set or clear it, with pending, success and failure feedback. `PUT /issuers/me/default-card` requires the owning operator session, accepts exactly `{ slug: string | null }`, and returns `{ issuer }` with `Cache-Control: no-store`. A non-null slug must belong to that issuer; unknown or foreign Cards return `404 not_found`. The issuer persists nullable `defaultCardSlug`, separate from its profile fields. Profile and logo saves preserve that selection; the dashboard merges responses only into the fields each request owns. The existing shared public URL remains the bare Handle; a separate “Open store display” link points to `/@<handle>/home`.
 
@@ -340,7 +274,7 @@ The shared `fuda.sh/@<handle>` link redirects at the zone to `app.fuda.sh/@<hand
 
 **One member, several cards.** A member who claims two cards of one venue holds two rights: two attestations, two member numbers, two passes. The numbers are unique per issuer, so the two never collide as ENS labels, and they are unrelated to each other, so neither the chain nor a name links them to one person.
 
-**A U1 card cannot be limited to one per person.** U1's defining property is that the member has no identity at claim time: no account, no contact detail, no key. The member app remembers a claimed card on the device and shows it again instead of issuing a second one, and the per-IP budget bounds automated abuse, but neither is identity: a cleared browser, a private window, or a second device yields another card. Enforcing one-per-person needs a stable member key, which is what U2 and U3 already have — a `private` member gives the issuer a meta-address, and a `private + loyalty` member additionally has a stable persistent-value holder — so the constraint belongs to those templates, or to a card that deliberately requires a passkey before it is claimed and so gives up U1's one-tap sign-up.
+**A Standard card cannot be limited to one per person.** The defining property of a Standard pass is that the member has no identity at claim time: no account, no contact detail, no key. The member app remembers a claimed card on the device and shows it again instead of issuing a second one, and the per-IP budget bounds automated abuse, but neither is identity: a cleared browser, a private window, or a second device yields another card. Enforcing one-per-person needs a stable member key, so the constraint belongs to a pass type that holds one, or to a card that deliberately requires a passkey before it is claimed and so gives up one-tap sign-up.
 
 ### Capacity and source
 
@@ -406,10 +340,6 @@ Reading stops, and the camera is released, at the first code read, so a camera l
 
 After the challenge is consumed the signature is verified (`BAD_SIGNATURE` — a wrong signature also burns the nonce), then the SINGLE_USE slot (`ALREADY_USED`), then `ADMIT`. For a SINGLE_USE right the slot insert and the ADMIT log row are one D1 batch; any other usage model just appends the log row. Every verdict carries `no-store`. It is logged with `path: 'signature'`, except that [Sensitive use](#sensitive-use) omits verdict details and expires the log. The one non-decision answer past validation is `502 chain_error`: from the chain read that precedes the challenge, or from the signature check itself — in which case the nonce stays consumed and the member simply mints a fresh one, which is why the burn is cheap. What an RPC outage actually looks like through viem's verification is recorded in the [attestation model](./attestation-model.md#api-payloads-that-touch-attestations).
 
-### +Private entry
-
-Identical to Signed. The member recovers the stealth address's private key client-side and signs the same challenge; `holder` in the verdict is the stealth address. There is no separate +Private gate machinery.
-
 ### Badges
 
 A Right can carry a **Badge**: a verified fact about the Member holding it, attached after issuance and naming the verifier that attested it (see the [glossary](../CONTEXT.md)). Badges are additive to issuance and admission, which are otherwise unchanged: a Right with no Badge answers exactly as it did before Badges existed — the verdict body carries no `badges` key at all.
@@ -466,7 +396,7 @@ An operator configures each Card's Stamp policy at `/cards/:slug`, reached throu
 
 All responses containing settings, summaries or receipts are `no-store`. Reception resolves the venue exclusively from the operator session, then requires the UID to belong to that venue's member records before reading the chain. Unknown or foreign Rights answer `404 not_found`; member sessions and admin tokens cannot perform reception. Invalid QR data answers `400 bad_qr`, and malformed request IDs answer `400 bad_input`. Registered venue reception does not require an ENS claim.
 
-The chain and verification-level rules are the same as public QR admission. An otherwise valid Signed or +Private QR answers `LEVEL_REQUIRED`. A MULTI_USE Right can enter repeatedly; a SINGLE_USE Right still consumes its one slot and rejects later attempts. Rejected presentations earn no credit.
+The chain and verification-level rules are the same as public QR admission. An otherwise valid Signed QR answers `LEVEL_REQUIRED`. A MULTI_USE Right can enter repeatedly; a SINGLE_USE Right still consumes its one slot and rejects later attempts. Rejected presentations earn no credit.
 
 | Admission | Stamp status   | Meaning                                                       |
 | --------- | -------------- | ------------------------------------------------------------- |
@@ -494,7 +424,7 @@ Browser and member-app Pass views show enabled Stamp progress from the read-only
 
 ## Passes
 
-A pass presents a right; it is never the source of validity. The api serves three forms for every Bearer and Signed right, all linked from the `/issue` response (`passUrls.web`, `.google`, `.apple`) and from the dashboard. A +Private right has no pass: its holder is a one-time stealth address only the member can recover, its `/issue` response carries no `passUrls`, and all three pass routes answer `404 not_found` for it. Every pass response — the `404`s and `501`s included — carries `Cache-Control: no-store`.
+A pass presents a right; it is never the source of validity. The api serves three forms for every Bearer and Signed right, all linked from the `/issue` response (`passUrls.web`, `.google`, `.apple`) and from the dashboard. Every pass response — the `404`s and `501`s included — carries `Cache-Control: no-store`.
 
 A right issued under an issuer's card (`members.card_id` set) renders branded: the venue name, card title, brand colour with readable text, and the member number in `4-4-5` display form appear on the web pass, as the Google generic object's `cardTitle`, `header`, `subheader` and `hexBackgroundColor` (its text modules carry the member number under its role label, `MEMBER` or `TICKET`, the issue day as `ISSUED`, an enabled Stamp count, and a `Badge` row per Badge held; the tier is not shown), and on the Apple storeCard laid out like the app's card page: the venue name as `organizationName` and `logoText` beside the square logo, the card title as `description` and the unlabelled primary field, the member number under its role label (`MEMBER` or `TICKET`) and the issue day (`ISSUED`, a UTC-day date field Wallet formats in the device locale) as secondary fields, an enabled Stamp count and a `BADGE` row per Badge held as auxiliary fields, and the tier, holder and attestation uid on the back; a card with lock-screen relevance and a venue position adds Apple `locations`. Admin-issued rights keep the plain fuda look described below.
 
@@ -504,7 +434,7 @@ A right issued under an issuer's card (`members.card_id` set) renders branded: t
 | `GET /pass/:uid/google` | `200 { "saveUrl": "https://pay.google.com/gp/v/save/<jwt>" }` — an RS256 `savetowallet` JWT (`iss` = the service-account email, `aud: google`, `origins` = the api origin, `https://dash.fuda.sh` and `https://app.fuda.sh`) carrying one GenericObject: id `<issuerId>.<uid without 0x>`, card title "fuda membership", header = the tier label, QR barcode `fuda:v1:<uid>`, text modules Tier and Member, an enabled Stamp count, and a `Badge` row per Badge held. `501 google_not_configured` without all four `GOOGLE_*` secrets, or when the key cannot be imported |
 | `GET /pass/:uid/apple.pkpass` | `application/vnd.apple.pkpass` as an attachment: a stored (uncompressed) ZIP of `pass.json` (a storeCard; serial = the uid; QR `fuda:v1:<uid>`; fields TIER, MEMBER and Attestation, an enabled Stamp count, a `BADGE` row per Badge held, and what [Apple Wallet updates](#apple-wallet-updates) adds), `icon.png`, `manifest.json` (SHA-1 per file) and a detached CMS `signature` (RSASSA-PKCS1-v1_5 over SHA-256, made with the Pass Type ID certificate and carrying the Apple WWDR intermediate). `501 apple_not_configured` without all five `APPLE_*` secrets, or when the certificate or key cannot be used |
 
-The check order on every pass route is bad uid (`400 bad_uid`) → unknown uid (`404 not_found`) → +Private (`404 not_found`) → platform configuration, so a `404` never reveals whether a wallet platform is configured.
+The check order on every pass route is bad uid (`400 bad_uid`) → unknown uid (`404 not_found`) → platform configuration, so a `404` never reveals whether a wallet platform is configured.
 
 ### Apple Wallet updates
 
@@ -550,15 +480,14 @@ Terms (Pass, Device wallet, Crypto wallet, Holder) are defined once in the [glos
 
 | Type | Role | Used by |
 | --- | --- | --- |
-| Device wallet (Apple Wallet, Google Wallet) | Saves and presents the branded pass and its QR; it is not the source of right validity | U1; persistent-value side of U3 |
-| Browser-based pass | Presents the same right on other devices without a platform wallet | U1; persistent-value side of U3 |
-| Claimable smart account | Holds a standard right at a stable counterfactual address before and after member activation | U1; persistent-value side of U3 |
-| Passkey | Default member-owned signing key; its PRF extension can also derive +Private keys | activated U1; required by U2 and U3 |
-| EOA or compatible external wallet | Optional open signing rail or direct holder for a right that starts as Signed | U1 Signed compatibility paths |
-| ERC-5564 stealth address | Fresh one-time holder controlled by a locally recovered key, preventing a stable public member link | U2; private-access side of U3 |
+| Device wallet (Apple Wallet, Google Wallet) | Saves and presents the branded pass and its QR; it is not the source of right validity | U1 |
+| Browser-based pass | Presents the same right on other devices without a platform wallet | U1 |
+| fuda-owned smart account | Holds a standard right at a stable counterfactual address; the member never controls it | U1 |
+| Passkey | Member account sign-in; needs no PRF | member accounts |
+| EOA or compatible external wallet | Holder of a Signed right issued directly to the member's own address | Signed issuance |
 | Membership group root (EAS attestation) | Issuer-attested Merkle root the member proves membership in; rebuilt from chain, no fuda server | U4 (v2 design, not implemented) |
 
-A Bearer member needs only the saved pass. Signed entry additionally uses the passkey, EOA, smart account, or recovered stealth key associated with the Entitlement holder.
+A Bearer member needs only the saved pass. Signed entry additionally uses the EOA or smart account that is the Entitlement holder.
 
 ### Verification level
 
@@ -567,33 +496,18 @@ fuda has two gate verification levels:
 - **Bearer** proves that the presented right exists and is valid. No member signature is required, so lending is tolerated.
 - **Signed** additionally proves that the presenter controls the Entitlement holder through a fresh challenge response.
 
-**+Private is a privacy extension on Signed**, not a third verification level. It keeps the Signed challenge while replacing a stable public holder with a fresh stealth address for every private right.
-
 [ADR 0001](../adr/0001-eas-native-target-architecture.md) adds a third level for v2, **Proved**: a zero-knowledge membership proof against an issuer-attested group root, used by U4. It is designed, not implemented.
-
-### Wallet rail and claim state
-
-The wallet rail determines how the member holds signing keys: managed, self-custody passkey, bring-your-own EOA, or compatible smart wallet. Choosing a rail does not change the verification level.
-
-A claimable smart account can be **unclaimed** or **claimed**:
-
-- Unclaimed means fuda initially controls the account so a Bearer right can be issued before the member creates a key.
-- Claimed means the member's passkey or EOA controls that same account. Nothing can reach this state yet, because Activation is not implemented.
-
-Activation is designed to change account control. It would not change the Entitlement holder address or create a new verification level.
 
 ### Holder and owner relationships
 
 | Path | Entitlement holder | Authorized key or owner | Address continuity |
 | --- | --- | --- | --- |
-| Unclaimed standard right | counterfactual claimable smart account | fuda's initial key; no member key required | holder address is fixed at issuance |
-| Activated standard right (not implemented) | the same claimable smart account | member passkey or EOA; fuda removes itself | Entitlement and history stay at the same address |
-| Direct Signed issuance | member EOA or compatible smart account | the member's external wallet | no activation step; no holder-address separation for a direct EOA |
-| Signed +Private | fresh one-time stealth address | one-time key recovered client-side from the member's PRF-derived keys | a new address for every private right |
+| Standard right | counterfactual fuda-owned smart account | fuda's key; no member key | holder address is fixed at issuance |
+| Direct Signed issuance | member EOA or compatible smart account | the member's external wallet | no holder-address separation for a direct EOA |
 
 The verifier accepts the open Ethereum signature path appropriate to the holder:
 
-- ECDSA for an EOA, including a recovered stealth key;
+- ECDSA for an EOA;
 - ERC-1271 for a deployed smart account; and
 - ERC-6492 for a counterfactual smart account that has not yet been deployed.
 
@@ -619,7 +533,7 @@ The member-app Worker claims only `app.fuda.sh`; it does not claim the apex. A z
 
 The app separates public venue pages from member navigation. Venue pages use a single mobile column, centered at up to 28 rem on desktop, drawn directly on the page background with no framed panel; the header carries only the fuda mark. No venue state links to the member top: the missing-card and closed-card states link back to `/@<handle>?cards=all`, and loading, failed and acquired states offer no home or back link. Invalid card suffixes under a valid venue handle remain in the venue's missing-card view. The acquired Card screen uses the Card title as its heading without a separate ready message. A saved card opens its Pass without another issuance; repeated clicks during issuance send one request. After issuance or opening a saved Card, the shared UA classifier selects Apple Wallet for iPhone/iPad/iPod, Google Wallet for Android, and the browser Pass for desktop or unknown UAs. Mobile Apple UAs with Macintosh and Mobile markers are recognized; a UA without mobile markers uses the browser fallback. Only the selected platform is probed. Once confirmed, its wallet link replaces the browser link; an unavailable platform leaves the browser link available. The individual browser Pass uses the same UA classifier for its optional wallet button and keeps its QR visible as the web fallback. Both surfaces share the Wallet save button artwork and rendering: Apple and Google use their supplied localized badges, centered at 48 px high with their original aspect ratios and 8 px clear space. Google uses the primary English badge and the condensed Japanese badge to fit narrow screens. Artwork is bundled as SVG data URLs, with no third-party image requests. The browser Pass fallback button uses the Phosphor Cards Three icon, including while a device wallet is unavailable. UA classification controls presentation only, never access or entry authorization. These pages require no member session and show no member Dock.
 
-The member top `/` and unified `/signin` are public. The top presents the animated fuda mark above its wordmark, a brief introduction and a single sign-in action. Dashboard sign-in follows the same centered mark and wordmark, divider, narrow content column and left-aligned introduction, without a surrounding card surface. The mark is shared with dashboard sign-in and uses its swing animation and respects reduced-motion preferences. The top, member sign-in and operator passkey sign-in share the localized “Sign in with Passkey” label (“パスキーでサインイン”) and a leading Fingerprint Simple icon. `/rights`, `/signed`, `/private`, and `/settings` require a server-validated member session and share a four-link Dock: Your passes, Enter, +Private, Settings. Content and Dock remain centered at up to 30 rem on desktop, with room for mobile safe areas. The Dock is absent from the top, sign-in and venue pages. Internal navigation retains session ownership and public read cache; browser history and modified clicks remain usable. Only recognized member-relative paths can be sign-in return destinations; other values default to `/rights`. Query-UID recovery survives the sign-in round trip.
+The member top `/` and unified `/signin` are public. The top presents the animated fuda mark above its wordmark, a brief introduction and a single sign-in action. Dashboard sign-in follows the same centered mark and wordmark, divider, narrow content column and left-aligned introduction, without a surrounding card surface. The mark is shared with dashboard sign-in and uses its swing animation and respects reduced-motion preferences. The top, member sign-in and operator passkey sign-in share the localized “Sign in with Passkey” label (“パスキーでサインイン”) and a leading Fingerprint Simple icon. `/rights`, `/signed`, and `/settings` require a server-validated member session and share a three-link Dock: Your passes, Enter, Settings. Content and Dock remain centered at up to 30 rem on desktop, with room for mobile safe areas. The Dock is absent from the top, sign-in and venue pages. Internal navigation retains session ownership and public read cache; browser history and modified clicks remain usable. Only recognized member-relative paths can be sign-in return destinations; other values default to `/rights`. Query-UID recovery survives the sign-in round trip.
 
 The member session token lives in an HttpOnly cookie on the app host for the server's 30-day session lifetime; the browser never sees it, and it is separate from the dashboard's operator session. The app Worker validates it through `/auth/member/me` before rendering a protected page. A signed-out request for one is redirected to `/signin` with that page as its return destination, and a signed-in request for `/signin` to that destination. A 401 clears the cookie and asks for sign-in again; a network/server failure keeps it and offers retry or local sign-out. A pending sign-in can be canceled locally, and leaving the sign-in page cancels it. After cancellation, no subsequent challenge, signature prompt or verification step starts; an already submitted operation may finish.
 
@@ -638,14 +552,11 @@ The member app and dashboard read on-chain views directly from the public rights
 1. It shows the passes saved on this browser and those the account keeps. Public-address lookup is available from Settings, with temporary results separate from the main list; it neither changes the signed-in account nor persists the searched address.
 2. The member session requires a passkey. Public graph/status reads themselves do not require additional signatures and do not authorize entry.
 3. It retains a claimed or opened public pass's uid and holder in this browser, then re-reads its live status from `GET /verify/:uid`; losing that local memory loses the device-only row.
-4. It keeps +Private discovery on `/private`: it never combines public-holder queries with a stealth address.
-5. It displays public passes as card previews in one vertical column, using the full content width without a surrounding white card. The preview shows the available issuer name and shortened UID; live status is left-aligned below it and “View pass” is right-aligned. Card preview colors are chosen deterministically from the UID, so filtering does not change them. Status tags use compact text and padded edges. A rounded search field with a leading search icon filters loaded rows by issuer name, UID or issuer address, ignoring case and normalizing Unicode width. Filtering makes no additional requests; no matches shows an empty result message and clearing the field restores the loaded rows. Each public row offers only “View pass”; Apple Wallet and Google Wallet saves are available on the individual Pass page. Private passes do not have pass links.
+4. It displays public passes as card previews in one vertical column, using the full content width without a surrounding white card. The preview shows the available issuer name and shortened UID; live status is left-aligned below it and “View pass” is right-aligned. Card preview colors are chosen deterministically from the UID, so filtering does not change them. Status tags use compact text and padded edges. A rounded search field with a leading search icon filters loaded rows by issuer name, UID or issuer address, ignoring case and normalizing Unicode width. Filtering makes no additional requests; no matches shows an empty result message and clearing the field restores the loaded rows. Each public row offers only “View pass”; Apple Wallet and Google Wallet saves are available on the individual Pass page.
 
-The dashboard's On-chain status section queries rights by holder, Attendance by right UID, and IssuerDelegation by issuer. It is visually and operationally separate from the session- or admin-token-protected D1 Rights view: on-chain-status reads do not create or update member rows. A +Private stealth holder may be entered locally for a lookup but is never persisted to D1 by either view. If `VITE_GRAPH_RIGHTS_ENDPOINT` is empty or a holder query fails, `/rights` keeps device-remembered rows and refreshes each one through `GET /verify/:uid`; it shows `index unavailable; showing passes saved on this device`, unless there was no holder to look up. Address-derived rows remain unavailable until the index recovers. Graph-only discovery on `/private` still reports that discovery is not configured and does not fall back to the API or D1.
+The dashboard's On-chain status section queries rights by holder, Attendance by right UID, and IssuerDelegation by issuer. It is visually and operationally separate from the session- or admin-token-protected D1 Rights view: on-chain-status reads do not create or update member rows. If `VITE_GRAPH_RIGHTS_ENDPOINT` is empty or a holder query fails, `/rights` keeps device-remembered rows and refreshes each one through `GET /verify/:uid`; it shows `index unavailable; showing passes saved on this device`, unless there was no holder to look up. Address-derived rows remain unavailable until the index recovers.
 
-After unlocking +Private, the member sees compact rows with shortened Right IDs and stealth holders. Right details and the meta-address details open native modal dialogs with selectable full values and copy actions; viewing details never signs. The pen action starts the existing signed-entry flow and shows progress and its verdict in a modal over the retained list. Closing a pending modal does not cancel a submitted verification; its eventual result does not reopen the dialog. Entry actions remain disabled until the attempt finishes. Closing a result restores list position and action focus; another attempt requests a fresh challenge. Discovery is not a validity filter: revoked announcements may remain listed and verification reports their rejection.
-
-The member public pass list caches reads in memory for the active session, retaining its scope across Dock transitions, with a separate identity for each API/graph deployment, holder set, and set of remembered passes. It refreshes live status every 30 seconds while visible and when returning to a stale page or reconnecting. Rows remain visible during a refresh; changing the holder set cannot display a late result for the previous set. A remembered pass remains as a status row when a rejection omits entitlement details; only confirmed public data enables wallet links or a holder query. Confirmed non-public passes are excluded. Query-UID recovery remembers a public pass once per mounted UID and cannot write device memory after unmount. The cache contains no signing keys or +Private discovery results.
+The member public pass list caches reads in memory for the active session, retaining its scope across Dock transitions, with a separate identity for each API/graph deployment, holder set, and set of remembered passes. It refreshes live status every 30 seconds while visible and when returning to a stale page or reconnecting. Rows remain visible during a refresh; changing the holder set cannot display a late result for the previous set. A remembered pass remains as a status row when a rejection omits entitlement details; only confirmed public data enables wallet links or a holder query. Confirmed passes of a level fuda no longer issues are excluded. Query-UID recovery remembers a public pass once per mounted UID and cannot write device memory after unmount. The cache contains no signing keys.
 
 Dashboard issuer reads use an in-memory cache scoped to a session generation. Cached issuer data never authorizes a restored session: startup validation is always fresh. Background revalidation returning 401 ends the current session; other failures retain its displayed issuer information. Replacing a session clears the protected cache, including when the token text is reused. Successful card creation and edits, profile saves, and logo updates refresh cached issuer data. A delayed Card save response cannot replace a newer save for the same Card in the dashboard cache, including after leaving and reopening its editor. Concurrent profile and logo responses merge only the fields owned by their operation, preserving each other’s changes; ENS confirmation updates the cached claim state before triggering a fresh read. Older reads cannot roll these changes back.
 

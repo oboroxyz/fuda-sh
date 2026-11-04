@@ -11,7 +11,7 @@ import { challenges, entryLog, members, slots } from '../src/db/schema.ts'
 import { parseSchemaSets } from '../src/eas/schemas.ts'
 import type { Bindings } from '../src/env.ts'
 import { appWith, fakeChain } from './env.ts'
-import { ATT, configuredEnv, NOW, other, seedRight, seedRoot, signer } from './fixtures.ts'
+import { configuredEnv, NOW, other, seedRight, seedRoot, signer } from './fixtures.ts'
 
 type App = ReturnType<typeof appWith>
 const db = () => getDb({ DB: env.DB })
@@ -193,7 +193,7 @@ describe('POST /verify-signed', () => {
     ])
   })
 
-  it('admits a level-0 right by signature too (/verify-signed accepts every level)', async () => {
+  it('admits a level-0 right by signature too (/verify-signed accepts levels 0 and 1)', async () => {
     const { app, bindings, uid } = setup({ level: 0 })
     const res = await enter(app, bindings, uid)
     await expect(res.json()).resolves.toMatchObject({ decision: 'ADMIT', reason: 'OK' })
@@ -255,20 +255,22 @@ describe('POST /verify-signed', () => {
     expect(log[0]?.attendanceUid).toMatch(/^0x[0-9a-f]{64}$/u)
   })
 
-  // Spec: a +Private right's visits stay in the entry log only — a public
-  // Attendance would publish the very history +Private exists to hide.
-  it('never attests Attendance for a +Private right that entered by signature', async () => {
+  it('refuses a right on chain at level 2 without spending the challenge or attesting Attendance', async () => {
     const { bindings, chain, uid } = setup({ level: 2 })
     const kept: Promise<unknown>[] = []
     const { app, ctx } = attendanceApp(chain, bindings, kept)
     const { nonce } = await mint(app, bindings, uid)
     const signature = await signer.signMessage({ message: challengeMessage(uid, nonce) })
     const res = await post(app, bindings, '/v1/verify-signed', { nonce, signature, uid }, ctx)
-    await expect(res.json()).resolves.toMatchObject({ decision: 'ADMIT', path: 'signature' })
-    // The hook always schedules through waitUntil, so an empty list is proof it never ran.
+    await expect(res.json()).resolves.toMatchObject({
+      decision: 'REJECT',
+      reason: 'LEVEL_REQUIRED',
+      stage: 'entitlement',
+    })
     expect(kept).toHaveLength(0)
     const log = await db().select().from(entryLog)
-    expect(log).toMatchObject([{ attendanceUid: null, decision: 'ADMIT', path: 'signature' }])
-    expect([...chain.attestations.values()].some((a) => a.schema === ATT)).toBe(false)
+    expect(log).toMatchObject([{ attendanceUid: null, decision: 'REJECT', path: 'signature' }])
+    const rows = await db().select().from(challenges)
+    expect(rows[0]?.usedAt).toBeNull()
   })
 })

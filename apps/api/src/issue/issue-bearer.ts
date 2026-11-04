@@ -7,7 +7,7 @@ import type { IssueContext } from './issue-right.ts'
 export type { IssueContext } from './issue-right.ts'
 export { IssueConfigError } from './issue-right.ts'
 
-// Bearer: holder = the member's Claimable smart account (counterfactual address), level 0.
+// Bearer: holder = a fuda-owned smart account (counterfactual address), level 0.
 export const issueBearer = async (
   ctx: IssueContext,
   body: IssueRequest & { memberId: string },

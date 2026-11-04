@@ -16,7 +16,7 @@ const row: MemberRowView = {
   human: false,
   level: 'signed',
   memberId: '',
-  passUrls: null,
+  passUrls: { apple: '/apple', google: '/google', web: '/web' },
   qr: `fuda:v1:${UID}`,
   status: 'active',
   tier: 'GENERAL',

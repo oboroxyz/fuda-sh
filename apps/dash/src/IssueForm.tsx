@@ -31,7 +31,7 @@ const USAGE = [
   { label: 'METERED', value: USAGE_MODEL.METERED },
 ] as const
 
-const LEVELS: readonly Form['level'][] = ['bearer', 'signed', 'private']
+const LEVELS: readonly Form['level'][] = ['bearer', 'signed']
 
 const isLevel = (s: string): s is Form['level'] => LEVELS.some((l) => l === s)
 
@@ -45,13 +45,6 @@ const outcome = (copy: DashCopy['issue'], result: Result<IssueResponse>): JSX.El
         role="alert"
         class="alert alert-error"
       >{`${copy.errorPrefix}: ${copy.errorMessage(result.error)}`}</div>
-    )
-  }
-  if (result.body.level === 'private') {
-    return (
-      <div role="status" aria-live="polite" class="alert alert-success">
-        {`${copy.announced} — ${copy.memberDiscovers} · ${copy.transaction} ${result.body.announceTx.slice(0, 10)}…`}
-      </div>
     )
   }
   return (
@@ -79,7 +72,6 @@ export const IssueFormView = (props: IssueFormViewProps): JSX.Element => {
   const description = (): string =>
     ({
       bearer: props.copy.bearerDescription,
-      private: props.copy.privateDescription,
       signed: props.copy.signedDescription,
     })[props.form.level]
   return (
@@ -106,7 +98,6 @@ export const IssueFormView = (props: IssueFormViewProps): JSX.Element => {
       >
         <option value="bearer">Bearer</option>
         <option value="signed">Signed</option>
-        <option value="private">+Private</option>
       </select>
       <p id="issue-level-description" class="text-sm opacity-70">
         {description()}
@@ -131,25 +122,6 @@ export const IssueFormView = (props: IssueFormViewProps): JSX.Element => {
             placeholder="0x…"
             value={props.form.holder}
             onInput={onText((v) => ({ holder: v }))}
-          />
-        </>
-      ) : null}
-      {props.form.level === 'private' ? (
-        <>
-          <label for="issue-meta-address">{props.copy.stealthMetaAddress}</label>
-          <input
-            id="issue-meta-address"
-            class="input w-full font-mono"
-            placeholder="0x…"
-            value={props.form.stealthMetaAddress}
-            onInput={onText((v) => ({ stealthMetaAddress: v }))}
-          />
-          <label for="issue-member-id">{props.copy.memberIdOptional}</label>
-          <input
-            id="issue-member-id"
-            class="input w-full"
-            value={props.form.memberId}
-            onInput={onText((v) => ({ memberId: v }))}
           />
         </>
       ) : null}
@@ -193,7 +165,6 @@ export const IssueForm = (props: IssueFormProps): JSX.Element => {
     holder: '',
     level: 'bearer',
     memberId: '',
-    stealthMetaAddress: '',
     tier: 1,
     usageModel: 1,
   })

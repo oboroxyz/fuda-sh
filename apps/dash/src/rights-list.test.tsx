@@ -10,7 +10,7 @@ import { cleanup, mount, spacedText } from './test/render.tsx'
 
 const UID = `0x${'ab'.repeat(32)}` as const
 const SIGNED_UID = `0x${'cd'.repeat(32)}` as const
-const PRIVATE_UID = `0x${'ef'.repeat(32)}` as const
+const THIRD_UID = `0x${'ef'.repeat(32)}` as const
 
 const publicPasses = (uid: string) => ({
   apple: `https://api.fuda.sh/pass/${uid}/apple.pkpass`,
@@ -47,13 +47,13 @@ const rows: readonly MemberRowView[] = [
     holder: null,
     holderShort: null,
     human: false,
-    level: 'private',
+    level: 'signed',
     memberId: 'carol',
-    passUrls: null,
-    qr: `fuda:v1:${PRIVATE_UID}`,
+    passUrls: publicPasses(THIRD_UID),
+    qr: `fuda:v1:${THIRD_UID}`,
     status: 'active',
     tier: 'GENERAL',
-    uid: PRIVATE_UID,
+    uid: THIRD_UID,
   },
 ]
 
@@ -109,31 +109,18 @@ describe(RightsList, () => {
     expect(onRequestRevoke).toHaveBeenNthCalledWith(2, rows[0], cardRevoke)
   })
 
-  it('renders the same public and private rights in desktop and mobile records without private pass anchors', () => {
+  it('renders the same rights in desktop and mobile records', () => {
     const host = show({ openQr: UID })
     const table = layout(host, 'rights-table')
     const cards = layout(host, 'rights-cards')
-    const publicLinks = [...host.querySelectorAll('a')].map((node) => node.getAttribute('href'))
-    const privateRecords = records(host, PRIVATE_UID)
+    const links = [...host.querySelectorAll('a')].map((node) => node.getAttribute('href'))
 
     expect({
       cards: cards.className,
-      private: {
-        anchorCount: privateRecords.flatMap((record) => [...record.querySelectorAll('a')]).length,
-        recordCount: privateRecords.length,
-        showsFallback: privateRecords.map(spacedText).join(' ').includes('—'),
-      },
-      public: {
-        includesPrivatePass: publicLinks.includes(`https://api.fuda.sh/pass/${PRIVATE_UID}`),
-        links: publicLinks.length,
-      },
+      links: links.length,
+      records: records(host, THIRD_UID).length,
       table: table.className,
-    }).toStrictEqual({
-      cards: 'rights-cards',
-      private: { anchorCount: 0, recordCount: 2, showsFallback: true },
-      public: { includesPrivatePass: false, links: 12 },
-      table: 'rights-table',
-    })
+    }).toStrictEqual({ cards: 'rights-cards', links: 18, records: 2, table: 'rights-table' })
   })
 
   it('names the verified human column in both layouts and locales, chips only a badged right, and keeps the QR row spanning every column', () => {
@@ -244,23 +231,23 @@ describe(RightsList, () => {
         cardControls: [
           `right-cards-qr-${UID}`,
           `right-cards-qr-${SIGNED_UID}`,
-          `right-cards-qr-${PRIVATE_UID}`,
+          `right-cards-qr-${THIRD_UID}`,
         ],
         cardPanels: [`right-cards-qr-${UID}`],
         controls: [
           `right-table-qr-${UID}`,
           `right-table-qr-${SIGNED_UID}`,
-          `right-table-qr-${PRIVATE_UID}`,
+          `right-table-qr-${THIRD_UID}`,
           `right-cards-qr-${UID}`,
           `right-cards-qr-${SIGNED_UID}`,
-          `right-cards-qr-${PRIVATE_UID}`,
+          `right-cards-qr-${THIRD_UID}`,
         ],
         expanded: 2,
         hideLabel: 2,
         tableControls: [
           `right-table-qr-${UID}`,
           `right-table-qr-${SIGNED_UID}`,
-          `right-table-qr-${PRIVATE_UID}`,
+          `right-table-qr-${THIRD_UID}`,
         ],
         tablePanels: [`right-table-qr-${UID}`],
         total: 6,
@@ -269,7 +256,7 @@ describe(RightsList, () => {
       revoked: [false, true, false, false, true, false],
       uid: {
         hasShortenedValue: true,
-        titles: [UID, SIGNED_UID, PRIVATE_UID, UID, SIGNED_UID, PRIVATE_UID],
+        titles: [UID, SIGNED_UID, THIRD_UID, UID, SIGNED_UID, THIRD_UID],
       },
     })
   })

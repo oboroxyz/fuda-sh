@@ -15,7 +15,6 @@
     "@fuda/i18n": "workspace:*",
     "@fuda/libs": "workspace:*",
     "@fuda/sdk": "workspace:*",
-    "@fuda/stealth-address": "workspace:*",
     "@fuda/styles": "workspace:*",
     "@fuda/ui": "workspace:*",
     "@worldcoin/idkit-core": "^4.3.0",

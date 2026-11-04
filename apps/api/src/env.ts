@@ -21,7 +21,6 @@ export interface Bindings {
   // The contract's own version() on this chain; offchain signatures commit to it.
   EAS_VERSION: string
   SCHEMA_REGISTRY_ADDRESS: string
-  ANNOUNCER_ADDRESS: string
   FACTORY_ADDRESS: string
   EAS_SCHEMAS: string
   ISSUER_ADDRESS: string

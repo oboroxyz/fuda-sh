@@ -3,22 +3,9 @@ import * as v from 'valibot'
 import type { Hex } from './constants.ts'
 
 const PAGE_SIZE = 1000
-const HEX = /^0x(?:[0-9a-fA-F]{2})*$/u
 const BYTES_20 = /^0x[0-9a-fA-F]{40}$/u
 const BYTES_32 = /^0x[0-9a-fA-F]{64}$/u
 const DECIMAL = /^(?:0|[1-9][0-9]*)$/u
-
-const HexSchema = v.pipe(
-  v.string(),
-  v.regex(HEX),
-  v.transform((input): Hex => `0x${input.slice(2)}`),
-)
-
-const Bytes20Schema = v.pipe(
-  v.string(),
-  v.regex(BYTES_20),
-  v.transform((input): Hex => `0x${input.slice(2)}`),
-)
 
 const Bytes32Schema = v.pipe(
   v.string(),
@@ -32,25 +19,7 @@ const AddressSchema = v.pipe(
   v.transform((input): Hex => `0x${input.slice(2).toLowerCase()}`),
 )
 
-const AnnouncementSchema = v.object({
-  blockNumber: v.pipe(v.string(), v.regex(DECIMAL)),
-  caller: Bytes20Schema,
-  ephemeralPubKey: HexSchema,
-  id: v.string(),
-  logIndex: v.pipe(v.string(), v.regex(DECIMAL)),
-  metadata: HexSchema,
-  schemeId: v.pipe(v.string(), v.regex(DECIMAL)),
-  stealthAddress: Bytes20Schema,
-  timestamp: v.pipe(v.string(), v.regex(DECIMAL)),
-  transactionHash: Bytes32Schema,
-})
-
 const ErrorsSchema = v.object({ errors: v.array(v.object({ message: v.string() })) })
-
-const ResponseSchema = v.union([
-  ErrorsSchema,
-  v.object({ data: v.object({ announcements: v.array(AnnouncementSchema) }) }),
-])
 
 const DelegationSchema = v.object({
   active: v.boolean(),
@@ -99,19 +68,6 @@ const DelegationsResponseSchema = v.union([
   v.object({ data: v.object({ delegations: v.array(DelegationSchema) }) }),
 ])
 
-export interface GraphAnnouncement {
-  blockNumber: bigint
-  caller: Hex
-  ephemeralPubKey: Hex
-  id: string
-  logIndex: bigint
-  metadata: Hex
-  schemeId: bigint
-  stealthAddress: Hex
-  timestamp: bigint
-  transactionHash: Hex
-}
-
 export interface GraphDelegation {
   active: boolean
   id: Hex
@@ -145,39 +101,6 @@ export interface GraphAttendance {
   slotId: Hex
   timestamp: bigint
 }
-
-const ANNOUNCEMENTS_QUERY = `query Announcements($first: Int!, $afterBlock: BigInt!, $afterId: Bytes!) {
-  announcements(
-    first: $first
-    orderBy: blockNumber
-    orderDirection: asc
-    where: { or: [{ blockNumber_gt: $afterBlock }, { blockNumber: $afterBlock, id_gt: $afterId }] }
-  ) {
-    id
-    schemeId
-    stealthAddress
-    caller
-    ephemeralPubKey
-    metadata
-    transactionHash
-    logIndex
-    blockNumber
-    timestamp
-  }
-}`
-
-const toAnnouncement = (row: v.InferOutput<typeof AnnouncementSchema>): GraphAnnouncement => ({
-  blockNumber: BigInt(row.blockNumber),
-  caller: row.caller,
-  ephemeralPubKey: row.ephemeralPubKey,
-  id: row.id,
-  logIndex: BigInt(row.logIndex),
-  metadata: row.metadata,
-  schemeId: BigInt(row.schemeId),
-  stealthAddress: row.stealthAddress,
-  timestamp: BigInt(row.timestamp),
-  transactionHash: row.transactionHash,
-})
 
 const graphErrors = (errors: v.InferOutput<typeof ErrorsSchema>['errors']): Error =>
   new Error(errors.length === 0 ? 'GraphQL request failed' : errors.map(({ message }) => message).join('; '))
@@ -349,45 +272,3 @@ export const fetchDelegationsByIssuer = async (
     toDelegation,
     signal,
   )
-
-export const fetchAnnouncements = async (
-  endpoint: string,
-  fromBlock: bigint,
-  signal?: AbortSignal,
-): Promise<GraphAnnouncement[]> => {
-  if (fromBlock < 0n) {
-    throw new Error('fromBlock must be non-negative')
-  }
-  const rows: GraphAnnouncement[] = []
-  let afterBlock = fromBlock - 1n
-  let afterId = '0x'
-
-  while (true) {
-    // oxlint-disable-next-line no-await-in-loop -- each announcement page starts at the previous page's cursor
-    const body = await postGraph(
-      ResponseSchema,
-      endpoint,
-      ANNOUNCEMENTS_QUERY,
-      { afterBlock: afterBlock.toString(), afterId, first: PAGE_SIZE },
-      signal,
-    )
-    if ('errors' in body) {
-      throw graphErrors(body.errors)
-    }
-    const page = body.data.announcements
-    rows.push(...page.map(toAnnouncement))
-    const last = page.at(-1)
-    if (page.length < PAGE_SIZE || last === undefined) {
-      break
-    }
-    afterBlock = BigInt(last.blockNumber)
-    afterId = last.id
-  }
-
-  return rows.toSorted((left, right) => {
-    if (left.blockNumber !== right.blockNumber) {
-      return left.blockNumber < right.blockNumber ? -1 : 1
-    }
-    return left.id.localeCompare(right.id)
-  })
-}

@@ -10,12 +10,11 @@ import {
   connectMemberRail,
   googlePassHref,
   loadMemberPassList,
-  PrivatePassRecoveryError,
   rememberQueryPass,
   withConnectedAddress,
 } from './member-pass-list.ts'
 import type { MemberPassListIo, MemberPassRow } from './member-pass-list.ts'
-import { QueryRecoveryNotice, RightsList, RightsListView } from './member/RightsList.tsx'
+import { RightsList, RightsListView } from './member/RightsList.tsx'
 import { requestAccount } from './wallet.ts'
 
 const RIGHT = `0x${'aa'.repeat(32)}` as const
@@ -103,7 +102,7 @@ const admittedAtLevel = (holder: Hex, level: number): Result<VerifyResponse> => 
   ok: true,
 })
 
-const privateAdmitted = (holder: Hex): Result<VerifyResponse> => admittedAtLevel(holder, 2)
+const retiredLevelAdmitted = (holder: Hex): Result<VerifyResponse> => admittedAtLevel(holder, 2)
 
 const memberIo = (fetchRights: MemberPassListIo['fetchRights']): MemberPassListIo => ({
   appleAvailable: async () => await Promise.resolve(false),
@@ -239,9 +238,9 @@ describe(loadMemberPassList, () => {
     expect(result.rows.map(({ uid }) => uid)).toStrictEqual([UID_C])
   })
 
-  it('excludes a +Private Graph row before it verifies status or probes pass links', async () => {
+  it('excludes a Graph row of a level no longer issued before it verifies status or probes pass links', async () => {
     const verify = vi.fn<MemberPassListIo['verify']>(
-      async () => await Promise.resolve(privateAdmitted(HOLDER_A)),
+      async () => await Promise.resolve(retiredLevelAdmitted(HOLDER_A)),
     )
     const googleHref = vi.fn<MemberPassListIo['googleHref']>(async () => await Promise.resolve(null))
     const appleAvailable = vi.fn<MemberPassListIo['appleAvailable']>(async () => await Promise.resolve(false))
@@ -264,7 +263,7 @@ describe(loadMemberPassList, () => {
     expect(appleAvailable).not.toHaveBeenCalled()
   })
 
-  it('does not query public Graph discovery with a legacy remembered stealth holder', async () => {
+  it('does not query Graph discovery for a remembered pass of a level no longer issued', async () => {
     const fetchRights = vi.fn<MemberPassListIo['fetchRights']>(async () => await Promise.resolve([]))
 
     const result = await loadMemberPassList(
@@ -275,7 +274,7 @@ describe(loadMemberPassList, () => {
         fetchRights,
         googleHref: async () => await Promise.resolve(null),
         stampSummary: async () => await Promise.resolve(null),
-        verify: async () => await Promise.resolve(privateAdmitted(HOLDER_A)),
+        verify: async () => await Promise.resolve(retiredLevelAdmitted(HOLDER_A)),
       },
     )
 
@@ -490,18 +489,18 @@ describe('member rails and query memory', () => {
     expect(remembered).toStrictEqual([{ holder: HOLDER_A, uid: RIGHT }])
   })
 
-  it('does not remember a +Private pass recovered from a /rights uid query', async () => {
+  it('does not remember a level-2 pass recovered from a /rights uid query', async () => {
     const remembered: { holder: Hex; uid: Hex }[] = []
 
     await expect(
       rememberQueryPass(
         RIGHT,
-        async () => await Promise.resolve(privateAdmitted(HOLDER_A)),
+        async () => await Promise.resolve(retiredLevelAdmitted(HOLDER_A)),
         (pass) => {
           remembered.push(pass)
         },
       ),
-    ).rejects.toBeInstanceOf(PrivatePassRecoveryError)
+    ).rejects.toThrow('no longer issued')
 
     expect(remembered).toStrictEqual([])
   })
@@ -517,7 +516,7 @@ describe('member rails and query memory', () => {
           remembered.push(pass)
         },
       ),
-    ).rejects.toBeInstanceOf(PrivatePassRecoveryError)
+    ).rejects.toThrow('no longer issued')
 
     expect(remembered).toStrictEqual([])
   })

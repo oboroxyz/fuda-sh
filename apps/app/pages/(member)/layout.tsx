@@ -8,7 +8,7 @@ import { MemberLayout } from '../../src/member/MemberLayout.tsx'
 import type { MemberRoute } from '../../src/member/MemberLayout.tsx'
 import { useApp, useNavigate, useSignOut } from '../../src/page-context.tsx'
 
-const MEMBER_ROUTES: readonly MemberRoute[] = ['private', 'rights', 'settings', 'signed']
+const MEMBER_ROUTES: readonly MemberRoute[] = ['rights', 'settings', 'signed']
 
 const memberRouteOf = (path: string): MemberRoute =>
   MEMBER_ROUTES.find((route) => path === `/${route}` || path === `/${route}/`) ?? 'rights'

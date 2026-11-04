@@ -335,7 +335,6 @@ export interface DashCopy {
     revoked: string
     bearer: string
     signed: string
-    private: string
     member: string
     holder: string
     level: string
@@ -375,11 +374,8 @@ export interface DashCopy {
     levelLabel: string
     bearerDescription: string
     signedDescription: string
-    privateDescription: string
     memberId: string
-    memberIdOptional: string
     holder: string
-    stealthMetaAddress: string
     tier: string
     usageModel: string
     submit: string
@@ -387,9 +383,6 @@ export interface DashCopy {
     errorMessage: (code: string) => string
     errorPrefix: string
     issued: string
-    announced: string
-    memberDiscovers: string
-    transaction: string
     openPass: string
     qrLabel: string
   }
@@ -814,7 +807,6 @@ export const DASH_COPY = {
       revoked: 'Revoked',
       bearer: 'Bearer',
       signed: 'Signed',
-      private: '+Private',
       member: 'Member',
       holder: 'Holder',
       level: 'Level',
@@ -852,15 +844,12 @@ export const DASH_COPY = {
     },
     issue: {
       title: 'Issue a right',
-      description: 'Create a Bearer, Signed, or +Private right.',
+      description: 'Create a Bearer or Signed right.',
       levelLabel: 'Right level',
       bearerDescription: 'Bearer — device wallet pass, no app',
       signedDescription: "Signed — the member's wallet signs at the gate",
-      privateDescription: '+Private — stealth address from a meta-address',
       memberId: 'Member ID',
-      memberIdOptional: 'Member ID (optional representative ID)',
       holder: 'Holder address',
-      stealthMetaAddress: 'Stealth meta-address',
       tier: 'Tier',
       usageModel: 'Usage model',
       submit: 'Issue right',
@@ -868,9 +857,6 @@ export const DASH_COPY = {
       errorMessage: (code: string) => dashMessage(code, 'en'),
       errorPrefix: 'Issue failed',
       issued: 'Issued',
-      announced: 'Announced',
-      memberDiscovers: 'The member discovers it in their app.',
-      transaction: 'Transaction',
       openPass: 'Open browser pass',
       qrLabel: 'Issued right QR',
     },
@@ -1294,7 +1280,6 @@ export const DASH_COPY = {
       revoked: '取り消し済み',
       bearer: 'Bearer',
       signed: 'Signed',
-      private: '+Private',
       member: 'メンバー',
       holder: '保有者',
       level: 'レベル',
@@ -1332,15 +1317,12 @@ export const DASH_COPY = {
     },
     issue: {
       title: '権利を発行',
-      description: 'Bearer、Signed、または +Private の権利を作成します。',
+      description: 'BearerまたはSignedの権利を作成します。',
       levelLabel: '権利レベル',
       bearerDescription: 'Bearer — アプリ不要のデバイスウォレットパス',
       signedDescription: 'Signed — ゲートでメンバーのウォレットが署名',
-      privateDescription: '+Private — メタアドレスからステルスアドレスを生成',
       memberId: 'メンバー ID',
-      memberIdOptional: 'メンバー ID（任意の代表 ID）',
       holder: '保有者アドレス',
-      stealthMetaAddress: 'ステルスメタアドレス',
       tier: 'ティア',
       usageModel: '利用モデル',
       submit: '権利を発行',
@@ -1348,9 +1330,6 @@ export const DASH_COPY = {
       errorMessage: (code: string) => dashMessage(code, 'ja'),
       errorPrefix: '発行に失敗しました',
       issued: '発行しました',
-      announced: 'アナウンスしました',
-      memberDiscovers: 'メンバーがアプリで検出します。',
-      transaction: 'トランザクション',
       openPass: 'ブラウザパスを開く',
       qrLabel: '発行した権利の QR',
     },

@@ -14,7 +14,6 @@ import {
 
 const addr = `0x${'11'.repeat(20)}`
 const uid = `0x${'ab'.repeat(32)}`
-const meta = `0x${'cd'.repeat(66)}`
 
 describe('Card description', () => {
   const card = { category: 'membership', slug: 'coffee', title: 'Coffee' }
@@ -120,14 +119,15 @@ describe('IssueBody schema', () => {
     expect(deriveIssueKind(v.parse(IssueBody, { holder: addr }))).toBe('signed')
   })
 
-  it('private: stealthMetaAddress with optional memberId', () => {
-    expect(deriveIssueKind(v.parse(IssueBody, { memberId: 'x', stealthMetaAddress: meta }))).toBe('private')
-  })
-
-  it('rejects holder + memberId, empty body, and holder + stealthMetaAddress', () => {
+  it('rejects holder + memberId and an empty body', () => {
     expect(deriveIssueKind(v.parse(IssueBody, { holder: addr, memberId: 'a' }))).toBeNull()
     expect(deriveIssueKind(v.parse(IssueBody, {}))).toBeNull()
-    expect(deriveIssueKind(v.parse(IssueBody, { holder: addr, stealthMetaAddress: meta }))).toBeNull()
+  })
+
+  it('refuses a field it does not know instead of dropping it', () => {
+    expect(
+      v.safeParse(IssueBody, { memberId: 'x', stealthMetaAddress: `0x${'cd'.repeat(66)}` }).success,
+    ).toBe(false)
   })
 
   it('rejects out-of-range tier / usageModel and empty memberId', () => {

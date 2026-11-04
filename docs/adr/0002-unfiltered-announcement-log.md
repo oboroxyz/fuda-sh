@@ -1,6 +1,6 @@
 # ADR 0002: the api serves the whole ERC-5564 announcement log, unfiltered
 
-- **Status**: Superseded by ADR 0003 on 2026-09-06. Preserved as the historical API-cache decision.
+- **Status**: Superseded by ADR 0003 on 2026-09-06, and by [ADR 0014](0014-offchain-default-pass-types.md) on 2026-11-05, which removed the +Private issuance this log served. Preserved as the historical API-cache decision.
 - **Scope**: how `GET /announcements` selects what it returns to a caller.
 
 ## Context

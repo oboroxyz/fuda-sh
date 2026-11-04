@@ -137,7 +137,7 @@ export const displayState = (kind: 'preview' | 'admit', result: ApiResult): Disp
     return { badge, detail: rejectDetail(body.reason), facts, title: 'REJECT', tone: 'red' }
   }
   // Fail closed on a preview whose entitlement the api did not report: an
-  // unknown level may be Signed/+Private, and green would wave it through.
+  // unknown level may be Signed, and green would wave it through.
   const e = body.entitlement
   if (kind === 'preview' && (e === undefined || e.level >= 1)) {
     return {

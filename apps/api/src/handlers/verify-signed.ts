@@ -112,6 +112,17 @@ export const postV1VerifySigned = defineHandler(async (c) => {
     return await answer(verdict)
   }
   const { holder } = out.canonical
+  // A right on chain at a level fuda no longer issues (level 2, once +Private) is
+  // read like any other and then refused, before its challenge is spent.
+  if (out.canonical.level > LEVEL_CODE.signed) {
+    return await answer({
+      decision: 'REJECT',
+      holder,
+      path: 'signature',
+      reason: 'LEVEL_REQUIRED',
+      stage: 'entitlement',
+    })
+  }
   if (!(await consumeChallenge(db, { nonce, now, uid }))) {
     return await answer({
       decision: 'REJECT',

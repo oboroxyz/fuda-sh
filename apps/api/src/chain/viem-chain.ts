@@ -16,7 +16,7 @@ import {
 import type { Hex, HttpTransportConfig, Transport } from 'viem'
 import { nonceManager, privateKeyToAccount } from 'viem/accounts'
 
-import { ANNOUNCER_ABI, EAS_ABI, FACTORY_ABI } from '../eas/abi.ts'
+import { EAS_ABI, FACTORY_ABI } from '../eas/abi.ts'
 import type { Bindings } from '../env.ts'
 import { ChainError, NoSignerError } from './client.ts'
 import type { AttestParams, ChainClient } from './client.ts'
@@ -79,9 +79,8 @@ export const createViemChain = (env: ChainBindings, transportOverride?: Transpor
   const publicClient = createPublicClient({ chain, transport })
   const eas = toHexAddress(env.EAS_ADDRESS)
   const factory = toHexAddress(env.FACTORY_ADDRESS)
-  const announcer = toHexAddress(env.ANNOUNCER_ADDRESS)
   const key = env.SIGNER_PRIVATE_KEY
-  // One account with viem's nonce manager: /issue attests, announces and the
+  // One account with viem's nonce manager: /issue attests and the
   // waitUntil Attendance attest all share this signer concurrently.
   const account = key !== undefined && isHex(key) ? privateKeyToAccount(key, { nonceManager }) : null
   const wallet = account === null ? null : createWalletClient({ account, chain, transport })
@@ -159,31 +158,6 @@ export const createViemChain = (env: ChainBindings, transportOverride?: Transpor
             functionName: 'getAddress',
           }),
       ),
-
-    getAnnouncementLogs: async (fromBlock, toBlock) =>
-      await wrap(async () => {
-        // `strict` makes viem drop any log it cannot fully decode, so every arg below is
-        // present rather than `| undefined`.
-        const logs = await publicClient.getContractEvents({
-          abi: ANNOUNCER_ABI,
-          address: announcer,
-          args: { schemeId: 1n },
-          eventName: 'Announcement',
-          fromBlock: BigInt(fromBlock),
-          strict: true,
-          toBlock: BigInt(toBlock),
-        })
-        return logs.map((log) => ({
-          blockNumber: Number(log.blockNumber),
-          caller: log.args.caller,
-          ephemeralPubKey: log.args.ephemeralPubKey,
-          logIndex: log.logIndex,
-          metadata: log.args.metadata,
-          schemeId: Number(log.args.schemeId),
-          stealthAddress: log.args.stealthAddress,
-          txHash: log.transactionHash,
-        }))
-      }),
 
     offchainAttester: () => account?.address ?? null,
 

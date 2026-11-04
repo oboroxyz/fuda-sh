@@ -4,7 +4,6 @@ export const UID_RE = /^0x[0-9a-fA-F]{64}$/u
 export const QR_PREFIX = 'fuda:v1:'
 export const QR_RE = /^fuda:v1:(?<uid>0x[0-9a-fA-F]{64})$/u
 export const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/u
-export const META_ADDRESS_RE = /^0x[0-9a-fA-F]{132}$/u
 export const NONCE_RE = /^0x[0-9a-fA-F]{32}$/u
 export const SIGNATURE_RE = /^0x[0-9a-fA-F]+$/u
 
@@ -51,11 +50,8 @@ export const parseQr = (qr: string): Hex | null => {
 }
 
 // level = the verification level a right was issued at (never "mode").
-export type Level = 'bearer' | 'signed' | 'private'
-export const LEVEL_CODE = { bearer: 0, private: 2, signed: 1 } as const satisfies Record<Level, number>
-export type LevelCode = (typeof LEVEL_CODE)[Level]
-const LEVELS: readonly Level[] = ['bearer', 'signed', 'private']
-export const levelFromCode = (code: number): Level | null => LEVELS[code] ?? null
+export type Level = 'bearer' | 'signed'
+export const LEVEL_CODE = { bearer: 0, signed: 1 } as const satisfies Record<Level, number>
 
 // path = how an entry was made (never the right's level).
 export type EntryPath = 'qr' | 'signature'
@@ -94,7 +90,6 @@ export const ERROR_CODES = [
   'bad_input',
   'bad_uid',
   'bad_qr',
-  'bad_meta_address',
   'client_ip_required',
   'unauthorized',
   'not_found',

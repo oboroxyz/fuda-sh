@@ -88,10 +88,8 @@ const cardBrandingOf = async (
 }
 
 // The one lookup the three /pass routes share. Order matters and is part of
-// the contract: 400 (bad uid) → 404 (no row) → 404 (+Private: there is no pass
-// for a one-time stealth holder) → only then the platform check the caller
-// makes. A private row therefore never reveals whether a wallet platform is
-// configured.
+// the contract: 400 (bad uid) → 404 (no row) → only then the platform check the
+// caller makes.
 export const loadPassRow = async (c: Context<AppEnv>, rawUid: string): Promise<PassRowResult> => {
   // Every pass response carries the live status (or names a live secret), so
   // none of them may be cached — including the 404s and 501s.
@@ -114,12 +112,6 @@ export const loadPassRow = async (c: Context<AppEnv>, rawUid: string): Promise<P
   // A Sensitive pass has no page, Wallet pass, QR or backup file, since each would leave
   // a copy of it outside the member's vault (docs/specs/pass-types-and-flows.md#sensitive-use).
   if (found.identity === 'sensitive') {
-    return { ok: false, res: errorResponse(c, 'not_found', 404) }
-  }
-  // A +Private right has no pass (docs/specs/pass-types-and-flows.md#passes: the private /issue response carries
-  // no passUrls); its holder is a one-time stealth address only the member can
-  // recover. None of the three endpoints exists for it.
-  if (row.level === 'private') {
     return { ok: false, res: errorResponse(c, 'not_found', 404) }
   }
   const { branding, logoPrefix } = await cardBrandingOf(

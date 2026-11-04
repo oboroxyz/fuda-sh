@@ -41,8 +41,8 @@ const fixture = async (schemas: FixtureSchemas, startBlock: string) => {
       JSON.stringify({
         develop: {
           vars: {
-            ANNOUNCER_FROM_BLOCK: startBlock,
             EAS_SCHEMAS: JSON.stringify(schemas),
+            GRAPH_START_BLOCK: startBlock,
           },
         },
       }),
@@ -50,19 +50,13 @@ const fixture = async (schemas: FixtureSchemas, startBlock: string) => {
     writeFile(
       networkConfigPath,
       JSON.stringify({
-        announcerAddress: '0x55649E01B5Df198D18D95b5cc5051630cfD45564',
         easAddress: '0x4200000000000000000000000000000000000021',
         network: 'base-sepolia',
       }),
     ),
     writeFile(
       templatePath,
-      [
-        'network: __NETWORK__',
-        'eas: __EAS_ADDRESS__',
-        'announcer: __ANNOUNCER_ADDRESS__',
-        'startBlock: __ANNOUNCER_FROM_BLOCK__',
-      ].join('\n'),
+      ['network: __NETWORK__', 'eas: __EAS_ADDRESS__', 'startBlock: __GRAPH_START_BLOCK__'].join('\n'),
     ),
   ])
 
@@ -84,7 +78,7 @@ describe(prepareRightsSubgraph, () => {
     )
   })
 
-  it('renders the network addresses and positive start block into the manifest', async () => {
+  it('renders the network address and positive start block into the manifest', async () => {
     const options = await fixture(liveSchemas, '456')
 
     await prepareRightsSubgraph(options)
@@ -92,7 +86,6 @@ describe(prepareRightsSubgraph, () => {
     const manifest = await readFile(path.join(options.rootDir, 'subgraph.yaml'), 'utf-8')
     expect(manifest).toContain('network: base-sepolia')
     expect(manifest).toContain('eas: 0x4200000000000000000000000000000000000021')
-    expect(manifest).toContain('announcer: 0x55649E01B5Df198D18D95b5cc5051630cfD45564')
     expect(manifest).toContain('startBlock: 456')
     expect(manifest).not.toMatch(/__[A-Z_]+__/u)
   })

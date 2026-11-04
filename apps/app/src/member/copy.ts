@@ -47,7 +47,6 @@ const EN = {
   },
   nav: {
     label: 'Member navigation',
-    private: '+Private',
     rights: 'Your passes',
     settings: 'Settings',
     signed: 'Enter',
@@ -74,8 +73,6 @@ const EN = {
     passkeyPass:
       'This pass opens only with your passkey, so it has no code to show and cannot go in a Wallet app. A backup keeps its record but cannot be used to enter. If you lose the passkey, ask the shop for a new pass.',
     placeholder: '0x… holder address',
-    privateNotice: 'This is a +Private pass. Open Private rights to recover it.',
-    privateRights: 'Private rights',
     recoveryFailed: 'Could not recover this pass:',
     revoked: 'REVOKED',
     saveBackup: 'Save a backup',
@@ -201,7 +198,6 @@ export const MEMBER_COPY = {
     },
     nav: {
       label: 'メンバーメニュー',
-      private: '+Private',
       rights: 'あなたのパス',
       settings: '設定',
       signed: '入場',
@@ -227,8 +223,6 @@ export const MEMBER_COPY = {
       passkeyPass:
         'このパスはパスキーでのみ使えます。提示するコードはなく、Wallet アプリにも追加できません。控えには記録が残りますが、控えだけでは入場できません。パスキーをなくした場合は、お店で新しいパスを発行してもらってください。',
       placeholder: '0x… 保有者のアドレス',
-      privateNotice: 'これは +Private のパスです。+Private を開いて復元してください。',
-      privateRights: '+Private を開く',
       recoveryFailed: 'パスを復元できませんでした：',
       revoked: '失効',
       saveBackup: '控えを保存',

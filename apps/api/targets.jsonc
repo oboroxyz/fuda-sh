@@ -7,7 +7,7 @@
 // (packages/subgraphs/rights/README.md), so it stays plain JSONC.
 //
 // Secrets (`void secret put`, never `vars`): SIGNER_PRIVATE_KEY,
-// ENS_GATEWAY_SIGNER_KEY, ENS_GATEWAY_SECRET, ENS_VOUCHER_KEY,
+// ENS_GATEWAY_SIGNER_KEY, ENS_VOUCHER_KEY,
 // ENS_SEPOLIA_RPC_URL, ENS_PAYMASTER_UPSTREAM (the last two are secrets
 // because an Alchemy endpoint carries its API key in the path and this file
 // is checked in),
@@ -27,7 +27,7 @@
 // Deploy-time fills (docs/runbook.md replaces each one; every one of
 // them fails closed until it is): `d1_databases[].database_id`, and in `vars`
 // EAS_SCHEMAS (empty sets → /issue answers 502 chain_error), ISSUER_ADDRESS and
-// DELEGATION_UID (zero → the same 502). ANNOUNCER_FROM_BLOCK is retained here
+// DELEGATION_UID (zero → the same 502). GRAPH_START_BLOCK is retained here
 // as the rights-subgraph manifest generation source; "0" makes graph:prepare
 // fail until production configuration is populated. ENS_GAS_POLICY_ID is the
 // last ENS fill: the claim routes and POST /ens/gateway answer 503 while it
@@ -66,8 +66,7 @@
       "EAS_VERSION": "1.4.1-beta.3",
       "OFFCHAIN_RETIRED_SIGNERS": "",
       "SCHEMA_REGISTRY_ADDRESS": "0x4200000000000000000000000000000000000020",
-      "ANNOUNCER_ADDRESS": "0x55649E01B5Df198D18D95b5cc5051630cfD45564",
-      "ANNOUNCER_FROM_BLOCK": "7552655",
+      "GRAPH_START_BLOCK": "7552655",
       "FACTORY_ADDRESS": "0x0BA5ED0c6AA8c49038F819E587E2633c4A9F428a",
       "EAS_SCHEMAS": "{\"attendance\":[{\"uid\":\"0x22a41470aabe3a0edec1f9948975a887f21adddd6cf009e865e267cac6e10241\",\"version\":1}],\"entitlement\":[{\"uid\":\"0x42ffdba952267e373cb33ecf9fdc190fb27b30140d0695dabb8383bbed86d616\",\"version\":1}],\"issuerDelegation\":[{\"uid\":\"0x62c93e6e95f3956ba5937fc8454203ba781af5e455657952e915e71c3895f327\",\"version\":1}]}",
       "ISSUER_ADDRESS": "0xAA64E3814A88f4bA4588787EB04e5eACBabcd77E",
@@ -116,8 +115,7 @@
       "EAS_VERSION": "1.0.1",
       "OFFCHAIN_RETIRED_SIGNERS": "",
       "SCHEMA_REGISTRY_ADDRESS": "0x4200000000000000000000000000000000000020",
-      "ANNOUNCER_ADDRESS": "0x55649E01B5Df198D18D95b5cc5051630cfD45564",
-      "ANNOUNCER_FROM_BLOCK": "0",
+      "GRAPH_START_BLOCK": "0",
       "FACTORY_ADDRESS": "0x0BA5ED0c6AA8c49038F819E587E2633c4A9F428a",
       "EAS_SCHEMAS": "{\"attendance\":[],\"entitlement\":[],\"issuerDelegation\":[]}",
       "ISSUER_ADDRESS": "0x0000000000000000000000000000000000000000",
@@ -159,8 +157,7 @@
       "EAS_VERSION": "1.4.1-beta.3",
       "OFFCHAIN_RETIRED_SIGNERS": "",
       "SCHEMA_REGISTRY_ADDRESS": "0x4200000000000000000000000000000000000020",
-      "ANNOUNCER_ADDRESS": "0x55649E01B5Df198D18D95b5cc5051630cfD45564",
-      "ANNOUNCER_FROM_BLOCK": "0",
+      "GRAPH_START_BLOCK": "0",
       "FACTORY_ADDRESS": "0x0BA5ED0c6AA8c49038F819E587E2633c4A9F428a",
       "API_BASE_URL": "http://localhost:8787",
       "PUBLIC_BASE_URL": "http://localhost:5173",

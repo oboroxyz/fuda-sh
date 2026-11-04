@@ -21,9 +21,6 @@ const qrPanelId = (layout: RightsLayout, uid: string): string => `right-${layout
 const shortenedUid = (uid: string): string => `${uid.slice(0, 10)}…`
 
 const levelLabel = (copy: DashCopy['rights'], row: MemberRowView): string => {
-  if (row.level === 'private') {
-    return copy.private
-  }
   if (row.level === 'signed') {
     return copy.signed
   }
@@ -55,24 +52,19 @@ const humanBadge = (copy: DashCopy['rights'], row: MemberRowView): JSX.Element =
     <span class="opacity-50">—</span>
   )
 
-const passLinks = (copy: DashCopy['rights'], row: MemberRowView): JSX.Element => {
-  if (row.passUrls === null) {
-    return <span class="opacity-50">—</span>
-  }
-  return (
-    <span class="dash-actions text-xs">
-      <a class="link" href={row.passUrls.web} target="_blank" rel="noreferrer">
-        {copy.web}
-      </a>
-      <a class="link" href={row.passUrls.google} target="_blank" rel="noreferrer">
-        {copy.google}
-      </a>
-      <a class="link" href={row.passUrls.apple} target="_blank" rel="noreferrer">
-        {copy.apple}
-      </a>
-    </span>
-  )
-}
+const passLinks = (copy: DashCopy['rights'], row: MemberRowView): JSX.Element => (
+  <span class="dash-actions text-xs">
+    <a class="link" href={row.passUrls.web} target="_blank" rel="noreferrer">
+      {copy.web}
+    </a>
+    <a class="link" href={row.passUrls.google} target="_blank" rel="noreferrer">
+      {copy.google}
+    </a>
+    <a class="link" href={row.passUrls.apple} target="_blank" rel="noreferrer">
+      {copy.apple}
+    </a>
+  </span>
+)
 
 const uidDisplay = (row: MemberRowView): JSX.Element => (
   <code class="text-xs" title={row.uid}>

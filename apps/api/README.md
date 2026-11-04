@@ -54,33 +54,9 @@ Entry at the Signed level is two calls, never a QR scan:
 
 Every REJECT and ADMIT on this path is logged with `path: 'signature'` (never `'qr'`); a bare QR scan against a Signed-only right still answers `LEVEL_REQUIRED` on `/verify`, unconsumed.
 
-## +Private: stealth issuance and announcements
-
-+Private is an extension of Signed (never a separate "third level" or "mode"): the right still enters through `/verify-signed`, but its holder is a one-time stealth address the member derives from a passkey rather than a wallet, and it is never printed as a QR — there is no pass to hand over. `@fuda/stealth-address` (`packages/stealth-address`) implements the ERC-5564 scheme-1 math: derivation from a passkey PRF output, stealth-address generation, and announcement matching. Every shared secret hashes the **compressed** ECDH point (`keccak256(secp256k1.getSharedSecret(priv, pub, true))`) — an interop caveat against other ERC-5564 implementations that hash the uncompressed point.
-
-`POST /issue` with a `stealthMetaAddress` (and no `holder`/`memberId` pair for Bearer/Signed) issues a +Private right:
-
-1. The meta-address is checked before the general body parse, so a malformed shape or an off-curve half answers `400 bad_meta_address` rather than folding into the generic `bad_input`.
-2. `generateStealthAddress` derives a fresh ephemeral key, the stealth address and a view tag from the meta-address.
-3. The entitlement is attested to the derived stealth address (never the meta-address, never stored).
-4. The api announces on-chain (`ChainClient.announce`, ERC-5564 `Announcer.announce(1, stealthAddress, ephemeralPubKey, metadata)`) so the member can discover the right client-side; `metadata` carries the view tag and the attestation uid (`buildAnnouncementMetadata`).
-5. Only after both chain writes land is the `members` row written, with `holder` `NULL` and `member_id` set to the supplied `memberId`.
-
-**If the announce call fails after the attest already landed, the route answers `502 chain_error` and persists nothing.** The right exists on chain but no announcement points at it, so it is undiscoverable by design; the uid is logged (`console.error`) as the only handle on it, and an operator revokes this orphaned attestation from the dash.
-
-On success the response carries no `passUrls` and no address — discovery is the member's path, not the operator's:
-
-```json
-{ "uid": "0x…", "level": "private", "announced": true, "announceTx": "0x…" }
-```
-
-Announcement discovery is not an api route. The member app pages the rights subgraph through its public Graph endpoint and performs viewing-key matching locally. The api persists neither announcement rows nor a sync cursor.
-
-Entry for a discovered +Private right is the unchanged `/verify-signed` flow, signing the challenge with the recovered stealth private key — no wallet prompt, no separate admission path.
-
 ## Browser-based pass
 
-`GET /pass/:uid` renders a self-contained HTML page (inline SVG QR, tier, holder, live status) for any uid a `members` row exists for; a uid fuda never issued answers `404 not_found`. A +Private row also answers `404 not_found` — its holder is a one-time stealth address only the member can recover, and the `/issue` response for it carries no `passUrls`, so there is no pass page for it to render. `GET /pass/:uid/google` answers `{ saveUrl }` (a signed Google Wallet save link) when the four `GOOGLE_*` secrets are set and `501 google_not_configured` otherwise; `GET /pass/:uid/apple.pkpass` streams a `.pkpass` when the five `APPLE_*` secrets are set and `501 apple_not_configured` otherwise. Both answer `404 not_found` for an unknown uid and for a +Private row before any platform check. The pass page carries an "Add to Google Wallet" button that stays hidden unless the Google endpoint answers `200`. Open the downloaded `.pkpass` on an iPhone, or run `openssl smime -verify -in signature -inform DER -content manifest.json -noverify` after unzipping.
+`GET /pass/:uid` renders a self-contained HTML page (inline SVG QR, tier, holder, live status) for any uid a `members` row exists for; a uid fuda never issued answers `404 not_found`. `GET /pass/:uid/google` answers `{ saveUrl }` (a signed Google Wallet save link) when the four `GOOGLE_*` secrets are set and `501 google_not_configured` otherwise; `GET /pass/:uid/apple.pkpass` streams a `.pkpass` when the five `APPLE_*` secrets are set and `501 apple_not_configured` otherwise. Both answer `404 not_found` for an unknown uid and for a +Private row before any platform check. The pass page carries an "Add to Google Wallet" button that stays hidden unless the Google endpoint answers `200`. Open the downloaded `.pkpass` on an iPhone, or run `openssl smime -verify -in signature -inform DER -content manifest.json -noverify` after unzipping.
 
 The `apps/gate`, `apps/dash` and `apps/app` frontends call the api from their own Workers at `API_BASE_URL` (`http://localhost:8787` in their dev scripts), never from the browser ([ADR 0010](../../docs/adr/0010-void-pages-and-frontend-workers.md)). Each Worker sends the visitor's address in `x-real-ip`, which Cloudflare turns into `CF-Connecting-IP` on a same-zone subrequest, so the rate limits still count visitors. `corsPolicy()` in `src/middleware/cors.ts` answers no CORS for those hosts, only for the connected-app routes and the wallet's paymaster requests.
 
@@ -115,11 +91,11 @@ API_URL=https://api.fuda.sh ADMIN_TOKEN=… pnpm --filter api smoke:live --ladde
 pnpm --filter api smoke:live
 ```
 
-`--ladder` (or `SMOKE_LADDERS`) takes a comma-separated list of `bearer`, `signed`, or `all`; the default runs both supported ladders. `private` is rejected before any issuance, including in a mixed list. `API_URL` defaults to `http://localhost:8787`, so the script also works against a locally running `pnpm --filter api dev` (with or without `USE_FAKE_CHAIN=1`, as long as a signer is available to `/issue`/`/revoke`).
+`--ladder` (or `SMOKE_LADDERS`) takes a comma-separated list of `bearer`, `signed`, or `all`; the default runs both supported ladders. `API_URL` defaults to `http://localhost:8787`, so the script also works against a locally running `pnpm --filter api dev` (with or without `USE_FAKE_CHAIN=1`, as long as a signer is available to `/issue`/`/revoke`).
 
 Every returned issue UID is revoked in `finally`, including when an assertion or later request fails. Signed holder keys are generated afresh per run. If the revoke request fails, the script exits non-zero; use the logged issue UID to retry `/revoke`. An interrupted process or an issue response lost after on-chain issuance still requires operational reconciliation.
 
-Use the rights-subgraph smoke query and member app for private discovery after Graph deployment; see [The Graph in fuda](../../docs/integrations/thegraph.md).
+Use the rights-subgraph smoke query after Graph deployment; see [The Graph in fuda](../../docs/integrations/thegraph.md).
 
 ## Endpoints
 
@@ -127,11 +103,11 @@ Use the rights-subgraph smoke query and member app for private discovery after G
 | --- | --- | --- | --- |
 | GET | `/` | none | plain text: `fuda. api` and `health: ok` on separate lines |
 | GET | `/health` | none | liveness |
-| POST | `/issue` | Bearer (`ADMIN_TOKEN`) | `holder` → Signed; `memberId` → Bearer; `stealthMetaAddress` → +Private (`400 bad_meta_address` for a malformed or off-curve one) |
+| POST | `/issue` | Bearer (`ADMIN_TOKEN`) | `holder` → Signed; `memberId` → Bearer; any other field, such as the removed `stealthMetaAddress`, is `400 bad_input` |
 | GET | `/verify/:uid` | none | read-only preview, no slot consumption |
 | POST | `/verify` | none | QR scan; consumes a slot per `usageModel`; a Signed-only right answers `LEVEL_REQUIRED` here; an optional `venue` (a Handle) rejects another venue's pass as `WRONG_VENUE` before any slot is used |
 | POST | `/challenge` | none | mints a one-time nonce for the Signed gate; no chain lookup; sweeps expired nonces |
-| POST | `/verify-signed` | none | challenge-response admission at every level, including a discovered +Private right; consumes a slot per `usageModel`, path `signature` |
+| POST | `/verify-signed` | none | challenge-response admission at levels 0 and 1 (a level 2 right on chain is `REJECT LEVEL_REQUIRED`); consumes a slot per `usageModel`, path `signature` |
 | POST | `/revoke` | Bearer (`ADMIN_TOKEN`) | revokes the entitlement attestation |
 | GET | `/members` | Bearer (`ADMIN_TOKEN`) | lists issued entitlements |
 | GET | `/pass/:uid` | none | browser-based pass page; `404 not_found` if fuda never issued that uid, or if the row is +Private |
@@ -146,4 +122,4 @@ Use the rights-subgraph smoke query and member app for private discovery after G
 
 ## Error codes
 
-`bad_input`, `bad_uid`, `bad_qr`, `bad_meta_address`, `not_found`, `unauthorized`, `no_signer`, `chain_error`, `rpc_unavailable`, `rate_limited`, `client_ip_required`, `internal`, `google_not_configured`, `apple_not_configured`.
+`bad_input`, `bad_uid`, `bad_qr`, `not_found`, `unauthorized`, `no_signer`, `chain_error`, `rpc_unavailable`, `rate_limited`, `client_ip_required`, `internal`, `google_not_configured`, `apple_not_configured`.

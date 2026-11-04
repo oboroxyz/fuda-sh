@@ -386,18 +386,11 @@ describe('venue reception stamps', () => {
     await expect(db.select().from(entryLog)).resolves.toHaveLength(0)
   })
 
-  it('does not expose private or unknown stamp summaries', async () => {
+  it('does not expose a stamp summary for an unknown uid', async () => {
     const f = await setup()
-    await db.update(members).set({ level: 'private' })
-    const results = await Promise.all([
-      getJson(f.app, f.bindings, `/v1/stamps/${f.uid}`),
-      getJson(f.app, f.bindings, `/v1/stamps/0x${'ef'.repeat(32)}`),
-    ])
-    expect(results.map((res) => res.status)).toStrictEqual([404, 404])
-    await expect(Promise.all(results.map(async (res) => await res.json()))).resolves.toStrictEqual([
-      { error: 'not_found' },
-      { error: 'not_found' },
-    ])
+    const res = await getJson(f.app, f.bindings, `/v1/stamps/0x${'ef'.repeat(32)}`)
+    expect(res.status).toBe(404)
+    await expect(res.json()).resolves.toStrictEqual({ error: 'not_found' })
   })
 
   it('does not record an uncertain chain verdict and permits retry after recovery', async () => {

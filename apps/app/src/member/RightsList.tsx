@@ -15,7 +15,6 @@ import {
   applePassAvailable,
   connectMemberRail,
   googlePassHref,
-  PrivatePassRecoveryError,
   withConnectedAddress,
 } from '../member-pass-list.ts'
 import type { MemberPassListIo, MemberPassListResult, MemberPassRow } from '../member-pass-list.ts'
@@ -287,53 +286,14 @@ export const RightsListView = (props: {
   locale?: Locale
 }): JSX.Element => <>{listView(props.state, props.locale ?? DEFAULT_LOCALE, props.search ?? '')}</>
 
-export const QueryRecoveryNotice = (props: {
-  locale?: Locale
-  onNavigate?: (path: string) => void
-}): JSX.Element => {
-  const copy = (): MemberCopy['passes'] => pick(MEMBER_COPY, props.locale ?? DEFAULT_LOCALE).passes
-  return (
-    <div class="alert alert-warning">
-      {copy().privateNotice}{' '}
-      <a
-        class="link"
-        href="/private"
-        onClick={(event) => {
-          const { onNavigate } = props
-          if (
-            onNavigate !== undefined &&
-            event.button === 0 &&
-            !event.altKey &&
-            !event.ctrlKey &&
-            !event.metaKey &&
-            !event.shiftKey
-          ) {
-            event.preventDefault()
-            onNavigate('/private')
-          }
-        }}
-      >
-        {copy().privateRights}
-      </a>
-    </div>
-  )
-}
-
 type MemberProblem = Error | 'connectionFailed' | 'invalidAddress'
 
-const problemNotice = (
-  problem: MemberProblem | null,
-  locale: Locale,
-  onNavigate?: (path: string) => void,
-): JSX.Element | null => {
+const problemNotice = (problem: MemberProblem | null, locale: Locale): JSX.Element | null => {
   if (problem === null) {
     return null
   }
   if (problem === 'invalidAddress' || problem === 'connectionFailed') {
     return <div class="alert alert-error">{pick(MEMBER_COPY, locale).passes[problem]}</div>
-  }
-  if (problem instanceof PrivatePassRecoveryError) {
-    return <QueryRecoveryNotice locale={locale} onNavigate={onNavigate} />
   }
   return <div class="alert alert-error">{problem.message}</div>
 }
@@ -357,7 +317,6 @@ interface RightsListProps {
   memory?: readonly PassMemoryEntry[]
   queryClient?: QueryClient
   queryUid?: Hex | null
-  onNavigate?: (path: string) => void
 }
 
 const queryUidFromLocation = (): Hex | null => {
@@ -394,9 +353,7 @@ export const RightsList = (props: RightsListProps): JSX.Element => {
   const queryProblem = (): MemberProblem | null => {
     const recoveryError = recoveryQuery().error
     const recoveryProblem =
-      recoveryError === null || recoveryError instanceof PrivatePassRecoveryError
-        ? recoveryError
-        : new Error(`${copy().passes.recoveryFailed} ${recoveryError.message}`)
+      recoveryError === null ? null : new Error(`${copy().passes.recoveryFailed} ${recoveryError.message}`)
     return recoveryProblem ?? (listQuery().data === undefined ? null : listQuery().error)
   }
 
@@ -519,7 +476,7 @@ export const RightsList = (props: RightsListProps): JSX.Element => {
           </form>
         </div>
       )}
-      {problemNotice(problem() ?? queryProblem(), locale(), props.onNavigate)}
+      {problemNotice(problem() ?? queryProblem(), locale())}
       <RightsListView locale={locale()} state={visibleState()} search={search()} />
       {props.syncWithAccount === true ? <SensitivePasses locale={locale()} /> : null}
     </Dynamic>

@@ -26,7 +26,6 @@
     "@fuda/ens-contracts": "workspace:*",
     "@fuda/pass": "workspace:*",
     "@fuda/sdk": "workspace:*",
-    "@fuda/stealth-address": "workspace:*",
     "@fuda/ui": "workspace:*",
     "@simplewebauthn/server": "^14.0.3",
     "@worldcoin/idkit-core": "^4.3.0",

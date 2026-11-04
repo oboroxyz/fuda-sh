@@ -68,7 +68,7 @@ export const resolveSession = async (
     return { redirect: '/', shared, token }
   }
   shared.signedIn = token !== null && token !== ''
-  const member = route === 'rights' || route === 'settings' || route === 'signed' || route === 'private'
+  const member = route === 'rights' || route === 'settings' || route === 'signed'
   if (route === 'signin' && shared.signedIn) {
     return { redirect: safeMemberReturn(url.searchParams.get('return')), shared, token }
   }

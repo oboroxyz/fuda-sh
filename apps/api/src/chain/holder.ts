@@ -3,9 +3,9 @@ import type { Hex } from 'viem'
 
 import type { ChainClient } from './client.ts'
 
-// The Bearer holder is a Claimable smart account (Coinbase Smart Wallet) at a
+// The Bearer holder is a fuda-owned smart account (Coinbase Smart Wallet) at a
 // counterfactual address: sole owner = the fuda signer, nonce = keccak(memberId).
-// Nothing is deployed; the member takes control later via Activation (B1).
+// Nothing is deployed, and the member never takes control of it.
 export const bearerHolder = async (
   chain: ChainClient,
   issuerAddress: Hex,

@@ -10,7 +10,7 @@ export const members = sqliteTable(
     createdAt: integer('created_at').notNull(),
     holder: text('holder'),
     issuerId: text('issuer_id'),
-    level: text('level', { enum: ['bearer', 'signed', 'private'] }).notNull(),
+    level: text('level', { enum: ['bearer', 'signed'] }).notNull(),
     memberId: text('member_id').notNull().default(''),
     source: text('source'),
     status: text('status', { enum: ['active', 'revoked'] })

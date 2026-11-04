@@ -1,4 +1,4 @@
-import { LEVEL_CODE, USAGE_MODEL } from '@fuda/sdk'
+import { USAGE_MODEL } from '@fuda/sdk'
 import type { EntryPath, Reason } from '@fuda/sdk'
 import { eq } from 'drizzle-orm'
 import type { Hex } from 'viem'
@@ -93,7 +93,7 @@ export const noAdmitHook: AdmitHook = () => {
 export interface AdmitContext {
   db: Db
   uid: Hex
-  canonical: Pick<Entitlement, 'holder' | 'level' | 'usageModel'>
+  canonical: Pick<Entitlement, 'holder' | 'usageModel'>
   path: EntryPath
   now: number
   onAdmit: AdmitHook

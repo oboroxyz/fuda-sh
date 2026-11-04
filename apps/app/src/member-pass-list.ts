@@ -99,20 +99,13 @@ const previewOf = async (uid: Hex, verify: MemberPassListIo['verify']): Promise<
   return result?.ok === true ? result.body : null
 }
 
-const isPublicLevel = (level: number | undefined): boolean => level === 0 || level === 1
+const isSupportedLevel = (level: number | undefined): boolean => level === 0 || level === 1
 
-const isPublicPreview = (preview: VerifyResponse | null): boolean =>
-  isPublicLevel(preview?.entitlement?.level)
+const isSupportedPreview = (preview: VerifyResponse | null): boolean =>
+  isSupportedLevel(preview?.entitlement?.level)
 
-const isNonPublicPreview = (preview: VerifyResponse | null): boolean =>
-  preview?.entitlement !== undefined && !isPublicPreview(preview)
-
-export class PrivatePassRecoveryError extends Error {
-  constructor() {
-    super('This is a +Private pass. Open Private rights to recover it.')
-    this.name = 'PrivatePassRecoveryError'
-  }
-}
+const isUnsupportedPreview = (preview: VerifyResponse | null): boolean =>
+  preview?.entitlement !== undefined && !isSupportedPreview(preview)
 
 export const rememberQueryPass = async (
   uid: Hex,
@@ -123,8 +116,8 @@ export const rememberQueryPass = async (
   if (!preview.ok) {
     throw new Error(preview.error)
   }
-  if (!isPublicPreview(preview.body)) {
-    throw new PrivatePassRecoveryError()
+  if (!isSupportedPreview(preview.body)) {
+    throw new Error('this pass is of a kind that is no longer issued')
   }
   const holder = preview.body.entitlement?.holder
   if (holder === undefined) {
@@ -221,11 +214,13 @@ export const loadMemberPassList = async (
     remembered.map(async (entry) => ({ entry, preview: await previewOf(entry.uid, io.verify) })),
   )
   const previewByUid = new Map(memoryPreviews.map(({ entry, preview }) => [keyOf(entry.uid), preview]))
-  const nonPublicUids = new Set(
-    memoryPreviews.filter(({ preview }) => isNonPublicPreview(preview)).map(({ entry }) => keyOf(entry.uid)),
+  const unsupportedUids = new Set(
+    memoryPreviews
+      .filter(({ preview }) => isUnsupportedPreview(preview))
+      .map(({ entry }) => keyOf(entry.uid)),
   )
   const publicMemory = memoryPreviews
-    .filter(({ preview }) => isPublicPreview(preview))
+    .filter(({ preview }) => isSupportedPreview(preview))
     .map(({ entry }) => entry)
   let rights: GraphRight[] = []
   const holders = uniqueAddresses(input.addresses, publicMemory)
@@ -244,35 +239,37 @@ export const loadMemberPassList = async (
   }
 
   for (const right of rights) {
-    if (!isPublicLevel(right.level)) {
-      nonPublicUids.add(keyOf(right.id))
+    if (!isSupportedLevel(right.level)) {
+      unsupportedUids.add(keyOf(right.id))
     }
   }
-  const publicRights = rights.filter((right) => isPublicLevel(right.level))
+  const supportedRights = rights.filter((right) => isSupportedLevel(right.level))
   const eligibleMemory = memoryPreviews
-    .filter(({ entry }) => !nonPublicUids.has(keyOf(entry.uid)))
+    .filter(({ entry }) => !unsupportedUids.has(keyOf(entry.uid)))
     .map(({ entry }) => entry)
-  const seeds = rowsFrom(eligibleMemory, publicRights).filter((seed) => !nonPublicUids.has(keyOf(seed.uid)))
-  const rowsWithPrivateFiltered = await Promise.all(
+  const seeds = rowsFrom(eligibleMemory, supportedRights).filter(
+    (seed) => !unsupportedUids.has(keyOf(seed.uid)),
+  )
+  const listedRows = await Promise.all(
     seeds.map(async (seed) => {
       const uidKey = keyOf(seed.uid)
       const preview = previewByUid.has(uidKey)
         ? (previewByUid.get(uidKey) ?? null)
         : await previewOf(seed.uid, io.verify)
-      if (isNonPublicPreview(preview)) {
+      if (isUnsupportedPreview(preview)) {
         return null
       }
       const links =
-        isPublicLevel(seed.graph?.level) || isPublicPreview(preview)
+        isSupportedLevel(seed.graph?.level) || isSupportedPreview(preview)
           ? await linksOf(seed.uid, io)
           : unlinkedPassesOf(seed.uid)
-      const publicRow = isPublicLevel(seed.graph?.level) || isPublicPreview(preview)
-      const [stamps, card] = publicRow
+      const supportedRow = isSupportedLevel(seed.graph?.level) || isSupportedPreview(preview)
+      const [stamps, card] = supportedRow
         ? await Promise.all([settledValue(io.stampSummary(seed.uid)), settledValue(io.card(seed.uid))])
         : [null, null]
       return { ...seed, ...links, card, preview, stamps }
     }),
   )
-  const rows = rowsWithPrivateFiltered.filter((row): row is MemberPassRow => row !== null)
+  const rows = listedRows.filter((row): row is MemberPassRow => row !== null)
   return { indexUnavailable, rows }
 }

@@ -76,14 +76,14 @@ export const recordReception = async (binding: D1Database, db: Db, input: Recept
               WHEN EXISTS (SELECT 1 FROM stamp_credits WHERE entry_log_id = e.id) THEN 'awarded'
               WHEN COALESCE(s.enabled, 0) = 0 THEN 'disabled'
               ELSE 'daily_limit' END,
-            'summary', CASE WHEN ?5 = 1 THEN NULL ELSE json_object(
+            'summary', json_object(
               'enabled', json(CASE WHEN COALESCE(s.enabled, 0) = 1 THEN 'true' ELSE 'false' END),
               'dailyLimit', COALESCE(s.daily_limit, 1),
               'goal', COALESCE(s.goal, 10),
               'total', (SELECT COUNT(*) FROM stamp_credits WHERE issuer_id = ?2 AND uid = e.uid)
                 + (SELECT COALESCE(SUM(delta), 0) FROM stamp_adjustments WHERE issuer_id = ?2 AND uid = e.uid),
               'today', (SELECT COUNT(*) FROM stamp_credits WHERE issuer_id = ?2 AND uid = e.uid AND day = ?4)
-            ) END))
+            )))
       FROM entry_log e
       LEFT JOIN members m ON m.attestation_uid = e.uid AND m.issuer_id = ?2
       LEFT JOIN cards c ON c.id = m.card_id AND c.issuer_id = ?2

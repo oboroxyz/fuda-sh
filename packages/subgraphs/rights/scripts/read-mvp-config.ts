@@ -15,12 +15,12 @@ export interface MvpGraphConfig {
     issuerDelegation: SchemaVersion[]
     attendance: SchemaVersion[]
   }
-  announcerFromBlock: number
+  startBlock: number
 }
 
 const VarsSchema = v.object({
-  ANNOUNCER_FROM_BLOCK: v.string(),
   EAS_SCHEMAS: v.string(),
+  GRAPH_START_BLOCK: v.string(),
 })
 // apps/api/targets.jsonc: one block per api target, each with its `vars`.
 const TargetsSchema = v.record(v.string(), v.object({ vars: v.optional(VarsSchema) }))
@@ -138,13 +138,13 @@ export const readMvpGraphConfig = (filePath: string, options: { target?: string 
     throw new Error(`api target ${target} has no vars`)
   }
 
-  const announcerFromBlock = Number(selectedVars.ANNOUNCER_FROM_BLOCK)
-  if (!Number.isSafeInteger(announcerFromBlock) || announcerFromBlock <= 0) {
-    throw new Error('ANNOUNCER_FROM_BLOCK must be a positive integer')
+  const startBlock = Number(selectedVars.GRAPH_START_BLOCK)
+  if (!Number.isSafeInteger(startBlock) || startBlock <= 0) {
+    throw new Error('GRAPH_START_BLOCK must be a positive integer')
   }
 
   return {
-    announcerFromBlock,
     schemas: parseSchemas(selectedVars.EAS_SCHEMAS),
+    startBlock,
   }
 }

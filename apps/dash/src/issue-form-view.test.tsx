@@ -22,7 +22,6 @@ const form: Form = {
   holder: '',
   level: 'bearer',
   memberId: 'alice',
-  stealthMetaAddress: '',
   tier: 1,
   usageModel: 1,
 }
@@ -65,7 +64,6 @@ describe('localized operation views', () => {
   it.each([
     ['bearer', 'メンバー ID', 'Bearer — アプリ不要のデバイスウォレットパス'],
     ['signed', '保有者アドレス', 'Signed — ゲートでメンバーのウォレットが署名'],
-    ['private', 'ステルスメタアドレス', '+Private — メタアドレスからステルスアドレスを生成'],
   ] as const)('labels every %s control and explains the selected level', (level, identity, description) => {
     const host = view({ form: { ...form, level } })
     const labels = [...host.querySelectorAll('label')]
@@ -78,8 +76,7 @@ describe('localized operation views', () => {
       labelled: controls.every((control) =>
         labels.some((label) => label.htmlFor === control.id && control.id !== ''),
       ),
-      optionalMemberId: labels.map(spacedText).includes('メンバー ID（任意の代表 ID）'),
-    }).toStrictEqual({ described: true, labelled: true, optionalMemberId: level === 'private' })
+    }).toStrictEqual({ described: true, labelled: true })
   })
 
   it('blocks invalid and busy submissions and uses the busy label', () => {

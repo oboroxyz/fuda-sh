@@ -7,9 +7,6 @@ import type { Accessor, JSX } from 'solid-js'
 import { render as solidRender } from 'solid-js/web'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import type { PrfResult } from '../passkey.ts'
-import * as stealth from '../private-member.ts'
-import { PrivateScreen } from './PrivateScreen.tsx'
 import { SignedGate } from './SignedGate.tsx'
 import type { SignedGateScreenIo } from './SignedGate.tsx'
 import { Verdict } from './Verdict.tsx'
@@ -30,7 +27,6 @@ const unmountAll = (): void => {
 }
 
 const root = document.createElement('div')
-type PrivateIo = NonNullable<Parameters<typeof PrivateScreen>[0]['io']>
 
 // The screen is built once and reads the language as it changes, so a switch
 // translates it in place instead of rebuilding it.

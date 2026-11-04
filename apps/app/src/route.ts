@@ -11,7 +11,6 @@ export type Route =
   | 'top'
   | 'signin'
   | 'signed'
-  | 'private'
   | 'rights'
   | 'settings'
   | { card: string; slug: string | null }
@@ -34,10 +33,8 @@ const originOf = (value: string): string | null => {
   return origin === 'null' ? null : origin
 }
 
-// +Private is an extension of Signed, not a separate surface: /private answers
-// to the same origin rule as /signed.
-const MEMBER_PATHS = new Set(['/signin', '/signed', '/private', '/rights', '/settings'])
-const PROTECTED_MEMBER_PATHS = new Set(['/signed', '/private', '/rights', '/settings'])
+const MEMBER_PATHS = new Set(['/signin', '/signed', '/rights', '/settings'])
+const PROTECTED_MEMBER_PATHS = new Set(['/signed', '/rights', '/settings'])
 
 // A venue owns its full /@<handle>/* prefix. The handle must be valid, while an
 // unmatched suffix still reaches CardScreen so its missing-card recovery stays
@@ -104,9 +101,6 @@ export const routeFor = (origin: string, pathname: string, appOrigin: string = A
   }
   if (path === '/signed') {
     return 'signed'
-  }
-  if (path === '/private') {
-    return 'private'
   }
   if (path === '/settings') {
     return 'settings'

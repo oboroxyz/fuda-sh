@@ -1,5 +1,5 @@
 import type { StampSettings, StampSummary } from '@fuda/sdk'
-import { and, count, eq, isNotNull, ne, sql } from 'drizzle-orm'
+import { and, count, eq, isNotNull, sql } from 'drizzle-orm'
 
 import type { Db } from '../db/client.ts'
 import { cards, cardStampSettings, members, stampAdjustments, stampCredits } from '../db/schema.ts'
@@ -33,7 +33,7 @@ export const readStampSummary = async (db: Db, uid: string, now: number): Promis
       stampCredits,
       and(eq(stampCredits.issuerId, members.issuerId), eq(stampCredits.uid, members.attestationUid)),
     )
-    .where(and(eq(members.attestationUid, uid), isNotNull(members.issuerId), ne(members.level, 'private')))
+    .where(and(eq(members.attestationUid, uid), isNotNull(members.issuerId)))
     .groupBy(members.attestationUid)
     .get()
   if (row === undefined) {

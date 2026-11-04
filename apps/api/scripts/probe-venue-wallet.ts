@@ -33,11 +33,10 @@ const probe = async (): Promise<void> => {
     'Probe wallet must be undeployed.',
   )
 
-  // Only verifyMessage is used. The EAS/announcer addresses are never queried;
+  // Only verifyMessage is used. The EAS address is never queried;
   // no signer binding is supplied, so ChainClient cannot send transactions.
   const chain = createViemChain(
     {
-      ANNOUNCER_ADDRESS: zeroAddress,
       BASE_RPC_URL: rpcUrl,
       CHAIN_ID: process.env.CHAIN_ID,
       EAS_ADDRESS: zeroAddress,

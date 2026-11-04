@@ -101,19 +101,4 @@ describe(memberRowView, () => {
       true,
     )
   })
-
-  it('hides the holder and pass links for a private row but keeps memberId, uid and QR', () => {
-    const v = memberRowView(
-      { createdAt: 1, holder: null, level: 'private', memberId: '', status: 'active', tier: 0, uid: UID },
-      API,
-    )
-    expect(v).toMatchObject({
-      holder: null,
-      holderShort: null,
-      memberId: '',
-      passUrls: null,
-      qr: `fuda:v1:${UID}`,
-      uid: UID,
-    })
-  })
 })

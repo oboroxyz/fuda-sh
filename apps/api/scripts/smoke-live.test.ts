@@ -83,11 +83,8 @@ const fakeApi = (failAt?: string, ensStatus: 'claimed' | 'unclaimed' = 'claimed'
       ? versioned.slice(API_VERSION_PREFIX.length)
       : versioned
     if (pathname === '/issue') {
-      const body = await new Request(url, init).json<{ holder?: string; stealthMetaAddress?: string }>()
+      const body = await new Request(url, init).json<{ holder?: string }>()
       level = body.holder === undefined ? 'bearer' : 'signed'
-      if (body.stealthMetaAddress !== undefined) {
-        throw new Error('unsupported private issue reached the API')
-      }
       issued.push(UID)
       active.add(UID)
       return Response.json({
@@ -170,15 +167,6 @@ describe('live smoke cleanup', () => {
     vi.unstubAllEnvs()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
-  })
-
-  it('rejects a mixed private selection before issuing any rights', async () => {
-    vi.stubEnv('SMOKE_LADDERS', 'bearer,private')
-    const api = fakeApi()
-
-    await expect(runScript()).rejects.toThrow(/unknown ladder|unsupported/iu)
-    expect(api.issued).toStrictEqual([])
-    expect(api.fetchSpy).not.toHaveBeenCalled()
   })
 
   it('requires an explicit operator key before any selected ladder mutates live state', async () => {
