@@ -80,7 +80,7 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Entry**: One ADMIT of a Right at a Gate, recorded off-chain in the entry log. _Avoid_: Check-in, visit, scan
 
-**Stamp**: One unit of a Venue's loyalty count for a Right, awarded under the Stamp policy configured for its Card. An Entry does not necessarily earn a Stamp; redemption is a separate action. _Avoid_: Point, visit count, check-in
+**Stamp**: One unit of a Venue's loyalty count for a Right, awarded under the Stamp policy configured for its Card. An Entry does not necessarily earn a Stamp. When a card holds its Card's goal, the shop can give the reward: a **redemption** takes the goal off the count, and the shop can also correct the count with an **adjustment** and a reason. Both are kept in an append-only ledger, so the count is credits plus the ledger and history stays. _Avoid_: Point, visit count, check-in
 
 **Member number**: The random label every Right receives at issuance: 13 characters from the 28-character alphabet `23456789acdefghjkmnpqrtuvwxy` — 12 random plus one check character — stored canonical lowercase with no separators (`qj2yxphepdrka`) and shown upper-cased in `4-4-5` groups (`QJ2Y-XPHE-PDRKA`) on the Pass and dashboard. One per Right (a `private + loyalty` member has two unrelated numbers), unique per Issuer, never sequential. It is the ENS member label (`<member-no>.<issuer>.fuda.eth`, see `docs/specs/ens-naming.md`) and is not the Member id, which groups a Member's several Rights. _Avoid_: Member id, serial (that is the Right's lineage field), sequence number
 
