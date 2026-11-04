@@ -211,9 +211,7 @@ describe('branded pass.json', () => {
   })
 })
 
-// An installed pass cannot be pushed an update from this repo, so the download
-// is the only chance an iPhone gets to show a badge. A re-add replaces the
-// installed pass, since the serial number is the Right's uid.
+// A member who badges first and adds the pass afterwards sees the badge from the download.
 describe('badge on a generated pass.json', () => {
   const BADGE: BadgeView = { at: 1_757_000_000, kind: 'human', verifier: 'world' }
   const BADGE_FIELD = {

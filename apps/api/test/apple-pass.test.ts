@@ -136,10 +136,8 @@ describe('GET /pass/:uid/apple.pkpass', () => {
     expect(pass.storeCard.primaryFields[0]?.value).toBe('VIP')
   })
 
-  // There is no webServiceURL and no APNs here, so the download is the only way
-  // an iPhone ever shows a badge: a member who badges and then adds (or re-adds,
-  // which replaces the installed pass, the serial number being the uid) gets it
-  // from the snapshot.
+  // Wallet can only announce a change to a pass it already holds, so the download is what
+  // shows a badge saved first.
   it('carries a badge saved before the pass was downloaded', async () => {
     const chain = fakeChain()
     const del = seedRoot(chain)
