@@ -66,7 +66,7 @@ const button = (label: string): HTMLButtonElement => {
 
 const baseIo = (total = 10): StampIo => ({
   adjust: vi.fn<StampIo['adjust']>(),
-  ledger: vi.fn(
+  ledger: vi.fn<StampIo['ledger']>(
     async () => await Promise.resolve({ body: { entries: [], summary: summary(total) }, ok: true as const }),
   ),
   redeem: vi.fn<StampIo['redeem']>(),
