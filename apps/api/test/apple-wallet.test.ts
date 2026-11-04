@@ -60,11 +60,13 @@ interface WorldOptions {
   webService?: boolean
 }
 
+const SENT = async (): Promise<ApplePushResult> => await Promise.resolve({ outcome: 'sent' })
+
 const world = async ({ push, record = 'onchain', webService = true }: WorldOptions = {}) => {
   const chain = fakeChain({ signer: ROOT })
   const delegation = seedRoot(chain)
   const pushed: Pushed[] = []
-  let answer: () => Promise<ApplePushResult> = async () => await Promise.resolve({ outcome: 'sent' })
+  let answer = SENT
   const recorder: ApplePushSender = async (pushToken, passTypeId) => {
     pushed.push({ passTypeId, pushToken })
     return await answer()
@@ -82,7 +84,7 @@ const world = async ({ push, record = 'onchain', webService = true }: WorldOptio
   })
   const kept: Promise<unknown>[] = []
   const execution = {
-    passThroughOnException: () => undefined,
+    passThroughOnException: () => {},
     props: {},
     waitUntil: (promise: Promise<unknown>) => {
       kept.push(promise)
@@ -94,12 +96,7 @@ const world = async ({ push, record = 'onchain', webService = true }: WorldOptio
     return response
   }
   const { token } = await signIn(app, bindings)
-  await registerVenueWithCard(
-    app,
-    bindings,
-    { ...CARD_INPUT, card: { ...CARD_INPUT.card, record } },
-    token,
-  )
+  await registerVenueWithCard(app, bindings, { ...CARD_INPUT, card: { ...CARD_INPUT.card, record } }, token)
   const venue = await db.select().from(issuers).get()
   const card = await db.select().from(cards).get()
   if (venue === undefined || card === undefined) {
@@ -118,12 +115,9 @@ const world = async ({ push, record = 'onchain', webService = true }: WorldOptio
     })
     return uid
   }
-  const authJson = (extra: Record<string, string> = {}): Record<string, string> => ({
-    authorization: `Bearer ${token}`,
-    'content-type': 'application/json',
-    ...extra,
-  })
+  const authJson = { authorization: `Bearer ${token}`, 'content-type': 'application/json' }
   return {
+    authJson,
     bindings,
     card,
     issueSeeded,
@@ -136,18 +130,28 @@ const world = async ({ push, record = 'onchain', webService = true }: WorldOptio
       }),
     request,
     revoke: async (uid: Hex): Promise<Response> =>
-      await request('/v1/revoke', { body: JSON.stringify({ uid }), headers: authJson(), method: 'POST' }),
+      await request('/v1/revoke', { body: JSON.stringify({ uid }), headers: authJson, method: 'POST' }),
     setPushAnswer: (next: () => Promise<ApplePushResult>): void => {
       answer = next
     },
     stamp: async (uid: Hex): Promise<Response> =>
       await request('/v1/issuers/me/reception', {
         body: JSON.stringify({ qr: `fuda:v1:${uid}`, requestId: crypto.randomUUID() }),
-        headers: authJson(),
+        headers: authJson,
         method: 'POST',
       }),
-    authJson,
   }
+}
+
+const claimOffchain = async (
+  request: (path: string, init: RequestInit) => Promise<Response>,
+): Promise<Hex> => {
+  const claimed = await request(`/v1/issuers/${CARD_INPUT.handle}/${CARD_INPUT.card.slug}/issue`, {
+    headers: { 'CF-Connecting-IP': '203.0.113.70' },
+    method: 'POST',
+  })
+  const { uid } = await claimed.json<{ uid: Hex }>()
+  return uid
 }
 
 const auth = async (uid: Hex, secret = SECRET): Promise<Record<string, string>> => ({
@@ -163,12 +167,36 @@ const list = async (
     `/apple/v1/devices/${device}/registrations/${PASS_TYPE}${since === undefined ? '' : `?passesUpdatedSince=${since}`}`,
   )
 
+const statusOf = async (pending: Promise<Response>): Promise<number> => {
+  const { status } = await pending
+  return status
+}
+
 const listed = async (response: Response): Promise<{ lastUpdated: string; serialNumbers: string[] }> =>
   await response.json<{ lastUpdated: string; serialNumbers: string[] }>()
+
+const serialsOf = async (pending: Promise<{ serialNumbers: string[] }>): Promise<string[]> => {
+  const { serialNumbers } = await pending
+  return serialNumbers
+}
 
 // A stored ZIP, so pass.json sits in the archive as plain bytes.
 const passJsonOf = async (response: Response): Promise<string> =>
   new TextDecoder('latin1').decode(await response.arrayBuffer())
+
+const stored = async (): Promise<{ devices: number; registrations: number }> => {
+  const [devices, registrations] = await Promise.all([
+    db.select().from(applePassDevices),
+    db.select().from(applePassRegistrations),
+  ])
+  return { devices: devices.length, registrations: registrations.length }
+}
+
+const log = (body: string): RequestInit => ({
+  body,
+  headers: { 'CF-Connecting-IP': '203.0.113.9' },
+  method: 'POST',
+})
 
 describe('the Wallet web service', () => {
   beforeEach(wipe)
@@ -177,8 +205,8 @@ describe('the Wallet web service', () => {
     it('answers 201, then 200 and keeps the rotated push token', async () => {
       const { issueSeeded, register } = await world()
       const uid = await issueSeeded('m1')
-      expect((await register(uid)).status).toBe(201)
-      expect((await register(uid, DEVICE, 'cd'.repeat(32))).status).toBe(200)
+      await expect(statusOf(register(uid))).resolves.toBe(201)
+      await expect(statusOf(register(uid, DEVICE, 'cd'.repeat(32)))).resolves.toBe(200)
       const device = await db.select().from(applePassDevices).get()
       expect(device?.pushToken).toBe('cd'.repeat(32))
       const rows = await db.select().from(applePassRegistrations)
@@ -199,7 +227,7 @@ describe('the Wallet web service', () => {
         { authorization: `Bearer ${await applePassToken(SECRET, uid)}` },
       ]
       const statuses = await Promise.all(
-        refused.map(async (headers) => (await request(path, { body, headers, method: 'POST' })).status),
+        refused.map(async (headers) => await statusOf(request(path, { body, headers, method: 'POST' }))),
       )
       expect(statuses).toStrictEqual([401, 401, 401, 401])
       await expect(db.select().from(applePassRegistrations)).resolves.toHaveLength(0)
@@ -226,7 +254,7 @@ describe('the Wallet web service', () => {
     it('parses the push token, because it ends up in the APNs path', async () => {
       const { issueSeeded, register, request } = await world()
       const uid = await issueSeeded('m1')
-      expect((await register(uid, DEVICE, '../../evil')).status).toBe(400)
+      await expect(statusOf(register(uid, DEVICE, '../../evil'))).resolves.toBe(400)
       const noBody = await request(`/apple/v1/devices/${DEVICE}/registrations/${PASS_TYPE}/${uid}`, {
         body: 'not json',
         headers: await auth(uid),
@@ -238,7 +266,7 @@ describe('the Wallet web service', () => {
 
     it('answers 404 for a token over a pass that does not exist', async () => {
       const { register } = await world()
-      expect((await register(`0x${'9'.repeat(64)}`)).status).toBe(404)
+      await expect(statusOf(register(`0x${'9'.repeat(64)}`))).resolves.toBe(404)
     })
   })
 
@@ -254,13 +282,11 @@ describe('the Wallet web service', () => {
           headers: await auth(uid),
           method: 'DELETE',
         })
-      expect((await remove(first)).status).toBe(200)
-      await expect(db.select().from(applePassRegistrations)).resolves.toHaveLength(1)
-      await expect(db.select().from(applePassDevices)).resolves.toHaveLength(1)
-      expect((await remove(second)).status).toBe(200)
-      await expect(db.select().from(applePassRegistrations)).resolves.toHaveLength(0)
-      await expect(db.select().from(applePassDevices)).resolves.toHaveLength(0)
-      expect((await remove(second)).status).toBe(200)
+      await expect(statusOf(remove(first))).resolves.toBe(200)
+      await expect(stored()).resolves.toStrictEqual({ devices: 1, registrations: 1 })
+      await expect(statusOf(remove(second))).resolves.toBe(200)
+      await expect(stored()).resolves.toStrictEqual({ devices: 0, registrations: 0 })
+      await expect(statusOf(remove(second))).resolves.toBe(200)
     })
 
     it('refuses a wrong token and leaves the registration', async () => {
@@ -279,7 +305,7 @@ describe('the Wallet web service', () => {
   describe('listing updated serials', () => {
     it('answers 204 for a device it does not know', async () => {
       const { request } = await world()
-      expect((await list(request)).status).toBe(204)
+      await expect(statusOf(list(request))).resolves.toBe(204)
     })
 
     it('answers every registered pass with no tag, then 204 from the tag it gave', async () => {
@@ -290,7 +316,7 @@ describe('the Wallet web service', () => {
       expect(first.status).toBe(200)
       const body = await listed(first)
       expect(body.serialNumbers).toStrictEqual([uid])
-      expect((await list(request, body.lastUpdated)).status).toBe(204)
+      await expect(statusOf(list(request, body.lastUpdated))).resolves.toBe(204)
     })
 
     it('treats a malformed tag as no tag', async () => {
@@ -306,11 +332,11 @@ describe('the Wallet web service', () => {
       const uid = await issueSeeded('m1')
       await register(uid)
       const before = await listed(await list(request))
-      expect((await stamp(uid)).status).toBe(200)
+      await expect(statusOf(stamp(uid))).resolves.toBe(200)
       const after = await listed(await list(request, before.lastUpdated))
       expect(after.serialNumbers).toStrictEqual([uid])
       expect(Number(after.lastUpdated)).toBeGreaterThan(Number(before.lastUpdated))
-      expect((await list(request, after.lastUpdated)).status).toBe(204)
+      await expect(statusOf(list(request, after.lastUpdated))).resolves.toBe(204)
     })
 
     it('does not lose a second pass that changes in the second the device last asked', async () => {
@@ -329,7 +355,7 @@ describe('the Wallet web service', () => {
     it('answers only for the device asking', async () => {
       const { issueSeeded, register, request } = await world()
       await register(await issueSeeded('m1'))
-      expect((await list(request, undefined, 'another-device')).status).toBe(204)
+      await expect(statusOf(list(request, undefined, 'another-device'))).resolves.toBe(204)
     })
   })
 
@@ -339,9 +365,9 @@ describe('the Wallet web service', () => {
     it('refuses a wrong token', async () => {
       const { issueSeeded, request } = await world()
       const uid = await issueSeeded('m1')
-      expect((await request(passPath(uid))).status).toBe(401)
+      await expect(statusOf(request(passPath(uid)))).resolves.toBe(401)
       const other = await issueSeeded('m2')
-      expect((await request(passPath(uid), { headers: await auth(other) })).status).toBe(401)
+      await expect(statusOf(request(passPath(uid), { headers: await auth(other) }))).resolves.toBe(401)
     })
 
     it('answers the pass, naming this web service, with Last-Modified', async () => {
@@ -349,9 +375,11 @@ describe('the Wallet web service', () => {
       const uid = await issueSeeded('m1')
       await register(uid)
       const res = await request(passPath(uid), { headers: await auth(uid) })
-      expect(res.status).toBe(200)
-      expect(res.headers.get('content-type')).toBe('application/vnd.apple.pkpass')
-      expect(res.headers.get('last-modified')).toBe(new Date(NOW * 1000).toUTCString())
+      expect([res.status, res.headers.get('content-type'), res.headers.get('last-modified')]).toStrictEqual([
+        200,
+        'application/vnd.apple.pkpass',
+        new Date(NOW * 1000).toUTCString(),
+      ])
       const json = await passJsonOf(res)
       expect(json).toContain('"webServiceURL":"https://api.test/apple"')
       expect(json).toContain(`"authenticationToken":"${await applePassToken(SECRET, uid)}"`)
@@ -365,7 +393,7 @@ describe('the Wallet web service', () => {
       const first = await request(passPath(uid), { headers: await auth(uid) })
       const lastModified = first.headers.get('last-modified') ?? ''
       const conditional = { ...(await auth(uid)), 'if-modified-since': lastModified }
-      expect((await request(passPath(uid), { headers: conditional })).status).toBe(304)
+      await expect(statusOf(request(passPath(uid), { headers: conditional }))).resolves.toBe(304)
       await stamp(uid)
       const updated = await request(passPath(uid), { headers: conditional })
       expect(updated.status).toBe(200)
@@ -376,40 +404,24 @@ describe('the Wallet web service', () => {
       'still serves a %s pass once revoked, showing it is no longer valid',
       async (record) => {
         const { issueSeeded, pushed, register, request, revoke } = await world({ record })
-        const uid =
-          record === 'onchain'
-            ? await issueSeeded('m1')
-            : (
-                await (
-                  await request(`/v1/issuers/${CARD_INPUT.handle}/${CARD_INPUT.card.slug}/issue`, {
-                    headers: { 'CF-Connecting-IP': '203.0.113.70' },
-                    method: 'POST',
-                  })
-                ).json<{ uid: Hex }>()
-              ).uid
+        const uid = record === 'onchain' ? await issueSeeded('m1') : await claimOffchain(request)
         await register(uid)
         const before = await listed(await list(request))
-        const answered = await revoke(uid)
-        expect(answered.status).toBe(200)
+        await expect(statusOf(revoke(uid))).resolves.toBe(200)
         expect(pushed).toHaveLength(1)
-        const after = await listed(await list(request, before.lastUpdated))
-        expect(after.serialNumbers).toStrictEqual([uid])
+        await expect(serialsOf(listed(await list(request, before.lastUpdated)))).resolves.toStrictEqual([uid])
         const res = await request(passPath(uid), { headers: await auth(uid) })
-        expect(res.status).toBe(200)
         const json = await passJsonOf(res)
-        expect(json).toContain('"voided":true')
-        expect(json).toContain('No longer valid')
+        expect([res.status, json.includes('"voided":true'), json.includes('No longer valid')]).toStrictEqual([
+          200,
+          true,
+          true,
+        ])
       },
     )
   })
 
   describe('the log endpoint', () => {
-    const log = (body: string): RequestInit => ({
-      body,
-      headers: { 'CF-Connecting-IP': '203.0.113.9' },
-      method: 'POST',
-    })
-
     it('takes what Wallet reports, without a credential', async () => {
       const { request } = await world()
       const res = await request('/apple/v1/log', log(JSON.stringify({ logs: ['a failure'] })))
@@ -418,9 +430,9 @@ describe('the Wallet web service', () => {
 
     it('refuses a payload that is not Apple shape, or is unbounded', async () => {
       const { request } = await world()
-      expect((await request('/apple/v1/log', log('{"logs":"nope"}'))).status).toBe(400)
+      await expect(statusOf(request('/apple/v1/log', log('{"logs":"nope"}')))).resolves.toBe(400)
       const flood = JSON.stringify({ logs: Array.from({ length: 51 }, () => 'x') })
-      expect((await request('/apple/v1/log', log(flood))).status).toBe(400)
+      await expect(statusOf(request('/apple/v1/log', log(flood)))).resolves.toBe(400)
     })
   })
 
@@ -430,7 +442,7 @@ describe('the Wallet web service', () => {
       const uid = await issueSeeded('m1')
       await register(uid)
       await register(uid, 'device-library-2', 'cd'.repeat(32))
-      expect((await stamp(uid)).status).toBe(200)
+      await expect(statusOf(stamp(uid))).resolves.toBe(200)
       expect(pushed.map(({ pushToken }) => pushToken).toSorted()).toStrictEqual([PUSH_TOKEN, 'cd'.repeat(32)])
       expect(pushed.every(({ passTypeId }) => passTypeId === PASS_TYPE)).toBe(true)
     })
@@ -468,7 +480,7 @@ describe('the Wallet web service', () => {
       setPushAnswer(
         async () => await Promise.resolve({ outcome: 'failed', reason: 'BadCertificate', status: 403 }),
       )
-      expect((await stamp(uid)).status).toBe(200)
+      await expect(statusOf(stamp(uid))).resolves.toBe(200)
       await expect(db.select().from(applePassDevices)).resolves.toHaveLength(1)
     })
 
@@ -482,7 +494,7 @@ describe('the Wallet web service', () => {
       expect(res.status).toBe(200)
       await expect(res.json()).resolves.toMatchObject({ decision: 'ADMIT' })
       await expect(db.select().from(stampCredits)).resolves.toHaveLength(1)
-      expect((await list(request, before.lastUpdated)).status).toBe(200)
+      await expect(statusOf(list(request, before.lastUpdated))).resolves.toBe(200)
     })
 
     it('pushes nothing for a pass with no device', async () => {
@@ -491,35 +503,44 @@ describe('the Wallet web service', () => {
       expect(pushed).toHaveLength(0)
     })
 
-    it('refreshes every pass under a card or venue that was edited', async () => {
-      const { authJson, card, issueSeeded, pushed, register, request } = await world()
+    it('refreshes every pass under a venue that was edited', async () => {
+      const { authJson, issueSeeded, pushed, register, request } = await world()
       const first = await issueSeeded('m1')
       const second = await issueSeeded('m2')
       await register(first)
       await register(second, 'device-library-2', 'cd'.repeat(32))
       const before = await listed(await list(request))
-      const venueEdit = await request('/v1/issuers/me', {
-        body: JSON.stringify({ brandColor: '#112233', name: 'New name', tagline: '' }),
-        headers: authJson(),
-        method: 'PUT',
-      })
-      expect(venueEdit.status).toBe(200)
+      await expect(
+        statusOf(
+          request('/v1/issuers/me', {
+            body: JSON.stringify({ brandColor: '#112233', name: 'New name', tagline: '' }),
+            headers: authJson,
+            method: 'PUT',
+          }),
+        ),
+      ).resolves.toBe(200)
       expect(pushed).toHaveLength(2)
-      const after = await listed(await list(request, before.lastUpdated))
-      expect(after.serialNumbers).toStrictEqual([first])
-      const stampEdit = await request(`/v1/issuers/me/cards/${card.id}/stamps`, {
-        body: JSON.stringify({ dailyLimit: 1, enabled: true, goal: 12 }),
-        headers: authJson(),
-        method: 'PUT',
-      })
-      expect(stampEdit.status).toBe(200)
-      expect(pushed).toHaveLength(4)
-      const row = await db
-        .select()
-        .from(applePassUpdates)
-        .where(eq(applePassUpdates.uid, second))
-        .get()
+      await expect(serialsOf(listed(await list(request, before.lastUpdated)))).resolves.toStrictEqual([first])
+      const row = await db.select().from(applePassUpdates).where(eq(applePassUpdates.uid, second)).get()
       expect(row?.tag).toBeGreaterThan(Number(before.lastUpdated))
+    })
+
+    it('refreshes the passes under a card whose stamp settings changed', async () => {
+      const { authJson, card, issueSeeded, pushed, register, request } = await world()
+      const uid = await issueSeeded('m1')
+      await register(uid)
+      const before = await listed(await list(request))
+      await expect(
+        statusOf(
+          request(`/v1/issuers/me/cards/${card.id}/stamps`, {
+            body: JSON.stringify({ dailyLimit: 1, enabled: true, goal: 12 }),
+            headers: authJson,
+            method: 'PUT',
+          }),
+        ),
+      ).resolves.toBe(200)
+      expect(pushed).toHaveLength(1)
+      await expect(serialsOf(listed(await list(request, before.lastUpdated)))).resolves.toStrictEqual([uid])
     })
   })
 
@@ -529,34 +550,45 @@ describe('the Wallet web service', () => {
       const uid = await issueSeeded('m1')
       await register(uid)
       const before = await listed(await list(request))
-      expect((await stamp(uid)).status).toBe(200)
-      expect((await listed(await list(request, before.lastUpdated))).serialNumbers).toStrictEqual([uid])
+      await expect(statusOf(stamp(uid))).resolves.toBe(200)
+      await expect(serialsOf(listed(await list(request, before.lastUpdated)))).resolves.toStrictEqual([uid])
     })
   })
 
   describe('with the secret unset', () => {
-    it('answers 501 on every route, and builds a snapshot that names no web service', async () => {
-      const { issueSeeded, pushed, request, stamp } = await world({ webService: false })
+    it('answers 501 on every route', async () => {
+      const { issueSeeded, request } = await world({ webService: false })
       const uid = await issueSeeded('m1')
       const registrations = `/apple/v1/devices/${DEVICE}/registrations/${PASS_TYPE}`
       const statuses = await Promise.all([
-        request(`${registrations}/${uid}`, {
-          body: JSON.stringify({ pushToken: PUSH_TOKEN }),
-          headers: await auth(uid),
-          method: 'POST',
-        }),
-        request(`${registrations}/${uid}`, { headers: await auth(uid), method: 'DELETE' }),
-        request(registrations),
-        request(`/apple/v1/passes/${PASS_TYPE}/${uid}`, { headers: await auth(uid) }),
+        statusOf(
+          request(`${registrations}/${uid}`, {
+            body: JSON.stringify({ pushToken: PUSH_TOKEN }),
+            headers: await auth(uid),
+            method: 'POST',
+          }),
+        ),
+        statusOf(request(`${registrations}/${uid}`, { headers: await auth(uid), method: 'DELETE' })),
+        statusOf(request(registrations)),
+        statusOf(request(`/apple/v1/passes/${PASS_TYPE}/${uid}`, { headers: await auth(uid) })),
       ])
-      expect(statuses.map(({ status }) => status)).toStrictEqual([501, 501, 501, 501])
+      expect(statuses).toStrictEqual([501, 501, 501, 501])
+    })
+
+    it('builds a snapshot that names no web service', async () => {
+      const { issueSeeded, request } = await world({ webService: false })
+      const uid = await issueSeeded('m1')
       const pass = await request(`/pass/${uid}/apple.pkpass`)
       expect(pass.status).toBe(200)
       const json = await passJsonOf(pass)
       expect(json).not.toContain('webServiceURL')
       expect(json).not.toContain('authenticationToken')
       expect(json).not.toContain('"Status"')
-      expect((await stamp(uid)).status).toBe(200)
+    })
+
+    it('records nothing and pushes nothing when a pass changes', async () => {
+      const { issueSeeded, pushed, stamp } = await world({ webService: false })
+      await expect(statusOf(stamp(await issueSeeded('m1')))).resolves.toBe(200)
       expect(pushed).toHaveLength(0)
       await expect(db.select().from(applePassUpdates)).resolves.toHaveLength(0)
     })
@@ -566,6 +598,6 @@ describe('the Wallet web service', () => {
     const { issueSeeded, request } = await world()
     const uid = await issueSeeded('m1')
     const pass = await request(`/pass/${uid}/apple.pkpass`)
-    expect(await passJsonOf(pass)).toContain('"webServiceURL":"https://api.test/apple"')
+    await expect(passJsonOf(pass)).resolves.toContain('"webServiceURL":"https://api.test/apple"')
   })
 })

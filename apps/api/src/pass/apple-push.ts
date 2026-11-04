@@ -22,7 +22,7 @@ const reasonOf = async (response: Response): Promise<string> => {
 // the certificate that signed the pass, the device's push token, an empty JSON dictionary.
 // Pass updates exist only in APNs production. No apns-push-type: each documented value is
 // defined by an app's payload, and Apple names none for a pass update.
-export const applePushSenderFrom = (binding: Bindings['APPLE_PUSH_CERT']): ApplePushSender | null =>
+export const applePushSenderFrom = (binding?: Bindings['APPLE_PUSH_CERT']): ApplePushSender | null =>
   binding === undefined
     ? null
     : async (pushToken, passTypeId) => {

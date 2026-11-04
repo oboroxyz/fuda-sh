@@ -208,9 +208,7 @@ export const passJson = (cfg: AppleConfig, input: ApplePassInput): PassJson => {
         ...auxiliary,
         backFields: [...statusFields(input), { key: 'uid', label: 'Attestation', value: input.uid }],
         primaryFields:
-          stamps === null
-            ? [{ key: 'tier', label: 'TIER', value: input.tierLabel }]
-            : [stampField(stamps)],
+          stamps === null ? [{ key: 'tier', label: 'TIER', value: input.tierLabel }] : [stampField(stamps)],
         secondaryFields:
           stamps === null
             ? [{ key: 'member', label: 'MEMBER', value: input.holderShort }]

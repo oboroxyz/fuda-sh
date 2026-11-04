@@ -3,20 +3,20 @@ import { describe, expect, it } from 'vitest'
 import { applePushSenderFrom } from './apple-push.ts'
 
 interface Sent {
-  body: string | null
+  body: string
   method: string
   topic: string | null
   url: string
 }
 
-const binding = (response: () => Response): { sent: Sent[]; fetch: typeof fetch } => {
+const binding = (response: () => Response) => {
   const sent: Sent[] = []
-  return {
+  const fake: Pick<Fetcher, 'fetch'> & { sent: Sent[] } = {
     // oxlint-disable-next-line require-await -- Fetch-compatible test double
     fetch: async (input, init) => {
       const request = new Request(input, init)
       sent.push({
-        body: init?.body?.toString() ?? null,
+        body: await request.text(),
         method: request.method,
         topic: request.headers.get('apns-topic'),
         url: request.url,
@@ -25,13 +25,14 @@ const binding = (response: () => Response): { sent: Sent[]; fetch: typeof fetch 
     },
     sent,
   }
+  return fake
 }
 
 const reason = (name: string, status: number): Response => Response.json({ reason: name }, { status })
 
 describe(applePushSenderFrom, () => {
   it('is off without the binding', () => {
-    expect(applePushSenderFrom(undefined)).toBeNull()
+    expect(applePushSenderFrom()).toBeNull()
   })
 
   it('sends the empty dictionary Apple requires to production, on the pass type topic', async () => {

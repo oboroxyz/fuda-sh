@@ -79,7 +79,9 @@ describe(passJson, () => {
       ...INPUT,
       stamps: { dailyLimit: 2, enabled: true, goal: 10, today: 1, total: 4 },
     })
-    expect(json.storeCard.primaryFields).toStrictEqual([{ changeMessage: 'Stamps: %@', key: 'stamps', label: 'STAMPS', value: '4 / 10' }])
+    expect(json.storeCard.primaryFields).toStrictEqual([
+      { changeMessage: 'Stamps: %@', key: 'stamps', label: 'STAMPS', value: '4 / 10' },
+    ])
     expect(json.storeCard.secondaryFields).toStrictEqual([
       { key: 'tier', label: 'TIER', value: 'VIP' },
       { key: 'member', label: 'MEMBER', value: '0x1234…abcd' },
@@ -214,7 +216,12 @@ describe('branded pass.json', () => {
 // installed pass, since the serial number is the Right's uid.
 describe('badge on a generated pass.json', () => {
   const BADGE: BadgeView = { at: 1_757_000_000, kind: 'human', verifier: 'world' }
-  const BADGE_FIELD = { changeMessage: 'Badge: %@', key: 'badge-human', label: 'BADGE', value: 'Verified human' }
+  const BADGE_FIELD = {
+    changeMessage: 'Badge: %@',
+    key: 'badge-human',
+    label: 'BADGE',
+    value: 'Verified human',
+  }
 
   it('shows the badge on the front of a plain pass', () => {
     const json = passJson(CFG, { ...INPUT, badges: [BADGE] })
@@ -259,7 +266,7 @@ describe('badge on a generated pass.json', () => {
 describe('an updatable or revoked pass', () => {
   const STAMPS = { dailyLimit: 1, enabled: true, goal: 10, today: 0, total: 3 }
   const SERVICE = { authenticationToken: 'token-of-sixteen-chars', url: 'https://api.test/apple' }
-  const BRANDING = {
+  const BRANDED = {
     brandColor: '#112233',
     cardTitle: 'Coffee',
     category: 'membership',
@@ -270,18 +277,17 @@ describe('an updatable or revoked pass', () => {
     memberNumber: '1234-5678-90123',
     venue: null,
   } as const
-  const back = (json: ReturnType<typeof passJson>) => json.storeCard.backFields.map(({ key }) => key)
 
   it('names no web service and no status on a snapshot', () => {
     const json = passJson(CFG, { ...INPUT, webService: null })
     expect(json.webServiceURL).toBeUndefined()
     expect(json.authenticationToken).toBeUndefined()
     expect(json.voided).toBeUndefined()
-    expect(back(json)).not.toContain('status')
+    expect(json.storeCard.backFields.map(({ key }) => key)).not.toContain('status')
   })
 
   it('carries the web service, and a status Wallet can announce a change to', () => {
-    for (const branding of [null, BRANDING]) {
+    for (const branding of [null, BRANDED]) {
       const json = passJson(CFG, { ...INPUT, branding, webService: SERVICE })
       expect(json.webServiceURL).toBe('https://api.test/apple')
       expect(json.authenticationToken).toBe('token-of-sixteen-chars')
@@ -292,14 +298,15 @@ describe('an updatable or revoked pass', () => {
   })
 
   it('has a stamp count announce itself, branded or not', () => {
-    const plain = passJson(CFG, { ...INPUT, stamps: STAMPS }).storeCard.primaryFields[0]
-    const branded = passJson(CFG, { ...INPUT, branding: BRANDING, stamps: STAMPS }).storeCard.auxiliaryFields?.[0]
-    expect(plain?.changeMessage).toBe('Stamps: %@')
-    expect(branded?.changeMessage).toBe('Stamps: %@')
+    const [onPlain] = passJson(CFG, { ...INPUT, stamps: STAMPS }).storeCard.primaryFields
+    const [onCard] =
+      passJson(CFG, { ...INPUT, branding: BRANDED, stamps: STAMPS }).storeCard.auxiliaryFields ?? []
+    expect(onPlain?.changeMessage).toBe('Stamps: %@')
+    expect(onCard?.changeMessage).toBe('Stamps: %@')
   })
 
   it('marks a revoked pass void and says so, front and back, even as a snapshot', () => {
-    for (const branding of [null, BRANDING]) {
+    for (const branding of [null, BRANDED]) {
       const json = passJson(CFG, { ...INPUT, branding, revoked: true })
       expect(json.voided).toBe(true)
       expect(json.storeCard.auxiliaryFields?.[0]?.value).toBe('No longer valid')

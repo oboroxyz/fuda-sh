@@ -8,7 +8,9 @@ const OTHER: Hex = `0x${'cd'.repeat(32)}`
 
 describe(appleWebServiceFrom, () => {
   it('needs both the pass type and the secret', () => {
-    expect(appleWebServiceFrom({ APPLE_PASS_TYPE_ID: 'pass.x', APPLE_WEB_SERVICE_SECRET: 's' })).toStrictEqual({
+    expect(
+      appleWebServiceFrom({ APPLE_PASS_TYPE_ID: 'pass.x', APPLE_WEB_SERVICE_SECRET: 's' }),
+    ).toStrictEqual({
       passTypeId: 'pass.x',
       secret: 's',
     })
@@ -21,9 +23,9 @@ describe(appleWebServiceFrom, () => {
 describe(applePassToken, () => {
   it('is stable per pass, differs per pass and per secret, and is long enough for Wallet', async () => {
     const token = await applePassToken('secret', UID)
-    expect(await applePassToken('secret', UID)).toBe(token)
-    expect(await applePassToken('secret', OTHER)).not.toBe(token)
-    expect(await applePassToken('other', UID)).not.toBe(token)
+    await expect(applePassToken('secret', UID)).resolves.toBe(token)
+    await expect(applePassToken('secret', OTHER)).resolves.not.toBe(token)
+    await expect(applePassToken('other', UID)).resolves.not.toBe(token)
     expect(token.length).toBeGreaterThanOrEqual(16)
   })
 })
@@ -35,6 +37,6 @@ describe(appleAuthorized, () => {
     await expect(appleAuthorized('secret', OTHER, `ApplePass ${token}`)).resolves.toBe(false)
     await expect(appleAuthorized('secret', UID, `Bearer ${token}`)).resolves.toBe(false)
     await expect(appleAuthorized('secret', UID, token)).resolves.toBe(false)
-    await expect(appleAuthorized('secret', UID, undefined)).resolves.toBe(false)
+    await expect(appleAuthorized('secret', UID)).resolves.toBe(false)
   })
 })

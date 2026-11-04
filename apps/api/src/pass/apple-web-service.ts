@@ -36,11 +36,7 @@ export const applePassToken = async (secret: string, uid: Hex): Promise<string> 
 const sha256 = async (text: string): Promise<ArrayBuffer> =>
   await crypto.subtle.digest('SHA-256', encoder.encode(text))
 
-export const appleAuthorized = async (
-  secret: string,
-  uid: Hex,
-  header: string | undefined,
-): Promise<boolean> => {
+export const appleAuthorized = async (secret: string, uid: Hex, header?: string): Promise<boolean> => {
   const [presented, expected] = await Promise.all([
     sha256(header ?? ''),
     sha256(`ApplePass ${await applePassToken(secret, uid)}`),

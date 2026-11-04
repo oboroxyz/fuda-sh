@@ -7,7 +7,12 @@ import { defineHandler } from 'void'
 import type { AppEnv } from '../env.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { DEFAULT_BUDGET, rateLimit } from '../middleware/rate-limit.ts'
-import { passUpdatedAt, registerDevice, unregisterDevice, updatedSerials } from '../pass/apple-registrations.ts'
+import {
+  passUpdatedAt,
+  registerDevice,
+  unregisterDevice,
+  updatedSerials,
+} from '../pass/apple-registrations.ts'
 import { appleAuthorized, appleWebServiceFrom } from '../pass/apple-web-service.ts'
 import type { AppleWebService } from '../pass/apple-web-service.ts'
 import { loadPassRow } from '../pass/pass-row.ts'
@@ -38,7 +43,11 @@ const serviceFor = (c: Context<AppEnv>, passTypeId: string | undefined): Service
 
 type AuthorizedPass = { ok: true; uid: Hex } | { ok: false; res: Response }
 
-const authorizedPass = async (c: Context<AppEnv>, passTypeId: string, serial: string): Promise<AuthorizedPass> => {
+const authorizedPass = async (
+  c: Context<AppEnv>,
+  passTypeId: string,
+  serial: string,
+): Promise<AuthorizedPass> => {
   const found = serviceFor(c, passTypeId)
   if (!found.ok) {
     return found

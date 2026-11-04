@@ -4,7 +4,7 @@ import type { Hex } from '@fuda/sdk'
 // one subquery, so a variable-length list never meets D1's bound parameter limit.
 export type PassScope = { uid: Hex } | { cardId: string } | { issuerId: string }
 
-const scopeFilter = (scope: PassScope): { column: string; value: string } => {
+const scopeFilter = (scope: PassScope) => {
   if ('uid' in scope) {
     return { column: 'r.uid', value: scope.uid }
   }
@@ -120,9 +120,7 @@ export const registerDevice = async (db: D1Database, registration: Registration)
 
 export const unregisterDevice = async (db: D1Database, deviceId: string, uid: Hex): Promise<void> => {
   await db.batch([
-    db
-      .prepare('DELETE FROM apple_pass_registrations WHERE device_id = ?1 AND uid = ?2')
-      .bind(deviceId, uid),
+    db.prepare('DELETE FROM apple_pass_registrations WHERE device_id = ?1 AND uid = ?2').bind(deviceId, uid),
     db
       .prepare(
         `DELETE FROM apple_pass_devices WHERE device_id = ?1

@@ -112,14 +112,13 @@ describe('notifying Google Wallet of a changed pass', () => {
       verifier: 'world',
     })
     const bodies: string[] = []
-    // oxlint-disable-next-line require-await -- Fetch-compatible test double
     vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = new Request(input, init)
       if (request.url.includes('oauth2.googleapis.com')) {
         return Response.json({ access_token: 'access' })
       }
       if (request.method === 'PATCH') {
-        bodies.push(init?.body?.toString() ?? '')
+        bodies.push(await request.text())
       }
       return Response.json({ textModulesData: [] })
     })

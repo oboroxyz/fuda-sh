@@ -1,4 +1,9 @@
-import { googleAccessToken, googleConfigFrom, patchGoogleBadgeModules, patchGoogleGenericObject } from '@fuda/pass'
+import {
+  googleAccessToken,
+  googleConfigFrom,
+  patchGoogleBadgeModules,
+  patchGoogleGenericObject,
+} from '@fuda/pass'
 import type { GoogleConfig } from '@fuda/pass'
 import type { Hex, StampSummary } from '@fuda/sdk'
 import type { Context } from 'hono'
@@ -7,9 +12,9 @@ import { readBadges } from '../badges/store.ts'
 import type { AppEnv } from '../env.ts'
 import { waitUntilOf } from '../handlers/verify.ts'
 import { readStampSummary } from '../stamps/store.ts'
+import type { ApplePushSender } from './apple-push.ts'
 import { dropDevice, pushTargets, recordPassChange } from './apple-registrations.ts'
 import type { PassScope, PushTarget } from './apple-registrations.ts'
-import type { ApplePushSender } from './apple-push.ts'
 import { appleWebServiceFrom } from './apple-web-service.ts'
 import type { AppleWebService } from './apple-web-service.ts'
 
