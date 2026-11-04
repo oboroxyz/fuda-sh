@@ -107,8 +107,6 @@ const EN = {
       rejected: 'That passkey was not accepted. Try again.',
       remove:
         'That passkey could not be removed. An account must keep at least one, and at least one that opens sensitive passes.',
-      secret_unopenable:
-        'A passkey that opens your sensitive passes is needed first. Try on the device where it is saved.',
       unavailable: 'This is not available right now. Try again later.',
     },
     hint: 'On a new phone, sign in with your current passkey, then add one here. Moving between iPhone and Android needs this, because passkeys do not sync across them. A passkey in a second place, such as another password manager or a security key, keeps you signed in if you lose your Apple or Google account.',
@@ -127,9 +125,18 @@ const EN = {
     enter: 'Enter',
     failed: 'The list could not be opened. Try again.',
     hint: 'These passes are not listed on your account where anyone else can read them. Your passkey opens the list, on this device only. If you lose every passkey that opens them, ask the shop or organization for a new pass.',
+    keepThem: 'Keep them',
     notOpened: 'The list was not opened. Use a passkey that opens sensitive passes, on a device that has it.',
     open: 'Show with your passkey',
     opening: 'Opening…',
+    startOver: 'Start over',
+    startOverDone:
+      'Done. Ask each shop or organization for a new pass, then get it again from its card page.',
+    startOverFailed: 'That did not work. Try again.',
+    startOverHint: 'Lost every passkey that opens them? You can start over with a new passkey.',
+    startOverTitle: 'Start over?',
+    startOverWarning:
+      'Every sensitive pass on this account stops working for good, on every device, and cannot be brought back. You will need a new pass from each shop or organization. Do this only if you no longer have a passkey that opens them.',
     title: 'Sensitive passes',
   },
   settings: {
@@ -252,8 +259,6 @@ export const MEMBER_COPY = {
         rejected: 'このパスキーは受け付けられませんでした。もう一度お試しください。',
         remove:
           'このパスキーは削除できませんでした。アカウントには最低1つ、機密パスを開けるものも最低1つ必要です。',
-        secret_unopenable:
-          '先に、機密パスを開けるパスキーが必要です。そのパスキーを保存した端末でお試しください。',
         unavailable: '現在ご利用いただけません。しばらくしてからお試しください。',
       },
       hint: '新しいスマホでは、今のパスキーでサインインしてから、ここで追加します。iPhone と Android の間ではパスキーが同期されないので、この操作が必要です。別のパスワード管理アプリやセキュリティキーにも追加しておくと、Apple や Google のアカウントを失ってもサインインできます。',
@@ -272,9 +277,18 @@ export const MEMBER_COPY = {
       enter: '入場する',
       failed: '一覧を開けませんでした。もう一度お試しください。',
       hint: 'これらのパスは、他の人が読める形ではアカウントに保存されていません。一覧はパスキーを使って、この端末の中でだけ開きます。開けるパスキーをすべてなくした場合は、お店や組織で新しいパスを発行してもらってください。',
+      keepThem: '残す',
       notOpened: '一覧を開けませんでした。機密パスを開けるパスキーを、それがある端末で使ってください。',
       open: 'パスキーで表示',
       opening: '開いています…',
+      startOver: 'やり直す',
+      startOverDone:
+        '完了しました。お店や組織に新しいパスの発行を依頼し、カードのページから受け取り直してください。',
+      startOverFailed: 'できませんでした。もう一度お試しください。',
+      startOverHint: '開けるパスキーをすべてなくした場合は、新しいパスキーでやり直せます。',
+      startOverTitle: 'やり直しますか？',
+      startOverWarning:
+        'このアカウントの機密パスは、すべての端末で使えなくなり、元に戻せません。お店や組織ごとに新しいパスが必要です。開けるパスキーが手元にない場合にのみ実行してください。',
       title: '機密パス',
     },
     settings: {

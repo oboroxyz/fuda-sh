@@ -73,6 +73,15 @@ export const addSecretCopy = async (
     .bind(copy.iv, copy.ciphertext, now, copy.credentialId, accountId, copy.first ? 0 : 1)
     .first<{ credentialId: string }>()) !== null
 
+// The member's way back once no passkey opens the secret: what is here is then useless, and
+// while it stays, no new secret can start, so no new pass can be claimed on this account.
+export const clearSecret = async (db: Db, accountId: string): Promise<void> => {
+  await db.batch([
+    db.delete(memberSecretCopies).where(eq(memberSecretCopies.accountId, accountId)),
+    db.delete(memberVaults).where(eq(memberVaults.accountId, accountId)),
+  ])
+}
+
 export const readVault = async (db: Db, accountId: string): Promise<MemberVaultView | null> =>
   (await db
     .select({ ciphertext: memberVaults.ciphertext, iv: memberVaults.iv, version: memberVaults.version })

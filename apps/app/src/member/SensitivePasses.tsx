@@ -2,6 +2,7 @@ import { pick } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
 import type { MemberSecretResponse } from '@fuda/sdk'
 import { apiFetch } from '@fuda/sdk/http'
+import { ConfirmAction } from '@fuda/ui'
 import { createResource, createSignal, For, Show } from 'solid-js'
 import type { JSX } from 'solid-js'
 
@@ -41,7 +42,8 @@ const readList = async (): Promise<{ list: Opened } | { problem: Problem }> => {
 // secret lives only in this screen, so entering from here takes no second prompt.
 export const SensitivePasses = (props: { locale: Locale }): JSX.Element => {
   const copy = (): (typeof MEMBER_COPY)[Locale]['sensitive'] => pick(MEMBER_COPY, props.locale).sensitive
-  const [held] = createResource(holdsSecret)
+  const [held, { refetch }] = createResource(holdsSecret)
+  const [startedOver, setStartedOver] = createSignal<boolean | null>(null)
   const [opened, setOpened] = createSignal<Opened | null>(null)
   const [busy, setBusy] = createSignal(false)
   const [problem, setProblem] = createSignal<Problem | null>(null)
@@ -61,6 +63,18 @@ export const SensitivePasses = (props: { locale: Locale }): JSX.Element => {
       setProblem('failed')
     } finally {
       setBusy(false)
+    }
+  }
+
+  const startOver = async (): Promise<void> => {
+    setBusy(true)
+    const { startSecretOver } = await import('./sensitive.ts')
+    const cleared = await startSecretOver()
+    setBusy(false)
+    setStartedOver(cleared)
+    if (cleared) {
+      setProblem(null)
+      await refetch()
     }
   }
 
@@ -87,76 +101,101 @@ export const SensitivePasses = (props: { locale: Locale }): JSX.Element => {
   }
 
   return (
-    <Show when={held() === true}>
-      <section class="flex flex-col gap-3" data-testid="sensitive-passes">
-        <h2 class="text-sm font-semibold">{copy().title}</h2>
-        <Show
-          when={opened()}
-          fallback={
-            <>
-              <p class="text-sm text-[var(--fuda-muted)]">{copy().hint}</p>
-              <button
-                class="btn btn-outline w-full"
-                disabled={busy()}
-                type="button"
-                onClick={() => {
-                  void openList()
-                }}
+    <>
+      <Show when={startedOver() === true}>
+        <p role="status" class="alert alert-info text-sm">
+          {copy().startOverDone}
+        </p>
+      </Show>
+      <Show when={held() === true}>
+        <section class="flex flex-col gap-3" data-testid="sensitive-passes">
+          <h2 class="text-sm font-semibold">{copy().title}</h2>
+          <Show
+            when={opened()}
+            fallback={
+              <>
+                <p class="text-sm text-[var(--fuda-muted)]">{copy().hint}</p>
+                <button
+                  class="btn btn-outline w-full"
+                  disabled={busy()}
+                  type="button"
+                  onClick={() => {
+                    void openList()
+                  }}
+                >
+                  {busy() ? copy().opening : copy().open}
+                </button>
+              </>
+            }
+          >
+            {(list) => (
+              <Show
+                when={list().entries.length > 0}
+                fallback={<p class="text-sm text-[var(--fuda-muted)]">{copy().empty}</p>}
               >
-                {busy() ? copy().opening : copy().open}
-              </button>
-            </>
-          }
-        >
-          {(list) => (
-            <Show
-              when={list().entries.length > 0}
-              fallback={<p class="text-sm text-[var(--fuda-muted)]">{copy().empty}</p>}
-            >
-              <ul class="flex flex-col gap-2">
-                <For each={list().entries}>
-                  {(entry) => (
-                    <li class="flex items-center gap-3 rounded-2xl border border-[var(--fuda-border)] p-3">
-                      <div class="flex min-w-0 grow flex-col">
-                        <span class="text-sm font-medium wrap-anywhere">{entry.cardTitle}</span>
-                        <span class="text-xs wrap-anywhere text-[var(--fuda-muted)]">@{entry.venue}</span>
-                      </div>
-                      <button
-                        class="btn btn-primary btn-sm"
-                        disabled={busy()}
-                        type="button"
-                        onClick={() => {
-                          void enter(entry, list().secret)
-                        }}
-                      >
-                        {copy().enter}
-                      </button>
-                    </li>
-                  )}
-                </For>
-              </ul>
-            </Show>
-          )}
-        </Show>
-        <Show when={problem()}>
-          {(current) => (
-            <div role="alert" class="alert alert-error">
-              {copy()[current()]}
-            </div>
-          )}
-        </Show>
-        <Show when={verdict()}>
-          {(state) => (
-            <Verdict
-              locale={props.locale}
-              state={state()}
-              onDone={() => {
-                setVerdict(null)
+                <ul class="flex flex-col gap-2">
+                  <For each={list().entries}>
+                    {(entry) => (
+                      <li class="flex items-center gap-3 rounded-2xl border border-[var(--fuda-border)] p-3">
+                        <div class="flex min-w-0 grow flex-col">
+                          <span class="text-sm font-medium wrap-anywhere">{entry.cardTitle}</span>
+                          <span class="text-xs wrap-anywhere text-[var(--fuda-muted)]">@{entry.venue}</span>
+                        </div>
+                        <button
+                          class="btn btn-primary btn-sm"
+                          disabled={busy()}
+                          type="button"
+                          onClick={() => {
+                            void enter(entry, list().secret)
+                          }}
+                        >
+                          {copy().enter}
+                        </button>
+                      </li>
+                    )}
+                  </For>
+                </ul>
+              </Show>
+            )}
+          </Show>
+          <Show when={problem()}>
+            {(current) => (
+              <div role="alert" class="alert alert-error">
+                {copy()[current()]}
+              </div>
+            )}
+          </Show>
+          <Show when={problem() === 'notOpened'}>
+            <p class="text-sm text-[var(--fuda-muted)]">{copy().startOverHint}</p>
+            <ConfirmAction
+              cancelLabel={copy().keepThem}
+              confirmLabel={copy().startOver}
+              description={copy().startOverWarning}
+              label={copy().startOver}
+              onConfirm={() => {
+                void startOver()
               }}
+              title={copy().startOverTitle}
             />
-          )}
-        </Show>
-      </section>
-    </Show>
+          </Show>
+          <Show when={startedOver() === false}>
+            <div role="alert" class="alert alert-error">
+              {copy().startOverFailed}
+            </div>
+          </Show>
+          <Show when={verdict()}>
+            {(state) => (
+              <Verdict
+                locale={props.locale}
+                state={state()}
+                onDone={() => {
+                  setVerdict(null)
+                }}
+              />
+            )}
+          </Show>
+        </section>
+      </Show>
+    </>
   )
 }

@@ -92,6 +92,13 @@ const storageOrNull = (): ReturnType<SensitiveIo['storage']> => {
   }
 }
 
+// docs/specs/pass-types-and-flows.md#sensitive-use. The way back for a member with no passkey
+// that opens the secret: without it, no new pass could be claimed on this account either.
+export const startSecretOver = async (): Promise<boolean> => {
+  const cleared = await apiFetch(API_BASE_URL, '/member/secret', { method: 'DELETE' })
+  return cleared.ok
+}
+
 export const defaultSensitiveIo: SensitiveIo = {
   addCopy: async (copy) =>
     await apiFetch(API_BASE_URL, '/member/secret', { body: JSON.stringify(copy), method: 'POST' }),
@@ -341,10 +348,12 @@ export const signForPass = async (io: SensitiveIo, uid: Hex, message: string): P
 
 export type AddWithSecret =
   | { ok: true; holdsSecret: boolean }
-  | { ok: false; failure: Extract<AddPasskeyOutcome, { ok: false }>['failure'] | 'secret_unopenable' }
+  | { ok: false; failure: Extract<AddPasskeyOutcome, { ok: false }>['failure'] }
 
 // A new passkey can hold a copy only if both answer: an old one opens the secret, the new one seals
-// it. A new passkey with no PRF still signs in, and just cannot open Sensitive passes.
+// it. A new passkey with no PRF still signs in, and just cannot open Sensitive passes. So does one
+// added where the secret will not open, because a broken copy must not lock a member out of
+// adding a way to sign in.
 export const addPasskeyKeepingSecret = async (io: SensitiveIo): Promise<AddWithSecret> => {
   const state = await io.readSecret()
   if (!state.ok) {
@@ -358,12 +367,12 @@ export const addPasskeyKeepingSecret = async (io: SensitiveIo): Promise<AddWithS
   if (opened.kind === 'cancelled') {
     return { failure: 'cancelled', ok: false }
   }
-  if (opened.kind !== 'open') {
-    return { failure: 'secret_unopenable', ok: false }
-  }
   const added = await io.addPasskey()
   if (!added.ok) {
     return added
+  }
+  if (opened.kind !== 'open') {
+    return { holdsSecret: false, ok: true }
   }
   const answer: PrfAnswer =
     added.prfOutput === null

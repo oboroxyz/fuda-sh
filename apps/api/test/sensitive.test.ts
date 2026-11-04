@@ -501,6 +501,45 @@ describe('sensitive use', () => {
     })
   })
 
+  describe('starting over', () => {
+    it("clears this account's copies and vault, and lets a new secret start", async () => {
+      const { copy, send, signUp } = await setup()
+      const lost = passkey()
+      const token = await signUp(lost)
+      await copy(token, lost, true)
+      await send('PUT', '/v1/member/vault', { ciphertext: 'sealed', expectedVersion: 0, iv: IV }, token)
+      await expect(statusOf(send('DELETE', '/v1/member/secret', undefined, token))).resolves.toBe(200)
+      const secret = await send('GET', '/v1/member/secret', undefined, token)
+      await expect(secret.json<MemberSecretResponse>()).resolves.toMatchObject({ copies: [] })
+      const vault = await send('GET', '/v1/member/vault', undefined, token)
+      await expect(vault.json<MemberVaultResponse>()).resolves.toStrictEqual({ vault: null })
+      await expect(statusOf(copy(token, lost, true, 'newstart'))).resolves.toBe(200)
+    })
+
+    it("leaves another account's alone, and needs a session", async () => {
+      const { copy, send, signUp } = await setup()
+      const theirs = passkey()
+      const other = await signUp(theirs)
+      await copy(other, theirs, true)
+      const mine = await signUp(passkey())
+      await send('DELETE', '/v1/member/secret', undefined, mine)
+      await expect(db().select().from(memberSecretCopies)).resolves.toHaveLength(1)
+      await expect(statusOf(send('DELETE', '/v1/member/secret'))).resolves.toBe(401)
+    })
+
+    it('lets the passkey that held the last copy go afterwards', async () => {
+      const { addPasskey, copy, send, signUp } = await setup()
+      const first = passkey()
+      const token = await signUp(first)
+      await addPasskey(passkey(), token)
+      await copy(token, first, true)
+      const remove = `/v1/auth/member/passkeys/${first.credentialId}`
+      await expect(statusOf(send('DELETE', remove, undefined, token))).resolves.toBe(409)
+      await send('DELETE', '/v1/member/secret', undefined, token)
+      await expect(statusOf(send('DELETE', remove, undefined, token))).resolves.toBe(200)
+    })
+  })
+
   describe('the vault', () => {
     it('starts empty and keeps what is written', async () => {
       const { send, signUp } = await setup()

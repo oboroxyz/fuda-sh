@@ -365,7 +365,7 @@ describe(addPasskeyKeepingSecret, () => {
     expect(server.copies.map((copy) => copy.credentialId)).toStrictEqual(['one'])
   })
 
-  it('adds nothing when the secret cannot be opened', async () => {
+  it('adds nothing when the member dismisses the first prompt', async () => {
     const server = fakeServer()
     await openMemberSecret(server.io)
     const addPasskey = vi.fn<SensitiveIo['addPasskey']>()
@@ -377,5 +377,17 @@ describe(addPasskeyKeepingSecret, () => {
       }),
     ).resolves.toStrictEqual({ failure: 'cancelled', ok: false })
     expect(addPasskey).not.toHaveBeenCalled()
+  })
+
+  it('still adds a passkey for sign-in where the secret will not open', async () => {
+    const server = fakeServer()
+    await openMemberSecret(server.io)
+    await expect(
+      addPasskeyKeepingSecret({
+        ...server.io,
+        askPrf: async () => await Promise.resolve({ kind: 'none' }),
+      }),
+    ).resolves.toStrictEqual({ holdsSecret: false, ok: true })
+    expect(server.copies.map((copy) => copy.credentialId)).toStrictEqual(['one'])
   })
 })

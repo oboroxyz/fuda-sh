@@ -2,7 +2,14 @@ import { MemberSecretCopyBody, MemberSecretOutcomeBody, MemberVaultBody } from '
 import * as v from 'valibot'
 import { defineHandler } from 'void'
 
-import { addSecretCopy, countOutcome, memberSecret, readVault, writeVault } from '../auth/member-secret.ts'
+import {
+  addSecretCopy,
+  clearSecret,
+  countOutcome,
+  memberSecret,
+  readVault,
+  writeVault,
+} from '../auth/member-secret.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { memberAuth } from '../middleware/member-auth.ts'
 
@@ -20,6 +27,11 @@ export const postV1MemberSecret = defineHandler(memberAuth(), async (c) => {
   }
   const added = await addSecretCopy(c.env.DB, c.get('member').accountId, parsed.output, c.get('now')())
   return added ? jsonResponse(c, { added: true }) : errorResponse(c, 'secret_conflict', 409)
+})
+
+export const deleteV1MemberSecret = defineHandler(memberAuth(), async (c) => {
+  await clearSecret(c.get('db'), c.get('member').accountId)
+  return jsonResponse(c, { cleared: true })
 })
 
 export const postV1MemberSecretOutcome = defineHandler(memberAuth(), async (c) => {

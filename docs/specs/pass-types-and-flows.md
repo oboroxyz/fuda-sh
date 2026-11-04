@@ -207,12 +207,15 @@ A vault write names the version it read, and a stale one answers `409 vault_conf
 
 **Presenting.** `/signed` and the list use the usual challenge. `POST /challenge` names no passkey for these passes, so the app opens the secret, finds the pass in the vault, derives its key and signs the challenge string. The api recovers the address and compares it with `holderKey`, reading no chain for that step ([attestation model](./attestation-model.md#offchain-rights)).
 
-**A second passkey.** Adding a passkey to an account with a member secret needs both PRF results, one to unwrap and one to wrap. The first prompt comes before anything changes, the second creates the new passkey, and a third is needed only if that provider gives no PRF result at creation. Settings explains this first. A new passkey with no PRF result is kept for sign-in and holds no copy, and Settings marks which passkeys open these passes. A copy may be added only beside an existing one, and the first only while there is none, so two devices enrolling at once cannot start two secrets. The loser answers `409 secret_conflict`, then reads the winner's copy. A stolen session can damage these ciphertexts but cannot read them.
+**A second passkey.** Adding a passkey to an account with a member secret needs both PRF results, one to unwrap and one to wrap. The first prompt comes before anything changes, the second creates the new passkey, and a third is needed only if that provider gives no PRF result at creation. Settings explains this first. A new passkey with no PRF result is kept for sign-in and holds no copy, and Settings marks which passkeys open these passes. A copy may be added only beside an existing one, and the first only while there is none, so two devices enrolling at once cannot start two secrets. The loser answers `409 secret_conflict`, and carries on with the winner's secret if it used the same passkey. With a different one it cannot open it, and adds that passkey from the winning device. A stolen session can damage these ciphertexts but cannot read them.
+
+**Starting over.** With no passkey that opens the secret, a member cannot open the list or claim another of these passes, and the last passkey with a copy cannot be removed. `/rights` offers to start over once opening has failed, after a warning that says what is lost. It clears the account's copies and vault, and those passes can no longer be entered on any device. The member then claims new passes as usual. This takes only a session, as any of these writes does. Adding a passkey where the secret will not open still works, and that passkey is for sign-in only.
 
 | Route | Purpose |
 | --- | --- |
 | `GET /member/secret` | `{ rpId, allowCredentials, copies }`. `allowCredentials` is every passkey until a copy exists, then only those with a copy |
 | `POST /member/secret` | `{ credentialId, iv, ciphertext, first }` adds a copy. `409 secret_conflict` if refused |
+| `DELETE /member/secret` | Clears the account's copies and vault. `{ cleared: true }` |
 | `POST /member/secret/outcome` | `{ outcome: 'prf' or 'no_prf' }` adds one to the count |
 | `GET /member/vault` | `{ vault: { iv, ciphertext, version } or null }` |
 | `PUT /member/vault` | `{ iv, ciphertext, expectedVersion }` answers `{ version }`, or `409 vault_conflict` |
@@ -231,7 +234,7 @@ All of them need a member session. `GET /auth/member/passkeys` adds `holdsSecret
 | Member name | None, as for any offchain right |
 | Device memory | Neither `fuda.passes.v1` nor the card memory keeps the uid, so a later visit to the card page offers a claim and points to `/rights` |
 
-Recovery is passkey sync, a second passkey, or the Issuer revoking the pass and the member claiming a new one. A member with no passkey holding a copy has no other way back.
+Recovery is passkey sync, a second passkey, or the Issuer revoking the pass and the member claiming a new one, starting over first if the secret no longer opens.
 
 The dashboard's pass list and counts keep working from `members` rows, which identify nobody. Its row for one of these passes has no QR or pass links, which `sensitive: true` on `GET /members` tells it. `entry_log` keeps these rows as long as any other's. A shorter retention for them is still to be built.
 
