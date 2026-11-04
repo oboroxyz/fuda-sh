@@ -2,13 +2,7 @@ import { MemberSecretCopyBody, MemberSecretOutcomeBody, MemberVaultBody } from '
 import * as v from 'valibot'
 import { defineHandler } from 'void'
 
-import {
-  addSecretCopy,
-  countOutcome,
-  memberSecret,
-  readVault,
-  writeVault,
-} from '../auth/member-secret.ts'
+import { addSecretCopy, countOutcome, memberSecret, readVault, writeVault } from '../auth/member-secret.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { memberAuth } from '../middleware/member-auth.ts'
 

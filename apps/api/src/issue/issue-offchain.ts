@@ -103,13 +103,13 @@ export const issueOffchainPass = async (p: OffchainIssueParams): Promise<SelfSer
     signed: toSignedJson({ domain: p.domain, message, signature, uid }),
     uid,
   })
-  await (p.claimant?.kind !== 'passkey'
-    ? p.db.batch([member, attestation])
-    : p.db.batch([
+  await (p.claimant?.kind === 'passkey'
+    ? p.db.batch([
         member,
         attestation,
         p.db.insert(memberPasses).values({ accountId: p.claimant.accountId, addedAt: p.now, uid }),
-      ]))
+      ])
+    : p.db.batch([member, attestation]))
   return {
     holder: ZERO_ADDRESS,
     level,

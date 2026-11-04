@@ -87,6 +87,7 @@ const gateIo = (kind: 'passkey' | 'wallet'): SignedGateScreenIo => ({
       },
       ok: true,
     }),
+  signForPass: async () => await Promise.reject(new Error('no prompt in this test')),
   verify: async () => await Promise.resolve({ error: 'unused', network: false, ok: false, status: 400 }),
 })
 

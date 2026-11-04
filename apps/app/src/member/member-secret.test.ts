@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
 import { verifyMessage } from 'viem'
+import { describe, expect, it } from 'vitest'
 
 import {
   mergeEntries,

@@ -83,14 +83,11 @@ export type AddPasskeyOutcome =
   | { ok: true; credentialId: string; prfOutput: Uint8Array<ArrayBuffer> | null }
   | { ok: false; failure: PasskeyFailure | 'limit' }
 
-const bytesOfPrf = (source: BufferSource | undefined): Uint8Array<ArrayBuffer> | null => {
-  if (source === undefined) {
-    return null
-  }
-  return source instanceof ArrayBuffer
+// A PRF answer is typed as any buffer source, and a view may sit inside a larger buffer.
+export const bytesOfPrf = (source: ArrayBuffer | ArrayBufferView): Uint8Array<ArrayBuffer> =>
+  source instanceof ArrayBuffer
     ? new Uint8Array(source)
-    : new Uint8Array(source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength))
-}
+    : Uint8Array.from(new Uint8Array(source.buffer, source.byteOffset, source.byteLength))
 
 export const addPasskey = async (): Promise<AddPasskeyOutcome> => {
   const options = await postJson<PublicKeyCredentialCreationOptionsJSON>('/auth/member/passkeys/options')
@@ -113,10 +110,11 @@ export const addPasskey = async (): Promise<AddPasskeyOutcome> => {
     method: 'POST',
   })
   if (added.ok) {
+    const first = response.value.clientExtensionResults.prf?.results?.first
     return {
       credentialId: response.value.id,
       ok: true,
-      prfOutput: bytesOfPrf(response.value.clientExtensionResults.prf?.results?.first),
+      prfOutput: first === undefined ? null : bytesOfPrf(first),
     }
   }
   return added.status === 409 ? { failure: 'limit', ok: false } : { failure: failureOf(added), ok: false }

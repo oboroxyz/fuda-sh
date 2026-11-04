@@ -1,9 +1,4 @@
-import type {
-  Hex,
-  MemberSecretResponse,
-  MemberVaultResponse,
-  SelfServeIssueResponse,
-} from '@fuda/sdk'
+import type { Hex, MemberSecretResponse, MemberVaultResponse, SelfServeIssueResponse } from '@fuda/sdk'
 import { apiFetch } from '@fuda/sdk/http'
 import type { Result } from '@fuda/sdk/http'
 import { base64URLStringToBuffer } from '@simplewebauthn/browser'
@@ -12,7 +7,7 @@ import * as v from 'valibot'
 import { cardFailureOf, issueSensitiveCard } from '../api.ts'
 import type { CardFailure } from '../api.ts'
 import { API_BASE_URL } from '../config.ts'
-import { addPasskey, PRF_SALT } from './auth.ts'
+import { addPasskey, bytesOfPrf, PRF_SALT } from './auth.ts'
 import type { AddPasskeyOutcome } from './auth.ts'
 import {
   mergeEntries,
@@ -53,11 +48,6 @@ export interface SensitiveIo {
   writeVault: (sealed: Sealed, expectedVersion: number) => Promise<Result<{ version: number }>>
 }
 
-const bytesOf = (source: BufferSource): Bytes =>
-  source instanceof ArrayBuffer
-    ? new Uint8Array(source)
-    : new Uint8Array(source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength))
-
 // A prompt on the device only. The server checks nothing here, so its challenge is random
 // and goes nowhere: what matters is what the passkey's PRF answers. A browser reports the
 // feature whatever the provider does, so only this result says whether it is there.
@@ -82,7 +72,7 @@ const askPrf: SensitiveIo['askPrf'] = async ({ allow, rpId }) => {
   const first = credential.getClientExtensionResults().prf?.results?.first
   return first === undefined
     ? { kind: 'none' }
-    : { credentialId: credential.id, kind: 'result', output: bytesOf(first) }
+    : { credentialId: credential.id, kind: 'result', output: bytesOfPrf(first) }
 }
 
 const storageOrNull = (): ReturnType<SensitiveIo['storage']> => {
@@ -122,6 +112,7 @@ export type OpenedSecret =
   | { kind: 'cancelled' }
   // A passkey that should hold a copy could not open one.
   | { kind: 'unopenable' }
+  | { kind: 'signed_out' }
   | { kind: 'failed' }
 
 const unwrapOwn = async (
@@ -160,7 +151,7 @@ const startSecret = async (
 export const openMemberSecret = async (io: SensitiveIo, only?: string): Promise<OpenedSecret> => {
   const state = await io.readSecret()
   if (!state.ok) {
-    return { kind: 'failed' }
+    return { kind: state.status === 401 ? 'signed_out' : 'failed' }
   }
   const { allowCredentials, copies, rpId } = state.body
   const answer = await io.askPrf({
@@ -201,11 +192,7 @@ const readPending = async (io: SensitiveIo, secret: Bytes): Promise<VaultEntry[]
   }
 }
 
-const keepPending = async (
-  io: SensitiveIo,
-  secret: Bytes,
-  entries: readonly VaultEntry[],
-): Promise<void> => {
+const keepPending = async (io: SensitiveIo, secret: Bytes, entries: readonly VaultEntry[]): Promise<void> => {
   const storage = io.storage()
   if (storage !== null) {
     storage.setItem(PENDING_KEY, JSON.stringify(await sealEntries(entries, secret)))
@@ -287,6 +274,9 @@ const failureOfOpen = (opened: Exclude<OpenedSecret, { kind: 'open' }>): CardFai
   if (opened.kind === 'cancelled') {
     return 'passkey_cancelled'
   }
+  if (opened.kind === 'signed_out') {
+    return 'signed_out'
+  }
   return opened.kind === 'unopenable' ? 'secret_unopenable' : 'network'
 }
 
@@ -317,8 +307,10 @@ export const claimSensitive = async (
 }
 
 // These sentences reach the verdict screen, and entry-copy.ts holds their translations.
-export const SECRET_NOT_OPENED = 'The passkey that opens this pass was not used. Try again on a device that has it.'
-export const PASS_NOT_IN_VAULT = 'This pass is not on this account. Sign in with the account that received it.'
+export const SECRET_NOT_OPENED =
+  'The passkey that opens this pass was not used. Try again on a device that has it.'
+export const PASS_NOT_IN_VAULT =
+  'This pass is not on this account. Sign in with the account that received it.'
 
 export const signForPass = async (io: SensitiveIo, uid: Hex, message: string): Promise<Hex> => {
   const opened = await openMemberSecret(io)

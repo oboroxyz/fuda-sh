@@ -13,6 +13,21 @@ export interface VenueCopy {
   defaultUnavailable: string
   failure: Record<CardFailure, string>
   claimPasskeyNote: string
+  claimSensitiveNote: string
+  sensitiveAlreadyHeld: string
+  sensitiveEntryNote: string
+  sensitiveFindLater: string
+  sensitiveNoPrf: {
+    addPasskey: string
+    apple: string
+    body: string
+    google: string
+    keepsSigningIn: string
+    other: string
+    title: string
+    tryAgain: string
+  }
+  sensitiveUnsaved: string
   enterWithPasskey: string
   getCard: (noun: string) => string
   getWithPasskey: (noun: string) => string
@@ -62,6 +77,8 @@ export const VENUE_COPY = {
     },
     claimPasskeyNote:
       'This pass is tied to your passkey, so only you can use it. A photo of it will not get anyone in.',
+    claimSensitiveNote:
+      'This pass has its own key on your device, so places cannot connect it to your other passes. It has no code to show and cannot go in a Wallet app.',
     closedCard: (name, noun) => `${name} is not handing out this ${noun} right now.`,
     continueVerification: 'Continue verification',
     defaultUnavailable: 'The featured card is not available right now. You can check the other cards below.',
@@ -76,6 +93,8 @@ export const VENUE_COPY = {
       passkey_cancelled: 'No passkey was used, so no card was issued. You can try again.',
       passkey_refused: 'That passkey is not on your account. Choose one you sign in with.',
       rate_limited: 'Too many cards were requested from this device. Please try again later.',
+      secret_unopenable:
+        'That passkey could not open your sensitive passes here, so no card was issued. Try on the device where it was saved.',
       signed_out: 'Please sign in again to get this card.',
     },
     getCard: (noun) => `Get this ${noun}`,
@@ -105,6 +124,23 @@ export const VENUE_COPY = {
     saveBackupHint: 'Keep it somewhere safe. Anyone who has it can use this pass.',
     savedOnDevice: (noun) => `No name or contact details required. This ${noun} is saved on this device.`,
     seeAllCards: (name) => `See all cards from ${name}`,
+    sensitiveAlreadyHeld: 'Already have it on another device? Find it under Your passes.',
+    sensitiveEntryNote:
+      'When you arrive, confirm with your passkey and show the result to the staff. There is no code to show.',
+    sensitiveFindLater:
+      'You will find it under Your passes, where your passkey opens the list. If you lose every passkey that opens it, ask for a new pass.',
+    sensitiveNoPrf: {
+      addPasskey: 'Save a new passkey',
+      apple: 'iPhone, iPad or Mac: choose iCloud Keychain (Apple Passwords) when asked where to save it.',
+      body: 'No pass was issued. The app that saved your passkey does not support the feature this pass needs, and a website cannot pick the app for you. Save a new passkey in one that does.',
+      google: 'Android or Chrome: choose Google Password Manager.',
+      keepsSigningIn: 'You can keep using your current passkey to sign in.',
+      other: 'Another passkey app works if it supports this feature, sometimes called PRF.',
+      title: 'This passkey cannot hold this pass',
+      tryAgain: 'Try again',
+    },
+    sensitiveUnsaved:
+      'This pass could not be added to your list yet. It is kept on this device and will be added the next time you open Your passes here, so do not clear this browser’s data before then.',
     showQr: 'Show this code when you use your card.',
     signInToGet: (noun) => `Sign in to get this ${noun}`,
     tryAgain: 'Try again',
@@ -123,6 +159,8 @@ export const VENUE_COPY = {
     },
     claimPasskeyNote:
       'このパスはあなたのパスキーにひも付くため、本人しか使えません。写真では入場できません。',
+    claimSensitiveNote:
+      'このパスは端末の中に専用の鍵を持つため、他のパスと結び付けられません。提示するコードはなく、Wallet アプリにも追加できません。',
     closedCard: (name, noun) => `${name}は現在この${noun}を配布していません。`,
     continueVerification: '確認を続ける',
     defaultUnavailable: 'おすすめのカードは現在配布していません。ほかのカードは下の一覧で確認できます。',
@@ -139,6 +177,8 @@ export const VENUE_COPY = {
         'そのパスキーはこのアカウントのものではありません。サインインに使うパスキーを選んでください。',
       rate_limited:
         'この端末からのカード発行リクエストが多すぎます。しばらくしてからもう一度お試しください。',
+      secret_unopenable:
+        'このパスキーではこの端末で機密パスを開けないため、カードは発行されませんでした。パスキーを保存した端末でお試しください。',
       signed_out: 'カードを受け取るには、もう一度サインインしてください。',
     },
     getCard: (noun) => `この${noun}を受け取る`,
@@ -168,6 +208,23 @@ export const VENUE_COPY = {
     saveBackupHint: '安全な場所に保管してください。控えを持つ人は、このパスを使えます。',
     savedOnDevice: (noun) => `氏名や連絡先は不要です。この${noun}はこの端末に保存されています。`,
     seeAllCards: (name) => `${name}のカードをすべて見る`,
+    sensitiveAlreadyHeld: '別の端末で受け取り済みの場合は、パス一覧から開けます。',
+    sensitiveEntryNote:
+      '会場ではパスキーで確認して、結果の画面をスタッフに見せてください。提示するコードはありません。',
+    sensitiveFindLater:
+      'パス一覧からパスキーを使って開けます。開けるパスキーをすべてなくした場合は、新しいパスを発行してもらってください。',
+    sensitiveNoPrf: {
+      addPasskey: '新しいパスキーを保存',
+      apple: 'iPhone、iPad、Mac: 保存先を聞かれたら iCloud キーチェーン（パスワード App）を選んでください。',
+      body: 'パスは発行されていません。今のパスキーを保存したアプリは、このパスに必要な機能に対応していません。保存先のアプリはウェブサイトからは選べないため、対応するアプリに新しいパスキーを保存してください。',
+      google: 'Android、Chrome: Google パスワード マネージャーを選んでください。',
+      keepsSigningIn: '今のパスキーは、引き続きサインインに使えます。',
+      other: 'この機能（PRF と呼ばれることがあります）に対応していれば、他のパスキーアプリも使えます。',
+      title: 'このパスキーでは、このパスを受け取れません',
+      tryAgain: 'もう一度試す',
+    },
+    sensitiveUnsaved:
+      'このパスをまだ一覧に追加できていません。この端末に保管してあり、次にこの端末でパス一覧を開いたときに追加されます。それまでこのブラウザのデータを消さないでください。',
     showQr: 'カードを使うときに、このコードを提示してください。',
     signInToGet: (noun) => `サインインしてこの${noun}を受け取る`,
     tryAgain: 'もう一度試す',

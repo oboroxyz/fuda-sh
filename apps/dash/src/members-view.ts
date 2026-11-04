@@ -15,7 +15,8 @@ export interface MemberRowView {
   level: Level
   tier: string
   status: 'active' | 'revoked'
-  qr: string
+  // null for a Sensitive pass, which has no QR or pass to hand out.
+  qr: string | null
   passUrls: PassUrls | null
 }
 
@@ -29,8 +30,8 @@ export const memberRowView = (row: MemberRow, apiBase: string): MemberRowView =>
   human: hasHumanBadge(row.badges),
   level: row.level,
   memberId: row.memberId,
-  passUrls: row.level === 'private' ? null : passUrls(apiBase, row.uid),
-  qr: toQr(row.uid),
+  passUrls: row.level === 'private' || row.sensitive === true ? null : passUrls(apiBase, row.uid),
+  qr: row.sensitive === true ? null : toQr(row.uid),
   status: row.status,
   tier: TIER_LABEL[row.tier] ?? `TIER ${row.tier}`,
   uid: row.uid,

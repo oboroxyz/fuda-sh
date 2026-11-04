@@ -1,6 +1,6 @@
 import { base64URLStringToBuffer, bufferToBase64URLString } from '@simplewebauthn/browser'
 import * as v from 'valibot'
-import { bytesToHex } from 'viem'
+import { bytesToHex, isHex, size } from 'viem'
 import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import type { PrivateKeyAccount } from 'viem/accounts'
@@ -86,15 +86,15 @@ export const passKeyFrom = async (secret: Bytes, salt: string): Promise<PrivateK
   return privateKeyToAccount(key)
 }
 
-const VaultEntry = v.object({
-  cardTitle: v.string(),
-  salt: v.string(),
-  uid: v.custom<Hex>((value) => typeof value === 'string' && /^0x[0-9a-f]{64}$/iu.test(value)),
-  venue: v.string(),
-})
-export type VaultEntry = v.InferOutput<typeof VaultEntry>
-
-const VaultEntries = v.array(VaultEntry)
+const VaultEntries = v.array(
+  v.object({
+    cardTitle: v.string(),
+    salt: v.string(),
+    uid: v.custom<Hex>((value) => isHex(value, { strict: true }) && size(value) === 32),
+    venue: v.string(),
+  }),
+)
+export type VaultEntry = v.InferOutput<typeof VaultEntries>[number]
 
 export const sealEntries = async (entries: readonly VaultEntry[], secret: Bytes): Promise<Sealed> =>
   await seal(await aesKey(secret, VAULT_INFO), encoded(JSON.stringify(entries)))
@@ -113,10 +113,7 @@ export const openEntries = async (sealed: Sealed, secret: Bytes): Promise<VaultE
   }
 }
 
-export const mergeEntries = (
-  current: readonly VaultEntry[],
-  added: readonly VaultEntry[],
-): VaultEntry[] => {
+export const mergeEntries = (current: readonly VaultEntry[], added: readonly VaultEntry[]): VaultEntry[] => {
   const known = new Set(current.map((entry) => entry.uid))
   return [...current, ...added.filter((entry) => !known.has(entry.uid))]
 }

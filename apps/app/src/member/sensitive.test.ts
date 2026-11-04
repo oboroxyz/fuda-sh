@@ -38,9 +38,13 @@ const memoryStorage = () => {
 
 // A small stand-in for the api: it holds only what the real one does, and answers conflicts
 // by the same rules.
+interface VaultCell {
+  current: (Sealed & { version: number }) | null
+}
+
 const fakeServer = (passkeys: string[] = ['one']) => {
   const copies: MemberSecretCopyView[] = []
-  const vault: { current: (Sealed & { version: number }) | null } = { current: null }
+  const vault: VaultCell = { current: null }
   const outcomes: string[] = []
   const claimed: Hex[] = []
   const storage = memoryStorage()
@@ -96,6 +100,9 @@ const fakeServer = (passkeys: string[] = ['one']) => {
   }
   return { claimed, copies, io, outcomes, storage, vault }
 }
+
+const failingWrite: SensitiveIo['writeVault'] = async () =>
+  await Promise.resolve({ error: 'internal', network: true, ok: false, status: 502 })
 
 const CARD = { cardTitle: 'Staff badge', slug: 'staff', source: null, venue: 'coffee' }
 
@@ -215,8 +222,8 @@ describe(claimSensitive, () => {
       CARD,
     )
     const hexOutput = [...output].map((byte) => byte.toString(16).padStart(2, '0')).join('')
-    expect(sent.join()).not.toContain(hexOutput)
-    expect(sent.join()).not.toContain('one....')
+    expect(sent.join(',')).not.toContain(hexOutput)
+    expect(sent.join(',')).not.toContain('one....')
   })
 
   it('merges with a write from another device instead of dropping it', async () => {
@@ -242,14 +249,12 @@ describe(claimSensitive, () => {
 
   it('keeps a pass it could not list, sealed on the device, and lists it next time', async () => {
     const server = fakeServer()
-    const writeVault: SensitiveIo['writeVault'] = async () =>
-      await Promise.resolve({ error: 'internal', network: true, ok: false, status: 502 })
-    await expect(claimSensitive({ ...server.io, writeVault }, CARD)).resolves.toMatchObject({
+    await expect(claimSensitive({ ...server.io, writeVault: failingWrite }, CARD)).resolves.toMatchObject({
       ok: true,
       saved: false,
     })
     expect(server.vault.current).toBeNull()
-    expect([...server.storage.items.values()].join()).not.toContain(UID.slice(2))
+    expect([...server.storage.items.values()].join(',')).not.toContain(UID.slice(2))
     const opened = await openMemberSecret(server.io)
     const read = opened.kind === 'open' ? await readVaultEntries(server.io, opened.secret) : null
     expect(read).toMatchObject({ entries: [{ uid: UID }], ok: true, version: 1 })
@@ -288,9 +293,9 @@ describe(signForPass, () => {
     await claimSensitive(server.io, CARD)
     const message = `fuda-gate:${UID}:0x01`
     const signature = await signForPass(server.io, UID, message)
-    await expect(
-      verifyMessage({ address: server.claimed[0] ?? '0x', message, signature }),
-    ).resolves.toBe(true)
+    await expect(verifyMessage({ address: server.claimed[0] ?? '0x', message, signature })).resolves.toBe(
+      true,
+    )
   })
 
   it('does so through a second passkey, as on a new device', async () => {
@@ -306,9 +311,9 @@ describe(signForPass, () => {
       UID,
       message,
     )
-    await expect(
-      verifyMessage({ address: server.claimed[0] ?? '0x', message, signature }),
-    ).resolves.toBe(true)
+    await expect(verifyMessage({ address: server.claimed[0] ?? '0x', message, signature })).resolves.toBe(
+      true,
+    )
   })
 
   it('refuses a pass this account does not list', async () => {
@@ -341,7 +346,7 @@ describe(addPasskeyKeepingSecret, () => {
         askPrf,
       }),
     ).resolves.toStrictEqual({ holdsSecret: true, ok: true })
-    expect(askPrf).toHaveBeenCalledTimes(1)
+    expect(askPrf).toHaveBeenCalledOnce()
   })
 
   it('leaves a new passkey with no PRF for sign-in only', async () => {

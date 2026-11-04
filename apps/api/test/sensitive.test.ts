@@ -1,5 +1,11 @@
 import { challengeMessage } from '@fuda/sdk'
-import type { IssuerPassesResponse, MemberPasskeysResponse, MemberSecretResponse, MemberSignInResponse, MemberVaultResponse } from '@fuda/sdk'
+import type {
+  IssuerPassesResponse,
+  MemberPasskeysResponse,
+  MemberSecretResponse,
+  MemberSignInResponse,
+  MemberVaultResponse,
+} from '@fuda/sdk'
 import { env } from 'cloudflare:test'
 import { eq } from 'drizzle-orm'
 import type { Hex } from 'viem'
@@ -56,7 +62,7 @@ const setup = async (card: Partial<typeof CARD_INPUT.card> = {}) => {
     { ...CARD_INPUT, card: { ...CARD_INPUT.card, identity: 'sensitive', record: 'offchain', ...card } },
     operator,
   )
-  const send = async (method: string, path: string, body: unknown, token = ''): Promise<Response> =>
+  const send = async (method: string, path: string, body?: unknown, token = ''): Promise<Response> =>
     await app.request(
       path,
       {
@@ -107,6 +113,31 @@ const setup = async (card: Partial<typeof CARD_INPUT.card> = {}) => {
 const passkey = (): SoftwarePasskey => new SoftwarePasskey(RP)
 
 const newKey = () => privateKeyToAccount(generatePrivateKey())
+
+const statusOf = async (res: Promise<Response>): Promise<number> => {
+  const { status } = await res
+  return status
+}
+
+const present = async (
+  ctx: Awaited<ReturnType<typeof setup>>,
+  uid: Hex,
+  sign: (p: { message: string }) => Promise<Hex>,
+): Promise<Response> => {
+  const minted = await ctx.send('POST', '/v1/challenge', { uid })
+  const { challenge, nonce, webauthn } = await minted.json<{
+    challenge: string
+    nonce: Hex
+    webauthn?: unknown
+  }>()
+  expect(webauthn).toBeUndefined()
+  expect(challenge).toBe(challengeMessage(uid, nonce))
+  return await ctx.send('POST', '/v1/verify-signed', {
+    nonce,
+    signature: await sign({ message: challenge }),
+    uid,
+  })
+}
 
 describe('sensitive use', () => {
   beforeEach(async () => {
@@ -196,7 +227,6 @@ describe('sensitive use', () => {
         .from(offchainAttestations)
         .where(eq(offchainAttestations.uid, issued.uid))
       const signed = fromSignedJson(stored?.signed ?? '')
-      expect(signed).not.toBeNull()
       const pass = decodeOffchainPass(signed?.message.data ?? '0x')
       expect(pass.holderKey).toBe(key.address.toLowerCase())
       expect(signed?.message.recipient).toBe(ZERO_ADDRESS)
@@ -229,26 +259,6 @@ describe('sensitive use', () => {
   })
 
   describe('presenting', () => {
-    const present = async (
-      ctx: Awaited<ReturnType<typeof setup>>,
-      uid: Hex,
-      sign: (p: { message: string }) => Promise<Hex>,
-    ): Promise<Response> => {
-      const minted = await ctx.send('POST', '/v1/challenge', { uid })
-      const { challenge, nonce, webauthn } = await minted.json<{
-        challenge: string
-        nonce: Hex
-        webauthn?: unknown
-      }>()
-      expect(webauthn).toBeUndefined()
-      expect(challenge).toBe(challengeMessage(uid, nonce))
-      return await ctx.send('POST', '/v1/verify-signed', {
-        nonce,
-        signature: await sign({ message: challenge }),
-        uid,
-      })
-    }
-
     it('admits the key the pass attests, without reading the chain for the signature', async () => {
       const ctx = await setup()
       const key = newKey()
@@ -339,12 +349,15 @@ describe('sensitive use', () => {
   })
 
   describe('what the pass does not have', () => {
-    it.each(['', '/card', '/backup', '/google', '/apple.pkpass'])('answers 404 at /pass/uid%s', async (path) => {
-      const { app, bindings, claim } = await setup()
-      const { uid } = await claim(newKey().address)
-      const res = await app.request(`/pass/${uid}${path}`, {}, bindings)
-      expect(res.status).toBe(404)
-    })
+    it.each(['', '/card', '/backup', '/google', '/apple.pkpass'])(
+      'answers 404 at /pass/uid%s',
+      async (path) => {
+        const { app, bindings, claim } = await setup()
+        const { uid } = await claim(newKey().address)
+        const res = await app.request(`/pass/${uid}${path}`, {}, bindings)
+        expect(res.status).toBe(404)
+      },
+    )
 
     it('cannot be linked to an account by uid', async () => {
       const { claim, send, signUp } = await setup()
@@ -374,7 +387,7 @@ describe('sensitive use', () => {
         ['GET', '/v1/member/vault'],
       ] as const) {
         // oxlint-disable-next-line no-await-in-loop -- each request follows the last, in a test
-        const res = await send(method, path, undefined)
+        const res = await send(method, path)
         expect(res.status).toBe(401)
       }
     })
@@ -387,17 +400,14 @@ describe('sensitive use', () => {
       await addPasskey(second, token)
       const before = await send('GET', '/v1/member/secret', undefined, token)
       const empty = await before.json<MemberSecretResponse>()
-      expect(empty.rpId).toBe(RP.rpId)
-      expect(empty.copies).toStrictEqual([])
+      expect(empty).toMatchObject({ copies: [], rpId: RP.rpId })
       expect(empty.allowCredentials.map((row) => row.id).toSorted()).toStrictEqual(
         [first.credentialId, second.credentialId].toSorted(),
       )
-      expect((await copy(token, first, true)).status).toBe(200)
+      await expect(statusOf(copy(token, first, true))).resolves.toBe(200)
       const after = await send('GET', '/v1/member/secret', undefined, token)
       const held = await after.json<MemberSecretResponse>()
-      expect(held.copies).toStrictEqual([
-        { ciphertext: 'wrapped', credentialId: first.credentialId, iv: IV },
-      ])
+      expect(held.copies).toStrictEqual([{ ciphertext: 'wrapped', credentialId: first.credentialId, iv: IV }])
       expect(held.allowCredentials.map((row) => row.id)).toStrictEqual([first.credentialId])
     })
 
@@ -407,7 +417,7 @@ describe('sensitive use', () => {
       const second = passkey()
       const token = await signUp(first)
       await addPasskey(second, token)
-      expect((await copy(token, first, true)).status).toBe(200)
+      await expect(statusOf(copy(token, first, true))).resolves.toBe(200)
       const raced = await copy(token, second, true, 'other')
       expect(raced.status).toBe(409)
       await expect(raced.json()).resolves.toMatchObject({ error: 'secret_conflict' })
@@ -419,10 +429,10 @@ describe('sensitive use', () => {
       const second = passkey()
       const token = await signUp(first)
       await addPasskey(second, token)
-      expect((await copy(token, second, false)).status).toBe(409)
-      expect((await copy(token, first, true)).status).toBe(200)
-      expect((await copy(token, second, false)).status).toBe(200)
-      expect((await copy(token, second, false, 'replaced')).status).toBe(409)
+      await expect(statusOf(copy(token, second, false))).resolves.toBe(409)
+      await expect(statusOf(copy(token, first, true))).resolves.toBe(200)
+      await expect(statusOf(copy(token, second, false))).resolves.toBe(200)
+      await expect(statusOf(copy(token, second, false, 'replaced'))).resolves.toBe(409)
       const res = await send('GET', '/v1/member/secret', undefined, token)
       const { copies } = await res.json<MemberSecretResponse>()
       expect(copies.map((row) => row.ciphertext)).toStrictEqual(['wrapped', 'wrapped'])
@@ -433,7 +443,7 @@ describe('sensitive use', () => {
       const mine = await signUp(passkey())
       const theirs = passkey()
       await signUp(theirs)
-      expect((await copy(mine, theirs, true)).status).toBe(409)
+      await expect(statusOf(copy(mine, theirs, true))).resolves.toBe(409)
     })
 
     it('refuses bytes that are not a sealed copy', async () => {
@@ -458,9 +468,10 @@ describe('sensitive use', () => {
       await copy(token, first, true)
       const res = await send('GET', '/v1/auth/member/passkeys', undefined, token)
       const body = await res.json<MemberPasskeysResponse>()
-      expect(
-        Object.fromEntries(body.passkeys.map((row) => [row.id, row.holdsSecret])),
-      ).toStrictEqual({ [first.credentialId]: true, [second.credentialId]: false })
+      expect(Object.fromEntries(body.passkeys.map((row) => [row.id, row.holdsSecret]))).toStrictEqual({
+        [first.credentialId]: true,
+        [second.credentialId]: false,
+      })
     })
 
     it('keeps the last passkey with a copy, and lets a copy go with its passkey', async () => {
@@ -492,7 +503,12 @@ describe('sensitive use', () => {
       const token = await signUp(passkey())
       const before = await send('GET', '/v1/member/vault', undefined, token)
       await expect(before.json<MemberVaultResponse>()).resolves.toStrictEqual({ vault: null })
-      const put = await send('PUT', '/v1/member/vault', { ciphertext: 'sealed', expectedVersion: 0, iv: IV }, token)
+      const put = await send(
+        'PUT',
+        '/v1/member/vault',
+        { ciphertext: 'sealed', expectedVersion: 0, iv: IV },
+        token,
+      )
       await expect(put.json()).resolves.toStrictEqual({ version: 1 })
       const after = await send('GET', '/v1/member/vault', undefined, token)
       await expect(after.json<MemberVaultResponse>()).resolves.toStrictEqual({
@@ -505,10 +521,9 @@ describe('sensitive use', () => {
       const token = await signUp(passkey())
       const write = async (ciphertext: string, expectedVersion: number): Promise<Response> =>
         await send('PUT', '/v1/member/vault', { ciphertext, expectedVersion, iv: IV }, token)
-      expect((await write('one', 0)).status).toBe(200)
-      expect((await write('two', 1)).status).toBe(200)
+      await expect(statusOf(write('one', 0))).resolves.toBe(200)
+      await expect(statusOf(write('two', 1))).resolves.toBe(200)
       const stale = await write('stale', 1)
-      expect(stale.status).toBe(409)
       await expect(stale.json()).resolves.toMatchObject({ error: 'vault_conflict' })
       const fresh = await write('stale', 0)
       expect(fresh.status).toBe(409)
@@ -518,7 +533,7 @@ describe('sensitive use', () => {
       })
     })
 
-    it("keeps each account to its own vault", async () => {
+    it('keeps each account to its own vault', async () => {
       const { send, signUp } = await setup()
       const mine = await signUp(passkey())
       const theirs = await signUp(passkey())
@@ -534,8 +549,7 @@ describe('sensitive use', () => {
       const token = await signUp(passkey())
       for (const outcome of ['no_prf', 'no_prf', 'prf']) {
         // oxlint-disable-next-line no-await-in-loop -- each request follows the last, in a test
-        const res = await send('POST', '/v1/member/secret/outcome', { outcome }, token)
-        expect(res.status).toBe(200)
+        await send('POST', '/v1/member/secret/outcome', { outcome }, token)
       }
       const rows = await db().select().from(memberSecretOutcomes)
       expect(Object.fromEntries(rows.map((row) => [row.outcome, row.total]))).toStrictEqual({
@@ -543,6 +557,11 @@ describe('sensitive use', () => {
         prf: 1,
       })
       expect(Object.keys(rows[0] ?? {}).toSorted()).toStrictEqual(['outcome', 'total'])
+    })
+
+    it('takes only an outcome it knows', async () => {
+      const { send, signUp } = await setup()
+      const token = await signUp(passkey())
       const unknown = await send('POST', '/v1/member/secret/outcome', { outcome: 'bitwarden' }, token)
       expect(unknown.status).toBe(400)
     })

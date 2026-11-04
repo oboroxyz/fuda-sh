@@ -1,4 +1,4 @@
-import { brandTextColor, CARD_DESCRIPTION_MAX_LENGTH } from '@fuda/sdk'
+import { brandTextColor, CARD_DESCRIPTION_MAX_LENGTH, CARD_IDENTITIES } from '@fuda/sdk'
 import type { CardCategory, CardIdentity, CardRecord, IssuerView } from '@fuda/sdk'
 import { cn } from 'cn'
 import { createComputed, createEffect, createSignal, For, on, onCleanup } from 'solid-js'
@@ -32,6 +32,8 @@ import type { DashCopy } from './copy.ts'
 import { FieldLabel } from './FieldLabel.tsx'
 import { browserLogoTools, EMPTY_LOGO, generateLogoSet, withLogoResult } from './logo.ts'
 import type { LogoSet, LogoState } from './logo.ts'
+
+const identityOf = (raw: string): CardIdentity => CARD_IDENTITIES.find((row) => row === raw) ?? 'none'
 
 export interface CardDesignerViewProps {
   busy: boolean
@@ -443,14 +445,19 @@ export const CardDesignerView = (props: CardDesignerViewProps): JSX.Element => {
               disabled={editing() || props.form.record === 'onchain'}
               id="identity"
               onInput={(e) => {
-                props.onIdentity(e.currentTarget.value === 'passkey' ? 'passkey' : 'none')
+                props.onIdentity(identityOf(e.currentTarget.value))
               }}
               value={props.form.identity}
             >
               <option value="none">{props.copy.identityNone}</option>
               <option value="passkey">{props.copy.identityPasskey}</option>
+              <option value="sensitive">{props.copy.identitySensitive}</option>
             </select>
-            <p class="text-moderate text-sm">{props.copy.identityHint}</p>
+            <p class="text-moderate text-sm">
+              {props.form.identity === 'sensitive'
+                ? props.copy.identitySensitiveHint
+                : props.copy.identityHint}
+            </p>
           </div>
 
           <div class="flex flex-col gap-1">

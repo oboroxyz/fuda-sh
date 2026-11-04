@@ -75,11 +75,18 @@ const sensitiveClaimant = (c: Context<AppEnv>, body: v.SafeParseResult<typeof Se
     ? { claimant: { address: getAddress(body.output.holderAddress), kind: 'address' }, ok: true }
     : { ok: false, res: errorResponse(c, 'bad_input', 400) }
 
-const claimFor = async (c: Context<AppEnv>, identity: CardIdentity, raw: unknown): Promise<Claim | null> => {
+const claimFor = async (
+  c: Context<AppEnv>,
+  identity: CardIdentity,
+  body: {
+    passkey: v.SafeParseResult<typeof PasskeyClaimBody>
+    sensitive: v.SafeParseResult<typeof SensitiveClaimBody>
+  },
+): Promise<Claim | null> => {
   if (identity === 'passkey') {
-    return await passkeyClaimant(c, v.safeParse(PasskeyClaimBody, raw))
+    return await passkeyClaimant(c, body.passkey)
   }
-  return identity === 'sensitive' ? sensitiveClaimant(c, v.safeParse(SensitiveClaimBody, raw)) : null
+  return identity === 'sensitive' ? sensitiveClaimant(c, body.sensitive) : null
 }
 
 export const postV1IssuersHandleSlugIssue = defineHandler(
@@ -100,7 +107,10 @@ export const postV1IssuersHandleSlugIssue = defineHandler(
     }
     const raw: unknown = await c.req.json().catch(() => null)
     const body = v.safeParse(ClaimBody, raw)
-    const claim = await claimFor(c, card.identity, raw)
+    const claim = await claimFor(c, card.identity, {
+      passkey: v.safeParse(PasskeyClaimBody, raw),
+      sensitive: v.safeParse(SensitiveClaimBody, raw),
+    })
     if (claim !== null && !claim.ok) {
       return claim.res
     }

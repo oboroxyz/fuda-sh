@@ -100,8 +100,8 @@ export const writeVault = async (
     .values({ accountId, ciphertext: input.ciphertext, iv: input.iv, updatedAt: now, version })
     .onConflictDoUpdate({
       set: { ciphertext: input.ciphertext, iv: input.iv, updatedAt: now, version },
+      setWhere: eq(memberVaults.version, input.expectedVersion),
       target: memberVaults.accountId,
-      where: eq(memberVaults.version, input.expectedVersion),
     })
     .returning({ version: memberVaults.version })
     .get()
