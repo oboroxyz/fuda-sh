@@ -17,6 +17,7 @@ const cardValues = (
   createdAt: row.createdAt,
   description: input.description,
   id: row.id,
+  identity: input.identity,
   issuerId: row.issuerId,
   lockScreen: input.lockScreen ? 1 : 0,
   record: input.record,

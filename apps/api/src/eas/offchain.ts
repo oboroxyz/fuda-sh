@@ -1,3 +1,4 @@
+import { isoBase64URL } from '@simplewebauthn/server/helpers'
 import * as v from 'valibot'
 import {
   decodeAbiParameters,
@@ -12,11 +13,13 @@ import {
 } from 'viem'
 import type { Hex } from 'viem'
 
+import { bytesOfHex, toHex } from '../hex.ts'
 import { schemaUid } from './schemas.ts'
 
 // docs/specs/attestation-model.md#offchain-rights. The schema needs no entry in
 // EAS_SCHEMAS: EAS never sees it at signing, and its uid is a pure function of
-// this string. `holderKey` is empty for a Bearer right.
+// this string. `holderKey` is empty for a Bearer right, and an encoded
+// AttestedPasskey for an Identified one.
 const OFFCHAIN_PASS_SCHEMA =
   'string venue,string card,string memberNumber,uint8 usageModel,uint8 tier,uint8 level,uint64 validFrom,uint64 validUntil,bytes holderKey'
 export const OFFCHAIN_PASS_SCHEMA_UID = schemaUid(OFFCHAIN_PASS_SCHEMA)
@@ -52,6 +55,33 @@ export const decodeOffchainPass = (data: Hex): OffchainPassData => {
   const [venue, card, memberNumber, usageModel, tier, level, validFrom, validUntil, holderKey] =
     decodeAbiParameters(PASS_PARAMS, data)
   return { card, holderKey, level, memberNumber, tier, usageModel, validFrom, validUntil, venue }
+}
+
+// What an Identified pass answers to, in `holderKey`: enough for a gate to check an
+// assertion with nothing else. `credentialId` is base64url, as WebAuthn's JSON has it, and
+// `publicKey` is the COSE key the passkey registered.
+export interface AttestedPasskey {
+  credentialId: string
+  publicKey: Hex
+}
+
+const HOLDER_KEY_PARAMS = parseAbiParameters('bytes credentialId, bytes publicKey')
+
+export const encodeHolderKey = (key: AttestedPasskey): Hex =>
+  encodeAbiParameters(HOLDER_KEY_PARAMS, [
+    `0x${toHex(isoBase64URL.toBuffer(key.credentialId))}`,
+    key.publicKey,
+  ])
+
+// null for a Bearer pass's empty key, and for one that does not decode, which then
+// matches no assertion.
+export const decodeHolderKey = (holderKey: Hex): AttestedPasskey | null => {
+  try {
+    const [credentialId, publicKey] = decodeAbiParameters(HOLDER_KEY_PARAMS, holderKey)
+    return { credentialId: isoBase64URL.fromBuffer(bytesOfHex(credentialId.slice(2))), publicKey }
+  } catch {
+    return null
+  }
 }
 
 // EAS offchain attestation version 2, the form that carries a salt.

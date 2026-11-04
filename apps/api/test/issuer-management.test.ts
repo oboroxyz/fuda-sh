@@ -147,6 +147,7 @@ describe('operator Card management', () => {
         claimable: true,
         description: CARD_INPUT.card.description,
         id: card.id,
+        identity: 'none',
         lockScreen: true,
         record: 'offchain',
         slug: CARD_INPUT.card.slug,

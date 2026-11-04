@@ -57,6 +57,9 @@ export interface PassBackup {
   memberNumber: string
   // Opens the pass on any device, with no account.
   restoreUrl: string | null
+  // True for an Identified pass: this file brings back the record, but using the pass
+  // still takes its passkey.
+  passkey: boolean
   // The signed attestation, for an offchain right; null for an on-chain one, whose
   // record is on the chain.
   attestation: OffchainAttestationJson | null
@@ -112,6 +115,17 @@ export interface VerifyResponse {
 export interface ChallengeResponse {
   challenge: string
   nonce: Hex
+  // For an Identified pass: the request for the browser's passkey prompt. Its challenge
+  // is the base64url of `challenge`, and it names only the attested credential.
+  webauthn?: PasskeyRequestOptions
+}
+
+export interface PasskeyRequestOptions {
+  allowCredentials?: { id: string; type: 'public-key' }[]
+  challenge: string
+  rpId?: string
+  timeout?: number
+  userVerification?: 'discouraged' | 'preferred' | 'required'
 }
 
 // Every /verify-signed verdict is 200 in this one shape (docs/specs/pass-types-and-flows.md#gate-protocol): no entitlement
@@ -274,7 +288,7 @@ export interface CardCheckResponse {
 
 export interface SelfServeIssueResponse {
   uid: Hex
-  level: 'bearer'
+  level: 'bearer' | 'signed'
   holder: Hex
   qr: string
   passUrls: PassUrls

@@ -11,19 +11,21 @@ import type {
   PublicKeyCredentialRequestOptionsJSON,
   RegistrationResponseJSON,
 } from '@simplewebauthn/server'
+import { isoBase64URL } from '@simplewebauthn/server/helpers'
 import { and, count, eq, gt, sql } from 'drizzle-orm'
 import * as v from 'valibot'
 
 import type { Db } from '../db/client.ts'
 import { accounts, passkeyChallenges, passkeys } from '../db/schema.ts'
+import type { AttestedPasskey } from '../eas/offchain.ts'
 import type { Bindings } from '../env.ts'
-import { toHex } from '../hex.ts'
+import { bytesOfHex, toHex } from '../hex.ts'
 
 const CHALLENGE_TTL_SECONDS = 300
 const ES256 = -7
 const MAX_PASSKEYS_PER_ACCOUNT = 10
 
-type Purpose = 'add' | 'login' | 'register'
+type Purpose = 'add' | 'claim' | 'login' | 'register'
 
 export interface RelyingParty {
   id: string
@@ -34,9 +36,6 @@ export const relyingParty = (env: Pick<Bindings, 'WEBAUTHN_ORIGINS' | 'WEBAUTHN_
   id: env.WEBAUTHN_RP_ID,
   origins: env.WEBAUTHN_ORIGINS.split(',').map((origin) => origin.trim()),
 })
-
-const bytesOfHex = (hex: string): Uint8Array<ArrayBuffer> =>
-  Uint8Array.from(hex.match(/../gu) ?? [], (pair) => Number.parseInt(pair, 16))
 
 const storeChallenge = async (
   db: Db,
@@ -265,21 +264,18 @@ export const addPasskey = async (
   return 'added'
 }
 
-export const login = async (
+type StoredPasskey = typeof passkeys.$inferSelect
+
+// A verified assertion also moves the passkey's counter and last use, and a verifier that
+// throws reads as a refusal.
+const assertStored = async (
   db: Db,
   rp: RelyingParty,
+  stored: StoredPasskey,
+  challenge: string,
   response: AuthenticationResponseJSON,
   now: number,
-): Promise<{ accountId: string } | null> => {
-  const challenge = challengeOf(response.response.clientDataJSON)
-  const spent = challenge === null ? null : await spendChallenge(db, { challenge, now, purpose: 'login' })
-  if (challenge === null || spent === null) {
-    return null
-  }
-  const stored = await db.select().from(passkeys).where(eq(passkeys.credentialId, response.id)).get()
-  if (stored === undefined) {
-    return null
-  }
+): Promise<boolean> => {
   try {
     const result = await verifyAuthenticationResponse({
       credential: {
@@ -295,7 +291,7 @@ export const login = async (
       response,
     })
     if (!result.verified) {
-      return null
+      return false
     }
     await db
       .update(passkeys)
@@ -305,9 +301,123 @@ export const login = async (
         lastUsedAt: now,
       })
       .where(eq(passkeys.credentialId, stored.credentialId))
-    return { accountId: stored.accountId }
+    return true
   } catch {
+    return false
+  }
+}
+
+export const login = async (
+  db: Db,
+  rp: RelyingParty,
+  response: AuthenticationResponseJSON,
+  now: number,
+): Promise<{ accountId: string } | null> => {
+  const challenge = challengeOf(response.response.clientDataJSON)
+  const spent = challenge === null ? null : await spendChallenge(db, { challenge, now, purpose: 'login' })
+  if (challenge === null || spent === null) {
     return null
+  }
+  const stored = await db.select().from(passkeys).where(eq(passkeys.credentialId, response.id)).get()
+  if (stored === undefined) {
+    return null
+  }
+  return (await assertStored(db, rp, stored, challenge, response, now))
+    ? { accountId: stored.accountId }
+    : null
+}
+
+// docs/specs/pass-types-and-flows.md#claiming-an-identified-pass. Limited to the account's
+// own passkeys, so the system prompt offers no other.
+export const claimOptions = async (
+  db: Db,
+  rp: RelyingParty,
+  accountId: string,
+  now: number,
+): Promise<PublicKeyCredentialRequestOptionsJSON> => {
+  const held = await db
+    .select({ id: passkeys.credentialId, transports: passkeys.transports })
+    .from(passkeys)
+    .where(eq(passkeys.accountId, accountId))
+  const options = await generateAuthenticationOptions({
+    allowCredentials: held.map((row) => ({ id: row.id, transports: transportsOf(row.transports) })),
+    rpID: rp.id,
+    userVerification: 'required',
+  })
+  await storeChallenge(db, {
+    accountId,
+    challenge: options.challenge,
+    now,
+    purpose: 'claim',
+    userHandle: null,
+  })
+  return options
+}
+
+// The passkey to bind, once this account's own passkey has answered this account's own
+// challenge.
+export const claimingPasskey = async (
+  db: Db,
+  rp: RelyingParty,
+  accountId: string,
+  response: AuthenticationResponseJSON,
+  now: number,
+): Promise<AttestedPasskey | null> => {
+  const challenge = challengeOf(response.response.clientDataJSON)
+  const spent = challenge === null ? null : await spendChallenge(db, { challenge, now, purpose: 'claim' })
+  if (challenge === null || spent?.accountId !== accountId) {
+    return null
+  }
+  const stored = await db
+    .select()
+    .from(passkeys)
+    .where(and(eq(passkeys.credentialId, response.id), eq(passkeys.accountId, accountId)))
+    .get()
+  if (stored === undefined || !(await assertStored(db, rp, stored, challenge, response, now))) {
+    return null
+  }
+  return { credentialId: stored.credentialId, publicKey: `0x${stored.publicKey}` }
+}
+
+// docs/specs/attestation-model.md#offchain-rights: the gate's challenge string, as bytes,
+// is what the passkey signs.
+export const gatePasskeyOptions = async (
+  rp: RelyingParty,
+  key: AttestedPasskey,
+  message: string,
+): Promise<PublicKeyCredentialRequestOptionsJSON> =>
+  await generateAuthenticationOptions({
+    allowCredentials: [{ id: key.credentialId }],
+    challenge: message,
+    rpID: rp.id,
+    userVerification: 'required',
+  })
+
+export const verifyGateAssertion = async (
+  rp: RelyingParty,
+  key: AttestedPasskey,
+  message: string,
+  response: AuthenticationResponseJSON,
+): Promise<boolean> => {
+  // The verifier takes the key it is given and never compares the ids.
+  if (response.id !== key.credentialId) {
+    return false
+  }
+  try {
+    const result = await verifyAuthenticationResponse({
+      // The attestation fixes the key but cannot track a count that moves with every use,
+      // and synced passkeys report none, so 0 skips the check. The one-time challenge is
+      // what stops a replay here.
+      credential: { counter: 0, id: key.credentialId, publicKey: bytesOfHex(key.publicKey.slice(2)) },
+      expectedChallenge: isoBase64URL.fromUTF8String(message),
+      expectedOrigin: rp.origins,
+      expectedRPID: rp.id,
+      requireUserVerification: true,
+      response,
+    })
+    return result.verified
+  } catch {
+    return false
   }
 }
 

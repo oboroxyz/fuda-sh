@@ -5,6 +5,7 @@ import { ZERO_ADDRESS, ZERO_UID } from '../chain/client.ts'
 import type { ChainClient, RawAttestation } from '../chain/client.ts'
 import { decodeDelegation, decodeEntitlement } from '../eas/codecs.ts'
 import type { Delegation, Entitlement } from '../eas/codecs.ts'
+import type { AttestedPasskey } from '../eas/offchain.ts'
 import { findVersion } from '../eas/schemas.ts'
 import type { VerifyDeps } from './config.ts'
 
@@ -25,6 +26,8 @@ export type VerifyOutcome =
       delegation: DelegationView
       attester: Hex
       canonical: Entitlement
+      // What an Identified pass answers to, instead of the holder's address.
+      passkey?: AttestedPasskey | null
       // An offchain ADMIT whose on-chain revocation could not be read.
       unconfirmed?: true
     }
