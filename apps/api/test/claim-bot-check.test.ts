@@ -5,6 +5,7 @@ import { getDb } from '../src/db/client.ts'
 import { cards, challenges, issuers, members, sessions } from '../src/db/schema.ts'
 import { ensNames } from '../src/ens/schema.ts'
 import type { Bindings } from '../src/env.ts'
+import type { SiteverifyFetch } from '../src/turnstile/siteverify.ts'
 import { appWith, fakeChain } from './env.ts'
 import { configuredEnv, NOW, ROOT, seedRoot } from './fixtures.ts'
 import { CARD_INPUT, registerVenueWithCard, signIn } from './operator.ts'
@@ -40,14 +41,14 @@ const claim = async (
   )
 
 const siteverify = (answer: Response | Error) =>
-  vi.fn<typeof fetch>(async () => {
-    if (answer instanceof Error) {
-      throw answer
-    }
-    return answer
-  })
+  vi.fn<SiteverifyFetch>(
+    async () => await (answer instanceof Error ? Promise.reject(answer) : Promise.resolve(answer)),
+  )
 
-const placesReserved = async (): Promise<number> => (await getDb({ DB: env.DB }).select().from(members)).length
+const placesReserved = async (): Promise<number> => {
+  const rows = await getDb({ DB: env.DB }).select().from(members)
+  return rows.length
+}
 
 describe('the claim bot check', () => {
   beforeEach(async () => {
@@ -71,8 +72,8 @@ describe('the claim bot check', () => {
     expect(res.status).toBe(200)
     const [url, init] = fetcher.mock.calls[0] ?? []
     expect(url).toBe(SITEVERIFY)
-    expect(String(init?.body)).toBe('remoteip=203.0.113.7&response=good-token&secret=turnstile-secret')
-    expect(await placesReserved()).toBe(1)
+    expect(init?.body.toString()).toBe('remoteip=203.0.113.7&response=good-token&secret=turnstile-secret')
+    await expect(placesReserved()).resolves.toBe(1)
   })
 
   it('keeps the token when the source label is mangled', async () => {
@@ -91,14 +92,15 @@ describe('the claim bot check', () => {
     const res = await claim(app, bindings, { turnstileToken: 'used-token' })
     expect(res.status).toBe(403)
     await expect(res.json()).resolves.toStrictEqual({ error: 'bot_check_failed' })
-    expect(await placesReserved()).toBe(0)
+    await expect(placesReserved()).resolves.toBe(0)
   })
 
   it('answers 403 bot_check_failed without a token, or a body, and never asks Siteverify', async () => {
     const { app, bindings } = await setup()
     const fetcher = siteverify(Response.json({ action: 'claim', success: true }))
     vi.stubGlobal('fetch', fetcher)
-    for (const body of [undefined, {}, { source: 'flyer' }]) {
+    const bodies: (Record<string, string> | undefined)[] = [undefined, {}, { source: 'flyer' }]
+    for (const body of bodies) {
       // oxlint-disable-next-line no-await-in-loop -- sequential requests share one rate budget
       const res = await claim(app, bindings, body)
       expect(res.status).toBe(403)
@@ -106,7 +108,7 @@ describe('the claim bot check', () => {
       await expect(res.json()).resolves.toStrictEqual({ error: 'bot_check_failed' })
     }
     expect(fetcher).not.toHaveBeenCalled()
-    expect(await placesReserved()).toBe(0)
+    await expect(placesReserved()).resolves.toBe(0)
   })
 
   it('fails closed with 503 bot_check_unavailable when Siteverify is down, and reserves no place', async () => {
@@ -118,7 +120,7 @@ describe('the claim bot check', () => {
     vi.stubGlobal('fetch', siteverify(new Response('bad gateway', { status: 502 })))
     const bad = await claim(app, bindings, { turnstileToken: 'good-token' })
     expect(bad.status).toBe(503)
-    expect(await placesReserved()).toBe(0)
+    await expect(placesReserved()).resolves.toBe(0)
   })
 
   it('skips the check when the deployment has no secret', async () => {

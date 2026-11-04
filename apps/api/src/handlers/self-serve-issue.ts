@@ -44,7 +44,7 @@ export const postV1IssuersHandleSlugIssue = defineHandler(
     if (!isClaimable(card, c.get('now')())) {
       return errorResponse(c, 'card_closed', 409)
     }
-    const json = await c.req.json().catch(() => null)
+    const json: unknown = await c.req.json().catch(() => null)
     // The one bot check for every claim of this route, whatever the card type. It
     // runs before any place is reserved. Without a secret the deployment has
     // not opted in, which is how local development and the tests run.

@@ -35,6 +35,8 @@ import { fetchPassBackup, passBackupHref } from '../pass-backup.ts'
 import { memberPassUrls } from '../pass-links.ts'
 import { rememberPass } from '../pass-memory.ts'
 import type { PassMemoryStorage } from '../pass-memory.ts'
+import { claimToken } from '../turnstile.ts'
+import type { ClaimToken } from '../turnstile.ts'
 import { VENUE_COPY } from './copy.ts'
 import type { VenueCopy } from './copy.ts'
 import { cardClaimHref } from './entry.ts'
@@ -69,13 +71,23 @@ export type CardScreenState =
 
 export interface CardScreenIo {
   appleAvailable: (url: string) => Promise<boolean>
+  // The bot check for one claim, run in the given element: a token the api will
+  // verify, or `token: null` when this deployment has no check.
+  claimToken: (container: HTMLElement | null) => Promise<ClaimToken>
   fetchBackup: (uid: Hex) => Promise<Result<PassBackup>>
   fetchVenue: (handle: string) => Promise<Result<PublicVenue>>
   googleSaveUrl: (url: string) => Promise<string | null>
-  issueCard: (handle: string, slug: string, source: string | null) => Promise<Result<SelfServeIssueResponse>>
+  issueCard: (
+    handle: string,
+    slug: string,
+    source: string | null,
+    turnstileToken: string | null,
+  ) => Promise<Result<SelfServeIssueResponse>>
 }
 
 export interface CardScreenViewProps {
+  // Receives the element the bot check renders in, which stays mounted across states.
+  botCheckRef?: (element: HTMLDivElement) => void
   locale?: Locale
   onIssue: () => void
   onReload: () => void
@@ -508,11 +520,13 @@ export const CardScreenView = (props: CardScreenViewProps): JSX.Element => (
         props.onVerifyHuman()
       },
     )}
+    <div class="venue-bot-check" ref={props.botCheckRef} />
   </VenueLayout>
 )
 
 const defaultIo: CardScreenIo = {
   appleAvailable: applePassAvailable,
+  claimToken,
   fetchBackup: fetchPassBackup,
   fetchVenue,
   googleSaveUrl,
@@ -582,6 +596,7 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
   const [generation, setGeneration] = createSignal(0)
   let issuing = false
   let lifecycle = 0
+  let botCheck: HTMLDivElement | null = null
   let preloaded = props.initial
 
   // Only probe the device's platform. The browser pass remains available until
@@ -672,7 +687,21 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
     const ticket = lifecycle
     const { handle, storage } = props
     setState({ card, kind: 'issuing' })
-    const result = await io.issueCard(handle, card.card.slug, claimSourceFrom(window.location.search))
+    // A token works once, so every attempt, a retry included, runs the check again.
+    const check = await io.claimToken(botCheck)
+    if (!check.ok) {
+      if (ticket === lifecycle) {
+        issuing = false
+        setState({ card, failure: 'bot_check_failed', kind: 'error' })
+      }
+      return
+    }
+    const result = await io.issueCard(
+      handle,
+      card.card.slug,
+      claimSourceFrom(window.location.search),
+      check.token,
+    )
     const current = ticket === lifecycle
     if (current) {
       issuing = false
@@ -729,6 +758,9 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
 
   return (
     <CardScreenView
+      botCheckRef={(element) => {
+        botCheck = element
+      }}
       locale={props.locale}
       onIssue={onIssue}
       onReload={() => {

@@ -65,23 +65,30 @@ export const claimSourceFrom = (search: string): string | null => {
 }
 
 // Self-serve Bearer issuance of one card: no account. The api answers 429
-// `rate_limited`, 409 `card_closed` or `card_sold_out`, 501 `no_signer`, 502
-// `chain_error` or 404 `not_found` (for an unknown handle as well as an unknown slug).
+// `rate_limited`, 403 `bot_check_failed`, 409 `card_closed` or `card_sold_out`,
+// 501 `no_signer`, 502 `chain_error`, 503 `bot_check_unavailable` or 404 `not_found`
+// (for an unknown handle as well as an unknown slug). `turnstileToken` is the
+// Turnstile answer for this one claim; a token works once, so a retry brings a new one.
 export const issueCard = async (
   handle: string,
   slug: string,
   source: string | null,
+  turnstileToken: string | null = null,
 ): Promise<Result<SelfServeIssueResponse>> => {
   const path = `/issuers/${encodeURIComponent(handle)}/${encodeURIComponent(slug)}/issue`
-  return source === null
-    ? await apiFetch<SelfServeIssueResponse>(API_BASE_URL, path, { method: 'POST' })
-    : await apiFetch<SelfServeIssueResponse>(API_BASE_URL, path, {
-        body: JSON.stringify({ source }),
-        method: 'POST',
-      })
+  if (source === null && turnstileToken === null) {
+    return await apiFetch<SelfServeIssueResponse>(API_BASE_URL, path, { method: 'POST' })
+  }
+  return await apiFetch<SelfServeIssueResponse>(API_BASE_URL, path, {
+    // JSON.stringify leaves out an undefined member.
+    body: JSON.stringify({ source: source ?? undefined, turnstileToken: turnstileToken ?? undefined }),
+    method: 'POST',
+  })
 }
 
 export type CardFailure =
+  | 'bot_check_failed'
+  | 'bot_check_unavailable'
   | 'card_closed'
   | 'card_sold_out'
   | 'chain_error'
@@ -95,6 +102,9 @@ export type CardFailure =
 // rather than by the error code the body carried.
 export const cardFailureOf = (result: { status: number; error: string }): CardFailure => {
   switch (result.status) {
+    case 403: {
+      return result.error === 'bot_check_failed' ? 'bot_check_failed' : 'network'
+    }
     case 404: {
       return 'not_found'
     }
@@ -109,6 +119,9 @@ export const cardFailureOf = (result: { status: number; error: string }): CardFa
     }
     case 502: {
       return 'chain_error'
+    }
+    case 503: {
+      return 'bot_check_unavailable'
     }
     default: {
       return 'network'

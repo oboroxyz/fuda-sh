@@ -15,8 +15,14 @@ const TIMEOUT_MS = 10_000
 // answer, answered garbage, or rejected our own secret.
 export type TurnstileOutcome = 'failed' | 'passed' | 'unavailable'
 
+// The slice of `fetch` Siteverify needs, so a test can read exactly what was sent.
+export type SiteverifyFetch = (
+  url: string,
+  init: { body: URLSearchParams; method: 'POST'; signal: AbortSignal },
+) => Promise<Response>
+
 export interface TurnstileCheck {
-  fetcher?: typeof fetch
+  fetcher?: SiteverifyFetch
   ip: string
   secret: string
   token: string | null

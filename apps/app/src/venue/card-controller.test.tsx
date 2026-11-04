@@ -52,6 +52,7 @@ const venue: PublicVenue = {
 
 const io = (): CardScreenIo => ({
   appleAvailable: async () => await Promise.resolve(false),
+  claimToken: async () => await Promise.resolve({ ok: true as const, token: null }),
   fetchBackup: async () =>
     await Promise.resolve({ error: 'not_found', network: false, ok: false, status: 404 }),
   fetchVenue: async () => await Promise.resolve({ body: venue, ok: true }),
@@ -198,6 +199,114 @@ describe('venue controller', () => {
     })
     expect(deps.issueCard).toHaveBeenCalledOnce()
     unmountAll()
+  })
+
+  describe('the bot check on claim', () => {
+    const open = async (deps: CardScreenIo, locale: Locale = 'en'): Promise<HTMLDivElement> => {
+      const host = document.createElement('div')
+      render(
+        () => (
+          <CardScreen handle={venue.handle} slug={null} io={deps} locale={locale} storage={localStorage} />
+        ),
+        host,
+      )
+      await vi.waitFor(() => {
+        expect(host.querySelector('button')).not.toBeNull()
+      })
+      return host
+    }
+    const claimed = {
+      body: {
+        holder: `0x${'11'.repeat(20)}` as const,
+        level: 'bearer' as const,
+        memberNumber: 'qj2yxphepdrka',
+        passUrls: { apple: '/a', google: '/g', web: '/w' },
+        qr: `fuda:${'ab'.repeat(32)}`,
+        uid: `0x${'ab'.repeat(32)}` as const,
+      },
+      ok: true as const,
+    }
+
+    afterEach(() => {
+      unmountAll()
+    })
+
+    it('runs the check only when the member taps, and sends its token with the claim', async () => {
+      const deps = {
+        ...io(),
+        claimToken: vi.fn<CardScreenIo['claimToken']>(
+          async () => await Promise.resolve({ ok: true, token: 'tok-1' }),
+        ),
+        issueCard: vi.fn<CardScreenIo['issueCard']>(async () => await Promise.resolve(claimed)),
+      }
+      const host = await open(deps)
+      expect(deps.claimToken).not.toHaveBeenCalled()
+      host.querySelector('button')!.click()
+      await vi.waitFor(() => {
+        expect(host.querySelector('.venue-qr')).not.toBeNull()
+      })
+      expect(deps.claimToken).toHaveBeenCalledWith(host.querySelector('.venue-bot-check'))
+      expect(deps.issueCard).toHaveBeenCalledWith('garden-cafe', 'regular', null, 'tok-1')
+    })
+
+    it('offers a retry in plain English when the api refuses the token, with a new token', async () => {
+      const tokens = ['used-up', 'fresh']
+      const deps = {
+        ...io(),
+        claimToken: vi.fn<CardScreenIo['claimToken']>(
+          async () => await Promise.resolve({ ok: true, token: tokens.shift() ?? null }),
+        ),
+        issueCard: vi
+          .fn<CardScreenIo['issueCard']>()
+          .mockResolvedValueOnce({ error: 'bot_check_failed', network: false, ok: false, status: 403 })
+          .mockResolvedValueOnce(claimed),
+      }
+      const host = await open(deps)
+      host.querySelector('button')!.click()
+      await vi.waitFor(() => {
+        expect(host.textContent).toContain('We could not confirm that you are a person. Please try again.')
+      })
+      host.querySelector<HTMLButtonElement>('button.btn:not(.btn-primary)')!.click()
+      await vi.waitFor(() => {
+        expect(host.querySelector('.venue-qr')).not.toBeNull()
+      })
+      expect(deps.issueCard.mock.calls.map((call) => call[3])).toStrictEqual(['used-up', 'fresh'])
+    })
+
+    it('says so in Japanese, and does not claim when the widget itself fails', async () => {
+      const deps = {
+        ...io(),
+        claimToken: vi.fn<CardScreenIo['claimToken']>(async () => await Promise.resolve({ ok: false })),
+      }
+      const host = await open(deps, 'ja')
+      host.querySelector('button')!.click()
+      await vi.waitFor(() => {
+        expect(host.textContent).toContain(
+          '人による操作であることを確認できませんでした。もう一度お試しください。',
+        )
+      })
+      expect(host.textContent).toContain('もう一度試す')
+      expect(deps.issueCard).not.toHaveBeenCalled()
+    })
+
+    it('tells the member to try again when the check is down', async () => {
+      const deps = {
+        ...io(),
+        claimToken: vi.fn<CardScreenIo['claimToken']>(
+          async () => await Promise.resolve({ ok: true, token: 'tok' }),
+        ),
+        issueCard: vi.fn<CardScreenIo['issueCard']>(
+          async () => await Promise.resolve({ error: 'api 503', network: true, ok: false, status: 503 }),
+        ),
+      }
+      const host = await open(deps)
+      host.querySelector('button')!.click()
+      await vi.waitFor(() => {
+        expect(host.textContent).toContain(
+          'We could not run the check that you are a person right now. Please try again.',
+        )
+      })
+    })
   })
 
   it('keeps a saved card and pending wallet check when its language changes', async () => {
