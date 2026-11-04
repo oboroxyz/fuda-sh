@@ -166,7 +166,7 @@ Without these steps an installed pass stays a snapshot and still works. [The spe
 
 **Check it on a real iPhone.** APNs delivers pass updates only in production, so nothing short of a phone proves this. Watch the Worker's logs throughout.
 
-1. Add a pass from `/pass/<uid>/apple.pkpass`. A row appears in `apple_pass_registrations`.
+1. Add a pass from `/pass/<uid>/apple.pkpass`. A row appears in `apple_pass_registrations`. A pass added before the secret was set has no web service and never will, so delete it and add it again.
 2. Credit a Stamp at reception. The pass updates and a `Stamps: n / m` notification appears.
 3. Revoke the pass. It updates to `No longer valid`, with a notification.
 4. Delete the pass from Wallet. Its row, and the device row if it was the last, disappear.
@@ -176,9 +176,10 @@ Without these steps an installed pass stays a snapshot and still works. [The spe
 | Log line | Meaning | Next |
 | --- | --- | --- |
 | No `APNs` line, and the phone updates | The route works | Nothing |
-| `APNs refused a pass update` with `403` and `BadCertificate` or similar | APNs was reached and refused the certificate | Check step 1 used the Pass Type ID pair |
+| `APNs refused a pass update` with `403` | APNs was reached and refused the certificate | Check step 1 used the Pass Type ID pair. If it did, an Apple engineer's forum reply gives a rule for token authentication on passes, which needs no binding, though Apple's documentation names only the certificate and fuda has not tried it |
 | `APNs refused a pass update` with `400` and `TopicDisallowed` or `BadTopic` | APNs was reached and refused the topic | Check `APPLE_PASS_TYPE_ID` matches the certificate |
-| `APNs push failed`, or a status with an empty reason | The connection itself failed, the likely sign of no HTTP/2 | A Worker cannot reach APNs this way. The sender is one function, `ApplePushSender`: a small HTTP/2 relay outside Workers, holding the certificate, can replace it. Until then pull to refresh still works |
+| `APNs refused a pass update` with any other reason | APNs was reached | The reason names the problem: [Apple's list](https://developer.apple.com/documentation/usernotifications/handling-notification-responses-from-apns) |
+| `APNs push failed`, or a status with an empty reason | The connection itself failed, the likely sign of no HTTP/2 | Token authentication needs HTTP/2 too, so it would not help. The sender is one function, `ApplePushSender`: a small HTTP/2 relay outside Workers, holding the certificate, can replace it. Until then pull to refresh still works |
 
 **Renewing.** A Pass Type ID certificate lasts a year. On renewal update `APPLE_CERT_PEM` and `APPLE_KEY_PEM`, upload the new pair, and put the new id in `targets.jsonc`. Leave `APPLE_WEB_SERVICE_SECRET` alone.
 
