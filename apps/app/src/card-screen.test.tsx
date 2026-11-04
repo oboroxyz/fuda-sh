@@ -73,7 +73,7 @@ const render = (state: Parameters<typeof CardScreenView>[0]['state']): HTMLEleme
   const host = document.createElement('div')
   document.body.append(host)
   const dispose = solidRender(
-    () => <CardScreenView onIssue={noop} onReload={noop} onVerifyHuman={noop} state={state} />,
+    () => <CardScreenView locale="en" onIssue={noop} onReload={noop} onVerifyHuman={noop} state={state} />,
     host,
   )
   onTestFinished(() => {
@@ -236,7 +236,7 @@ describe(CardScreenView, () => {
   })
 
   it('formats the issue date in UTC regardless of the device locale', () => {
-    expect(issueDateOf(Date.UTC(2026, 0, 31, 23, 59))).toBe('Jan 31, 2026')
+    expect(issueDateOf(Date.UTC(2026, 0, 31, 23, 59), 'en')).toBe('Jan 31, 2026')
   })
 })
 

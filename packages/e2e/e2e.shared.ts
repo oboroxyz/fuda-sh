@@ -21,6 +21,8 @@ export const surfaceConfig = (surface: SurfaceName): E2EConfig => ({
         },
         url: SURFACES[surface].origin,
       },
+      // `locale` also sets Accept-Language, which keeps the English assertions
+      // valid now that Japanese is the first-visit default.
       engine: web({ locale: 'en-US', timezoneId: 'Asia/Tokyo' }),
       name: surface,
     },

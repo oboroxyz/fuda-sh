@@ -333,7 +333,7 @@ describe('venue controller', () => {
     const open = (deps: CardScreenIo): HTMLDivElement => {
       globalThis.history.replaceState(null, '', `/@${venue.handle}/regular?uid=${UID}&source=qr`)
       const host = document.createElement('div')
-      render(() => <CardScreen handle={venue.handle} slug="regular" io={deps} />, host)
+      render(() => <CardScreen handle={venue.handle} slug="regular" io={deps} locale="en" />, host)
       return host
     }
 
@@ -427,7 +427,10 @@ describe('venue controller', () => {
     const host = document.createElement('div')
     document.body.replaceChildren(host)
     const deps = io()
-    render(() => <CardScreen handle={venue.handle} slug={null} io={deps} storage={localStorage} />, host)
+    render(
+      () => <CardScreen handle={venue.handle} slug={null} io={deps} storage={localStorage} locale="en" />,
+      host,
+    )
     await vi.waitFor(() => {
       expect(host.querySelector('.venue-qr [role="img"]')).not.toBeNull()
     })
@@ -439,7 +442,10 @@ describe('venue controller', () => {
   it('issues once when the primary action is clicked twice before rendering', async () => {
     const host = document.createElement('div')
     const deps = io()
-    render(() => <CardScreen handle={venue.handle} slug={null} io={deps} storage={localStorage} />, host)
+    render(
+      () => <CardScreen handle={venue.handle} slug={null} io={deps} storage={localStorage} locale="en" />,
+      host,
+    )
     await vi.waitFor(() => {
       expect(host.querySelector('button')).not.toBeNull()
     })
@@ -582,7 +588,7 @@ describe('venue controller', () => {
             >
               Change route
             </button>
-            <CardScreen handle={venue.handle} slug={slug()} io={deps} />
+            <CardScreen handle={venue.handle} slug={slug()} io={deps} locale="en" />
           </>
         )
       }

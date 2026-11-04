@@ -38,7 +38,7 @@ const Harness = (props: { io: PrivateIo }): JSX.Element => {
   return (
     <>
       <Show when={mounted()}>
-        <PrivateScreen io={props.io} />
+        <PrivateScreen io={props.io} locale="en" />
       </Show>
       <button
         type="button"

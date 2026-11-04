@@ -48,7 +48,7 @@ export const resolveSession = async (
 ): Promise<SessionOutcome> => {
   const shared: AppShared = {
     apiOrigin: apiBaseUrl.replace(/\/$/u, ''),
-    locale: resolveLocale(readCookie(c, LOCALE_COOKIE)),
+    locale: resolveLocale(readCookie(c, LOCALE_COOKIE), c.req.header('accept-language') ?? null),
     restoreFailed: false,
     signedIn: false,
     theme: resolveThemeMode(readCookie(c, THEME_COOKIE)),

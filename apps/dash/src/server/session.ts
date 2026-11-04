@@ -45,7 +45,7 @@ export interface SessionOutcome {
 }
 
 export const resolveSession = async (c: Context, apiBaseUrl: string): Promise<SessionOutcome> => {
-  const locale = resolveLocale(readPreference(c, LOCALE_COOKIE))
+  const locale = resolveLocale(readPreference(c, LOCALE_COOKIE), c.req.header('accept-language') ?? null)
   const theme = resolveThemeMode(readPreference(c, THEME_COOKIE))
   const { pathname } = new URL(c.req.url)
   const credential = readCredential(c)

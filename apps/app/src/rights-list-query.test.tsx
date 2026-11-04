@@ -157,6 +157,7 @@ describe('member pass query lifecycle', () => {
     mount(() => (
       <RightsList
         injected={null}
+        locale="en"
         io={io}
         memory={[{ addedAt: 1, holder: holderA, uid: uidA }]}
         queryUid={null}
@@ -189,6 +190,7 @@ describe('member pass query lifecycle', () => {
     mount(() => (
       <RightsList
         injected={null}
+        locale="en"
         io={io}
         memory={[{ addedAt: 1, holder: holderA, uid: uidA }]}
         queryUid={null}
@@ -226,7 +228,9 @@ describe('member pass query lifecycle', () => {
       .mockImplementation(
         async (holder) => await Promise.resolve(holder === holderB ? [right(uidB, holderB)] : []),
       )
-    mount(() => <RightsList variant="lookup" injected={null} io={io} memory={[]} queryUid={null} />)
+    mount(() => (
+      <RightsList locale="en" variant="lookup" injected={null} io={io} memory={[]} queryUid={null} />
+    ))
     await lookup(holderA)
     await vi.waitFor(() => {
       expect(io.fetchRights).toHaveBeenCalledWith(holderA)
@@ -245,7 +249,7 @@ describe('member pass query lifecycle', () => {
     const io = fixture()
     const pending = Promise.withResolvers<Result<VerifyResponse>>()
     io.verify.mockReturnValue(pending.promise)
-    mount(() => <RightsList injected={null} io={io} memory={[]} queryUid={uidA} />)
+    mount(() => <RightsList locale="en" injected={null} io={io} memory={[]} queryUid={uidA} />)
     await vi.waitFor(() => {
       expect(io.verify).toHaveBeenCalledWith(uidA)
     })
@@ -258,7 +262,7 @@ describe('member pass query lifecycle', () => {
 
   it('remembers a query pass once while its list continues to refresh on focus', async () => {
     const io = fixture()
-    mount(() => <RightsList injected={null} io={io} memory={[]} queryUid={uidA} />)
+    mount(() => <RightsList locale="en" injected={null} io={io} memory={[]} queryUid={uidA} />)
     await vi.waitFor(() => {
       expect(root.textContent).toContain('ACTIVE')
       expect(localStorage.getItem(PASS_MEMORY_KEY)).not.toBeNull()
