@@ -103,6 +103,7 @@ Every string a client and the api must agree on byte-for-byte. Changing any of t
 | Pass / QR payload | `fuda:v1:<uid>` (uid = `0x` + 64 lowercase hex) |
 | Challenge string (what is signed, EIP-191 personal-sign) | `fuda-gate:<uid>:<nonce>` |
 | Challenge nonce | `0x` + 32 hex (16 random bytes); TTL 300 s; one-time |
+| WebAuthn gate challenge (Identified pass) | base64url of the challenge string's UTF-8 bytes |
 | Announcement metadata | `0x` + viewTag (2 hex) + uid (64 hex) |
 | HKDF domain salt (`@fuda/stealth-address`) | `fuda.sh/stealth/v1` (UTF-8 bytes) |
 | WebAuthn PRF eval input | `prf: { eval: { first: utf8('fuda.sh/stealth/prf/v1') } }` — the PRF output is a function of this input; it must never change |
@@ -198,9 +199,13 @@ Every chain error fails closed. `LEVEL_REQUIRED` is checked before slot consumpt
 
 A Card's `record` is `offchain` or `onchain`, set when the Card is created and fixed afterwards, because a right cannot move between the two without a new UID. New Cards default to `offchain`. A Card made before this existed stays `onchain`, and the on-chain lifecycle above applies to it unchanged.
 
-**Issuing.** The self-serve route and the MCP `issue_pass` tool sign an EAS offchain attestation (version 2) with the signer key, with no chain access and no transaction, and write the `members` row and an `offchain_attestations` row in one batch. If that write fails nothing was issued. The member number is drawn in D1 as for an on-chain pass, and is also signed into the attestation. `recipient` is the zero address, which the API reports as `holder`. The admin `POST /issue` issues only on chain.
+A Card's `identity` is `none` or `passkey`, also fixed at creation, and defaults to `none`. `passkey` makes its passes Identified and needs `record: offchain`: any other combination answers `400 bad_input`, and the database refuses it too.
+
+**Issuing.** The self-serve route and the MCP `issue_pass` tool sign an EAS offchain attestation (version 2) with the signer key, with no chain access and no transaction, and write the `members` row and an `offchain_attestations` row in one batch. If that write fails nothing was issued. The member number is drawn in D1 as for an on-chain pass, and is also signed into the attestation. `recipient` is the zero address, which the API reports as `holder`. The admin `POST /issue` issues only on chain. An Identified pass is issued only by [the holder's own claim](./pass-types-and-flows.md#claiming-an-identified-pass): `issue_pass` answers `holder_must_claim`.
 
 The schema is `string venue,string card,string memberNumber,uint8 usageModel,uint8 tier,uint8 level,uint64 validFrom,uint64 validUntil,bytes holderKey`, where `venue` is the Handle and `card` the Card id. It needs no `EAS_SCHEMAS` entry, because EAS never sees it at signing and its UID follows from the string. `expirationTime` equals `validUntil`.
+
+`holderKey` is empty for a Standard pass, which is `level: 0`. An Identified pass is `level: 1` with `holderKey` set to `abi.encode(bytes credentialId, bytes publicKey)`: the WebAuthn credential ID and the COSE public key, so a gate needs nothing else to check it. Its `members` row is `level: 'signed'` with `holder` NULL.
 
 **Verifying.** `POST /verify`, `GET /verify/:uid` and reception look for an `offchain_attestations` row first, and answer the same verdict shape as an on-chain right. The checks run in this order, and the first failure is the reported reason:
 
@@ -217,7 +222,11 @@ The schema is `string venue,string card,string memberNumber,uint8 usageModel,uin
 | `expirationTime` and the validity window | `EXPIRED` / `UNKNOWN_USAGE_MODEL` / `NOT_YET_VALID` |
 | `EAS.getRevokeOffchain(signer, uid) == 0` | `REVOKED` |
 
-`IssuerDelegation` is not consulted. The level and slot checks that follow are the same as for an on-chain right. A pass with no holder has no key to sign with, so `POST /verify-signed` answers it `BAD_SIGNATURE`.
+`IssuerDelegation` is not consulted. The level and slot checks that follow are the same as for an on-chain right, so a bare QR of an Identified pass answers `LEVEL_REQUIRED`. A Standard pass has no key to sign with, so `POST /verify-signed` answers it `BAD_SIGNATURE`.
+
+**Presenting an Identified pass.** `POST /verify-signed` takes `{ uid, nonce, webauthn }` and checks the assertion against the attested key: the credential ID, the origin in `WEBAUTHN_ORIGINS`, the RP ID, the user-verification flag and the signature, on a WebAuthn challenge that is the base64url of `fuda-gate:<uid>:<nonce>`. No chain is read for this and no address is involved. A wallet signature for this pass, or an assertion for any other right, is `BAD_SIGNATURE`.
+
+The attested key is the authority, not the account. Removing a passkey from an account does not affect a pass that names it, because the holder may have moved devices, so the way to stop a pass is to revoke it. The sign count is not enforced, because nothing tracks one for an attested key and synced passkeys do not report one. The one-time challenge is what stops a replay.
 
 **The chain cannot be read.** A SINGLE_USE right answers `502 chain_error` without consuming its slot. Any other right is admitted with `unconfirmed: true` in the verdict. `members.status` is checked before the chain, so a pass revoked through fuda stays rejected. A revocation made directly on chain, outside fuda, is not seen until the chain can be read.
 
@@ -227,7 +236,7 @@ The schema is `string venue,string card,string memberNumber,uint8 usageModel,uin
 
 The tree matches `StandardMerkleTree.of(uids, ['bytes32'])` from `@openzeppelin/merkle-tree`: a leaf is the double hash of the UID. A proof therefore never contains another pass's UID, which is the bearer secret. The tree is not stored, and is rebuilt from the UIDs naming a root. A root records when a batch existed. It is not an admission condition, and a failed job leaves every pass valid. No route serves proofs yet.
 
-**What an offchain right does not have.** No Attendance, no ENS member name, and no public listing. Its visits and Stamps live in D1. The UID in the QR is the bearer secret, made unguessable by the attestation's random salt.
+**What an offchain right does not have.** No Attendance, no ENS member name, and no public listing. Its visits and Stamps live in D1. On a Standard pass the UID in the QR is the bearer secret, made unguessable by the attestation's random salt. On an Identified pass the UID admits nobody by itself.
 
 **Venues.** Every venue shares one signer, and `POST /verify` takes no venue, so as with an on-chain right it does not reject another venue's pass. Reception is scoped to the operator's venue. The signed venue and card only prove the row was not moved.
 
@@ -252,6 +261,8 @@ Errors are `{ "error": "<code>" }` with these statuses. Every gate _decision_ is
 | `handle_taken` | 409 | `POST /issuers` handle already belongs to an issuer |
 | `issuer_limit` | 409 | `POST /issuers` from an account that already owns ten issuers |
 | `issuer_exists` | 409 | no longer returned (an account may own several issuers, [ADR 0009](../adr/0011-several-issuers-per-account.md)); kept in the sdk's code list for older clients |
+| `bad_passkey` | 401, 403 | a member passkey ceremony refused. A claim on a passkey Card answers `403`, because the session is fine and the member app's Worker ends a session on any `401` it forwards |
+| `holder_must_claim` | 409 | MCP `issue_pass` on a passkey Card: its holder has to claim the pass themselves |
 | `bad_slug` | 400 | `POST /issuers/cards` slug fails the card-slug rule or is reserved |
 | `slug_taken` | 409 | `POST /issuers/cards` or `POST /connect/cards` slug already used by another card of the same venue |
 | `bad_redirect_uri` | 400 | connected-app registration or approval with a redirect URI that is unsafe or not registered ([Connected apps](./connected-apps.md)) |
@@ -334,7 +345,7 @@ Issuance is synchronous: the endpoint submits the attestation transaction and wa
 }
 ```
 
-**`POST /issuers/:handle/:slug/issue`** is the self-serve Bearer path behind `fuda.sh/@<handle>/<slug>` (docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route). Its only body is an optional `{ source }` label ([capacity and source](./pass-types-and-flows.md#capacity-and-source)): the card fixes `tier` (0), `usageModel` (`SINGLE_USE` for a `ticket`, `MULTI_USE` otherwise) and the validity window — `validUntil` = claim time plus `validity_days` for a relative card, the card's own `valid_from`/`valid_until` for an absolute one, and 0 for a card that never expires. A claim outside the card's claim window answers `409 card_closed` before anything is attested. The api generates the member number, derives the holder exactly as the admin Bearer path does (nonce preimage = the member number), attests, and answers the Bearer `/issue` shape plus `memberNumber`.
+**`POST /issuers/:handle/:slug/issue`** is the self-serve Bearer path behind `fuda.sh/@<handle>/<slug>` (docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route). Its only body is an optional `{ source }` label ([capacity and source](./pass-types-and-flows.md#capacity-and-source)): the card fixes `tier` (0), `usageModel` (`SINGLE_USE` for a `ticket`, `MULTI_USE` otherwise) and the validity window — `validUntil` = claim time plus `validity_days` for a relative card, the card's own `valid_from`/`valid_until` for an absolute one, and 0 for a card that never expires. A claim outside the card's claim window answers `409 card_closed` before anything is attested. A passkey Card also takes `{ webauthn }` and a member session; see [claiming an Identified pass](./pass-types-and-flows.md#claiming-an-identified-pass). The api generates the member number, derives the holder exactly as the admin Bearer path does (nonce preimage = the member number), attests, and answers the Bearer `/issue` shape plus `memberNumber`.
 
 All three `passUrls` are absolute against `API_BASE_URL` and always present, even where a wallet platform is unconfigured (that route answers `501`). A +Private issuance answers the other arm — `{ "uid", "level": "private", "announced": true, "announceTx" }` — with no `holder`, no `qr` and no `passUrls`, because a +Private right has no pass ([passes](./pass-types-and-flows.md#passes)).
 

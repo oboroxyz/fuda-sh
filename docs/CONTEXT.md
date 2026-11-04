@@ -12,6 +12,10 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Card record**: Where a Card's Rights are recorded, fixed when the Card is created: `offchain` (the default) signs each Right with no transaction and no holder address, and `onchain` attests each Right publicly. _Avoid_: Mode, storage, chain type
 
+**Card identity**: Who can use a Card's Rights, fixed when the Card is created: `none` (the default) means whoever shows one, and `passkey` binds each Right to the passkey that claimed it. _Avoid_: Identity level, KYC
+
+**Identified pass**: An offchain Right on a Card with `passkey` identity. It attests the passkey's credential ID and public key at the Signed level with no holder address, needs an Account to claim, and is presented by answering a challenge in the app, so a copied QR does not admit. _Avoid_: Passkey pass, Secure pass
+
 **Pass**: A presentation of a Right — a Device wallet pass (`.pkpass` / Google Wallet object) or the browser-based pass page carrying the Right's QR. A Pass is not the Right, and lives in the Device wallet, never in the Crypto wallet. _Avoid_: Ticket, card, credential
 
 **Device wallet**: Apple Wallet or Google Wallet — the phone's OS-level container for Passes. A distribution and presentation channel only: it holds no keys, signs nothing, and knows nothing about the chain. Bearer and Signed Rights can have Passes; +Private Rights use the signing and discovery flow without a Pass. Say "Apple Wallet" / "Google Wallet" when the platform matters. _Avoid_: Wallet (bare), wallet app, mobile wallet
