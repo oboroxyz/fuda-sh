@@ -16,7 +16,7 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Identified pass**: An offchain Right on a Card with `passkey` identity. It attests the passkey's credential ID and public key at the Signed level with no holder address, needs an Account to claim, and is presented by answering a challenge in the app, so a copied QR does not admit. _Avoid_: Passkey pass, Secure pass
 
-**Sensitive use**: The Card setting for employee badges and privacy-sensitive memberships: Card identity `sensitive`. Each Right attests a key unique to it, so one person's Rights are not linked across venues, and it has no Wallet pass, QR, backup file, Stamps or integrations. It rejects while the chain cannot be read. It does not hide entry from the Issuer or the gate. _Avoid_: Private pass, Secure pass, +Private
+**Sensitive use**: The Card setting for employee badges and privacy-sensitive memberships: Card identity `sensitive`. Each Right attests a key unique to it, so one person's Rights are not linked across venues, and it has no Wallet pass, QR, backup file, Stamps or integrations. It rejects while the chain cannot be read. Entry logs keep only the Right UID, scan time and row id, with a daily purge after 30 days. A consumed Slot retains no entry time. It does not hide entry from the Issuer or the gate. _Avoid_: Private pass, Secure pass, +Private
 
 **Member secret**: 32 random bytes a member's browser makes for Sensitive use, from which each Right's key derives. The server keeps only ciphertexts of it, one per passkey that supports PRF. _Avoid_: Recovery phrase, master key
 

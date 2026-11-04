@@ -1,10 +1,11 @@
 import { LEVEL_CODE, USAGE_MODEL } from '@fuda/sdk'
 import type { EntryPath, Reason } from '@fuda/sdk'
+import { eq } from 'drizzle-orm'
 import type { Hex } from 'viem'
 
 import { ZERO_ADDRESS } from '../chain/client.ts'
 import type { Db } from '../db/client.ts'
-import { entryLog, slots } from '../db/schema.ts'
+import { cards, entryLog, members, slots } from '../db/schema.ts'
 import type { Entitlement } from '../eas/codecs.ts'
 
 // The MVP issues one slot per right; named so a later multi-slot right can add
@@ -19,10 +20,21 @@ export interface EntryRow {
   at: number
 }
 
-// Appends one decision-shaped verdict to the entry log and returns its id, which
-// the Attendance hook later uses to write `attendance_uid` back onto the row.
+const storedEntry = async (db: Db, row: EntryRow) => {
+  const card = await db
+    .select({ identity: cards.identity })
+    .from(members)
+    .innerJoin(cards, eq(cards.id, members.cardId))
+    .where(eq(members.attestationUid, row.uid))
+    .get()
+  return card?.identity === 'sensitive'
+    ? { at: row.at, decision: null, path: null, reason: null, uid: row.uid }
+    : row
+}
+
 export const logEntry = async (db: Db, row: EntryRow): Promise<number> => {
-  const inserted = await db.insert(entryLog).values(row).returning({ id: entryLog.id }).get()
+  const stored = await storedEntry(db, row)
+  const inserted = await db.insert(entryLog).values(stored).returning({ id: entryLog.id }).get()
   return inserted.id
 }
 
@@ -43,13 +55,11 @@ export const admitSingleUse = async (
   path: EntryPath,
   now: number,
 ): Promise<AdmitResult> => {
+  const stored = await storedEntry(db, { at: now, decision: 'ADMIT', path, reason: 'OK', uid })
   try {
     const [, inserted] = await db.batch([
-      db.insert(slots).values({ consumedAt: now, slot: DEFAULT_SLOT, uid }),
-      db
-        .insert(entryLog)
-        .values({ at: now, decision: 'ADMIT', path, reason: 'OK', uid })
-        .returning({ id: entryLog.id }),
+      db.insert(slots).values({ consumedAt: stored.decision === null ? 0 : now, slot: DEFAULT_SLOT, uid }),
+      db.insert(entryLog).values(stored).returning({ id: entryLog.id }),
     ])
     const [row] = inserted
     if (row === undefined) {

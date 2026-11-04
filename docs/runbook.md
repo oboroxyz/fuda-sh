@@ -459,9 +459,17 @@ Migration `0027_sensitive_use.sql` moves `cards.identity` to a new column to wid
 
 ## Offchain jobs
 
-Two jobs in `apps/api/crons/` run on every api target: roots hourly, and failed revocations every 15 minutes. Each target links the directory the way it links `routes`. The first deploy that includes them adds a `scheduled` handler and cron triggers to the Worker; confirm both on the Worker's Triggers page in Cloudflare. Crons make Void republish every trigger, so each target must declare `routes`, `workers_dev` and `preview_urls` in `targets.jsonc`, matching what Cloudflare has, or the deploy stops with "dashboard-managed routes or visibility". The migrations run before that check, so a stopped deploy can leave them applied; they only add tables and columns, so the live version keeps working and no restore is needed.
+Three jobs in `apps/api/crons/` run on every api target:
 
-Failures only reach the Worker logs, as `offchain root not anchored` and `offchain revocation retry failed`. Nothing alerts on them, and no pass stops working, so check when you can. The usual cause is the signer running out of ETH, because both jobs and on-chain issuance spend from it:
+| Job                    | Cron, UTC      | Purpose                                                    |
+| ---------------------- | -------------- | ---------------------------------------------------------- |
+| `offchain-roots`       | `0 * * * *`    | Timestamp new offchain roots                               |
+| `offchain-revocations` | `*/15 * * * *` | Retry failed offchain revocations                          |
+| `sensitive-entry-logs` | `0 3 * * *`    | Delete Sensitive scan logs and receipts older than 30 days |
+
+Each target links the directory the way it links `routes`. The first deploy that includes them adds a `scheduled` handler and cron triggers to the Worker; confirm both on the Worker's Triggers page in Cloudflare. Crons make Void republish every trigger, so each target must declare `routes`, `workers_dev` and `preview_urls` in `targets.jsonc`, matching what Cloudflare has, or the deploy stops with "dashboard-managed routes or visibility". The migrations run before that check, so a stopped deploy can leave them applied. The widened verdict columns remain readable by the previous api version.
+
+Root and revocation failures only reach the Worker logs, as `offchain root not anchored` and `offchain revocation retry failed`. Nothing alerts on them, and no pass stops working, so check when you can. The usual cause is the signer running out of ETH, because both jobs and on-chain issuance spend from it:
 
 ```sh
 curl -s "$BASE_RPC_URL" -H 'content-type: application/json' \
@@ -477,6 +485,24 @@ SELECT COUNT(*) FROM offchain_attestations WHERE root IS NULL;
 
 SELECT o.uid FROM offchain_attestations o JOIN members m ON m.attestation_uid = o.uid
 WHERE m.status = 'revoked' AND o.revoke_tx IS NULL;
+```
+
+Sensitive retention uses the named constant `SENSITIVE_ENTRY_RETENTION_SECONDS` in `apps/api/src/passes/entry-log-retention.ts`. The initial policy is 30 days for all Sensitive Cards, rather than a per-Card setting. Review this period with the adopting organization; an employee badge may need a longer audit period. Change this constant and redeploy to change the policy.
+
+The job deletes receipts before their logs in the same D1 transaction. It leaves Stamp-referenced entries untouched; Sensitive Cards cannot award Stamps. Each batch removes at most 80 logs and 80 stale Sensitive challenges, with two bound parameters per statement. A run starts at most ten batches and stops starting batches after 20 seconds. Remaining rows wait for the next run. Deleting a Sensitive log never deletes its single-use Slot, whose `consumed_at` is zero. Challenges normally expire on the next mint; this job also clears old Sensitive challenges when no later mint occurs.
+
+Migration `0028_sensitive_entry_retention.sql` makes verdict columns nullable without changing entry ids or their foreign keys and adds the UID/time index. Migration numbers are settled at merge.
+
+After deploying, confirm the `0 3 * * *` trigger on the Worker's Triggers page and observe a scheduled run. Check the oldest remaining Sensitive entry and the pending row count below. With more than 800 expired rows, expect the backlog to drain over successive runs. Failed runs leave rows for retry. Counts on the dashboard must still show issued Rights, with consumed single-use Rights still consumed. This deployed scheduling check cannot be established by local Worker tests.
+
+```sql
+SELECT COUNT(*) AS expired, MIN(e.at) AS oldest
+FROM entry_log e
+JOIN members m ON m.attestation_uid = e.uid
+JOIN cards c ON c.id = m.card_id
+WHERE c.identity = 'sensitive' AND e.at < unixepoch() - 30 * 86400;
+
+PRAGMA foreign_key_check;
 ```
 
 To run a job locally, start the api and use the `curl` command with the `x-void-dev-trigger` token that Void prints, setting `cron` to the job's expression. Local schedules never fire on their own.

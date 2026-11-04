@@ -1,6 +1,6 @@
 # ADR 0014: Offchain rights by default, with on-chain rights as an option
 
-- **Status**: Accepted 2026-11-04 for the Standard and On-chain types, which are built along with roots, member passkey sign-in and the member list. Recovery from a saved pass and from a backup is built too, and so are the Identified type and Sensitive use of decisions 1 and 4, except that a shorter `entry_log` retention for Sensitive use is still to come. Everything else here is still proposed and not built: one passkey per card, delegated keys, and the removals.
+- **Status**: Accepted 2026-11-04 for the Standard and On-chain types, which are built along with roots, member passkey sign-in and the member list. Recovery from a saved pass and from a backup is built too, and so are the Identified type and Sensitive use of decisions 1 and 4, including minimized entry logs and their daily purge after 30 days. Everything else here is still proposed and not built: one passkey per card, delegated keys, and the removals.
 - **Scope**: the pass types an Issuer can choose, how each is verified and recovered, which keys sign them, and what leaves the product.
 
 ## Context

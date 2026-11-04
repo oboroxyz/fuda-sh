@@ -375,7 +375,7 @@ All three `passUrls` are absolute against `API_BASE_URL` and always present, eve
 }
 ```
 
-`GET /verify/:uid` is a read-only preview: it never consumes a slot and is never written to `entry_log`. For the action endpoints (`POST /verify` and `POST /verify-signed`) every decision-shaped response (`ADMIT` or `REJECT` with its reason) is appended to `entry_log`; `4xx` input errors are not.
+`GET /verify/:uid` is a read-only preview: it never consumes a slot and is never written to `entry_log`. For the action endpoints (`POST /verify` and `POST /verify-signed`) every decision-shaped response creates an `entry_log` row; `4xx` input errors do not. [Sensitive use](./pass-types-and-flows.md#sensitive-use) keeps only the UID, time and row id, and expires these rows. Other Cards keep the decision, reason and path as well.
 
 **Threat model of the public verify endpoints.** `GET /verify/:uid` and `POST /verify` are unauthenticated, and every Bearer uid is public on chain and in the pass URL scheme (`/pass/<uid>`). Anyone who learns a uid can preview it and, for a SINGLE_USE right, burn its slot with a bare `POST /verify`. This is by design: a Bearer right is a bearer credential, and the issuer's own gate scanner shares the same anonymous path. Rights that must resist this are issued at Signed, where admission needs a challenge signature from the holder.
 
@@ -424,9 +424,9 @@ CREATE TABLE slots (                          -- SINGLE_USE consumption
 CREATE TABLE entry_log (
   id       INTEGER PRIMARY KEY AUTOINCREMENT,
   uid      TEXT NOT NULL,
-  decision TEXT NOT NULL,                     -- 'ADMIT' | 'REJECT'
-  reason   TEXT NOT NULL,                     -- reason table above
-  path     TEXT NOT NULL,                     -- 'qr' | 'signature' (entry path, not the right's level)
+  decision TEXT,                              -- 'ADMIT' | 'REJECT'; NULL for Sensitive use
+  reason   TEXT,                              -- reason table above; NULL for Sensitive use
+  path     TEXT,                              -- 'qr' | 'signature'; NULL for Sensitive use
   at       INTEGER NOT NULL,
   attendance_uid TEXT,                         -- written back after the Attendance attest lands
   reception_id TEXT UNIQUE                     -- nullable, idempotent authenticated reception
@@ -434,7 +434,7 @@ CREATE TABLE entry_log (
 
 ```
 
-SINGLE_USE consumption is a D1 batch that writes the `slots` row and the `ADMIT` `entry_log` row together: on public QR and signature admission the slot insert is a plain `INSERT`, so a second scan violates the `(uid, slot)` primary key and the whole batch rolls back — the slot is the lock, and no `ADMIT` is ever logged against a slot already burned. No Durable Objects are used in the MVP.
+SINGLE_USE consumption is a D1 batch that writes the `slots` row and the `ADMIT` `entry_log` row together: on public QR and signature admission the slot insert is a plain `INSERT`, so a second scan violates the `(uid, slot)` primary key and the whole batch rolls back — the slot is the lock, and no `ADMIT` is ever logged against a slot already burned. Sensitive single-use Slots store `consumed_at = 0`, retaining consumption without its time. Purging their entry logs never removes Slots. No Durable Objects are used in the MVP.
 
 Authenticated venue reception shares the same `slots` table but evaluates slot availability and writes its Entry inside the receipt transaction. It adds `stamp_settings`, `stamp_credits`, and `reception_requests` (migration `0010_reception_stamps.sql`). Settings belong to an issuer. A credit belongs to an issuer, Right UID, Japan date and daily ordinal, with a unique Entry reference and the granting operator address. A receipt stores the original response and Entry reference under a venue-scoped request UUID. The entire batch commits or rolls back together, including SINGLE_USE consumption. Credits are operational loyalty state, independent of on-chain Attendance; the public admission endpoints do not create them. See [venue reception and Stamps](./pass-types-and-flows.md#venue-reception-and-stamps) for authorization, daily limits and replay semantics.
 

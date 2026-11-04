@@ -220,16 +220,20 @@ export const slots = sqliteTable(
   (t) => [primaryKey({ columns: [t.uid, t.slot] })],
 )
 
-export const entryLog = sqliteTable('entry_log', {
-  at: integer('at').notNull(),
-  attendanceUid: text('attendance_uid'),
-  decision: text('decision', { enum: ['ADMIT', 'REJECT'] }).notNull(),
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  path: text('path', { enum: ['qr', 'signature'] }).notNull(),
-  reason: text('reason').notNull(),
-  receptionId: text('reception_id').unique(),
-  uid: text('uid').notNull(),
-})
+export const entryLog = sqliteTable(
+  'entry_log',
+  {
+    at: integer('at').notNull(),
+    attendanceUid: text('attendance_uid'),
+    decision: text('decision', { enum: ['ADMIT', 'REJECT'] }),
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    path: text('path', { enum: ['qr', 'signature'] }),
+    reason: text('reason'),
+    receptionId: text('reception_id').unique(),
+    uid: text('uid').notNull(),
+  },
+  (t) => [index('entry_log_uid_at').on(t.uid, t.at)],
+)
 
 export const stampSettings = sqliteTable('stamp_settings', {
   dailyLimit: integer('daily_limit').notNull().default(1),

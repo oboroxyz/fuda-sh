@@ -6,7 +6,7 @@ import type {
   MemberSignInResponse,
   MemberVaultResponse,
 } from '@fuda/sdk'
-import { env } from 'cloudflare:test'
+import { createExecutionContext, createScheduledController, env } from 'cloudflare:test'
 import { eq } from 'drizzle-orm'
 import * as v from 'valibot'
 import type { Hex } from 'viem'
@@ -18,6 +18,7 @@ import { getDb } from '../src/db/client.ts'
 import {
   cards,
   cardStampSettings,
+  challenges,
   entryLog,
   memberPasses,
   members,
@@ -26,9 +27,16 @@ import {
   memberVaults,
   offchainAttestations,
   passkeys,
+  receptionRequests,
   slots,
+  stampCredits,
 } from '../src/db/schema.ts'
 import { decodeOffchainPass, fromSignedJson } from '../src/eas/offchain.ts'
+import {
+  purgeSensitiveEntries,
+  sensitiveEntryLogsJob,
+  SENSITIVE_ENTRY_RETENTION_SECONDS,
+} from '../src/passes/entry-log-retention.ts'
 import { appWith, fakeChain } from './env.ts'
 import { configuredEnv, NOW, ROOT, seedRoot } from './fixtures.ts'
 import { CARD_INPUT, getJson, postJson, registerVenueWithCard, signIn } from './operator.ts'
@@ -158,6 +166,8 @@ const present = async (
 
 describe('sensitive use', () => {
   beforeEach(async () => {
+    await db().delete(stampCredits)
+    await db().delete(receptionRequests)
     await db().delete(memberSecretCopies)
     await db().delete(memberVaults)
     await db().delete(memberSecretOutcomes)
@@ -173,6 +183,206 @@ describe('sensitive use', () => {
     await env.DB.prepare('DELETE FROM accounts').run()
     await env.DB.prepare('DELETE FROM issuers').run()
     await env.DB.prepare('DELETE FROM rate_limits').run()
+  })
+
+  describe('entry retention', () => {
+    it('stores only uid, time, and row id for signed decisions and QR rejection', async () => {
+      const ctx = await setup()
+      const key = newKey()
+      const { qr, uid } = await ctx.claim(key.address)
+      const admitted = await present(ctx, uid, key.signMessage)
+      await expect(admitted.json()).resolves.toMatchObject({
+        decision: 'ADMIT',
+      })
+      const rejected = await present(ctx, uid, newKey().signMessage)
+      await expect(rejected.json()).resolves.toMatchObject({
+        reason: 'BAD_SIGNATURE',
+      })
+      await ctx.send('POST', '/v1/verify', { qr })
+      const rows = await db().select().from(entryLog)
+      expect(rows).toHaveLength(3)
+      for (const row of rows) {
+        expect(row).toStrictEqual({
+          at: NOW,
+          attendanceUid: null,
+          decision: null,
+          id: row.id,
+          path: null,
+          reason: null,
+          receptionId: null,
+          uid,
+        })
+      }
+    })
+
+    it('expires Sensitive reception receipts with their logs and keeps retries harmless', async () => {
+      const ctx = await setup()
+      const { qr, uid } = await ctx.claim(newKey().address)
+      const requestId = crypto.randomUUID()
+      const reception = await ctx.send('POST', '/v1/issuers/me/reception', { qr, requestId }, ctx.operator)
+      const receipt = await reception.json()
+      const repeated = await ctx.send('POST', '/v1/issuers/me/reception', { qr, requestId }, ctx.operator)
+      await expect(repeated.json()).resolves.toStrictEqual(receipt)
+      await expect(db().select().from(entryLog)).resolves.toMatchObject([
+        { decision: null, path: null, reason: null, receptionId: null, uid },
+      ])
+      await sensitiveEntryLogsJob(
+        createScheduledController({ scheduledTime: (NOW + SENSITIVE_ENTRY_RETENTION_SECONDS + 1) * 1000 }),
+        // SAFETY: this scheduled job reads only DB; the test omits Void's unused default bindings.
+        ctx.bindings as Parameters<typeof sensitiveEntryLogsJob>[1],
+        createExecutionContext(),
+      )
+      expect({
+        logs: await db().select().from(entryLog),
+        receipts: await db().select().from(receptionRequests),
+      }).toStrictEqual({ logs: [], receipts: [] })
+      await expect(purgeSensitiveEntries(env.DB, NOW + SENSITIVE_ENTRY_RETENTION_SECONDS + 1)).resolves.toBe(
+        0,
+      )
+      const after = await ctx.send('POST', '/v1/issuers/me/reception', { qr, requestId }, ctx.operator)
+      await expect(after.json()).resolves.toMatchObject({ decision: 'REJECT', reason: 'LEVEL_REQUIRED' })
+    })
+
+    it('keeps the retention boundary and other cards, including stamped entries and receipts', async () => {
+      const ctx = await setup()
+      const key = newKey()
+      const { uid } = await ctx.claim(key.address)
+      await present(ctx, uid, key.signMessage)
+      const recent = await ctx.claim(newKey().address)
+      await ctx.send('POST', '/v1/verify', { qr: recent.qr })
+      await db()
+        .update(entryLog)
+        .set({ at: NOW + 1 })
+        .where(eq(entryLog.uid, recent.uid))
+      const recentLogs = await db().select().from(entryLog).where(eq(entryLog.uid, recent.uid))
+
+      await ctx.send(
+        'POST',
+        '/v1/issuers/cards',
+        { ...CARD_INPUT.card, record: 'offchain', slug: 'standard' },
+        ctx.operator,
+      )
+      const claimed = await ctx.send('POST', `/v1/issuers/${CARD_INPUT.handle}/standard/issue`, {})
+      const standard = await claimed.json<Issued>()
+      await ctx.send('POST', '/v1/verify', { qr: standard.qr })
+      const standardCard = await db().select().from(cards).where(eq(cards.slug, 'standard')).get()
+      await ctx.send(
+        'PUT',
+        `/v1/issuers/me/cards/${standardCard?.id}/stamps`,
+        { dailyLimit: 1, enabled: true, goal: 10 },
+        ctx.operator,
+      )
+      const stamped = await ctx.send(
+        'POST',
+        '/v1/issuers/me/reception',
+        { qr: standard.qr, requestId: crypto.randomUUID() },
+        ctx.operator,
+      )
+      await expect(stamped.json()).resolves.toMatchObject({ stamp: { status: 'awarded' } })
+      const keptLogs = await db().select().from(entryLog).where(eq(entryLog.uid, standard.uid))
+      const keptCredits = await db().select().from(stampCredits)
+      const keptReceipts = await db().select().from(receptionRequests)
+
+      await expect(purgeSensitiveEntries(env.DB, NOW + SENSITIVE_ENTRY_RETENTION_SECONDS)).resolves.toBe(0)
+      await expect(purgeSensitiveEntries(env.DB, NOW + SENSITIVE_ENTRY_RETENTION_SECONDS + 1)).resolves.toBe(
+        1,
+      )
+      expect({
+        credits: await db().select().from(stampCredits),
+        logs: await db().select().from(entryLog).orderBy(entryLog.id),
+        receipts: await db().select().from(receptionRequests),
+      }).toStrictEqual({ credits: keptCredits, logs: [...recentLogs, ...keptLogs], receipts: keptReceipts })
+      const foreignKeys = await env.DB.prepare('PRAGMA foreign_key_check').all()
+      expect(foreignKeys.results).toStrictEqual([])
+    })
+
+    it('keeps single use consumed after its log is purged without retaining the entry time', async () => {
+      const ctx = await setup({ category: 'ticket', validityDays: null })
+      const key = newKey()
+      const { uid } = await ctx.claim(key.address)
+      const admitted = await present(ctx, uid, key.signMessage)
+      await expect(admitted.json()).resolves.toMatchObject({ decision: 'ADMIT' })
+      await expect(db().select().from(slots)).resolves.toStrictEqual([
+        { consumedAt: 0, slot: 'default', uid },
+      ])
+      await expect(purgeSensitiveEntries(env.DB, NOW + SENSITIVE_ENTRY_RETENTION_SECONDS + 1)).resolves.toBe(
+        1,
+      )
+      await expect(db().select().from(entryLog)).resolves.toStrictEqual([])
+      const replay = await present(ctx, uid, key.signMessage)
+      const list = await getJson(ctx.app, ctx.bindings, '/v1/issuers/me/passes', ctx.operator)
+      expect({ list: await list.json(), replay: await replay.json() }).toMatchObject({
+        list: {
+          cardStats: [{ active: 0, issued: 1, unknown: 0 }],
+          page: { total: 1 },
+          passes: [{ stamps: 0, status: 'consumed', uid }],
+          summary: { active: 0, stamps: 0, total: 1, unknown: 0 },
+        },
+        replay: { decision: 'REJECT', reason: 'ALREADY_USED' },
+      })
+    })
+
+    it('leaves member and dashboard counts intact with no retained entries', async () => {
+      const ctx = await setup()
+      const key = newKey()
+      const { uid } = await ctx.claim(key.address)
+      await present(ctx, uid, key.signMessage)
+      await purgeSensitiveEntries(env.DB, NOW + SENSITIVE_ENTRY_RETENTION_SECONDS + 1)
+      await expect(db().select().from(entryLog)).resolves.toStrictEqual([])
+      const listed = await getJson(ctx.app, ctx.bindings, '/v1/issuers/me/passes', ctx.operator)
+      expect(listed.status).toBe(200)
+      await expect(listed.json()).resolves.toMatchObject({
+        cardStats: [{ active: 1, issued: 1, unknown: 0 }],
+        page: { total: 1 },
+        passes: [{ stamps: 0, status: 'active', uid }],
+        summary: { active: 1, stamps: 0, total: 1, unknown: 0 },
+      })
+      const membersList = await getJson(ctx.app, ctx.bindings, '/v1/members', ctx.operator)
+      await expect(membersList.json()).resolves.toMatchObject({
+        members: [{ holder: null, sensitive: true, uid }],
+      })
+    })
+
+    it('bounds a run and drains the remainder harmlessly on retry', async () => {
+      const { claim } = await setup()
+      const { uid } = await claim(newKey().address)
+      await env.DB.prepare(`
+        WITH RECURSIVE rows(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM rows WHERE n < 801)
+        INSERT INTO entry_log (uid, at) SELECT ?1, ?2 FROM rows
+      `)
+        .bind(uid, NOW)
+        .run()
+      await expect(purgeSensitiveEntries(env.DB, NOW + SENSITIVE_ENTRY_RETENTION_SECONDS + 1)).resolves.toBe(
+        800,
+      )
+      await expect(db().select().from(entryLog)).resolves.toHaveLength(1)
+      await expect(purgeSensitiveEntries(env.DB, NOW + SENSITIVE_ENTRY_RETENTION_SECONDS + 1)).resolves.toBe(
+        1,
+      )
+      await expect(purgeSensitiveEntries(env.DB, NOW + SENSITIVE_ENTRY_RETENTION_SECONDS + 1)).resolves.toBe(
+        0,
+      )
+    })
+
+    it('also removes stale Sensitive challenges if no later challenge mint sweeps them', async () => {
+      const ctx = await setup()
+      const key = newKey()
+      const { uid } = await ctx.claim(key.address)
+      await present(ctx, uid, key.signMessage)
+      await expect(db().select().from(challenges).where(eq(challenges.uid, uid))).resolves.toHaveLength(1)
+      await db()
+        .insert(challenges)
+        .values([
+          { createdAt: NOW, nonce: 'unrelated', uid: 'unrelated' },
+          { createdAt: NOW + 1, nonce: 'recent', uid },
+        ])
+      await purgeSensitiveEntries(env.DB, NOW + SENSITIVE_ENTRY_RETENTION_SECONDS + 1)
+      const left = await db().select().from(challenges).where(eq(challenges.uid, uid))
+      expect(left).toMatchObject([{ createdAt: NOW + 1, nonce: 'recent', usedAt: null }])
+      await expect(
+        db().select().from(challenges).where(eq(challenges.nonce, 'unrelated')),
+      ).resolves.toHaveLength(1)
+    })
   })
 
   describe('recovery integrity', () => {
