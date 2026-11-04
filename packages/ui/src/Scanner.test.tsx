@@ -4,8 +4,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { Scanner } from './Scanner.tsx'
 
-// happy-dom has no BarcodeDetector, so every render here takes the
-// camera-unavailable branch — the same one a keyboard-wedge scanner runs in.
+// happy-dom has no navigator.mediaDevices, so getUserMedia fails and every
+// render here takes the camera-unavailable branch, the same one a desk with a
+// denied or missing camera runs in.
 const mount = (props: { autoFocus?: boolean; cameraMode?: 'auto' | 'off' }): HTMLElement => {
   const host = document.createElement('div')
   document.body.append(host)

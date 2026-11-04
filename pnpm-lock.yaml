@@ -405,6 +405,9 @@ importers:
       hono:
         specifier: ^4.13.16
         version: 4.13.16
+      jsqr:
+        specifier: 1.4.0
+        version: 1.4.0
       solid-js:
         specifier: 1.9.17
         version: 1.9.17
@@ -4795,6 +4798,9 @@ packages:
     resolution: {integrity: sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg==}
     engines: {node: '>=6'}
     hasBin: true
+
+  jsqr@1.4.0:
+    resolution: {integrity: sha512-dxLob7q65Xg2DvstYkRpkYtmKm2sPJ9oFhrhmudT1dZvNFFTlroai3AWSpLey/w5vMcLBXRgOJsbXpdN9HzU/A==}
 
   jsonc-parser@3.3.1:
     resolution: {integrity: sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==}
@@ -9482,6 +9488,8 @@ snapshots:
   json-stream-stringify@3.1.7: {}
 
   json5@2.2.3: {}
+
+  jsqr@1.4.0: {}
 
   jsonc-parser@3.3.1: {}
 
