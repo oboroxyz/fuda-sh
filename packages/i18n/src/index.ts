@@ -6,20 +6,32 @@ export type Copy<T> = Record<Locale, T>
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- this predicate validates persisted browser input
 export const isLocale = (value: unknown): value is Locale => value === 'en' || value === 'ja'
 
+interface Ranked {
+  locale: Locale
+  quality: number
+}
+
+// One Accept-Language range as a ja or en candidate; null for any other
+// language, for `q=0` (refused) and for a quality that is not a number.
+const rankedRange = (range: string): Ranked | null => {
+  const [tag = '', ...params] = range.split(';').map((part) => part.trim().toLowerCase())
+  const [locale] = tag.split('-')
+  if (!isLocale(locale)) {
+    return null
+  }
+  const q = params.find((param) => param.startsWith('q='))
+  const quality = q === undefined ? 1 : Number(q.slice(2))
+  return Number.isFinite(quality) && quality > 0 ? { locale, quality } : null
+}
+
 // The language an Accept-Language header asks for most: the highest-quality
-// `ja` or `en` range, the earlier one on a tie. Other ranges and `q=0` ignored.
+// `ja` or `en` range, the earlier one on a tie.
 const preferredLocale = (acceptLanguage: string): Locale | null => {
-  let best: { locale: Locale; quality: number } | null = null
+  let best: Ranked | null = null
   for (const range of acceptLanguage.split(',')) {
-    const [tag = '', ...params] = range.split(';').map((part) => part.trim().toLowerCase())
-    const [primary] = tag.split('-')
-    if (primary !== 'en' && primary !== 'ja') {
-      continue
-    }
-    const q = params.find((param) => param.startsWith('q='))
-    const quality = q === undefined ? 1 : Number(q.slice(2))
-    if (Number.isFinite(quality) && quality > 0 && (best === null || quality > best.quality)) {
-      best = { locale: primary, quality }
+    const ranked = rankedRange(range)
+    if (ranked !== null && (best === null || ranked.quality > best.quality)) {
+      best = ranked
     }
   }
   return best?.locale ?? null
