@@ -1,7 +1,9 @@
 import { ClaimSource, isCardSlugReference, isClaimable, isIssuerHandle } from '@fuda/sdk'
+import type { Context } from 'hono'
 import * as v from 'valibot'
 import { defineHandler } from 'void'
 
+import type { AppEnv } from '../env.ts'
 import { issueForCard } from '../issue/issue-for-card.ts'
 import type { CardIssueError } from '../issue/issue-for-card.ts'
 import { venueOf } from '../issuers/queries.ts'
@@ -28,6 +30,26 @@ const ClaimBody = v.object({ source: ClaimSource })
 // Read apart from the source so a mangled label never costs the member their token.
 const ClaimToken = v.object({ turnstileToken: v.string() })
 
+// The one bot check for every claim of this route, whatever the card type. It
+// runs before any place is reserved. Without a secret the deployment has not
+// opted in, which is how local development and the tests run.
+const botCheck = async (c: Context<AppEnv>, token: string | null): Promise<Response | null> => {
+  const secret = c.env.TURNSTILE_SECRET_KEY
+  if (secret === undefined || secret === '') {
+    return null
+  }
+  const verdict = await verifyTurnstile({
+    // rateLimit has already refused a request without this header.
+    ip: c.req.header('CF-Connecting-IP') ?? '',
+    secret,
+    token,
+  })
+  if (verdict === 'failed') {
+    return errorResponse(c, 'bot_check_failed', 403)
+  }
+  return verdict === 'unavailable' ? errorResponse(c, 'bot_check_unavailable', 503) : null
+}
+
 export const postV1IssuersHandleSlugIssue = defineHandler(
   rateLimit({ budget: SELF_SERVE_BUDGET }),
   async (c) => {
@@ -45,24 +67,10 @@ export const postV1IssuersHandleSlugIssue = defineHandler(
       return errorResponse(c, 'card_closed', 409)
     }
     const json: unknown = await c.req.json().catch(() => null)
-    // The one bot check for every claim of this route, whatever the card type. It
-    // runs before any place is reserved. Without a secret the deployment has
-    // not opted in, which is how local development and the tests run.
-    const secret = c.env.TURNSTILE_SECRET_KEY
-    if (secret !== undefined && secret !== '') {
-      const token = v.safeParse(ClaimToken, json)
-      const verdict = await verifyTurnstile({
-        // rateLimit has already refused a request without this header.
-        ip: c.req.header('CF-Connecting-IP') ?? '',
-        secret,
-        token: token.success ? token.output.turnstileToken : null,
-      })
-      if (verdict === 'failed') {
-        return errorResponse(c, 'bot_check_failed', 403)
-      }
-      if (verdict === 'unavailable') {
-        return errorResponse(c, 'bot_check_unavailable', 503)
-      }
+    const claimToken = v.safeParse(ClaimToken, json)
+    const refused = await botCheck(c, claimToken.success ? claimToken.output.turnstileToken : null)
+    if (refused !== null) {
+      return refused
     }
     const body = v.safeParse(ClaimBody, json)
     const outcome = await issueForCard(c, card, venue.issuer, body.success ? body.output.source : null)

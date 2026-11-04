@@ -38,7 +38,7 @@ export type ClaimToken = { ok: true; token: string | null } | { ok: false }
 
 let loading: Promise<TurnstileApi> | null = null
 
-export const loadTurnstile = async (): Promise<TurnstileApi> => {
+const loadTurnstile = async (): Promise<TurnstileApi> => {
   // oxlint-disable-next-line promise/avoid-new -- bridges the script tag's load events into a promise
   loading ??= new Promise<TurnstileApi>((resolve, reject) => {
     const script = document.createElement('script')

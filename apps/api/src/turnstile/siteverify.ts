@@ -4,7 +4,7 @@ const SITEVERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverif
 
 // The widget action the member app renders for a claim. Siteverify echoes it
 // back, so a token minted for another widget action does not open this route.
-export const CLAIM_ACTION = 'claim'
+const CLAIM_ACTION = 'claim'
 
 // Cloudflare documents tokens as at most 2048 characters.
 const MAX_TOKEN_LENGTH = 2048
