@@ -165,6 +165,7 @@ const unixOrNull = v.optional(v.nullable(v.pipe(v.number(), v.integer(), v.minVa
 export const CARD_CAPACITY_MAX = 1_000_000
 
 const CardFields = v.object({
+  attendance: v.optional(v.boolean()),
   capacity: v.optional(
     v.nullable(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(CARD_CAPACITY_MAX))),
     null,
@@ -195,6 +196,10 @@ export const ClaimSource = v.pipe(v.string(), v.regex(/^[a-z0-9_-]{1,40}$/u))
 export const CardBody = v.pipe(
   CardFields,
   v.check(
+    (card: CardFieldsOutput) => card.attendance === undefined || card.record === 'onchain',
+    'attendance applies only to an on-chain card',
+  ),
+  v.check(
     (card: CardFieldsOutput) => hasSingleValidityRule(card),
     'a card expires either after N days or between two dates, not both',
   ),
@@ -216,6 +221,7 @@ export const CardBody = v.pipe(
 // issuer, slug and creation time. Strictness makes those immutable fields (and
 // any future unknown field) a bad request instead of silently ignoring them.
 const CardUpdateFields = v.strictObject({
+  attendance: v.optional(v.boolean()),
   category: CardFields.entries.category,
   claimFrom: v.nullable(unix),
   claimUntil: v.nullable(unix),

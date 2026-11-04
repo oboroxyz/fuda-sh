@@ -46,6 +46,7 @@ const designer = (overrides: Partial<CardDesignerViewProps> = {}): CardDesignerV
   logo: EMPTY_LOGO,
   logoCopy: DASH_COPY.en.logo,
   mode: 'card',
+  onAttendance: vi.fn<CardDesignerViewProps['onAttendance']>(),
   onCategory: vi.fn<CardDesignerViewProps['onCategory']>(),
   onEditProfile: vi.fn<CardDesignerViewProps['onEditProfile']>(),
   onField: vi.fn<CardDesignerViewProps['onField']>(),
@@ -177,6 +178,20 @@ describe(CardDesignerView, () => {
     })
     expect(inputWithId(designer(), 'perk')).toBe(false)
     expect(inputWithId(designer(), 'reward')).toBe(false)
+  })
+
+  it('shows the Attendance switch on an on-chain card only, and reports a flip', () => {
+    expect(inputWithId(designer({ form: { ...filled, record: 'offchain' } }), 'attendance')).toBe(false)
+    cleanup()
+    const onAttendance = vi.fn<CardDesignerViewProps['onAttendance']>()
+    const host = showDesigner(
+      designer({ form: { ...filled, attendance: false, record: 'onchain' }, onAttendance }),
+    )
+    const toggle = host.querySelector<HTMLInputElement>('#attendance')
+    expect(toggle?.checked).toBe(false)
+    toggle?.click()
+    expect(onAttendance).toHaveBeenCalledWith(true)
+    expect(spacedText(host)).toContain(DASH_COPY.en.designer.attendanceLabel)
   })
 
   it('previews the venue name and title in the brand colour', () => {

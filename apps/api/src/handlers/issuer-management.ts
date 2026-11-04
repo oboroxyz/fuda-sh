@@ -49,16 +49,31 @@ export const putV1IssuersMeCardsCardId = defineHandler(operatorAuth(), async (c)
   if (issuerId === null) {
     return errorResponse(c, 'not_found', 404)
   }
-  const { venue, ...editable } = parsed.output
+  const { attendance, venue, ...editable } = parsed.output
+  if (attendance !== undefined) {
+    // Refused on an off-chain card, and a card that is not the operator's reads
+    // as missing, so this lookup does not reveal which cards exist.
+    const current = await ownedCard(c, c.req.param().cardId)
+    if (current === undefined) {
+      return errorResponse(c, 'not_found', 404)
+    }
+    if (current.record !== 'onchain') {
+      return errorResponse(c, 'bad_input', 400)
+    }
+  }
+  const changes: Partial<typeof cards.$inferInsert> = {
+    ...editable,
+    lockScreen: editable.lockScreen ? 1 : 0,
+    venueLat: venue?.lat ?? null,
+    venueLng: venue?.lng ?? null,
+  }
+  if (attendance !== undefined) {
+    changes.attendance = attendance ? 1 : 0
+  }
   const update = c
     .get('db')
     .update(cards)
-    .set({
-      ...editable,
-      lockScreen: editable.lockScreen ? 1 : 0,
-      venueLat: venue?.lat ?? null,
-      venueLng: venue?.lng ?? null,
-    })
+    .set(changes)
     .where(and(eq(cards.id, c.req.param().cardId), eq(cards.issuerId, issuerId)))
     .returning()
   const [updatedRows] =

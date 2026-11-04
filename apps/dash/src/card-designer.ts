@@ -2,6 +2,7 @@ import {
   CardBody,
   CardUpdateBody,
   cardSlugProblem,
+  defaultAttendance,
   hasSingleValidityRule,
   isClaimable,
   issuerHandleProblem,
@@ -67,6 +68,10 @@ export const formatInstant = (seconds: number): string => localFromUnix(seconds)
 export type DesignerMode = 'card'
 
 export interface DesignerForm {
+  // Whether a scan writes a public Attendance; sent for an on-chain card only.
+  attendance: boolean
+  // True once the operator flipped the switch; the card type stops choosing it.
+  attendanceEdited: boolean
   brandColor: string
   category: CardCategory
   identity: CardIdentity
@@ -118,6 +123,8 @@ const categoryWindows = (category: CardCategory): CategoryWindows => ({
 })
 
 export const EMPTY_FORM: DesignerForm = {
+  attendance: false,
+  attendanceEdited: false,
   brandColor: DEFAULT_BRAND_COLOR,
   category: 'membership',
   claimFrom: '',
@@ -143,8 +150,12 @@ export const EMPTY_FORM: DesignerForm = {
 
 // Switching the card type carries its defaults in, until the operator has set
 // a window by hand; after that the type never overwrites the operator.
-export const withCategory = (form: DesignerForm, category: CardCategory): DesignerForm =>
-  form.windowEdited ? { ...form, category } : { ...form, ...categoryWindows(category), category }
+export const withCategory = (form: DesignerForm, category: CardCategory): DesignerForm => {
+  const attendance = form.attendanceEdited ? {} : { attendance: defaultAttendance(category, 'onchain') }
+  return form.windowEdited
+    ? { ...form, ...attendance, category }
+    : { ...form, ...attendance, ...categoryWindows(category), category }
+}
 
 // The three modes are exclusive, so choosing one clears the other's fields and
 // the submitted body can never carry two rules.
@@ -244,7 +255,9 @@ export const windowProblemOf = (form: DesignerForm): WindowProblem | null => {
 // One card's request body, or null while the form is not yet a valid one.
 export const cardBodyFrom = (form: DesignerForm): CardRequest | null => {
   const venue = form.lockScreen && form.venue !== null ? { venue: form.venue } : {}
+  const attendance = form.record === 'onchain' ? { attendance: form.attendance } : {}
   const parsed = v.safeParse(CardBody, {
+    ...attendance,
     category: form.category,
     description: form.description,
     identity: form.identity,
@@ -269,6 +282,9 @@ export const cardUpdateBodyFrom = (form: DesignerForm): CardUpdateRequest | null
   if (form.venue !== null) {
     input.venue = form.venue
   }
+  if (form.record === 'onchain') {
+    input.attendance = form.attendance
+  }
   const parsed = v.safeParse(CardUpdateBody, input)
   return parsed.success ? parsed.output : null
 }
@@ -284,6 +300,8 @@ const validityModeOf = (card: CardView): ValidityMode => {
 // Preserve them, and never regenerate an existing public slug from its title.
 export const formFromCard = (card: OperatorCardView): DesignerForm => ({
   ...EMPTY_FORM,
+  attendance: card.attendance,
+  attendanceEdited: true,
   category: card.category,
   claimFrom: localFromUnix(card.claimFrom, true),
   claimUntil: localFromUnix(card.claimUntil, true),

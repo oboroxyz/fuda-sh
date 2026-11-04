@@ -52,6 +52,7 @@ export interface CardDesignerViewProps {
   onCategory: (category: CardCategory) => void
   onIdentity: (identity: CardIdentity) => void
   onRecord: (record: CardRecord) => void
+  onAttendance: (enabled: boolean) => void
   onEditProfile: () => void
   onField: <K extends keyof DesignerForm>(key: K, value: DesignerForm[K]) => void
   onLockScreen: (on: boolean) => void
@@ -437,6 +438,24 @@ export const CardDesignerView = (props: CardDesignerViewProps): JSX.Element => {
             </select>
             <p class="text-moderate text-sm">{props.copy.recordHint}</p>
           </div>
+
+          {props.form.record === 'onchain' ? (
+            <div class="flex flex-col gap-1">
+              <label class="flex items-center gap-2" for="attendance">
+                <input
+                  checked={props.form.attendance}
+                  class="toggle"
+                  id="attendance"
+                  onInput={(e) => {
+                    props.onAttendance(e.currentTarget.checked)
+                  }}
+                  type="checkbox"
+                />
+                <span>{props.copy.attendanceLabel}</span>
+              </label>
+              <span class="text-sm opacity-70">{props.copy.attendanceHint}</span>
+            </div>
+          ) : null}
 
           <div class="flex flex-col gap-1">
             <label for="identity">{props.copy.identityLabel}</label>

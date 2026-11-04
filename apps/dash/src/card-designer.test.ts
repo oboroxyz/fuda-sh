@@ -83,6 +83,21 @@ describe(cardBodyFrom, () => {
     expect(cardBodyFrom({ ...filled, record: 'onchain', slug: 'summer' })?.record).toBe('onchain')
   })
 
+  it('sends the Attendance switch for an on-chain card and leaves it out for an off-chain one', () => {
+    const onchain = { ...filled, attendance: true, record: 'onchain' as const, slug: 'summer' }
+    expect(cardBodyFrom(onchain)?.attendance).toBe(true)
+    expect(cardBodyFrom({ ...onchain, attendance: false })?.attendance).toBe(false)
+    expect(cardBodyFrom({ ...onchain, record: 'offchain' })?.attendance).toBeUndefined()
+  })
+
+  it('starts the switch on for a ticket and off for a membership until the operator flips it', () => {
+    expect(withCategory(EMPTY_FORM, 'ticket').attendance).toBe(true)
+    expect(withCategory(withCategory(EMPTY_FORM, 'ticket'), 'membership').attendance).toBe(false)
+    const flipped = { ...withCategory(EMPTY_FORM, 'ticket'), attendance: false, attendanceEdited: true }
+    expect(withCategory(flipped, 'membership').attendance).toBe(false)
+    expect(withCategory(flipped, 'ticket').attendance).toBe(false)
+  })
+
   it('maps the card fields, its slug and an expiry in days', () => {
     const body = cardBodyFrom({ ...filled, category: 'ticket', slug: 'summer', validityDays: 30 })
     expect(body?.slug).toBe('summer')

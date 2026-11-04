@@ -296,7 +296,7 @@ Two writes are deliberately non-atomic across the chain and D1; check both after
   void db execute --remote "SELECT id, uid, at FROM entry_log WHERE decision = 'ADMIT' AND attendance_uid IS NULL"
   ```
 
-The query also includes +Private admissions, which intentionally have no Attendance. Check the right's level before treating a row as a failure; `members.level` can help when a matching operational row exists. For mainnet, run the same command from `apps/api/targets/production`.
+The query also includes +Private admissions and every scan of a Card that has Attendance off (memberships by default), which intentionally have no Attendance. Check the right's level before treating a row as a failure; `members.level` can help when a matching operational row exists. For mainnet, run the same command from `apps/api/targets/production`.
 
 ## 12. Local development
 
@@ -576,6 +576,10 @@ Apply `0017_connected_apps.sql` before deploying the api and dashboard that carr
 ### Card capacity and source migration
 
 `0020_card_capacity_and_source.sql` adds `capacity` and `reserved` to `cards` and `source` to `members`, and fills `reserved` from the passes each card has issued. Apply it before deploying the api. Self-serve claims are counted by `reserved` from then on, so older api code running after this migration would leave the count behind; deploy straight after migrating.
+
+### Card Attendance migration
+
+Apply `0028_card_attendance.sql` before deploying the api. It adds `cards.attendance` and turns it on for every existing on-chain ticket; every other card, memberships included, starts off. Until the column exists the new api cannot read it, so it logs a warning and writes no Attendance for an on-chain scan; admissions still succeed. Deploy the api right after migrating: older api code keeps writing an Attendance for every on-chain scan and ignores the setting. After deploying, scan an on-chain ticket and an on-chain membership on Base Sepolia. The ticket's entry gets an Attendance attestation within a few blocks (`entry_log.attendance_uid` is set), the membership's does not.
 
 ### Several issuers per account migration
 

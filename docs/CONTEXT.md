@@ -106,7 +106,7 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Subject key**: The opaque value a verifier returns to identify the person behind a Badge within one `(verifier, scope)` pair and nowhere else — the whole of what fuda stores about that person. For the `human` Badge it is a World ID 4.0 uniqueness nullifier, scoped to the relying party and the action, and stable for the same person and action whichever of the accepted credentials proved it — the credential is not part of the derivation; that stability is what the one-person-one-Badge rule rests on, and it is confirmed by World's documentation and protocol source rather than by a device measurement (see [the World ID research notes](research/world-id-2026-09-26.md)). A verifier that can only return a globally stable identifier must have it hashed together with the scope before storage. _Avoid_: nullifier (that is one verifier's name for it), user id, pseudonym
 
-**Attendance**: The on-chain evidence of a public Right’s Entry. +Private Entries have no Attendance, so their visit history stays offchain. _Avoid_: Entry record, stamp, proof of attendance
+**Attendance**: The on-chain evidence of a public Right’s Entry. A Card has it on or off, and only an on-chain Card can have it on: a ticket starts on and a membership starts off. +Private Entries have no Attendance, so their visit history stays offchain. _Avoid_: Entry record, stamp, proof of attendance
 
 ### Changing a right
 

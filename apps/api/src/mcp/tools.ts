@@ -56,6 +56,7 @@ export const issuerOf = async (db: Db, issuerId: string): Promise<typeof issuers
 
 const toolCard = ({ c, issuer }: ToolContext, row: typeof cards.$inferSelect) => ({
   ...cardView(row, c.get('now')()),
+  attendance: row.attendance !== 0,
   capacity: row.capacity,
   claimUrl: `${publicUrlFor(c.env.PUBLIC_BASE_URL, issuer.handle)}/${row.slug}`,
   issued: row.reserved,
@@ -136,6 +137,11 @@ export const MCP_TOOLS: readonly McpTool[] = [
     inputSchema: {
       type: 'object',
       properties: {
+        attendance: {
+          type: 'boolean',
+          description:
+            "Whether each scan writes a public Attendance record on chain, which is permanent. Only for record 'onchain', where a ticket defaults to true and a membership to false; setting it on an off-chain card is refused.",
+        },
         category: { type: 'string', enum: CARD_CATEGORIES },
         capacity: capacitySchema,
         title: { type: 'string', minLength: 1, maxLength: 60 },
