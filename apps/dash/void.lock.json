@@ -7,7 +7,10 @@
         "custom_domain": true,
         "pattern": "dash.fuda.sh"
       }
-    ]
+    ],
+    "vars": {
+      "API_BASE_URL": "http://127.0.0.1:8797"
+    }
   },
   "resolved": {
     "name": "fuda-dash",
@@ -19,7 +22,10 @@
     ],
     "account_id": "4d8de8be5b03d5f77ca1be4e3c0db5b2",
     "keep_vars": true,
-    "compatibility_date": "2025-09-01"
+    "compatibility_date": "2025-09-01",
+    "vars": {
+      "API_BASE_URL": "http://127.0.0.1:8797"
+    }
   },
-  "text": "{\n  \"name\": \"fuda-dash\",\n  \"routes\": [\n    {\n      \"custom_domain\": true,\n      \"pattern\": \"dash.fuda.sh\"\n    }\n  ],\n  \"account_id\": \"4d8de8be5b03d5f77ca1be4e3c0db5b2\",\n  \"keep_vars\": true,\n  \"compatibility_date\": \"2025-09-01\"\n}\n"
+  "text": "{\n  \"name\": \"fuda-dash\",\n  \"routes\": [\n    {\n      \"custom_domain\": true,\n      \"pattern\": \"dash.fuda.sh\"\n    }\n  ],\n  \"account_id\": \"4d8de8be5b03d5f77ca1be4e3c0db5b2\",\n  \"keep_vars\": true,\n  \"compatibility_date\": \"2025-09-01\",\n  \"vars\": {\n    \"API_BASE_URL\": \"http://127.0.0.1:8797\"\n  }\n}\n"
 }

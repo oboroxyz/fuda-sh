@@ -8,7 +8,9 @@ It records the vocabulary of the product design, independently of what is built:
 
 ### The right
 
-**Right**: A membership entitlement that lives on-chain as an EAS `Entitlement` attestation; the source of truth for what a member may do. _Avoid_: Membership, entitlement (as a prose noun), pass, ticket, card
+**Right**: A membership entitlement; the source of truth for what a member may do. It is either a signed EAS offchain attestation held by fuda or an on-chain EAS `Entitlement` attestation, as its Card's record decides. _Avoid_: Membership, entitlement (as a prose noun), pass, ticket, card
+
+**Card record**: Where a Card's Rights are recorded, fixed when the Card is created: `offchain` (the default) signs each Right with no transaction and no holder address, and `onchain` attests each Right publicly. _Avoid_: Mode, storage, chain type
 
 **Pass**: A presentation of a Right — a Device wallet pass (`.pkpass` / Google Wallet object) or the browser-based pass page carrying the Right's QR. A Pass is not the Right, and lives in the Device wallet, never in the Crypto wallet. _Avoid_: Ticket, card, credential
 

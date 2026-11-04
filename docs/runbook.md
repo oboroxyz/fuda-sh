@@ -446,6 +446,15 @@ Five routes use the fixed hourly D1 counter and require `CF-Connecting-IP`:
 
 The counter is keyed by IP and hour, not route: requests across these routes share a count, with each route applying its own threshold. Rejected requests also increment it. Announcement discovery is a browser-to-Graph query and does not pass through the API. The gate routes (`/verify`, `/challenge`, `/verify-signed`) and the admin routes (`/issue`, `/revoke`, `/members`) are never budgeted.
 
+## Offchain revocations still to send
+
+An offchain pass is rejected as soon as `members.status` is `revoked`, but the public record may lag if the transaction failed. Nothing retries it automatically yet. List the passes behind and revoke each again:
+
+```sql
+SELECT o.uid FROM offchain_attestations o JOIN members m ON m.attestation_uid = o.uid
+WHERE m.status = 'revoked' AND o.revoke_tx IS NULL;
+```
+
 ## Mainnet cutover
 
 Today's `develop` target in `apps/api/targets.jsonc` is the Base Sepolia deployment that owns `api.fuda.sh` and its sibling hostnames. At release it keeps the Sepolia chain and becomes the internal **develop** environment (branch `develop`), while the `production` target takes mainnet and the apex hostnames.
@@ -460,7 +469,7 @@ Nothing is migrated. A Sepolia Entitlement is meaningless on mainnet, so product
 | Hostnames | `*.dev.fuda.sh` after the cutover | `*.fuda.sh` |
 | Chain id | `84532` | `8453` |
 
-EAS and the SchemaRegistry are OP-stack predeploys at the same addresses on both networks, so those two `vars` do not change. The ERC-5564 Announcer is a separate deployment: confirm the mainnet address before reusing the Sepolia one rather than assuming the singleton is at the same place.
+EAS and the SchemaRegistry are OP-stack predeploys at the same addresses on both networks, so those two `vars` do not change. Their versions differ, though: `EAS_VERSION` is `1.4.1-beta.3` on Base Sepolia and `1.0.1` on Base mainnet, and offchain signatures commit to it. Read `version()` on the contract before deploying. The ERC-5564 Announcer is a separate deployment: confirm the mainnet address before reusing the Sepolia one rather than assuming the singleton is at the same place.
 
 The `production` target deliberately carries `routes: []`. Adding a custom domain there before the Sepolia deployment has moved off it would take a live hostname away from the running beta, so the order matters:
 
@@ -470,7 +479,7 @@ The `production` target deliberately carries `routes: []`. Adding a custom domai
 4. Apply migrations against the new database (`pnpm --filter api migrate:production`) and deploy with no routes (`pnpm --filter api run deploy:production`); smoke it on its `workers.dev` hostname.
 5. Move the Sepolia deployment to `*.dev.fuda.sh`, then add the apex custom domains to the `production` target and redeploy both.
 6. Redeploy the three frontends with the production `VITE_*` values. Each Worker's `API_BASE_URL` var decides which api it talks to, so a develop deployment must point at the develop api.
-7. Change the passkey wallet's chain id. `apps/app/src/base-account.ts` and `apps/dash/src/wallet.ts` construct the Base Account SDK with Base Sepolia and Ethereum Sepolia; a mainnet build must pass `8453` in place of `84_532` or the operator signs against the wrong network. This is source, not a `VITE_*` value, so a rebuild alone does not fix it.
+7. Change the passkey wallet's chain id. `apps/app/src/base-account.ts` and `apps/dash/src/wallet.ts` construct the Base Account SDK with Base Sepolia and Ethereum Sepolia; a mainnet build must pass `8453` in place of `84_532` or the operator signs against the wrong network. This is source, not a `VITE_*` value, so a rebuild alone does not fix it. The api has the same problem: `apps/api/src/chain/viem-chain.ts` constructs its clients for Base Sepolia and reports that chain id for offchain signatures, so a mainnet api needs that changed too, before any pass is issued.
 8. Decide what ENS means on mainnet. The `production` target carries no `ENS_*` values and nothing here changes that: today's names live on a dedicated ENSv2 deployment on Ethereum Sepolia, which has no mainnet counterpart. Until one exists, a mainnet api leaves every ENS binding unset, every claim route answers `503`, and the dashboard hides the section — the same fail-closed behaviour as an unconfigured develop deployment. Moving the tree means registering a new parent and deploying the topology again against whatever the mainnet addresses turn out to be; nothing migrates, exactly as with the attestations.
 
 ## Rolling back

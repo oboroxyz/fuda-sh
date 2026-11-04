@@ -1,6 +1,6 @@
 # ADR 0014: Offchain rights by default, with on-chain rights as an option
 
-- **Status**: Proposed 2026-11-04. Not implemented. The specs keep describing the current system until this is accepted and built.
+- **Status**: Accepted 2026-11-04 for the Standard and On-chain types, which are built. Everything else here is still proposed and not built: Identified, Sensitive use, roots, the member list and recovery, delegated keys, and the removals.
 - **Scope**: the pass types an Issuer can choose, how each is verified and recovered, which keys sign them, and what leaves the product.
 
 ## Context
@@ -45,7 +45,7 @@ The gate checks, in order: D1 revocation mirror, UID, signature domain, signatur
 - Verification uses viem, not the EAS SDK verifier, which recovers an EOA only and checks neither expiry nor revocation.
 - `domain.chainId` is converted to `BigInt` after JSON. As a string, viem recovers a different address.
 - `domain.version` is read per chain: Base mainnet runs EAS 1.0.1, while Base Sepolia and Soneium run 1.4.1-beta.3.
-- The schema and venue are pinned. All venues share one attester in the first phase, so a signature alone would admit another venue's pass.
+- The schema and venue are pinned. All venues share one attester in the first phase, so a signature alone would admit another venue's pass. Today the venue is pinned only to the D1 row and at reception: `POST /verify` takes no venue, as with on-chain rights, so a gate does not yet reject another venue's pass.
 - `AlreadyTimestamped` counts as success, because anyone can timestamp a root first.
 
 ### 4. Identity and addresses

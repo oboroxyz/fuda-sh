@@ -66,6 +66,9 @@ export interface VerifyResponse {
   entitlement?: EntitlementView
   delegation?: DelegationView
   badges?: BadgeView[]
+  // An ADMIT whose on-chain revocation could not be read: a membership card still
+  // enters, and fuda's own revocation record was checked. Absent otherwise.
+  unconfirmed?: true
 }
 
 export interface ChallengeResponse {

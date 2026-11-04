@@ -2,7 +2,7 @@
 
 This document explains which fuda template fits a use case, what the member does during onboarding, and which pass and holder type the resulting right uses. The template is a product-policy choice; Bearer and Signed remain the verification rules applied by the gate.
 
-[ADR 0014](../adr/0014-offchain-default-pass-types.md) proposes replacing these templates with offchain rights by default. It is not accepted or built; this document describes the current system.
+A Card now chooses where its passes are recorded. New Cards default to `offchain`, which signs a pass with no transaction and no holder address; see [Offchain rights](./attestation-model.md#offchain-rights). The on-chain description in this document applies to Cards with `record: onchain`. [ADR 0014](../adr/0014-offchain-default-pass-types.md) has the wider plan, including replacing the private templates, which is not built.
 
 API paths below omit `/v1` except where shown explicitly; pass, asset, gateway, and health URLs are unversioned. See [API versioning](./attestation-model.md#api-versioning).
 

@@ -70,6 +70,11 @@ describe(withTitle, () => {
 })
 
 describe(cardBodyFrom, () => {
+  it('sends where passes are recorded, offchain unless chosen', () => {
+    expect(cardBodyFrom({ ...filled, slug: 'summer' })?.record).toBe('offchain')
+    expect(cardBodyFrom({ ...filled, record: 'onchain', slug: 'summer' })?.record).toBe('onchain')
+  })
+
   it('maps the card fields, its slug and an expiry in days', () => {
     const body = cardBodyFrom({ ...filled, category: 'ticket', slug: 'summer', validityDays: 30 })
     expect(body?.slug).toBe('summer')

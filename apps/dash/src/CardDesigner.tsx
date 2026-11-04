@@ -1,5 +1,5 @@
 import { brandTextColor, CARD_DESCRIPTION_MAX_LENGTH } from '@fuda/sdk'
-import type { CardCategory, IssuerView } from '@fuda/sdk'
+import type { CardCategory, CardRecord, IssuerView } from '@fuda/sdk'
 import { cn } from 'cn'
 import { createComputed, createEffect, createSignal, For, on, onCleanup } from 'solid-js'
 import type { JSX } from 'solid-js'
@@ -48,6 +48,7 @@ export interface CardDesignerViewProps {
   // are not asked for again.
   mode: DesignerMode
   onCategory: (category: CardCategory) => void
+  onRecord: (record: CardRecord) => void
   onEditProfile: () => void
   onField: <K extends keyof DesignerForm>(key: K, value: DesignerForm[K]) => void
   onLockScreen: (on: boolean) => void
@@ -418,6 +419,23 @@ export const CardDesignerView = (props: CardDesignerViewProps): JSX.Element => {
           </div>
 
           <div class="flex flex-col gap-1">
+            <label for="record">{props.copy.recordLabel}</label>
+            <select
+              class="select w-full"
+              disabled={editing()}
+              id="record"
+              onInput={(e) => {
+                props.onRecord(e.currentTarget.value === 'onchain' ? 'onchain' : 'offchain')
+              }}
+              value={props.form.record}
+            >
+              <option value="offchain">{props.copy.recordOffchain}</option>
+              <option value="onchain">{props.copy.recordOnchain}</option>
+            </select>
+            <p class="text-moderate text-sm">{props.copy.recordHint}</p>
+          </div>
+
+          <div class="flex flex-col gap-1">
             <label for="card-description">
               <FieldLabel label={props.copy.cardDescriptionLabel} optional={props.copy.optional} />
             </label>
@@ -629,6 +647,9 @@ export const CardDesigner = (props: CardDesignerProps): JSX.Element => {
       savedLogoUrl={props.issuer?.logoUrl ?? null}
       mode={mode}
       onField={onField}
+      onRecord={(record) => {
+        setForm((current) => ({ ...current, record }))
+      }}
       onEditProfile={() => {
         props.onEditProfile(form())
       }}

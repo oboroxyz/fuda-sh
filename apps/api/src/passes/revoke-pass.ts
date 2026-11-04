@@ -3,7 +3,7 @@ import type { Context } from 'hono'
 import type { Hex } from 'viem'
 
 import { ChainError, NoSignerError, ZERO_UID } from '../chain/client.ts'
-import { members } from '../db/schema.ts'
+import { members, offchainAttestations } from '../db/schema.ts'
 import { findVersion, parseSchemaSets } from '../eas/schemas.ts'
 import type { AcceptedVersion } from '../eas/schemas.ts'
 import { darkenMemberName } from '../ens/mirror.ts'
@@ -23,6 +23,37 @@ const acceptedEntitlements = (json: string): AcceptedVersion[] | null => {
 export type RevokeError = 'chain_error' | 'no_signer' | 'not_found'
 
 export type RevokeOutcome = { ok: true } | { ok: false; error: RevokeError }
+
+// docs/specs/attestation-model.md#offchain-rights: D1 first, so the gate rejects at
+// once and while the chain is unreachable. The transaction may then fail or be lost
+// without undoing that. `revoke_tx` stays NULL and a later call sends it again, and
+// the read first keeps a retry from reverting on an already revoked uid.
+const revokeOffchainPass = async (c: Context<AppEnv>, uid: Hex): Promise<RevokeOutcome> => {
+  const chain = c.get('chain')
+  const attester = chain.offchainAttester()
+  if (attester === null) {
+    return { error: 'no_signer', ok: false }
+  }
+  const db = c.get('db')
+  await db.update(members).set({ status: 'revoked' }).where(eq(members.attestationUid, uid))
+  try {
+    const revokedAt = await chain.offchainRevokedAt(attester, uid)
+    // Already revoked on chain: a retry whose earlier answer was lost, or a revocation
+    // made outside fuda. There is no transaction of ours to name, so the zero hash marks it done.
+    const sent = revokedAt === 0n ? await chain.revokeOffchain(uid) : { txHash: ZERO_UID }
+    await db
+      .update(offchainAttestations)
+      .set({ revokeTx: sent.txHash })
+      .where(eq(offchainAttestations.uid, uid))
+  } catch (error) {
+    if (!(error instanceof ChainError) && !(error instanceof NoSignerError)) {
+      throw error
+    }
+    // oxlint-disable-next-line no-console -- the gate already rejects this pass; only the public record is behind, and this names which one
+    console.error('offchain revocation not sent', { error, uid })
+  }
+  return { ok: true }
+}
 
 // On-chain revoke, then mark the row. The schema passed to EAS.revoke is the
 // attestation's own — EAS reverts with InvalidSchema on any other, so revoking
@@ -51,6 +82,15 @@ export const revokePass = async (
     if (owned === undefined) {
       return { error: 'not_found', ok: false }
     }
+  }
+  const offchain = await c
+    .get('db')
+    .select({ uid: offchainAttestations.uid })
+    .from(offchainAttestations)
+    .where(eq(offchainAttestations.uid, uid))
+    .get()
+  if (offchain !== undefined) {
+    return await revokeOffchainPass(c, uid)
   }
   const chain = c.get('chain')
   if (chain.signerAddress() === null) {

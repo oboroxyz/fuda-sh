@@ -131,6 +131,20 @@ const memberRow = (overrides: Partial<MemberPassRow>): MemberPassRow => ({
 })
 
 describe(loadMemberPassList, () => {
+  it('never asks the index about a remembered pass with no holder', async () => {
+    const fetchRights = vi.fn<MemberPassListIo['fetchRights']>(async () => await Promise.resolve([]))
+    const result = await loadMemberPassList(
+      {
+        addresses: [],
+        graphConfigured: true,
+        memory: [{ addedAt: 1, holder: `0x${'00'.repeat(20)}`, uid: RIGHT }],
+      },
+      memberIo(fetchRights),
+    )
+    expect(fetchRights).not.toHaveBeenCalled()
+    expect(result.rows.map((row) => row.uid)).toStrictEqual([RIGHT])
+  })
+
   it('unions case-insensitive holders and uid rows without duplicate Graph queries', async () => {
     const fetchRights = vi.fn<MemberPassListIo['fetchRights']>(
       async (holder) =>

@@ -106,6 +106,11 @@ export const slugFromTitle = (title: string): string =>
 
 export type CardCategory = 'membership' | 'ticket'
 export const CARD_CATEGORIES: readonly CardCategory[] = ['membership', 'ticket']
+
+// Where a card's rights are recorded. Fixed when the card is created, because a
+// right cannot move between the two without a new uid.
+export type CardRecord = 'offchain' | 'onchain'
+export const CARD_RECORDS: readonly CardRecord[] = ['offchain', 'onchain']
 export const isCardCategory = (raw: string): raw is CardCategory =>
   CARD_CATEGORIES.some((category) => category === raw)
 
@@ -154,6 +159,7 @@ export interface CardView extends ClaimWindow, CardValidity {
 // absent from public CardView responses.
 export interface OperatorCardView extends CardView {
   lockScreen: boolean
+  record: CardRecord
   venue: { lat: number; lng: number } | null
 }
 

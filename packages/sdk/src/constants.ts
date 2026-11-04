@@ -25,6 +25,9 @@ export const asHex = (s: string, bytes: number): Hex | null => {
   return re.test(s) ? `0x${s.slice(2)}` : null
 }
 
+// An offchain right has no holder address: its recipient is the zero address.
+export const hasNoHolder = (holder: string): boolean => /^0x0{40}$/u.test(holder)
+
 export const CHALLENGE_PREFIX = 'fuda-gate:'
 export const CHALLENGE_TTL_SECONDS = 300
 

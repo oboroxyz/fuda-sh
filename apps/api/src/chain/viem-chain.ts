@@ -116,6 +116,8 @@ export const createViemChain = (
 
     blockNumber: async () => await wrap(async () => Number(await publicClient.getBlockNumber())),
 
+    chainId: () => baseSepolia.id,
+
     getAddressFromFactory: async (owners, nonce) =>
       await wrap(
         async () =>
@@ -151,6 +153,19 @@ export const createViemChain = (
           txHash: log.transactionHash,
         }))
       }),
+
+    offchainAttester: () => account?.address ?? null,
+
+    offchainRevokedAt: async (revoker, uid) =>
+      await wrap(
+        async () =>
+          await publicClient.readContract({
+            abi: EAS_ABI,
+            address: eas,
+            args: [revoker, uid],
+            functionName: 'getRevokeOffchain',
+          }),
+      ),
 
     readAttestation: async (uid) =>
       await wrap(async () => {
@@ -193,6 +208,34 @@ export const createViemChain = (
         }
         return { txHash }
       })
+    },
+
+    revokeOffchain: async (uid) => {
+      if (wallet === null || account === null) {
+        throw new NoSignerError('SIGNER_PRIVATE_KEY unset')
+      }
+      return await wrap(async () => {
+        const txHash = await wallet.writeContract({
+          abi: EAS_ABI,
+          account,
+          address: eas,
+          args: [uid],
+          chain: baseSepolia,
+          functionName: 'revokeOffchain',
+        })
+        const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash })
+        if (receipt.status !== 'success') {
+          throw new ChainError('revokeOffchain reverted')
+        }
+        return { txHash }
+      })
+    },
+
+    signOffchain: async (typed) => {
+      if (account === null) {
+        throw new NoSignerError('SIGNER_PRIVATE_KEY unset')
+      }
+      return await account.signTypedData(typed)
     },
 
     signerAddress: () => account?.address ?? null,

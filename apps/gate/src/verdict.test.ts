@@ -31,6 +31,30 @@ describe(classifyInput, () => {
 })
 
 describe(displayState, () => {
+  it('stays GREEN but says so when the on-chain status could not be read', () => {
+    const s = displayState('admit', {
+      body: { decision: 'ADMIT', entitlement: ent(0), reason: 'OK', unconfirmed: true },
+      ok: true,
+    })
+    expect(s).toMatchObject({
+      detail: 'unconfirmed — on-chain status could not be read',
+      title: 'ADMIT',
+      tone: 'green',
+    })
+  })
+
+  it('shows no holder for a pass that has none', () => {
+    const s = displayState('admit', {
+      body: {
+        decision: 'ADMIT',
+        entitlement: { ...ent(0), holder: `0x${'00'.repeat(20)}` },
+        reason: 'OK',
+      },
+      ok: true,
+    })
+    expect(s.facts.holder).toBeNull()
+  })
+
   it('is GREEN for an admission ADMIT', () => {
     const s = displayState('admit', {
       body: { decision: 'ADMIT', entitlement: ent(0), reason: 'OK' },

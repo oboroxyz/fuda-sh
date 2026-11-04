@@ -11,6 +11,7 @@ fuda represents authorization as a small graph of EAS attestations on Base. This
 | `Entitlement` | The revocable right held by a wallet address, including its issuer, usage policy, tier, validity window, serial value, and metadata reference |
 | `IssuerDelegation` | The root-authorized statement that identifies an issuer allowed to create trusted Entitlements |
 | `Attendance` | Evidence that a gate admitted the holder of an Entitlement, referencing that right and recording the entry context |
+| Offchain pass | A right signed as an EAS offchain attestation and stored in D1, with no holder address and no per-pass transaction. See [Offchain rights](#offchain-rights) |
 
 ### Roles
 
@@ -148,6 +149,7 @@ Attested with `recipient = holder` and `refUID = rightUID`.
 | Key | Location | Meaning |
 | --- | --- | --- |
 | `EAS_SCHEMAS` | `apps/api/targets.jsonc` `vars` | Accepted-version set per record type: `[{ uid, version }]`, one entry per type at launch |
+| `EAS_VERSION` | `apps/api/targets.jsonc` `vars` | The EAS contract's `version()` on this chain. Offchain signatures commit to it, and it differs by chain: `1.4.1-beta.3` on Base Sepolia, `1.0.1` on Base mainnet. A wrong value still verifies inside fuda but fails in EAS tooling, so check it against the contract |
 | `DELEGATION_UID` | `apps/api/targets.jsonc` `vars` | UID of the root IssuerDelegation that every issued Entitlement references |
 | `ISSUER_ADDRESS` | `apps/api/targets.jsonc` `vars` | The configured root attester; the gate accepts only delegations attested by this address |
 | `ANNOUNCER_ADDRESS` | `apps/api/targets.jsonc` `vars` | The ERC-5564 Announcer `/issue` writes +Private announcements to |
@@ -155,7 +157,7 @@ Attested with `recipient = holder` and `refUID = rightUID`.
 | `FACTORY_ADDRESS` | `apps/api/targets.jsonc` `vars` | Coinbase Smart Wallet factory used to derive Bearer holder addresses |
 | `PUBLIC_BASE_URL` | `apps/api/targets.jsonc` `vars` | The member-facing origin a published card links to (`https://fuda.sh`; the apex redirects `/@*` to `app.fuda.sh`). `POST /issuers` and `GET /issuers/me` build `publicUrl` from it, never from the request URL |
 | `API_BASE_URL` | `apps/api/targets.jsonc` `vars` | Absolute base for the `passUrls` in `/issue` responses; its origin is the api entry in the Google Wallet `origins` claim, which also lists `https://dash.fuda.sh` and `https://app.fuda.sh` |
-| Signer key (`SIGNER_PRIVATE_KEY`) | Worker secret | Signs Entitlement, IssuerDelegation, and Attendance transactions; endpoints answer `501 no_signer` without |
+| Signer key (`SIGNER_PRIVATE_KEY`) | Worker secret | Signs Entitlement, IssuerDelegation, and Attendance transactions and offchain attestations; endpoints answer `501 no_signer` without |
 | `ADMIN_TOKEN` | Worker secret | Bearer token for `/issue`, `/revoke`, `/members`. Required whenever a chain binding is configured: with `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL` set and no token the admin routes answer `401 unauthorized` and every response carries `x-auth-mode: locked`; with no token and neither binding (local dev) they are open and responses carry `x-auth-mode: open` |
 | `BASE_RPC_URL` | Worker secret | Base Sepolia RPC; falls back to the public endpoint |
 | `GOOGLE_ISSUER_ID`, `GOOGLE_CLASS_ID`, `GOOGLE_SA_EMAIL`, `GOOGLE_SA_KEY_PEM` | Worker secrets | Google Wallet; all four or `GET /pass/:uid/google` answers `501 google_not_configured` |
@@ -191,6 +193,41 @@ At verify time the gate loads the Entitlement's `refUID` and requires that it is
 | signature valid (signed endpoint only) | `BAD_SIGNATURE` |
 
 Every chain error fails closed. `LEVEL_REQUIRED` is checked before slot consumption, so a photographed Signed pass cannot burn its SINGLE_USE slot. `GET /verify/:uid` reports the level but never rejects on it: it is a read-only preview that answers "is this right valid?", not "may it enter by QR?".
+
+### Offchain rights
+
+A Card's `record` is `offchain` or `onchain`, set when the Card is created and fixed afterwards, because a right cannot move between the two without a new UID. New Cards default to `offchain`. A Card made before this existed stays `onchain`, and the on-chain lifecycle above applies to it unchanged.
+
+**Issuing.** The self-serve route and the MCP `issue_pass` tool sign an EAS offchain attestation (version 2) with the signer key, with no chain access and no transaction, and write the `members` row and an `offchain_attestations` row in one batch. If that write fails nothing was issued. The member number is drawn in D1 as for an on-chain pass, and is also signed into the attestation. `recipient` is the zero address, which the API reports as `holder`. The admin `POST /issue` issues only on chain.
+
+The schema is `string venue,string card,string memberNumber,uint8 usageModel,uint8 tier,uint8 level,uint64 validFrom,uint64 validUntil,bytes holderKey`, where `venue` is the Handle and `card` the Card id. It needs no `EAS_SCHEMAS` entry, because EAS never sees it at signing and its UID follows from the string. `expirationTime` equals `validUntil`.
+
+**Verifying.** `POST /verify`, `GET /verify/:uid` and reception look for an `offchain_attestations` row first, and answer the same verdict shape as an on-chain right. The checks run in this order, and the first failure is the reported reason:
+
+| Check | REJECT reason |
+| --- | --- |
+| stored row parses and decodes | `WRONG_SCHEMA` |
+| `members.status` is not `revoked` | `REVOKED` |
+| the UID matches the signed message | `BAD_SIGNATURE` |
+| signer key and domain are configured | `DELEGATION_CONFIG_MISSING` |
+| domain matches this deployment's chain, version and contract | `BAD_SIGNATURE` |
+| the signature recovers | `BAD_SIGNATURE` |
+| the signer is this deployment's signer key | `ISSUER_NOT_DELEGATED` |
+| schema is the offchain pass schema; signed venue and card match the row | `WRONG_SCHEMA` |
+| `expirationTime` and the validity window | `EXPIRED` / `UNKNOWN_USAGE_MODEL` / `NOT_YET_VALID` |
+| `EAS.getRevokeOffchain(signer, uid) == 0` | `REVOKED` |
+
+`IssuerDelegation` is not consulted. The level and slot checks that follow are the same as for an on-chain right. A pass with no holder has no key to sign with, so `POST /verify-signed` answers it `BAD_SIGNATURE`.
+
+**The chain cannot be read.** A SINGLE_USE right answers `502 chain_error` without consuming its slot. Any other right is admitted with `unconfirmed: true` in the verdict. `members.status` is checked before the chain, so a pass revoked through fuda stays rejected. A revocation made directly on chain, outside fuda, is not seen until the chain can be read.
+
+**Revoking.** `POST /revoke` and `revoke_pass` set `members.status` first, then read `getRevokeOffchain` and send `revokeOffchain` if it is unset. A failed transaction does not undo the D1 change, and the call still answers `{ revoked: true }`: the gate rejects at once, and `offchain_attestations.revoke_tx` stays NULL until the record lands. Calling revoke again sends it. `revoke_tx` holds the zero hash when the chain already showed the revocation.
+
+**What an offchain right does not have.** No Attendance, no ENS member name, no Merkle root yet, and no public listing. Its visits and Stamps live in D1. The UID in the QR is the bearer secret, made unguessable by the attestation's random salt.
+
+**Venues.** Every venue shares one signer, and `POST /verify` takes no venue, so as with an on-chain right it does not reject another venue's pass. Reception is scoped to the operator's venue. The signed venue and card only prove the row was not moved.
+
+**The signer key is pinned.** Verification accepts only the current key, so replacing `SIGNER_PRIVATE_KEY` invalidates every offchain pass until key rotation exists.
 
 ### Error codes
 
