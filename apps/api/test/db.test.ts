@@ -25,6 +25,7 @@ describe('D1 schema', () => {
       'members',
       'oauth_codes',
       'oauth_tokens',
+      'offchain_attestations',
       'rate_limits',
       'reception_requests',
       'sessions',

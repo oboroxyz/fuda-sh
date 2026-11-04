@@ -25,9 +25,11 @@ export type VerifyOutcome =
       delegation: DelegationView
       attester: Hex
       canonical: Entitlement
+      // An offchain ADMIT whose on-chain revocation could not be read.
+      unconfirmed?: true
     }
 
-const toEntitlementView = (e: Entitlement): EntitlementView => ({
+export const toEntitlementView = (e: Entitlement): EntitlementView => ({
   holder: e.holder,
   issuer: e.issuer,
   level: e.level,
@@ -109,7 +111,10 @@ export const checkDelegation = async (
 
 // The usage model and validity window, in the table order of docs/specs/attestation-model.md#gate-verification-order-and-reasons. 0 means unbounded on
 // both ends of the window, and both bounds are inclusive.
-const checkWindow = (e: Entitlement, now: number): Reason | null => {
+export const checkWindow = (
+  e: Pick<Entitlement, 'usageModel' | 'validFrom' | 'validUntil'>,
+  now: number,
+): Reason | null => {
   if (e.usageModel > 2) {
     return 'UNKNOWN_USAGE_MODEL'
   }

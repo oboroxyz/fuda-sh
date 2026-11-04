@@ -1,4 +1,4 @@
-import type { BadgeView } from '@fuda/sdk'
+import type { BadgeView, VerifyResponse } from '@fuda/sdk'
 import { normalizeUid, parseQr, VerifyBody } from '@fuda/sdk'
 import type { Context } from 'hono'
 import * as v from 'valibot'
@@ -8,10 +8,12 @@ import { defineHandler } from 'void'
 import { readBadges } from '../badges/store.ts'
 import { ChainError } from '../chain/client.ts'
 import type { AppEnv } from '../env.ts'
+import { offchainDomain } from '../issue/issue-offchain.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { admitAndHook, logEntry } from '../verify/admit.ts'
 import { verifyConfig } from '../verify/config.ts'
 import { qrOutcome } from '../verify/qr-admission.ts'
+import { loadOffchainRow, verifyOffchain } from '../verify/verify-offchain.ts'
 import type { VerifyOutcome } from '../verify/verify-uid.ts'
 import { verifyUid } from '../verify/verify-uid.ts'
 
@@ -31,14 +33,19 @@ export const badgesFor = async (c: Context<AppEnv>, uid: Hex): Promise<BadgeView
 // are optional and advisory: an empty list means no `badges` key at all, so a
 // Right without one keeps the exact response shape it had before badges existed.
 export const verdictBody = (
-  out: Pick<VerifyOutcome, 'decision' | 'reason' | 'entitlement' | 'delegation'>,
+  out: Pick<VerifyOutcome, 'decision' | 'reason' | 'entitlement' | 'delegation'> & { unconfirmed?: true },
   badges: BadgeView[] = [],
 ) => {
-  const body = {
+  const body: VerifyResponse = {
     decision: out.decision,
     delegation: out.delegation,
     entitlement: out.entitlement,
     reason: out.reason,
+  }
+  // Written only when true, so every other verdict keeps its exact shape. A route
+  // that turned this ADMIT into its own REJECT has nothing left to qualify.
+  if (out.decision === 'ADMIT' && out.unconfirmed === true) {
+    body.unconfirmed = true
   }
   return badges.length === 0 ? body : { ...body, badges }
 }
@@ -73,6 +80,21 @@ export const waitUntilOf = (c: Context<AppEnv>): ((p: Promise<unknown>) => void)
 type Resolved = { ok: true; out: VerifyOutcome } | { ok: false; res: Response }
 
 export const resolveVerdict = async (c: Context<AppEnv>, uid: Hex, now: number): Promise<Resolved> => {
+  // An offchain right is decided from its D1 row, and needs none of the on-chain
+  // configuration below (docs/specs/attestation-model.md#offchain-rights).
+  const offchain = await loadOffchainRow(c.get('db'), uid)
+  if (offchain !== null) {
+    const chain = c.get('chain')
+    try {
+      const out = await verifyOffchain({ chain, domain: offchainDomain(c.env, chain), now }, uid, offchain)
+      return { ok: true, out }
+    } catch (error) {
+      if (error instanceof ChainError) {
+        return { ok: false, res: errorResponse(c, 'chain_error', 502) }
+      }
+      throw error
+    }
+  }
   // A malformed EAS_SCHEMAS binding is a deployment defect, not attacker input:
   // fail closed with the same chain_error the caller already handles.
   let deps: ReturnType<typeof verifyConfig>

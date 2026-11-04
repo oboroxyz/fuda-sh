@@ -1,7 +1,9 @@
 import { encodeAbiParameters, getAddress, keccak256, verifyMessage as recoverAndCompare } from 'viem'
 import type { Hex } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
 
 import { encodeDelegationV1 } from '../eas/codecs.ts'
+import type { OffchainTypedData } from '../eas/offchain.ts'
 import { ChainError, NoSignerError, ZERO_ADDRESS, ZERO_UID } from './client.ts'
 import type {
   AnnounceParams,
@@ -13,6 +15,10 @@ import type {
 } from './client.ts'
 
 const DEFAULT_SIGNER: Hex = `0x${'f0'.repeat(20)}`
+
+// The fake's on-chain signer is a bare address, which cannot sign. Offchain
+// attestations are checked by real recovery, so they get a real throwaway key.
+const OFFCHAIN_KEY = privateKeyToAccount(`0x${'ab'.repeat(32)}`)
 
 // The fixed uid `createDevChain` (in `../index.ts`) seeds the fake root
 // IssuerDelegation at. Must match `local.vars.DELEGATION_UID` in `targets.jsonc`
@@ -41,6 +47,7 @@ export class FakeChain implements ChainClient {
   failWrites = false
   failAnnounce = false
   readonly announcements: AnnouncementLog[] = []
+  readonly offchainRevocations = new Map<string, bigint>()
   // A small in-memory chain height so the sync has a head to walk towards.
   // Monotonic across dev restarts so a persisted sync cursor from a previous
   // run never outruns the chain.
@@ -75,6 +82,43 @@ export class FakeChain implements ChainClient {
 
   signerAddress(): Hex | null {
     return this.signer
+  }
+
+  // oxlint-disable-next-line class-methods-use-this -- part of the ChainClient port
+  chainId(): number {
+    return 84_532
+  }
+
+  offchainAttester(): Hex | null {
+    return this.signer === null ? null : OFFCHAIN_KEY.address
+  }
+
+  async signOffchain(typed: OffchainTypedData): Promise<Hex> {
+    if (this.signer === null) {
+      throw new NoSignerError('no signer configured')
+    }
+    return await OFFCHAIN_KEY.signTypedData(typed)
+  }
+
+  async offchainRevokedAt(revoker: Hex, uid: Hex): Promise<bigint> {
+    if (this.failReads) {
+      throw new ChainError('rpc down')
+    }
+    return await Promise.resolve(
+      this.offchainRevocations.get(`${revoker.toLowerCase()}:${lowerHex(uid)}`) ?? 0n,
+    )
+  }
+
+  async revokeOffchain(uid: Hex): Promise<{ txHash: Hex }> {
+    if (this.signer === null) {
+      throw new NoSignerError('no signer configured')
+    }
+    const key = `${OFFCHAIN_KEY.address.toLowerCase()}:${lowerHex(uid)}`
+    if (this.failWrites || this.offchainRevocations.has(key)) {
+      throw new ChainError('revokeOffchain reverted')
+    }
+    this.offchainRevocations.set(key, this.now())
+    return await Promise.resolve({ txHash: this.nextTx() })
   }
 
   // Seeds an active root IssuerDelegation attested by the fake signer; returns its uid.

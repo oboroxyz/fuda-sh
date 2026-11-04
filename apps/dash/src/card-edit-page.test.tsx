@@ -37,6 +37,7 @@ const card: OperatorCardView = {
   description: 'Welcome',
   id: 'card-1',
   lockScreen: true,
+  record: 'offchain',
   slug: 'membership',
   title: 'Coffee members',
   validFrom: null,

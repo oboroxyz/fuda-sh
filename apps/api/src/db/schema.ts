@@ -65,6 +65,9 @@ export const cards = sqliteTable(
       .notNull()
       .references(() => issuers.id),
     lockScreen: integer('lock_screen').notNull().default(0),
+    record: text('record', { enum: ['offchain', 'onchain'] })
+      .notNull()
+      .default('onchain'),
     reserved: integer('reserved').notNull().default(0),
     slug: text('slug').notNull().default(''),
     title: text('title').notNull(),
@@ -76,6 +79,14 @@ export const cards = sqliteTable(
   },
   (t) => [index('cards_issuer_id').on(t.issuerId), uniqueIndex('cards_issuer_slug').on(t.issuerId, t.slug)],
 )
+
+// The signed attestation behind an offchain right (docs/specs/attestation-model.md#offchain-rights).
+export const offchainAttestations = sqliteTable('offchain_attestations', {
+  createdAt: integer('created_at').notNull(),
+  revokeTx: text('revoke_tx'),
+  signed: text('signed').notNull(),
+  uid: text('uid').primaryKey(),
+})
 
 export const sessions = sqliteTable('sessions', {
   address: text('address').notNull(),

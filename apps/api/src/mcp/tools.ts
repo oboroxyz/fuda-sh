@@ -2,6 +2,7 @@ import {
   CARD_CAPACITY_MAX,
   CardBody,
   CARD_CATEGORIES,
+  CARD_RECORDS,
   ClaimSource,
   isOrderedWindow,
   normalizeUid,
@@ -143,6 +144,12 @@ export const MCP_TOOLS: readonly McpTool[] = [
         },
         description: { type: 'string' },
         lockScreen: { type: 'boolean' },
+        record: {
+          type: 'string',
+          enum: CARD_RECORDS,
+          description:
+            "Where this card's passes are recorded, fixed once created. 'offchain' (the default) issues at once with no public record per pass; 'onchain' publishes each pass.",
+        },
         claimFrom: unixOrNull,
         claimUntil: unixOrNull,
         validFrom: unixOrNull,

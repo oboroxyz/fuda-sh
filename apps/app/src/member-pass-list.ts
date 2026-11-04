@@ -1,3 +1,4 @@
+import { hasNoHolder } from '@fuda/sdk'
 import type { GraphRight, Hex, PassCardView, PassUrls, StampSummary, VerifyResponse } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
 
@@ -56,7 +57,11 @@ export const connectMemberRail = async <T>(
 ): Promise<Hex> => await request(await open())
 
 const uniqueAddresses = (addresses: readonly Hex[], memory: readonly PassMemoryEntry[]): Hex[] => {
-  const withRemembered = [...addresses, ...memory.map(({ holder }) => holder)]
+  // An offchain pass has no holder to look up; the zero address would only return
+  // whatever others happen to have attested to it.
+  const withRemembered = [...addresses, ...memory.map(({ holder }) => holder)].filter(
+    (address) => !hasNoHolder(address),
+  )
   const seen = new Set<string>()
   return withRemembered.filter((address) => {
     const key = keyOf(address)

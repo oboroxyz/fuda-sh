@@ -4,6 +4,7 @@ import { ADDRESS_RE, META_ADDRESS_RE, NONCE_RE, QR_RE, SIGNATURE_RE, UID_RE } fr
 import {
   BRAND_COLOR_RE,
   CARD_CATEGORIES,
+  CARD_RECORDS,
   CARD_DESCRIPTION_MAX_LENGTH,
   hasSingleValidityRule,
   isCardSlug,
@@ -83,6 +84,7 @@ const CardFields = v.object({
   claimUntil: unixOrNull,
   description: shortText(CARD_DESCRIPTION_MAX_LENGTH),
   lockScreen: v.optional(v.boolean(), false),
+  record: v.optional(v.picklist(CARD_RECORDS), 'offchain'),
   slug: v.pipe(v.string(), v.check(isCardSlug)),
   title: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(60)),
   validFrom: unixOrNull,

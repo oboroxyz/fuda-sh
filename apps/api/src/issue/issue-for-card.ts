@@ -11,6 +11,7 @@ import { mirrorMemberName } from '../ens/mirror.ts'
 import type { AppEnv } from '../env.ts'
 import { issueBearer, IssueConfigError } from './issue-bearer.ts'
 import { issueContext } from './issue-context.ts'
+import { issueOffchainPass, offchainDomain } from './issue-offchain.ts'
 import { OrphanedRightError } from './orphaned-right-error.ts'
 
 const MEMBER_NUMBER_DRAWS = 3
@@ -54,6 +55,71 @@ export type CardIssueOutcome =
   | { ok: true; pass: SelfServeIssueResponse }
   | { ok: false; error: CardIssueError }
 
+const passBody = (card: typeof cards.$inferSelect, memberNumber: string, now: number) => {
+  const window = entitlementWindow(card, now)
+  const body: IssueRequest & { memberId: string } = {
+    memberId: memberNumber,
+    metaURI: '',
+    tier: 0,
+    usageModel: card.category === 'ticket' ? USAGE_MODEL.SINGLE_USE : USAGE_MODEL.MULTI_USE,
+    validFrom: window.validFrom,
+    validUntil: window.validUntil,
+  }
+  return body
+}
+
+// A signature and two D1 rows, with no transaction
+// (docs/specs/attestation-model.md#offchain-rights). The member number is drawn in
+// D1 as for an on-chain pass, and is also signed into the attestation.
+const issueOffchain = async (
+  c: Context<AppEnv>,
+  card: typeof cards.$inferSelect,
+  issuer: Pick<typeof issuers.$inferSelect, 'handle' | 'id'>,
+  source: string | null,
+): Promise<CardIssueOutcome> => {
+  const chain = c.get('chain')
+  if (chain.offchainAttester() === null) {
+    return { error: 'no_signer', ok: false }
+  }
+  const domain = offchainDomain(c.env, chain)
+  if (domain === null) {
+    return { error: 'chain_error', ok: false }
+  }
+  const db = c.get('db')
+  const now = c.get('now')()
+  const memberNumber = await freshMemberNumber(db, issuer.id)
+  if (memberNumber === null) {
+    return { error: 'internal', ok: false }
+  }
+  if (!(await reservePlace(db, card.id))) {
+    return { error: 'card_sold_out', ok: false }
+  }
+  try {
+    const pass = await issueOffchainPass({
+      baseUrl: c.env.API_BASE_URL,
+      body: passBody(card, memberNumber, now),
+      cardId: card.id,
+      chain,
+      db,
+      domain,
+      issuerHandle: issuer.handle,
+      issuerId: issuer.id,
+      memberNumber,
+      now,
+      source,
+    })
+    return { ok: true, pass }
+  } catch (error) {
+    await releasePlace(db, card.id)
+    if (error instanceof NoSignerError) {
+      return { error: 'no_signer', ok: false }
+    }
+    // oxlint-disable-next-line no-console -- nothing was issued; this is the only trace of why
+    console.error('offchain issuance failed', { error })
+    return { error: 'internal', ok: false }
+  }
+}
+
 // One Bearer pass under a card (docs/specs/pass-types-and-flows.md#u1-standard-issuance-and-optional-activation).
 // The card fixes tier, usage model and validity. Its caller decides who may ask.
 export const issueForCard = async (
@@ -62,6 +128,9 @@ export const issueForCard = async (
   issuer: Pick<typeof issuers.$inferSelect, 'handle' | 'id'>,
   source: string | null,
 ): Promise<CardIssueOutcome> => {
+  if (card.record === 'offchain') {
+    return await issueOffchain(c, card, issuer, source)
+  }
   if (c.get('chain').signerAddress() === null) {
     return { error: 'no_signer', ok: false }
   }
@@ -76,15 +145,7 @@ export const issueForCard = async (
   if (!(await reservePlace(ctx.db, card.id))) {
     return { error: 'card_sold_out', ok: false }
   }
-  const window = entitlementWindow(card, ctx.now)
-  const body: IssueRequest & { memberId: string } = {
-    memberId: memberNumber,
-    metaURI: '',
-    tier: 0,
-    usageModel: card.category === 'ticket' ? USAGE_MODEL.SINGLE_USE : USAGE_MODEL.MULTI_USE,
-    validFrom: window.validFrom,
-    validUntil: window.validUntil,
-  }
+  const body = passBody(card, memberNumber, ctx.now)
   let minted = false
   try {
     const issued = await issueBearer(ctx, body, { cardId: card.id, issuerId: issuer.id, source })

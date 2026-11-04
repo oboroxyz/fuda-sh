@@ -1,4 +1,4 @@
-import { isUid, parseQr, TIER_LABEL } from '@fuda/sdk'
+import { hasNoHolder, isUid, parseQr, TIER_LABEL } from '@fuda/sdk'
 import type { Hex, VerifyResponse } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
 import { short } from '@fuda/ui/short'
@@ -86,7 +86,8 @@ const factsOf = (body: VerifyResponse): VerdictFacts => {
   }
   return {
     delegation,
-    holder: short(e.holder),
+    // An offchain pass has no holder, so there is nothing to show.
+    holder: hasNoHolder(e.holder) ? null : short(e.holder),
     tier: TIER_LABEL[e.tier] ?? `TIER ${e.tier}`,
     usage: USAGE_LABEL[e.usageModel] ?? `usage ${e.usageModel}`,
     // An unset end means "does not expire" (docs/specs/pass-types-and-flows.md#validity-windows), never 1970.
@@ -142,5 +143,11 @@ export const displayState = (kind: 'preview' | 'admit', result: ApiResult): Disp
       tone: 'yellow',
     }
   }
-  return { badge, detail: '', facts, title: 'ADMIT', tone: 'green' }
+  return {
+    badge,
+    detail: body.unconfirmed === true ? 'unconfirmed — on-chain status could not be read' : '',
+    facts,
+    title: 'ADMIT',
+    tone: 'green',
+  }
 }

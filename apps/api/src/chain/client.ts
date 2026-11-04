@@ -1,6 +1,8 @@
 /* oxlint-disable max-classes-per-file -- ChainError and NoSignerError are the two failure modes of this one port; splitting them would separate an error from its interface */
 import type { Hex } from 'viem'
 
+import type { OffchainTypedData } from '../eas/offchain.ts'
+
 export interface RawAttestation {
   uid: Hex
   schema: Hex
@@ -80,6 +82,16 @@ export interface ChainClient {
   getAnnouncementLogs: (fromBlock: number, toBlock: number) => Promise<AnnouncementLog[]>
   /** The chain head. Throws ChainError. */
   blockNumber: () => Promise<number>
+  /** The chain id offchain attestations are signed for. */
+  chainId: () => number
+  /** The address that signs offchain attestations, or null when no signer is configured. */
+  offchainAttester: () => Hex | null
+  /** Signs an offchain attestation with no chain access. Throws NoSignerError. */
+  signOffchain: (typed: OffchainTypedData) => Promise<Hex>
+  /** EAS.getRevokeOffchain: when `revoker` revoked `uid`, 0n if it has not. Throws ChainError on RPC failure. */
+  offchainRevokedAt: (revoker: Hex, uid: Hex) => Promise<bigint>
+  /** EAS.revokeOffchain from the signer; waits for the receipt. Reverts on an already revoked uid, so read first. Throws NoSignerError / ChainError. */
+  revokeOffchain: (uid: Hex) => Promise<{ txHash: Hex }>
 }
 
 export const ZERO_UID: Hex = `0x${'00'.repeat(32)}`
