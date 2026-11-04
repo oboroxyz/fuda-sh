@@ -40,7 +40,9 @@ Revocation is sent per pass and not batched, because one already revoked UID rev
 
 ### 3. Gate rules
 
-The gate checks, in order: D1 revocation mirror, UID, signature domain, signature, pinned attester, schema, venue, expiry, on-chain revocation, slot.
+The gate checks, in order: D1 revocation mirror, UID, signature domain, signature, current or explicitly accepted retired attester, schema, venue, expiry, on-chain revocation, slot.
+
+The common EOA can be replaced while retaining retired signer addresses for verification. A replacement key cannot write an EAS revocation under the original signer's address. D1 remains authoritative for fuda revocations of retired-key passes, and verification reads chain revocation under both the original and current signer. Roots do not authorize a removed signer. A compromised signer is removed and its legitimate passes are reissued. This does not implement the delegated-key phase in decision 5.
 
 - Verification uses viem, not the EAS SDK verifier, which recovers an EOA only and checks neither expiry nor revocation.
 - `domain.chainId` is converted to `BigInt` after JSON. As a string, viem recovers a different address.

@@ -8,10 +8,9 @@ import { defineHandler } from 'void'
 import { readBadges } from '../badges/store.ts'
 import { ChainError } from '../chain/client.ts'
 import type { AppEnv } from '../env.ts'
-import { offchainDomain } from '../issue/issue-offchain.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { admitAndHook, logEntry } from '../verify/admit.ts'
-import { verifyConfig } from '../verify/config.ts'
+import { offchainVerifyConfig, verifyConfig } from '../verify/config.ts'
 import { qrOutcome } from '../verify/qr-admission.ts'
 import { loadOffchainRow, verifyOffchain } from '../verify/verify-offchain.ts'
 import type { VerifyOutcome } from '../verify/verify-uid.ts'
@@ -85,8 +84,14 @@ export const resolveVerdict = async (c: Context<AppEnv>, uid: Hex, now: number):
   const offchain = await loadOffchainRow(c.get('db'), uid)
   if (offchain !== null) {
     const chain = c.get('chain')
+    let deps: ReturnType<typeof offchainVerifyConfig>
     try {
-      const out = await verifyOffchain({ chain, domain: offchainDomain(c.env, chain), now }, uid, offchain)
+      deps = offchainVerifyConfig(c.env, chain, now)
+    } catch {
+      return { ok: false, res: errorResponse(c, 'chain_error', 502) }
+    }
+    try {
+      const out = await verifyOffchain(deps, uid, offchain)
       return { ok: true, out }
     } catch (error) {
       if (error instanceof ChainError) {

@@ -128,6 +128,36 @@ PEM secrets (`GOOGLE_SA_KEY_PEM`, `APPLE_CERT_PEM`, `APPLE_KEY_PEM`, `APPLE_WWDR
 
 See `apps/api/src/env.ts` for the full binding list and `apps/api/README.md` for what each secret gates at the route level.
 
+### Rotate the offchain signer routinely
+
+Use this procedure only when the retiring key is still trusted. `OFFCHAIN_RETIRED_SIGNERS` is a plain var in each target's `apps/api/targets.jsonc` block. It contains comma-separated addresses, not private keys. Empty or absent means no retired signers. Whitespace and address case are ignored. An invalid address, a zero address, or an empty entry within a list makes offchain verification answer `502 chain_error`.
+
+1. Record the current signer's address before replacing its key. Keep a Standard pass's QR, Wallet link, and backup file for the post-deploy check.
+2. Add that address to the target's `OFFCHAIN_RETIRED_SIGNERS`, preserving any other trusted retired addresses. Deploy this var before replacing the secret so existing passes stay accepted through the change.
+3. Generate a replacement signing key and fund its address for roots and revocations. Replace `SIGNER_PRIVATE_KEY` using the target's secret procedure above. The Worker retains only the old address, never the retired private key.
+4. Confirm a newly issued Standard pass is signed by the replacement address and admits. Confirm the saved old QR still admits and the Wallet link still opens the same pass. Restore the backup on a fresh browser and confirm it admits with the original UID and signature.
+5. Revoke an old-key test pass. Confirm its D1 member status is `revoked` and verification rejects it. Confirm `revoke_tx` is eventually recorded, including after a retry, and inspect the transaction sender for the replacement address.
+6. Confirm the hourly root job timestamps any pending root with the replacement key and that existing backup proofs still refer to the same root and timestamp. A root is never required for admission.
+
+EAS revocations are keyed by sender. The replacement key records a retired pass's revocation under its own address and cannot write the original signer's record. The request and retry job read that current-address record before sending. Verification reads the original signer and, when different, the current signer. D1 stays authoritative for fuda revocations, including through multiple rotations. Preserve those D1 records. A direct revocation under the original signer stays effective while the chain is readable. Standard memberships can still admit as unconfirmed during an RPC outage, but a D1-revoked pass always rejects.
+
+### Replace a suspected compromised signer
+
+1. Generate a fresh key and remove the compromised address from `OFFCHAIN_RETIRED_SIGNERS`. If it is the current signer, replace `SIGNER_PRIVATE_KEY` as well. Do not add the compromised address as a retired signer.
+2. Apply the var and secret changes to the intended target. Until both are active, the compromised key may still be trusted. Confirm the deployed verifier rejects a known pass signed by that address with `ISSUER_NOT_DELEGATED`.
+3. Reissue legitimate passes under the replacement key. Reissue is manual. Existing QRs, Wallet links and backups can still identify the old pass, but that pass must reject. A timestamped root does not exempt it.
+4. Issue and verify a new Standard pass, then test its revocation and root job as in the routine procedure.
+
+Listing a compromised signer also trusts forged signatures from that key. The verifier still requires a stored pass row, but it has no per-pass cut-off date that distinguishes legitimate signatures from forged ones. Keeping the address listed is not a compromise response.
+
+### Check the separate on-chain paths
+
+`OFFCHAIN_RETIRED_SIGNERS` affects only offchain Rights. It does not change `ISSUER_ADDRESS`, `DELEGATION_UID`, accepted schemas, or `IssuerDelegation` verification. Existing on-chain Entitlements keep their original attestations and delegations.
+
+`SIGNER_PRIVATE_KEY` also supplies the sender for on-chain Entitlement, Attendance, and delegation transactions. Replacing it does not transfer the old EOA's authority or ability to revoke its on-chain attestations. Before continuing those writes, check the on-chain issuer and delegation configuration separately. Retaining the old address in the offchain list grants no on-chain authority. If the old key is compromised, assess its on-chain delegations and Entitlements separately under their existing revocation rules. Do not change `ISSUER_ADDRESS` as part of the routine offchain procedure.
+
+No D1 migration is needed for signer rotation. A deployed Worker secret replacement and the Wallet and fresh-browser checks above require the owner. Local tests cannot verify those operations.
+
 ## 4. Google Wallet setup
 
 1. Create a Google Wallet issuer account.

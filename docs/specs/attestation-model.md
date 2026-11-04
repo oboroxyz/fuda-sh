@@ -150,6 +150,7 @@ Attested with `recipient = holder` and `refUID = rightUID`.
 | --- | --- | --- |
 | `EAS_SCHEMAS` | `apps/api/targets.jsonc` `vars` | Accepted-version set per record type: `[{ uid, version }]`, one entry per type at launch |
 | `EAS_VERSION` | `apps/api/targets.jsonc` `vars` | The EAS contract's `version()` on this chain. Offchain signatures commit to it, and it differs by chain: `1.4.1-beta.3` on Base Sepolia, `1.0.1` on Base mainnet. A wrong value still verifies inside fuda but fails in EAS tooling, so check it against the contract |
+| `OFFCHAIN_RETIRED_SIGNERS` | `apps/api/targets.jsonc` `vars` | Comma-separated retired offchain signer addresses still accepted for verification. Empty or absent accepts only the current signer. Whitespace and address case are ignored. A malformed entry, an empty entry within a list, or the zero address makes offchain verification answer `502 chain_error` |
 | `DELEGATION_UID` | `apps/api/targets.jsonc` `vars` | UID of the root IssuerDelegation that every issued Entitlement references |
 | `ISSUER_ADDRESS` | `apps/api/targets.jsonc` `vars` | The configured root attester; the gate accepts only delegations attested by this address |
 | `ANNOUNCER_ADDRESS` | `apps/api/targets.jsonc` `vars` | The ERC-5564 Announcer `/issue` writes +Private announcements to |
@@ -212,10 +213,10 @@ The schema is `string venue,string card,string memberNumber,uint8 usageModel,uin
 | signer key and domain are configured | `DELEGATION_CONFIG_MISSING` |
 | domain matches this deployment's chain, version and contract | `BAD_SIGNATURE` |
 | the signature recovers | `BAD_SIGNATURE` |
-| the signer is this deployment's signer key | `ISSUER_NOT_DELEGATED` |
+| the signer is this deployment's current signer or a listed retired signer | `ISSUER_NOT_DELEGATED` |
 | schema is the offchain pass schema; signed venue and card match the row | `WRONG_SCHEMA` |
 | `expirationTime` and the validity window | `EXPIRED` / `UNKNOWN_USAGE_MODEL` / `NOT_YET_VALID` |
-| `EAS.getRevokeOffchain(signer, uid) == 0` | `REVOKED` |
+| `EAS.getRevokeOffchain(originalSigner, uid) == 0`, and also under the current signer if different | `REVOKED` |
 
 `IssuerDelegation` is not consulted. The level and slot checks that follow are the same as for an on-chain right. A pass with no holder has no key to sign with, so `POST /verify-signed` answers it `BAD_SIGNATURE`.
 
@@ -223,15 +224,17 @@ The schema is `string venue,string card,string memberNumber,uint8 usageModel,uin
 
 **Revoking.** `POST /revoke` and `revoke_pass` set `members.status` first, then read `getRevokeOffchain` and send `revokeOffchain` if it is unset. A failed transaction does not undo the D1 change, and the call still answers `{ revoked: true }`: the gate rejects at once, and `offchain_attestations.revoke_tx` stays NULL until the record lands. A job sends what is behind every 15 minutes, up to 20 passes a run, one transaction each, and stops at the first failure. Calling revoke again also sends it. `revoke_tx` holds the zero hash when the chain already showed the revocation.
 
+The read before a revocation write uses the current signer's address, because EAS records `revokeOffchain` under its sender. After rotation, pending and new revocations of retired-key passes therefore land under the replacement key, not the original signer. D1 stays authoritative for those revocations across further rotations, even if an intermediate signer's chain record is no longer checked. Verification also reads the original signer's address, so a direct chain revocation made before rotation stays effective while the chain is readable.
+
 **Roots.** A job runs hourly. It groups up to 1,000 passes with no root under one Merkle root, tied to them in `offchain_attestations.root` and recorded in `offchain_roots`, and sends `EAS.timestamp(root)`. With no new passes it sends nothing. The root and its passes are written before the transaction, so a failed send retries the same root on the next run. If the chain already shows the root, because anyone may timestamp one first, it counts as done and `tx_hash` stays NULL.
 
-The tree matches `StandardMerkleTree.of(uids, ['bytes32'])` from `@openzeppelin/merkle-tree`: a leaf is the double hash of the UID. A proof therefore never contains another pass's UID, which is the bearer secret. The tree is not stored, and is rebuilt from the UIDs naming a root. A root records when a batch existed. It is not an admission condition, and a failed job leaves every pass valid. No route serves proofs yet.
+The tree matches `StandardMerkleTree.of(uids, ['bytes32'])` from `@openzeppelin/merkle-tree`: a leaf is the double hash of the UID. A proof therefore never contains another pass's UID, which is the bearer secret. The tree is not stored, and is rebuilt from the UIDs naming a root. A root records when a batch existed. It is not an admission condition, and a failed job leaves every pass valid. `GET /pass/:uid/backup` serves the proof once the root is timestamped. Timestamps are keyed by root, not by sender, so the current key can retry a pending root after rotation without changing its passes or proofs.
 
 **What an offchain right does not have.** No Attendance, no ENS member name, and no public listing. Its visits and Stamps live in D1. The UID in the QR is the bearer secret, made unguessable by the attestation's random salt.
 
 **Venues.** Every venue shares one signer, and `POST /verify` takes no venue, so as with an on-chain right it does not reject another venue's pass. Reception is scoped to the operator's venue. The signed venue and card only prove the row was not moved.
 
-**The signer key is pinned.** Verification accepts only the current key, so replacing `SIGNER_PRIVATE_KEY` invalidates every offchain pass until key rotation exists.
+**Signer rotation.** New issuance signs only with `SIGNER_PRIVATE_KEY`. Verification accepts that key's address and the addresses in `OFFCHAIN_RETIRED_SIGNERS`, retaining only addresses for retired keys in the Worker. Existing signed data, UIDs, saved Wallet links and backups remain usable when their signer is listed. Restoring a backup reads its UID and reloads the stored pass; it does not re-sign the attestation. Removing a retired address rejects every pass it signed. A compromised key must be removed and its legitimate passes reissued, because listing it also trusts forged signatures. There are no per-pass cut-off dates, automatic reissue, or root-based exceptions. On-chain Entitlements and IssuerDelegation keep their separate verification rules.
 
 ### Error codes
 

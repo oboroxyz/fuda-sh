@@ -1,3 +1,4 @@
+import type { PassBackup } from '@fuda/sdk'
 import { env } from 'cloudflare:test'
 import { eq } from 'drizzle-orm'
 import type { Hex } from 'viem'
@@ -5,17 +6,20 @@ import { privateKeyToAccount } from 'viem/accounts'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { ZERO_ADDRESS } from '../src/chain/client.ts'
+import { FakeChain } from '../src/chain/fake-chain.ts'
 import { getDb } from '../src/db/client.ts'
-import { cards, entryLog, members, offchainAttestations, slots } from '../src/db/schema.ts'
+import { cards, entryLog, members, offchainAttestations, offchainRoots, slots } from '../src/db/schema.ts'
 import {
   decodeOffchainPass,
   fromSignedJson,
   offchainTypedData,
   offchainUid,
+  recoverOffchainSigner,
   toSignedJson,
 } from '../src/eas/offchain.ts'
 import type { SignedOffchain } from '../src/eas/offchain.ts'
 import type { Bindings } from '../src/env.ts'
+import { anchorOffchainRoots, retryOffchainRevocations } from '../src/passes/offchain-chores.ts'
 import { appWith, fakeChain } from './env.ts'
 import { configuredEnv, NOW, ROOT, seedRoot } from './fixtures.ts'
 import { CARD_INPUT, postJson, registerVenueWithCard, signIn } from './operator.ts'
@@ -94,8 +98,28 @@ const signedRowStatus = async (uid: Hex): Promise<string | null> => {
   return row?.revokeTx ?? null
 }
 
+const NEXT_KEY: Hex = `0x${'cd'.repeat(32)}`
+
+const rotate = (previous: Awaited<ReturnType<typeof setup>>, listed = true) => {
+  const chain = new FakeChain({ offchainKey: NEXT_KEY, signer: ROOT })
+  for (const [key, value] of previous.chain.offchainRevocations) {
+    chain.offchainRevocations.set(key, value)
+  }
+  for (const [key, value] of previous.chain.rootTimestamps) {
+    chain.rootTimestamps.set(key, value)
+  }
+  const bindings = {
+    ...previous.bindings,
+    OFFCHAIN_RETIRED_SIGNERS: listed ? ` ${previous.chain.offchainAttester()?.toLowerCase()} ` : '',
+  }
+  const app = appWith({ chain, now: () => NOW })
+  const scan = async (qr: string) => await postJson(app, bindings, '/v1/verify', { qr })
+  return { app, bindings, chain, scan }
+}
+
 describe('offchain standard passes', () => {
   beforeEach(async () => {
+    await db().delete(offchainRoots)
     await db().delete(offchainAttestations)
     await db().delete(slots)
     await db().delete(entryLog)
@@ -368,6 +392,167 @@ describe('offchain standard passes', () => {
       await chain.revokeOffchain(issued.uid)
       await expect(verdict(issued.qr)).resolves.toMatchObject({ reason: 'REVOKED' })
     })
+  })
+
+  describe('rotating the signer', () => {
+    it('admits a listed retired signer and signs new passes only with the current key', async () => {
+      const previous = await setup()
+      const issued = await previous.issue()
+      const { app, bindings, chain, scan } = rotate(previous)
+      const res = await scan(issued.qr)
+      await expect(res.json()).resolves.toMatchObject({
+        decision: 'ADMIT',
+        delegation: { issuer: previous.chain.offchainAttester() },
+        reason: 'OK',
+      })
+      const claimed = await app.request(
+        `/v1/issuers/${CARD_INPUT.handle}/${CARD_INPUT.card.slug}/issue`,
+        { headers: { 'CF-Connecting-IP': '203.0.113.72' }, method: 'POST' },
+        bindings,
+      )
+      expect(claimed.status).toBe(200)
+      const next = await claimed.json<Issued>()
+      await expect(recoverOffchainSigner(await signedRow(next.uid))).resolves.toBe(chain.offchainAttester())
+      await expect(recoverOffchainSigner(await signedRow(issued.uid))).resolves.toBe(
+        previous.chain.offchainAttester(),
+      )
+    })
+
+    it('rejects every pass of an unlisted old signer', async () => {
+      const previous = await setup()
+      const issued = await previous.issue()
+      const { scan } = rotate(previous, false)
+      const res = await scan(issued.qr)
+      await expect(res.json()).resolves.toMatchObject({
+        decision: 'REJECT',
+        reason: 'ISSUER_NOT_DELEGATED',
+      })
+    })
+
+    it('rejects an old-key pass revoked directly on chain before rotation', async () => {
+      const previous = await setup()
+      const issued = await previous.issue()
+      await previous.chain.revokeOffchain(issued.uid)
+      const { scan } = rotate(previous)
+      const res = await scan(issued.qr)
+      await expect(res.json()).resolves.toMatchObject({ decision: 'REJECT', reason: 'REVOKED' })
+    })
+
+    it('keeps a D1 revocation authoritative across repeated rotations and an RPC failure', async () => {
+      const previous = await setup()
+      const issued = await previous.issue()
+      previous.chain.failWrites = true
+      await postJson(previous.app, previous.bindings, '/v1/revoke', { uid: issued.uid }, previous.token)
+      const { bindings, chain, scan } = rotate(previous)
+      chain.failReads = true
+      const res = await scan(issued.qr)
+      await expect(res.json()).resolves.toMatchObject({ decision: 'REJECT', reason: 'REVOKED' })
+      const third = new FakeChain({ offchainKey: `0x${'ef'.repeat(32)}`, signer: ROOT })
+      third.failReads = true
+      const nextApp = appWith({ chain: third, now: () => NOW })
+      const nextRes = await postJson(
+        nextApp,
+        {
+          ...previous.bindings,
+          OFFCHAIN_RETIRED_SIGNERS: `${bindings.OFFCHAIN_RETIRED_SIGNERS},${privateKeyToAccount(NEXT_KEY).address}`,
+        },
+        '/v1/verify',
+        { qr: issued.qr },
+      )
+      await expect(nextRes.json()).resolves.toMatchObject({ decision: 'REJECT', reason: 'REVOKED' })
+    })
+
+    it('revokes a retired pass in D1 and records the transaction under the replacement key', async () => {
+      const previous = await setup()
+      const issued = await previous.issue()
+      const { app, bindings, chain, scan } = rotate(previous)
+      const res = await postJson(app, bindings, '/v1/revoke', { uid: issued.uid }, previous.token)
+      expect(res.status).toBe(200)
+      await expect(
+        chain.offchainRevokedAt(privateKeyToAccount(NEXT_KEY).address, issued.uid),
+      ).resolves.not.toBe(0n)
+      const old = previous.chain.offchainAttester()
+      if (old === null) {
+        throw new Error('missing original signer')
+      }
+      await expect(chain.offchainRevokedAt(old, issued.uid)).resolves.toBe(0n)
+      const verdict = await scan(issued.qr)
+      await expect(verdict.json()).resolves.toMatchObject({ decision: 'REJECT', reason: 'REVOKED' })
+    })
+
+    it('retries a pending old-key revocation with the new key, reading before another write', async () => {
+      const previous = await setup()
+      const issued = await previous.issue()
+      previous.chain.failWrites = true
+      await postJson(previous.app, previous.bindings, '/v1/revoke', { uid: issued.uid }, previous.token)
+      const { app, bindings, chain, scan } = rotate(previous)
+      await expect(retryOffchainRevocations(db(), chain)).resolves.toBe(1)
+      await expect(
+        chain.offchainRevokedAt(privateKeyToAccount(NEXT_KEY).address, issued.uid),
+      ).resolves.not.toBe(0n)
+      const count = chain.txs.length
+      await postJson(app, bindings, '/v1/revoke', { uid: issued.uid }, previous.token)
+      expect(chain.txs).toHaveLength(count)
+      const res = await scan(issued.qr)
+      await expect(res.json()).resolves.toMatchObject({ decision: 'REJECT', reason: 'REVOKED' })
+    })
+
+    it('also checks chain revocation under the current key for a retired pass', async () => {
+      const previous = await setup()
+      const issued = await previous.issue()
+      const { chain, scan } = rotate(previous)
+      await chain.revokeOffchain(issued.uid)
+      const res = await scan(issued.qr)
+      await expect(res.json()).resolves.toMatchObject({ decision: 'REJECT', reason: 'REVOKED' })
+    })
+
+    it('restores a saved backup and keeps its old signature and root proof after rotation', async () => {
+      const previous = await setup()
+      const issued = await previous.issue()
+      await anchorOffchainRoots(db(), previous.chain, NOW)
+      const saved = await previous.app.request(`/pass/${issued.uid}/backup`, {}, previous.bindings)
+      const backup = await saved.json<PassBackup>()
+      const { app, bindings, chain, scan } = rotate(previous)
+      const restored = await app.request(`/pass/${backup.uid}/backup`, {}, bindings)
+      expect(restored.status).toBe(200)
+      await expect(restored.json()).resolves.toStrictEqual(backup)
+      const pass = await app.request(`/pass/${backup.uid}`, {}, bindings)
+      expect(pass.status).toBe(200)
+      const res = await scan(backup.qr)
+      await expect(res.json()).resolves.toMatchObject({ decision: 'ADMIT', reason: 'OK' })
+      if (backup.proof === null) {
+        throw new Error('missing root proof')
+      }
+      await expect(chain.rootTimestamp(backup.proof.root)).resolves.toBe(BigInt(backup.proof.anchoredAt))
+    })
+
+    it('anchors a root left pending by the old key without making it an admission condition', async () => {
+      const previous = await setup()
+      const issued = await previous.issue()
+      previous.chain.failWrites = true
+      await anchorOffchainRoots(db(), previous.chain, NOW)
+      const { app, bindings, chain, scan } = rotate(previous)
+      const res = await scan(issued.qr)
+      await expect(res.json()).resolves.toMatchObject({ decision: 'ADMIT' })
+      await anchorOffchainRoots(db(), chain, NOW + 3600)
+      const backup = await app.request(`/pass/${issued.uid}/backup`, {}, bindings)
+      const body = await backup.json<PassBackup>()
+      expect(body.proof).not.toBeNull()
+    })
+
+    it.each(['not-an-address', ZERO_ADDRESS, `${privateKeyToAccount(NEXT_KEY).address},`])(
+      'fails closed for malformed retired signer list %s',
+      async (list) => {
+        const previous = await setup()
+        const issued = await previous.issue()
+        const { app, bindings } = rotate(previous)
+        const res = await postJson(app, { ...bindings, OFFCHAIN_RETIRED_SIGNERS: list }, '/v1/verify', {
+          qr: issued.qr,
+        })
+        expect(res.status).toBe(502)
+        await expect(res.json()).resolves.toStrictEqual({ error: 'chain_error' })
+      },
+    )
   })
 
   describe('passes', () => {

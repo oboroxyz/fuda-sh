@@ -172,6 +172,8 @@ fuda holds no email or other contact detail for a member, and does not send them
 - **A backup.** The card page and `/rights` offer `GET /pass/:uid/backup` as a file: `{ version, uid, qr, holder, handle, slug, memberNumber, restoreUrl, attestation, proof }`. `attestation` is the signed offchain attestation, or null for an on-chain right. `proof` is `{ root, path, anchoredAt }` once the pass's batch has been timestamped, or null. Settings reads a file back, using only its uid and asking the api about the rest. The route is public and `no-store` like `/pass/:uid`, and answers `404` for +Private. Having the file means being able to use the pass, and the screens say so.
 - **The shop.** A reissue, under a new uid.
 
+An offchain signer rotation preserves saved links, backups, and root proofs when the original signer is listed in `OFFCHAIN_RETIRED_SIGNERS`. Restoring uses the same UID and stored signature. Removing that signer rejects the pass at verification, including after restore.
+
 Identified and Sensitive rights will need the holder's key as well, so a saved pass alone will not bring them back.
 
 A wallet is no longer a way to sign in. Connecting one on `/rights` or `/signed` still works on that device for looking up and presenting on-chain rights.

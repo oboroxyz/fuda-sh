@@ -56,6 +56,7 @@ export class FakeChain implements ChainClient {
   // oxlint-disable-next-line class-methods-use-this -- injectable clock; tests replace this field wholesale
   now: () => bigint = () => BigInt(Math.floor(Date.now() / 1000))
   private readonly signer: Hex | null
+  private readonly offchainAccount: ReturnType<typeof privateKeyToAccount>
   private readonly verifyOnChain: ChainClient['verifyMessage'] | undefined
   // Local dev keeps its D1 file across restarts while every isolate
   // starts a fresh FakeChain, so a counter from zero re-mints uids that are
@@ -71,10 +72,17 @@ export class FakeChain implements ChainClient {
   private txCounter = crypto.getRandomValues(new Uint32Array(1))[0] ?? 0
 
   constructor(
-    opts: { signer?: Hex | null; head?: number; verifyMessage?: ChainClient['verifyMessage'] } = {},
+    opts: {
+      signer?: Hex | null
+      head?: number
+      offchainKey?: Hex
+      verifyMessage?: ChainClient['verifyMessage']
+    } = {},
   ) {
     const signer = opts.signer === undefined ? DEFAULT_SIGNER : opts.signer
     this.signer = signer === null ? null : checksum(signer)
+    this.offchainAccount =
+      opts.offchainKey === undefined ? OFFCHAIN_KEY : privateKeyToAccount(opts.offchainKey)
     this.verifyOnChain = opts.verifyMessage
     if (opts.head !== undefined) {
       this.head = opts.head
@@ -91,14 +99,14 @@ export class FakeChain implements ChainClient {
   }
 
   offchainAttester(): Hex | null {
-    return this.signer === null ? null : OFFCHAIN_KEY.address
+    return this.signer === null ? null : this.offchainAccount.address
   }
 
   async signOffchain(typed: OffchainTypedData): Promise<Hex> {
     if (this.signer === null) {
       throw new NoSignerError('no signer configured')
     }
-    return await OFFCHAIN_KEY.signTypedData(typed)
+    return await this.offchainAccount.signTypedData(typed)
   }
 
   async offchainRevokedAt(revoker: Hex, uid: Hex): Promise<bigint> {
@@ -132,7 +140,7 @@ export class FakeChain implements ChainClient {
     if (this.signer === null) {
       throw new NoSignerError('no signer configured')
     }
-    const key = `${OFFCHAIN_KEY.address.toLowerCase()}:${lowerHex(uid)}`
+    const key = `${this.offchainAccount.address.toLowerCase()}:${lowerHex(uid)}`
     if (this.failWrites || this.offchainRevocations.has(key)) {
       throw new ChainError('revokeOffchain reverted')
     }
