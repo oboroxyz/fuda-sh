@@ -21,6 +21,7 @@ import { venueOf } from '../issuers/queries.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { bearerSession } from '../middleware/bearer-session.ts'
 import { rateLimit } from '../middleware/rate-limit.ts'
+import { verifyTurnstile } from '../turnstile/siteverify.ts'
 
 // Self-serve issuances per IP per hour: a venue's whole queue is a handful of
 // phones, each of which needs one card.

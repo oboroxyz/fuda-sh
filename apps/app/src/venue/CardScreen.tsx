@@ -81,10 +81,17 @@ export interface CardScreenIo {
   fetchBackup: (uid: Hex) => Promise<Result<PassBackup>>
   fetchVenue: (handle: string) => Promise<Result<PublicVenue>>
   googleSaveUrl: (url: string) => Promise<string | null>
-  issueCard: (handle: string, slug: string, source: string | null) => Promise<Result<SelfServeIssueResponse>>
+  issueCard: (
+    handle: string,
+    slug: string,
+    source: string | null,
+    turnstileToken: string | null,
+  ) => Promise<Result<SelfServeIssueResponse>>
 }
 
 export interface CardScreenViewProps {
+  // Receives the element the bot check renders in, which stays mounted across states.
+  botCheckRef?: (element: HTMLDivElement) => void
   locale?: Locale
   onAddPasskey?: () => void
   onIssue: () => void
@@ -712,6 +719,7 @@ export const CardScreenView = (props: CardScreenViewProps): JSX.Element => (
         props.onAddPasskey?.()
       },
     )}
+    <div class="venue-bot-check" ref={props.botCheckRef} />
   </VenueLayout>
 )
 
@@ -828,6 +836,7 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
   const [sessionEnded, setSessionEnded] = createSignal(false)
   let issuing = false
   let lifecycle = 0
+  let botCheck: HTMLDivElement | null = null
   let preloaded = props.initial
 
   // Only probe the device's platform. The browser pass remains available until
@@ -1034,6 +1043,9 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
 
   return (
     <CardScreenView
+      botCheckRef={(element) => {
+        botCheck = element
+      }}
       locale={props.locale}
       onAddPasskey={onAddPasskey}
       onIssue={onIssue}

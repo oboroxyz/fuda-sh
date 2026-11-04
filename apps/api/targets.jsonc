@@ -11,7 +11,8 @@
 // ENS_SEPOLIA_RPC_URL, ENS_PAYMASTER_UPSTREAM (the last two are secrets
 // because an Alchemy endpoint carries its API key in the path and this file
 // is checked in),
-// ADMIN_TOKEN, BASE_RPC_URL and the wallet-platform names —
+// ADMIN_TOKEN, BASE_RPC_URL, TURNSTILE_SECRET_KEY (optional: unset, the
+// public claim skips its bot check) and the wallet-platform names —
 // GOOGLE_ISSUER_ID, GOOGLE_CLASS_ID, GOOGLE_SA_EMAIL, GOOGLE_SA_KEY_PEM
 // (all four, or GET /pass/:uid/google answers 501) and
 // APPLE_PASS_TYPE_ID, APPLE_TEAM_ID, APPLE_CERT_PEM, APPLE_KEY_PEM,

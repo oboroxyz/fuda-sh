@@ -146,10 +146,25 @@ describe(issueCard, () => {
     expect(spy.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ source: 'spring-flyer' }))
   })
 
+  it('sends the Turnstile token with the claim, alone or beside the label', async () => {
+    const spy = stubFetch(() => json({ uid: UID }, 200))
+    await issueCard('wassie-coffee', 'regular', null, 'token-1')
+    await issueCard('wassie-coffee', 'regular', 'spring-flyer', 'token-2')
+    expect(spy.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ turnstileToken: 'token-1' }))
+    expect(spy.mock.calls[1]?.[1]?.body).toBe(
+      JSON.stringify({ source: 'spring-flyer', turnstileToken: 'token-2' }),
+    )
+  })
+
   it('keeps only a claim link label the api would accept', () => {
     expect(claimSourceFrom('?source=spring-flyer')).toBe('spring-flyer')
     expect(claimSourceFrom('?source=Not%20Valid')).toBeNull()
     expect(claimSourceFrom('')).toBeNull()
+  })
+
+  it('tells a failed bot check from any other 403', () => {
+    expect(cardFailureOf({ error: 'bot_check_failed', status: 403 })).toBe('bot_check_failed')
+    expect(cardFailureOf({ error: 'forbidden', status: 403 })).toBe('network')
   })
 
   it('tells a card with no places left from a closed one', () => {

@@ -346,7 +346,17 @@ The shared `fuda.sh/@<handle>` link redirects at the zone to `app.fuda.sh/@<hand
 
 A Card may have a **capacity**, the most Passes it can ever issue. A Card at capacity reads `claimable: false`, and issuing answers `409 card_sold_out` before the signer spends anything, so concurrent claims cannot pass it. A revoked Pass still counts; raise the capacity to hand out more. Lowering it below the Passes issued stops new ones and leaves those Passes alone. Capacity is set through the [MCP server](./mcp.md); the dashboard's forms neither show nor change it.
 
-A claim link may carry a **source**, `?source=spring-flyer`: 1–40 lowercase letters, digits, hyphens or underscores. `POST /issuers/:handle/:slug/issue` takes it as an optional body `{ source }`, and one that breaks the rule is dropped rather than refusing the claim. It is held off chain and read only by the owning Issuer. Anyone can edit a link, so a source is good for counting and never decides anything.
+A claim link may carry a **source**, `?source=spring-flyer`: 1–40 lowercase letters, digits, hyphens or underscores. `POST /issuers/:handle/:slug/issue` takes it as an optional body member `source`, and one that breaks the rule is dropped rather than refusing the claim. It is held off chain and read only by the owning Issuer. Anyone can edit a link, so a source is good for counting and never decides anything.
+
+### Claim bot check
+
+Issuing off chain costs fuda nothing, so the per-IP budget alone does not keep a script from filling a Card's capacity. `POST /issuers/:handle/:slug/issue` therefore asks Cloudflare Turnstile whether a person made the claim, when the deployment has `TURNSTILE_SECRET_KEY`.
+
+- **Where.** The member app runs the widget only when the member taps to claim, never when a card page is merely read. It is invisible unless Cloudflare asks for interaction, and it sends the token as `turnstileToken` in the claim body. The widget action is `claim`.
+- **What the api checks.** After the Card is found and open, and before any place is reserved, the api posts the secret, the token and the visitor IP (`CF-Connecting-IP`) to Siteverify. It accepts only a successful answer, and refuses one that names an action other than `claim`; Cloudflare's test keys name none and pass. It does not check the hostname Siteverify returns, so the widget's own hostname list is the only boundary on where a token may be solved. A token is single use, so every attempt, a retry included, runs the widget again and sends a new token.
+- **Answers.** A missing, oversized, refused, reused or expired token answers `403 bot_check_failed`; the card page offers a retry. If Siteverify cannot be reached, answers with an error status or malformed JSON, or reports a problem with fuda's own secret, the claim fails closed with `503 bot_check_unavailable` and the member is asked to try again. One member retrying costs less than a filled Card. No place is reserved on either answer.
+- **No secret, no check.** A deployment without `TURNSTILE_SECRET_KEY`, or with an empty one, skips the check, as the other optional integrations do. Local development and the api tests run that way. The member app skips the widget when it has no `VITE_TURNSTILE_SITE_KEY`; the two must be set together, or every claim answers `bot_check_failed`.
+- **One place.** The check belongs to the route, not to a card type, so a future Identified claim that shares the route shares the check. Authenticated paths do not use it: the MCP `issue_pass` tool, connected apps and the admin `POST /issue` already know who is asking.
 
 ### Page language and dashboard errors
 

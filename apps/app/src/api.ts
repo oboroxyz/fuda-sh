@@ -75,6 +75,7 @@ export const issueCard = async (
   handle: string,
   slug: string,
   source: string | null,
+  turnstileToken: string | null = null,
 ): Promise<Result<SelfServeIssueResponse>> => {
   const path = issuePath(handle, slug)
   return source === null
@@ -114,6 +115,8 @@ export const issueSensitiveCard = async (
   })
 
 export type CardFailure =
+  | 'bot_check_failed'
+  | 'bot_check_unavailable'
   | 'card_closed'
   | 'card_sold_out'
   | 'chain_error'

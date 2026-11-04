@@ -36,6 +36,8 @@ Roots are timestamped in batches. A root records when a batch existed. It is not
 
 Merkle leaves use the double-hashed `StandardMerkleTree` form. Proofs may be handed to holders, but the tree dump contains the raw UIDs and must never be published.
 
+**Open claims need a bot check.** Issuing an offchain Right costs fuda nothing, so a per-IP budget alone leaves a script free to fill a Card's capacity. The public claim route verifies a Cloudflare Turnstile token before it reserves a place. When Turnstile cannot be reached the claim fails closed, because one member trying again costs less than a filled Card. A deployment without the secret skips the check, as the other optional integrations do. Authenticated issuance (MCP, connected apps, admin) does not use it. See [the spec](../specs/pass-types-and-flows.md#claim-bot-check).
+
 Revocation is sent per pass and not batched, because one already revoked UID reverts a whole `multiRevokeOffchain`. D1 records the revocation first, so the gate rejects at once and while the chain cannot be read. A revocation made directly on chain, outside fuda, is not covered while the chain is unreadable.
 
 ### 3. Gate rules
