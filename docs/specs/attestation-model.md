@@ -221,9 +221,13 @@ The schema is `string venue,string card,string memberNumber,uint8 usageModel,uin
 
 **The chain cannot be read.** A SINGLE_USE right answers `502 chain_error` without consuming its slot. Any other right is admitted with `unconfirmed: true` in the verdict. `members.status` is checked before the chain, so a pass revoked through fuda stays rejected. A revocation made directly on chain, outside fuda, is not seen until the chain can be read.
 
-**Revoking.** `POST /revoke` and `revoke_pass` set `members.status` first, then read `getRevokeOffchain` and send `revokeOffchain` if it is unset. A failed transaction does not undo the D1 change, and the call still answers `{ revoked: true }`: the gate rejects at once, and `offchain_attestations.revoke_tx` stays NULL until the record lands. Calling revoke again sends it. `revoke_tx` holds the zero hash when the chain already showed the revocation.
+**Revoking.** `POST /revoke` and `revoke_pass` set `members.status` first, then read `getRevokeOffchain` and send `revokeOffchain` if it is unset. A failed transaction does not undo the D1 change, and the call still answers `{ revoked: true }`: the gate rejects at once, and `offchain_attestations.revoke_tx` stays NULL until the record lands. A job sends what is behind every 15 minutes, up to 20 passes a run, one transaction each, and stops at the first failure. Calling revoke again also sends it. `revoke_tx` holds the zero hash when the chain already showed the revocation.
 
-**What an offchain right does not have.** No Attendance, no ENS member name, no Merkle root yet, and no public listing. Its visits and Stamps live in D1. The UID in the QR is the bearer secret, made unguessable by the attestation's random salt.
+**Roots.** A job runs hourly. It groups up to 1,000 passes with no root under one Merkle root, tied to them in `offchain_attestations.root` and recorded in `offchain_roots`, and sends `EAS.timestamp(root)`. With no new passes it sends nothing. The root and its passes are written before the transaction, so a failed send retries the same root on the next run. If the chain already shows the root, because anyone may timestamp one first, it counts as done and `tx_hash` stays NULL.
+
+The tree matches `StandardMerkleTree.of(uids, ['bytes32'])` from `@openzeppelin/merkle-tree`: a leaf is the double hash of the UID. A proof therefore never contains another pass's UID, which is the bearer secret. The tree is not stored, and is rebuilt from the UIDs naming a root. A root records when a batch existed. It is not an admission condition, and a failed job leaves every pass valid. No route serves proofs yet.
+
+**What an offchain right does not have.** No Attendance, no ENS member name, and no public listing. Its visits and Stamps live in D1. The UID in the QR is the bearer secret, made unguessable by the attestation's random salt.
 
 **Venues.** Every venue shares one signer, and `POST /verify` takes no venue, so as with an on-chain right it does not reject another venue's pass. Reception is scoped to the operator's venue. The signed venue and card only prove the row was not moved.
 

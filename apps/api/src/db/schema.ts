@@ -84,8 +84,19 @@ export const cards = sqliteTable(
 export const offchainAttestations = sqliteTable('offchain_attestations', {
   createdAt: integer('created_at').notNull(),
   revokeTx: text('revoke_tx'),
+  root: text('root'),
   signed: text('signed').notNull(),
   uid: text('uid').primaryKey(),
+})
+
+// A timestamped batch of offchain rights. The tree is rebuilt from the uids that name
+// this root, and never stored: its leaves' preimages are bearer secrets.
+export const offchainRoots = sqliteTable('offchain_roots', {
+  anchoredAt: integer('anchored_at'),
+  createdAt: integer('created_at').notNull(),
+  passCount: integer('pass_count').notNull(),
+  root: text('root').primaryKey(),
+  txHash: text('tx_hash'),
 })
 
 export const sessions = sqliteTable('sessions', {

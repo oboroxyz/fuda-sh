@@ -5,6 +5,7 @@
     "src/main.{ts,tsx,js,jsx}",
     "apps/*/pages/**/*.{ts,tsx}",
     "apps/*/routes/**/*.{ts,tsx}",
+    "apps/*/crons/**/*.ts",
     "apps/*/middleware/**/*.{ts,tsx}",
     "apps/*/void.config.ts",
     "apps/api/targets/*/void.config.ts",
