@@ -160,7 +160,7 @@ describe('GET /pass/:uid/apple.pkpass', () => {
     const body = new TextDecoder().decode(byName(entries, 'pass.json'))
     const pass = JSON.parse(body) as InstalledPass
     expect(pass.storeCard.auxiliaryFields).toStrictEqual([
-      { key: 'badge-human', label: 'BADGE', value: 'Verified human' },
+      { changeMessage: 'Badge: %@', key: 'badge-human', label: 'BADGE', value: 'Verified human' },
     ])
     // Only the fact of the badge travels: no verifier name, no scope, no
     // subject key, no verification time.
