@@ -50,6 +50,7 @@ test(
     await screen.getByLabel('Card title', { exact: true }).fill('Unsent Coffee draft')
     // Leaving for Profile is the supported way to retain a draft within a session.
     await screen.getByRole('link', 'Profile', { exact: true }).first().tap()
+    await expect(screen.getByRole('heading', 'Profile', { exact: true })).toBeVisible()
     await switchProfile(screen, first.issuer.name, second.issuer.handle)
     await expect(screen.getByRole('button', second.issuer.name, { exact: true })).toBeVisible()
     const secondRow = screen.getByRole('row').filter({ hasText: second.card.title })

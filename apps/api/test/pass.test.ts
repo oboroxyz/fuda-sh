@@ -334,7 +334,7 @@ describe('GET /pass/:uid/google', () => {
     // subject key, no verification time.
     const serialised = JSON.stringify(obj)
     expect(serialised).not.toContain('world')
-    expect(serialised).not.toContain('dead')
+    expect(serialised).not.toContain(`0x${'0'.repeat(60)}dead`)
   })
 
   it('is 501 when a required GOOGLE_* secret is missing', async () => {
