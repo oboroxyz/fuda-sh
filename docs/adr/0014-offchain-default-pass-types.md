@@ -1,6 +1,6 @@
 # ADR 0014: Offchain rights by default, with on-chain rights as an option
 
-- **Status**: Accepted 2026-11-04 for the Standard and On-chain types, which are built along with roots, member passkey sign-in and the member list. Recovery from a saved pass and from a backup is built too, and so are the Identified type and Sensitive use of decisions 1 and 4, including minimized entry logs and their daily purge after 30 days. Everything else here is still proposed and not built: one passkey per card, delegated keys, and the removals.
+- **Status**: Accepted 2026-11-04 for the Standard and On-chain types, which are built along with roots, member passkey sign-in and the member list. Recovery from a saved pass and from a backup is built too. The removals of decision 6 are done: +Private issuance and its U2 and U3 templates, `/private` discovery, Activation, the Claim key and the Agent key no longer exist in the code, specs or glossary. Identified passes and Sensitive use are built, including minimized entry logs and their daily purge after 30 days. Operator passkey sign-in, card Attendance controls, installed Apple Wallet updates, and offchain signer rotation are also built. Delegated keys remain proposed.
 - **Scope**: the pass types an Issuer can choose, how each is verified and recovered, which keys sign them, and what leaves the product.
 
 ## Context
@@ -113,8 +113,8 @@ Member ENS names resolve to a holder address, so only on-chain types get them.
 - [ADR 0001](0001-eas-native-target-architecture.md): decision 1's offchain treatment of private rights becomes the default for all rights. Decision 2's "stealth templates stay" and decision 8's claim module are dropped, and the code that stood for them is gone. Decision 6 is adopted, on chain.
 - [ADR 0002](0002-unfiltered-announcement-log.md) and [ADR 0003](0003-graph-push-query-lanes.md): the announcement log lost its product use and ADR 0002 is marked superseded. The rights subgraph no longer has an Announcer data source or an `Announcement` entity, and its start block variable is `GRAPH_START_BLOCK`. The Substreams packages are independent and unchanged. Graph queries remain only for on-chain rights, and the Graph fallback design waits for this decision.
 - [ADR 0004](0004-member-pass-list-from-holder.md): superseded for offchain rights, as above.
-- [ADR 0005](0005-hybrid-ensv2-resolver.md): one-time +Private resolution is no longer needed, and member names shrink to on-chain types.
-- [ADR 0008](0008-shared-issuer-wallet.md): no conflict. It already keeps automated issuer keys out of wallet ownership. It now also records that operators sign in with an account's passkey, with a wallet optional.
+- [ADR 0005](0005-hybrid-ensv2-resolver.md): one-time +Private resolution is removed (the `stealth_resolutions` table, the `stealth_meta_address` column and `ENS_GATEWAY_SECRET`). Member names shrink to on-chain types.
+- [ADR 0008](0008-shared-issuer-wallet.md): no conflict. It already keeps automated issuer keys out of wallet ownership.
 
 ## Consequences
 

@@ -57,6 +57,7 @@ export const cardView = (row: CardRow, now: number, badges?: readonly BadgeKind[
 
 export const operatorCardView = (row: CardRow, now: number): OperatorCardView => ({
   ...cardView(row, now),
+  attendance: row.attendance !== 0,
   identity: row.identity,
   lockScreen: row.lockScreen !== 0,
   record: row.record,

@@ -2,7 +2,7 @@ import { ChallengeBody, normalizeUid } from '@fuda/sdk'
 import * as v from 'valibot'
 import { defineHandler } from 'void'
 
-import { gatePasskeyOptions, relyingParty } from '../auth/member-passkey.ts'
+import { gatePasskeyOptions, relyingParty } from '../auth/passkey.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { mintChallenge } from '../verify/challenge.ts'
 import { attestedPasskeyOf, loadOffchainRow } from '../verify/verify-offchain.ts'

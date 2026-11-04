@@ -1,6 +1,6 @@
 import { pick } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
-import type { MemberPasskeysResponse, MemberPasskeyView } from '@fuda/sdk'
+import type { PasskeysResponse, PasskeyView } from '@fuda/sdk'
 import { apiFetch } from '@fuda/sdk/http'
 import { ConfirmAction } from '@fuda/ui'
 import { createResource, createSignal, For, Show } from 'solid-js'
@@ -12,8 +12,8 @@ import type { AddWithSecret } from './sensitive.ts'
 
 type Failure = Extract<AddWithSecret, { ok: false }>['failure']
 
-const loadPasskeys = async (): Promise<MemberPasskeyView[]> => {
-  const result = await apiFetch<MemberPasskeysResponse>(API_BASE_URL, '/auth/member/passkeys')
+const loadPasskeys = async (): Promise<PasskeyView[]> => {
+  const result = await apiFetch<PasskeysResponse>(API_BASE_URL, '/auth/member/passkeys')
   if (!result.ok) {
     throw new Error(result.error)
   }
@@ -32,7 +32,7 @@ export const PasskeySection = (props: { locale: Locale }): JSX.Element => {
   const [failure, setFailure] = createSignal<Failure | 'remove' | null>(null)
   const [addedWithoutCopy, setAddedWithoutCopy] = createSignal(false)
   const holders = (): number => passkeys()?.filter((passkey) => passkey.holdsSecret).length ?? 0
-  const removable = (passkey: MemberPasskeyView): boolean =>
+  const removable = (passkey: PasskeyView): boolean =>
     (passkeys()?.length ?? 0) > 1 && !(passkey.holdsSecret && holders() === 1)
 
   const add = async (): Promise<void> => {

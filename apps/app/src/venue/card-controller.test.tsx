@@ -52,6 +52,7 @@ const venue: PublicVenue = {
 
 const io = (): CardScreenIo => ({
   appleAvailable: async () => await Promise.resolve(false),
+  claimToken: async () => await Promise.resolve({ ok: true, token: null }),
   claimWithPasskey: vi.fn<CardScreenIo['claimWithPasskey']>(
     async () => await Promise.resolve({ failure: 'network', ok: false }),
   ),
@@ -106,7 +107,14 @@ describe('venue controller', () => {
       }
       render(
         () => (
-          <CardScreen handle={venue.handle} slug="regular" io={screenIo} sensitive={sensitive} signedIn />
+          <CardScreen
+            locale="en"
+            handle={venue.handle}
+            slug="regular"
+            io={screenIo}
+            sensitive={sensitive}
+            signedIn
+          />
         ),
         host,
       )
@@ -220,7 +228,9 @@ describe('venue controller', () => {
       globalThis.history.replaceState(null, '', `/@${venue.handle}/regular?source=flyer`)
       const host = document.createElement('div')
       render(
-        () => <CardScreen handle={venue.handle} slug="regular" io={screenIo} signedIn={signedIn} />,
+        () => (
+          <CardScreen locale="en" handle={venue.handle} slug="regular" io={screenIo} signedIn={signedIn} />
+        ),
         host,
       )
       return host
@@ -253,7 +263,7 @@ describe('venue controller', () => {
       await vi.waitFor(() => {
         expect(host.querySelector(`a[href="/signed?uid=${UID}"]`)).not.toBeNull()
       })
-      expect(claimWithPasskey).toHaveBeenCalledWith(venue.handle, 'regular', 'flyer')
+      expect(claimWithPasskey).toHaveBeenCalledWith(venue.handle, 'regular', 'flyer', null)
       expect(issueCard).not.toHaveBeenCalled()
       expect(googleSaveUrl).not.toHaveBeenCalled()
       expect(host.querySelector('.venue-qr')).toBeNull()
@@ -275,6 +285,7 @@ describe('venue controller', () => {
     it('offers sign-in again when the api says the session is gone', async () => {
       const host = open(
         deps({
+          claimToken: async () => await Promise.resolve({ ok: true, token: null }),
           claimWithPasskey: async () => await Promise.resolve({ failure: 'signed_out', ok: false }),
         }),
         true,
@@ -289,6 +300,7 @@ describe('venue controller', () => {
     it('says so when the prompt is dismissed', async () => {
       const host = open(
         deps({
+          claimToken: async () => await Promise.resolve({ ok: true, token: null }),
           claimWithPasskey: async () => await Promise.resolve({ failure: 'passkey_cancelled', ok: false }),
         }),
         true,

@@ -91,7 +91,7 @@ export const recordReception = async (binding: D1Database, db: Db, input: Recept
       WHERE e.reception_id = ?1
       ON CONFLICT (id) DO NOTHING
     `)
-      .bind(id, issuerId, JSON.stringify(verdict), day, verdict.entitlement?.level === 2 ? 1 : 0),
+      .bind(id, issuerId, JSON.stringify(verdict), day),
     binding
       .prepare(`
       UPDATE entry_log SET decision = NULL, reason = NULL, path = NULL, reception_id = NULL

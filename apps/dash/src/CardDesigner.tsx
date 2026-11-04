@@ -691,6 +691,9 @@ export const CardDesigner = (props: CardDesignerProps): JSX.Element => {
       savedLogoUrl={props.issuer?.logoUrl ?? null}
       mode={mode}
       onField={onField}
+      onAttendance={(attendance) => {
+        setForm((current) => ({ ...current, attendance, attendanceEdited: true }))
+      }}
       onIdentity={(identity) => {
         setForm((current) => ({ ...current, identity }))
       }}

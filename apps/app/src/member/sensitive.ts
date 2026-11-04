@@ -46,6 +46,7 @@ export interface SensitiveIo {
     slug: string,
     source: string | null,
     holderAddress: Hex,
+    turnstileToken: string | null,
   ) => Promise<Result<SelfServeIssueResponse>>
   countOutcome: (outcome: 'no_prf' | 'prf') => Promise<void>
   readSecret: () => Promise<Result<MemberSecretResponse>>
@@ -355,7 +356,13 @@ const failureOfOpen = (opened: Exclude<OpenedSecret, { kind: 'open' }>): CardFai
 
 export const claimSensitive = async (
   io: SensitiveIo,
-  card: { cardTitle: string; slug: string; source: string | null; venue: string },
+  card: {
+    cardTitle: string
+    slug: string
+    source: string | null
+    venue: string
+    turnstileToken?: string | null
+  },
   only?: string,
 ): Promise<SensitiveClaim> => {
   const opened = await openMemberSecret(io, only)
@@ -369,7 +376,7 @@ export const claimSensitive = async (
   }
   const salt = newPassSalt()
   const key = await passKeyFrom(opened.secret, salt)
-  const issued = await io.claim(card.venue, card.slug, card.source, key.address)
+  const issued = await io.claim(card.venue, card.slug, card.source, key.address, card.turnstileToken ?? null)
   if (!issued.ok) {
     return { failure: cardFailureOf(issued), ok: false }
   }

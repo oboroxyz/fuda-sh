@@ -32,7 +32,7 @@ The `migrate:*` scripts use `void db migrate`, with `--remote` for deployed D1. 
 
 ## Attendance
 
-An `ADMIT` verdict from `POST /verify` and `POST /verify-signed` schedules an on-chain `Attendance` attestation via `waitUntil` when the right's card has `attendance` on (a ticket's default; a membership's is off) — both paths run it from the shared admission spine (`src/verify/admit.ts`), which reads the card once per on-chain admission. A right with no card, which is what admin `POST /issue` makes, records unless it is +Private; an offchain right never does. The attest needs a signer (real or `FakeChain`) and an `attendance` entry in `EAS_SCHEMAS`; if either is missing the hook is a no-op. A failed attest is caught and logged (`console.warn`) but never fails the admission that triggered it — attendance is best-effort evidence, not a gate. On success the attestation UID is written back to `entry_log.attendance_uid` for the admitting `entry_log` row. +Private (level 2) rights are never attested; why, and what that leaves behind, is in the [entitlement lifecycle](../../docs/specs/attestation-model.md#entitlement-lifecycle).
+Every `ADMIT` verdict from `POST /verify` and `POST /verify-signed` schedules an on-chain `Attendance` attestation via `waitUntil` — both paths run it from the shared admission spine (`src/verify/admit.ts`), and it is always on, not opt-in. The attest needs a signer (real or `FakeChain`) and an `attendance` entry in `EAS_SCHEMAS`; if either is missing the hook is a no-op. A failed attest is caught and logged (`console.warn`) but never fails the admission that triggered it — attendance is best-effort evidence, not a gate. On success the attestation UID is written back to `entry_log.attendance_uid` for the admitting `entry_log` row.
 
 ## Signed level: challenge/response
 
@@ -110,14 +110,10 @@ Use the rights-subgraph smoke query after Graph deployment; see [The Graph in fu
 | POST | `/verify-signed` | none | challenge-response admission at levels 0 and 1 (a level 2 right on chain is `REJECT LEVEL_REQUIRED`); consumes a slot per `usageModel`, path `signature` |
 | POST | `/revoke` | Bearer (`ADMIN_TOKEN`) | revokes the entitlement attestation |
 | GET | `/members` | Bearer (`ADMIN_TOKEN`) | lists issued entitlements |
-| GET | `/pass/:uid` | none | browser-based pass page; `404 not_found` if fuda never issued that uid, or if the row is +Private |
-| GET | `/pass/:uid/card` | none | `{ card }`: the venue card behind the pass (`issuerName`, `cardTitle`, `category`, `brandColor`, `logoUrl`, `memberNumber`) for a client drawing it in the venue's look, or `card: null` for an admin-issued right; `404 not_found` for an unknown uid or a +Private row |
-| GET | `/pass/:uid/google` | none | `{ saveUrl }`, a signed Google Wallet save link; `501 google_not_configured` unless all four `GOOGLE_*` secrets are set; `404 not_found` first for an unknown uid or a +Private row |
-| GET | `/pass/:uid/apple.pkpass` | none | the `.pkpass` bundle; `501 apple_not_configured` unless all five `APPLE_*` secrets are set; `404 not_found` first for an unknown uid or a +Private row |
-| POST, DELETE | `/apple/v1/devices/:deviceId/registrations/:passTypeId/:serial` | `ApplePass` pass token | Wallet registers or unregisters a device for a pass; `501 apple_not_configured` without `APPLE_WEB_SERVICE_SECRET` |
-| GET | `/apple/v1/devices/:deviceId/registrations/:passTypeId` | the device id | serials changed since `passesUpdatedSince`, or `204` |
-| GET | `/apple/v1/passes/:passTypeId/:serial` | `ApplePass` pass token | the latest `.pkpass`, or `304` on `If-Modified-Since`; a revoked pass still answers |
-| POST | `/apple/v1/log` | none, per-IP budget (120/h) | Wallet's own error report, written to the Worker log |
+| GET | `/pass/:uid` | none | browser-based pass page; `404 not_found` if fuda never issued that uid |
+| GET | `/pass/:uid/card` | none | `{ card }`: the venue card behind the pass (`issuerName`, `cardTitle`, `category`, `brandColor`, `logoUrl`, `memberNumber`) for a client drawing it in the venue's look, or `card: null` for an admin-issued right; `404 not_found` for an unknown uid |
+| GET | `/pass/:uid/google` | none | `{ saveUrl }`, a signed Google Wallet save link; `501 google_not_configured` unless all four `GOOGLE_*` secrets are set; `404 not_found` first for an unknown uid |
+| GET | `/pass/:uid/apple.pkpass` | none | the `.pkpass` bundle; `501 apple_not_configured` unless all five `APPLE_*` secrets are set; `404 not_found` first for an unknown uid |
 | POST | `/ens/gateway` | none, per-IP budget (120/h) | EIP-3668 `{ sender, data }`; disabled with 503 until all four `ENS_*` bindings are configured; success `{ data }`, errors `{ message }`, always `Cache-Control: no-store` |
 
 ## Error codes

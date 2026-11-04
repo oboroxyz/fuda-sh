@@ -68,7 +68,7 @@ const wrap = async <T>(fn: () => Promise<T>): Promise<T> => {
 // Worker bindings beyond the addresses and credentials consumed here.
 type ChainBindings = Pick<
   Bindings,
-  'ANNOUNCER_ADDRESS' | 'BASE_RPC_URL' | 'CHAIN_ID' | 'EAS_ADDRESS' | 'FACTORY_ADDRESS' | 'SIGNER_PRIVATE_KEY'
+  'BASE_RPC_URL' | 'CHAIN_ID' | 'EAS_ADDRESS' | 'FACTORY_ADDRESS' | 'SIGNER_PRIVATE_KEY'
 >
 
 export const createViemChain = (env: ChainBindings, transportOverride?: Transport): ChainClient => {
@@ -86,27 +86,6 @@ export const createViemChain = (env: ChainBindings, transportOverride?: Transpor
   const wallet = account === null ? null : createWalletClient({ account, chain, transport })
 
   return {
-    announce: async (p) => {
-      if (wallet === null || account === null) {
-        throw new NoSignerError('SIGNER_PRIVATE_KEY unset')
-      }
-      return await wrap(async () => {
-        const txHash = await wallet.writeContract({
-          abi: ANNOUNCER_ABI,
-          account,
-          address: announcer,
-          args: [1n, p.stealthAddress, p.ephemeralPubKey, p.metadata],
-          chain,
-          functionName: 'announce',
-        })
-        const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash })
-        if (receipt.status !== 'success') {
-          throw new ChainError('announce reverted')
-        }
-        return { txHash }
-      })
-    },
-
     attest: async (p: AttestParams) => {
       if (wallet === null || account === null) {
         throw new NoSignerError('SIGNER_PRIVATE_KEY unset')
@@ -143,8 +122,6 @@ export const createViemChain = (env: ChainBindings, transportOverride?: Transpor
         return { txHash, uid: log.args.uid }
       })
     },
-
-    blockNumber: async () => await wrap(async () => Number(await publicClient.getBlockNumber())),
 
     chainId: () => config.id,
 

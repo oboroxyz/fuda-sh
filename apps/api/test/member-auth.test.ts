@@ -1,5 +1,5 @@
 import { PasskeyRegistrationBody } from '@fuda/sdk'
-import type { MemberPassesResponse, MemberPasskeysResponse, MemberSignInResponse } from '@fuda/sdk'
+import type { MemberPassesResponse, PasskeysResponse, MemberSignInResponse } from '@fuda/sdk'
 import { env } from 'cloudflare:test'
 import * as v from 'valibot'
 import type { Hex } from 'viem'

@@ -7,7 +7,6 @@ import {
 import * as v from 'valibot'
 import { defineHandler } from 'void'
 
-import { claimOptions, claimingPasskey, relyingParty } from '../auth/member-passkey.ts'
 import {
   addSecretCopy,
   clearSecret,
@@ -17,6 +16,7 @@ import {
   readVault,
   writeVault,
 } from '../auth/member-secret.ts'
+import { claimOptions, claimingPasskey, relyingParty } from '../auth/passkey.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { memberAuth } from '../middleware/member-auth.ts'
 import { rateLimit } from '../middleware/rate-limit.ts'

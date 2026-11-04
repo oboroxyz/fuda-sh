@@ -55,13 +55,6 @@ const click = (label: string): void => {
   button.click()
 }
 
-const privateIo = (result: Promise<PrfResult>): PrivateIo => ({
-  fetchRows: async () => await Promise.resolve([]),
-  passkeys: async () =>
-    await Promise.resolve({ createPasskey: async () => await result, loadPasskey: async () => await result }),
-  stealth: async () => await Promise.resolve(stealth),
-})
-
 const gateIo = (kind: 'passkey' | 'wallet'): SignedGateScreenIo => ({
   assert: async () => await Promise.reject(new Error('no prompt in this test')),
   challenge: async () => await Promise.resolve({ error: 'unused', network: false, ok: false, status: 400 }),
@@ -91,54 +84,6 @@ describe('entry locale changes', () => {
   afterEach(() => {
     unmountAll()
     root.replaceChildren()
-  })
-
-  it('keeps a pending private ceremony and translates its result using the current language', async () => {
-    const pending = Promise.withResolvers<PrfResult>()
-    const io = privateIo(pending.promise)
-    render(
-      () => <Harness>{(locale): JSX.Element => <PrivateScreen io={io} locale={locale()} />}</Harness>,
-      root,
-    )
-    await setTimeout(0)
-    click('Use existing passkey')
-    await setTimeout(0)
-    click('Language')
-    await setTimeout(0)
-    expect(root.textContent).toContain('既存のパスキーを使う')
-    expect(root.querySelector<HTMLButtonElement>('.btn-primary')?.disabled).toBe(true)
-    pending.resolve({ detail: 'prompt dismissed', ok: false, reason: 'cancelled' })
-    await setTimeout(0)
-    expect(root.textContent).toContain('パスキーの操作をキャンセルしました。')
-    click('Language')
-    await setTimeout(0)
-    expect(root.textContent).toContain('The passkey prompt was dismissed.')
-    expect(root.textContent).toContain('prompt dismissed')
-  })
-
-  it('retains unlocked private keys across a language change', async () => {
-    const output = new Uint8Array(32).fill(7)
-    const io = privateIo(Promise.resolve({ ok: true, output }))
-    render(
-      () => <Harness>{(locale): JSX.Element => <PrivateScreen io={io} locale={locale()} />}</Harness>,
-      root,
-    )
-    await setTimeout(0)
-    click('Use existing passkey')
-    await setTimeout(0)
-    const metaAddress = root.querySelector('.font-mono')?.textContent
-    expect(metaAddress).toBeTruthy()
-    click('Meta-address details')
-    await setTimeout(0)
-    expect(root.querySelector('dialog')?.textContent).toContain(stealth.keysFromPrf(output).metaAddress)
-    click('Language')
-    await setTimeout(0)
-    expect(root.textContent).toContain('自分の権利を探す')
-    expect({
-      compact: root.querySelector('.font-mono')?.textContent,
-      full: root.querySelector('dialog dd')?.textContent?.includes(stealth.keysFromPrf(output).metaAddress),
-    }).toStrictEqual({ compact: metaAddress, full: true })
-    expect(root.textContent).not.toContain('既存のパスキーを使う')
   })
 
   it('offers only the passkey to a pass that answers to one, from the address', async () => {
@@ -215,7 +160,7 @@ describe('entry locale changes', () => {
   })
 
   it('answers a code that is not a pass, then brings the scanner back', async () => {
-    render(() => <SignedGate provider={null} />, root)
+    render(() => <SignedGate provider={null} locale="en" />, root)
     const input = root.querySelector('input')
     if (input === null) {
       throw new Error('the paste box is missing')

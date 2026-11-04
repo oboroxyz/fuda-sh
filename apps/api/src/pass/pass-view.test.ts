@@ -46,7 +46,7 @@ describe(passView, () => {
 
   it('reports UNKNOWN when the chain could not be read and — for a missing holder', () => {
     const view = passView(
-      { branding: null, holder: null, level: 'private', logoPrefix: null, revoked: false, tier: 1, uid: UID },
+      { branding: null, holder: null, level: 'bearer', logoPrefix: null, revoked: false, tier: 1, uid: UID },
       null,
     )
     expect(view).toMatchObject({ holderShort: '—', status: 'UNKNOWN' })

@@ -1,4 +1,4 @@
-import { LinkPassesBody, normalizeUid } from '@fuda/sdk'
+import { LinkPassesBody, normalizeUid, PasskeyAuthenticationBody, PasskeyRegistrationBody } from '@fuda/sdk'
 import * as v from 'valibot'
 import type { Hex } from 'viem'
 import { defineHandler } from 'void'
@@ -10,18 +10,16 @@ import {
   claimOptions,
   claimingPasskey,
   listPasskeys,
-  login,
-  loginOptions,
-  register,
-  registerOptions,
   relyingParty,
   removePasskey,
-} from '../auth/member-passkey.ts'
-import { createSession, deleteSession } from '../auth/session.ts'
-import type { AppEnv } from '../env.ts'
+} from '../auth/passkey.ts'
+import { createMemberSession, deleteSession } from '../auth/session.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { memberAuth } from '../middleware/member-auth.ts'
+import { rateLimit } from '../middleware/rate-limit.ts'
 import { passkeyCeremonies } from './passkey-ceremonies.ts'
+
+const CEREMONY_BUDGET = 60
 
 const ceremonies = passkeyCeremonies({
   accountOf: (c) => c.get('member').accountId,
@@ -37,10 +35,6 @@ export const postV1AuthMemberRegisterOptions = ceremonies.registerOptions
 export const postV1AuthMemberRegister = ceremonies.register
 export const postV1AuthMemberLoginOptions = ceremonies.loginOptions
 export const postV1AuthMemberLogin = ceremonies.login
-export const getV1AuthMemberPasskeys = ceremonies.list
-export const postV1AuthMemberPasskeysOptions = ceremonies.addOptions
-export const postV1AuthMemberPasskeys = ceremonies.add
-export const deleteV1AuthMemberPasskey = ceremonies.remove
 
 export const postV1AuthMemberClaimOptions = defineHandler(
   rateLimit({ budget: CEREMONY_BUDGET }),

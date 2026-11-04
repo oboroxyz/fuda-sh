@@ -69,7 +69,11 @@ export const passkeyCeremonies = (audience: PasskeyAudience) => {
     list: forAccount(async (c, accountId) => {
       const rows = await listPasskeys(c.get('db'), accountId)
       return jsonResponse(c, {
-        passkeys: rows.map((row) => ({ ...row, backedUp: row.backedUp !== 0 })),
+        passkeys: rows.map(({ copy, ...row }) => ({
+          ...row,
+          backedUp: row.backedUp !== 0,
+          holdsSecret: copy !== null,
+        })),
       })
     }),
 

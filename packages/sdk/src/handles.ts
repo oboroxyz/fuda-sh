@@ -120,6 +120,9 @@ export type CardIdentity = 'none' | 'passkey' | 'sensitive'
 export const CARD_IDENTITIES: readonly CardIdentity[] = ['none', 'passkey', 'sensitive']
 export const isIdentityAllowed = (card: { identity: CardIdentity; record: CardRecord }): boolean =>
   card.identity === 'none' || card.record === 'offchain'
+export const defaultAttendance = (category: CardCategory, record: CardRecord): boolean =>
+  record === 'onchain' && category === 'ticket'
+
 export const isCardCategory = (raw: string): raw is CardCategory =>
   CARD_CATEGORIES.some((category) => category === raw)
 
@@ -169,6 +172,7 @@ export interface CardView extends ClaimWindow, CardValidity {
 // Operator-only card hydration includes the stored fields that are intentionally
 // absent from public CardView responses.
 export interface OperatorCardView extends CardView {
+  attendance: boolean
   identity: CardIdentity
   lockScreen: boolean
   record: CardRecord

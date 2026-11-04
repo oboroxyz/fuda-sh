@@ -1,4 +1,11 @@
-import { challengeMessage, isUid, normalizeNonce, normalizeUid, VerifySignedBody } from '@fuda/sdk'
+import {
+  LEVEL_CODE,
+  challengeMessage,
+  isUid,
+  normalizeNonce,
+  normalizeUid,
+  VerifySignedBody,
+} from '@fuda/sdk'
 import type { VerifySignedRequest, VerifySignedResponse } from '@fuda/sdk'
 import type { Context } from 'hono'
 import * as v from 'valibot'
@@ -6,7 +13,7 @@ import { isAddressEqual, recoverMessageAddress } from 'viem'
 import type { Hex } from 'viem'
 import { defineHandler } from 'void'
 
-import { relyingParty, verifyGateAssertion } from '../auth/member-passkey.ts'
+import { relyingParty, verifyGateAssertion } from '../auth/passkey.ts'
 import { ChainError } from '../chain/client.ts'
 import type { AttestedPasskey } from '../eas/offchain.ts'
 import type { AppEnv } from '../env.ts'

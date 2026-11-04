@@ -39,6 +39,8 @@ import { memberPassUrls } from '../pass-links.ts'
 import { rememberPass } from '../pass-memory.ts'
 import type { PassMemoryStorage } from '../pass-memory.ts'
 import { signInHref } from '../route.ts'
+import { claimToken } from '../turnstile.ts'
+import type { ClaimToken } from '../turnstile.ts'
 import { VENUE_COPY } from './copy.ts'
 import type { VenueCopy } from './copy.ts'
 import { cardClaimHref } from './entry.ts'
@@ -77,7 +79,13 @@ export type CardScreenState =
 
 export interface CardScreenIo {
   appleAvailable: (url: string) => Promise<boolean>
-  claimWithPasskey: (handle: string, slug: string, source: string | null) => Promise<PasskeyClaim>
+  claimWithPasskey: (
+    handle: string,
+    slug: string,
+    source: string | null,
+    turnstileToken: string | null,
+  ) => Promise<PasskeyClaim>
+  claimToken: (container: HTMLElement | null) => Promise<ClaimToken>
   fetchBackup: (uid: Hex) => Promise<Result<PassBackup>>
   fetchVenue: (handle: string) => Promise<Result<PublicVenue>>
   googleSaveUrl: (url: string) => Promise<string | null>
@@ -725,6 +733,7 @@ export const CardScreenView = (props: CardScreenViewProps): JSX.Element => (
 
 const defaultIo: CardScreenIo = {
   appleAvailable: applePassAvailable,
+  claimToken,
   claimWithPasskey,
   fetchBackup: fetchPassBackup,
   fetchVenue,
@@ -737,7 +746,13 @@ const defaultIo: CardScreenIo = {
 export interface CardSensitiveIo {
   addPasskey: () => Promise<{ ok: true; credentialId: string } | { ok: false }>
   claim: (
-    card: { cardTitle: string; slug: string; source: string | null; venue: string },
+    card: {
+      cardTitle: string
+      slug: string
+      source: string | null
+      venue: string
+      turnstileToken?: string | null
+    },
     only?: string,
   ) => Promise<SensitiveClaim>
 }
@@ -822,8 +837,9 @@ const publicClaim = async (
   handle: string,
   slug: string,
   source: string | null,
+  turnstileToken: string | null,
 ): Promise<PasskeyClaim> => {
-  const result = await io.issueCard(handle, slug, source)
+  const result = await io.issueCard(handle, slug, source, turnstileToken)
   return result.ok ? { body: result.body, ok: true } : { failure: cardFailureOf(result), ok: false }
 }
 
@@ -931,17 +947,18 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
   const claimFor = async (
     card: PublicCard,
     source: string | null,
+    turnstileToken: string | null,
     only?: string,
   ): Promise<PasskeyClaim | SensitiveClaim> => {
     if (isSensitiveCard(card)) {
       return await sensitive.claim(
-        { cardTitle: card.card.title, slug: card.card.slug, source, venue: props.handle },
+        { cardTitle: card.card.title, slug: card.card.slug, source, turnstileToken, venue: props.handle },
         only,
       )
     }
     return card.card.identity === 'passkey'
-      ? await io.claimWithPasskey(props.handle, card.card.slug, source)
-      : await publicClaim(io, props.handle, card.card.slug, source)
+      ? await io.claimWithPasskey(props.handle, card.card.slug, source, turnstileToken)
+      : await publicClaim(io, props.handle, card.card.slug, source, turnstileToken)
   }
 
   const issue = async (card: PublicCard, only?: string): Promise<void> => {
@@ -953,7 +970,15 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
     const { handle, storage } = props
     setState({ card, kind: 'issuing' })
     const source = claimSourceFrom(window.location.search)
-    const result = await claimFor(card, source, only)
+    const check = await io.claimToken(botCheck)
+    if (!check.ok) {
+      if (ticket === lifecycle) {
+        issuing = false
+        setState({ card, failure: 'bot_check_failed', kind: 'error' })
+      }
+      return
+    }
+    const result = await claimFor(card, source, check.token, only)
     const current = ticket === lifecycle
     if (current) {
       issuing = false

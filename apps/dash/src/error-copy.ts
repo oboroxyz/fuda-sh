@@ -11,7 +11,6 @@ export const DASH_ERROR_COPY = {
   },
   bad_handle: { en: 'Check the profile link.', ja: 'プロフィールのリンクを確認してください。' },
   bad_input: { en: 'Check the information you entered.', ja: '入力内容を確認してください。' },
-  bad_meta_address: { en: 'Check the private pass address.', ja: '非公開パスのアドレスを確認してください。' },
   bad_qr: { en: 'This QR code could not be read.', ja: 'このQRコードは読み取れません。' },
   bad_redirect_uri: { en: 'Check the app return URL.', ja: 'アプリの戻り先URLを確認してください。' },
   bad_response: {
@@ -56,6 +55,14 @@ export const DASH_ERROR_COPY = {
   handle_taken: {
     en: 'This profile link is already used. Choose another.',
     ja: 'このプロフィールのリンクはすでに使われています。別のリンクを選んでください。',
+  },
+  holder_must_claim: {
+    en: 'The member must receive this pass themselves.',
+    ja: 'メンバー本人がパスを受け取ってください。',
+  },
+  integrations_not_supported: {
+    en: 'This card does not support integrations.',
+    ja: 'このカードでは連携を利用できません。',
   },
   internal: {
     en: 'Something went wrong. Try again.',
@@ -118,6 +125,7 @@ export const DASH_ERROR_COPY = {
     en: 'The logo upload has expired. Choose the image again.',
     ja: 'ロゴのアップロードの有効期限が切れました。画像を選び直してください。',
   },
+  wallet_required: { en: 'Connect a wallet to continue.', ja: '続けるにはウォレットを接続してください。' },
 } satisfies Record<string, Copy<string>>
 
 const UNKNOWN_ERROR_COPY = {

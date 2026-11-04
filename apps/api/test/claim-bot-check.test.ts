@@ -146,4 +146,25 @@ describe('the claim bot check', () => {
     expect(res.status).toBe(404)
     expect(fetcher).not.toHaveBeenCalled()
   })
+
+  it('requires Turnstile on an unauthenticated Sensitive claim before reserving capacity', async () => {
+    const { app, bindings } = await setup()
+    await getDb({ DB: env.DB }).update(cards).set({ capacity: 1, identity: 'sensitive', record: 'offchain' })
+    const fetcher = siteverify(Response.json({ action: 'claim', success: true }))
+    vi.stubGlobal('fetch', fetcher)
+    const holderAddress = `0x${'11'.repeat(20)}`
+    const rejected = await claim(app, bindings, { holderAddress })
+    expect(rejected.status).toBe(403)
+    await expect(rejected.json()).resolves.toStrictEqual({ error: 'bot_check_failed' })
+    expect(fetcher).not.toHaveBeenCalled()
+    const [before] = await getDb({ DB: env.DB }).select({ reserved: cards.reserved }).from(cards)
+    expect(before?.reserved).toBe(0)
+    const accepted = await claim(app, bindings, { holderAddress, turnstileToken: 'good-token' })
+    const [after] = await getDb({ DB: env.DB }).select({ reserved: cards.reserved }).from(cards)
+    expect({
+      calls: fetcher.mock.calls.length,
+      reserved: after?.reserved,
+      status: accepted.status,
+    }).toStrictEqual({ calls: 1, reserved: 1, status: 200 })
+  })
 })

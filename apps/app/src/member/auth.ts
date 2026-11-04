@@ -1,5 +1,14 @@
+import { passkeyClient } from '@fuda/libs/auth'
 import type { SelfServeIssueResponse } from '@fuda/sdk'
 import { apiFetch, fetchJson } from '@fuda/sdk/http'
+import type { Result } from '@fuda/sdk/http'
+import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
+import type {
+  AuthenticationResponseJSON,
+  PublicKeyCredentialCreationOptionsJSON,
+  PublicKeyCredentialRequestOptionsJSON,
+  RegistrationResponseJSON,
+} from '@simplewebauthn/browser'
 
 import { cardFailureOf, issuePasskeyCard } from '../api.ts'
 import type { CardFailure } from '../api.ts'
@@ -35,41 +44,6 @@ const ceremony = async <T>(run: () => Promise<T>): Promise<{ ok: true; value: T 
 
 const postJson = async <T>(path: string): Promise<Result<T>> =>
   await apiFetch<T>(API_BASE_URL, path, { body: '{}', method: 'POST' })
-
-// The Worker's session route spends the response and keeps the session in an HttpOnly
-// cookie, so the browser never holds the token.
-const spend = async (
-  flow: 'login' | 'register',
-  response: AuthenticationResponseJSON | RegistrationResponseJSON,
-): Promise<PasskeyOutcome> => {
-  const result = await fetchJson<{ ok: true }>('/session/passkey', {
-    body: JSON.stringify({ flow, response }),
-    method: 'POST',
-  })
-  return result.ok ? { ok: true } : { failure: failureOf(result), ok: false }
-}
-
-export const signInWithPasskey = async (): Promise<PasskeyOutcome> => {
-  const options = await postJson<PublicKeyCredentialRequestOptionsJSON>('/auth/member/login/options')
-  if (!options.ok) {
-    return { failure: failureOf(options), ok: false }
-  }
-  const response = await ceremony<AuthenticationResponseJSON>(
-    async () => await startAuthentication({ optionsJSON: options.body }),
-  )
-  return 'value' in response ? await spend('login', response.value) : response
-}
-
-export const createPasskeyAccount = async (): Promise<PasskeyOutcome> => {
-  const options = await postJson<PublicKeyCredentialCreationOptionsJSON>('/auth/member/register/options')
-  if (!options.ok) {
-    return { failure: failureOf(options), ok: false }
-  }
-  const response = await ceremony<RegistrationResponseJSON>(
-    async () => await startRegistration({ optionsJSON: options.body }),
-  )
-  return 'value' in response ? await spend('register', response.value) : response
-}
 
 export type AddPasskeyOutcome =
   | { ok: true; credentialId: string; prfOutput: Uint8Array<ArrayBuffer> | null }
@@ -136,6 +110,7 @@ export const claimWithPasskey = async (
   handle: string,
   slug: string,
   source: string | null,
+  turnstileToken: string | null = null,
 ): Promise<PasskeyClaim> => {
   const options = await postJson<PublicKeyCredentialRequestOptionsJSON>('/auth/member/claim/options')
   if (!options.ok) {
@@ -147,10 +122,11 @@ export const claimWithPasskey = async (
   if (!('value' in response)) {
     return { failure: 'passkey_cancelled', ok: false }
   }
-  const issued = await issuePasskeyCard(handle, slug, source, response.value)
+  const issued = await issuePasskeyCard(handle, slug, source, response.value, turnstileToken)
   return issued.ok ? { body: issued.body, ok: true } : { failure: cardFailureOf(issued), ok: false }
 }
 
-export const cancelPasskeyCeremony = (): void => {
-  WebAuthnAbortService.cancelCeremony()
-}
+export const memberPasskeys = passkeyClient<{ ok: true }>('member', {
+  api: async (path, init) => await apiFetch(API_BASE_URL, path, init),
+  session: fetchJson,
+})

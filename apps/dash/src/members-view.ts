@@ -28,7 +28,7 @@ export const memberRowView = (row: MemberRow, apiBase: string): MemberRowView =>
   human: hasHumanBadge(row.badges),
   level: row.level,
   memberId: row.memberId,
-  passUrls: row.level === 'private' || row.sensitive === true ? null : passUrls(apiBase, row.uid),
+  passUrls: row.sensitive === true ? null : passUrls(apiBase, row.uid),
   qr: row.sensitive === true ? null : toQr(row.uid),
   status: row.status,
   tier: TIER_LABEL[row.tier] ?? `TIER ${row.tier}`,

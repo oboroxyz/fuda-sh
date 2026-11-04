@@ -52,19 +52,20 @@ const humanBadge = (copy: DashCopy['rights'], row: MemberRowView): JSX.Element =
     <span class="opacity-50">—</span>
   )
 
-const passLinks = (copy: DashCopy['rights'], row: MemberRowView): JSX.Element => (
-  <span class="dash-actions text-xs">
-    <a class="link" href={row.passUrls.web} target="_blank" rel="noreferrer">
-      {copy.web}
-    </a>
-    <a class="link" href={row.passUrls.google} target="_blank" rel="noreferrer">
-      {copy.google}
-    </a>
-    <a class="link" href={row.passUrls.apple} target="_blank" rel="noreferrer">
-      {copy.apple}
-    </a>
-  </span>
-)
+const passLinks = (copy: DashCopy['rights'], row: MemberRowView): JSX.Element =>
+  row.passUrls === null ? null : (
+    <span class="dash-actions text-xs">
+      <a class="link" href={row.passUrls.web} target="_blank" rel="noreferrer">
+        {copy.web}
+      </a>
+      <a class="link" href={row.passUrls.google} target="_blank" rel="noreferrer">
+        {copy.google}
+      </a>
+      <a class="link" href={row.passUrls.apple} target="_blank" rel="noreferrer">
+        {copy.apple}
+      </a>
+    </span>
+  )
 
 const uidDisplay = (row: MemberRowView): JSX.Element => (
   <code class="text-xs" title={row.uid}>

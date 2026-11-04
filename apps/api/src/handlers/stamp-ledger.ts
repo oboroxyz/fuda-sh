@@ -1,15 +1,16 @@
 import { normalizeUid, parseQr, StampAdjustBody, StampRedeemBody } from '@fuda/sdk'
 import type { Hex, StampLedger, StampSummary } from '@fuda/sdk'
-import { and, eq, ne } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import { defineHandler } from 'void'
 
+import { principalKey } from '../auth/principal.ts'
 import { members } from '../db/schema.ts'
 import type { AppEnv } from '../env.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { operatorAuth } from '../middleware/operator-auth.ts'
-import { scheduleStampPassUpdate } from '../pass/stamp-update.ts'
+import { notifyPassChanged } from '../pass/notify.ts'
 import { entryOf, insertAdjustment, readAdjustment, readLedger } from '../stamps/adjustment-store.ts'
 import type { AdjustmentRow } from '../stamps/adjustment-store.ts'
 import { readStampSummary } from '../stamps/store.ts'
@@ -40,7 +41,7 @@ const memberOf = async (c: Context<AppEnv>, issuerId: string, uid: Hex) =>
     .get('db')
     .select({ status: members.status })
     .from(members)
-    .where(and(eq(members.attestationUid, uid), eq(members.issuerId, issuerId), ne(members.level, 'private')))
+    .where(and(eq(members.attestationUid, uid), eq(members.issuerId, issuerId)))
     .get()
 
 const ledgerOf = async (c: Context<AppEnv>, issuerId: string, uid: Hex): Promise<StampLedger | null> => {
@@ -110,7 +111,7 @@ const resolveTarget = async (c: Context<AppEnv>, kind: Kind): Promise<Response |
   return {
     body,
     issuerId,
-    operatorAddress: operator.address,
+    operatorAddress: principalKey(operator.principal),
     requestId: `${issuerId}:${body.requestId.toLowerCase()}`,
     status: member.status,
     uid,
@@ -130,7 +131,7 @@ const replayOf = async (c: Context<AppEnv>, kind: Kind, target: Target): Promise
   ) {
     return errorResponse(c, 'bad_input', 409)
   }
-  scheduleStampPassUpdate(c, uid)
+  notifyPassChanged(c, uid)
   return await respond(c, issuerId, uid, previous)
 }
 
@@ -178,7 +179,7 @@ const act = async (c: Context<AppEnv>, kind: Kind): Promise<Response> => {
   if (row === undefined) {
     throw new Error('stamp adjustment missing after commit')
   }
-  scheduleStampPassUpdate(c, uid)
+  notifyPassChanged(c, uid)
   return await respond(c, issuerId, uid, row)
 }
 

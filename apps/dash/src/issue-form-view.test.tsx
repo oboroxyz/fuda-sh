@@ -127,20 +127,6 @@ describe('localized operation views', () => {
     },
   )
 
-  it('announces private discovery and transaction prefix without a public pass', () => {
-    const host = view({
-      result: { body: { announceTx: UID, announced: true, level: 'private', uid: UID }, ok: true },
-    })
-    expect(spacedText(host)).toContain('アナウンスしました')
-    expect(spacedText(host)).toContain('メンバーがアプリで検出します。')
-    expect(spacedText(host)).toContain('トランザクション 0xaaaaaaaa…')
-    expect({
-      links: host.querySelectorAll('a').length,
-      qrs: host.querySelectorAll('div[role="img"]').length,
-    }).toStrictEqual({ links: 0, qrs: 0 })
-    expect(liveStatus(host)?.getAttribute('aria-live')).toBe('polite')
-  })
-
   it('explains unknown errors in Japanese and retains their support code', () => {
     const host = view({ result: { error: 'RPC_DENIED [42]', network: false, ok: false, status: 503 } })
     expect(spacedText(host.querySelector('[role="alert"]'))).toBe(

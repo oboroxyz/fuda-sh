@@ -74,6 +74,11 @@ test(
   async ({ browser, screen }) => {
     const { first, second } = await operatorWithTwoProfiles()
     await signInOperator(browser, first.token)
+    const rendered = await fetch(`${SURFACES.dash.origin}/profile`, {
+      headers: { cookie: `fuda_operator=${first.token}; fuda_locale=en` },
+    })
+    expect(rendered.status).toBe(200)
+    expect(await rendered.text()).toContain(first.issuer.name)
     await browser.goto(`${SURFACES.dash.origin}/profile`, { waitUntil: 'networkidle' })
     await expect(screen.getByLabel('Name', { exact: true })).toHaveValue(first.issuer.name)
     await screen.getByLabel('Name', { exact: true }).fill('Old tab must not overwrite Tea')

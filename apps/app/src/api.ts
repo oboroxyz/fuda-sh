@@ -78,12 +78,13 @@ export const issueCard = async (
   turnstileToken: string | null = null,
 ): Promise<Result<SelfServeIssueResponse>> => {
   const path = issuePath(handle, slug)
-  return source === null
-    ? await apiFetch<SelfServeIssueResponse>(API_BASE_URL, path, { method: 'POST' })
-    : await apiFetch<SelfServeIssueResponse>(API_BASE_URL, path, {
-        body: JSON.stringify({ source }),
-        method: 'POST',
-      })
+  if (source === null && turnstileToken === null) {
+    return await apiFetch<SelfServeIssueResponse>(API_BASE_URL, path, { method: 'POST' })
+  }
+  return await apiFetch<SelfServeIssueResponse>(API_BASE_URL, path, {
+    body: JSON.stringify({ source: source ?? undefined, turnstileToken: turnstileToken ?? undefined }),
+    method: 'POST',
+  })
 }
 
 // The same route for a card bound to a passkey, which also takes the member's session
@@ -94,9 +95,14 @@ export const issuePasskeyCard = async (
   slug: string,
   source: string | null,
   webauthn: AuthenticationResponseJSON,
+  turnstileToken: string | null = null,
 ): Promise<Result<SelfServeIssueResponse>> =>
   await apiFetch<SelfServeIssueResponse>(API_BASE_URL, issuePath(handle, slug), {
-    body: JSON.stringify(source === null ? { webauthn } : { source, webauthn }),
+    body: JSON.stringify({
+      source: source ?? undefined,
+      turnstileToken: turnstileToken ?? undefined,
+      webauthn,
+    }),
     method: 'POST',
   })
 
@@ -107,9 +113,14 @@ export const issueSensitiveCard = async (
   slug: string,
   source: string | null,
   holderAddress: Hex,
+  turnstileToken: string | null = null,
 ): Promise<Result<SelfServeIssueResponse>> =>
   await apiFetch<SelfServeIssueResponse>(API_BASE_URL, issuePath(handle, slug), {
-    body: JSON.stringify(source === null ? { holderAddress } : { holderAddress, source }),
+    body: JSON.stringify({
+      holderAddress,
+      source: source ?? undefined,
+      turnstileToken: turnstileToken ?? undefined,
+    }),
     credentials: 'omit',
     method: 'POST',
   })
@@ -138,7 +149,7 @@ export const cardFailureOf = (result: { status: number; error: string }): CardFa
       return 'signed_out'
     }
     case 403: {
-      return 'passkey_refused'
+      return result.error === 'bot_check_failed' ? 'bot_check_failed' : 'passkey_refused'
     }
     case 404: {
       return 'not_found'
@@ -151,6 +162,9 @@ export const cardFailureOf = (result: { status: number; error: string }): CardFa
     }
     case 501: {
       return 'no_signer'
+    }
+    case 503: {
+      return 'bot_check_unavailable'
     }
     case 502: {
       return 'chain_error'

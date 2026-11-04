@@ -1,7 +1,7 @@
 import { PasskeyRegistrationBody, challengeMessage } from '@fuda/sdk'
 import type {
   IssuerPassesResponse,
-  MemberPasskeysResponse,
+  PasskeysResponse,
   MemberSecretResponse,
   MemberSignInResponse,
   MemberVaultResponse,
@@ -912,7 +912,7 @@ describe('sensitive use', () => {
       await addPasskey(second, token)
       await copy(token, first, true)
       const res = await send('GET', '/v1/auth/member/passkeys', undefined, token)
-      const body = await res.json<MemberPasskeysResponse>()
+      const body = await res.json<PasskeysResponse>()
       expect(Object.fromEntries(body.passkeys.map((row) => [row.id, row.holdsSecret]))).toStrictEqual({
         [first.credentialId]: true,
         [second.credentialId]: false,

@@ -28,9 +28,7 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Pass**: A presentation of a Right — a Device wallet pass (`.pkpass` / Google Wallet object) or the browser-based pass page carrying the Right's QR. A Pass is not the Right, and lives in the Device wallet, never in the Crypto wallet. _Avoid_: Ticket, card, credential
 
-**Pass update**: Wallet fetching a newer copy of an installed Pass, because fuda recorded a change and usually pushed a notice. It changes what the Pass shows, never the Right. _Avoid_: Sync
-
-**Device wallet**: Apple Wallet or Google Wallet — the phone's OS-level container for Passes. A distribution and presentation channel only: it holds no keys, signs nothing, and knows nothing about the chain. Bearer and Signed Rights can have Passes; +Private Rights use the signing and discovery flow without a Pass. Say "Apple Wallet" / "Google Wallet" when the platform matters. _Avoid_: Wallet (bare), wallet app, mobile wallet
+**Device wallet**: Apple Wallet or Google Wallet — the phone's OS-level container for Passes. A distribution and presentation channel only: it holds no keys, signs nothing, and knows nothing about the chain. Bearer and Signed Rights can have Passes. Say "Apple Wallet" / "Google Wallet" when the platform matters. _Avoid_: Wallet (bare), wallet app, mobile wallet
 
 **Crypto wallet** (or **wallet**): Software that controls an Ethereum key and can sign — a passkey smart wallet (Base Account) or an EOA. It is what makes a Holder _the member's_: Signed members hold one; Bearer members do not. Bare "wallet" in this glossary always means this one, never the Device wallet. _Avoid_: Account (say Holder for the address), key, signer
 
@@ -108,7 +106,7 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Subject key**: The opaque value a verifier returns to identify the person behind a Badge within one `(verifier, scope)` pair and nowhere else — the whole of what fuda stores about that person. For the `human` Badge it is a World ID 4.0 uniqueness nullifier, scoped to the relying party and the action, and stable for the same person and action whichever of the accepted credentials proved it — the credential is not part of the derivation; that stability is what the one-person-one-Badge rule rests on, and it is confirmed by World's documentation and protocol source rather than by a device measurement (see [the World ID research notes](research/world-id-2026-09-26.md)). A verifier that can only return a globally stable identifier must have it hashed together with the scope before storage. _Avoid_: nullifier (that is one verifier's name for it), user id, pseudonym
 
-**Attendance**: The on-chain evidence of a public Right’s Entry. A Card has it on or off, and only an on-chain Card can have it on: a ticket starts on and a membership starts off. +Private Entries have no Attendance, so their visit history stays offchain. _Avoid_: Entry record, stamp, proof of attendance
+**Attendance**: The on-chain evidence of an on-chain Right’s Entry. An offchain Right has no Holder address to name, so its Entries stay in the entry log. _Avoid_: Entry record, stamp, proof of attendance
 
 ### Changing a right
 
@@ -116,8 +114,4 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Issuer name**: The ENS subname for an Issuer (`<issuer>.fuda.eth`, label = Handle), resolving to the Issuer's wallet — offchain-first and onchain-claimable. A claimed Issuer name follows registry ownership and expiry independently of Issuer delegation revocation. Under it, each Right's Member number is a member label (`<member-no>.<issuer>.fuda.eth`, see `docs/specs/ens-naming.md`); Members as people and Operators are never named. A name never makes an Issuer legitimate. _Avoid_: Venue name, ENS handle, username, member name (that names a Right, not a person)
 
-**Operator**: A person acting for a Venue at the dashboard or the gate (floor staff). Signs in with an Account's passkey, or with a Crypto wallet for an Issuer that wallet owns. Not an on-chain party, and never ENS-named. _Avoid_: Staff, admin (that is fuda's API authorization), issuer
-
-**Meta-address**: The ERC-5564 spending + viewing public pair, derived locally from the Member's PRF passkey, that the Member gives the Issuer to enable +Private issuance — the only thing the Issuer ever learns. Every +Private Right still lands on a fresh stealth address derived from it per issuance. _Avoid_: Stealth address (that is the per-Right Holder), public key, member address
-
-**Announcement**: The ERC-5564 log emitted when a +Private Right is issued, by which the Member discovers the Right client-side. The only way a +Private Holder is ever communicated. _Avoid_: Notification, broadcast
+**Operator**: A person acting for a Venue at the dashboard or the gate (floor staff). Not an on-chain party, and never ENS-named. _Avoid_: Staff, admin (that is fuda's API authorization), issuer

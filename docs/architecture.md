@@ -18,7 +18,7 @@ flowchart LR
     EAS -. raw events .-> S[Optional Substreams push lane]
     API -->|read right + delegation| EAS
     G -->|challenge / consume / log| API
-    API -->|record Attendance when the card has it on, never +Private| EAS
+    API -->|record Attendance| EAS
 ```
 
 ## Components

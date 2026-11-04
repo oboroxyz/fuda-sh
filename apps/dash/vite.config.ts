@@ -11,11 +11,12 @@ const testing = process.env.VITEST !== undefined
 // Dependencies the dev server would otherwise discover on a page's first
 // request, re-optimize and reload in the middle of it, failing that render.
 const PREBUNDLED = [
-  '@base-org/account',
-  '@simplewebauthn/browser',
+  '@fuda/libs > @base-org/account',
+  '@fuda/libs > @simplewebauthn/browser',
   'cn',
   'hono/html',
-  'uqr',
+  '@fuda/sdk > uqr',
+  '@fuda/ui > jsqr',
   'valibot',
   'viem',
   'viem/chains',

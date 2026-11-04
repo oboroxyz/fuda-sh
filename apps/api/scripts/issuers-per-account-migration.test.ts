@@ -76,7 +76,7 @@ describe('issuers per account migration', () => {
         INSERT INTO accounts (id, user_handle, created_at) VALUES ('account', 'handle', 1);
       `)
       const migrations = new URL('../migrations/', import.meta.url)
-      db.exec(`BEGIN; ${readFileSync(new URL('0026_operator_accounts.sql', migrations), 'utf-8')} COMMIT;`)
+      db.exec(`BEGIN; ${readFileSync(new URL('0027_operator_accounts.sql', migrations), 'utf-8')} COMMIT;`)
 
       expect({ ...db.prepare('SELECT * FROM issuers').get() }).toStrictEqual({
         brand_color: '#112233',

@@ -521,13 +521,6 @@ describe('member rails and query memory', () => {
     expect(remembered).toStrictEqual([])
   })
 
-  it('shows private-recovery guidance with the +Private route', () => {
-    const view = mount(() => <QueryRecoveryNotice locale="en" />)
-
-    expect(viewText(view)).toContain('This is a +Private pass. Open Private rights to recover it.')
-    expect(hrefsOf(view)).toContain('/private')
-  })
-
   it('reports an unsuccessful query preview instead of forgetting it', async () => {
     await expect(
       rememberQueryPass(
@@ -643,7 +636,10 @@ describe(RightsListView, () => {
       },
     })
     const host = mount(() => (
-      <RightsListView state={{ kind: 'ready', result: { indexUnavailable: false, rows: [row] } }} />
+      <RightsListView
+        locale="en"
+        state={{ kind: 'ready', result: { indexUnavailable: false, rows: [row] } }}
+      />
     ))
     expect(host.querySelector(`a[href="/signed?uid=${RIGHT}"]`)).not.toBeNull()
     expect(host.textContent).not.toContain('View pass')

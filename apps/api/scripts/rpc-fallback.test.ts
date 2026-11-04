@@ -57,7 +57,6 @@ const unavailable: Respond = (_request, response) => {
 const chainAt = (primary: string, secondary: string, signer?: `0x${string}`, chainId?: string) =>
   createViemChain(
     {
-      ANNOUNCER_ADDRESS: ZERO_ADDRESS,
       BASE_RPC_URL: primary,
       CHAIN_ID: chainId,
       EAS_ADDRESS: ZERO_ADDRESS,
@@ -306,7 +305,7 @@ describe('RPC URLs from chain configuration', () => {
         return await Promise.resolve(
           url === 'https://preferred.test/'
             ? new Response('', { status: 503 })
-            : Response.json({ id: 1, jsonrpc: '2.0', result: '0x2a' }),
+            : Response.json({ id: 1, jsonrpc: '2.0', result: `0x${'2a'.padStart(64, '0')}` }),
         )
       }),
     )
@@ -314,15 +313,19 @@ describe('RPC URLs from chain configuration', () => {
       vi.unstubAllGlobals()
     })
     const bindings = {
-      ANNOUNCER_ADDRESS: ZERO_ADDRESS,
       CHAIN_ID: chainId,
       EAS_ADDRESS: ZERO_ADDRESS,
       FACTORY_ADDRESS: ZERO_ADDRESS,
     }
-    await expect(createViemChain(bindings).blockNumber()).resolves.toBe(42)
     await expect(
-      createViemChain({ ...bindings, BASE_RPC_URL: 'https://preferred.test/' }).blockNumber(),
-    ).resolves.toBe(42)
+      createViemChain(bindings).offchainRevokedAt(`0x${'11'.repeat(20)}`, `0x${'22'.repeat(32)}`),
+    ).resolves.toBe(42n)
+    await expect(
+      createViemChain({ ...bindings, BASE_RPC_URL: 'https://preferred.test/' }).offchainRevokedAt(
+        `0x${'11'.repeat(20)}`,
+        `0x${'22'.repeat(32)}`,
+      ),
+    ).resolves.toBe(42n)
     expect(urls).toStrictEqual([`${rpc}/`, 'https://preferred.test/', `${rpc}/`])
   })
 })

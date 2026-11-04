@@ -59,7 +59,6 @@ export class FakeChain implements ChainClient {
   constructor(
     opts: {
       signer?: Hex | null
-      head?: number
       offchainKey?: Hex
       verifyMessage?: ChainClient['verifyMessage']
     } = {},

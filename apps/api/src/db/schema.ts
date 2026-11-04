@@ -38,6 +38,7 @@ export const members = sqliteTable(
 export const accounts = sqliteTable('accounts', {
   createdAt: integer('created_at').notNull(),
   id: text('id').primaryKey(),
+  secretWriteHash: text('secret_write_hash'),
   userHandle: text('user_handle').notNull().unique(),
 })
 
@@ -119,12 +120,6 @@ export const offchainRoots = sqliteTable('offchain_roots', {
 })
 
 // A member account: its passkeys are its only identity (docs/specs/pass-types-and-flows.md#member-sign-in).
-export const accounts = sqliteTable('accounts', {
-  createdAt: integer('created_at').notNull(),
-  id: text('id').primaryKey(),
-  secretWriteHash: text('secret_write_hash'),
-  userHandle: text('user_handle').notNull().unique(),
-})
 
 export const passkeys = sqliteTable(
   'passkeys',

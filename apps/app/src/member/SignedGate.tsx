@@ -178,9 +178,11 @@ export const SignedGate = (props: {
               labels={c().scanner}
               onInput={(text) => {
                 const u = uidOf(text)
-                if (u !== null) {
-                  setUid(u)
+                if (u === null) {
+                  setState({ detail: c().signedUnreadable, title: 'REJECT', tone: 'red' })
+                  return
                 }
+                setUid(u)
               }}
             />
           </Show>

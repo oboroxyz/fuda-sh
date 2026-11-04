@@ -89,7 +89,7 @@ describe('configured attestation chain', () => {
     ).resolves.toBe(false)
     const uid = offchainUid(message)
     await expect(
-      verifyOffchain({ chain: accepting, domain: otherDomain, now: 2 }, uid, {
+      verifyOffchain({ chain: accepting, domain: otherDomain, now: 2, retiredSigners: [] }, uid, {
         cardId: 'card',
         handle: 'shop',
         signed: toSignedJson({ domain, message, signature, uid }),

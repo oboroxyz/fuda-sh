@@ -12,14 +12,14 @@ import * as v from 'valibot'
 import { getAddress } from 'viem'
 import { defineHandler } from 'void'
 
-import { claimingPasskey, relyingParty } from '../auth/member-passkey.ts'
+import { claimingPasskey, relyingParty } from '../auth/passkey.ts'
 import type { AppEnv } from '../env.ts'
 import { issueForCard } from '../issue/issue-for-card.ts'
 import type { CardIssueError } from '../issue/issue-for-card.ts'
 import type { PassClaimant } from '../issue/issue-offchain.ts'
 import { venueOf } from '../issuers/queries.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
-import { bearerSession } from '../middleware/bearer-session.ts'
+import { memberBearerSession } from '../middleware/bearer-session.ts'
 import { rateLimit } from '../middleware/rate-limit.ts'
 import { verifyTurnstile } from '../turnstile/siteverify.ts'
 
@@ -49,7 +49,7 @@ const passkeyClaimant = async (
   c: Context<AppEnv>,
   body: v.SafeParseResult<typeof PasskeyClaimBody>,
 ): Promise<Claim> => {
-  const session = await bearerSession(c, 'member')
+  const session = await memberBearerSession(c)
   if (session.kind !== 'valid' || session.session.accountId === null) {
     return { ok: false, res: errorResponse(c, 'unauthorized', 401) }
   }
@@ -90,6 +90,29 @@ const claimFor = async (
   return identity === 'sensitive' ? sensitiveClaimant(c, body.sensitive) : null
 }
 
+// Read apart from the source so a mangled label never costs the member their token.
+const ClaimToken = v.object({ turnstileToken: v.string() })
+
+// The one bot check for every claim of this route, whatever the card type. It
+// runs before any place is reserved. Without a secret the deployment has not
+// opted in, which is how local development and the tests run.
+const botCheck = async (c: Context<AppEnv>, token: string | null): Promise<Response | null> => {
+  const secret = c.env.TURNSTILE_SECRET_KEY
+  if (secret === undefined || secret === '') {
+    return null
+  }
+  const verdict = await verifyTurnstile({
+    // rateLimit has already refused a request without this header.
+    ip: c.req.header('CF-Connecting-IP') ?? '',
+    secret,
+    token,
+  })
+  if (verdict === 'failed') {
+    return errorResponse(c, 'bot_check_failed', 403)
+  }
+  return verdict === 'unavailable' ? errorResponse(c, 'bot_check_unavailable', 503) : null
+}
+
 export const postV1IssuersHandleSlugIssue = defineHandler(
   rateLimit({ budget: SELF_SERVE_BUDGET }),
   async (c) => {
@@ -107,6 +130,11 @@ export const postV1IssuersHandleSlugIssue = defineHandler(
       return errorResponse(c, 'card_closed', 409)
     }
     const raw: unknown = await c.req.json().catch(() => null)
+    const claimToken = v.safeParse(ClaimToken, raw)
+    const refused = await botCheck(c, claimToken.success ? claimToken.output.turnstileToken : null)
+    if (refused !== null) {
+      return refused
+    }
     const body = v.safeParse(ClaimBody, raw)
     const claim = await claimFor(c, card.identity, {
       passkey: v.safeParse(PasskeyClaimBody, raw),

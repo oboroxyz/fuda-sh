@@ -164,7 +164,7 @@ describe(issueCard, () => {
 
   it('tells a failed bot check from any other 403', () => {
     expect(cardFailureOf({ error: 'bot_check_failed', status: 403 })).toBe('bot_check_failed')
-    expect(cardFailureOf({ error: 'forbidden', status: 403 })).toBe('network')
+    expect(cardFailureOf({ error: 'forbidden', status: 403 })).toBe('passkey_refused')
   })
 
   it('tells a card with no places left from a closed one', () => {
@@ -213,11 +213,14 @@ describe('Sensitive request privacy', () => {
       captured.push(init)
       return json({}, 200)
     })
-    await issueSensitiveCard('venue-one', 'staff', null, `0x${'11'.repeat(20)}`)
+    await issueSensitiveCard('venue-one', 'staff', null, `0x${'11'.repeat(20)}`, 'sensitive-token')
     await issueSensitiveCard('venue-two', 'staff', null, `0x${'22'.repeat(20)}`)
     await challenge(UID)
     await verifySigned({ nonce: NONCE, signature: SIGNATURE, uid: UID })
     expect(captured).toHaveLength(4)
+    expect(JSON.parse(await new Response(captured[0]?.body).text())).toMatchObject({
+      turnstileToken: 'sensitive-token',
+    })
     for (const request of captured) {
       expect(request.credentials).toBe('omit')
       expect([...new Headers(request.headers).keys()]).toStrictEqual(['content-type'])

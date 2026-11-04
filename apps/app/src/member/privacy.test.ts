@@ -18,7 +18,10 @@ describe('Sensitive proxy privacy', () => {
     const worker = new Hono<{ Bindings: { API_BASE_URL?: string } }>()
     worker.all('/api/*', async (c) => await forwardMemberApi(c, 'https://api.test'))
     for (const [path, body] of [
-      ['/issuers/venue-one/staff/issue', { holderAddress: `0x${'11'.repeat(20)}` }],
+      [
+        '/issuers/venue-one/staff/issue',
+        { holderAddress: `0x${'11'.repeat(20)}`, turnstileToken: 'sensitive-token' },
+      ],
       ['/issuers/venue-two/staff/issue', { holderAddress: `0x${'22'.repeat(20)}` }],
       ['/challenge', { uid: `0x${'aa'.repeat(32)}` }],
       ['/verify-signed', { nonce: `0x${'cc'.repeat(32)}`, signature: '0x01', uid: `0x${'bb'.repeat(32)}` }],
@@ -38,7 +41,10 @@ describe('Sensitive proxy privacy', () => {
     expect(captured).toHaveLength(4)
     expect(captured.map((request) => request.cookie)).toStrictEqual([null, null, null, null])
     expect(captured.map((request) => request.authorization)).toStrictEqual([null, null, null, null])
-    expect(captured[0]?.body).toContain('holderAddress')
+    expect(JSON.parse(captured[0]?.body ?? '{}')).toMatchObject({
+      holderAddress: `0x${'11'.repeat(20)}`,
+      turnstileToken: 'sensitive-token',
+    })
     expect(captured[2]?.body).toContain('uid')
     vi.unstubAllGlobals()
   })

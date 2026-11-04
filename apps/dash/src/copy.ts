@@ -196,6 +196,8 @@ export interface DashCopy {
     identityHint: string
     identitySensitive: string
     identitySensitiveHint: string
+    attendanceLabel: string
+    attendanceHint: string
     cardDescriptionLabel: string
     cardDescriptionPlaceholder: string
     cardDescriptionHint: string
@@ -665,6 +667,9 @@ export const DASH_COPY = {
       identityPasskey: 'Only the person who got it, with their passkey',
       identityHint:
         'With a passkey, a photo of the pass does not get anyone in. People need a fuda account to get one, they enter by confirming on their own phone instead of showing a code, and it does not go in a Wallet app or earn stamps at reception. Private passes only. This cannot be changed later.',
+      attendanceLabel: 'Record each visit',
+      attendanceHint:
+        'Writes a public record on the blockchain every time this card is scanned. Anyone can see it and it cannot be erased. Tickets start with this on, memberships with it off.',
       cardDescriptionLabel: 'Description',
       cardDescriptionPlaceholder: 'Tell people what this card is for and how to use it.',
       cardDescriptionHint: 'Shown on the card’s welcome page.',
@@ -1138,6 +1143,9 @@ export const DASH_COPY = {
       identityPasskey: '受け取った本人のみ(パスキーで確認)',
       identityHint:
         'パスキーを使うと、パスの写真では入場できません。受け取るには fuda のアカウントが必要です。入場時はコードを見せる代わりに本人のスマートフォンで確認します。Wallet アプリには追加できず、受付でのスタンプも付きません。非公開のパスでのみ選べます。あとから変更できません。',
+      attendanceLabel: '来場を記録する',
+      attendanceHint:
+        'このカードを読み取るたびに、ブロックチェーンへ公開の記録を書き込みます。誰でも見られ、消せません。チケットは初期設定でオン、会員カードはオフです。',
       cardDescriptionLabel: '説明',
       cardDescriptionPlaceholder: 'カードの内容や利用方法を入力してください。',
       cardDescriptionHint: 'カードの受け取りページに表示されます。',
