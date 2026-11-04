@@ -30,6 +30,7 @@ Vite+ (`vp`) drives frontend development and builds, workspace tests, linting, a
 
 - Use the root `package.json` scripts as entry points, including `pnpm lint`, `pnpm format`, and `pnpm check`. Install with `pnpm install --frozen-lockfile`; pnpm provisions the repository's Node version. These commands are entry points, not a requirement to run every command at every workflow checkpoint; follow the verification cadence in `.agents/rules/workflow-policy.md`.
 - Keep lint strict. Suppress a rule only at the narrowest applicable line and include the reason: `// oxlint-disable-next-line <rule> -- <why>`.
+- Fallow handles repository-wide analysis: unused code, duplication, complexity, and import cycles. Before handing off a change, run `pnpm fallow:audit`; CI fails on the findings a pull request introduces. Before deleting code it calls unused, confirm with `pnpm exec fallow dead-code --trace <file>:<export>` or `--trace-dependency <name>`. When Void adds a file-routed directory, add it to `entry` in `.fallowrc.json`.
 - When upgrading Vite+, update the linked `oxlint`, `oxfmt`, and `vite-plus-core` overrides in `pnpm-workspace.yaml` together. The comments in that file explain why their versions must remain aligned.
 
 ## Conditional instructions

@@ -77,6 +77,22 @@ jobs:
           printf '%s' "$PLAN" > /tmp/ci-plan.json
           python3 .github/scripts/ci.py check /tmp/ci-plan.json
 
+  fallow:
+    name: Audit changed code
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: $/.github/actions/setup
+      - name: Fail on findings this pull request introduces
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: pnpm exec fallow audit --base "$BASE_SHA"
+
   packages:
     name: Test ${{ matrix.package }}
     needs: plan
@@ -155,7 +171,7 @@ jobs:
   ci:
     name: CI
     if: always()
-    needs: [plan, lockfile, checks, packages, subgraph, substreams]
+    needs: [plan, lockfile, checks, fallow, packages, subgraph, substreams]
     runs-on: ubuntu-22.04
     timeout-minutes: 2
     steps:

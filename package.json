@@ -31,12 +31,15 @@
     "format:check": "vp fmt --check",
     "check": "vp check",
     "typecheck": "vp check --no-fmt --no-lint",
+    "fallow": "fallow",
+    "fallow:audit": "fallow audit --base origin/main",
     "test": "vp run --filter './apps/*' --filter './packages/*' test && pnpm --filter api test:scripts",
     "e2e": "pnpm --filter @fuda/e2e e2e"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
     "esbuild": "^0.28.2",
+    "fallow": "^3.38.1",
     "happy-dom": "20.14.0",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2",
