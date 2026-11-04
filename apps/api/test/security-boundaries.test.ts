@@ -133,7 +133,7 @@ describe('account, Sensitive distribution and venue boundaries', () => {
     const signed = await present(world, await challengeFor(world, 'other-venue'), 'other-venue')
     expect({ qr, signed, slots: await db.select().from(slots) }).toMatchObject({
       qr: { decision: 'REJECT', reason: 'WRONG_VENUE' },
-      signed: { decision: 'REJECT', reason: 'WRONG_VENUE', venue: CARD_INPUT.handle },
+      signed: { decision: 'REJECT', reason: 'WRONG_VENUE' },
       slots: [],
     })
   })
@@ -265,10 +265,27 @@ describe('account, Sensitive distribution and venue boundaries', () => {
     await expect(present(world, minted, venue)).resolves.toMatchObject({
       decision: 'REJECT',
       reason: 'BAD_CHALLENGE',
-      venue: CARD_INPUT.handle,
     })
     await expect(db.select().from(slots)).resolves.toHaveLength(0)
   })
+
+  it.each(['other-venue', undefined])(
+    'names no venue to a caller without proof, asking for %s',
+    async (venue) => {
+      const world = await prepare()
+      const minted = await challengeFor(world, venue)
+      const unproven = await jsonOf<{ decision: string; venue?: string }>(
+        postJson(world.app, world.bindings, '/v1/verify-signed', {
+          nonce: minted.nonce,
+          signature: `0x${'00'.repeat(65)}`,
+          uid: world.pass.uid,
+          venue,
+        }),
+      )
+      expect(unproven.decision).toBe('REJECT')
+      expect(unproven.venue).toBeUndefined()
+    },
+  )
 
   it.each([undefined, CARD_INPUT.handle])(
     'admits a matching venue %s and returns the actual issuer',

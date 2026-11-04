@@ -87,8 +87,11 @@ export const postV1VerifySigned = defineHandler(async (c) => {
   const db = c.get('db')
   const { venue } = parsed.output
   const actualVenue = await venueOf(db, uid)
+  // Only a holder's proof earns the venue's name: knowing a uid must not reveal
+  // which shop a Sensitive pass belongs to.
+  let proven = false
   const withVenue = (verdict: VerifySignedResponse): Response => {
-    if (actualVenue !== null) {
+    if (proven && actualVenue !== null) {
       verdict.venue = actualVenue
     }
     return jsonResponse(c, verdict)
@@ -174,6 +177,7 @@ export const postV1VerifySigned = defineHandler(async (c) => {
   if (!valid) {
     return await answer({ decision: 'REJECT', holder, path: 'signature', reason: 'BAD_SIGNATURE' })
   }
+  proven = true
   const outcome = await admitAndHook({
     canonical: out.canonical,
     db,
