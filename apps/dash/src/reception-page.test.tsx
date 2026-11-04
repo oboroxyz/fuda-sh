@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DASH_COPY } from './copy.ts'
 import { ReceptionPage } from './ReceptionPage.tsx'
 import type { ReceptionIo } from './ReceptionPage.tsx'
+import type { StampIo } from './StampActions.tsx'
 
 const disposers: (() => void)[] = []
 const render = (view: () => JSX.Element, host: HTMLElement): void => {
@@ -30,6 +31,16 @@ const response = {
   },
   uid: `0x${'ab'.repeat(32)}`,
 } as const
+
+const stamps: StampIo = {
+  adjust: vi.fn<StampIo['adjust']>(),
+  ledger: async () =>
+    await Promise.resolve({
+      body: { entries: [], summary: response.stamp.summary },
+      ok: true as const,
+    }),
+  redeem: vi.fn<StampIo['redeem']>(),
+}
 
 const deferred = <T,>() => Promise.withResolvers<T>()
 
@@ -63,7 +74,12 @@ describe(ReceptionPage, () => {
     const receive = vi.fn<ReceptionIo>().mockReturnValue(pending.promise)
     render(
       () => (
-        <ReceptionPage copy={DASH_COPY.en.reception} createRequestId={() => 'request-1'} receive={receive} />
+        <ReceptionPage
+          copy={DASH_COPY.en.reception}
+          stamps={stamps}
+          createRequestId={() => 'request-1'}
+          receive={receive}
+        />
       ),
       root,
     )
@@ -85,7 +101,14 @@ describe(ReceptionPage, () => {
   it('reads the complete scanner value when input and Enter arrive in one render frame', () => {
     const receive = vi.fn<ReceptionIo>().mockReturnValue(deferred<Awaited<ReturnType<ReceptionIo>>>().promise)
     render(
-      () => <ReceptionPage copy={DASH_COPY.en.reception} createRequestId={() => 'id'} receive={receive} />,
+      () => (
+        <ReceptionPage
+          copy={DASH_COPY.en.reception}
+          stamps={stamps}
+          createRequestId={() => 'id'}
+          receive={receive}
+        />
+      ),
       root,
     )
     input().value = 'fuda:v1:complete'
@@ -101,7 +124,14 @@ describe(ReceptionPage, () => {
       .mockResolvedValueOnce({ body: response, ok: true })
       .mockReturnValueOnce(second.promise)
     render(
-      () => <ReceptionPage copy={DASH_COPY.en.reception} createRequestId={() => 'id'} receive={receive} />,
+      () => (
+        <ReceptionPage
+          copy={DASH_COPY.en.reception}
+          stamps={stamps}
+          createRequestId={() => 'id'}
+          receive={receive}
+        />
+      ),
       root,
     )
     await scan('first')
@@ -119,7 +149,12 @@ describe(ReceptionPage, () => {
       .mockResolvedValueOnce({ body: response, ok: true })
     render(
       () => (
-        <ReceptionPage copy={DASH_COPY.en.reception} createRequestId={() => 'stable-id'} receive={receive} />
+        <ReceptionPage
+          copy={DASH_COPY.en.reception}
+          stamps={stamps}
+          createRequestId={() => 'stable-id'}
+          receive={receive}
+        />
       ),
       root,
     )
@@ -147,6 +182,7 @@ describe(ReceptionPage, () => {
       () => (
         <ReceptionPage
           copy={DASH_COPY.en.reception}
+          stamps={stamps}
           createRequestId={() => 'id'}
           receive={async () => await Promise.resolve({ error, network: false, ok: false, status: 400 })}
         />
@@ -172,7 +208,14 @@ describe(ReceptionPage, () => {
             await Promise.resolve({ error: 'new', network: false, ok: false as const, status: 400 }),
         )
       }
-      return <ReceptionPage copy={DASH_COPY.en.reception} createRequestId={() => 'id'} receive={receive()} />
+      return (
+        <ReceptionPage
+          copy={DASH_COPY.en.reception}
+          stamps={stamps}
+          createRequestId={() => 'id'}
+          receive={receive()}
+        />
+      )
     }
     render(() => <Harness />, root)
     await scan('old-session')

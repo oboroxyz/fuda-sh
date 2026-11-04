@@ -39,10 +39,10 @@ const StampTarget = {
   uid: v.optional(v.pipe(v.string(), v.maxLength(66))),
 }
 
-const exactlyOneTarget = (body: { qr?: string | undefined; uid?: string | undefined }): boolean =>
-  (body.qr === undefined) !== (body.uid === undefined)
-
-export const StampRedeemBody = v.pipe(v.object(StampTarget), v.check(exactlyOneTarget))
+export const StampRedeemBody = v.pipe(
+  v.object(StampTarget),
+  v.check((body) => (body.qr === undefined) !== (body.uid === undefined)),
+)
 
 export const StampAdjustBody = v.pipe(
   v.object({
@@ -56,7 +56,7 @@ export const StampAdjustBody = v.pipe(
     ),
     note: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(STAMP_NOTE_MAX)),
   }),
-  v.check(exactlyOneTarget),
+  v.check((body) => (body.qr === undefined) !== (body.uid === undefined)),
 )
 
 export type StampRedeemInput = v.InferInput<typeof StampRedeemBody>

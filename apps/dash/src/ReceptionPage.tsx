@@ -1,9 +1,11 @@
-import type { ReceptionResponse } from '@fuda/sdk'
+import type { Hex, ReceptionResponse, StampSummary } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
-import { createEffect, createSignal, on, onCleanup } from 'solid-js'
+import { createEffect, createSignal, on, onCleanup, Show } from 'solid-js'
 import type { JSX } from 'solid-js'
 
 import type { DashCopy } from './copy.ts'
+import { StampActions } from './StampActions.tsx'
+import type { StampIo } from './StampActions.tsx'
 
 export type ReceptionIo = (qr: string, requestId: string) => Promise<Result<ReceptionResponse>>
 
@@ -11,6 +13,7 @@ export interface ReceptionPageProps {
   copy: DashCopy['reception']
   createRequestId?: () => string
   receive: ReceptionIo
+  stamps: StampIo
 }
 
 interface RetryRequest {
@@ -120,6 +123,15 @@ export const ReceptionPage = (props: ReceptionPageProps): JSX.Element => {
     return props.copy.stamp[status]
   }
 
+  const stampTarget = (): { summary: StampSummary; uid: Hex } | null => {
+    const current = result()
+    const summary = current?.stamp.summary ?? null
+    if (current === null || summary === null || !summary.enabled || current.stamp.status === 'not_admitted') {
+      return null
+    }
+    return { summary, uid: current.uid }
+  }
+
   return (
     <section class="dash-page flex max-w-3xl flex-col gap-6">
       <header class="dash-page-header">
@@ -163,6 +175,19 @@ export const ReceptionPage = (props: ReceptionPageProps): JSX.Element => {
             <div class="alert" role="status">
               {stampText()}
             </div>
+            <Show when={stampTarget()} keyed>
+              {(target) => (
+                <div class="border-base-300 rounded-box border p-4">
+                  <StampActions
+                    copy={props.copy.card}
+                    io={props.stamps}
+                    summary={target.summary}
+                    uid={target.uid}
+                    onDone={() => input?.focus()}
+                  />
+                </div>
+              )}
+            </Show>
           </div>
         )}
         {failure() === null ? null : (

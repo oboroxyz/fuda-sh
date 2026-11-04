@@ -52,6 +52,24 @@ const respond = async (c: Context<AppEnv>, issuerId: string, uid: Hex, row: Adju
   return jsonResponse(c, { entries, entry: entryOf(row), summary })
 }
 
+interface ActionBody {
+  delta: number
+  note: string
+  qr?: string | undefined
+  requestId: string
+  uid?: string | undefined
+}
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- this is the parse step for the request body
+const parseBody = (kind: Kind, body: unknown): ActionBody | null => {
+  if (kind === 'redeem') {
+    const parsed = v.safeParse(StampRedeemBody, body)
+    return parsed.success ? { ...parsed.output, delta: 0, note: '' } : null
+  }
+  const parsed = v.safeParse(StampAdjustBody, body)
+  return parsed.success ? parsed.output : null
+}
+
 const targetUid = (body: { qr?: string | undefined; uid?: string | undefined }): Hex | null =>
   body.uid === undefined ? parseQr((body.qr ?? '').trim()) : normalizeUid(body.uid)
 
@@ -63,18 +81,15 @@ const act = async (c: Context<AppEnv>, kind: Kind): Promise<Response> => {
     return errorResponse(c, 'not_found', 404)
   }
   const body: unknown = await c.req.json().catch(() => null)
-  const parsed =
-    kind === 'redeem' ? v.safeParse(StampRedeemBody, body) : v.safeParse(StampAdjustBody, body)
-  if (!parsed.success) {
+  const input = parseBody(kind, body)
+  if (input === null) {
     return errorResponse(c, 'bad_input', 400)
   }
-  const input = parsed.output
   const uid = targetUid(input)
   if (uid === null) {
     return errorResponse(c, 'bad_uid', 400)
   }
-  const delta = 'delta' in input ? input.delta : 0
-  const note = 'note' in input ? input.note : ''
+  const { delta, note } = input
   const member = await memberOf(c, issuerId, uid)
   if (member === undefined) {
     return errorResponse(c, 'not_found', 404)

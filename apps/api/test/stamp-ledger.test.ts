@@ -24,6 +24,11 @@ interface LedgerBody {
   summary: { goal: number; total: number }
 }
 
+const statuses = async (pending: Promise<Response>[]): Promise<number[]> => {
+  const responses = await Promise.all(pending)
+  return responses.map((response) => response.status)
+}
+
 const uidOf = (n: number): `0x${string}` => `0x${n.toString(16).padStart(64, '0')}`
 
 const setup = async () => {
@@ -39,23 +44,32 @@ const setup = async () => {
     token,
   )
   const venue = await db.select().from(issuers).get()
+  if (venue === undefined) {
+    throw new Error('venue missing')
+  }
   const cardId = crypto.randomUUID()
   await db.insert(cards).values({
     category: 'membership',
     createdAt: NOW,
     id: cardId,
-    issuerId: venue!.id,
+    issuerId: venue.id,
     slug: 'coffee',
     title: 'Coffee membership',
   })
-  await env.DB.prepare('INSERT INTO card_stamp_settings (card_id, daily_limit, enabled, goal) VALUES (?, 1, 1, 3)')
+  await env.DB.prepare(
+    'INSERT INTO card_stamp_settings (card_id, daily_limit, enabled, goal) VALUES (?, 1, 1, 3)',
+  )
     .bind(cardId)
     .run()
   let next = 1
+  const nextUid = (): `0x${string}` => {
+    next += 1
+    return uidOf(next)
+  }
   // A pass holding `credits` stamps, written the way reception writes them.
   const pass = async (credits: number, over: { issuerId?: string; status?: 'active' | 'revoked' } = {}) => {
-    const uid = uidOf(next++)
-    const issuerId = over.issuerId ?? venue!.id
+    const uid = nextUid()
+    const issuerId = over.issuerId ?? venue.id
     await db.insert(members).values({
       attestationUid: uid,
       cardId,
@@ -76,7 +90,7 @@ const setup = async () => {
       await db.insert(stampCredits).values({
         at: NOW,
         day: `2026-01-${String(ordinal).padStart(2, '0')}`,
-        entryLogId: log!.id,
+        entryLogId: log.id,
         issuerId,
         operatorAddress: HOLDER,
         ordinal: 1,
@@ -89,7 +103,7 @@ const setup = async () => {
     await postJson(app, bindings, '/v1/issuers/me/stamps/redeem', { requestId, uid }, token)
   const adjust = async (uid: string, delta: number, note = 'miscount', requestId = crypto.randomUUID()) =>
     await postJson(app, bindings, '/v1/issuers/me/stamps/adjust', { delta, note, requestId, uid }, token)
-  return { adjust, app, bindings, cardId, pass, redeem, token, venue: venue! }
+  return { adjust, app, bindings, cardId, pass, redeem, token, venue }
 }
 
 describe('stamp ledger', () => {
@@ -144,13 +158,13 @@ describe('stamp ledger', () => {
     const f = await setup()
     const uid = await f.pass(3)
     const results = await Promise.all([f.redeem(uid), f.redeem(uid), f.redeem(uid)])
-    expect(results.map((r) => r.status).toSorted()).toStrictEqual([200, 409, 409])
+    expect(results.map((r) => r.status).toSorted((a, b) => a - b)).toStrictEqual([200, 409, 409])
     await expect(db.select().from(stampAdjustments)).resolves.toHaveLength(1)
     const read = await getJson(f.app, f.bindings, `/v1/stamps/${uid}`)
     await expect(read.json()).resolves.toMatchObject({ total: 0 })
   })
 
-  it('adjusts within bounds, needs a note, and never goes below zero', async () => {
+  it('adjusts up and down and never goes below zero', async () => {
     const f = await setup()
     const uid = await f.pass(2)
     const up = await f.adjust(uid, 3, '  forgot to stamp  ')
@@ -159,17 +173,27 @@ describe('stamp ledger', () => {
       entry: { delta: 3, kind: 'adjust', note: 'forgot to stamp' },
       summary: { total: 5 },
     })
-    expect((await f.adjust(uid, -5)).status).toBe(200)
+    const down = await f.adjust(uid, -5)
+    expect(down.status).toBe(200)
     const belowZero = await f.adjust(uid, -1)
     expect(belowZero.status).toBe(409)
     await expect(belowZero.json()).resolves.toStrictEqual({ error: 'below_zero' })
-    expect((await f.adjust(uid, 0)).status).toBe(400)
-    expect((await f.adjust(uid, 1.5)).status).toBe(400)
-    expect((await f.adjust(uid, 51)).status).toBe(400)
-    expect((await f.adjust(uid, -51)).status).toBe(400)
-    expect((await f.adjust(uid, 1, '   ')).status).toBe(400)
-    expect((await f.adjust(uid, 1, 'x'.repeat(201))).status).toBe(400)
-    await expect(db.select().from(stampAdjustments)).resolves.toHaveLength(2)
+  })
+
+  it('rejects a zero, fractional or out-of-range amount and a missing note', async () => {
+    const f = await setup()
+    const uid = await f.pass(2)
+    await expect(
+      statuses([
+        f.adjust(uid, 0),
+        f.adjust(uid, 1.5),
+        f.adjust(uid, 51),
+        f.adjust(uid, -51),
+        f.adjust(uid, 1, '   '),
+        f.adjust(uid, 1, 'x'.repeat(201)),
+      ]),
+    ).resolves.toStrictEqual([400, 400, 400, 400, 400, 400])
+    await expect(db.select().from(stampAdjustments)).resolves.toHaveLength(0)
   })
 
   it('sums credits, redemptions and corrections and lists the ledger newest first', async () => {
@@ -224,28 +248,40 @@ describe('stamp ledger', () => {
       operatorAddress: HOLDER,
     })
     const other = await db.select().from(issuers).where(eq(issuers.handle, 'tea')).get()
-    const uid = await f.pass(5, { issuerId: other!.id })
-    expect((await f.redeem(uid)).status).toBe(404)
-    expect((await f.adjust(uid, 1)).status).toBe(404)
-    expect((await getJson(f.app, f.bindings, `/v1/issuers/me/stamps/${uid}`, f.token)).status).toBe(404)
+    if (other === undefined) {
+      throw new Error('other venue missing')
+    }
+    const uid = await f.pass(5, { issuerId: other.id })
+    await expect(
+      statuses([
+        f.redeem(uid),
+        f.adjust(uid, 1),
+        getJson(f.app, f.bindings, `/v1/issuers/me/stamps/${uid}`, f.token),
+      ]),
+    ).resolves.toStrictEqual([404, 404, 404])
     await expect(db.select().from(stampAdjustments)).resolves.toHaveLength(0)
   })
 
-  it('refuses a revoked pass, an unknown uid and a signed-out caller', async () => {
+  it('refuses a revoked pass for both actions', async () => {
     const f = await setup()
     const revoked = await f.pass(5, { status: 'revoked' })
     const redeemed = await f.redeem(revoked)
     expect(redeemed.status).toBe(409)
     await expect(redeemed.json()).resolves.toStrictEqual({ error: 'revoked' })
-    expect((await f.adjust(revoked, 1)).status).toBe(409)
-    expect((await f.redeem(uidOf(999))).status).toBe(404)
-    expect((await f.redeem('nope')).status).toBe(400)
-    const anonymous = await postJson(f.app, f.bindings, '/v1/issuers/me/stamps/redeem', {
-      requestId: crypto.randomUUID(),
-      uid: revoked,
-    })
-    expect(anonymous.status).toBe(401)
+    await expect(statuses([f.adjust(revoked, 1)])).resolves.toStrictEqual([409])
     await expect(db.select().from(stampAdjustments)).resolves.toHaveLength(0)
+  })
+
+  it('refuses an unknown uid, a malformed uid and a signed-out caller', async () => {
+    const f = await setup()
+    const uid = await f.pass(5)
+    const anonymous = postJson(f.app, f.bindings, '/v1/issuers/me/stamps/redeem', {
+      requestId: crypto.randomUUID(),
+      uid,
+    })
+    await expect(statuses([f.redeem(uidOf(999)), f.redeem('nope'), anonymous])).resolves.toStrictEqual([
+      404, 400, 401,
+    ])
   })
 
   it('refuses both when the card has stamps turned off', async () => {
@@ -255,6 +291,6 @@ describe('stamp ledger', () => {
     const response = await f.redeem(uid)
     expect(response.status).toBe(409)
     await expect(response.json()).resolves.toStrictEqual({ error: 'stamps_disabled' })
-    expect((await f.adjust(uid, 1)).status).toBe(409)
+    await expect(statuses([f.adjust(uid, 1)])).resolves.toStrictEqual([409])
   })
 })

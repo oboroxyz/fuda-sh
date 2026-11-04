@@ -16,14 +16,14 @@ export const readStampSummary = async (db: Db, uid: string, now: number): Promis
   // returned total or combine counts with settings from another query.
   const row = await db
     .select({
-      dailyLimit: cardStampSettings.dailyLimit,
-      enabled: cardStampSettings.enabled,
-      goal: cardStampSettings.goal,
       adjusted: sql<number>`coalesce((
         select sum(${stampAdjustments.delta}) from ${stampAdjustments}
         where ${stampAdjustments.issuerId} = ${members.issuerId} and ${stampAdjustments.uid} = ${members.attestationUid}
       ), 0)`,
       credits: count(stampCredits.entryLogId),
+      dailyLimit: cardStampSettings.dailyLimit,
+      enabled: cardStampSettings.enabled,
+      goal: cardStampSettings.goal,
       today: sql<number>`coalesce(sum(case when ${stampCredits.day} = ${japanDay(now)} then 1 else 0 end), 0)`,
     })
     .from(members)

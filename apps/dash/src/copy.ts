@@ -122,6 +122,37 @@ export interface DashCopy {
     retry: string
     failures: { network: string; rejected: string; notFound: string; badQr: string; badInput: string }
     stamp: { awarded: string; daily_limit: string; disabled: string; not_admitted: string }
+    card: {
+      balance: string
+      full: string
+      giveReward: string
+      confirmReward: string
+      confirmRewardHint: (goal: number) => string
+      cancel: string
+      adjust: string
+      adjustHint: string
+      amountLabel: string
+      amountPlaceholder: string
+      reasonLabel: string
+      reasonPlaceholder: string
+      save: string
+      working: string
+      retry: string
+      historyTitle: string
+      historyEmpty: string
+      historyReward: string
+      historyAdjust: string
+      done: { reward: string; adjust: string }
+      failures: {
+        network: string
+        notFull: string
+        belowZero: string
+        revoked: string
+        disabled: string
+        badAmount: string
+        generic: string
+      }
+    }
   }
   designer: {
     title: string
@@ -508,6 +539,37 @@ export const DASH_COPY = {
         daily_limit: 'Admitted · daily stamp limit already reached',
         disabled: 'Admitted · stamps are disabled',
         not_admitted: 'No stamp · admission was declined',
+      },
+      card: {
+        balance: 'Stamps on this card',
+        full: 'The card is full',
+        giveReward: 'Give the reward',
+        confirmReward: 'Yes, give the reward',
+        confirmRewardHint: (goal) => `The reward is handed over and ${goal} stamps come off this card.`,
+        cancel: 'Cancel',
+        adjust: 'Adjust',
+        adjustHint: 'Fix a mistake. Use a minus number to take stamps off.',
+        amountLabel: 'Change',
+        amountPlaceholder: 'For example 2 or -1',
+        reasonLabel: 'Reason',
+        reasonPlaceholder: 'For example forgot to stamp yesterday',
+        save: 'Save change',
+        working: 'Saving…',
+        retry: 'Try again',
+        historyTitle: 'Recent changes',
+        historyEmpty: 'No rewards or changes yet.',
+        historyReward: 'Reward given',
+        historyAdjust: 'Count changed',
+        done: { reward: 'Reward recorded. Hand it over.', adjust: 'Change saved.' },
+        failures: {
+          network: 'fuda could not be reached, so this may not have been saved. Try again safely.',
+          notFull: 'The card is not full yet.',
+          belowZero: 'That would take the count below zero.',
+          revoked: 'This pass has been revoked.',
+          disabled: 'Stamps are turned off for this card.',
+          badAmount: 'Enter a whole number other than 0, up to 50, and a reason.',
+          generic: 'This could not be saved. Scan the card again and retry.',
+        },
       },
     },
     designer: {
@@ -911,6 +973,37 @@ export const DASH_COPY = {
         daily_limit: '入場可・本日のスタンプ上限に達しています',
         disabled: '入場可・スタンプは無効です',
         not_admitted: 'スタンプなし・入場できません',
+      },
+      card: {
+        balance: 'このカードのスタンプ',
+        full: 'カードがいっぱいです',
+        giveReward: '特典を渡す',
+        confirmReward: '特典を渡す',
+        confirmRewardHint: (goal) => `特典をお渡ししたあと、カードから ${goal} 個のスタンプを引きます。`,
+        cancel: 'やめる',
+        adjust: '数を直す',
+        adjustHint: '押し間違いなどを直します。減らすときはマイナスの数を入れます。',
+        amountLabel: '増減',
+        amountPlaceholder: '例 2 または -1',
+        reasonLabel: '理由',
+        reasonPlaceholder: '例 昨日の押し忘れ',
+        save: '保存する',
+        working: '保存中…',
+        retry: 'もう一度',
+        historyTitle: '最近の変更',
+        historyEmpty: '特典や変更はまだありません。',
+        historyReward: '特典を渡した',
+        historyAdjust: '数を直した',
+        done: { reward: '特典を記録しました。お渡しください。', adjust: '保存しました。' },
+        failures: {
+          network: 'fuda に接続できず、保存できていない可能性があります。そのままもう一度お試しください。',
+          notFull: 'カードはまだいっぱいではありません。',
+          belowZero: '0 より少なくなるため直せません。',
+          revoked: 'このパスは取り消されています。',
+          disabled: 'このカードではスタンプが無効です。',
+          badAmount: '0 以外の整数（50 まで）と理由を入れてください。',
+          generic: '保存できませんでした。カードを読み取り直してもう一度お試しください。',
+        },
       },
     },
     designer: {
