@@ -1,4 +1,4 @@
-import { challengeMessage } from '@fuda/sdk'
+import { PasskeyRegistrationBody, challengeMessage } from '@fuda/sdk'
 import type {
   IssuerPassesResponse,
   MemberPasskeysResponse,
@@ -8,6 +8,7 @@ import type {
 } from '@fuda/sdk'
 import { env } from 'cloudflare:test'
 import { eq } from 'drizzle-orm'
+import * as v from 'valibot'
 import type { Hex } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -36,6 +37,7 @@ import { SoftwarePasskey } from './software-passkey.ts'
 const RP = { origin: 'https://app.fuda.sh', rpId: 'fuda.sh' }
 const CLAIM_PATH = `/v1/issuers/${CARD_INPUT.handle}/${CARD_INPUT.card.slug}/issue`
 const IV = 'AAAAAAAAAAAAAAAA'
+const WRITE_TOKEN = 'A'.repeat(43)
 
 const db = () => getDb({ DB: env.DB })
 
@@ -76,18 +78,28 @@ const setup = async (card: Partial<typeof CARD_INPUT.card> = {}) => {
       },
       bindings,
     )
+  const owners = new Map<string, SoftwarePasskey>()
   const signUp = async (passkey: SoftwarePasskey): Promise<string> => {
     const options = await send('POST', '/v1/auth/member/register/options', {})
     const { challenge } = await options.json<{ challenge: string }>()
     const res = await send('POST', '/v1/auth/member/register', await passkey.attest(challenge))
     expect(res.status).toBe(200)
     const { token } = await res.json<MemberSignInResponse>()
+    owners.set(token, passkey)
     return token
   }
   const addPasskey = async (passkey: SoftwarePasskey, token: string): Promise<void> => {
+    const authorized = await send('POST', '/v1/auth/member/passkeys/authorize/options', {}, token)
+    const auth = await authorized.json<{ challenge: string }>()
+    const authorization = await owners.get(token)?.assert(auth.challenge)
     const options = await send('POST', '/v1/auth/member/passkeys/options', {}, token)
     const { challenge } = await options.json<{ challenge: string }>()
-    const res = await send('POST', '/v1/auth/member/passkeys', await passkey.attest(challenge), token)
+    const res = await send(
+      'POST',
+      '/v1/auth/member/passkeys',
+      { ...v.parse(PasskeyRegistrationBody, await passkey.attest(challenge)), authorization },
+      token,
+    )
     expect(res.status).toBe(200)
   }
   const claim = async (holderAddress: Hex): Promise<Issued> => {
@@ -104,10 +116,15 @@ const setup = async (card: Partial<typeof CARD_INPUT.card> = {}) => {
     await send(
       'POST',
       '/v1/member/secret',
-      { ciphertext, credentialId: passkey.credentialId, first, iv: IV },
+      { ciphertext, credentialId: passkey.credentialId, first, iv: IV, writeToken: WRITE_TOKEN },
       token,
     )
-  return { addPasskey, app, bindings, chain, claim, copy, operator, send, signUp }
+  const reset = async (token: string): Promise<Response> => {
+    const options = await send('POST', '/v1/member/secret/reset/options', {}, token)
+    const { challenge } = await options.json<{ challenge: string }>()
+    return await send('DELETE', '/v1/member/secret', await owners.get(token)?.assert(challenge), token)
+  }
+  return { addPasskey, app, bindings, chain, claim, copy, operator, reset, send, signUp }
 }
 
 const passkey = (): SoftwarePasskey => new SoftwarePasskey(RP)
@@ -156,6 +173,214 @@ describe('sensitive use', () => {
     await env.DB.prepare('DELETE FROM accounts').run()
     await env.DB.prepare('DELETE FROM issuers').run()
     await env.DB.prepare('DELETE FROM rate_limits').run()
+  })
+
+  describe('recovery integrity', () => {
+    it('refuses session-only Start over without losing recovery', async () => {
+      const { copy, send, signUp } = await setup()
+      const own = passkey()
+      const token = await signUp(own)
+      await copy(token, own, true)
+      const reset = await send('DELETE', '/v1/member/secret', undefined, token)
+      expect(reset.status).toBe(400)
+      const state = await send('GET', '/v1/member/secret', undefined, token)
+      await expect(state.json<MemberSecretResponse>()).resolves.toMatchObject({
+        copies: [{ credentialId: own.credentialId }],
+      })
+    })
+
+    it('refuses a junk second copy and keeps the only copy-holder', async () => {
+      const { addPasskey, copy, send, signUp } = await setup()
+      const first = passkey()
+      const second = passkey()
+      const token = await signUp(first)
+      await addPasskey(second, token)
+      await copy(token, first, true)
+      const planted = await send(
+        'POST',
+        '/v1/member/secret',
+        {
+          ciphertext: 'junkcopy',
+          credentialId: second.credentialId,
+          first: false,
+          iv: IV,
+        },
+        token,
+      )
+      expect(planted.status).toBe(400)
+      const removed = await send('DELETE', `/v1/auth/member/passkeys/${first.credentialId}`, undefined, token)
+      expect(removed.status).toBe(409)
+    })
+
+    it('refuses session-only replacement of a vault', async () => {
+      const { copy, send, signUp } = await setup()
+      const own = passkey()
+      const token = await signUp(own)
+      await copy(token, own, true)
+      await send(
+        'PUT',
+        '/v1/member/vault',
+        {
+          ciphertext: 'realvault',
+          expectedVersion: 0,
+          iv: IV,
+          writeToken: 'A'.repeat(43),
+        },
+        token,
+      )
+      const corrupt = await send(
+        'PUT',
+        '/v1/member/vault',
+        {
+          ciphertext: 'junkvault',
+          expectedVersion: 1,
+          iv: IV,
+        },
+        token,
+      )
+      expect(corrupt.status).toBe(400)
+      const after = await send('GET', '/v1/member/vault', undefined, token)
+      await expect(after.json<MemberVaultResponse>()).resolves.toMatchObject({
+        vault: { ciphertext: 'realvault' },
+      })
+    })
+  })
+
+  describe('recovery proofs', () => {
+    it('requires the secret token even when a session knows the current version', async () => {
+      const { addPasskey, copy, send, signUp } = await setup()
+      const own = passkey()
+      const other = passkey()
+      const token = await signUp(own)
+      await addPasskey(other, token)
+      await copy(token, own, true)
+      const before = await db().select().from(memberSecretCopies)
+      const badCopy = await send(
+        'POST',
+        '/v1/member/secret',
+        {
+          ciphertext: 'junkcopy',
+          credentialId: other.credentialId,
+          first: false,
+          iv: IV,
+          writeToken: 'B'.repeat(43),
+        },
+        token,
+      )
+      expect(badCopy.status).toBe(403)
+      const badVault = await send(
+        'PUT',
+        '/v1/member/vault',
+        {
+          ciphertext: 'junkvault',
+          expectedVersion: 0,
+          iv: IV,
+          writeToken: 'B'.repeat(43),
+        },
+        token,
+      )
+      expect(badVault.status).toBe(403)
+      await expect(db().select().from(memberSecretCopies)).resolves.toStrictEqual(before)
+      await expect(db().select().from(memberVaults)).resolves.toStrictEqual([])
+      const state = await send('GET', '/v1/member/secret', undefined, token)
+      await expect(state.text()).resolves.not.toContain(WRITE_TOKEN)
+    })
+
+    it('cannot turn a stolen session into a passkey that authorizes Start over', async () => {
+      const { copy, send, signUp } = await setup()
+      const own = passkey()
+      const attacker = passkey()
+      const token = await signUp(own)
+      await copy(token, own, true)
+      const options = await send('POST', '/v1/auth/member/passkeys/options', {}, token)
+      const { challenge } = await options.json<{ challenge: string }>()
+      const registration = v.parse(PasskeyRegistrationBody, await attacker.attest(challenge))
+      const added = await send('POST', '/v1/auth/member/passkeys', registration, token)
+      expect(added.status).toBe(400)
+      const proofOptions = await send('POST', '/v1/auth/member/passkeys/authorize/options', {}, token)
+      const auth = await proofOptions.json<{ challenge: string }>()
+      const forged = await send(
+        'POST',
+        '/v1/auth/member/passkeys',
+        {
+          ...registration,
+          authorization: await attacker.assert(auth.challenge),
+        },
+        token,
+      )
+      expect(forged.status).toBe(403)
+      const resetOptions = await send('POST', '/v1/member/secret/reset/options', {}, token)
+      const reset = await resetOptions.json<{ challenge: string }>()
+      const refused = await send('DELETE', '/v1/member/secret', await attacker.assert(reset.challenge), token)
+      expect(refused.status).toBe(403)
+      await expect(db().select().from(memberSecretCopies)).resolves.toHaveLength(1)
+    })
+
+    it.each(['claim', 'login', 'other-account', 'expired', 'origin', 'verification'])(
+      'refuses a reset assertion with %s and preserves recovery',
+      async (failure) => {
+        const { copy, send, signUp } = await setup()
+        const own = passkey()
+        const token = await signUp(own)
+        await copy(token, own, true)
+        const other = failure === 'other-account' ? await signUp(passkey()) : token
+        const paths = {
+          claim: '/v1/auth/member/claim/options',
+          login: '/v1/auth/member/login/options',
+        }
+        const path =
+          failure === 'claim' || failure === 'login' ? paths[failure] : '/v1/member/secret/reset/options'
+        const options = await send('POST', path, {}, other)
+        const { challenge } = await options.json<{ challenge: string }>()
+        if (failure === 'expired') {
+          await env.DB.prepare('UPDATE passkey_challenges SET created_at = ? WHERE challenge = ?')
+            .bind(NOW - 301, challenge)
+            .run()
+        }
+        const assertion = await own.assert(challenge, {
+          flags: failure === 'verification' ? 1 : undefined,
+          origin: failure === 'origin' ? 'https://evil.test' : undefined,
+        })
+        const refused = await send('DELETE', '/v1/member/secret', assertion, token)
+        expect(refused.status).toBe(403)
+        await expect(db().select().from(memberSecretCopies)).resolves.toHaveLength(1)
+      },
+    )
+
+    it('requires a new assertion for each reset and leaves old passes for the shop to revoke', async () => {
+      const ctx = await setup()
+      const own = passkey()
+      const token = await ctx.signUp(own)
+      await ctx.copy(token, own, true)
+      const key = newKey()
+      const issued = await ctx.claim(key.address)
+      const options = await ctx.send('POST', '/v1/member/secret/reset/options', {}, token)
+      const { challenge } = await options.json<{ challenge: string }>()
+      const assertion = await own.assert(challenge)
+      await expect(statusOf(ctx.send('DELETE', '/v1/member/secret', assertion, token))).resolves.toBe(200)
+      await expect(statusOf(ctx.send('DELETE', '/v1/member/secret', assertion, token))).resolves.toBe(403)
+      const admitted = await present(ctx, issued.uid, key.signMessage)
+      await expect(admitted.json()).resolves.toMatchObject({
+        decision: 'ADMIT',
+      })
+      const [row] = await db().select().from(members).where(eq(members.attestationUid, issued.uid))
+      expect(row?.status).toBe('active')
+      await expect(
+        statusOf(
+          ctx.send(
+            'PUT',
+            '/v1/member/vault',
+            {
+              ciphertext: 'oldwrite',
+              expectedVersion: 0,
+              iv: IV,
+              writeToken: WRITE_TOKEN,
+            },
+            token,
+          ),
+        ),
+      ).resolves.toBe(403)
+    })
   })
 
   describe('the card setting', () => {
@@ -433,7 +658,7 @@ describe('sensitive use', () => {
       const second = passkey()
       const token = await signUp(first)
       await addPasskey(second, token)
-      await expect(statusOf(copy(token, second, false))).resolves.toBe(409)
+      await expect(statusOf(copy(token, second, false))).resolves.toBe(403)
       await expect(statusOf(copy(token, first, true))).resolves.toBe(200)
       await expect(statusOf(copy(token, second, false))).resolves.toBe(200)
       await expect(statusOf(copy(token, second, false, 'replaced'))).resolves.toBe(409)
@@ -457,7 +682,13 @@ describe('sensitive use', () => {
       const res = await send(
         'POST',
         '/v1/member/secret',
-        { ciphertext: 'x'.repeat(4096), credentialId: own.credentialId, first: true, iv: IV },
+        {
+          ciphertext: 'x'.repeat(4096),
+          credentialId: own.credentialId,
+          first: true,
+          iv: IV,
+          writeToken: WRITE_TOKEN,
+        },
         token,
       )
       expect(res.status).toBe(400)
@@ -503,12 +734,17 @@ describe('sensitive use', () => {
 
   describe('starting over', () => {
     it("clears this account's copies and vault, and lets a new secret start", async () => {
-      const { copy, send, signUp } = await setup()
+      const { copy, reset, send, signUp } = await setup()
       const lost = passkey()
       const token = await signUp(lost)
       await copy(token, lost, true)
-      await send('PUT', '/v1/member/vault', { ciphertext: 'sealed', expectedVersion: 0, iv: IV }, token)
-      await expect(statusOf(send('DELETE', '/v1/member/secret', undefined, token))).resolves.toBe(200)
+      await send(
+        'PUT',
+        '/v1/member/vault',
+        { ciphertext: 'sealed', expectedVersion: 0, iv: IV, writeToken: WRITE_TOKEN },
+        token,
+      )
+      await expect(statusOf(reset(token))).resolves.toBe(200)
       const secret = await send('GET', '/v1/member/secret', undefined, token)
       await expect(secret.json<MemberSecretResponse>()).resolves.toMatchObject({ copies: [] })
       const vault = await send('GET', '/v1/member/vault', undefined, token)
@@ -517,39 +753,41 @@ describe('sensitive use', () => {
     })
 
     it("leaves another account's alone, and needs a session", async () => {
-      const { copy, send, signUp } = await setup()
+      const { copy, reset, send, signUp } = await setup()
       const theirs = passkey()
       const other = await signUp(theirs)
       await copy(other, theirs, true)
       const mine = await signUp(passkey())
-      await send('DELETE', '/v1/member/secret', undefined, mine)
+      await reset(mine)
       await expect(db().select().from(memberSecretCopies)).resolves.toHaveLength(1)
       await expect(statusOf(send('DELETE', '/v1/member/secret'))).resolves.toBe(401)
     })
 
     it('lets the passkey that held the last copy go afterwards', async () => {
-      const { addPasskey, copy, send, signUp } = await setup()
+      const { addPasskey, copy, reset, send, signUp } = await setup()
       const first = passkey()
       const token = await signUp(first)
       await addPasskey(passkey(), token)
       await copy(token, first, true)
       const remove = `/v1/auth/member/passkeys/${first.credentialId}`
       await expect(statusOf(send('DELETE', remove, undefined, token))).resolves.toBe(409)
-      await send('DELETE', '/v1/member/secret', undefined, token)
+      await reset(token)
       await expect(statusOf(send('DELETE', remove, undefined, token))).resolves.toBe(200)
     })
   })
 
   describe('the vault', () => {
     it('starts empty and keeps what is written', async () => {
-      const { send, signUp } = await setup()
-      const token = await signUp(passkey())
+      const { copy, send, signUp } = await setup()
+      const own = passkey()
+      const token = await signUp(own)
+      await copy(token, own, true)
       const before = await send('GET', '/v1/member/vault', undefined, token)
       await expect(before.json<MemberVaultResponse>()).resolves.toStrictEqual({ vault: null })
       const put = await send(
         'PUT',
         '/v1/member/vault',
-        { ciphertext: 'sealed', expectedVersion: 0, iv: IV },
+        { ciphertext: 'sealed', expectedVersion: 0, iv: IV, writeToken: WRITE_TOKEN },
         token,
       )
       await expect(put.json()).resolves.toStrictEqual({ version: 1 })
@@ -560,10 +798,17 @@ describe('sensitive use', () => {
     })
 
     it('sends a writer that has not read the current version back to read it', async () => {
-      const { send, signUp } = await setup()
-      const token = await signUp(passkey())
+      const { copy, send, signUp } = await setup()
+      const own = passkey()
+      const token = await signUp(own)
+      await copy(token, own, true)
       const write = async (ciphertext: string, expectedVersion: number): Promise<Response> =>
-        await send('PUT', '/v1/member/vault', { ciphertext, expectedVersion, iv: IV }, token)
+        await send(
+          'PUT',
+          '/v1/member/vault',
+          { ciphertext, expectedVersion, iv: IV, writeToken: WRITE_TOKEN },
+          token,
+        )
       await expect(statusOf(write('one', 0))).resolves.toBe(200)
       await expect(statusOf(write('two', 1))).resolves.toBe(200)
       const stale = await write('stale', 1)
@@ -577,10 +822,17 @@ describe('sensitive use', () => {
     })
 
     it('keeps each account to its own vault', async () => {
-      const { send, signUp } = await setup()
-      const mine = await signUp(passkey())
+      const { copy, send, signUp } = await setup()
+      const own = passkey()
+      const mine = await signUp(own)
+      await copy(mine, own, true)
       const theirs = await signUp(passkey())
-      await send('PUT', '/v1/member/vault', { ciphertext: 'mine', expectedVersion: 0, iv: IV }, mine)
+      await send(
+        'PUT',
+        '/v1/member/vault',
+        { ciphertext: 'mine', expectedVersion: 0, iv: IV, writeToken: WRITE_TOKEN },
+        mine,
+      )
       const res = await send('GET', '/v1/member/vault', undefined, theirs)
       await expect(res.json<MemberVaultResponse>()).resolves.toStrictEqual({ vault: null })
     })

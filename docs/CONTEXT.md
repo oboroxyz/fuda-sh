@@ -34,6 +34,10 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Bearer**: The level with no Crypto wallet and no app — a Pass in the Device wallet is all the member has; the Right's QR alone admits, and a copy of the QR admits too.
 
+**Member write token**: A secret-derived credential used only to add a wrapped member-secret copy or write the encrypted Sensitive vault. The server stores its hash. It never travels with a claim, challenge, or presentation.
+
+**Start over**: A fresh account passkey assertion clears Sensitive recovery data and local keys on the initiating device. It does not revoke old passes; the Issuer cancels them.
+
 **Signed**: The level where the member's own key must sign a one-time gate challenge — possession of the key is proven at the door.
 
 **+Private**: Signed with the privacy extension: the Right is issued to a one-time stealth address, so chain observers cannot link the Right to the member; the gate challenge is the same as Signed. Unlinkability holds against chain observers, not against the issuer or the gate operator. Written with the leading `+` to mark it as an extension, and stored as `level = private` in code. _Avoid_: Private (bare), anonymous, Native+, "the third level"

@@ -6,10 +6,11 @@ import { privateKeyToAccount } from 'viem/accounts'
 import type { PrivateKeyAccount } from 'viem/accounts'
 
 // docs/specs/pass-types-and-flows.md#sensitive-use. The member secret and everything made
-// from it stays on the device. These strings fix what each derived key is for, so changing
+// from it except the write token stays on the device. These labels separate each key, so changing
 // one loses every Sensitive pass.
 const WRAP_INFO = 'fuda.sh/member-secret/wrap/v1'
 const VAULT_INFO = 'fuda.sh/member-secret/vault/v1'
+const WRITE_INFO = 'fuda.sh/member-secret/write/v1'
 const PASS_KEY_INFO = 'fuda.sh/member-secret/pass-key/v1'
 
 const SECRET_BYTES = 32
@@ -66,6 +67,15 @@ export const wrapSecret = async (secret: Bytes, prfOutput: Bytes): Promise<Seale
 
 export const unwrapSecret = async (copy: Sealed, prfOutput: Bytes): Promise<Bytes | null> =>
   await open(await aesKey(prfOutput, WRAP_INFO), copy)
+
+export const writeTokenFrom = async (secret: Bytes): Promise<string> => {
+  const bits = await crypto.subtle.deriveBits(
+    { hash: 'SHA-256', info: encoded(WRITE_INFO), name: 'HKDF', salt: EMPTY },
+    await hkdfBase(secret),
+    256,
+  )
+  return bufferToBase64URLString(bits)
+}
 
 export const newPassSalt = (): string => bufferToBase64URLString(randomBytes(SECRET_BYTES).buffer)
 

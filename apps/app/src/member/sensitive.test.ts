@@ -3,7 +3,7 @@ import { verifyMessage } from 'viem'
 import type { Hex } from 'viem'
 import { describe, expect, it, vi } from 'vitest'
 
-import { openEntries, sealEntries, wrapSecret } from './member-secret.ts'
+import { writeTokenFrom, openEntries, sealEntries, wrapSecret } from './member-secret.ts'
 import type { Sealed, VaultEntry } from './member-secret.ts'
 import {
   addPasskeyKeepingSecret,
@@ -27,6 +27,10 @@ const memoryStorage = () => {
   return {
     getItem: (key: string) => items.get(key) ?? null,
     items,
+    key: (index: number) => [...items.keys()][index] ?? null,
+    get length() {
+      return items.size
+    },
     removeItem: (key: string) => {
       items.delete(key)
     },
@@ -44,15 +48,20 @@ interface VaultCell {
 
 const fakeServer = (passkeys: string[] = ['one']) => {
   const copies: MemberSecretCopyView[] = []
+  let writeToken: string | null = null
   const vault: VaultCell = { current: null }
   const outcomes: string[] = []
   const claimed: Hex[] = []
   const storage = memoryStorage()
   const io: SensitiveIo = {
-    addCopy: async ({ ciphertext, credentialId, first, iv }) => {
+    addCopy: async ({ ciphertext, credentialId, first, iv, writeToken: token }) => {
+      if (!first && token !== writeToken) {
+        return { error: 'secret_proof_required', network: false, ok: false, status: 403 }
+      }
       if (first !== (copies.length === 0)) {
         return await Promise.resolve({ error: 'secret_conflict', network: false, ok: false, status: 409 })
       }
+      writeToken = token
       copies.push({ ciphertext, credentialId, iv })
       return await Promise.resolve({ body: { added: true }, ok: true })
     },
@@ -90,7 +99,10 @@ const fakeServer = (passkeys: string[] = ['one']) => {
       }),
     readVault: async () => await Promise.resolve({ body: { vault: vault.current }, ok: true }),
     storage: () => storage,
-    writeVault: async (sealed, expectedVersion) => {
+    writeVault: async (sealed, expectedVersion, token) => {
+      if (token !== writeToken) {
+        return { error: 'secret_proof_required', network: false, ok: false, status: 403 }
+      }
       if ((vault.current?.version ?? 0) !== expectedVersion) {
         return await Promise.resolve({ error: 'vault_conflict', network: false, ok: false, status: 409 })
       }
@@ -153,6 +165,7 @@ describe('opening the member secret', () => {
           ...(await wrapSecret(new Uint8Array(32).fill(7), prfOf('one'))),
           credentialId: 'one',
           first: true,
+          writeToken: await writeTokenFrom(new Uint8Array(32).fill(7)),
         })
       }
       return await server.io.addCopy(copy)
@@ -214,9 +227,9 @@ describe(claimSensitive, () => {
           sent.push(JSON.stringify(copy))
           return await server.io.addCopy(copy)
         },
-        writeVault: async (sealed, version) => {
+        writeVault: async (sealed, version, token) => {
           sent.push(JSON.stringify(sealed))
-          return await server.io.writeVault(sealed, version)
+          return await server.io.writeVault(sealed, version, token)
         },
       },
       CARD,
@@ -234,12 +247,12 @@ describe(claimSensitive, () => {
     }
     const theirs: VaultEntry = { cardTitle: 'Other', salt: 'c2FsdA', uid: OTHER_UID, venue: 'other' }
     let lost = false
-    const writeVault: SensitiveIo['writeVault'] = async (sealed, version) => {
+    const writeVault: SensitiveIo['writeVault'] = async (sealed, version, token) => {
       if (!lost) {
         lost = true
-        await server.io.writeVault(await sealEntries([theirs], opened.secret), version)
+        await server.io.writeVault(await sealEntries([theirs], opened.secret), version, token)
       }
-      return await server.io.writeVault(sealed, version)
+      return await server.io.writeVault(sealed, version, token)
     }
     await expect(claimSensitive({ ...server.io, writeVault }, CARD)).resolves.toMatchObject({ saved: true })
     await expect(
@@ -389,5 +402,71 @@ describe(addPasskeyKeepingSecret, () => {
       }),
     ).resolves.toStrictEqual({ holdsSecret: false, ok: true })
     expect(server.copies.map((copy) => copy.credentialId)).toStrictEqual(['one'])
+  })
+})
+
+describe('pending recovery concurrency', () => {
+  it('recovers both simultaneous claims after failed vault writes', async () => {
+    const server = fakeServer()
+    const opened = await openMemberSecret(server.io)
+    expect(opened.kind).toBe('open')
+    const io = { ...server.io, writeVault: failingWrite }
+    const results = await Promise.all([claimSensitive(io, CARD), claimSensitive(io, CARD)])
+    expect(results).toMatchObject([
+      { ok: true, saved: false },
+      { ok: true, saved: false },
+    ])
+    const recovered = opened.kind === 'open' ? await readVaultEntries(server.io, opened.secret) : null
+    expect(recovered?.ok).toBe(true)
+    expect(recovered && recovered.ok ? recovered.entries.length : 0).toBe(2)
+    expect(server.claimed).toHaveLength(2)
+  })
+})
+
+describe('pending entry lifetime', () => {
+  it('retains all failed entries until a vault write succeeds', async () => {
+    const server = fakeServer()
+    await openMemberSecret(server.io)
+    await Promise.all([
+      claimSensitive({ ...server.io, writeVault: failingWrite }, CARD),
+      claimSensitive({ ...server.io, writeVault: failingWrite }, CARD),
+    ])
+    const opened = await openMemberSecret(server.io)
+    if (opened.kind !== 'open') {
+      throw new Error('expected an open secret')
+    }
+    const before = new Map(server.storage.items)
+    await expect(
+      readVaultEntries({ ...server.io, writeVault: failingWrite }, opened.secret),
+    ).resolves.toStrictEqual({ ok: false })
+    expect(server.storage.items).toStrictEqual(before)
+    await expect(readVaultEntries(server.io, opened.secret)).resolves.toMatchObject({
+      entries: [{ uid: UID }, { uid: OTHER_UID }],
+      ok: true,
+    })
+    expect(server.storage.items.size).toBe(0)
+  })
+
+  it('keeps an entry added while an earlier recovery write is in flight', async () => {
+    const server = fakeServer()
+    await claimSensitive({ ...server.io, writeVault: failingWrite }, CARD)
+    const opened = await openMemberSecret(server.io)
+    if (opened.kind !== 'open') {
+      throw new Error('expected an open secret')
+    }
+    const writeVault: SensitiveIo['writeVault'] = async (sealed, version, token) => {
+      await claimSensitive({ ...server.io, writeVault: failingWrite }, CARD)
+      return await server.io.writeVault(sealed, version, token)
+    }
+    await expect(readVaultEntries({ ...server.io, writeVault }, opened.secret)).resolves.toMatchObject({
+      entries: [{ uid: UID }],
+      ok: true,
+    })
+    expect(server.storage.items.size).toBe(1)
+    await expect(readVaultEntries(server.io, opened.secret)).resolves.toMatchObject({
+      entries: [{ uid: UID }, { uid: OTHER_UID }],
+      ok: true,
+    })
+    expect(server.storage.items.size).toBe(0)
   })
 })

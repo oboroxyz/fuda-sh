@@ -90,6 +90,18 @@ export const bytesOfPrf = (source: ArrayBuffer | ArrayBufferView): Uint8Array<Ar
     : Uint8Array.from(new Uint8Array(source.buffer, source.byteOffset, source.byteLength))
 
 export const addPasskey = async (): Promise<AddPasskeyOutcome> => {
+  const authorize = await postJson<PublicKeyCredentialRequestOptionsJSON>(
+    '/auth/member/passkeys/authorize/options',
+  )
+  if (!authorize.ok) {
+    return { failure: failureOf(authorize), ok: false }
+  }
+  const authorization = await ceremony<AuthenticationResponseJSON>(
+    async () => await startAuthentication({ optionsJSON: authorize.body }),
+  )
+  if (!('value' in authorization)) {
+    return { failure: 'failure' in authorization ? authorization.failure : 'unavailable', ok: false }
+  }
   const options = await postJson<PublicKeyCredentialCreationOptionsJSON>('/auth/member/passkeys/options')
   if (!options.ok) {
     return { failure: failureOf(options), ok: false }
@@ -106,7 +118,11 @@ export const addPasskey = async (): Promise<AddPasskeyOutcome> => {
     return { failure: 'failure' in response ? response.failure : 'unavailable', ok: false }
   }
   const added = await apiFetch<{ added: true }>(API_BASE_URL, '/auth/member/passkeys', {
-    body: JSON.stringify({ ...response.value, clientExtensionResults: {} }),
+    body: JSON.stringify({
+      ...response.value,
+      authorization: authorization.value,
+      clientExtensionResults: {},
+    }),
     method: 'POST',
   })
   if (added.ok) {

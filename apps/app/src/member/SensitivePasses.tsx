@@ -73,6 +73,8 @@ export const SensitivePasses = (props: { locale: Locale }): JSX.Element => {
     setBusy(false)
     setStartedOver(cleared)
     if (cleared) {
+      setOpened(null)
+      setVerdict(null)
       setProblem(null)
       await refetch()
     }

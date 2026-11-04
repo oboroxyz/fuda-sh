@@ -93,7 +93,7 @@ const EN = {
   passkeys: {
     add: 'Add a passkey',
     addKeepsSecret:
-      'Your device will ask you to confirm two or three times: once with a passkey you already have, to open your sensitive passes, and then with the new one, to save it and let it open them too.',
+      'Your device will ask you to open your sensitive passes, confirm adding a passkey with an existing one, and save the new passkey. One more confirmation may be needed to let the new passkey open them too.',
     addedWithoutCopy:
       'The new passkey was added and you can sign in with it. It cannot open sensitive passes, because the app that saved it does not support that.',
     adding: 'Adding…',
@@ -133,10 +133,11 @@ const EN = {
     startOverDone:
       'Done. Ask each shop or organization for a new pass, then get it again from its card page.',
     startOverFailed: 'That did not work. Try again.',
-    startOverHint: 'Lost every passkey that opens them? You can start over with a new passkey.',
+    startOverHint:
+      'Cannot open them? Confirm with a passkey on this account to start over. If you have no account passkey left, create a new account.',
     startOverTitle: 'Start over?',
     startOverWarning:
-      'Every sensitive pass on this account stops working for good, on every device, and cannot be brought back. You will need a new pass from each shop or organization. Do this only if you no longer have a passkey that opens them.',
+      'This removes the saved recovery data and keys on this device. It does not cancel old passes. A device that still has their keys can use them. To cancel a pass, ask the shop or organization. You must confirm with a passkey on this account.',
     title: 'Sensitive passes',
   },
   settings: {
@@ -245,7 +246,7 @@ export const MEMBER_COPY = {
     passkeys: {
       add: 'パスキーを追加',
       addKeepsSecret:
-        '確認を2、3回求められます。まず今あるパスキーで機密パスを開き、次に新しいパスキーを保存して、そのパスキーでも開けるようにします。',
+        '機密パスを開き、登録済みのパスキーで追加を確認した後、新しいパスキーを保存します。新しいパスキーで機密パスを開けるようにするため、さらに確認が必要な場合があります。',
       addedWithoutCopy:
         '新しいパスキーを追加しました。サインインには使えますが、保存先のアプリが対応していないため、機密パスは開けません。',
       adding: '追加中…',
@@ -285,10 +286,11 @@ export const MEMBER_COPY = {
       startOverDone:
         '完了しました。お店や組織に新しいパスの発行を依頼し、カードのページから受け取り直してください。',
       startOverFailed: 'できませんでした。もう一度お試しください。',
-      startOverHint: '開けるパスキーをすべてなくした場合は、新しいパスキーでやり直せます。',
+      startOverHint:
+        '開けない場合は、このアカウントのパスキーで確認してやり直せます。アカウントのパスキーも残っていない場合は、新しいアカウントを作成してください。',
       startOverTitle: 'やり直しますか？',
       startOverWarning:
-        'このアカウントの機密パスは、すべての端末で使えなくなり、元に戻せません。お店や組織ごとに新しいパスが必要です。開けるパスキーが手元にない場合にのみ実行してください。',
+        '保存済みの復元データと、この端末の鍵を削除します。以前のパスは無効にはなりません。鍵が残っている端末では引き続き使えます。パスの無効化はお店や組織に依頼してください。このアカウントのパスキーで確認する必要があります。',
       title: '機密パス',
     },
     settings: {

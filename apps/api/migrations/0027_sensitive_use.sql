@@ -7,6 +7,8 @@ UPDATE cards SET identity_next = identity;
 ALTER TABLE cards DROP COLUMN identity;
 ALTER TABLE cards RENAME COLUMN identity_next TO identity;
 
+ALTER TABLE accounts ADD COLUMN secret_write_hash TEXT;
+
 -- One ciphertext of the member secret per passkey that can hold one. The server never sees
 -- the secret or a PRF output. A copy goes with its passkey.
 CREATE TABLE member_secret_copies (
@@ -32,4 +34,13 @@ CREATE TABLE member_vaults (
 CREATE TABLE member_secret_outcomes (
   outcome TEXT PRIMARY KEY CHECK (outcome IN ('prf', 'no_prf')),
   total   INTEGER NOT NULL
+);
+
+DROP TABLE passkey_challenges;
+CREATE TABLE passkey_challenges (
+  challenge TEXT PRIMARY KEY,
+  purpose TEXT NOT NULL CHECK (purpose IN ('register', 'login', 'add', 'claim', 'reset', 'authorize-add')),
+  account_id TEXT,
+  user_handle TEXT,
+  created_at INTEGER NOT NULL
 );

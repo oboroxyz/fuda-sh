@@ -106,6 +106,7 @@ export const offchainRoots = sqliteTable('offchain_roots', {
 export const accounts = sqliteTable('accounts', {
   createdAt: integer('created_at').notNull(),
   id: text('id').primaryKey(),
+  secretWriteHash: text('secret_write_hash'),
   userHandle: text('user_handle').notNull().unique(),
 })
 
@@ -130,7 +131,9 @@ export const passkeyChallenges = sqliteTable('passkey_challenges', {
   accountId: text('account_id'),
   challenge: text('challenge').primaryKey(),
   createdAt: integer('created_at').notNull(),
-  purpose: text('purpose', { enum: ['register', 'login', 'add', 'claim'] }).notNull(),
+  purpose: text('purpose', {
+    enum: ['register', 'login', 'add', 'claim', 'reset', 'authorize-add'],
+  }).notNull(),
   userHandle: text('user_handle'),
 })
 

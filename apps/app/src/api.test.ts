@@ -8,6 +8,7 @@ import {
   fetchVenue,
   googleSaveUrl,
   issueCard,
+  issueSensitiveCard,
   verifySigned,
   verifyUid,
 } from './api.ts'
@@ -32,6 +33,7 @@ describe(challenge, () => {
     expect(result).toStrictEqual({ body, ok: true })
     expect(spy).toHaveBeenCalledWith('/api/v1/challenge', {
       body: JSON.stringify({ uid: UID }),
+      credentials: 'omit',
       headers: { 'content-type': 'application/json' },
       method: 'POST',
     })
@@ -54,6 +56,7 @@ describe(verifySigned, () => {
     expect(result).toStrictEqual({ body: verdict, ok: true })
     expect(spy).toHaveBeenCalledWith('/api/v1/verify-signed', {
       body: JSON.stringify(body),
+      credentials: 'omit',
       headers: { 'content-type': 'application/json' },
       method: 'POST',
     })
@@ -185,5 +188,24 @@ describe(googleSaveUrl, () => {
 
     stubFetch(() => json({ error: 'google_not_configured' }, 501))
     await expect(googleSaveUrl('http://localhost:8787/pass/x/google')).resolves.toBeNull()
+  })
+})
+
+describe('Sensitive request privacy', () => {
+  it('omits cookies and credentials on Sensitive claims and presentation requests', async () => {
+    const captured: RequestInit[] = []
+    stubFetch((_url, init) => {
+      captured.push(init)
+      return json({}, 200)
+    })
+    await issueSensitiveCard('venue-one', 'staff', null, `0x${'11'.repeat(20)}`)
+    await issueSensitiveCard('venue-two', 'staff', null, `0x${'22'.repeat(20)}`)
+    await challenge(UID)
+    await verifySigned({ nonce: NONCE, signature: SIGNATURE, uid: UID })
+    expect(captured).toHaveLength(4)
+    for (const request of captured) {
+      expect(request.credentials).toBe('omit')
+      expect([...new Headers(request.headers).keys()]).toStrictEqual(['content-type'])
+    }
   })
 })

@@ -1,7 +1,8 @@
 import type { Hex, MemberSecretResponse, MemberVaultResponse, SelfServeIssueResponse } from '@fuda/sdk'
 import { apiFetch } from '@fuda/sdk/http'
 import type { Result } from '@fuda/sdk/http'
-import { base64URLStringToBuffer } from '@simplewebauthn/browser'
+import { startAuthentication, base64URLStringToBuffer } from '@simplewebauthn/browser'
+import type { PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/browser'
 import * as v from 'valibot'
 
 import { cardFailureOf, issueSensitiveCard } from '../api.ts'
@@ -18,11 +19,12 @@ import {
   sealEntries,
   unwrapSecret,
   wrapSecret,
+  writeTokenFrom,
 } from './member-secret.ts'
 import type { Sealed, VaultEntry } from './member-secret.ts'
 
 // docs/specs/pass-types-and-flows.md#sensitive-use. The server only ever gets ciphertext,
-// an address, and a count.
+// a pass-specific address, recovery-write proof, and a count.
 
 type Bytes = Uint8Array<ArrayBuffer>
 
@@ -34,7 +36,9 @@ export type PrfAnswer =
 type AllowedPasskey = MemberSecretResponse['allowCredentials'][number]
 
 export interface SensitiveIo {
-  addCopy: (copy: Sealed & { credentialId: string; first: boolean }) => Promise<Result<{ added: true }>>
+  addCopy: (
+    copy: Sealed & { credentialId: string; first: boolean; writeToken: string },
+  ) => Promise<Result<{ added: true }>>
   addPasskey: () => Promise<AddPasskeyOutcome>
   askPrf: (request: { allow: readonly AllowedPasskey[]; rpId: string }) => Promise<PrfAnswer>
   claim: (
@@ -46,8 +50,12 @@ export interface SensitiveIo {
   countOutcome: (outcome: 'no_prf' | 'prf') => Promise<void>
   readSecret: () => Promise<Result<MemberSecretResponse>>
   readVault: () => Promise<Result<MemberVaultResponse>>
-  storage: () => Pick<Storage, 'getItem' | 'removeItem' | 'setItem'> | null
-  writeVault: (sealed: Sealed, expectedVersion: number) => Promise<Result<{ version: number }>>
+  storage: () => Pick<Storage, 'getItem' | 'key' | 'length' | 'removeItem' | 'setItem'> | null
+  writeVault: (
+    sealed: Sealed,
+    expectedVersion: number,
+    writeToken: string,
+  ) => Promise<Result<{ version: number }>>
 }
 
 const isTransport = (raw: string): raw is AuthenticatorTransport =>
@@ -92,13 +100,6 @@ const storageOrNull = (): ReturnType<SensitiveIo['storage']> => {
   }
 }
 
-// docs/specs/pass-types-and-flows.md#sensitive-use. The way back for a member with no passkey
-// that opens the secret: without it, no new pass could be claimed on this account either.
-export const startSecretOver = async (): Promise<boolean> => {
-  const cleared = await apiFetch(API_BASE_URL, '/member/secret', { method: 'DELETE' })
-  return cleared.ok
-}
-
 export const defaultSensitiveIo: SensitiveIo = {
   addCopy: async (copy) =>
     await apiFetch(API_BASE_URL, '/member/secret', { body: JSON.stringify(copy), method: 'POST' }),
@@ -114,9 +115,9 @@ export const defaultSensitiveIo: SensitiveIo = {
   readSecret: async () => await apiFetch<MemberSecretResponse>(API_BASE_URL, '/member/secret'),
   readVault: async () => await apiFetch<MemberVaultResponse>(API_BASE_URL, '/member/vault'),
   storage: storageOrNull,
-  writeVault: async (sealed, expectedVersion) =>
+  writeVault: async (sealed, expectedVersion, writeToken) =>
     await apiFetch(API_BASE_URL, '/member/vault', {
-      body: JSON.stringify({ ...sealed, expectedVersion }),
+      body: JSON.stringify({ ...sealed, expectedVersion, writeToken }),
       method: 'PUT',
     }),
 }
@@ -151,6 +152,7 @@ const startSecret = async (
     ...(await wrapSecret(secret, answer.output)),
     credentialId: answer.credentialId,
     first: true,
+    writeToken: await writeTokenFrom(secret),
   })
   if (added.ok) {
     await io.countOutcome('prf')
@@ -187,7 +189,7 @@ export const openMemberSecret = async (io: SensitiveIo, only?: string): Promise<
   return copies.length === 0 ? await startSecret(io, answer) : await unwrapOwn(state.body, answer)
 }
 
-const PENDING_KEY = 'fuda.sensitive.pending.v1'
+const PENDING_PREFIX = 'fuda.sensitive.pending.v1.'
 const VAULT_WRITE_ATTEMPTS = 4
 
 // A claim is two requests, because the uid exists only once the api has signed. If the second
@@ -195,28 +197,76 @@ const VAULT_WRITE_ATTEMPTS = 4
 // the secret is open.
 const SealedJson = v.object({ ciphertext: v.string(), iv: v.string() })
 
-const readPending = async (io: SensitiveIo, secret: Bytes): Promise<VaultEntry[]> => {
-  const raw = io.storage()?.getItem(PENDING_KEY) ?? null
-  if (raw === null) {
+const pendingKeys = (storage: ReturnType<SensitiveIo['storage']>): string[] => {
+  if (storage === null) {
     return []
   }
+  return Array.from({ length: storage.length }, (_, index) => storage.key(index)).filter(
+    (key): key is string => key !== null && key.startsWith(PENDING_PREFIX),
+  )
+}
+
+// docs/specs/pass-types-and-flows.md#sensitive-use. The way back for a member with no passkey
+// that opens the secret: without it, no new pass could be claimed on this account either.
+export const startSecretOver = async (): Promise<boolean> => {
   try {
-    const parsed = v.safeParse(SealedJson, JSON.parse(raw))
-    return parsed.success ? ((await openEntries(parsed.output, secret)) ?? []) : []
+    const options = await apiFetch<PublicKeyCredentialRequestOptionsJSON>(
+      API_BASE_URL,
+      '/member/secret/reset/options',
+      { body: '{}', method: 'POST' },
+    )
+    if (!options.ok) {
+      return false
+    }
+    const assertion = await startAuthentication({ optionsJSON: options.body })
+    const cleared = await apiFetch(API_BASE_URL, '/member/secret', {
+      body: JSON.stringify(assertion),
+      method: 'DELETE',
+    })
+    if (cleared.ok) {
+      const storage = storageOrNull()
+      for (const key of pendingKeys(storage)) {
+        storage?.removeItem(key)
+      }
+    }
+    return cleared.ok
   } catch {
-    return []
+    return false
   }
 }
 
-const keepPending = async (io: SensitiveIo, secret: Bytes, entries: readonly VaultEntry[]): Promise<void> => {
+interface PendingEntry {
+  entries: VaultEntry[]
+  key: string
+}
+
+const readPending = async (io: SensitiveIo, secret: Bytes): Promise<PendingEntry[]> => {
   const storage = io.storage()
-  if (storage !== null) {
-    storage.setItem(PENDING_KEY, JSON.stringify(await sealEntries(entries, secret)))
-  }
+  const pending = await Promise.all(
+    pendingKeys(storage).map(async (key) => {
+      try {
+        const parsed = v.safeParse(SealedJson, JSON.parse(storage?.getItem(key) ?? 'null'))
+        const entries = parsed.success ? await openEntries(parsed.output, secret) : null
+        return entries === null ? null : { entries, key }
+      } catch {
+        return null
+      }
+    }),
+  )
+  return pending.filter((entry): entry is PendingEntry => entry !== null)
 }
 
-const clearPending = (io: SensitiveIo): void => {
-  io.storage()?.removeItem(PENDING_KEY)
+const keepPending = async (io: SensitiveIo, secret: Bytes, entry: VaultEntry): Promise<void> => {
+  io.storage()?.setItem(
+    `${PENDING_PREFIX}${crypto.randomUUID()}`,
+    JSON.stringify(await sealEntries([entry], secret)),
+  )
+}
+
+const clearPending = (io: SensitiveIo, pending: readonly PendingEntry[]): void => {
+  for (const { key } of pending) {
+    io.storage()?.removeItem(key)
+  }
 }
 
 export type VaultRead = { ok: true; entries: VaultEntry[]; version: number } | { ok: false }
@@ -241,6 +291,7 @@ const saveEntries = async (
   secret: Bytes,
   added: readonly VaultEntry[],
 ): Promise<VaultRead> => {
+  const token = await writeTokenFrom(secret)
   let attempt = 0
   while (attempt < VAULT_WRITE_ATTEMPTS) {
     attempt += 1
@@ -253,8 +304,10 @@ const saveEntries = async (
     if (entries.length === current.entries.length) {
       return current
     }
-    // oxlint-disable-next-line no-await-in-loop -- as above
-    const written = await io.writeVault(await sealEntries(entries, secret), current.version)
+    // oxlint-disable-next-line no-await-in-loop -- retry seals the latest merged entries
+    const sealed = await sealEntries(entries, secret)
+    // oxlint-disable-next-line no-await-in-loop -- each write follows its version read
+    const written = await io.writeVault(sealed, current.version, token)
     if (written.ok) {
       return { entries, ok: true, version: written.body.version }
     }
@@ -272,9 +325,13 @@ export const readVaultEntries = async (io: SensitiveIo, secret: Bytes): Promise<
   if (pending.length === 0) {
     return await readEntries(io, secret)
   }
-  const saved = await saveEntries(io, secret, pending)
+  const saved = await saveEntries(
+    io,
+    secret,
+    pending.flatMap((entry) => entry.entries),
+  )
   if (saved.ok) {
-    clearPending(io)
+    clearPending(io, pending)
   }
   return saved
 }
@@ -318,11 +375,11 @@ export const claimSensitive = async (
   }
   const entry: VaultEntry = { cardTitle: card.cardTitle, salt, uid: issued.body.uid, venue: card.venue }
   const pending = await readPending(io, opened.secret)
-  const saved = await saveEntries(io, opened.secret, [...pending, entry])
+  const saved = await saveEntries(io, opened.secret, [...pending.flatMap((row) => row.entries), entry])
   if (saved.ok) {
-    clearPending(io)
+    clearPending(io, pending)
   } else {
-    await keepPending(io, opened.secret, [...pending, entry])
+    await keepPending(io, opened.secret, entry)
   }
   return { body: issued.body, ok: true, saved: saved.ok }
 }
@@ -385,6 +442,7 @@ export const addPasskeyKeepingSecret = async (io: SensitiveIo): Promise<AddWithS
     ...(await wrapSecret(opened.secret, answer.output)),
     credentialId: added.credentialId,
     first: false,
+    writeToken: await writeTokenFrom(opened.secret),
   })
   return { holdsSecret: copied.ok, ok: true }
 }

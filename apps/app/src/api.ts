@@ -21,6 +21,7 @@ import { googlePassHref } from './member-pass-list.ts'
 export const challenge = async (uid: Hex): Promise<Result<ChallengeResponse>> =>
   await apiFetch<ChallengeResponse>(API_BASE_URL, '/challenge', {
     body: JSON.stringify({ uid }),
+    credentials: 'omit',
     method: 'POST',
   })
 
@@ -29,6 +30,7 @@ export const verifySigned = async (
 ): Promise<Result<VerifySignedResponse>> =>
   await apiFetch<VerifySignedResponse>(API_BASE_URL, '/verify-signed', {
     body: JSON.stringify(body),
+    credentials: 'omit',
     method: 'POST',
   })
 
@@ -107,6 +109,7 @@ export const issueSensitiveCard = async (
 ): Promise<Result<SelfServeIssueResponse>> =>
   await apiFetch<SelfServeIssueResponse>(API_BASE_URL, issuePath(handle, slug), {
     body: JSON.stringify(source === null ? { holderAddress } : { holderAddress, source }),
+    credentials: 'omit',
     method: 'POST',
   })
 

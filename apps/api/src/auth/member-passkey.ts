@@ -25,7 +25,7 @@ const CHALLENGE_TTL_SECONDS = 300
 const ES256 = -7
 const MAX_PASSKEYS_PER_ACCOUNT = 10
 
-type Purpose = 'add' | 'claim' | 'login' | 'register'
+type Purpose = 'add' | 'authorize-add' | 'claim' | 'login' | 'register' | 'reset'
 
 export interface RelyingParty {
   id: string
@@ -340,6 +340,7 @@ export const claimOptions = async (
   rp: RelyingParty,
   accountId: string,
   now: number,
+  purpose: Extract<Purpose, 'authorize-add' | 'claim' | 'reset'> = 'claim',
 ): Promise<PublicKeyCredentialRequestOptionsJSON> => {
   const held = await db
     .select({ id: passkeys.credentialId, transports: passkeys.transports })
@@ -354,7 +355,7 @@ export const claimOptions = async (
     accountId,
     challenge: options.challenge,
     now,
-    purpose: 'claim',
+    purpose,
     userHandle: null,
   })
   return options
@@ -368,9 +369,10 @@ export const claimingPasskey = async (
   accountId: string,
   response: AuthenticationResponseJSON,
   now: number,
+  purpose: Extract<Purpose, 'authorize-add' | 'claim' | 'reset'> = 'claim',
 ): Promise<AttestedPasskey | null> => {
   const challenge = challengeOf(response.response.clientDataJSON)
-  const spent = challenge === null ? null : await spendChallenge(db, { challenge, now, purpose: 'claim' })
+  const spent = challenge === null ? null : await spendChallenge(db, { challenge, now, purpose })
   if (challenge === null || spent?.accountId !== accountId) {
     return null
   }

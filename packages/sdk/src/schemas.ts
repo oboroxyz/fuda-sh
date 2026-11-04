@@ -114,6 +114,7 @@ export const SensitiveClaimBody = v.object({ holderAddress: address })
 // secret, and a vault of up to a few thousand short entries.
 const SECRET_COPY_MAX_LENGTH = 128
 const VAULT_MAX_LENGTH = 512_000
+const MemberWriteToken = v.pipe(Base64Url, v.length(43))
 const AES_GCM_IV = v.pipe(Base64Url, v.length(16))
 
 export const MemberSecretCopyBody = v.object({
@@ -121,12 +122,14 @@ export const MemberSecretCopyBody = v.object({
   credentialId: Base64Url,
   first: v.boolean(),
   iv: AES_GCM_IV,
+  writeToken: MemberWriteToken,
 })
 
 export const MemberVaultBody = v.object({
   ciphertext: v.pipe(Base64Url, v.maxLength(VAULT_MAX_LENGTH)),
   expectedVersion: v.pipe(v.number(), v.integer(), v.minValue(0)),
   iv: AES_GCM_IV,
+  writeToken: MemberWriteToken,
 })
 
 export const MemberSecretOutcomeBody = v.object({ outcome: v.picklist(['prf', 'no_prf']) })
