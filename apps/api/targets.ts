@@ -17,7 +17,7 @@ const TargetSchema = v.object({
 })
 const TargetsSchema = v.object({ develop: TargetSchema, local: TargetSchema, production: TargetSchema })
 
-export type Target = v.InferOutput<typeof TargetSchema>
+type Target = v.InferOutput<typeof TargetSchema>
 export type TargetName = keyof v.InferOutput<typeof TargetsSchema>
 
 const readTargets = (): Record<TargetName, Target> => {

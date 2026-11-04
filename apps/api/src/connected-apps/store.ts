@@ -22,13 +22,13 @@ import { toHex } from '../hex.ts'
 import { issuerSummary } from '../issuers/views.ts'
 
 // docs/specs/connected-apps.md#lifetimes
-export const CODE_TTL_SECONDS = 10 * 60
-export const ACCESS_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
-export const APPS_PER_OWNER = 20
+const CODE_TTL_SECONDS = 10 * 60
+const ACCESS_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
+const APPS_PER_OWNER = 20
 // How stale "last used" may be, so that using a token does not mean a D1 write
 // on every request.
-export const LAST_USED_PRECISION_SECONDS = 60 * 60
-export const EVENTS_LISTED = 50
+const LAST_USED_PRECISION_SECONDS = 60 * 60
+const EVENTS_LISTED = 50
 
 // The prefix makes a leaked token recognisable in a log or a secret scanner;
 // only the hash is stored, as for sessions.
@@ -39,7 +39,7 @@ const randomHex = (bytes: number): string => toHex(crypto.getRandomValues(new Ui
 type IssuerRow = typeof issuers.$inferSelect
 
 // Stored as the space-separated OAuth form, read back in canonical order.
-export const scopeList = (stored: string): ConnectedAppScope[] =>
+const scopeList = (stored: string): ConnectedAppScope[] =>
   CONNECTED_APP_SCOPES.filter((scope) => stored.split(' ').includes(scope))
 
 const appView = (

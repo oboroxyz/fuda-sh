@@ -39,12 +39,12 @@ export const addresses = {
 export const node = '0xb966af14f29d73e4a56d2b2db08c22ff89b7e594eaf18b02a5bb452aec27e5ff'
 export const labelId =
   0x89_1e_4d_c4_f0_72_18_18_d5_55_35_fd_31_14_ba_5c_99_c5_e4_28_90_06_ef_78_7f_0b_22_73_f3_98_3e_b1n
-export const salt =
+const salt =
   0x51_a2_7e_c7_00_50_ad_e2_61_6d_46_55_70_44_72_51_17_2f_bd_56_4e_10_62_05_fc_1e_1e_90_11_88_9e_a5n
 export const setupRoles = 2n ** 252n + 2n ** 144n + 2n ** 140n + 2n ** 128n + 2n ** 124n + 256n
 export const txHash = `0x${'ab'.repeat(32)}` as const
-export const privateKey = `0x${'0'.repeat(63)}1`
-export const rpcUrl = 'https://rpc.example/secret-credential'
+const privateKey = `0x${'0'.repeat(63)}1`
+const rpcUrl = 'https://rpc.example/secret-credential'
 export const operations = [
   'deploy-user-registry',
   'set-parent',

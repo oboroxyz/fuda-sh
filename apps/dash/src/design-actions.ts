@@ -24,11 +24,11 @@ export interface LogoFailure {
   session: boolean
 }
 
-export type StagedLogo = { ok: true; logoUploadId: string | null } | LogoFailure
+type StagedLogo = { ok: true; logoUploadId: string | null } | LogoFailure
 
 // A staged upload is spendable once and expires after 15 minutes, so the picked
 // blobs are uploaded on each attempt rather than an id being kept across them.
-export const stageLogo = async (io: DesignIo, logo: LogoSet | null): Promise<StagedLogo> => {
+const stageLogo = async (io: DesignIo, logo: LogoSet | null): Promise<StagedLogo> => {
   if (logo === null) {
     return { logoUploadId: null, ok: true }
   }

@@ -37,14 +37,6 @@ export const buttonNamed = (host: ParentNode, name: string): HTMLButtonElement =
   return button
 }
 
-export const linkNamed = (host: ParentNode, name: string): HTMLAnchorElement => {
-  const link = [...host.querySelectorAll('a')].find((candidate) => textOf(candidate) === name)
-  if (link === undefined) {
-    throw new Error(`no link named ${name}`)
-  }
-  return link
-}
-
 // Types into a field the way a user does: set the value, then fire `input`.
 export const typeInto = (field: HTMLInputElement | HTMLTextAreaElement, value: string): void => {
   field.value = value

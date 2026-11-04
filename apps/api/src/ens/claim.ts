@@ -19,10 +19,10 @@ import { isIssuerHandle } from './names.ts'
 // How long a signed voucher stays usable. Long enough for a wallet prompt and a
 // sponsored submission, short enough that an abandoned claim does not leave a
 // live authorization lying around.
-export const VOUCHER_TTL_SECONDS = 15 * 60
+const VOUCHER_TTL_SECONDS = 15 * 60
 // An issuer name is registered for a year. Renewal exists on the registrar and
 // keeps the same owner (docs/specs/ens-naming.md#issuer-claim-and-renewal).
-export const CLAIM_TERM_SECONDS = 365 * 24 * 60 * 60
+const CLAIM_TERM_SECONDS = 365 * 24 * 60 * 60
 
 export interface ClaimConfig {
   gasPolicyId: string

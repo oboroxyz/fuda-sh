@@ -28,7 +28,7 @@ import { checkDelegation } from '../verify/verify-uid.ts'
 
 // Sponsorship requests per IP per hour. A venue claims its name once; this is a
 // ceiling on abuse of a public endpoint, not a working budget.
-export const PAYMASTER_BUDGET = 60
+const PAYMASTER_BUDGET = 60
 
 const TxHashBody = v.object({ txHash: v.pipe(v.string(), v.regex(/^0x[0-9a-fA-F]{64}$/u)) })
 

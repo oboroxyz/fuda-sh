@@ -212,7 +212,7 @@ export const handleStatusOf = (handle: string): FieldStatus => statusOf(issuerHa
 export const slugStatusOf = (slug: string): FieldStatus => statusOf(cardSlugProblem(slug))
 
 // The two windows as the api reads them: unix seconds, or null for unbounded.
-export const windowsOf = (form: DesignerForm): CardValidity & ClaimWindow => ({
+const windowsOf = (form: DesignerForm): CardValidity & ClaimWindow => ({
   claimFrom: unixFromLocal(form.claimFrom),
   claimUntil: unixFromLocal(form.claimUntil),
   validFrom: unixFromLocal(form.validFrom),

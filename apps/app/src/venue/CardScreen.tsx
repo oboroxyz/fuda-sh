@@ -82,9 +82,9 @@ export const issueDateOf = (issuedAt: number, locale: Locale = DEFAULT_LOCALE): 
 
 // The venue's own address, so a member who followed a card link can go back to
 // everything else the venue publishes.
-export const venueHref = (handle: string): string => `/@${handle}?cards=all`
+const venueHref = (handle: string): string => `/@${handle}?cards=all`
 
-export const cardHref = cardClaimHref
+const cardHref = cardClaimHref
 
 const nounOf = (card: PublicCard, copy: VenueCopy): string => copy.category[card.card.category].noun
 

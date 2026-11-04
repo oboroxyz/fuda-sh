@@ -7,7 +7,7 @@ import type { appWith } from './env.ts'
 
 type App = ReturnType<typeof appWith>
 
-export const OPERATOR_KEY = `0x${'6a'.repeat(32)}` as const
+const OPERATOR_KEY = `0x${'6a'.repeat(32)}` as const
 export const operator = privateKeyToAccount(OPERATOR_KEY)
 
 const headersFor = (token: string | undefined, json: boolean): HeadersInit => {

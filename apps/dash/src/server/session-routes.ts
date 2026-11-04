@@ -7,8 +7,8 @@ import * as v from 'valibot'
 import { endSession, readCredential, startAdminSession, startOperatorSession } from './cookies.ts'
 
 const HexString = v.pipe(v.string(), v.regex(/^0x[0-9a-fA-F]*$/u))
-export const VerifyBody = v.object({ address: HexString, nonce: HexString, signature: HexString })
-export const AdminBody = v.object({ token: v.string() })
+const VerifyBody = v.object({ address: HexString, nonce: HexString, signature: HexString })
+const AdminBody = v.object({ token: v.string() })
 
 // The browser's half of sign-in is the wallet signature; this half spends it at
 // the api and keeps the session token in a cookie the browser cannot read.

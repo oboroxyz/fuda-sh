@@ -36,9 +36,9 @@ interface NavItem {
   route: MainDashRoute
 }
 
-export const DASH_DESKTOP_MEDIA_QUERY = '(min-width: 48rem)'
+const DASH_DESKTOP_MEDIA_QUERY = '(min-width: 48rem)'
 
-export interface DesktopBreakpoint {
+interface DesktopBreakpoint {
   addEventListener: (type: 'change', listener: (event: MediaQueryListEvent) => void) => void
   matches: boolean
   removeEventListener: (type: 'change', listener: (event: MediaQueryListEvent) => void) => void

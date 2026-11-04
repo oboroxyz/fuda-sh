@@ -15,7 +15,7 @@ const sha256 = async (s: string): Promise<ArrayBuffer> =>
   await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))
 
 // Constant-time compare: hash both sides to equal length, then timingSafeEqual.
-export const tokenMatches = async (presented: string, expected: string): Promise<boolean> => {
+const tokenMatches = async (presented: string, expected: string): Promise<boolean> => {
   const [a, b] = await Promise.all([sha256(presented), sha256(expected)])
   return crypto.subtle.timingSafeEqual(a, b)
 }
@@ -33,9 +33,8 @@ const isSet = (v: string | undefined): v is string => v !== undefined && v !== '
 // (the fake-chain opt-in already requires SIGNER_PRIVATE_KEY unset). A deployment
 // with neither binding runs on the default public RPC and also stays open; that
 // boundary is deliberate, since closing it would lock every fixture environment.
-export const adminLocked = (
-  env: Pick<Bindings, 'ADMIN_TOKEN' | 'SIGNER_PRIVATE_KEY' | 'BASE_RPC_URL'>,
-): boolean => isTokenUnset(env.ADMIN_TOKEN) && (isSet(env.SIGNER_PRIVATE_KEY) || isSet(env.BASE_RPC_URL))
+const adminLocked = (env: Pick<Bindings, 'ADMIN_TOKEN' | 'SIGNER_PRIVATE_KEY' | 'BASE_RPC_URL'>): boolean =>
+  isTokenUnset(env.ADMIN_TOKEN) && (isSet(env.SIGNER_PRIVATE_KEY) || isSet(env.BASE_RPC_URL))
 
 let lockedWarned = false
 const warnLockedOnce = (): void => {

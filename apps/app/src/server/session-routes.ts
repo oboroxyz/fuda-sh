@@ -14,7 +14,7 @@ import * as v from 'valibot'
 import { MEMBER_COOKIE } from '../cookie-names.ts'
 
 const HexString = v.pipe(v.string(), v.regex(/^0x[0-9a-fA-F]*$/u))
-export const VerifyBody = v.object({ address: HexString, nonce: HexString, signature: HexString })
+const VerifyBody = v.object({ address: HexString, nonce: HexString, signature: HexString })
 
 // The browser's half of sign-in is the wallet signature; this half spends it at
 // the api and keeps the member session token in a cookie the browser cannot read.

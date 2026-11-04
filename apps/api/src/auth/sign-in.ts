@@ -9,8 +9,8 @@ import type { SessionAudience } from './session.ts'
 
 // What the operator's wallet signs (EIP-191 personal-sign). The nonce is the
 // only variable part, so the wallet shows a stable, readable prompt.
-export const SIGN_IN_PREFIX = 'fuda.sh dashboard sign-in'
-export const MEMBER_SIGN_IN_PREFIX = 'fuda.sh member sign-in'
+const SIGN_IN_PREFIX = 'fuda.sh dashboard sign-in'
+const MEMBER_SIGN_IN_PREFIX = 'fuda.sh member sign-in'
 export const signInMessage = (audience: SessionAudience, nonce: Hex): string =>
   `${audience === 'operator' ? SIGN_IN_PREFIX : MEMBER_SIGN_IN_PREFIX}\nnonce: ${nonce}`
 

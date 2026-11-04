@@ -8,7 +8,7 @@ import type { Entitlement } from '../eas/codecs.ts'
 
 // The MVP issues one slot per right; named so a later multi-slot right can add
 // its own rows without a migration.
-export const DEFAULT_SLOT = 'default'
+const DEFAULT_SLOT = 'default'
 
 export interface EntryRow {
   uid: Hex

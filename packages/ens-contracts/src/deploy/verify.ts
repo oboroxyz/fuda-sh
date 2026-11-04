@@ -298,5 +298,3 @@ export const verifyTopology = async (context: TopologyVerificationContext, addre
     voucherSigner: config.voucherSigner,
   } as const
 }
-
-export type TopologyReport = Awaited<ReturnType<typeof verifyTopology>>

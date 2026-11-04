@@ -1,7 +1,7 @@
 import { isCardSlug, isCardSlugReference } from '@fuda/sdk'
 import type { CardView } from '@fuda/sdk'
 
-export const DASH_ROUTES = [
+const DASH_ROUTES = [
   '/',
   '/rights',
   '/issue',
@@ -42,7 +42,7 @@ export const isCardEditRoute = (value: string): value is CardEditRoute => {
   )
 }
 
-export const isCardRoute = (route: string): route is CardSettingsRoute =>
+const isCardRoute = (route: string): route is CardSettingsRoute =>
   isCardSettingsRoute(route) || isLegacyCardSettingsRoute(route) || isCardEditRoute(route)
 
 export const cardForRoute = (route: DashRoute, cards: readonly CardView[]): CardView | null => {

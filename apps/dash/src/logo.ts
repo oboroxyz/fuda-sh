@@ -10,7 +10,7 @@ import type { LogoVariant } from '@fuda/sdk'
 // The variant names, sides and caps are the api's contract, not this form's:
 // they come from @fuda/sdk so a doomed upload is explained in the form instead
 // of coming back as a bare 400.
-export { LOGO_SIDE, LOGO_VARIANTS, MAX_LOGO_OBJECT_BYTES, MAX_LOGO_SET_BYTES } from '@fuda/sdk'
+export { LOGO_SIDE, LOGO_VARIANTS, MAX_LOGO_OBJECT_BYTES } from '@fuda/sdk'
 export type { LogoVariant } from '@fuda/sdk'
 
 const BYTES_PER_MIB = 1024 * 1024
@@ -19,9 +19,9 @@ export const MAX_SOURCE_BYTES = 10 * BYTES_PER_MIB
 
 // Below this the 1024 master would be upscaled, and an upscaled mark looks poor
 // on a pass and on a poster.
-export const MIN_SOURCE_SIDE = 660
+const MIN_SOURCE_SIDE = 660
 
-export const SOURCE_TYPES = ['image/png', 'image/jpeg', 'image/webp'] as const
+const SOURCE_TYPES = ['image/png', 'image/jpeg', 'image/webp'] as const
 
 // What a file input should offer; the pipeline rejects anything else anyway.
 export const SOURCE_ACCEPT = SOURCE_TYPES.join(',')

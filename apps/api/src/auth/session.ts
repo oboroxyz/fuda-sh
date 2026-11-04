@@ -5,7 +5,7 @@ import type { Db } from '../db/client.ts'
 import { sessions } from '../db/schema.ts'
 import { toHex } from '../hex.ts'
 
-export const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
+const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
 
 export type SessionAudience = 'member' | 'operator'
 
