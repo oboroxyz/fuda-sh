@@ -67,7 +67,7 @@
       "API_BASE_URL": "https://api.fuda.sh",
       "PUBLIC_BASE_URL": "https://fuda.sh",
       "WEBAUTHN_RP_ID": "fuda.sh",
-      "WEBAUTHN_ORIGINS": "https://app.fuda.sh",
+      "WEBAUTHN_ORIGINS": "https://app.fuda.sh,https://dash.fuda.sh",
       "DASH_BASE_URL": "https://dash.fuda.sh",
       // The deployed ENS topology on Ethereum Sepolia — all public values, all
       // verifiable with `pnpm --filter @fuda/ens-contracts ens:verify`. The gas
@@ -116,7 +116,7 @@
       "API_BASE_URL": "https://api.fuda.sh",
       "PUBLIC_BASE_URL": "https://fuda.sh",
       "WEBAUTHN_RP_ID": "fuda.sh",
-      "WEBAUTHN_ORIGINS": "https://app.fuda.sh",
+      "WEBAUTHN_ORIGINS": "https://app.fuda.sh,https://dash.fuda.sh",
       "DASH_BASE_URL": "https://dash.fuda.sh",
     },
   },
@@ -155,7 +155,7 @@
       "API_BASE_URL": "http://localhost:8787",
       "PUBLIC_BASE_URL": "http://localhost:5173",
       "WEBAUTHN_RP_ID": "localhost",
-      "WEBAUTHN_ORIGINS": "http://localhost:5173",
+      "WEBAUTHN_ORIGINS": "http://localhost:5173,http://localhost:5175",
       "DASH_BASE_URL": "http://localhost:5175",
       "ISSUER_ADDRESS": "0xF0F0F0f0f0F0F0f0f0F0f0f0f0f0F0F0f0f0f0F0",
       "DELEGATION_UID": "0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6",

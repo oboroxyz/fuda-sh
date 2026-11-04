@@ -2,10 +2,10 @@ import type { MiddlewareHandler } from 'hono'
 
 import type { AppEnv } from '../env.ts'
 import { adminAuth } from './admin-auth.ts'
-import { bearerSession } from './bearer-session.ts'
+import { operatorBearerSession } from './bearer-session.ts'
 
 // `/members` and `/revoke` were built for fuda's own operators, holding the
-// deployment's admin token. A venue owner signs in with their wallet instead,
+// deployment's admin token. A venue owner signs in instead,
 // and until now that session bought them nothing on either route: they had to
 // paste fuda's admin token to see their own members, which also showed them
 // everyone else's.
@@ -15,7 +15,7 @@ import { bearerSession } from './bearer-session.ts'
 // operator scopes itself to that venue; a route that sees the admin token keeps
 // its whole-deployment view.
 export const operatorOrAdmin = (): MiddlewareHandler<AppEnv> => async (c, next) => {
-  const resolved = await bearerSession(c, 'operator')
+  const resolved = await operatorBearerSession(c)
   if (resolved.kind === 'wrong-audience') {
     return c.json({ error: 'unauthorized' }, 401)
   }

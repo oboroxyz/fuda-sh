@@ -196,7 +196,8 @@ export interface IssuerView {
   name: string
   tagline: string
   brandColor: string
-  operatorAddress: Hex
+  // The wallet that owns this issuer; null when an account owns it.
+  operatorAddress: Hex | null
   createdAt: number
   // Optional while clients may still talk to an older API deployment.
   defaultCardSlug?: string | null

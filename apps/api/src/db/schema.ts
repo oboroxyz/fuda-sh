@@ -33,8 +33,17 @@ export const members = sqliteTable(
   ],
 )
 
-// One account (operator address) may own several issuers; each keeps its own
-// handle, cards and data (docs/adr/0011-several-issuers-per-account.md).
+// An account: its passkeys are its only identity, for the person holding passes and
+// for the operator alike (docs/specs/pass-types-and-flows.md#passkey-ceremonies).
+export const accounts = sqliteTable('accounts', {
+  createdAt: integer('created_at').notNull(),
+  id: text('id').primaryKey(),
+  userHandle: text('user_handle').notNull().unique(),
+})
+
+// One owner may hold several issuers; each keeps its own handle, cards and data
+// (docs/adr/0011-several-issuers-per-account.md). The owner is an account or an
+// address, exactly one of them, which the table's CHECK holds.
 export const issuers = sqliteTable(
   'issuers',
   {
@@ -45,10 +54,14 @@ export const issuers = sqliteTable(
     id: text('id').primaryKey(),
     logoPrefix: text('logo_prefix'),
     name: text('name').notNull(),
-    operatorAddress: text('operator_address').notNull(),
+    operatorAddress: text('operator_address'),
+    ownerAccountId: text('owner_account_id').references(() => accounts.id),
     tagline: text('tagline').notNull().default(''),
   },
-  (t) => [index('issuers_operator_address').on(t.operatorAddress, t.createdAt)],
+  (t) => [
+    index('issuers_operator_address').on(t.operatorAddress, t.createdAt),
+    index('issuers_owner_account').on(t.ownerAccountId, t.createdAt),
+  ],
 )
 
 export const cards = sqliteTable(
@@ -97,13 +110,6 @@ export const offchainRoots = sqliteTable('offchain_roots', {
   passCount: integer('pass_count').notNull(),
   root: text('root').primaryKey(),
   txHash: text('tx_hash'),
-})
-
-// A member account: its passkeys are its only identity (docs/specs/pass-types-and-flows.md#member-sign-in).
-export const accounts = sqliteTable('accounts', {
-  createdAt: integer('created_at').notNull(),
-  id: text('id').primaryKey(),
-  userHandle: text('user_handle').notNull().unique(),
 })
 
 export const passkeys = sqliteTable(
@@ -233,6 +239,7 @@ export const stampCredits = sqliteTable(
     issuerId: text('issuer_id')
       .notNull()
       .references(() => issuers.id),
+    // principalKey of the operator who scanned, not always an address
     operatorAddress: text('operator_address').notNull(),
     ordinal: integer('ordinal').notNull(),
     uid: text('uid').notNull(),
@@ -288,8 +295,10 @@ export const badges = sqliteTable(
   ],
 )
 
-// docs/specs/connected-apps.md — a browser-only app registered by an operator
-// address. Only that address may approve it (no third-party consent yet).
+// docs/specs/connected-apps.md — a browser-only app registered by an operator. Only
+// that operator may approve it (no third-party consent yet). `ownerAddress` here, and
+// `address` on the approval tables below, hold principalKey: an address, or
+// `account:<id>` for an operator signed in with a passkey.
 export const connectedApps = sqliteTable(
   'connected_apps',
   {

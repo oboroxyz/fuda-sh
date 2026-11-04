@@ -2,7 +2,7 @@ import { env } from 'cloudflare:test'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { createSession } from '../src/auth/session.ts'
+import { createMemberSession, createOperatorSession } from '../src/auth/session.ts'
 import { getDb } from '../src/db/client.ts'
 import {
   cards,
@@ -182,11 +182,10 @@ describe('venue reception stamps', () => {
 
   it('rejects foreign and missing Card settings and does not expose the old venue-wide route', async () => {
     const f = await setup()
-    const otherToken = await createSession(db, {
-      address: HOLDER,
-      audience: 'operator',
+    const otherToken = await createOperatorSession(db, {
       issuerId: 'another-venue',
       now: NOW,
+      principal: { address: HOLDER, kind: 'wallet' },
     })
     const path = `/v1/issuers/me/cards/${f.cardId}/stamps`
     const statuses = await Promise.all([
@@ -371,17 +370,11 @@ describe('venue reception stamps', () => {
 
   it('rejects member sessions and operators without a venue', async () => {
     const f = await setup()
-    const memberToken = await createSession(db, {
-      address: HOLDER,
-      audience: 'member',
-      issuerId: f.venue.id,
-      now: NOW,
-    })
-    const emptyToken = await createSession(db, {
-      address: HOLDER,
-      audience: 'operator',
+    const memberToken = await createMemberSession(db, crypto.randomUUID(), NOW)
+    const emptyToken = await createOperatorSession(db, {
       issuerId: null,
       now: NOW,
+      principal: { address: HOLDER, kind: 'wallet' },
     })
     const request = { qr: `fuda:v1:${f.uid}`, requestId: crypto.randomUUID() }
     const results = await Promise.all([

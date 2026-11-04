@@ -43,7 +43,7 @@ const probe = async (): Promise<void> => {
     },
     rpc.transport,
   )
-  const message = signInMessage('operator', generatePrivateKey())
+  const message = signInMessage(generatePrivateKey())
   const [firstSignature, secondSignature] = await Promise.all([
     first.signMessage({ message }),
     second.signMessage({ message }),
@@ -57,7 +57,7 @@ const probe = async (): Promise<void> => {
 
   const alteredMessageValid = await chain.verifyMessage({
     address: first.address,
-    message: signInMessage('operator', generatePrivateKey()),
+    message: signInMessage(generatePrivateKey()),
     signature: secondSignature,
   })
   assert.equal(alteredMessageValid, false, 'A signature must not authorize a different challenge.')

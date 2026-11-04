@@ -25,7 +25,7 @@ export interface Bindings {
   DELEGATION_UID: string
   API_BASE_URL: string
   // The passkey relying party: the domain passkeys belong to, and the comma-separated
-  // origins allowed to use them. Changing the domain orphans every member passkey.
+  // origins allowed to use them. Changing the domain orphans every passkey.
   WEBAUTHN_RP_ID: string
   WEBAUTHN_ORIGINS: string
   // The member-facing origin a published card links to: `https://fuda.sh` in

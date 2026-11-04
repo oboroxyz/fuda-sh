@@ -158,20 +158,25 @@ export interface SignInResponse {
   token: string
   issuer: IssuerView | null
 }
+export interface OperatorSignInResponse extends SignInResponse {
+  accountId: string
+}
+// A session names an account or the wallet that signed in, never both.
+export type OperatorMeResponse = { accountId: string; address: null } | { accountId: null; address: Hex }
 export interface MemberSessionResponse {
   accountId: string
 }
 export interface MemberSignInResponse extends MemberSessionResponse {
   token: string
 }
-export interface MemberPasskeyView {
+export interface PasskeyView {
   id: string
   backedUp: boolean
   createdAt: number
   lastUsedAt: number | null
 }
-export interface MemberPasskeysResponse {
-  passkeys: MemberPasskeyView[]
+export interface PasskeysResponse {
+  passkeys: PasskeyView[]
 }
 export interface MemberPassView {
   uid: Hex

@@ -19,6 +19,7 @@ import {
   oauthTokens,
 } from '../db/schema.ts'
 import { toHex } from '../hex.ts'
+import { issuerOwnerKey, ownerKeyOf } from '../issuers/queries.ts'
 import { issuerSummary } from '../issuers/views.ts'
 
 // docs/specs/connected-apps.md#lifetimes
@@ -248,7 +249,7 @@ export const redeemCode = async (
   const issuer = await db.select().from(issuers).where(eq(issuers.id, spent.issuerId)).get()
   // The issuer may have moved to another owner since approval; the code was
   // the old owner's consent, not the new one's.
-  if (issuer === undefined || issuer.operatorAddress !== spent.address) {
+  if (issuer === undefined || ownerKeyOf(issuer) !== spent.address) {
     return null
   }
   const accessToken = `${ACCESS_TOKEN_PREFIX}${randomHex(32)}`
@@ -291,7 +292,7 @@ export interface AccessGrant {
   scope: ConnectedAppScope[]
 }
 
-// A live token whose issuer is still owned by the address that approved it.
+// A live token whose issuer is still owned by the principal that approved it.
 export const resolveAccessToken = async (db: Db, token: string, now: number): Promise<AccessGrant | null> => {
   const row = await db
     .select({
@@ -310,7 +311,7 @@ export const resolveAccessToken = async (db: Db, token: string, now: number): Pr
         eq(oauthTokens.tokenHash, await hashToken(token)),
         isNull(oauthTokens.revokedAt),
         gt(oauthTokens.expiresAt, now),
-        eq(issuers.operatorAddress, oauthTokens.address),
+        eq(issuerOwnerKey, oauthTokens.address),
       ),
     )
     .get()
