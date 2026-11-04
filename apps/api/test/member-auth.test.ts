@@ -334,7 +334,8 @@ describe('member passkey sign-in', () => {
         body: await new SoftwarePasskey(RP).attest(challenge),
         token: b.token,
       })
-      expect(res.status).toBe(401)
+      expect(res.status).toBe(403)
+      await expect(statusOf(request('/v1/auth/member/me', { token: b.token }))).resolves.toBe(200)
     })
 
     it('stops at ten', async () => {

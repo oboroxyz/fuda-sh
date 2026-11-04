@@ -116,7 +116,9 @@ export const postV1AuthMemberPasskeys = defineHandler(memberAuth(), async (c) =>
   if (result === 'limit') {
     return errorResponse(c, 'passkey_limit', 409)
   }
-  return result === 'added' ? jsonResponse(c, { added: true }) : errorResponse(c, 'bad_passkey', 401)
+  // 403 and not the ceremonies' usual 401, as for a claim: the session is fine, and the
+  // member app's Worker ends a session on any 401 it forwards.
+  return result === 'added' ? jsonResponse(c, { added: true }) : errorResponse(c, 'bad_passkey', 403)
 })
 
 // A refusal does not say whether the id exists on another account.

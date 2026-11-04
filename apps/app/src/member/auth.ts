@@ -25,7 +25,7 @@ const failureOf = (result: { network?: boolean; status?: number }): PasskeyFailu
   if (result.network === true) {
     return 'network'
   }
-  return result.status === 401 || result.status === 400 ? 'rejected' : 'unavailable'
+  return result.status === 400 || result.status === 401 || result.status === 403 ? 'rejected' : 'unavailable'
 }
 
 const ceremony = async <T>(run: () => Promise<T>): Promise<{ ok: true; value: T } | PasskeyOutcome> => {
