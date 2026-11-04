@@ -217,6 +217,24 @@ describe(CardEditPage, () => {
     expect(p.settings.load).not.toHaveBeenCalled()
   })
 
+  it('offers neither Stamps nor integrations on a Sensitive card', async () => {
+    const p = props()
+    const sensitive: OperatorCardView = { ...card, identity: 'sensitive' }
+    render(
+      () => (
+        <CardEditPage
+          {...p}
+          card={sensitive}
+          load={async () => await Promise.resolve({ body: { card: sensitive }, ok: true })}
+        />
+      ),
+      root,
+    )
+    await waitForm()
+    expect(root.querySelectorAll('details')).toHaveLength(0)
+    expect(p.settings.load).not.toHaveBeenCalled()
+  })
+
   // Integrations are off until the operator opts in, and are saved apart from
   // the card: nothing loads until the section opens, and the World ID switch
   // saves the badge list rather than a card field.

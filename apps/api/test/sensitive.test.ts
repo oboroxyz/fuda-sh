@@ -376,6 +376,10 @@ describe('sensitive use', () => {
       const body = await res.json<IssuerPassesResponse>()
       expect(body.summary).toMatchObject({ active: 1, total: 1 })
       expect(body.passes[0]).toMatchObject({ holder: null, uid })
+      const list = await getJson(app, bindings, '/v1/members', operator)
+      await expect(list.json()).resolves.toMatchObject({
+        members: [{ holder: null, sensitive: true, uid }],
+      })
     })
   })
 
