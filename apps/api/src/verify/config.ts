@@ -6,6 +6,8 @@ import type { ChainClient } from '../chain/client.ts'
 import { parseSchemaSets } from '../eas/schemas.ts'
 import type { SchemaSets } from '../eas/schemas.ts'
 import type { Bindings } from '../env.ts'
+import { offchainDomain } from '../issue/issue-offchain.ts'
+import type { OffchainVerifyDeps } from './verify-offchain.ts'
 
 export interface VerifyDeps {
   chain: ChainClient
@@ -23,4 +25,24 @@ export const verifyConfig = (env: Bindings, chain: ChainClient, now: number): Ve
   issuerAddress: asAddress(env.ISSUER_ADDRESS),
   now,
   sets: parseSchemaSets(env.EAS_SCHEMAS),
+})
+
+const retiredSigners = (value = ''): Hex[] => {
+  if (value.trim() === '') {
+    return []
+  }
+  return value.split(',').map((entry) => {
+    const address = asHex(entry.trim(), 20)
+    if (address === null || address === ZERO_ADDRESS) {
+      throw new Error('OFFCHAIN_RETIRED_SIGNERS must contain comma-separated nonzero addresses')
+    }
+    return address
+  })
+}
+
+export const offchainVerifyConfig = (env: Bindings, chain: ChainClient, now: number): OffchainVerifyDeps => ({
+  chain,
+  domain: offchainDomain(env, chain),
+  now,
+  retiredSigners: retiredSigners(env.OFFCHAIN_RETIRED_SIGNERS),
 })

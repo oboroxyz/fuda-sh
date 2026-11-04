@@ -14,6 +14,7 @@ export interface Bindings {
   MEDIA_BUCKET?: R2Bucket
   ADMIN_TOKEN?: string
   SIGNER_PRIVATE_KEY?: string
+  OFFCHAIN_RETIRED_SIGNERS?: string
   BASE_RPC_URL?: string
   CHAIN_ID?: string
   EAS_ADDRESS: string

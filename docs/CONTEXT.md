@@ -12,6 +12,8 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Right**: A membership entitlement; the source of truth for what a member may do. It is either a signed EAS offchain attestation held by fuda or an on-chain EAS `Entitlement` attestation, as its Card's record decides. _Avoid_: Membership, entitlement (as a prose noun), pass, ticket, card
 
+**Retired signer**: An offchain signing address retained in `OFFCHAIN_RETIRED_SIGNERS` after its private key is removed from the Worker. Its existing Rights remain verifiable. A compromised signer must be removed from the list and its legitimate Rights reissued. _Avoid_: Retired key, delegated key
+
 **Card record**: Where a Card's Rights are recorded, fixed when the Card is created: `offchain` (the default) signs each Right with no transaction and no holder address, and `onchain` attests each Right publicly. _Avoid_: Mode, storage, chain type
 
 **Card identity**: Who can use a Card's Rights, fixed when the Card is created: `none` (the default) means whoever shows one, `passkey` binds each Right to the passkey that claimed it, and `sensitive` binds each Right to a key of its own. _Avoid_: Identity level, KYC
