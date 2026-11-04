@@ -9,6 +9,7 @@ import { defineHandler } from 'void'
 import type { AppEnv } from '../env.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { readLogoObject } from '../media/store.ts'
+import { passBackup } from '../pass/pass-backup.ts'
 import { loadPassRow } from '../pass/pass-row.ts'
 import { passView } from '../pass/pass-view.ts'
 import type { PassOutcome, PassRow } from '../pass/pass-view.ts'
@@ -105,6 +106,17 @@ export const getPassUidCard = defineHandler(async (c) => {
           },
   }
   return jsonResponse(c, body)
+})
+
+// docs/specs/pass-types-and-flows.md#keeping-a-pass-without-a-provider. Same lookup and
+// contract as the page, and for the same reason open to anyone with the uid: the uid is
+// the pass.
+export const getPassUidBackup = defineHandler(async (c) => {
+  const found = await loadPassRow(c, c.req.param().uid)
+  if (!found.ok) {
+    return found.res
+  }
+  return jsonResponse(c, await passBackup(c, found.row.uid, found.row.holder))
 })
 
 // Wallet-pass builders live in @fuda/pass; an unconfigured platform answers 501.

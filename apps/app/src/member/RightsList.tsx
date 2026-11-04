@@ -21,6 +21,7 @@ import {
 import type { MemberPassListIo, MemberPassListResult, MemberPassRow } from '../member-pass-list.ts'
 import { memberPassListQueryOptions, memberPassRecoveryQueryOptions } from '../member-pass-query.ts'
 import { syncMemberPasses } from '../member-pass-sync.ts'
+import { passBackupHref } from '../pass-backup.ts'
 import { readPassMemory, rememberPass } from '../pass-memory.ts'
 import type { PassMemoryEntry } from '../pass-memory.ts'
 import { injectedProvider, requestAccount } from '../wallet.ts'
@@ -106,9 +107,14 @@ const memberPassLinks = (
     return null
   }
   return (
-    <a class="link" href={row.passes.web} target="_blank" rel="noreferrer">
-      {copy.view}
-    </a>
+    <span class="flex items-center gap-3">
+      <a class="link" download={`fuda-pass-${row.uid.slice(2, 10)}.json`} href={passBackupHref(row.uid)}>
+        {copy.saveBackup}
+      </a>
+      <a class="link" href={row.passes.web} target="_blank" rel="noreferrer">
+        {copy.view}
+      </a>
+    </span>
   )
 }
 

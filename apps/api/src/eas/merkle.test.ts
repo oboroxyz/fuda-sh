@@ -1,7 +1,7 @@
 import type { Hex } from 'viem'
 import { describe, expect, it } from 'vitest'
 
-import { merkleRoot } from './merkle.ts'
+import { merkleProof, merkleRoot } from './merkle.ts'
 
 const repeated = (count: number): Hex[] =>
   Array.from({ length: count }, (_, i): Hex => `0x${(i + 1).toString(16).padStart(2, '0').repeat(32)}`)
@@ -33,5 +33,54 @@ describe(merkleRoot, () => {
 
   it('refuses an empty batch', () => {
     expect(() => merkleRoot([])).toThrow('at least one')
+  })
+})
+
+// From the same library, tree.getProof([uid]) over the five uids above.
+describe(merkleProof, () => {
+  it.each([
+    [
+      0,
+      [
+        '0x8bcf6ff7c84a54c8084362b895795bf26b61ec0cf6650aa75aa1bf9d28e06289',
+        '0x857b5744062ad12f658ad1385955c3802bddefc603d3e01faeb6b94c6de51a48',
+      ],
+    ],
+    [
+      2,
+      [
+        '0x451a3cefa96295e2c5ad4c500638abfee673c5538f55943b56f6959b4d69687f',
+        '0xce895d90d3a0ed5312ae8dcfff377010c4aa1b7e9f1fa69836a3802d014c313e',
+        '0x857b5744062ad12f658ad1385955c3802bddefc603d3e01faeb6b94c6de51a48',
+      ],
+    ],
+    [
+      4,
+      [
+        '0xab2d50f09b2cda9b97030b838937fefc0a7a0bebb429b3107e22a752c0390682',
+        '0xd0721d2dc79379fabc8f9fedaf82df1f99c98be5da4b6affa7ff9a42314b4e1c',
+      ],
+    ],
+  ])('matches the library for uid %i', (index, proof) => {
+    const uids = repeated(5)
+    const uid = uids[index]
+    if (uid === undefined) {
+      throw new Error('no such uid')
+    }
+    expect(merkleProof(uids, uid)).toStrictEqual(proof)
+  })
+
+  it('has no proof for a uid outside the tree', () => {
+    expect(merkleProof(repeated(3), `0x${'99'.repeat(32)}`)).toBeNull()
+  })
+
+  it('never contains another uid', () => {
+    const uids = repeated(5)
+    const [first] = uids
+    if (first === undefined) {
+      throw new Error('no uid')
+    }
+    const proof = merkleProof(uids, first) ?? []
+    expect(proof.some((node) => uids.includes(node))).toBe(false)
   })
 })

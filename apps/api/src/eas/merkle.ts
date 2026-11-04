@@ -19,10 +19,9 @@ const pair = (a: Hex, b: Hex): Hex => keccak256(concatHex([a, b].toSorted(byByte
 
 // A complete binary tree stored as an array: the leaves fill the end, last-sorted first,
 // and each parent at i hashes its children at 2i+1 and 2i+2. Input order does not matter.
-export const merkleRoot = (uids: readonly Hex[]): Hex => {
+const treeOf = (uids: readonly Hex[]) => {
   const leaves = uids.map((uid) => leafOf(uid)).toSorted(byBytes)
-  const [first] = leaves
-  if (first === undefined) {
+  if (leaves.length === 0) {
     throw new Error('a merkle root needs at least one uid')
   }
   const size = 2 * leaves.length - 1
@@ -37,5 +36,23 @@ export const merkleRoot = (uids: readonly Hex[]): Hex => {
   for (let i = size - 1 - leaves.length; i >= 0; i -= 1) {
     tree.set(i, pair(nodeAt(2 * i + 1), nodeAt(2 * i + 2)))
   }
-  return nodeAt(0)
+  return { nodeAt, size }
+}
+
+export const merkleRoot = (uids: readonly Hex[]): Hex => treeOf(uids).nodeAt(0)
+
+// The sibling hashes from a uid's leaf up to the root, as `tree.getProof` gives them. They
+// are hashes, so they say nothing about any other pass's uid. Null for a uid not in the tree.
+export const merkleProof = (uids: readonly Hex[], uid: Hex): Hex[] | null => {
+  const { nodeAt, size } = treeOf(uids)
+  const leaf = leafOf(uid)
+  const start = Array.from({ length: uids.length }, (_, i) => size - 1 - i).find((i) => nodeAt(i) === leaf)
+  if (start === undefined) {
+    return null
+  }
+  const proof: Hex[] = []
+  for (let i = start; i > 0; i = Math.floor((i - 1) / 2)) {
+    proof.push(nodeAt(i % 2 === 0 ? i - 1 : i + 1))
+  }
+  return proof
 }

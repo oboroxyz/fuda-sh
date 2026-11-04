@@ -26,6 +26,44 @@ export interface PassCardView {
   memberNumber: string
 }
 
+// An EAS offchain attestation in its stored JSON form: integers too large for a JSON
+// number are decimal strings.
+export interface OffchainAttestationJson {
+  domain: { chainId: number; name: string; verifyingContract: string; version: string }
+  message: {
+    data: string
+    expirationTime: string
+    recipient: string
+    refUID: string
+    revocable: boolean
+    salt: string
+    schema: string
+    time: string
+    version: number
+  }
+  signature: string
+  uid: string
+}
+
+// What a holder can keep and read back on their own. Having it means having the pass.
+export interface PassBackup {
+  version: 1
+  uid: Hex
+  qr: string
+  holder: Hex
+  // Null for a right with no venue card.
+  handle: string | null
+  slug: string | null
+  memberNumber: string
+  // Opens the pass on any device, with no account.
+  restoreUrl: string | null
+  // The signed attestation, for an offchain right; null for an on-chain one, whose
+  // record is on the chain.
+  attestation: OffchainAttestationJson | null
+  // Null until the pass's batch has been timestamped.
+  proof: { root: Hex; path: Hex[]; anchoredAt: number } | null
+}
+
 export interface PassCardResponse {
   card: PassCardView | null
 }

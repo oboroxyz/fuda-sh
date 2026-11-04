@@ -1,6 +1,6 @@
 # ADR 0014: Offchain rights by default, with on-chain rights as an option
 
-- **Status**: Accepted 2026-11-04 for the Standard and On-chain types, which are built along with roots, member passkey sign-in and the member list. Everything else here is still proposed and not built: Identified, Sensitive use, email recovery, delegated keys, and the removals.
+- **Status**: Accepted 2026-11-04 for the Standard and On-chain types, which are built along with roots, member passkey sign-in and the member list. Recovery from a saved pass and from a backup is built too. Everything else here is still proposed and not built: Identified, Sensitive use, delegated keys, and the removals.
 - **Scope**: the pass types an Issuer can choose, how each is verified and recovered, which keys sign them, and what leaves the product.
 
 ## Context
@@ -11,7 +11,7 @@ We have found no evidence that individual shops pay for public verifiability, an
 
 No pilot exists yet, so this design ignores already issued rights and needs no migration.
 
-Assumptions: members and operators authenticate with passkeys, and email is used only for backup and recovery.
+Assumptions: members and operators authenticate with passkeys. fuda holds as little personal data as it can, so it keeps no member email.
 
 ## Decisions
 
@@ -26,7 +26,7 @@ The Issuer chooses a type per Card, separately from the `membership | ticket` ca
 | **On-chain** | Bearer | on-chain attestation | fuda-owned counterfactual account | public UID in a QR, Device wallet | rejects |
 | **On-chain self-held** | Signed | on-chain attestation | the member's own, stable | challenge answered in the app | rejects |
 
-**Sensitive use** is a Card setting on Identified, for employee badges and privacy-sensitive memberships. It adds per-pass keys (decision 4), rejects when the chain is unreadable, keeps the entry log to a minimum with a set retention period, turns Attendance and Stamps off, and disables email recovery and member names. It does not hide entry from the Issuer or the gate. That still needs U4.
+**Sensitive use** is a Card setting on Identified, for employee badges and privacy-sensitive memberships. It adds per-pass keys (decision 4), rejects when the chain is unreadable, keeps the entry log to a minimum with a set retention period, turns Attendance and Stamps off, and disables member names. It does not hide entry from the Issuer or the gate. That still needs U4.
 
 ### 2. Offchain rights
 
@@ -87,13 +87,15 @@ Offchain rights have no holder address to query, so fuda keeps a server-side lin
 
 | Type               | Recovery                                                                         |
 | ------------------ | -------------------------------------------------------------------------------- |
-| Standard           | passkey account, or email as backup; reissue at the shop                         |
+| Standard           | a saved pass's link; a backup file; passkey account; reissue at the shop         |
 | Identified         | passkey sync; otherwise reissue, because the pass names one passkey's public key |
-| Sensitive use      | passkey sync; a second passkey; reissue by the Issuer, never email               |
+| Sensitive use      | passkey sync; a second passkey; reissue by the Issuer                            |
 | On-chain           | as Standard; the record stays public                                             |
 | On-chain self-held | passkey sync, owner rotation or an external wallet                               |
 
-Moving between iOS and Android does not carry a passkey across, so the new phone needs an existing device, a recovery code or a reissue.
+Moving between iOS and Android does not carry a passkey across, so the new phone needs an existing device or a reissue.
+
+**No email.** Linking a member's email, even stored only as an HMAC, would add personal data and a mail provider, and would let whoever takes over the mailbox into the account. A Standard pass already survives outside the account: in a Wallet, as a link, or as a backup file the member keeps. Email stays out unless members actually get stuck. A notice to members goes through Wallet pass updates or the screen. An operator's business contact is a separate question.
 
 ### 8. Attendance and names
 

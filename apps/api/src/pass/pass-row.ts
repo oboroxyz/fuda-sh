@@ -2,6 +2,7 @@ import type { PassBranding } from '@fuda/pass'
 import { asHex, formatMemberNumber, normalizeUid } from '@fuda/sdk'
 import { eq } from 'drizzle-orm'
 import type { Context } from 'hono'
+import type { Hex } from 'viem'
 
 import type { Db } from '../db/client.ts'
 import { cards, issuers, members } from '../db/schema.ts'
@@ -21,6 +22,9 @@ interface CardBranding {
 
 const NO_BRANDING: CardBranding = { branding: null, logoPrefix: null }
 
+export const restoreUrl = (publicBaseUrl: string, handle: string, slug: string, uid: Hex): string =>
+  `${publicBaseUrl}/@${handle}${slug === '' ? '' : `/${slug}`}?uid=${uid}`
+
 // The card behind a self-serve right, or null when the row was admin-issued
 // (or the card is gone): the pass then keeps the plain fuda look.
 const cardBrandingOf = async (
@@ -30,6 +34,7 @@ const cardBrandingOf = async (
   issuedAt: number,
   baseUrl: string,
   publicBaseUrl: string,
+  uid: Hex,
 ): Promise<CardBranding> => {
   if (cardId === null) {
     return NO_BRANDING
@@ -72,7 +77,9 @@ const cardBrandingOf = async (
       // card — where badging lives. A legacy Card with no slug keeps the bare
       // handle, which opens its sole claimable Card
       // (docs/specs/pass-types-and-flows.md#member).
-      manageUrl: `${publicBaseUrl}/@${found.handle}${found.slug === '' ? '' : `/${found.slug}`}`,
+      // It carries the uid so a new device opens this pass rather than offering a second
+      // one. The uid is already in the pass's barcode, so this shows it to nobody new.
+      manageUrl: restoreUrl(publicBaseUrl, found.handle, found.slug, uid),
       memberNumber: formatMemberNumber(memberId),
       venue,
     },
@@ -110,6 +117,7 @@ export const loadPassRow = async (c: Context<AppEnv>, rawUid: string): Promise<P
     row.createdAt,
     c.env.API_BASE_URL,
     c.env.PUBLIC_BASE_URL,
+    uid,
   )
   return {
     ok: true,

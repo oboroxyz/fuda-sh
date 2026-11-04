@@ -194,6 +194,18 @@ const SignedJson = v.object({
   uid: HexString,
 })
 
+const parseSignedJson = (json: string) => {
+  try {
+    const parsed = v.safeParse(SignedJson, JSON.parse(json))
+    return parsed.success ? parsed.output : null
+  } catch {
+    return null
+  }
+}
+
+// The stored form as it is, for a holder keeping their own copy.
+export const signedJsonOf = (json: string): v.InferOutput<typeof SignedJson> | null => parseSignedJson(json)
+
 // null for a row that does not parse: the gate answers that as a decision.
 export const fromSignedJson = (json: string): SignedOffchain | null => {
   let raw: unknown

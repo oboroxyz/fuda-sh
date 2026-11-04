@@ -6,6 +6,8 @@ import type { CardFailure } from '../api.ts'
 export interface VenueCopy {
   appleWallet: string
   browserPass: string
+  saveBackup: string
+  saveBackupHint: string
   category: Record<CardCategory, { label: string; noun: string; role: string }>
   closedCard: (name: string, noun: string) => string
   defaultUnavailable: string
@@ -78,6 +80,8 @@ export const VENUE_COPY = {
     notHandingOut: 'Not being handed out right now',
     pickCard: 'Pick a card',
     qrLabel: (name, noun) => `Your ${noun} QR code for ${name}`,
+    saveBackup: 'Save a backup of this pass',
+    saveBackupHint: 'Keep it somewhere safe. Anyone who has it can use this pass.',
     savedOnDevice: (noun) => `No name or contact details required. This ${noun} is saved on this device.`,
     seeAllCards: (name) => `See all cards from ${name}`,
     showQr: 'Show this code when you use your card.',
@@ -124,6 +128,8 @@ export const VENUE_COPY = {
     notHandingOut: '現在配布していません',
     pickCard: 'カードを選ぶ',
     qrLabel: (name, noun) => `${name}の${noun}のQRコード`,
+    saveBackup: 'パスの控えを保存',
+    saveBackupHint: '安全な場所に保管してください。控えを持つ人は、このパスを使えます。',
     savedOnDevice: (noun) => `氏名や連絡先は不要です。この${noun}はこの端末に保存されています。`,
     seeAllCards: (name) => `${name}のカードをすべて見る`,
     showQr: 'カードを使うときに、このコードを提示してください。',
