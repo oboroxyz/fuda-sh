@@ -11,10 +11,10 @@ import type {
   PublicKeyCredentialRequestOptionsJSON,
   RegistrationResponseJSON,
 } from '@simplewebauthn/server'
-import { isoBase64URL } from '@simplewebauthn/server/helpers'
 import { and, count, eq, gt, sql } from 'drizzle-orm'
 import * as v from 'valibot'
 
+import { base64UrlOf } from '../base64url.ts'
 import type { Db } from '../db/client.ts'
 import { accounts, passkeyChallenges, passkeys } from '../db/schema.ts'
 import type { AttestedPasskey } from '../eas/offchain.ts'
@@ -412,7 +412,7 @@ export const verifyGateAssertion = async (
       // and synced passkeys report none, so 0 skips the check. The one-time challenge is
       // what stops a replay here.
       credential: { counter: 0, id: key.credentialId, publicKey: bytesOfHex(key.publicKey.slice(2)) },
-      expectedChallenge: isoBase64URL.fromUTF8String(message),
+      expectedChallenge: base64UrlOf(new TextEncoder().encode(message)),
       expectedOrigin: rp.origins,
       expectedRPID: rp.id,
       requireUserVerification: true,
