@@ -3,20 +3,21 @@
 // is sent. This does not add owners to an existing wallet or create a session.
 import assert, { AssertionError } from 'node:assert/strict'
 
+import { parseChainConfig } from '@fuda/chains'
 import { createPublicClient, http, parseErc6492Signature, serializeErc6492Signature, zeroAddress } from 'viem'
 import { toCoinbaseSmartAccount } from 'viem/account-abstraction'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
-import { baseSepolia } from 'viem/chains'
 
 import { signInMessage } from '../src/auth/sign-in.ts'
-import { createViemChain, DEFAULT_RPC } from '../src/chain/viem-chain.ts'
+import { createViemChain } from '../src/chain/viem-chain.ts'
 import { observeProbeRpc } from './probe-rpc.ts'
 
 const probe = async (): Promise<void> => {
-  const rpcUrl = process.env.BASE_RPC_URL ?? DEFAULT_RPC
+  const config = parseChainConfig(process.env.CHAIN_ID)
+  const rpcUrl = process.env.BASE_RPC_URL ?? config.publicRpc
   const rpc = observeProbeRpc(http(rpcUrl, { retryCount: 0, timeout: 15_000 }))
-  const client = createPublicClient({ chain: baseSepolia, transport: rpc.transport })
-  assert.equal(await client.getChainId(), baseSepolia.id, 'RPC must be Base Sepolia (84532).')
+  const client = createPublicClient({ chain: config.viemChain, transport: rpc.transport })
+  assert.equal(await client.getChainId(), config.id, `RPC must be ${config.name} (${config.id}).`)
 
   // These keys are generated for this run and never printed, persisted or funded.
   const owners = [privateKeyToAccount(generatePrivateKey()), privateKeyToAccount(generatePrivateKey())]
@@ -38,6 +39,7 @@ const probe = async (): Promise<void> => {
     {
       ANNOUNCER_ADDRESS: zeroAddress,
       BASE_RPC_URL: rpcUrl,
+      CHAIN_ID: process.env.CHAIN_ID,
       EAS_ADDRESS: zeroAddress,
       FACTORY_ADDRESS: first.factory.address,
     },
@@ -106,7 +108,7 @@ const probe = async (): Promise<void> => {
   console.log(
     JSON.stringify(
       {
-        chainId: baseSepolia.id,
+        chainId: config.id,
         checks: {
           changedChallengeRejected: true,
           firstOwnerAccepted: true,
@@ -133,7 +135,7 @@ try {
   console.error(
     error instanceof AssertionError
       ? error.message
-      : 'Venue wallet probe failed. Check Base Sepolia RPC connectivity and the installed smart-wallet SDK.',
+      : 'Venue wallet probe failed. Check the configured chain RPC connectivity and the installed smart-wallet SDK.',
   )
   process.exitCode = 1
 }

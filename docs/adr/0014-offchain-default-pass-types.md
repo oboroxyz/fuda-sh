@@ -43,6 +43,7 @@ Revocation is sent per pass and not batched, because one already revoked UID rev
 The gate checks, in order: D1 revocation mirror, UID, signature domain, signature, pinned attester, schema, venue, expiry, on-chain revocation, slot.
 
 - Verification uses viem, not the EAS SDK verifier, which recovers an EOA only and checks neither expiry nor revocation.
+- The attestation chain is configurable as Base or Base Sepolia. API `CHAIN_ID` and browser `VITE_CHAIN_ID` must agree, and both default to Base Sepolia. Unknown ids fail rather than selecting a different network. Existing targets remain on Base Sepolia.
 - `domain.chainId` is converted to `BigInt` after JSON. As a string, viem recovers a different address.
 - `domain.version` is read per chain: Base mainnet runs EAS 1.0.1, while Base Sepolia and Soneium run 1.4.1-beta.3.
 - The schema and venue are pinned. All venues share one attester in the first phase, so a signature alone would admit another venue's pass. Today the venue is pinned only to the D1 row and at reception: `POST /verify` takes no venue, as with on-chain rights, so a gate does not yet reject another venue's pass.

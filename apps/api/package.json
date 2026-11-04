@@ -22,6 +22,7 @@
     "probe:venue-wallet": "tsx scripts/probe-venue-wallet.ts"
   },
   "dependencies": {
+    "@fuda/chains": "workspace:*",
     "@fuda/ens-contracts": "workspace:*",
     "@fuda/pass": "workspace:*",
     "@fuda/sdk": "workspace:*",

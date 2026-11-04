@@ -11,6 +11,7 @@
     "test": "vp test"
   },
   "dependencies": {
+    "@fuda/chains": "workspace:*",
     "@fuda/i18n": "workspace:*",
     "@fuda/libs": "workspace:*",
     "@fuda/sdk": "workspace:*",

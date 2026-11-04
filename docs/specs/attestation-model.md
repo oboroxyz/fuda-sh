@@ -90,9 +90,16 @@ The values below are the implementation contract for the public MVP on Base Sepo
 | --- | --- |
 | EAS | `0x4200000000000000000000000000000000000021` |
 | SchemaRegistry | `0x4200000000000000000000000000000000000020` |
-| Chain / RPC | Base Sepolia; `BASE_RPC_URL` first, then `https://sepolia.base.org` on provider failure. One public transport when unset or equal. Each endpoint has a 1 s timeout and no retries; endpoint order is fixed. |
+| Chain | `CHAIN_ID` selects Base (`8453`) or Base Sepolia (`84532`, the default when absent). Unknown or malformed values fail on first use. Member app and dashboard builds use the same value through `VITE_CHAIN_ID`. |
+| RPC | `BASE_RPC_URL` first, then the selected chain's public RPC on provider failure, `https://mainnet.base.org` for Base or `https://sepolia.base.org` for Base Sepolia. One public transport when unset or equal. Each endpoint has a 1 s timeout and no retries; endpoint order is fixed. |
 | ERC-5564 Announcer | `0x55649E01B5Df198D18D95b5cc5051630cfD45564` (`ANNOUNCER_ADDRESS`); indexed by the rights subgraph from its configured start block |
 | Coinbase Smart Wallet factory | `0x0BA5ED0c6AA8c49038F819E587E2633c4A9F428a` (`FACTORY_ADDRESS`); derives the counterfactual claimable-smart-account address for Bearer holders |
+
+The shared chain table also owns explorer URLs and the EAS and SchemaRegistry predeploy addresses. [EAS deployment documentation](https://github.com/ethereum-attestation-service/eas-contracts#deployments) lists the addresses above for both Base and Base Sepolia. `EAS_ADDRESS` and `EAS_VERSION` remain explicit target bindings. The offchain domain combines those bindings with the selected chain id, and verification rejects a domain from the other chain.
+
+Base Account uses the selected chain in both browser apps. The dashboard also keeps Ethereum Sepolia for ENS. Injected EIP-1193 wallets sign EIP-191 challenges, which carry no chain id; the API checks smart-wallet signatures against its selected chain. The dashboard's explicit EIP-1193 chain switch belongs to ENS and retains its ENS chain id.
+
+`/health` returns only health status. There is no general runtime chain-agreement check between the browser and API. An exported offchain pass contains `attestation.domain.chainId`, which lets its holder detect a mismatch after issuance. Deployments must align `CHAIN_ID` and `VITE_CHAIN_ID` before use.
 
 ### Wire constants
 
@@ -159,13 +166,14 @@ Attested with `recipient = holder` and `refUID = rightUID`.
 | `API_BASE_URL` | `apps/api/targets.jsonc` `vars` | Absolute base for the `passUrls` in `/issue` responses; its origin is the api entry in the Google Wallet `origins` claim, which also lists `https://dash.fuda.sh` and `https://app.fuda.sh` |
 | Signer key (`SIGNER_PRIVATE_KEY`) | Worker secret | Signs Entitlement, IssuerDelegation, and Attendance transactions and offchain attestations; endpoints answer `501 no_signer` without |
 | `ADMIN_TOKEN` | Worker secret | Bearer token for `/issue`, `/revoke`, `/members`. Required whenever a chain binding is configured: with `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL` set and no token the admin routes answer `401 unauthorized` and every response carries `x-auth-mode: locked`; with no token and neither binding (local dev) they are open and responses carry `x-auth-mode: open` |
-| `BASE_RPC_URL` | Worker secret | Preferred Base Sepolia RPC for reads and locally signed transaction broadcasts; provider failures fall back to the public endpoint. Contract reverts do not fail over. URLs and provider error details are excluded from chain errors that callers log. |
+| `CHAIN_ID` | Worker var | Base (`8453`) or Base Sepolia (`84532`); absent means Base Sepolia. It selects the API attestation clients and the offchain signature domain. ENS retains its separate client. |
+| `BASE_RPC_URL` | Worker secret | Preferred RPC for the selected chain for reads and locally signed transaction broadcasts; provider failures fall back to the public endpoint. Contract reverts do not fail over. URLs and provider error details are excluded from chain errors that callers log. |
 | `GOOGLE_ISSUER_ID`, `GOOGLE_CLASS_ID`, `GOOGLE_SA_EMAIL`, `GOOGLE_SA_KEY_PEM` | Worker secrets | Google Wallet; all four or `GET /pass/:uid/google` answers `501 google_not_configured` |
 | `APPLE_PASS_TYPE_ID`, `APPLE_TEAM_ID`, `APPLE_CERT_PEM`, `APPLE_KEY_PEM`, `APPLE_WWDR_PEM` | Worker secrets | Apple Wallet; all five or `GET /pass/:uid/apple.pkpass` answers `501 apple_not_configured` |
 
 Issuance always writes the newest version in the set; verification accepts every listed version and decodes through a per-version codec (`decodeEntitlementV1 → toCanonical`, the identity for v1). A future v2 is added by appending a set entry and a codec, with no change to gate logic. Deprecation policies, `refUID` supersession chains, and touch-time migration are deliberately not in the MVP.
 
-`USE_FAKE_CHAIN=1` is a local-development opt-in only (`apps/api/targets/local/.env`): it swaps in an in-memory chain and is ignored whenever a signer or an RPC binding is present. It is never set in a deployed environment. Each target block in `apps/api/targets.jsonc` is complete, and the `local` block carries deterministic fake-chain values.
+`USE_FAKE_CHAIN=1` is a local-development opt-in only (`apps/api/targets/local/.env`): it swaps in an in-memory chain and is ignored whenever a signer or an RPC binding is present. It is disabled when `CHAIN_ID` selects Base mainnet, and an unknown id still fails. It is never set in a deployed environment. Each target block in `apps/api/targets.jsonc` is complete, and the `local` block carries deterministic fake-chain values.
 
 Migrations under `apps/api/migrations/` are hand-written SQL; there is no drizzle-kit snapshot. Before any future `drizzle-kit generate`, bootstrap the baseline snapshot first, or the generator re-emits every table as a new migration.
 

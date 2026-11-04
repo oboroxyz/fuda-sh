@@ -6,6 +6,8 @@ It records the vocabulary of the product design, independently of what is built:
 
 ## Language
 
+**Attestation chain**: The Base network a deployment reads, writes, and names in offchain signature domains. `CHAIN_ID` selects Base or Base Sepolia in the API, and `VITE_CHAIN_ID` selects the matching browser network. Both default to Base Sepolia when absent. ENS uses its own chain.
+
 ### The right
 
 **Right**: A membership entitlement; the source of truth for what a member may do. It is either a signed EAS offchain attestation held by fuda or an on-chain EAS `Entitlement` attestation, as its Card's record decides. _Avoid_: Membership, entitlement (as a prose noun), pass, ticket, card
