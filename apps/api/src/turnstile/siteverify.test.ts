@@ -31,6 +31,10 @@ describe(verifyTurnstile, () => {
     )
   })
 
+  it('passes the answer of a test key, which names no action', async () => {
+    await expect(check(answer({ success: true }))).resolves.toBe('passed')
+  })
+
   it('fails a token minted for another action', async () => {
     await expect(check(answer({ action: 'login', success: true }))).resolves.toBe('failed')
   })

@@ -4,6 +4,8 @@ const SITEVERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverif
 
 // The widget action the member app renders for a claim. Siteverify echoes it
 // back, so a token minted for another widget action does not open this route.
+// Cloudflare's documented test keys answer without any action, and are accepted
+// so a local browser run works; a real widget of ours always sets one.
 const CLAIM_ACTION = 'claim'
 
 // Cloudflare documents tokens as at most 2048 characters.
@@ -60,7 +62,8 @@ export const verifyTurnstile = async ({
       return 'unavailable'
     }
     if (answer.output.success) {
-      return answer.output.action === CLAIM_ACTION ? 'passed' : 'failed'
+      const { action } = answer.output
+      return action === undefined || action === CLAIM_ACTION ? 'passed' : 'failed'
     }
     const codes = answer.output['error-codes'] ?? []
     return codes.some((code) => SERVER_SIDE_ERRORS.has(code)) ? 'unavailable' : 'failed'
