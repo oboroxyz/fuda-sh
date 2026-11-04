@@ -5,21 +5,43 @@ import {
   readCookie,
   SESSION_MAX_AGE_SECONDS,
   setSessionCookie,
-  spendWalletSignature,
 } from '@fuda/libs/worker'
-import type { Hex, MemberSignInResponse } from '@fuda/sdk'
+import type { MemberSignInResponse } from '@fuda/sdk'
 import { apiFetch } from '@fuda/sdk/http'
 import type { Context } from 'hono'
+import * as v from 'valibot'
 
 import { MEMBER_COOKIE } from '../cookie-names.ts'
 
-export const verifyMember = async (c: Context, apiBaseUrl: string): Promise<Response> => {
-  const result = await spendWalletSignature<MemberSignInResponse>(c, apiBaseUrl, '/auth/member/verify')
+const PasskeySessionBody = v.object({
+  flow: v.picklist(['login', 'register']),
+  response: v.unknown(),
+})
+
+// The browser's ceremony answer goes to the api here, so the session token it returns
+// stays in an HttpOnly cookie and never reaches the browser.
+export const passkeySession = async (c: Context, apiBaseUrl: string): Promise<Response> => {
+  const refused = crossOriginWrite(c)
+  if (refused !== null) {
+    return refused
+  }
+  const parsed = v.safeParse(PasskeySessionBody, await c.req.json().catch(() => null))
+  if (!parsed.success) {
+    return c.json({ error: 'bad_input' }, 400)
+  }
+  const result = await apiFetch<MemberSignInResponse>(apiBaseUrl, `/auth/member/${parsed.output.flow}`, {
+    body: JSON.stringify(parsed.output.response),
+    headers: apiHeaders(c, null),
+    method: 'POST',
+  })
   if (!result.ok) {
-    return result.response
+    return c.json(
+      { error: result.error },
+      result.status === 401 || result.status === 400 ? result.status : 502,
+    )
   }
   setSessionCookie(c, MEMBER_COOKIE, result.body.token, SESSION_MAX_AGE_SECONDS)
-  return c.json({ address: result.body.address } satisfies { address: Hex })
+  return c.json({ ok: true })
 }
 
 // Local sign-out always succeeds; ending the session at the api is best effort.

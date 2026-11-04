@@ -10,6 +10,7 @@ describe('D1 schema', () => {
       "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'd1_%' AND name NOT LIKE '_cf_%'",
     ).all<{ name: string }>()
     expect(rows.results.map((r) => r.name).toSorted()).toStrictEqual([
+      'accounts',
       'badges',
       'card_integrations',
       'card_stamp_settings',
@@ -22,11 +23,14 @@ describe('D1 schema', () => {
       'entry_log',
       'issuers',
       'logo_uploads',
+      'member_passes',
       'members',
       'oauth_codes',
       'oauth_tokens',
       'offchain_attestations',
       'offchain_roots',
+      'passkey_challenges',
+      'passkeys',
       'rate_limits',
       'reception_requests',
       'sessions',

@@ -5,7 +5,7 @@ import { createQuery, createQueryScope } from '@fuda/libs/query'
 import { asHex, brandTextColor, fetchRightsByHolder, normalizeUid } from '@fuda/sdk'
 import type { GraphRight, Hex, PassCardView } from '@fuda/sdk'
 import { short } from '@fuda/ui'
-import { createEffect, createSignal, For, on } from 'solid-js'
+import { createEffect, createSignal, For, on, onMount } from 'solid-js'
 import type { JSX } from 'solid-js'
 import { Dynamic } from 'solid-js/web'
 
@@ -20,6 +20,7 @@ import {
 } from '../member-pass-list.ts'
 import type { MemberPassListIo, MemberPassListResult, MemberPassRow } from '../member-pass-list.ts'
 import { memberPassListQueryOptions, memberPassRecoveryQueryOptions } from '../member-pass-query.ts'
+import { syncMemberPasses } from '../member-pass-sync.ts'
 import { readPassMemory, rememberPass } from '../pass-memory.ts'
 import type { PassMemoryEntry } from '../pass-memory.ts'
 import { injectedProvider, requestAccount } from '../wallet.ts'
@@ -324,7 +325,8 @@ const defaultIo: MemberPassListIo = {
 interface RightsListProps {
   variant?: 'lookup' | 'passes'
   locale?: Locale
-  initialAddress?: Hex
+  // Signed in: keep this device's passes on the account and bring its others here.
+  syncWithAccount?: boolean
   io?: MemberPassListIo
   injected?: Eip1193Provider | null
   memory?: readonly PassMemoryEntry[]
@@ -346,9 +348,7 @@ export const RightsList = (props: RightsListProps): JSX.Element => {
   const localQueryClient = createQueryScope()
   const queryClient = props.queryClient ?? localQueryClient
   const injected = props.injected === undefined ? injectedProvider() : props.injected
-  const [addresses, setAddresses] = createSignal<Hex[]>(
-    props.initialAddress === undefined ? [] : [props.initialAddress],
-  )
+  const [addresses, setAddresses] = createSignal<Hex[]>([])
   const [memory, setMemory] = createSignal<PassMemoryEntry[]>([...(props.memory ?? readPassMemory())])
   const [manual, setManual] = createSignal('')
   const [search, setSearch] = createSignal('')
@@ -385,6 +385,19 @@ export const RightsList = (props: RightsListProps): JSX.Element => {
       },
     ),
   )
+
+  onMount(() => {
+    if (props.syncWithAccount !== true) {
+      return
+    }
+    const run = async (): Promise<void> => {
+      const fresh = await syncMemberPasses(memory())
+      for (const pass of fresh) {
+        setMemory(rememberPass(pass))
+      }
+    }
+    void run()
+  })
 
   const addAddress = (address: Hex): void => {
     setAddresses((stored) => withConnectedAddress(stored, address))

@@ -10,13 +10,14 @@ const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
 export type SessionAudience = 'member' | 'operator'
 
 export interface Session {
+  accountId: string | null
   address: Hex
   issuerId: string | null
   tokenHash: string
 }
 
 export type OperatorSession = Session
-export type MemberSession = Session
+export type MemberSession = Session & { accountId: string }
 
 export type SessionResolution =
   | { kind: 'valid'; session: Session }
@@ -30,10 +31,17 @@ export const hashToken = async (token: string): Promise<string> =>
 // a leaked table cannot be replayed as a bearer credential.
 export const createSession = async (
   db: Db,
-  p: { address: Hex; audience: SessionAudience; issuerId: string | null; now: number },
+  p: {
+    accountId?: string
+    address: Hex | ''
+    audience: SessionAudience
+    issuerId: string | null
+    now: number
+  },
 ): Promise<string> => {
   const token = toHex(crypto.getRandomValues(new Uint8Array(32)))
   await db.insert(sessions).values({
+    accountId: p.accountId ?? null,
     address: p.address,
     audience: p.audience,
     createdAt: p.now,
@@ -53,6 +61,7 @@ export const resolveSession = async (
   const tokenHash = await hashToken(token)
   const row = await db
     .select({
+      accountId: sessions.accountId,
       address: sessions.address,
       audience: sessions.audience,
       expiresAt: sessions.expiresAt,
@@ -72,7 +81,7 @@ export const resolveSession = async (
   }
   // Written only from ADDRESS_RE-validated, lower-cased input (sign-in.ts).
   const address: Hex = `0x${row.address.slice(2)}`
-  return { kind: 'valid', session: { address, issuerId: row.issuerId, tokenHash } }
+  return { kind: 'valid', session: { accountId: row.accountId, address, issuerId: row.issuerId, tokenHash } }
 }
 
 // The issuer a session is bound to, read fresh: a create that meant to bind

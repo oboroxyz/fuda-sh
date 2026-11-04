@@ -131,6 +131,19 @@ const memberRow = (overrides: Partial<MemberPassRow>): MemberPassRow => ({
 })
 
 describe(loadMemberPassList, () => {
+  it('does not warn about a missing index when there is no holder to look up', async () => {
+    const io = memberIo(async () => await Promise.resolve([]))
+    const result = await loadMemberPassList(
+      {
+        addresses: [],
+        graphConfigured: false,
+        memory: [{ addedAt: 1, holder: `0x${'00'.repeat(20)}`, uid: RIGHT }],
+      },
+      io,
+    )
+    expect(result.indexUnavailable).toBe(false)
+  })
+
   it('never asks the index about a remembered pass with no holder', async () => {
     const fetchRights = vi.fn<MemberPassListIo['fetchRights']>(async () => await Promise.resolve([]))
     const result = await loadMemberPassList(

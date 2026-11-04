@@ -121,10 +121,27 @@ export interface SignInResponse {
   issuer: IssuerView | null
 }
 export interface MemberSessionResponse {
-  address: Hex
+  accountId: string
 }
 export interface MemberSignInResponse extends MemberSessionResponse {
   token: string
+}
+export interface MemberPasskeyView {
+  id: string
+  backedUp: boolean
+  createdAt: number
+  lastUsedAt: number | null
+}
+export interface MemberPasskeysResponse {
+  passkeys: MemberPasskeyView[]
+}
+export interface MemberPassView {
+  uid: Hex
+  holder: Hex
+  addedAt: number
+}
+export interface MemberPassesResponse {
+  passes: MemberPassView[]
 }
 export interface HandleCheckResponse {
   handle: string

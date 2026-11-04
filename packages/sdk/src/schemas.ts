@@ -56,6 +56,48 @@ export type RevokeRequest = v.InferOutput<typeof RevokeBody>
 export type ChallengeRequest = v.InferOutput<typeof ChallengeBody>
 export type VerifySignedRequest = v.InferOutput<typeof VerifySignedBody>
 
+const Base64Url = v.pipe(v.string(), v.regex(/^[A-Za-z0-9_-]+$/u))
+
+const PasskeyResponseFields = {
+  authenticatorAttachment: v.optional(v.picklist(['cross-platform', 'platform'])),
+  clientExtensionResults: v.looseObject({}),
+  id: Base64Url,
+  rawId: Base64Url,
+  type: v.literal('public-key'),
+}
+
+const Transport = v.picklist(['ble', 'hybrid', 'internal', 'nfc', 'usb'])
+
+// What a browser's WebAuthn ceremony answers, in its JSON form. The contents are checked
+// by the verifier; this only keeps malformed input from reaching it.
+export const PasskeyRegistrationBody = v.object({
+  ...PasskeyResponseFields,
+  response: v.object({
+    attestationObject: Base64Url,
+    authenticatorData: v.optional(Base64Url),
+    clientDataJSON: Base64Url,
+    publicKey: v.optional(Base64Url),
+    publicKeyAlgorithm: v.optional(v.number()),
+    transports: v.optional(v.array(Transport)),
+  }),
+})
+
+export const PasskeyAuthenticationBody = v.object({
+  ...PasskeyResponseFields,
+  response: v.object({
+    authenticatorData: Base64Url,
+    clientDataJSON: Base64Url,
+    signature: Base64Url,
+    userHandle: v.optional(Base64Url),
+  }),
+})
+
+export const MAX_LINKED_UIDS_PER_REQUEST = 50
+
+export const LinkPassesBody = v.object({
+  uids: v.pipe(v.array(v.string()), v.maxLength(MAX_LINKED_UIDS_PER_REQUEST)),
+})
+
 export const SignInChallengeBody = v.object({ address })
 export const SignInVerifyBody = v.object({
   address,
