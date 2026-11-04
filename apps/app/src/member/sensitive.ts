@@ -298,6 +298,11 @@ export const claimSensitive = async (
   if (opened.kind !== 'open') {
     return { failure: failureOfOpen(opened), ok: false }
   }
+  // Checked before issuing: a pass this account could not list would be lost to it.
+  const listed = await readEntries(io, opened.secret)
+  if (!listed.ok) {
+    return { failure: 'secret_unopenable', ok: false }
+  }
   const salt = newPassSalt()
   const key = await passKeyFrom(opened.secret, salt)
   const issued = await io.claim(card.venue, card.slug, card.source, key.address)
@@ -316,8 +321,7 @@ export const claimSensitive = async (
 }
 
 // These sentences reach the verdict screen, and entry-copy.ts holds their translations.
-export const SECRET_NOT_OPENED =
-  'The passkey that opens this pass was not used. Try again on a device that has it.'
+const SECRET_NOT_OPENED = 'The passkey that opens this pass was not used. Try again on a device that has it.'
 export const PASS_NOT_IN_VAULT =
   'This pass is not on this account. Sign in with the account that received it.'
 

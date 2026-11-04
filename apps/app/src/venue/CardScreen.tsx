@@ -171,7 +171,8 @@ const memberCard = (card: PublicCard, issued: IssuedCard, copy: VenueCopy, local
 const isSensitiveCard = (card: PublicCard): boolean => card.card.identity === 'sensitive'
 
 // Bound to a key, so a QR or a Wallet pass would admit nobody.
-const isPasskeyCard = (card: PublicCard): boolean => card.card.identity === 'passkey' || isSensitiveCard(card)
+const isKeyBoundCard = (card: PublicCard): boolean =>
+  card.card.identity === 'passkey' || isSensitiveCard(card)
 
 const cardDescription = (card: PublicCard): JSX.Element | null =>
   card.card.description === '' ? null : (
@@ -548,7 +549,7 @@ const readyActions = (
   if (isSensitiveCard(state.card)) {
     return sensitiveEntry(state.issued, state.unsaved === true, copy)
   }
-  return isPasskeyCard(state.card)
+  return isKeyBoundCard(state.card)
     ? passkeyEntry(state.card, state.issued, copy)
     : passActions(state.card, state.issued, state.googleHref, state.appleHref, copy, locale)
 }
@@ -562,7 +563,7 @@ const readyScreen = (
   <>
     <section class="venue-held-card">
       {memberCard(state.card, state.issued, copy, locale)}
-      {isPasskeyCard(state.card) ? null : qrBlock(state.card, state.issued, copy)}
+      {isKeyBoundCard(state.card) ? null : qrBlock(state.card, state.issued, copy)}
     </section>
     {readyActions(state, copy, locale)}
     {humanBadgeControl(state.badge, onVerifyHuman, copy)}
@@ -592,7 +593,7 @@ const landingScreen = (
       </>
     )
   }
-  if (isPasskeyCard(state.card)) {
+  if (isKeyBoundCard(state.card)) {
     return (
       <>
         {landingCard(state.card)}
@@ -739,8 +740,13 @@ const defaultSensitive: CardSensitiveIo = {
     return added.ok ? { credentialId: added.credentialId, ok: true } : { ok: false }
   },
   claim: async (card, only) => {
-    const { claimSensitive, defaultSensitiveIo } = await import('../member/sensitive.ts')
-    return await claimSensitive(defaultSensitiveIo, card, only)
+    try {
+      const { claimSensitive, defaultSensitiveIo } = await import('../member/sensitive.ts')
+      return await claimSensitive(defaultSensitiveIo, card, only)
+    } catch {
+      // A chunk that failed to load, on a connection that just dropped.
+      return { failure: 'network', ok: false }
+    }
   },
 }
 
@@ -841,7 +847,7 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
       kind: 'ready',
       unsaved,
     })
-    if (isPasskeyCard(card)) {
+    if (isKeyBoundCard(card)) {
       return
     }
     const platform = passPlatform(globalThis.navigator?.userAgent ?? '')

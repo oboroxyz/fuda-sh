@@ -261,15 +261,19 @@ describe(claimSensitive, () => {
     expect(server.storage.items.size).toBe(0)
   })
 
-  it('never overwrites a vault it could not read', async () => {
+  it('issues nothing, and never overwrites a vault it could not read', async () => {
     const server = fakeServer()
     server.vault.current = {
       ...(await sealEntries([], new Uint8Array(32).fill(9))),
       version: 3,
     }
     const before = server.vault.current
-    await expect(claimSensitive(server.io, CARD)).resolves.toMatchObject({ saved: false })
+    await expect(claimSensitive(server.io, CARD)).resolves.toStrictEqual({
+      failure: 'secret_unopenable',
+      ok: false,
+    })
     expect(server.vault.current).toBe(before)
+    expect(server.claimed).toStrictEqual([])
   })
 
   it('claims nothing when no passkey answers', async () => {

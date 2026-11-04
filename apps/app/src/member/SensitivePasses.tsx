@@ -25,6 +25,16 @@ interface Opened {
 
 type Problem = 'failed' | 'notOpened'
 
+const readList = async (): Promise<{ list: Opened } | { problem: Problem }> => {
+  const { defaultSensitiveIo, openMemberSecret, readVaultEntries } = await import('./sensitive.ts')
+  const secret = await openMemberSecret(defaultSensitiveIo)
+  if (secret.kind !== 'open') {
+    return { problem: secret.kind === 'failed' ? 'failed' : 'notOpened' }
+  }
+  const read = await readVaultEntries(defaultSensitiveIo, secret.secret)
+  return read.ok ? { list: { entries: read.entries, secret: secret.secret } } : { problem: 'failed' }
+}
+
 // docs/specs/pass-types-and-flows.md#sensitive-use. The account has no list of these passes
 // the server can read, so this asks for a passkey only when the member asks to see them, and
 // asks the server nothing about any one of them until the member enters with it. The opened
@@ -40,36 +50,40 @@ export const SensitivePasses = (props: { locale: Locale }): JSX.Element => {
   const openList = async (): Promise<void> => {
     setBusy(true)
     setProblem(null)
-    const { defaultSensitiveIo, openMemberSecret, readVaultEntries } = await import('./sensitive.ts')
-    const secret = await openMemberSecret(defaultSensitiveIo)
-    if (secret.kind !== 'open') {
-      setProblem(secret.kind === 'failed' ? 'failed' : 'notOpened')
-      setBusy(false)
-      return
-    }
-    const read = await readVaultEntries(defaultSensitiveIo, secret.secret)
-    if (read.ok) {
-      setOpened({ entries: read.entries, secret: secret.secret })
-    } else {
+    try {
+      const result = await readList()
+      if ('list' in result) {
+        setOpened(result.list)
+      } else {
+        setProblem(result.problem)
+      }
+    } catch {
       setProblem('failed')
+    } finally {
+      setBusy(false)
     }
-    setBusy(false)
   }
 
   const enter = async (entry: VaultEntry, secret: Opened['secret']): Promise<void> => {
     setBusy(true)
-    const { passKeyFrom } = await import('./member-secret.ts')
-    const key = await passKeyFrom(secret, entry.salt)
-    const outcome = await enterSigned(
-      {
-        challenge,
-        sign: async (message) => await key.signMessage({ message }),
-        verify: verifySigned,
-      },
-      entry.uid,
-    )
-    setVerdict(displayOf(outcome))
-    setBusy(false)
+    setProblem(null)
+    try {
+      const { passKeyFrom } = await import('./member-secret.ts')
+      const key = await passKeyFrom(secret, entry.salt)
+      const outcome = await enterSigned(
+        {
+          challenge,
+          sign: async (message) => await key.signMessage({ message }),
+          verify: verifySigned,
+        },
+        entry.uid,
+      )
+      setVerdict(displayOf(outcome))
+    } catch {
+      setProblem('failed')
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (

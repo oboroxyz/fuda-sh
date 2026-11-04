@@ -39,15 +39,20 @@ export const PasskeySection = (props: { locale: Locale }): JSX.Element => {
     setBusy(true)
     setFailure(null)
     setAddedWithoutCopy(false)
-    const { addPasskeyKeepingSecret, defaultSensitiveIo } = await import('./sensitive.ts')
     const hadCopies = holders() > 0
-    const outcome = await addPasskeyKeepingSecret(defaultSensitiveIo)
-    setBusy(false)
-    if (outcome.ok) {
-      setAddedWithoutCopy(hadCopies && !outcome.holdsSecret)
-      await refetch()
-    } else {
-      setFailure(outcome.failure)
+    try {
+      const { addPasskeyKeepingSecret, defaultSensitiveIo } = await import('./sensitive.ts')
+      const outcome = await addPasskeyKeepingSecret(defaultSensitiveIo)
+      if (outcome.ok) {
+        setAddedWithoutCopy(hadCopies && !outcome.holdsSecret)
+        await refetch()
+      } else {
+        setFailure(outcome.failure)
+      }
+    } catch {
+      setFailure('unavailable')
+    } finally {
+      setBusy(false)
     }
   }
 
