@@ -147,6 +147,8 @@ export interface MemberRow {
   tier: number
   status: 'active' | 'revoked'
   createdAt: number
+  // A Sensitive pass, which has no page, QR or Wallet pass to hand out. Absent otherwise.
+  sensitive?: true
   // The Badges this Right carries, for an operator surface that shows the fact
   // of a Badge beside the Right. An array rather than a `human` flag, for the
   // same reason `VerifyResponse.badges` is one: a second kind must not be a

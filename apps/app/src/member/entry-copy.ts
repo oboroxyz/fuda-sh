@@ -150,6 +150,10 @@ const MESSAGE_COPY: Copy<Record<string, string>> = {
     'Rights discovery is not configured.': '権利の検索が設定されていません。',
     'The passkey for this pass was not used. Try again on a device that has it.':
       'このパスのパスキーが使われませんでした。パスキーのある端末でもう一度お試しください。',
+    'The passkey that opens this pass was not used. Try again on a device that has it.':
+      'このパスを開くパスキーが使われませんでした。パスキーのある端末でもう一度お試しください。',
+    'This pass is not on this account. Sign in with the account that received it.':
+      'このアカウントにはこのパスがありません。受け取ったアカウントでサインインしてください。',
     UNKNOWN_USAGE_MODEL: '対応していない利用方式です。',
     WRONG_SCHEMA: '対応していない権利です。',
     bad_challenge: '入場確認の有効期限が切れているか、内容が無効です。',

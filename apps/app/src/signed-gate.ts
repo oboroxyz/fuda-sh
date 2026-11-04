@@ -9,14 +9,13 @@ export interface SignedGateIo {
   verify: (body: { uid: Hex; nonce: Hex; signature: Hex }) => Promise<Result<VerifySignedResponse>>
 }
 
+type PasskeyProof = { webauthn: AuthenticationResponseJSON } | { signature: Hex }
+
 export interface PasskeyGateIo {
   assert: (options: PasskeyRequestOptions) => Promise<AuthenticationResponseJSON>
   challenge: SignedGateIo['challenge']
-  verify: (body: {
-    uid: Hex
-    nonce: Hex
-    webauthn: AuthenticationResponseJSON
-  }) => Promise<Result<VerifySignedResponse>>
+  signForPass: (uid: Hex, message: string) => Promise<Hex>
+  verify: (body: { uid: Hex; nonce: Hex } & PasskeyProof) => Promise<Result<VerifySignedResponse>>
 }
 
 export type SignedOutcome =
@@ -73,6 +72,8 @@ export const enterSigned = async (io: SignedGateIo, uid: Hex, signal?: AbortSign
   )
 
 // An Identified pass answers with the passkey it attests, which the api names when it mints.
+// A Sensitive pass, for which it names none, answers with its own key once a passkey has
+// brought that key back on this device.
 export const enterWithPasskey = async (
   io: PasskeyGateIo,
   uid: Hex,
@@ -81,13 +82,11 @@ export const enterWithPasskey = async (
   await enter(
     {
       challenge: io.challenge,
-      prove: async ({ webauthn }) => {
-        if (webauthn === undefined) {
-          throw new Error('This pass has no passkey.')
-        }
-        return await io.assert(webauthn)
-      },
-      verify: async (nonce, webauthn) => await io.verify({ nonce, uid, webauthn }),
+      prove: async ({ challenge, webauthn }): Promise<PasskeyProof> =>
+        webauthn === undefined
+          ? { signature: await io.signForPass(uid, challenge) }
+          : { webauthn: await io.assert(webauthn) },
+      verify: async (nonce, proof) => await io.verify({ nonce, uid, ...proof }),
     },
     uid,
     signal,

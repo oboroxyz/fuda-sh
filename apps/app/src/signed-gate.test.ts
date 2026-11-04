@@ -192,12 +192,40 @@ describe(enterWithPasskey, () => {
     assert: async () => await Promise.resolve(assertion),
     challenge: async () =>
       await Promise.resolve({ body: { challenge: 'x', nonce: NONCE, webauthn }, ok: true }),
+    signForPass: async () => await Promise.resolve(`0x${'11'.repeat(65)}`),
     verify: async () =>
       await Promise.resolve({
         body: { decision: 'ADMIT', holder: `0x${'00'.repeat(20)}`, path: 'signature', reason: 'OK' },
         ok: true,
       }),
     ...over,
+  })
+
+  it('answers a Sensitive pass, which names no passkey, with the key of that pass', async () => {
+    const assert = vi.fn<PasskeyGateIo['assert']>()
+    const signForPass = vi.fn<PasskeyGateIo['signForPass']>(
+      async () => await Promise.resolve(`0x${'11'.repeat(65)}`),
+    )
+    const verify = vi.fn<PasskeyGateIo['verify']>(
+      async () =>
+        await Promise.resolve({
+          body: { decision: 'ADMIT', holder: `0x${'00'.repeat(20)}`, path: 'signature', reason: 'OK' },
+          ok: true,
+        }),
+    )
+    const outcome = await enterWithPasskey(
+      passkeyIo({
+        assert,
+        challenge: async () => await Promise.resolve({ body: { challenge: 'x', nonce: NONCE }, ok: true }),
+        signForPass,
+        verify,
+      }),
+      UID,
+    )
+    expect(outcome.kind).toBe('verdict')
+    expect(assert).not.toHaveBeenCalled()
+    expect(signForPass).toHaveBeenCalledWith(UID, 'x')
+    expect(verify).toHaveBeenCalledWith({ nonce: NONCE, signature: `0x${'11'.repeat(65)}`, uid: UID })
   })
 
   it('answers the request the api minted and sends back that nonce', async () => {
@@ -220,13 +248,4 @@ describe(enterWithPasskey, () => {
     expect(outcome).toStrictEqual({ error: 'dismissed', kind: 'error', network: false })
   })
 
-  it('refuses a pass the api names no passkey for, without a prompt', async () => {
-    const assert = vi.fn<PasskeyGateIo['assert']>(async () => await Promise.resolve(assertion))
-    const outcome = await enterWithPasskey(
-      passkeyIo({ assert, challenge: async () => await Promise.resolve(minted) }),
-      UID,
-    )
-    expect(outcome).toMatchObject({ kind: 'error', network: false })
-    expect(assert).not.toHaveBeenCalled()
-  })
 })

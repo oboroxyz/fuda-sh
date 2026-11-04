@@ -13,6 +13,10 @@ import { cardFailureOf, issuePasskeyCard } from '../api.ts'
 import type { CardFailure } from '../api.ts'
 import { API_BASE_URL } from '../config.ts'
 
+// What every passkey's PRF is asked about (docs/specs/pass-types-and-flows.md#sensitive-use).
+// Changing it changes every answer, and so loses every Sensitive pass.
+export const PRF_SALT = new TextEncoder().encode('fuda.sh/member-secret/prf/v1')
+
 export type PasskeyFailure = 'cancelled' | 'network' | 'rejected' | 'unavailable'
 
 export type PasskeyOutcome = { ok: true } | { ok: false; failure: PasskeyFailure }
@@ -75,25 +79,45 @@ export const createPasskeyAccount = async (): Promise<PasskeyOutcome> => {
   return 'value' in response ? await spend('register', response.value) : response
 }
 
-export type AddPasskeyOutcome = PasskeyOutcome | { ok: false; failure: 'limit' }
+export type AddPasskeyOutcome =
+  | { ok: true; credentialId: string; prfOutput: Uint8Array<ArrayBuffer> | null }
+  | { ok: false; failure: PasskeyFailure | 'limit' }
+
+const bytesOfPrf = (source: BufferSource | undefined): Uint8Array<ArrayBuffer> | null => {
+  if (source === undefined) {
+    return null
+  }
+  return source instanceof ArrayBuffer
+    ? new Uint8Array(source)
+    : new Uint8Array(source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength))
+}
 
 export const addPasskey = async (): Promise<AddPasskeyOutcome> => {
   const options = await postJson<PublicKeyCredentialCreationOptionsJSON>('/auth/member/passkeys/options')
   if (!options.ok) {
     return { failure: failureOf(options), ok: false }
   }
+  // Some providers answer PRF at creation, which saves a prompt. The answer stays here: only
+  // the attestation goes to the api.
   const response = await ceremony<RegistrationResponseJSON>(
-    async () => await startRegistration({ optionsJSON: options.body }),
+    async () =>
+      await startRegistration({
+        optionsJSON: { ...options.body, extensions: { prf: { eval: { first: PRF_SALT } } } },
+      }),
   )
   if (!('value' in response)) {
-    return response
+    return { failure: 'failure' in response ? response.failure : 'unavailable', ok: false }
   }
   const added = await apiFetch<{ added: true }>(API_BASE_URL, '/auth/member/passkeys', {
-    body: JSON.stringify(response.value),
+    body: JSON.stringify({ ...response.value, clientExtensionResults: {} }),
     method: 'POST',
   })
   if (added.ok) {
-    return { ok: true }
+    return {
+      credentialId: response.value.id,
+      ok: true,
+      prfOutput: bytesOfPrf(response.value.clientExtensionResults.prf?.results?.first),
+    }
   }
   return added.status === 409 ? { failure: 'limit', ok: false } : { failure: failureOf(added), ok: false }
 }
