@@ -166,9 +166,12 @@ describe('localized operation views', () => {
           appearance={<aside>appearance controls</aside>}
           copy={DASH_COPY.ja.auth}
           error="権限がありません: UNAUTHORIZED"
-          onPasskey={(): void => {}}
+          busy={null}
+          onCancel={(): void => {}}
+          onCreate={(): void => {}}
+          onSignIn={(): void => {}}
           onToken={onToken}
-          pending={false}
+          onWallet={(): void => {}}
         />
       ))
       const password = host.querySelector<HTMLInputElement>('input[type="password"]')!
@@ -195,9 +198,12 @@ describe('localized operation views', () => {
         appearance={<aside />}
         copy={DASH_COPY.en.auth}
         error={null}
-        onPasskey={(): void => {}}
+        busy={null}
+        onCancel={(): void => {}}
+        onCreate={(): void => {}}
+        onSignIn={(): void => {}}
         onToken={(): void => {}}
-        pending={false}
+        onWallet={(): void => {}}
       />
     ))
     const logo = host.querySelector('svg[aria-label="fuda."]')!

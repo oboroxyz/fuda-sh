@@ -1,5 +1,6 @@
 import { AUTH_COPY } from '@fuda/i18n'
 import type { Copy } from '@fuda/i18n'
+import type { PasskeySectionCopy } from '@fuda/ui'
 
 import { APPS_COPY } from './apps-copy.ts'
 import type { AppsCopy } from './apps-copy.ts'
@@ -42,6 +43,12 @@ export interface DashCopy {
     unauthorized: string
     passkey: string
     passkeyHint: string
+    createPasskey: string
+    creating: string
+    cancel: string
+    wallet: string
+    walletHint: string
+    signingInWallet: string
     adminSection: string
     signingIn: string
     restoring: string
@@ -51,8 +58,9 @@ export interface DashCopy {
     signOutTitle: string
     signOutDescription: string
     cancelSignOut: string
-    failures: { network: string; rejected: string; unavailable: string; wallet: string }
+    failures: { cancelled: string; network: string; rejected: string; unavailable: string; wallet: string }
   }
+  passkeys: PasskeySectionCopy
   logo: {
     label: string
     change: string
@@ -208,6 +216,7 @@ export interface DashCopy {
     title: string
     description: string
     claim: string
+    walletRequired: string
     retry: string
     signing: string
     submitting: string
@@ -403,7 +412,14 @@ export const DASH_COPY = {
       continue: 'Continue',
       unauthorized: 'Unauthorized. Check the admin token.',
       passkey: AUTH_COPY.en.signInWithPasskey,
-      passkeyHint: 'Sign in with a passkey. Coinbase may ask for an email to recover your account.',
+      passkeyHint: 'Use the passkey on this device, or create one. You do not need an email or a wallet.',
+      createPasskey: 'Create a passkey',
+      creating: 'Creating…',
+      cancel: 'Cancel',
+      wallet: 'Sign in with a wallet',
+      walletHint:
+        'For a profile made with a wallet, and to claim an ENS name. Coinbase may ask for an email to recover your account.',
+      signingInWallet: 'Waiting for your wallet…',
       adminSection: 'Sign in with an admin token instead',
       signingIn: 'Waiting for your passkey…',
       restoring: 'Restoring your session…',
@@ -414,11 +430,35 @@ export const DASH_COPY = {
       signOutDescription: 'You will need to sign in again to use the dashboard.',
       cancelSignOut: 'Cancel',
       failures: {
+        cancelled: 'No passkey was used. You can try again, or create one if you have none.',
         network: 'Could not reach fuda. Check your connection and try again.',
-        rejected: 'That signature was not accepted. Please try again.',
+        rejected: 'That sign-in was not accepted. Please try again.',
         unavailable: 'Sign-in is unavailable right now. Please try again later.',
-        wallet: 'The passkey step was cancelled.',
+        wallet: 'The wallet step was cancelled.',
       },
+    },
+    passkeys: {
+      add: 'Add a passkey',
+      adding: 'Adding…',
+      cancel: 'Keep it',
+      created: 'Added {date}',
+      failures: {
+        cancelled: 'No passkey was added. You can try again.',
+        limit: 'This account already has the most passkeys it can hold. Remove one first.',
+        network: 'The service could not be reached. Try again.',
+        rejected: 'That passkey was not accepted. Try again.',
+        remove: 'That passkey could not be removed. An account must keep at least one.',
+        unavailable: 'This is not available right now. Try again later.',
+      },
+      hint: 'A passkey in a second place, such as another password manager or a security key, keeps you able to sign in if you lose this device. The same passkeys sign you in to your passes in fuda.',
+      loadFailed: 'Could not load your passkeys.',
+      name: 'Passkey {number}',
+      remove: 'Remove',
+      removeTitle: 'Remove this passkey?',
+      removeWarning:
+        'You will no longer be able to sign in with it. Remove it if the device is lost or no longer yours.',
+      synced: 'synced',
+      title: 'Passkeys',
     },
     logo: {
       label: 'Logo',
@@ -611,6 +651,8 @@ export const DASH_COPY = {
       description:
         'Claim {name} and the name is yours onchain. fuda covers the transaction fee — you never need a second wallet or any ETH.',
       claim: 'Claim this name',
+      walletRequired:
+        'An ENS name is held by a wallet, and this profile was made with a passkey, so it has none. To claim a name, sign in with a wallet and make the profile there.',
       retry: 'Try again',
       signing: 'Preparing the claim…',
       submitting: 'Confirm in your wallet…',
@@ -806,7 +848,14 @@ export const DASH_COPY = {
       unauthorized: '認証できませんでした。管理トークンを確認してください。',
       passkey: AUTH_COPY.ja.signInWithPasskey,
       passkeyHint:
-        'パスキーでサインインします。アカウント復旧のため、Coinbaseからメールアドレスを求められることがあります。',
+        'この端末のパスキーを使うか、新しく作成してください。メールアドレスもウォレットも要りません。',
+      createPasskey: 'パスキーを作成',
+      creating: '作成中…',
+      cancel: 'キャンセル',
+      wallet: 'ウォレットでサインイン',
+      walletHint:
+        'ウォレットで作成したプロフィールと、ENS名の取得に使います。アカウント復旧のため、Coinbaseからメールアドレスを求められることがあります。',
+      signingInWallet: 'ウォレットの操作を待っています…',
       adminSection: '管理トークンでサインインする',
       signingIn: 'パスキーの操作を待っています…',
       restoring: 'ログイン状態を確認しています…',
@@ -817,11 +866,36 @@ export const DASH_COPY = {
       signOutDescription: 'ダッシュボードを使うには、もう一度サインインしてください。',
       cancelSignOut: 'キャンセル',
       failures: {
+        cancelled:
+          'パスキーは使われませんでした。もう一度お試しいただくか、お持ちでなければ作成してください。',
         network: 'fuda に接続できませんでした。通信環境を確認して、もう一度お試しください。',
-        rejected: '署名が受け付けられませんでした。もう一度お試しください。',
+        rejected: 'サインインが受け付けられませんでした。もう一度お試しください。',
         unavailable: '現在サインインできません。しばらくしてからお試しください。',
-        wallet: 'パスキーの操作が取り消されました。',
+        wallet: 'ウォレットの操作が取り消されました。',
       },
+    },
+    passkeys: {
+      add: 'パスキーを追加',
+      adding: '追加中…',
+      cancel: '残す',
+      created: '{date} に追加',
+      failures: {
+        cancelled: 'パスキーは追加されませんでした。もう一度お試しください。',
+        limit: 'このアカウントのパスキーは上限に達しています。先に1つ削除してください。',
+        network: 'サービスに接続できませんでした。もう一度お試しください。',
+        rejected: 'このパスキーは受け付けられませんでした。もう一度お試しください。',
+        remove: 'このパスキーは削除できませんでした。アカウントには最低1つ必要です。',
+        unavailable: '現在ご利用いただけません。しばらくしてからお試しください。',
+      },
+      hint: '別のパスワード管理アプリやセキュリティキーにも追加しておくと、この端末をなくしてもサインインできます。同じパスキーで fuda のパスにもサインインできます。',
+      loadFailed: 'パスキーを読み込めませんでした。',
+      name: 'パスキー {number}',
+      remove: '削除',
+      removeTitle: 'このパスキーを削除しますか？',
+      removeWarning:
+        '削除すると、このパスキーではサインインできなくなります。端末をなくしたときや手放すときに削除してください。',
+      synced: '同期あり',
+      title: 'パスキー',
     },
     logo: {
       label: 'ロゴ',
@@ -1014,6 +1088,8 @@ export const DASH_COPY = {
       description:
         '{name} を取得すると、この名前がオンチェーンであなたのものになります。手数料は fuda が負担するので、別のウォレットも ETH も要りません。',
       claim: 'この名前を取得する',
+      walletRequired:
+        'ENS名はウォレットで保持します。このプロフィールはパスキーで作成したのでウォレットがありません。名前を取得するには、ウォレットでサインインしてプロフィールを作成してください。',
       retry: 'もう一度試す',
       signing: '取得の準備をしています…',
       submitting: 'ウォレットで承認してください…',

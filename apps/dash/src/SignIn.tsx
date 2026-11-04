@@ -3,18 +3,23 @@ import { createSignal } from 'solid-js'
 import type { JSX } from 'solid-js'
 
 import type { DashCopy } from './copy.ts'
-import type { SignInFailure } from './operator-sign-in.ts'
+import type { OperatorSignInFailure } from './operator-sign-in.ts'
 
 export interface SignInProps {
   appearance: JSX.Element
   copy: DashCopy['auth']
   error: string | null
-  onPasskey: () => void
+  busy: SignInMethod | null
+  onCancel: () => void
+  onCreate: () => void
+  onSignIn: () => void
   onToken: (token: string) => void
-  pending: boolean
+  onWallet: () => void
 }
 
-export const signInErrorOf = (copy: DashCopy['auth'], failure: SignInFailure): string =>
+export type SignInMethod = 'create' | 'signin' | 'wallet'
+
+export const signInErrorOf = (copy: DashCopy['auth'], failure: OperatorSignInFailure): string =>
   copy.failures[failure]
 
 // The admin credential stays in memory; App persists only operator sessions
@@ -42,15 +47,50 @@ export const SignIn = (props: SignInProps): JSX.Element => {
 
           <button
             class="btn btn-primary w-full gap-2"
-            disabled={props.pending}
+            disabled={props.busy !== null}
             onClick={() => {
-              props.onPasskey()
+              props.onSignIn()
             }}
             type="button"
           >
             <FingerprintSimple />
-            {props.pending ? props.copy.signingIn : props.copy.passkey}
+            {props.busy === 'signin' ? props.copy.signingIn : props.copy.passkey}
           </button>
+          <button
+            class="btn btn-outline w-full"
+            disabled={props.busy !== null}
+            onClick={() => {
+              props.onCreate()
+            }}
+            type="button"
+          >
+            {props.busy === 'create' ? props.copy.creating : props.copy.createPasskey}
+          </button>
+          {props.busy === null ? null : (
+            <button
+              class="btn btn-ghost w-full"
+              onClick={() => {
+                props.onCancel()
+              }}
+              type="button"
+            >
+              {props.copy.cancel}
+            </button>
+          )}
+
+          <div class="flex w-full flex-col items-start gap-1">
+            <button
+              class="link text-sm"
+              disabled={props.busy !== null}
+              onClick={() => {
+                props.onWallet()
+              }}
+              type="button"
+            >
+              {props.busy === 'wallet' ? props.copy.signingInWallet : props.copy.wallet}
+            </button>
+            <p class="text-sm text-[var(--fuda-muted)]">{props.copy.walletHint}</p>
+          </div>
 
           <details class="dash-auth-admin w-full">
             <summary>{props.copy.adminSection}</summary>

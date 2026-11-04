@@ -1,16 +1,21 @@
 import { useRouter } from '@void/solid'
 import type { JSX } from 'solid-js'
 
-import { signInChallenge } from '../../src/api.ts'
-import { ENS_PAYMASTER_URL } from '../../src/config.ts'
 import { approveAuthorization, authorizePreview } from '../../src/connected-apps-api.ts'
 import { CONSENT_COPY } from '../../src/consent-copy.ts'
 import { readAuthorizeRequest } from '../../src/consent.ts'
 import { OAuthConsentPage } from '../../src/OAuthConsentPage.tsx'
-import { signInWithPasskey } from '../../src/operator-sign-in.ts'
+import { signInWithPasskey, signInWithWallet } from '../../src/operator-sign-in.ts'
+import type { SignInOutcome } from '../../src/operator-sign-in.ts'
 import { useDash } from '../../src/page-context.tsx'
-import { verifyOperator } from '../../src/session-client.ts'
-import { baseAccountProvider, personalSign, requestAccount } from '../../src/wallet.ts'
+
+// Refresh supplies the new cookie's comparison value without exposing it.
+const reloaded = (result: SignInOutcome): SignInOutcome => {
+  if (result.ok) {
+    window.location.reload()
+  }
+  return result
+}
 
 export default function Authorize(): JSX.Element {
   const shared = useDash()
@@ -27,20 +32,8 @@ export default function Authorize(): JSX.Element {
           window.location.assign(url)
         },
         preview: authorizePreview,
-        signIn: async () => {
-          const result = await signInWithPasskey({
-            challenge: signInChallenge,
-            personalSign,
-            provider: async () => await baseAccountProvider(ENS_PAYMASTER_URL),
-            requestAccount,
-            verify: verifyOperator,
-          })
-          // Refresh supplies the new cookie's comparison value without exposing it.
-          if (result.ok) {
-            window.location.reload()
-          }
-          return result
-        },
+        signIn: async () => reloaded(await signInWithPasskey()),
+        signInWithWallet: async () => reloaded(await signInWithWallet()),
       }}
     />
   )
