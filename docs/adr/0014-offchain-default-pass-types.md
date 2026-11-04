@@ -50,6 +50,8 @@ The gate checks, in order: the venue the gate names, D1 revocation mirror, UID, 
 - The schema and venue are pinned. All venues share one attester in the first phase, so a signature alone would admit another venue's pass. The signed venue is pinned to the D1 row, reception is scoped by the operator's session, and a gate is scoped by its URL: `POST /verify` takes an optional `venue`, and a pass whose issuer is another venue is rejected `WRONG_VENUE` before anything else is read and before a slot is used. The URL is station configuration for honest staff, not authentication, because the pass is a bearer token and a shop that wants to admit another shop's pass can already do so. A gate with no `venue` checks none, and `POST /verify-signed` does not take one yet.
 - `AlreadyTimestamped` counts as success, because anyone can timestamp a root first.
 
+The API tries the preferred Base Sepolia RPC and then the public endpoint on provider failure. A provider outage alone therefore does not make the chain unreadable. The gate rules above apply when neither provider supplies the required read. Contract reverts do not trigger failover.
+
 ### 4. Identity and addresses
 
 Identified attests the passkey's public key in the pass data and leaves `recipient` as the zero address. The gate checks the challenge, origin, RP ID hash, user-verification flag and signature with no chain read.

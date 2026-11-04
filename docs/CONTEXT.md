@@ -78,6 +78,8 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Approval** (of a connected app): The Operator's consent, on fuda's consent page, that one connected app may act for one of their Issuers with a fixed set of scopes. It is held as an access token and ends when revoked from the dashboard, revoked by the app, or expired, or when the app is deleted. _Avoid_: Grant (in UI copy), authorization (in prose; that is the OAuth step), connection
 
+**RPC fallback**: The API trying the public Base Sepolia endpoint after its preferred provider fails. It changes provider availability, not the Gate's admission rules. Contract reverts remain failures.
+
 **Gate**: Whatever reads the chain and decides ADMIT or REJECT for a presented Right — fuda's api by default, but any verifier can be a Gate. _Avoid_: Scanner (that is the `apps/gate` device), verifier (in prose), door
 
 **Issuer wallet**: The Crypto wallet through which an Issuer controls its assets and authorizes operations. Optional: an Issuer owned by an Account has none. Its identity is distinct from the people or credentials controlling it, and from a service signer acting on the Issuer's behalf. _Avoid_: Operator wallet (when referring to the shared organization identity), staff wallet

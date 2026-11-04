@@ -1,14 +1,18 @@
 import {
+  BaseError,
   createPublicClient,
   createWalletClient,
+  ExecutionRevertedError,
+  fallback,
   http,
   HttpRequestError,
   isHex,
   parseEventLogs,
   RpcRequestError,
+  shouldThrow,
   TimeoutError,
 } from 'viem'
-import type { Hex, Transport } from 'viem'
+import type { Hex, HttpTransportConfig, Transport } from 'viem'
 import { nonceManager, privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
 
@@ -18,6 +22,28 @@ import { ChainError, NoSignerError } from './client.ts'
 import type { AttestParams, ChainClient } from './client.ts'
 
 export const DEFAULT_RPC = 'https://sepolia.base.org'
+const RPC_TIMEOUT_MS = 1000
+
+export const createChainTransport = (primary = DEFAULT_RPC, secondary = DEFAULT_RPC): Transport => {
+  const options = {
+    // viem's timeout ends at response headers. Keep a deadline through body reads.
+    onFetchRequest: (request, init) => ({
+      ...init,
+      signal: AbortSignal.any([request.signal, AbortSignal.timeout(RPC_TIMEOUT_MS)]),
+    }),
+    retryCount: 0,
+    timeout: RPC_TIMEOUT_MS,
+  } satisfies HttpTransportConfig
+  const first = http(primary, options)
+  return primary === secondary
+    ? first
+    : fallback([first, http(secondary, options)], {
+        rank: false,
+        retryCount: 0,
+        shouldThrow: (error) =>
+          ('code' in error && error.code === ExecutionRevertedError.code) || shouldThrow(error),
+      })
+}
 
 const toHexAddress = (s: string): Hex => {
   if (!isHex(s)) {
@@ -30,7 +56,11 @@ const wrap = async <T>(fn: () => Promise<T>): Promise<T> => {
   try {
     return await fn()
   } catch (error) {
-    throw new ChainError(error instanceof Error ? error.message : String(error))
+    if (error instanceof ChainError) {
+      throw error
+    }
+    // viem messages and causes contain the RPC URL, including provider API keys.
+    throw new ChainError(error instanceof BaseError ? error.name : 'Chain request failed')
   }
 }
 
@@ -43,7 +73,7 @@ type ChainBindings = Pick<
 
 export const createViemChain = (
   env: ChainBindings,
-  transport: Transport = http(env.BASE_RPC_URL ?? DEFAULT_RPC),
+  transport: Transport = createChainTransport(env.BASE_RPC_URL),
 ): ChainClient => {
   const publicClient = createPublicClient({ chain: baseSepolia, transport })
   const eas = toHexAddress(env.EAS_ADDRESS)
@@ -284,7 +314,7 @@ export const createViemChain = (
         // wraps an RPC error from the ERC-6492 deployless call into CallExecutionError,
         // catches it, retries a pure ECDSA recover and returns that (true for a valid
         // EOA signature, otherwise false). So in production an outage currently reads
-        // as BAD_SIGNATURE, not 502. This branch is for clients that do throw —
+        // as BAD_SIGNATURE if both providers fail. This branch is for clients that throw:
         // FakeChain.failReads, or a future viem version or verification mode that stops
         // swallowing — and when it fires it is the fail-closed 502 path. Anything else
         // is a signature that does not verify (malformed bytes, wrong length).
@@ -293,7 +323,7 @@ export const createViemChain = (
           error instanceof TimeoutError ||
           error instanceof RpcRequestError
         ) {
-          throw new ChainError(error.message)
+          throw new ChainError(error.name)
         }
         return false
       }

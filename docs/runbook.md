@@ -114,7 +114,7 @@ Set secrets from `apps/api/targets/develop` with `void secret put <NAME>` (use `
 
 - `SIGNER_PRIVATE_KEY` — the issuer's EOA private key.
 - `ADMIN_TOKEN` — **required whenever a chain binding is set.** With `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL` configured and no `ADMIN_TOKEN`, the api locks every admin route (`401 unauthorized`) and every response carries `x-auth-mode: locked`. This is deliberate fail-closed behavior, not a misconfiguration to work around.
-- `BASE_RPC_URL` — Base Sepolia RPC endpoint.
+- `BASE_RPC_URL` is the preferred Base Sepolia RPC endpoint. The API tries `https://sepolia.base.org` after a provider failure, even while this secret is set. Leave it unset or set it to that public URL to use one transport.
 - `ENS_GATEWAY_SIGNER_KEY` — dedicated 32-byte ECDSA private key that signs gateway responses. Do not reuse `SIGNER_PRIVATE_KEY` or the ENS parent key.
 - `ENS_GATEWAY_SECRET` — separate 32-byte HMAC key used to derive deterministic one-time +Private destinations.
 - `ENS_VOUCHER_KEY` — dedicated 32-byte ECDSA private key that signs claim and renew vouchers. It is the key the deployed registrar checks against, so it must be the same one `ens:topology:deploy` was given, and it must not be the gateway signer, the parent key, or `SIGNER_PRIVATE_KEY`.
@@ -139,6 +139,18 @@ One Turnstile widget serves the claim, in the Cloudflare dashboard under Turnsti
 Cloudflare's documented test keys (site key `1x00000000000000000000AA`, secret `1x0000000000000000000000000000000AA`) always pass and are for local runs only. Never set them on a deployed api.
 
 See `apps/api/src/env.ts` for the full binding list and `apps/api/README.md` for what each secret gates at the route level.
+
+### Base Sepolia provider outages
+
+The preferred endpoint stays first on every request. Each endpoint has a 1 s timeout with no HTTP or fallback retries. A dead preferred endpoint adds at most one configured second per RPC request before the public endpoint is tried. Both endpoints timing out takes two configured seconds per request. Gate scans make several requests, and transaction receipts are polled separately. The public endpoint can also be rate limited or unavailable.
+
+Contract reverts and rejected transactions stop immediately. Other provider errors try the next endpoint. If both providers fail, the existing gate failure rules still apply. Smart-account signature verification can report `BAD_SIGNATURE`; see [signature verification and RPC outages](specs/attestation-model.md#gate-verification-order-and-reasons).
+
+Writes are signed locally once. Failover sends the same raw transaction, hash, and nonce to the public endpoint. If the first endpoint accepted it but lost the response, the second might report already-known or nonce-too-low. Before repeating an issuance after an uncertain result, reconcile the signer's transactions and EAS events with the member row. A repeated API issuance can sign a new transaction. Offchain revocation and root chores already read chain state before retrying.
+
+Chain errors retain the viem error class name but omit provider messages, URLs, request details, and causes. Do not print `BASE_RPC_URL` in diagnostics or paste it into an issue. It can contain an API key. Admin lock behavior and local fake-chain selection still treat a configured `BASE_RPC_URL` as a chain binding. ENS uses its separate Ethereum Sepolia client.
+
+After deploying, the owner must simulate the paid provider being unavailable on the deployed Worker. Check a gate scan and smart-account signature, restore the provider, and confirm it is preferred again. Also check a normal issuance or revocation, confirm a rejected contract call stays rejected, and inspect Worker logs for credential leaks. Local HTTP tests do not establish deployed-provider behavior.
 
 ## 4. Google Wallet setup
 

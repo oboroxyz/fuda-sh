@@ -90,7 +90,7 @@ The values below are the implementation contract for the public MVP on Base Sepo
 | --- | --- |
 | EAS | `0x4200000000000000000000000000000000000021` |
 | SchemaRegistry | `0x4200000000000000000000000000000000000020` |
-| Chain / RPC | Base Sepolia; `BASE_RPC_URL` secret, fallback `https://sepolia.base.org` |
+| Chain / RPC | Base Sepolia; `BASE_RPC_URL` first, then `https://sepolia.base.org` on provider failure. One public transport when unset or equal. Each endpoint has a 1 s timeout and no retries; endpoint order is fixed. |
 | ERC-5564 Announcer | `0x55649E01B5Df198D18D95b5cc5051630cfD45564` (`ANNOUNCER_ADDRESS`); indexed by the rights subgraph from its configured start block |
 | Coinbase Smart Wallet factory | `0x0BA5ED0c6AA8c49038F819E587E2633c4A9F428a` (`FACTORY_ADDRESS`); derives the counterfactual claimable-smart-account address for Bearer holders |
 
@@ -160,7 +160,7 @@ Attested with `recipient = holder` and `refUID = rightUID`.
 | `API_BASE_URL` | `apps/api/targets.jsonc` `vars` | Absolute base for the `passUrls` in `/issue` responses; its origin is the api entry in the Google Wallet `origins` claim, which also lists `https://dash.fuda.sh` and `https://app.fuda.sh` |
 | Signer key (`SIGNER_PRIVATE_KEY`) | Worker secret | Signs Entitlement, IssuerDelegation, and Attendance transactions and offchain attestations; endpoints answer `501 no_signer` without |
 | `ADMIN_TOKEN` | Worker secret | Bearer token for `/issue`, `/revoke`, `/members`. Required whenever a chain binding is configured: with `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL` set and no token the admin routes answer `401 unauthorized` and every response carries `x-auth-mode: locked`; with no token and neither binding (local dev) they are open and responses carry `x-auth-mode: open` |
-| `BASE_RPC_URL` | Worker secret | Base Sepolia RPC; falls back to the public endpoint |
+| `BASE_RPC_URL` | Worker secret | Preferred Base Sepolia RPC for reads and locally signed transaction broadcasts; provider failures fall back to the public endpoint. Contract reverts do not fail over. URLs and provider error details are excluded from chain errors that callers log. |
 | `GOOGLE_ISSUER_ID`, `GOOGLE_CLASS_ID`, `GOOGLE_SA_EMAIL`, `GOOGLE_SA_KEY_PEM` | Worker secrets | Google Wallet; all four or `GET /pass/:uid/google` answers `501 google_not_configured` |
 | `APPLE_PASS_TYPE_ID`, `APPLE_TEAM_ID`, `APPLE_CERT_PEM`, `APPLE_KEY_PEM`, `APPLE_WWDR_PEM` | Worker secrets | Apple Wallet; all five or `GET /pass/:uid/apple.pkpass` answers `501 apple_not_configured` |
 | `APPLE_WEB_SERVICE_SECRET` | Worker secret | Derives each pass's `authenticationToken`. Unset, installed Apple passes stay snapshots and `/apple/v1/*` answers `501 apple_not_configured` |
@@ -386,7 +386,11 @@ All three `passUrls` are absolute against `API_BASE_URL` and always present, eve
 
 **+Private privacy boundary.** Unlinkability holds against chain observers, not against the issuer: the issuer attested the right, chose the stealth address at issue time, and its own `members` row may carry the representative `member_id` next to the uid, so it can join member id, uid, and stealth address. The gate additionally learns which right entered from the stealth-key signature.
 
-**Signature verification and RPC outages.** `POST /verify-signed` verifies possession through viem's `publicClient.verifyMessage`, which covers EOAs (ecrecover), deployed smart accounts (ERC-1271) and undeployed ones (ERC-6492) in one call. viem folds a transport error during the ERC-1271/6492 path into a `false` result, so an RPC outage surfaces as `BAD_SIGNATURE` (fail closed) rather than `502`; the burned challenge is cheap to re-mint. The api's wrapper keeps a fail-closed branch for a client that does throw — an `HttpRequestError`, `TimeoutError` or `RpcRequestError` becomes a `ChainError` and a `502` — so a viem version that stops swallowing transport failures changes the status, not the safety. Re-test this behaviour on every viem major bump.
+**Signature verification and RPC outages.** `POST /verify-signed` verifies possession through viem's `publicClient.verifyMessage`, which covers EOAs, deployed smart accounts (ERC-1271), and undeployed ones (ERC-6492). A failed primary RPC request tries the public endpoint before viem decides the signature verdict. If both endpoints fail, viem 2.56.3 folds the ERC-1271/6492 transport failure into `false`, so smart-account verification still answers `BAD_SIGNATURE` rather than `502`. A valid EOA signature can still pass through local ECDSA recovery. The burned challenge can be re-minted. If a client does throw `HttpRequestError`, `TimeoutError`, or `RpcRequestError`, the wrapper converts it to `ChainError` and the endpoint answers `502`. Re-test this behavior on every viem major bump.
+
+**RPC failover.** Reads, signature checks, transaction preparation, raw transaction broadcasts, and receipt reads use the same ordered transports. A silent primary adds at most its configured 1 s timeout per RPC request before the public endpoint is tried. Both endpoints timing out takes two configured seconds per request. A gate scan can make several requests, and receipt polling has its own wait period. HTTP failures, timeouts, and RPC errors try the next endpoint unless viem classifies them as execution reverts, transaction rejections, user rejections, or WalletConnect settlement failures. RPC code `3` also stops immediately, even without viem's recognized revert wording.
+
+Writes use a local private-key account with viem's shared nonce manager. viem prepares and signs once, then failover rebroadcasts the identical serialized transaction with the same hash and nonce. This cannot execute a second transaction. Acceptance followed by a lost response can still produce an already-known or nonce-too-low error from the second provider. A failed call therefore does not prove that the transaction was rejected. No new transaction is signed by transport failover.
 
 ### D1 tables that mirror or extend attestations
 
