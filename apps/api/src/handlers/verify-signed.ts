@@ -1,11 +1,14 @@
 import { challengeMessage, isUid, normalizeNonce, normalizeUid, VerifySignedBody } from '@fuda/sdk'
-import type { VerifySignedResponse } from '@fuda/sdk'
+import type { VerifySignedRequest, VerifySignedResponse } from '@fuda/sdk'
+import type { Context } from 'hono'
 import * as v from 'valibot'
 import type { Hex } from 'viem'
 import { defineHandler } from 'void'
 
 import { relyingParty, verifyGateAssertion } from '../auth/member-passkey.ts'
 import { ChainError } from '../chain/client.ts'
+import type { AttestedPasskey } from '../eas/offchain.ts'
+import type { AppEnv } from '../env.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { admitAndHook, logEntry } from '../verify/admit.ts'
 import { consumeChallenge } from '../verify/challenge.ts'
@@ -26,6 +29,26 @@ const UidOnly = v.object({ uid: v.string() })
 // errors are not logged. A chain failure during the signature check answers 502
 // after the challenge was consumed — the member simply fetches a new one (they
 // are 300 s, free, and cost nothing to mint).
+const proofHolds = async (
+  c: Context<AppEnv>,
+  proof: VerifySignedRequest,
+  right: { holder: Hex; message: string; passkey: AttestedPasskey | null },
+): Promise<boolean> => {
+  const { holder, message, passkey } = right
+  if ('webauthn' in proof) {
+    return (
+      passkey !== null && (await verifyGateAssertion(relyingParty(c.env), passkey, message, proof.webauthn))
+    )
+  }
+  if (passkey !== null) {
+    return false
+  }
+  // Annotated (not cast): SIGNATURE_RE guarantees the 0x prefix, so the template
+  // literal narrows to Hex. Case is preserved — a signature is opaque bytes.
+  const signature: Hex = `0x${proof.signature.slice(2)}`
+  return await c.get('chain').verifyMessage({ address: holder, message, signature })
+}
+
 export const postV1VerifySigned = defineHandler(async (c) => {
   const body: unknown = await c.req.json().catch(() => null)
   const parsed = v.safeParse(VerifySignedBody, body)
@@ -85,20 +108,13 @@ export const postV1VerifySigned = defineHandler(async (c) => {
       stage: 'challenge',
     })
   }
-  const proof = parsed.output
-  const message = challengeMessage(uid, nonce)
-  const passkey = out.passkey ?? null
-  let valid = false
+  let valid: boolean
   try {
-    if ('webauthn' in proof) {
-      valid =
-        passkey !== null && (await verifyGateAssertion(relyingParty(c.env), passkey, message, proof.webauthn))
-    } else if (passkey === null) {
-      // Annotated (not cast): SIGNATURE_RE guarantees the 0x prefix, so the template
-      // literal narrows to Hex. Case is preserved — a signature is opaque bytes.
-      const signature: Hex = `0x${proof.signature.slice(2)}`
-      valid = await c.get('chain').verifyMessage({ address: holder, message, signature })
-    }
+    valid = await proofHolds(c, parsed.output, {
+      holder,
+      message: challengeMessage(uid, nonce),
+      passkey: out.passkey ?? null,
+    })
   } catch (error) {
     if (error instanceof ChainError) {
       // The challenge is already consumed and stays consumed: this is not a

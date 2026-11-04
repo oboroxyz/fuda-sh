@@ -35,14 +35,12 @@ const ClaimBody = v.object({ source: ClaimSource })
 // ends a session on any 401 it forwards.
 const passkeyClaimant = async (
   c: Context<AppEnv>,
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the request body, parsed by the schema below
-  raw: unknown,
+  body: v.SafeParseResult<typeof PasskeyClaimBody>,
 ): Promise<{ ok: true; claimant: PasskeyClaimant } | { ok: false; res: Response }> => {
   const session = await bearerSession(c, 'member')
   if (session.kind !== 'valid' || session.session.accountId === null) {
     return { ok: false, res: errorResponse(c, 'unauthorized', 401) }
   }
-  const body = v.safeParse(PasskeyClaimBody, raw)
   if (!body.success) {
     return { ok: false, res: errorResponse(c, 'bad_input', 400) }
   }
@@ -77,7 +75,8 @@ export const postV1IssuersHandleSlugIssue = defineHandler(
     }
     const raw: unknown = await c.req.json().catch(() => null)
     const body = v.safeParse(ClaimBody, raw)
-    const claim = card.identity === 'passkey' ? await passkeyClaimant(c, raw) : null
+    const claim =
+      card.identity === 'passkey' ? await passkeyClaimant(c, v.safeParse(PasskeyClaimBody, raw)) : null
     if (claim !== null && !claim.ok) {
       return claim.res
     }

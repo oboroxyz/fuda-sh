@@ -32,8 +32,20 @@ export interface SignedGateScreenIo extends PasskeyGateIo {
   preview: (uid: Hex) => Promise<Result<VerifyResponse>>
 }
 
+// The browser will not say whether the prompt was dismissed or this device lacks the
+// passkey, and its own text is written for developers.
+const PASSKEY_NOT_USED = 'The passkey for this pass was not used. Try again on a device that has it.'
+
+const assertPasskey: SignedGateScreenIo['assert'] = async (options) => {
+  try {
+    return await startAuthentication({ optionsJSON: options })
+  } catch {
+    throw new Error(PASSKEY_NOT_USED)
+  }
+}
+
 const defaultIo: SignedGateScreenIo = {
-  assert: async (options) => await startAuthentication({ optionsJSON: options }),
+  assert: assertPasskey,
   challenge,
   preview: verifyUid,
   verify: verifySigned,

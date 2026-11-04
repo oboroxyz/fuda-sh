@@ -1,9 +1,11 @@
 import { isoBase64URL } from '@simplewebauthn/server/helpers'
 import * as v from 'valibot'
 import {
+  bytesToHex,
   decodeAbiParameters,
   encodeAbiParameters,
   encodePacked,
+  hexToBytes,
   isHex,
   keccak256,
   parseAbiParameters,
@@ -13,7 +15,6 @@ import {
 } from 'viem'
 import type { Hex } from 'viem'
 
-import { bytesOfHex, toHex } from '../hex.ts'
 import { schemaUid } from './schemas.ts'
 
 // docs/specs/attestation-model.md#offchain-rights. The schema needs no entry in
@@ -68,17 +69,14 @@ export interface AttestedPasskey {
 const HOLDER_KEY_PARAMS = parseAbiParameters('bytes credentialId, bytes publicKey')
 
 export const encodeHolderKey = (key: AttestedPasskey): Hex =>
-  encodeAbiParameters(HOLDER_KEY_PARAMS, [
-    `0x${toHex(isoBase64URL.toBuffer(key.credentialId))}`,
-    key.publicKey,
-  ])
+  encodeAbiParameters(HOLDER_KEY_PARAMS, [bytesToHex(isoBase64URL.toBuffer(key.credentialId)), key.publicKey])
 
 // null for a Bearer pass's empty key, and for one that does not decode, which then
 // matches no assertion.
 export const decodeHolderKey = (holderKey: Hex): AttestedPasskey | null => {
   try {
     const [credentialId, publicKey] = decodeAbiParameters(HOLDER_KEY_PARAMS, holderKey)
-    return { credentialId: isoBase64URL.fromBuffer(bytesOfHex(credentialId.slice(2))), publicKey }
+    return { credentialId: isoBase64URL.fromBuffer(new Uint8Array(hexToBytes(credentialId))), publicKey }
   } catch {
     return null
   }

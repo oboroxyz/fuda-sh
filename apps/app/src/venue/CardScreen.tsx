@@ -272,6 +272,19 @@ const passAction = (
   )
 }
 
+const backupLink = (issued: IssuedCard, hint: string, copy: VenueCopy): JSX.Element => (
+  <>
+    <a
+      class="link mx-auto text-sm"
+      download={`fuda-pass-${issued.uid.slice(2, 10)}.json`}
+      href={passBackupHref(issued.uid)}
+    >
+      {copy.saveBackup}
+    </a>
+    <p class="mx-auto max-w-64 text-center text-xs leading-5 text-[var(--fuda-muted)]">{hint}</p>
+  </>
+)
+
 const passActions = (
   card: PublicCard,
   issued: IssuedCard,
@@ -285,16 +298,7 @@ const passActions = (
     <p class="mx-auto max-w-64 text-center text-xs leading-5 text-[var(--fuda-muted)]">
       {copy.savedOnDevice(nounOf(card, copy))}
     </p>
-    <a
-      class="link mx-auto text-sm"
-      download={`fuda-pass-${issued.uid.slice(2, 10)}.json`}
-      href={passBackupHref(issued.uid)}
-    >
-      {copy.saveBackup}
-    </a>
-    <p class="mx-auto max-w-64 text-center text-xs leading-5 text-[var(--fuda-muted)]">
-      {copy.saveBackupHint}
-    </p>
+    {backupLink(issued, copy.saveBackupHint, copy)}
   </div>
 )
 
@@ -312,16 +316,7 @@ const passkeyEntry = (card: PublicCard, issued: IssuedCard, copy: VenueCopy): JS
     <p class="mx-auto max-w-64 text-center text-xs leading-5 text-[var(--fuda-muted)]">
       {copy.keptOnAccount(nounOf(card, copy))}
     </p>
-    <a
-      class="link mx-auto text-sm"
-      download={`fuda-pass-${issued.uid.slice(2, 10)}.json`}
-      href={passBackupHref(issued.uid)}
-    >
-      {copy.saveBackup}
-    </a>
-    <p class="mx-auto max-w-64 text-center text-xs leading-5 text-[var(--fuda-muted)]">
-      {copy.passkeyBackupHint}
-    </p>
+    {backupLink(issued, copy.passkeyBackupHint, copy)}
   </div>
 )
 
@@ -460,6 +455,80 @@ const qrBlock = (card: PublicCard, issued: IssuedCard, copy: VenueCopy): JSX.Ele
   </div>
 )
 
+const readyScreen = (
+  state: Extract<CardScreenState, { kind: 'ready' }>,
+  copy: VenueCopy,
+  locale: Locale,
+  onVerifyHuman: () => void,
+): JSX.Element => (
+  <>
+    <section class="venue-held-card">
+      {memberCard(state.card, state.issued, copy, locale)}
+      {isPasskeyCard(state.card) ? null : qrBlock(state.card, state.issued, copy)}
+    </section>
+    {isPasskeyCard(state.card)
+      ? passkeyEntry(state.card, state.issued, copy)
+      : passActions(state.card, state.issued, state.googleHref, state.appleHref, copy, locale)}
+    {humanBadgeControl(state.badge, onVerifyHuman, copy)}
+  </>
+)
+
+const landingScreen = (
+  state: Extract<CardScreenState, { kind: 'issuing' | 'landing' }>,
+  copy: VenueCopy,
+  onIssue: () => void,
+  signedIn: boolean,
+): JSX.Element => {
+  const busy = state.kind === 'issuing'
+  // A card outside its claim window would only earn a 409, so the screen says
+  // so instead of offering a button that cannot work.
+  if (!state.card.card.claimable) {
+    return (
+      <>
+        {landingCard(state.card)}
+        {cardDescription(state.card)}
+        <p role="status" class="text-center text-sm opacity-70">
+          {copy.closedCard(state.card.name, nounOf(state.card, copy))}
+        </p>
+        <a class="btn" href={venueHref(state.card.handle)}>
+          {copy.seeAllCards(state.card.name)}
+        </a>
+      </>
+    )
+  }
+  if (isPasskeyCard(state.card)) {
+    return (
+      <>
+        {landingCard(state.card)}
+        {cardDescription(state.card)}
+        {passkeyClaim(state.card, signedIn, busy, onIssue, copy)}
+      </>
+    )
+  }
+  return (
+    <>
+      {landingCard(state.card)}
+      {cardDescription(state.card)}
+      <div class="venue-primary">
+        <button
+          class="btn btn-primary w-full"
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            onIssue()
+          }}
+        >
+          {busy ? <span class="loading loading-spinner loading-xs" aria-hidden="true" /> : <CardsThree />}
+          {busy ? copy.gettingCard : copy.getFreeCard(nounOf(state.card, copy))}
+        </button>
+        <p role="status" aria-live="polite" class="text-center text-xs opacity-70">
+          {busy ? copy.keepOpen : copy.noSignUp}
+        </p>
+      </div>
+    </>
+  )
+}
+
 // One screen per state. Nothing here takes typing, so rebuilding the screen on
 // a state change loses no input.
 const screenOf = (
@@ -518,67 +587,9 @@ const screenOf = (
     )
   }
   if (state.kind === 'ready') {
-    return (
-      <>
-        <section class="venue-held-card">
-          {memberCard(state.card, state.issued, copy, locale)}
-          {isPasskeyCard(state.card) ? null : qrBlock(state.card, state.issued, copy)}
-        </section>
-        {isPasskeyCard(state.card)
-          ? passkeyEntry(state.card, state.issued, copy)
-          : passActions(state.card, state.issued, state.googleHref, state.appleHref, copy, locale)}
-        {humanBadgeControl(state.badge, onVerifyHuman, copy)}
-      </>
-    )
+    return readyScreen(state, copy, locale, onVerifyHuman)
   }
-  const busy = state.kind === 'issuing'
-  // A card outside its claim window would only earn a 409, so the screen says
-  // so instead of offering a button that cannot work.
-  if (!state.card.card.claimable) {
-    return (
-      <>
-        {landingCard(state.card)}
-        {cardDescription(state.card)}
-        <p role="status" class="text-center text-sm opacity-70">
-          {copy.closedCard(state.card.name, nounOf(state.card, copy))}
-        </p>
-        <a class="btn" href={venueHref(state.card.handle)}>
-          {copy.seeAllCards(state.card.name)}
-        </a>
-      </>
-    )
-  }
-  if (isPasskeyCard(state.card)) {
-    return (
-      <>
-        {landingCard(state.card)}
-        {cardDescription(state.card)}
-        {passkeyClaim(state.card, signedIn, busy, onIssue, copy)}
-      </>
-    )
-  }
-  return (
-    <>
-      {landingCard(state.card)}
-      {cardDescription(state.card)}
-      <div class="venue-primary">
-        <button
-          class="btn btn-primary w-full"
-          type="button"
-          disabled={busy}
-          onClick={() => {
-            onIssue()
-          }}
-        >
-          {busy ? <span class="loading loading-spinner loading-xs" aria-hidden="true" /> : <CardsThree />}
-          {busy ? copy.gettingCard : copy.getFreeCard(nounOf(state.card, copy))}
-        </button>
-        <p role="status" aria-live="polite" class="text-center text-xs opacity-70">
-          {busy ? copy.keepOpen : copy.noSignUp}
-        </p>
-      </div>
-    </>
-  )
+  return landingScreen(state, copy, onIssue, signedIn)
 }
 
 export const CardScreenView = (props: CardScreenViewProps): JSX.Element => (

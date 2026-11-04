@@ -19,7 +19,7 @@ import type { Db } from '../db/client.ts'
 import { accounts, passkeyChallenges, passkeys } from '../db/schema.ts'
 import type { AttestedPasskey } from '../eas/offchain.ts'
 import type { Bindings } from '../env.ts'
-import { bytesOfHex, toHex } from '../hex.ts'
+import { toHex } from '../hex.ts'
 
 const CHALLENGE_TTL_SECONDS = 300
 const ES256 = -7
@@ -36,6 +36,9 @@ export const relyingParty = (env: Pick<Bindings, 'WEBAUTHN_ORIGINS' | 'WEBAUTHN_
   id: env.WEBAUTHN_RP_ID,
   origins: env.WEBAUTHN_ORIGINS.split(',').map((origin) => origin.trim()),
 })
+
+const bytesOfHex = (hex: string): Uint8Array<ArrayBuffer> =>
+  Uint8Array.from(hex.match(/../gu) ?? [], (pair) => Number.parseInt(pair, 16))
 
 const storeChallenge = async (
   db: Db,

@@ -146,6 +146,21 @@ describe('identified passes', () => {
       expect(res.status).toBe(400)
     })
 
+    it('is refused by the database on an on-chain card too', async () => {
+      const { app, bindings, operator } = await setup()
+      const made = await postJson(
+        app,
+        bindings,
+        '/v1/issuers/cards',
+        { ...CARD_INPUT.card, record: 'onchain', slug: 'public' },
+        operator,
+      )
+      expect(made.status).toBe(201)
+      await expect(
+        env.DB.prepare("UPDATE cards SET identity = 'passkey' WHERE slug = 'public'").run(),
+      ).rejects.toThrow(/CHECK constraint/u)
+    })
+
     it('tells a member page and defaults to none', async () => {
       const { app, bindings, operator } = await setup()
       const made = await postJson(
