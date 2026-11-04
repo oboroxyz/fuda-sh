@@ -128,6 +128,7 @@ export const loadPassRow = async (c: Context<AppEnv>, rawUid: string): Promise<P
       holder: row.holder === null ? null : asHex(row.holder, 20),
       level: row.level,
       logoPrefix,
+      revoked: row.status === 'revoked',
       tier: row.tier,
       uid,
     },

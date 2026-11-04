@@ -15,6 +15,7 @@ import {
 } from '../media/logo.ts'
 import { claimLogoUpload, readLogoObject, storeLogoSet } from '../media/store.ts'
 import { operatorAuth } from '../middleware/operator-auth.ts'
+import { notifyPassesChanged } from '../pass/notify.ts'
 
 const CommitBody = v.object({ logoUploadId: v.pipe(v.string(), v.minLength(1)) })
 
@@ -95,6 +96,7 @@ export const postV1IssuersLogoCommit = defineHandler(operatorAuth(), async (c) =
     return errorResponse(c, 'upload_not_found', 400)
   }
   await db.update(issuers).set({ logoPrefix: prefix }).where(eq(issuers.id, issuerId))
+  notifyPassesChanged(c, { issuerId })
   const row = await db.select().from(issuers).where(eq(issuers.id, issuerId)).get()
   return row === undefined
     ? errorResponse(c, 'not_found', 404)

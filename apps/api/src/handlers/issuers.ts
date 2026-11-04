@@ -33,6 +33,7 @@ import { issuersOwnedBy, ownedVenue, venueOf } from '../issuers/queries.ts'
 import { cardView, issuerSummary, issuerView, publicUrlFor, publicVenue } from '../issuers/views.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { operatorAuth } from '../middleware/operator-auth.ts'
+import { notifyPassesChanged } from '../pass/notify.ts'
 
 // The venue's ENS name as the dashboard needs it: what it is called, and whether
 // the chain has confirmed the claim. A signed-but-unused voucher reads as
@@ -138,9 +139,11 @@ export const putV1IssuersMe = defineHandler(operatorAuth(), async (c) => {
     .where(eq(issuers.id, issuerId))
     .returning()
     .get()
-  return updated === undefined
-    ? errorResponse(c, 'not_found', 404)
-    : jsonResponse(c, { issuer: issuerView(updated, c.env.API_BASE_URL) })
+  if (updated === undefined) {
+    return errorResponse(c, 'not_found', 404)
+  }
+  notifyPassesChanged(c, { issuerId })
+  return jsonResponse(c, { issuer: issuerView(updated, c.env.API_BASE_URL) })
 })
 
 export const putV1IssuersMeDefaultCard = defineHandler(

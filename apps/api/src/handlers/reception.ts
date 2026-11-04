@@ -7,7 +7,7 @@ import { members } from '../db/schema.ts'
 import { ownedCard } from '../issuers/owned-card.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { operatorAuth } from '../middleware/operator-auth.ts'
-import { scheduleStampPassUpdate } from '../pass/stamp-update.ts'
+import { notifyPassChanged, notifyPassesChanged } from '../pass/notify.ts'
 import { readReception, recordReception } from '../stamps/reception-store.ts'
 import { readStampSettings, readStampSummary } from '../stamps/store.ts'
 import { notifyAdmission } from '../verify/admit.ts'
@@ -56,6 +56,7 @@ export const putV1IssuersMeCardsCardIdStamps = defineHandler(operatorAuth(), asy
   if (saved === null) {
     return errorResponse(c, 'stamps_not_supported', 409)
   }
+  notifyPassesChanged(c, { cardId: saved.cardId })
   return jsonResponse(c, parsed.output)
 })
 
@@ -101,7 +102,7 @@ export const postV1IssuersMeReception = defineHandler(operatorAuth(), async (c) 
       return errorResponse(c, 'bad_input', 409)
     }
     if (previous.response.decision === 'ADMIT') {
-      scheduleStampPassUpdate(c, uid)
+      notifyPassChanged(c, uid)
     }
     return jsonResponse(c, previous.response)
   }
@@ -138,7 +139,7 @@ export const postV1IssuersMeReception = defineHandler(operatorAuth(), async (c) 
         receipt.entryLogId,
       )
     }
-    scheduleStampPassUpdate(c, uid)
+    notifyPassChanged(c, uid)
   }
   return jsonResponse(c, receipt.response)
 })

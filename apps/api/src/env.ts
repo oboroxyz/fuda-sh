@@ -4,6 +4,7 @@ import type { MemberSession, OperatorSession } from './auth/session.ts'
 import type { ChainClient } from './chain/client.ts'
 import type { AccessGrant } from './connected-apps/store.ts'
 import type { Db } from './db/client.ts'
+import type { ApplePushSender } from './pass/apple-push.ts'
 import type { AdmitHook } from './verify/admit.ts'
 
 export interface Bindings {
@@ -80,6 +81,8 @@ export interface Variables {
   // The venue a request is acting for, or null for fuda's own admin token.
   // Set by operatorOrAdmin() on the routes that serve both.
   actingIssuer: string | null
+  // null without the APPLE_PUSH_CERT binding: nothing is pushed
+  applePush: ApplePushSender | null
   chain: ChainClient
   // set by connectedAppAuth(): the approval behind a connected app's access
   // token, bound to one issuer (docs/specs/connected-apps.md)

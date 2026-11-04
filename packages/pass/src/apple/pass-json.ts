@@ -44,11 +44,19 @@ export interface ApplePassInput {
   // the venue's card, when the right was issued under one
   branding?: PassBranding | null
   stamps?: StampSummary | null
-  // the badges on the right when the .pkpass is generated. A pass cannot be
-  // pushed an update (no webServiceURL, no APNs), so this snapshot is how a
-  // member who badged first and added the pass afterwards sees it at all; a
-  // re-add replaces the installed pass, since the serial number is the uid.
+  // the badges on the right when the .pkpass is generated, so a member who badged
+  // first and added the pass afterwards sees it at once
   badges?: readonly BadgeView[] | null
+  revoked?: boolean
+  // where Wallet asks for updates; without it the installed pass stays a snapshot, and
+  // a re-add replaces it, since the serial number is the uid
+  webService?: AppleWebServiceFields | null
+}
+
+export interface AppleWebServiceFields {
+  // Apple never lets an update change this, so it must stay derivable for the life of a pass
+  authenticationToken: string
+  url: string
 }
 
 interface PassField {
@@ -56,6 +64,8 @@ interface PassField {
   // Wallet renders a small subset of HTML here and makes an anchor tappable;
   // `value` stays the plain text a client without it falls back to.
   attributedValue?: string
+  // the alert Wallet shows when this value changes; without it the pass updates silently
+  changeMessage?: string
   // omitted (not empty) for a value that stands on its own, such as the card title
   label?: string
   value: string
@@ -66,6 +76,7 @@ interface PassField {
 }
 
 export interface PassJson {
+  authenticationToken?: string
   formatVersion: number
   passTypeIdentifier: string
   teamIdentifier: string
@@ -77,6 +88,8 @@ export interface PassJson {
   labelColor: string
   // beside the logo; the venue name on a branded pass
   logoText?: string
+  voided?: boolean
+  webServiceURL?: string
   barcodes: { format: string; message: string; messageEncoding: string }[]
   locations?: { latitude: number; longitude: number; relevantText: string }[]
   storeCard: {
@@ -109,10 +122,54 @@ const manageFields = (manageUrl: string | null | undefined): PassField[] =>
 // a pass must carry neither.
 const badgeFields = (badges: readonly BadgeView[] | null | undefined): PassField[] =>
   (badges ?? []).map((badge) => ({
+    changeMessage: 'Badge: %@',
     key: `badge-${badge.kind}`,
     label: 'BADGE',
     value: BADGE_LABELS[badge.kind],
   }))
+
+const stampField = ({ goal, total }: StampSummary): PassField => ({
+  changeMessage: 'Stamps: %@',
+  key: 'stamps',
+  label: 'STAMPS',
+  value: `${total} / ${goal}`,
+})
+
+const NOT_VALID = 'No longer valid'
+
+// On the front, because a member looks there first. Only there once revoked: Wallet
+// notifies on a change to a value, which is what the back field below is for.
+const revokedFields = (input: ApplePassInput): PassField[] =>
+  input.revoked === true ? [{ key: 'revoked', label: 'STATUS', value: NOT_VALID }] : []
+
+// A pass that can be updated carries this from the start, so that a revocation changes a
+// value Wallet already knows and can announce. A snapshot could only ever go stale saying
+// "Valid", so it carries the field only once it has something true to say.
+const statusFields = (input: ApplePassInput): PassField[] => {
+  const revoked = input.revoked === true
+  return revoked || (input.webService ?? null) !== null
+    ? [
+        {
+          changeMessage: 'Status: %@',
+          key: 'status',
+          label: 'Status',
+          value: revoked ? NOT_VALID : 'Valid',
+        },
+      ]
+    : []
+}
+
+const webServiceOf = (
+  service: AppleWebServiceFields | null | undefined,
+): Pick<PassJson, 'authenticationToken' | 'webServiceURL'> =>
+  service === null || service === undefined
+    ? {}
+    : { authenticationToken: service.authenticationToken, webServiceURL: service.url }
+
+// Apple's own mark of a pass that no longer applies. Absent rather than false on a valid
+// pass, the shape every pass had before.
+const voidedOf = (revoked: boolean | undefined): Pick<PassJson, 'voided'> =>
+  revoked === true ? { voided: true } : {}
 
 // Omitted rather than sent empty: the shape the stamps path already produced,
 // and the one the tests pin. What Wallet does with an empty array is untested.
@@ -132,12 +189,14 @@ export const passJson = (cfg: AppleConfig, input: ApplePassInput): PassJson => {
     passTypeIdentifier: cfg.passTypeId,
     serialNumber: input.uid,
     teamIdentifier: cfg.teamId,
+    ...webServiceOf(input.webService),
+    ...voidedOf(input.revoked),
   }
   if (branding === null) {
     const stamps = input.stamps?.enabled === true ? input.stamps : null
     // The plain fuda look has no auxiliary row of its own, so a badge is the
     // only thing that can put one there.
-    const auxiliary = auxiliaryOf(badgeFields(input.badges))
+    const auxiliary = auxiliaryOf([...revokedFields(input), ...badgeFields(input.badges)])
     return {
       ...base,
       backgroundColor: 'rgb(20,20,20)',
@@ -147,11 +206,11 @@ export const passJson = (cfg: AppleConfig, input: ApplePassInput): PassJson => {
       organizationName: 'fuda',
       storeCard: {
         ...auxiliary,
-        backFields: [{ key: 'uid', label: 'Attestation', value: input.uid }],
+        backFields: [...statusFields(input), { key: 'uid', label: 'Attestation', value: input.uid }],
         primaryFields:
           stamps === null
             ? [{ key: 'tier', label: 'TIER', value: input.tierLabel }]
-            : [{ key: 'stamps', label: 'STAMPS', value: `${stamps.total} / ${stamps.goal}` }],
+            : [stampField(stamps)],
         secondaryFields:
           stamps === null
             ? [{ key: 'member', label: 'MEMBER', value: input.holderShort }]
@@ -183,9 +242,8 @@ export const passJson = (cfg: AppleConfig, input: ApplePassInput): PassJson => {
             },
           ],
         }
-  const stampFields: PassField[] =
-    stamps === null ? [] : [{ key: 'stamps', label: 'STAMPS', value: `${stamps.total} / ${stamps.goal}` }]
-  const auxiliary = auxiliaryOf([...stampFields, ...badgeFields(input.badges)])
+  const stampFields: PassField[] = stamps === null ? [] : [stampField(stamps)]
+  const auxiliary = auxiliaryOf([...revokedFields(input), ...stampFields, ...badgeFields(input.badges)])
   return {
     ...base,
     ...locations,
@@ -198,6 +256,7 @@ export const passJson = (cfg: AppleConfig, input: ApplePassInput): PassJson => {
     storeCard: {
       ...auxiliary,
       backFields: [
+        ...statusFields(input),
         { key: 'tier', label: 'Tier', value: input.tierLabel },
         { key: 'holder', label: 'Holder', value: input.holderShort },
         { key: 'uid', label: 'Attestation', value: input.uid },
