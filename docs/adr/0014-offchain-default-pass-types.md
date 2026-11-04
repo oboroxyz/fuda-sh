@@ -54,7 +54,11 @@ Identified attests the passkey's public key in the pass data and leaves `recipie
 
 Sensitive use attests a key unique to the pass. Those keys derive by HKDF from a random member secret wrapped by each passkey's PRF. A second passkey can be added by wrapping the same secret, so losing one passkey does not change the keys. Smart wallets do not provide this separation: an undeployed wallet's signature contains the owner's public key, so per-venue wallets behind one passkey stay linkable.
 
-A member address is not created at issuance. When an integration needs one, it derives from the member secret, per venue by default. A stable address is used only when the member chooses it. Stealth addresses stay available as a way to receive value, not as a pass type.
+**A passkey without PRF.** Support depends on the passkey provider, and browsers report support regardless of it: Safari reported PRF while Bitwarden returned nothing. Enrollment therefore creates the passkey and checks the actual result. Without PRF, Sensitive use stops and tells the member how to save a passkey in a provider that supports it, such as iCloud Keychain or Google Password Manager, because the web cannot choose the provider. Enrollment records only counts of this outcome.
+
+**One passkey per card** is the fallback if this loses too many members, or if an adopting organization cannot use those providers. Each card would get its own discoverable passkey with a random user handle and a neutral name, and the pass would attest its public key. fuda would keep a map from credential ID to pass, not linked to a member account, so a new device restores cards one at a time through the system's passkey chooser. It works with any provider but adds a second recovery path, and the chooser for an unspecified login also lists card passkeys. Several passkeys on one RP ID have not been tested.
+
+A member address is not created at issuance. When an integration needs one, it derives from the member secret, per venue by default, so this needs PRF. A stable address is used only when the member chooses it. Stealth addresses stay available as a way to receive value, not as a pass type.
 
 ### 5. Issuing keys
 
