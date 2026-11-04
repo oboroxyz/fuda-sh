@@ -16,6 +16,8 @@ import type {
   MembersResponse,
   RevokeResponse,
   ReceptionResponse,
+  StampActionResponse,
+  StampLedger,
   StampSettings,
   SignInChallengeResponse,
   CardIntegrations,
@@ -102,6 +104,26 @@ export const updateCardIntegrations = async (
 export const receiveAtReception = async (qr: string, requestId: string): Promise<Result<ReceptionResponse>> =>
   await apiFetch<ReceptionResponse>(API_BASE_URL, '/issuers/me/reception', {
     body: JSON.stringify({ qr, requestId }),
+    method: 'POST',
+  })
+
+export const fetchStampLedger = async (uid: Hex): Promise<Result<StampLedger>> =>
+  await apiFetch<StampLedger>(API_BASE_URL, `/issuers/me/stamps/${uid}`, {})
+
+export const redeemStamps = async (uid: Hex, requestId: string): Promise<Result<StampActionResponse>> =>
+  await apiFetch<StampActionResponse>(API_BASE_URL, '/issuers/me/stamps/redeem', {
+    body: JSON.stringify({ requestId, uid }),
+    method: 'POST',
+  })
+
+export const adjustStamps = async (
+  uid: Hex,
+  delta: number,
+  note: string,
+  requestId: string,
+): Promise<Result<StampActionResponse>> =>
+  await apiFetch<StampActionResponse>(API_BASE_URL, '/issuers/me/stamps/adjust', {
+    body: JSON.stringify({ delta, note, requestId, uid }),
     method: 'POST',
   })
 

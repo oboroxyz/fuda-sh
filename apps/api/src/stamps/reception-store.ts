@@ -80,7 +80,8 @@ export const recordReception = async (binding: D1Database, db: Db, input: Recept
               'enabled', json(CASE WHEN COALESCE(s.enabled, 0) = 1 THEN 'true' ELSE 'false' END),
               'dailyLimit', COALESCE(s.daily_limit, 1),
               'goal', COALESCE(s.goal, 10),
-              'total', (SELECT COUNT(*) FROM stamp_credits WHERE issuer_id = ?2 AND uid = e.uid),
+              'total', (SELECT COUNT(*) FROM stamp_credits WHERE issuer_id = ?2 AND uid = e.uid)
+                + (SELECT COALESCE(SUM(delta), 0) FROM stamp_adjustments WHERE issuer_id = ?2 AND uid = e.uid),
               'today', (SELECT COUNT(*) FROM stamp_credits WHERE issuer_id = ?2 AND uid = e.uid AND day = ?4)
             ) END))
       FROM entry_log e

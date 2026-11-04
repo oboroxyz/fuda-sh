@@ -100,6 +100,7 @@ const responseStatus = async (pending: Promise<Response>): Promise<number> => {
 describe('venue reception stamps', () => {
   beforeEach(async () => {
     // Delete in dependency order; each fixture owns all rows in this test file.
+    await env.DB.prepare('DELETE FROM stamp_adjustments').run()
     await env.DB.prepare('DELETE FROM stamp_credits').run()
     await env.DB.prepare('DELETE FROM reception_requests').run()
     await env.DB.prepare('DELETE FROM card_stamp_settings').run()
