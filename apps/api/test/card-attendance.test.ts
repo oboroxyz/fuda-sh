@@ -25,7 +25,7 @@ const executionCtx = (kept: Promise<unknown>[]): ExecutionContext => {
   return ctx
 }
 
-const scan = async (uid: Hex): Promise<Promise<unknown>[]> => {
+const scan = async (uid: Hex): Promise<void> => {
   const kept: Promise<unknown>[] = []
   const scanner = appWith({
     chain,
@@ -44,7 +44,6 @@ const scan = async (uid: Hex): Promise<Promise<unknown>[]> => {
   )
   expect(res.status).toBe(200)
   await Promise.all(kept)
-  return kept
 }
 
 const attendances = (uid: Hex) =>
@@ -85,7 +84,11 @@ const createCard = async (
     token,
   )
 
-const put = async (token: string, id: string, body: Record<string, unknown>): Promise<Response> =>
+interface Edit {
+  attendance?: boolean
+}
+
+const put = async (token: string, id: string, body: EditRequest): Promise<Response> =>
   await app().request(
     `/v1/issuers/me/cards/${id}`,
     {
@@ -96,7 +99,13 @@ const put = async (token: string, id: string, body: Record<string, unknown>): Pr
     bindings,
   )
 
-const editBody = (card: OperatorCardView, extra: Record<string, unknown> = {}) => ({
+interface EditRequest extends Edit {
+  category: string
+  title: string
+  [field: string]: string | number | boolean | null | undefined
+}
+
+const editBody = (card: OperatorCardView, extra: Edit = {}): EditRequest => ({
   category: card.category,
   claimFrom: null,
   claimUntil: null,
@@ -111,7 +120,18 @@ const editBody = (card: OperatorCardView, extra: Record<string, unknown> = {}) =
 
 const cardIdOf = async (res: Response): Promise<string> => {
   expect(res.status).toBe(201)
-  return (await res.json<{ card: { id: string } }>()).card.id
+  const { card } = await res.json<{ card: { id: string } }>()
+  return card.id
+}
+
+const attendanceOf = async (res: Response): Promise<boolean> => {
+  const { card } = await res.json<{ card: OperatorCardView }>()
+  return card.attendance
+}
+
+const storedAttendance = async (id: string): Promise<number | undefined> => {
+  const rows = await db().select().from(cards)
+  return rows.find((r) => r.id === id)?.attendance
 }
 
 describe('Attendance per card', () => {
@@ -125,11 +145,11 @@ describe('Attendance per card', () => {
     await database.delete(cards)
     await database.delete(sessions)
     await database.delete(issuers)
-    chain.attestations.forEach((a, uid) => {
+    for (const [uid, a] of chain.attestations) {
       if (a.schema === ATT) {
         chain.attestations.delete(uid)
       }
-    })
+    }
     ;({ token } = await signIn(app(), bindings))
     await postJson(app(), bindings, '/v1/issuers', CARD_INPUT, token)
   })
@@ -139,9 +159,8 @@ describe('Attendance per card', () => {
     const membership = await cardIdOf(
       await createCard(token, { category: 'membership', record: 'onchain' }, 'club'),
     )
-    const rows = await db().select().from(cards)
-    expect(rows.find((r) => r.id === ticket)?.attendance).toBe(1)
-    expect(rows.find((r) => r.id === membership)?.attendance).toBe(0)
+    await expect(storedAttendance(ticket)).resolves.toBe(1)
+    await expect(storedAttendance(membership)).resolves.toBe(0)
   })
 
   it('takes the value the request sets over the category default', async () => {
@@ -151,16 +170,15 @@ describe('Attendance per card', () => {
     const loud = await cardIdOf(
       await createCard(token, { attendance: true, category: 'membership', record: 'onchain' }, 'loud'),
     )
-    const rows = await db().select().from(cards)
-    expect(rows.find((r) => r.id === quiet)?.attendance).toBe(0)
-    expect(rows.find((r) => r.id === loud)?.attendance).toBe(1)
+    await expect(storedAttendance(quiet)).resolves.toBe(0)
+    await expect(storedAttendance(loud)).resolves.toBe(1)
   })
 
   it('refuses the setting on an off-chain card and stores none', async () => {
     const res = await createCard(token, { attendance: true, category: 'ticket', record: 'offchain' }, 'off')
     expect(res.status).toBe(400)
     const plain = await cardIdOf(await createCard(token, { category: 'ticket', record: 'offchain' }, 'plain'))
-    expect((await db().select().from(cards)).find((r) => r.id === plain)?.attendance).toBe(0)
+    await expect(storedAttendance(plain)).resolves.toBe(0)
   })
 
   it('writes an Attendance when an on-chain ticket is scanned', async () => {
@@ -191,10 +209,10 @@ describe('Attendance per card', () => {
     await scan(uid)
     expect(attendances(uid)).toHaveLength(0)
 
-    const card = { category: "membership", title: "club" } as OperatorCardView
+    const card = { category: 'membership', title: 'club' } as OperatorCardView
     const on = await put(token, id, editBody({ ...card, title: 'club' }, { attendance: true }))
     expect(on.status).toBe(200)
-    expect((await on.json<{ card: OperatorCardView }>()).card.attendance).toBe(true)
+    await expect(attendanceOf(on)).resolves.toBe(true)
     await scan(uid)
     expect(attendances(uid)).toHaveLength(1)
 
@@ -207,12 +225,14 @@ describe('Attendance per card', () => {
     const id = await cardIdOf(await createCard(token, { category: 'ticket', record: 'onchain' }, 'gig'))
     const card = { category: 'ticket', title: 'gig' } as OperatorCardView
     const kept = await put(token, id, editBody(card))
-    expect((await kept.json<{ card: OperatorCardView }>()).card.attendance).toBe(true)
+    await expect(attendanceOf(kept)).resolves.toBe(true)
 
-    const offchain = await cardIdOf(await createCard(token, { category: 'ticket', record: 'offchain' }, 'plain'))
+    const offchain = await cardIdOf(
+      await createCard(token, { category: 'ticket', record: 'offchain' }, 'plain'),
+    )
     const refused = await put(token, offchain, editBody(card, { attendance: true }))
     expect(refused.status).toBe(400)
     const plain = await put(token, offchain, editBody(card))
-    expect((await plain.json<{ card: OperatorCardView }>()).card.attendance).toBe(false)
+    await expect(attendanceOf(plain)).resolves.toBe(false)
   })
 })

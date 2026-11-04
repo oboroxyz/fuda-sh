@@ -46,6 +46,7 @@ const designer = (overrides: Partial<CardDesignerViewProps> = {}): CardDesignerV
   logo: EMPTY_LOGO,
   logoCopy: DASH_COPY.en.logo,
   mode: 'card',
+  onAttendance: vi.fn<CardDesignerViewProps['onAttendance']>(),
   onCategory: vi.fn<CardDesignerViewProps['onCategory']>(),
   onEditProfile: vi.fn<CardDesignerViewProps['onEditProfile']>(),
   onField: vi.fn<CardDesignerViewProps['onField']>(),

@@ -532,7 +532,7 @@ Apply `0017_connected_apps.sql` before deploying the api and dashboard that carr
 
 ### Card Attendance migration
 
-Apply `0028_card_attendance.sql` before deploying the api. It adds `cards.attendance` and turns it on for every existing on-chain ticket; every other card, memberships included, starts off. Until the column exists the api answers `500` on any scan of an on-chain right, because the scan reads it. Deploy the api right after migrating: older api code keeps writing an Attendance for every on-chain scan and ignores the setting. After deploying, scan an on-chain ticket and an on-chain membership on Base Sepolia. The ticket's entry gets an Attendance attestation within a few blocks (`entry_log.attendance_uid` is set), the membership's does not.
+Apply `0028_card_attendance.sql` before deploying the api. It adds `cards.attendance` and turns it on for every existing on-chain ticket; every other card, memberships included, starts off. Until the column exists the new api cannot read it, so it logs a warning and writes no Attendance for an on-chain scan; admissions still succeed. Deploy the api right after migrating: older api code keeps writing an Attendance for every on-chain scan and ignores the setting. After deploying, scan an on-chain ticket and an on-chain membership on Base Sepolia. The ticket's entry gets an Attendance attestation within a few blocks (`entry_log.attendance_uid` is set), the membership's does not.
 
 ### Several issuers per account migration
 
