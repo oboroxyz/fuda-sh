@@ -1,3 +1,4 @@
+import { parseChainConfig } from '@fuda/chains'
 // One-time CLI: attests the root IssuerDelegation — the signer delegating
 // issuance to itself — and prints ISSUER_ADDRESS / DELEGATION_UID for
 // targets.jsonc. Runs under tsx (node), not workerd. Needs SIGNER_PRIVATE_KEY
@@ -5,14 +6,14 @@
 // deployment; a second run mints a second, equally valid delegation.
 import { createPublicClient, createWalletClient, http, isHex, parseEventLogs } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
-import { baseSepolia } from 'viem/chains'
 
 import { ZERO_UID } from '../src/chain/client.ts'
 import { EAS_ABI } from '../src/eas/abi.ts'
 import { encodeDelegationV1 } from '../src/eas/codecs.ts'
 import { newest, parseSchemaSets, SCHEMA_STRINGS, schemaUid } from '../src/eas/schemas.ts'
 
-const EAS = '0x4200000000000000000000000000000000000021'
+const config = parseChainConfig(process.env.CHAIN_ID)
+const EAS = config.easAddress
 
 const key = process.env.SIGNER_PRIVATE_KEY
 if (key === undefined || !isHex(key)) {
@@ -38,10 +39,10 @@ if (existing !== undefined && existing !== '' && existing !== ZERO_UID) {
   )
 }
 
-const transport = http(process.env.BASE_RPC_URL ?? 'https://sepolia.base.org')
+const transport = http(process.env.BASE_RPC_URL ?? config.publicRpc)
 const account = privateKeyToAccount(key)
-const pub = createPublicClient({ chain: baseSepolia, transport })
-const wallet = createWalletClient({ account, chain: baseSepolia, transport })
+const pub = createPublicClient({ chain: config.viemChain, transport })
+const wallet = createWalletClient({ account, chain: config.viemChain, transport })
 
 const txHash = await wallet.writeContract({
   abi: EAS_ABI,

@@ -1,3 +1,7 @@
+import { parseChainConfig } from '@fuda/chains'
+
+export const CHAIN = parseChainConfig(import.meta.env.VITE_CHAIN_ID)
+
 // The browser reaches the api only through its own Worker, which forwards
 // `/api/*` with the member session cookie's credential
 // (docs/adr/0010-void-pages-and-frontend-workers.md).

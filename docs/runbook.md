@@ -114,7 +114,7 @@ Set secrets from `apps/api/targets/develop` with `void secret put <NAME>` (use `
 
 - `SIGNER_PRIVATE_KEY` — the issuer's EOA private key.
 - `ADMIN_TOKEN` — **required whenever a chain binding is set.** With `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL` configured and no `ADMIN_TOKEN`, the api locks every admin route (`401 unauthorized`) and every response carries `x-auth-mode: locked`. This is deliberate fail-closed behavior, not a misconfiguration to work around.
-- `BASE_RPC_URL` is the preferred Base Sepolia RPC endpoint. The API tries `https://sepolia.base.org` after a provider failure, even while this secret is set. Leave it unset or set it to that public URL to use one transport.
+- `BASE_RPC_URL` is the preferred RPC endpoint for `CHAIN_ID`. The API tries that chain's public RPC after a provider failure, even while this secret is set. Leave it unset or set it to the selected public URL to use one transport.
 - `ENS_GATEWAY_SIGNER_KEY` — dedicated 32-byte ECDSA private key that signs gateway responses. Do not reuse `SIGNER_PRIVATE_KEY` or the ENS parent key.
 - `ENS_GATEWAY_SECRET` — separate 32-byte HMAC key used to derive deterministic one-time +Private destinations.
 - `ENS_VOUCHER_KEY` — dedicated 32-byte ECDSA private key that signs claim and renew vouchers. It is the key the deployed registrar checks against, so it must be the same one `ens:topology:deploy` was given, and it must not be the gateway signer, the parent key, or `SIGNER_PRIVATE_KEY`.
@@ -436,7 +436,7 @@ Run the read-only MultiOwnable probe from the repository root:
 pnpm --filter api probe:venue-wallet
 ```
 
-It uses the public Base Sepolia RPC by default; an exported `BASE_RPC_URL` can select another Base Sepolia provider. It does not load any local env file or require any private-key setting. The RPC chain ID must be 84532. The probe generates two throwaway EOA owners and an undeployed Coinbase Smart Wallet v1 using fuda's current factory, then checks both owners' dashboard-challenge signatures through the API's actual chain verifier. It also rejects a changed challenge, an unregistered owner's wallet proof, and a raw personal signature. No transaction is submitted, no account is funded, and no D1 state is changed. ERC-6492 verification simulates deployment only inside `eth_call`; the probe checks that the wallet remains undeployed afterward.
+It uses the public Base Sepolia RPC by default; `CHAIN_ID` selects the chain and an exported `BASE_RPC_URL` selects its provider. It does not load any local env file or require any private-key setting. The RPC chain ID must match the selected chain, `84532` by default or `8453` when configured for Base. The probe generates two throwaway EOA owners and an undeployed Coinbase Smart Wallet v1 using fuda's current factory, then checks both owners' dashboard-challenge signatures through the API's actual chain verifier. It also rejects a changed challenge, an unregistered owner's wallet proof, and a raw personal signature. No transaction is submitted, no account is funded, and no D1 state is changed. ERC-6492 verification simulates deployment only inside `eth_call`; the probe checks that the wallet remains undeployed afterward.
 
 Success prints the public wallet/factory/owner addresses and six successful checks, and exits zero. A failed assertion or unavailable RPC exits nonzero. The probe allows only `eth_chainId`, `eth_call`, and `eth_getCode`, and records RPC failures even if the signature verifier would fold one into `false`. Any rejected RPC request, including an EVM revert, makes the run inconclusive and nonzero: these negative fixtures must produce completed validation responses. RPC URLs, keys and signatures are not printed. This verifies initial multiple-owner signing; it does not test adding owners to an existing wallet, Base Account popup discovery, passkey or nested-wallet owners, API sessions, or owner removal. See [ADR 0008](adr/0008-shared-issuer-wallet.md) for the future co-owner login and session-revocation requirements. The dashboard still has no owner-management UI.
 
@@ -575,6 +575,25 @@ PRAGMA foreign_key_check;
 
 To run a job locally, start the api and use the `curl` command with the `x-void-dev-trigger` token that Void prints, setting `cron` to the job's expression. Local schedules never fire on their own.
 
+## Mainnet configuration supplied by the owner
+
+All checked-in targets currently select Base Sepolia because `CHAIN_ID` is absent, including the target named `production`. A target name does not select its chain. No mainnet resource is created by the code or these instructions.
+
+Before a mainnet deployment, supply and verify all of the following:
+
+- Set API `CHAIN_ID=8453` and app and dashboard build `VITE_CHAIN_ID=8453`. Use `84532` or leave them absent for Sepolia. Set each frontend Worker's `API_BASE_URL` to the same environment. An invalid value, including an empty string, fails instead of defaulting.
+- Supply a new D1 database name and id, bind it as `DB`, and apply every migration. Supply a new R2 bucket name and bind it as `MEDIA_BUCKET`. Keep Sepolia resources separate.
+- Provision the secrets in section 3 for the new Worker. `SIGNER_PRIVATE_KEY` must name the funded mainnet hot issuer, and `ADMIN_TOKEN` must protect admin routes. If supplied, `BASE_RPC_URL` must answer chain id `8453`. Its fallback is `https://mainnet.base.org`; Sepolia uses `https://sepolia.base.org`. Wallet platform credentials are required only for the enabled platforms. Leave ENS secrets unset until its mainnet plan exists.
+- Confirm `EAS_ADDRESS=0x4200000000000000000000000000000000000021` and `SCHEMA_REGISTRY_ADDRESS=0x4200000000000000000000000000000000000020` against [EAS deployments](https://github.com/ethereum-attestation-service/eas-contracts#deployments). Read EAS `version()` and set `EAS_VERSION` to that exact value before signing. These addresses are the same on both supported chains. The current mainnet documentation lists version `1.0.1`; the checked-in Sepolia targets use `1.4.1-beta.3`.
+- Register the current schemas on mainnet using `CHAIN_ID=8453` with `register-schemas`, then supply `EAS_SCHEMAS`. Offchain passes derive their schema UID locally and need no registration for signing.
+- Supply the root Safe address as `ISSUER_ADDRESS` and a live root `IssuerDelegation` UID as `DELEGATION_UID`, attested by that Safe and naming the hot issuer. The `attest-root-delegation` script selects the configured chain but only creates an EOA self-delegation. It does not create or operate the required Safe root.
+- Verify `FACTORY_ADDRESS`, `ANNOUNCER_ADDRESS`, and `ANNOUNCER_FROM_BLOCK` on mainnet. Supply a mainnet rights subgraph and build both apps with its `VITE_GRAPH_RIGHTS_ENDPOINT`. The checked-in subgraph manifests, the API ENS client, and `ENS_HACKATHON_CHAIN` still target testnets and require a separate mainnet plan.
+- Supply the Worker names, public origins, custom domains, and passkey origins for the new environment. Keep the intended RP ID and map each frontend to its matching API.
+
+The API does not expose its chain in `/health`, so there is no automatic browser/API mismatch check. A pass backup exported through the existing API includes `attestation.domain.chainId`, which can confirm the signing chain after issuance. Check the deployment vars before issuing the first pass.
+
+The owner must verify RPC chain ids, deployed bytecode and EAS version, Safe authority and hot-issuer funding, schema registration and delegation, wallet sign-in through both Base Account and an injected wallet, offchain issuance and rejection on the other chain, revocation, root timestamping, on-chain issuance and Attendance, and subgraph indexing. These are real mainnet checks and are not covered by the offline suite.
+
 ## Mainnet cutover
 
 Today's `develop` target in `apps/api/targets.jsonc` is the Base Sepolia deployment that owns `api.fuda.sh` and its sibling hostnames. At release it keeps the Sepolia chain and becomes the internal **develop** environment (branch `develop`), while the `production` target takes mainnet and the apex hostnames.
@@ -599,7 +618,7 @@ The `production` target deliberately carries `routes: []`. Adding a custom domai
 4. Apply migrations against the new database (`pnpm --filter api migrate:production`) and deploy with no routes (`pnpm --filter api run deploy:production`); smoke it on its `workers.dev` hostname.
 5. Move the Sepolia deployment to `*.dev.fuda.sh`, then add the apex custom domains to the `production` target and redeploy both.
 6. Redeploy the three frontends with the production `VITE_*` values. Each Worker's `API_BASE_URL` var decides which api it talks to, so a develop deployment must point at the develop api.
-7. Change the passkey wallet's chain id. `apps/app/src/base-account.ts` and `apps/dash/src/wallet.ts` construct the Base Account SDK with Base Sepolia and Ethereum Sepolia; a mainnet build must pass `8453` in place of `84_532` or the operator signs against the wrong network. This is source, not a `VITE_*` value, so a rebuild alone does not fix it. The api has the same problem: `apps/api/src/chain/viem-chain.ts` constructs its clients for Base Sepolia and reports that chain id for offchain signatures, so a mainnet api needs that changed too, before any pass is issued.
+7. Set API `CHAIN_ID=8453` and rebuild both the member app and dashboard with `VITE_CHAIN_ID=8453`. Set each frontend Worker's `API_BASE_URL` to the matching API. Omitting either chain var selects Base Sepolia. Unknown values fail on first use. The browser wallet configuration and API clients need no source edit.
 8. Decide what ENS means on mainnet. The `production` target carries no `ENS_*` values and nothing here changes that: today's names live on a dedicated ENSv2 deployment on Ethereum Sepolia, which has no mainnet counterpart. Until one exists, a mainnet api leaves every ENS binding unset, every claim route answers `503`, and the dashboard hides the section — the same fail-closed behaviour as an unconfigured develop deployment. Moving the tree means registering a new parent and deploying the topology again against whatever the mainnet addresses turn out to be; nothing migrates, exactly as with the attestations.
 
 ## Rolling back

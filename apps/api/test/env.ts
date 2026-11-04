@@ -22,6 +22,7 @@ export const testEnv = (overrides: Partial<Bindings> = {}): Bindings => {
     APPLE_WEB_SERVICE_SECRET: undefined,
     APPLE_WWDR_PEM: undefined,
     BASE_RPC_URL: undefined,
+    CHAIN_ID: undefined,
     ENS_GAS_POLICY_ID: undefined,
     ENS_GATEWAY_SECRET: undefined,
     ENS_GATEWAY_SIGNER_KEY: undefined,

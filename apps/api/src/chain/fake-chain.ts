@@ -1,3 +1,4 @@
+import { parseChainConfig } from '@fuda/chains'
 import { encodeAbiParameters, getAddress, keccak256, verifyMessage as recoverAndCompare } from 'viem'
 import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
@@ -87,7 +88,7 @@ export class FakeChain implements ChainClient {
 
   // oxlint-disable-next-line class-methods-use-this -- part of the ChainClient port
   chainId(): number {
-    return 84_532
+    return parseChainConfig().id
   }
 
   offchainAttester(): Hex | null {

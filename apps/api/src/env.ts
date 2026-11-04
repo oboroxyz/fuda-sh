@@ -15,6 +15,7 @@ export interface Bindings {
   ADMIN_TOKEN?: string
   SIGNER_PRIVATE_KEY?: string
   BASE_RPC_URL?: string
+  CHAIN_ID?: string
   EAS_ADDRESS: string
   // The contract's own version() on this chain; offchain signatures commit to it.
   EAS_VERSION: string

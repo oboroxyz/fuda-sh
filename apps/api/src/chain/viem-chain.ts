@@ -1,3 +1,4 @@
+import { parseChainConfig } from '@fuda/chains'
 import {
   BaseError,
   createPublicClient,
@@ -14,14 +15,13 @@ import {
 } from 'viem'
 import type { Hex, HttpTransportConfig, Transport } from 'viem'
 import { nonceManager, privateKeyToAccount } from 'viem/accounts'
-import { baseSepolia } from 'viem/chains'
 
 import { ANNOUNCER_ABI, EAS_ABI, FACTORY_ABI } from '../eas/abi.ts'
 import type { Bindings } from '../env.ts'
 import { ChainError, NoSignerError } from './client.ts'
 import type { AttestParams, ChainClient } from './client.ts'
 
-export const DEFAULT_RPC = 'https://sepolia.base.org'
+const DEFAULT_RPC = parseChainConfig().publicRpc
 const RPC_TIMEOUT_MS = 1000
 
 export const createChainTransport = (primary = DEFAULT_RPC, secondary = DEFAULT_RPC): Transport => {
@@ -68,14 +68,15 @@ const wrap = async <T>(fn: () => Promise<T>): Promise<T> => {
 // Worker bindings beyond the addresses and credentials consumed here.
 type ChainBindings = Pick<
   Bindings,
-  'ANNOUNCER_ADDRESS' | 'BASE_RPC_URL' | 'EAS_ADDRESS' | 'FACTORY_ADDRESS' | 'SIGNER_PRIVATE_KEY'
+  'ANNOUNCER_ADDRESS' | 'BASE_RPC_URL' | 'CHAIN_ID' | 'EAS_ADDRESS' | 'FACTORY_ADDRESS' | 'SIGNER_PRIVATE_KEY'
 >
 
-export const createViemChain = (
-  env: ChainBindings,
-  transport: Transport = createChainTransport(env.BASE_RPC_URL),
-): ChainClient => {
-  const publicClient = createPublicClient({ chain: baseSepolia, transport })
+export const createViemChain = (env: ChainBindings, transportOverride?: Transport): ChainClient => {
+  const config = parseChainConfig(env.CHAIN_ID)
+  const chain = config.viemChain
+  const transport =
+    transportOverride ?? createChainTransport(env.BASE_RPC_URL ?? config.publicRpc, config.publicRpc)
+  const publicClient = createPublicClient({ chain, transport })
   const eas = toHexAddress(env.EAS_ADDRESS)
   const factory = toHexAddress(env.FACTORY_ADDRESS)
   const announcer = toHexAddress(env.ANNOUNCER_ADDRESS)
@@ -83,7 +84,7 @@ export const createViemChain = (
   // One account with viem's nonce manager: /issue attests, announces and the
   // waitUntil Attendance attest all share this signer concurrently.
   const account = key !== undefined && isHex(key) ? privateKeyToAccount(key, { nonceManager }) : null
-  const wallet = account === null ? null : createWalletClient({ account, chain: baseSepolia, transport })
+  const wallet = account === null ? null : createWalletClient({ account, chain, transport })
 
   return {
     announce: async (p) => {
@@ -96,7 +97,7 @@ export const createViemChain = (
           account,
           address: announcer,
           args: [1n, p.stealthAddress, p.ephemeralPubKey, p.metadata],
-          chain: baseSepolia,
+          chain,
           functionName: 'announce',
         })
         const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash })
@@ -129,7 +130,7 @@ export const createViemChain = (
               schema: p.schema,
             },
           ],
-          chain: baseSepolia,
+          chain,
           functionName: 'attest',
         })
         const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash })
@@ -146,7 +147,7 @@ export const createViemChain = (
 
     blockNumber: async () => await wrap(async () => Number(await publicClient.getBlockNumber())),
 
-    chainId: () => baseSepolia.id,
+    chainId: () => config.id,
 
     getAddressFromFactory: async (owners, nonce) =>
       await wrap(
@@ -229,7 +230,7 @@ export const createViemChain = (
           account,
           address: eas,
           args: [{ data: { uid, value: 0n }, schema }],
-          chain: baseSepolia,
+          chain,
           functionName: 'revoke',
         })
         const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash })
@@ -250,7 +251,7 @@ export const createViemChain = (
           account,
           address: eas,
           args: [uid],
-          chain: baseSepolia,
+          chain,
           functionName: 'revokeOffchain',
         })
         const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash })
@@ -291,7 +292,7 @@ export const createViemChain = (
           account,
           address: eas,
           args: [root],
-          chain: baseSepolia,
+          chain,
           functionName: 'timestamp',
         })
         const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash })

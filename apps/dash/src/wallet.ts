@@ -4,16 +4,19 @@ import { asHex } from '@fuda/sdk'
 import type { Hex } from '@fuda/sdk'
 import * as v from 'valibot'
 
+import { CHAIN } from './config.ts'
+import { ENS_CHAIN_ID } from './ens-claim.ts'
+
 export { personalSign, requestAccount } from '@fuda/libs/wallet'
 export type { Eip1193Provider } from '@fuda/libs/wallet'
 
 const toChainIdHex = (chainId: number): string => `0x${chainId.toString(16)}`
 export const baseAccountProvider = async (paymasterUrl = ''): Promise<Eip1193Provider> => {
-  const options = { appChainIds: [84_532, 11_155_111] }
+  const options = { appChainIds: [CHAIN.id, ENS_CHAIN_ID] }
   if (paymasterUrl === '') {
     return await createProvider(options)
   }
-  return await createProvider({ ...options, paymasterUrls: { 11_155_111: paymasterUrl } })
+  return await createProvider({ ...options, paymasterUrls: { [ENS_CHAIN_ID]: paymasterUrl } })
 }
 
 // EIP-5792 leaves both of these loose: an id may be a bare string or an object

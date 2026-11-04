@@ -43,6 +43,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@fuda/chains':
+        specifier: workspace:*
+        version: link:../../packages/chains
       '@fuda/ens-contracts':
         specifier: workspace:*
         version: link:../../packages/ens-contracts
@@ -107,6 +110,9 @@ importers:
 
   apps/app:
     dependencies:
+      '@fuda/chains':
+        specifier: workspace:*
+        version: link:../../packages/chains
       '@fuda/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
@@ -171,6 +177,9 @@ importers:
 
   apps/dash:
     dependencies:
+      '@fuda/chains':
+        specifier: workspace:*
+        version: link:../../packages/chains
       '@fuda/ens-contracts':
         specifier: workspace:*
         version: link:../../packages/ens-contracts
@@ -272,6 +281,16 @@ importers:
       void:
         specifier: 1.6.1
         version: 1.6.1(@types/node@24.13.3)(esbuild@0.28.2)(kysely@0.29.7)(solid-js@1.9.17)(tsx@4.23.13)(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261101.1)(zod@4.6.7)
+
+  packages/chains:
+    dependencies:
+      viem:
+        specifier: ^2.56.3
+        version: 2.56.3(typescript@7.0.2)(zod@4.6.7)
+    devDependencies:
+      vitest:
+        specifier: 4.1.11
+        version: 4.1.11(@types/node@24.13.3)(@vitest/browser-preview@4.1.11)(esbuild@0.28.2)(happy-dom@20.14.0)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1)
 
   packages/e2e:
     devDependencies:
