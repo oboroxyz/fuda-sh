@@ -122,7 +122,7 @@ Set secrets from `apps/api/targets/develop` with `void secret put <NAME>` (use `
 - `ENS_PAYMASTER_UPSTREAM` — the vendor's ERC-7677 paymaster endpoint. With Alchemy this is the same URL as above; the bindings stay separate so the paymaster vendor can change without touching the chain reads.
 - `WORLD_APP_ID`, `WORLD_RP_ID`, `WORLD_ACTION`, `WORLD_RP_SIGNING_KEY` — World ID badge verification. All four or nothing: while any one is unset, `POST /badges/:kind` answers `501 badges_not_configured` and no verdict carries a badge. Only the signing key is sensitive — it is the relying party's 32-byte secp256k1 key as hex (`0x` optional), whose public half is registered in the Developer Portal — but all four are pushed as secrets rather than split between here and `targets.jsonc` vars, so there is one place to look. Do not also add these names to `vars`: a name defined twice silently resolves to the secret.
 - `GOOGLE_ISSUER_ID`, `GOOGLE_CLASS_ID`, `GOOGLE_SA_EMAIL`, `GOOGLE_SA_KEY_PEM` — see §4.
-- `APPLE_PASS_TYPE_ID`, `APPLE_TEAM_ID`, `APPLE_CERT_PEM`, `APPLE_KEY_PEM`, `APPLE_WWDR_PEM` — see §5.
+- `APPLE_PASS_TYPE_ID`, `APPLE_TEAM_ID`, `APPLE_CERT_PEM`, `APPLE_KEY_PEM`, `APPLE_WWDR_PEM`, `APPLE_WEB_SERVICE_SECRET` — see §5.
 
 PEM secrets (`GOOGLE_SA_KEY_PEM`, `APPLE_CERT_PEM`, `APPLE_KEY_PEM`, `APPLE_WWDR_PEM`): paste the PEM block as-is. A PEM copied straight out of a service-account JSON keeps its literal `\n` escapes; the api normalizes either form, so there is no need to reformat it first.
 
@@ -142,6 +142,45 @@ Set the four `GOOGLE_*` secrets (§3). All four must be set, or `GET /pass/:uid/
 Request the Pass Type ID certificate early — this has real lead time and is often the long pole. Export the certificate and its PKCS#8 private key as PEM, and download the WWDR intermediate certificate.
 
 Set the five `APPLE_*` secrets (§3). If the certificate has not arrived yet, leave all five unset: `GET /pass/:uid/apple.pkpass` answers `501 apple_not_configured` and the browser pass (`GET /pass/:uid`) is the floor — the demo does not depend on Apple Wallet being ready.
+
+### Pass updates
+
+Without these steps an installed pass stays a snapshot and still works. [The spec](specs/pass-types-and-flows.md#apple-wallet-updates) says what each step turns on. Do them for `develop` first, then repeat for `production`.
+
+1. Save the same certificate and key as `APPLE_CERT_PEM` and `APPLE_KEY_PEM` to two local files outside the repository, unescaped PEM. Apple requires the certificate that signs the pass to authenticate its push.
+2. Upload them. This is account-wide and has no `void` command, and it needs the SSL and Certificates Edit permission, which `wrangler login` grants:
+   ```sh
+   npx wrangler mtls-certificate upload --cert pass-cert.pem --key pass-key.pem --name fuda-apple-pass
+   ```
+3. Copy the certificate id it prints, then delete both files.
+4. Add the binding to that target's block in `apps/api/targets.jsonc`. No target lists it until now, because an id that does not exist fails the deploy. `local` cannot have it:
+   ```jsonc
+   "mtls_certificates": [{ "binding": "APPLE_PUSH_CERT", "certificate_id": "<the id>" }],
+   ```
+5. Create the secret, from `apps/api/targets/develop` (or `targets/production`). Paste the output of `openssl rand -base64 32` when asked:
+   ```sh
+   void secret put APPLE_WEB_SERVICE_SECRET
+   ```
+   **Never change this value afterwards.** Each pass's token derives from it and Apple never lets an update change a token, so a new secret strands every installed pass until its member adds it again.
+6. Deploy. Migration `0028` applies with it.
+
+**Check it on a real iPhone.** APNs delivers pass updates only in production, so nothing short of a phone proves this. Watch the Worker's logs throughout.
+
+1. Add a pass from `/pass/<uid>/apple.pkpass`. A row appears in `apple_pass_registrations`.
+2. Credit a Stamp at reception. The pass updates and a `Stamps: n / m` notification appears.
+3. Revoke the pass. It updates to `No longer valid`, with a notification.
+4. Delete the pass from Wallet. Its row, and the device row if it was the last, disappear.
+
+**Reading the logs after the first Stamp.** This is the one thing no test here can show, because Cloudflare does not document whether an mTLS binding's `fetch` speaks HTTP/2, which APNs requires, and a local run has no mTLS binding at all.
+
+| Log line | Meaning | Next |
+| --- | --- | --- |
+| No `APNs` line, and the phone updates | The route works | Nothing |
+| `APNs refused a pass update` with `403` and `BadCertificate` or similar | APNs was reached and refused the certificate | Check step 1 used the Pass Type ID pair |
+| `APNs refused a pass update` with `400` and `TopicDisallowed` or `BadTopic` | APNs was reached and refused the topic | Check `APPLE_PASS_TYPE_ID` matches the certificate |
+| `APNs push failed`, or a status with an empty reason | The connection itself failed, the likely sign of no HTTP/2 | A Worker cannot reach APNs this way. The sender is one function, `ApplePushSender`: a small HTTP/2 relay outside Workers, holding the certificate, can replace it. Until then pull to refresh still works |
+
+**Renewing.** A Pass Type ID certificate lasts a year. On renewal update `APPLE_CERT_PEM` and `APPLE_KEY_PEM`, upload the new pair, and put the new id in `targets.jsonc`. Leave `APPLE_WEB_SERVICE_SECRET` alone.
 
 ## 6. Build env for the frontends
 
@@ -270,7 +309,7 @@ Use separate live rights for separate flows: a +Private right proves private dis
 - **WebAuthn PRF.** On a real phone, open `https://app.fuda.sh/private`, create a passkey, and confirm the derived meta-address renders.
 - **ERC-6492 (undeployed smart wallet).** Issue a Signed right to a Base Account (passkey smart wallet) address, then enter it at `https://app.fuda.sh/signed` _before_ that account is deployed on chain — the api must still answer `ADMIT` through the ERC-6492 counterfactual path. This is the one path the fake chain cannot exercise, so it must be run once against Base Sepolia before the deploy is called done.
 - **Google Wallet.** Open `/pass/<uid>` on an Android phone and tap "Add to Google Wallet".
-- **Apple Wallet.** Open `/pass/<uid>/apple.pkpass` on an iPhone.
+- **Apple Wallet.** Open `/pass/<uid>/apple.pkpass` on an iPhone. For updates, follow the checks in §5.
 
 ## 11. Reconciliation
 

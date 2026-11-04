@@ -1,6 +1,6 @@
 # ADR 0014: Offchain rights by default, with on-chain rights as an option
 
-- **Status**: Accepted 2026-11-04 for the Standard and On-chain types, which are built along with roots, member passkey sign-in and the member list. Recovery from a saved pass and from a backup is built too. Everything else here is still proposed and not built: Identified, Sensitive use, delegated keys, and the removals.
+- **Status**: Accepted 2026-11-04 for the Standard and On-chain types, which are built along with roots, member passkey sign-in and the member list. Recovery from a saved pass and from a backup is built too, and so are Apple Wallet pass updates, the channel section 7 relies on for a notice to members. Everything else here is still proposed and not built: Identified, Sensitive use, delegated keys, and the removals.
 - **Scope**: the pass types an Issuer can choose, how each is verified and recovered, which keys sign them, and what leaves the product.
 
 ## Context

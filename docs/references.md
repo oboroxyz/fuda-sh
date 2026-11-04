@@ -27,6 +27,10 @@ External standards, prior art, and platform documentation that informed the desi
 | Reference | What it informs |
 | --- | --- |
 | [Apple Wallet — PassKit package format](https://developer.apple.com/documentation/walletpasses) | `.pkpass` structure: pass.json, manifest hashing, detached CMS signature — see [Architecture "Components"](./architecture.md#components) |
+| [Apple Wallet: Adding a web service to update passes](https://developer.apple.com/documentation/walletpasses/adding-a-web-service-to-update-passes) | The update flow, the two shared secrets, the empty push: see [Apple Wallet updates](./specs/pass-types-and-flows.md#apple-wallet-updates) |
+| [Apple: Sending notification requests to APNs](https://developer.apple.com/documentation/usernotifications/sending-notification-requests-to-apns) | HTTP/2, the production host and the push headers |
+| [Apple DTS: pass update pushes](https://developer.apple.com/forums/thread/758991) | The pass certificate authenticates the push, production only, and the rules for the topic |
+| [Cloudflare: mTLS bindings](https://developers.cloudflare.com/workers/runtime-apis/bindings/mtls/) | How a Worker presents a client certificate |
 | [Google Wallet — Generic pass](https://developers.google.com/wallet/generic) | GenericObject shape and the `savetowallet` RS256 JWT — see [Architecture "Components"](./architecture.md#components) |
 | [ENSv2 docs](https://docs.ens.domains/ensv2/overview) | v2 registry hierarchy, EAC, and per-account resolvers — venue names on the Sepolia beta |
 | [ENSv2 Permissioned Registry](https://docs.ens.domains/ensv2/permissioned-registry/) | Per-name expiry and registration lifecycle — venue names that follow an issuer delegation |
