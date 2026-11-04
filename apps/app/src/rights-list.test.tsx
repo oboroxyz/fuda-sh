@@ -33,7 +33,7 @@ const mount = (view: () => JSX.Element): HTMLElement => {
   })
   return host
 }
-const showView = (props: RightsListViewProps): HTMLElement => mount(() => <RightsListView {...props} />)
+const showView = (props: RightsListViewProps): HTMLElement => mount(() => <RightsListView locale="en" {...props} />)
 const viewText = (host: HTMLElement): string => host.textContent ?? ''
 const hrefsOf = (host: HTMLElement): string[] =>
   [...host.querySelectorAll('[href]')].map((node) => node.getAttribute('href') ?? '')
@@ -434,7 +434,7 @@ describe('pass link availability', () => {
 describe('member pass screen', () => {
   it('keeps public-address tools out of the main pass list', () => {
     const view = mount(() => (
-      <RightsList injected={{ request: async () => await Promise.resolve([HOLDER_A]) }} />
+      <RightsList locale="en" injected={{ request: async () => await Promise.resolve([HOLDER_A]) }} />
     ))
     const text = viewText(view)
 
@@ -522,7 +522,7 @@ describe('member rails and query memory', () => {
   })
 
   it('shows private-recovery guidance with the +Private route', () => {
-    const view = mount(() => <QueryRecoveryNotice />)
+    const view = mount(() => <QueryRecoveryNotice locale="en" />)
 
     expect(viewText(view)).toContain('This is a +Private pass. Open Private rights to recover it.')
     expect(hrefsOf(view)).toContain('/private')

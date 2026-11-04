@@ -11,6 +11,7 @@ const resolve = async (
   path: string,
   cookie = '',
   origin = APP,
+  acceptLanguage = '',
 ): Promise<{ outcome: SessionOutcome; res: Response }> => {
   let outcome: SessionOutcome | undefined
   const app = new Hono()
@@ -18,7 +19,7 @@ const resolve = async (
     outcome = await resolveSession(c, new URL(c.req.url), 'https://api.example', APP)
     return c.text('ok')
   })
-  const res = await app.request(`${origin}${path}`, { headers: { cookie } })
+  const res = await app.request(`${origin}${path}`, { headers: { 'accept-language': acceptLanguage, cookie } })
   if (outcome === undefined) {
     throw new Error('the handler did not run')
   }
@@ -28,6 +29,19 @@ const resolve = async (
 describe(resolveSession, () => {
   afterEach(() => {
     vi.unstubAllGlobals()
+  })
+
+  it('picks the language from the cookie, then Accept-Language, then Japanese', async () => {
+    const saved = await resolve('/', 'fuda_locale=en', APP, 'ja-JP,ja;q=0.9')
+    expect(saved.outcome.shared.locale).toBe('en')
+    const browser = await resolve('/', 'fuda_locale=xx', APP, 'en-US,en;q=0.9,ja;q=0.8')
+    expect(browser.outcome.shared.locale).toBe('en')
+    const japanese = await resolve('/', '', APP, 'ja-JP,ja;q=0.9,en;q=0.8')
+    expect(japanese.outcome.shared.locale).toBe('ja')
+    const neither = await resolve('/', '', APP, 'fr-FR')
+    expect(neither.outcome.shared.locale).toBe('ja')
+    const nothing = await resolve('/')
+    expect(nothing.outcome.shared.locale).toBe('ja')
   })
 
   it('sends a signed-out member page to sign-in, keeping where it was going', async () => {

@@ -75,7 +75,7 @@ const openDialog = (): HTMLDialogElement => {
   return dialog
 }
 const unlock = async (): Promise<void> => {
-  render(() => <PrivateScreen io={io} />, root)
+  render(() => <PrivateScreen io={io} locale="en" />, root)
   await setTimeout(0)
   button('Use existing passkey').click()
   await vi.waitFor(() => {
