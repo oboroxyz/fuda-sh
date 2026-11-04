@@ -9,6 +9,7 @@ import {
   keccak256,
   parseAbiParameters,
   recoverTypedDataAddress,
+  size,
   stringToHex,
   zeroAddress,
 } from 'viem'
@@ -19,8 +20,8 @@ import { schemaUid } from './schemas.ts'
 
 // docs/specs/attestation-model.md#offchain-rights. The schema needs no entry in
 // EAS_SCHEMAS: EAS never sees it at signing, and its uid is a pure function of
-// this string. `holderKey` is empty for a Bearer right, and an encoded
-// AttestedPasskey for an Identified one.
+// this string. `holderKey` is empty for a Bearer right, an encoded AttestedPasskey for an
+// Identified one, and a key's 20-byte address for a Sensitive one.
 const OFFCHAIN_PASS_SCHEMA =
   'string venue,string card,string memberNumber,uint8 usageModel,uint8 tier,uint8 level,uint64 validFrom,uint64 validUntil,bytes holderKey'
 export const OFFCHAIN_PASS_SCHEMA_UID = schemaUid(OFFCHAIN_PASS_SCHEMA)
@@ -81,6 +82,10 @@ export const decodeHolderKey = (holderKey: Hex): AttestedPasskey | null => {
     return null
   }
 }
+
+// A Sensitive pass's `holderKey`. Its length alone tells it from an encoded passkey, whose
+// two dynamic fields take at least 128 bytes.
+export const holderAddressOf = (holderKey: Hex): Hex | null => (size(holderKey) === 20 ? holderKey : null)
 
 // EAS offchain attestation version 2, the form that carries a salt.
 const ATTEST_VERSION = 2

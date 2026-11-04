@@ -107,6 +107,11 @@ export const putV1IssuersMeCardsCardIdIntegrations = defineHandler(operatorAuth(
   if (!parsed.success) {
     return errorResponse(c, 'bad_input', 400)
   }
+  // A human Badge's nullifier is the same at every venue, which is the link this setting removes.
+  const card = await ownedCard(c, c.req.param().cardId)
+  if (card?.identity === 'sensitive') {
+    return errorResponse(c, 'integrations_not_supported', 409)
+  }
   const saved = await writeCardIntegrations(
     c.env.DB,
     c.get('db'),

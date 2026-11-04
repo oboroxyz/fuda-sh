@@ -61,7 +61,7 @@ export const cards = sqliteTable(
     createdAt: integer('created_at').notNull(),
     description: text('description').notNull().default(''),
     id: text('id').primaryKey(),
-    identity: text('identity', { enum: ['none', 'passkey'] })
+    identity: text('identity', { enum: ['none', 'passkey', 'sensitive'] })
       .notNull()
       .default('none'),
     issuerId: text('issuer_id')
@@ -132,6 +132,38 @@ export const passkeyChallenges = sqliteTable('passkey_challenges', {
   createdAt: integer('created_at').notNull(),
   purpose: text('purpose', { enum: ['register', 'login', 'add', 'claim'] }).notNull(),
   userHandle: text('user_handle'),
+})
+
+// docs/specs/pass-types-and-flows.md#sensitive-use
+export const memberSecretCopies = sqliteTable(
+  'member_secret_copies',
+  {
+    accountId: text('account_id')
+      .notNull()
+      .references(() => accounts.id),
+    ciphertext: text('ciphertext').notNull(),
+    createdAt: integer('created_at').notNull(),
+    credentialId: text('credential_id')
+      .notNull()
+      .references(() => passkeys.credentialId, { onDelete: 'cascade' }),
+    iv: text('iv').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.accountId, t.credentialId] })],
+)
+
+export const memberVaults = sqliteTable('member_vaults', {
+  accountId: text('account_id')
+    .primaryKey()
+    .references(() => accounts.id),
+  ciphertext: text('ciphertext').notNull(),
+  iv: text('iv').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+  version: integer('version').notNull(),
+})
+
+export const memberSecretOutcomes = sqliteTable('member_secret_outcomes', {
+  outcome: text('outcome', { enum: ['prf', 'no_prf'] }).primaryKey(),
+  total: integer('total').notNull(),
 })
 
 export const memberPasses = sqliteTable(

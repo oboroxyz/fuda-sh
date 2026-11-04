@@ -33,10 +33,17 @@ export const offchainDomain = (env: Pick<Bindings, 'EAS_ADDRESS' | 'EAS_VERSION'
   return domain
 }
 
-// Who claimed an Identified pass: the passkey it will answer to, and the account that keeps it.
-export interface PasskeyClaimant {
-  accountId: string
-  key: AttestedPasskey
+// Who claimed a pass bound to a key. An Identified pass names the passkey it will answer to
+// and the account that keeps it. A Sensitive pass names only an address, and no account.
+export type PassClaimant =
+  | { kind: 'passkey'; accountId: string; key: AttestedPasskey }
+  | { kind: 'address'; address: Hex }
+
+const holderKeyOf = (claimant: PassClaimant | null): Hex => {
+  if (claimant === null) {
+    return '0x'
+  }
+  return claimant.kind === 'passkey' ? encodeHolderKey(claimant.key) : claimant.address
 }
 
 export interface OffchainIssueParams {
@@ -44,7 +51,7 @@ export interface OffchainIssueParams {
   body: IssueRequest
   cardId: string
   chain: ChainClient
-  claimant: PasskeyClaimant | null
+  claimant: PassClaimant | null
   db: Db
   domain: OffchainDomain
   issuerHandle: string
@@ -61,7 +68,7 @@ export const issueOffchainPass = async (p: OffchainIssueParams): Promise<SelfSer
   const message = newOffchainMessage({
     data: encodeOffchainPass({
       card: p.cardId,
-      holderKey: p.claimant === null ? '0x' : encodeHolderKey(p.claimant.key),
+      holderKey: holderKeyOf(p.claimant),
       level: LEVEL_CODE[level],
       memberNumber: p.memberNumber,
       tier: p.body.tier,
@@ -96,7 +103,7 @@ export const issueOffchainPass = async (p: OffchainIssueParams): Promise<SelfSer
     signed: toSignedJson({ domain: p.domain, message, signature, uid }),
     uid,
   })
-  await (p.claimant === null
+  await (p.claimant?.kind !== 'passkey'
     ? p.db.batch([member, attestation])
     : p.db.batch([
         member,

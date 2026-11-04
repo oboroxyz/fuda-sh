@@ -87,7 +87,11 @@ export const postV1AuthMemberLogout = defineHandler(memberAuth(), async (c) => {
 export const getV1AuthMemberPasskeys = defineHandler(memberAuth(), async (c) => {
   const rows = await listPasskeys(c.get('db'), c.get('member').accountId)
   return jsonResponse(c, {
-    passkeys: rows.map((row) => ({ ...row, backedUp: row.backedUp !== 0 })),
+    passkeys: rows.map(({ copy, ...row }) => ({
+      ...row,
+      backedUp: row.backedUp !== 0,
+      holdsSecret: copy !== null,
+    })),
   })
 })
 

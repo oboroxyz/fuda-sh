@@ -29,7 +29,8 @@ export const putV1IssuersMeCardsCardIdStamps = defineHandler(operatorAuth(), asy
   if (card === undefined) {
     return errorResponse(c, 'not_found', 404)
   }
-  if (card.category !== 'membership') {
+  // A card's identity never changes, so unlike its category this needs no predicate in the write.
+  if (card.category !== 'membership' || card.identity === 'sensitive') {
     return errorResponse(c, 'stamps_not_supported', 409)
   }
   const body: unknown = await c.req.json().catch(() => null)

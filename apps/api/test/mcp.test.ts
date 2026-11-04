@@ -471,10 +471,10 @@ describe('mcp', () => {
       expect(rows.find((row) => row.id === cardId)).toStrictEqual({ claimable: false, id: cardId, issued: 1 })
     })
 
-    it('leaves a passkey card for its holder to claim', async () => {
+    it.each(['passkey', 'sensitive'])('leaves a %s card for its holder to claim', async (identity) => {
       const { token } = await approveAndExchange({ resource: RESOURCE, scope: ALL_SCOPES })
       const created = await rpc(token, 'tools/call', {
-        arguments: { ...SECOND_CARD, identity: 'passkey', record: 'offchain' },
+        arguments: { ...SECOND_CARD, identity, record: 'offchain' },
         name: 'create_card',
       })
       const { id: cardId } = toolValue(Limited, created).card

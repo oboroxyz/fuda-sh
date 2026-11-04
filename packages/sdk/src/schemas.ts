@@ -106,6 +106,31 @@ export type VerifySignedRequest = v.InferOutput<typeof VerifySignedBody>
 // What a claim on a passkey card adds to the self-serve issue body.
 export const PasskeyClaimBody = v.object({ webauthn: PasskeyAuthenticationBody })
 
+// What a claim on a Sensitive card adds: the address of a key only the member can derive.
+// It names no account.
+export const SensitiveClaimBody = v.object({ holderAddress: address })
+
+// docs/specs/pass-types-and-flows.md#sensitive-use. Ciphertext only: a wrapped 32-byte
+// secret, and a vault of up to a few thousand short entries.
+const SECRET_COPY_MAX_LENGTH = 128
+const VAULT_MAX_LENGTH = 512_000
+const AES_GCM_IV = v.pipe(Base64Url, v.length(16))
+
+export const MemberSecretCopyBody = v.object({
+  ciphertext: v.pipe(Base64Url, v.maxLength(SECRET_COPY_MAX_LENGTH)),
+  credentialId: Base64Url,
+  first: v.boolean(),
+  iv: AES_GCM_IV,
+})
+
+export const MemberVaultBody = v.object({
+  ciphertext: v.pipe(Base64Url, v.maxLength(VAULT_MAX_LENGTH)),
+  expectedVersion: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  iv: AES_GCM_IV,
+})
+
+export const MemberSecretOutcomeBody = v.object({ outcome: v.picklist(['prf', 'no_prf']) })
+
 export const MAX_LINKED_UIDS_PER_REQUEST = 50
 
 export const LinkPassesBody = v.object({
@@ -174,7 +199,7 @@ export const CardBody = v.pipe(
   ),
   v.check(
     (card: CardFieldsOutput) => isIdentityAllowed(card),
-    'a pass bound to a passkey must be recorded offchain',
+    'a pass bound to a key must be recorded offchain',
   ),
 )
 

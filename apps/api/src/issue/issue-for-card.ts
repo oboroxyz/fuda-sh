@@ -12,7 +12,7 @@ import type { AppEnv } from '../env.ts'
 import { issueBearer, IssueConfigError } from './issue-bearer.ts'
 import { issueContext } from './issue-context.ts'
 import { issueOffchainPass, offchainDomain } from './issue-offchain.ts'
-import type { PasskeyClaimant } from './issue-offchain.ts'
+import type { PassClaimant } from './issue-offchain.ts'
 import { OrphanedRightError } from './orphaned-right-error.ts'
 
 const MEMBER_NUMBER_DRAWS = 3
@@ -77,7 +77,7 @@ const issueOffchain = async (
   card: typeof cards.$inferSelect,
   issuer: Pick<typeof issuers.$inferSelect, 'handle' | 'id'>,
   source: string | null,
-  claimant: PasskeyClaimant | null,
+  claimant: PassClaimant | null,
 ): Promise<CardIssueOutcome> => {
   const chain = c.get('chain')
   if (chain.offchainAttester() === null) {
@@ -125,15 +125,15 @@ const issueOffchain = async (
 
 // One pass under a card (docs/specs/pass-types-and-flows.md#u1-standard-issuance-and-optional-activation).
 // The card fixes tier, usage model and validity. Its caller decides who may ask, except on
-// a passkey card, whose pass can only be issued to the passkey that claimed it.
+// a card bound to a key, whose pass can only be issued to the key that claimed it.
 export const issueForCard = async (
   c: Context<AppEnv>,
   card: typeof cards.$inferSelect,
   issuer: Pick<typeof issuers.$inferSelect, 'handle' | 'id'>,
   source: string | null,
-  claimant: PasskeyClaimant | null = null,
+  claimant: PassClaimant | null = null,
 ): Promise<CardIssueOutcome> => {
-  if (card.identity === 'passkey' && claimant === null) {
+  if (card.identity !== 'none' && claimant === null) {
     return { error: 'holder_must_claim', ok: false }
   }
   if (card.record === 'offchain') {

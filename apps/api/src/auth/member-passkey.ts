@@ -16,7 +16,7 @@ import * as v from 'valibot'
 
 import { base64UrlOf } from '../base64url.ts'
 import type { Db } from '../db/client.ts'
-import { accounts, passkeyChallenges, passkeys } from '../db/schema.ts'
+import { accounts, memberSecretCopies, passkeyChallenges, passkeys } from '../db/schema.ts'
 import type { AttestedPasskey } from '../eas/offchain.ts'
 import type { Bindings } from '../env.ts'
 import { toHex } from '../hex.ts'
@@ -108,6 +108,9 @@ const creationOptions = async (
     attestationType: 'none',
     authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
     excludeCredentials: exclude,
+    // Some authenticators turn the feature on only if asked at creation. Support says nothing
+    // about a result, which only an assertion can show (member/sensitive.ts in the app).
+    extensions: { prf: {} },
     rpID: rp.id,
     rpName: 'fuda',
     supportedAlgorithmIDs: [ES256],
@@ -428,16 +431,19 @@ export const listPasskeys = async (db: Db, accountId: string) =>
   await db
     .select({
       backedUp: passkeys.backedUp,
+      copy: memberSecretCopies.credentialId,
       createdAt: passkeys.createdAt,
       id: passkeys.credentialId,
       lastUsedAt: passkeys.lastUsedAt,
     })
     .from(passkeys)
+    .leftJoin(memberSecretCopies, eq(memberSecretCopies.credentialId, passkeys.credentialId))
     .where(eq(passkeys.accountId, accountId))
     .orderBy(passkeys.createdAt)
 
 // One statement, so two requests cannot each remove a different one of the last two
-// and leave an account no one can sign in to.
+// and leave an account no one can sign in to. The last copy of a member secret stays too:
+// without it the account's Sensitive passes are gone. A copy goes with its passkey.
 export const removePasskey = async (db: Db, accountId: string, id: string): Promise<boolean> => {
   const removed = await db
     .delete(passkeys)
@@ -446,6 +452,12 @@ export const removePasskey = async (db: Db, accountId: string, id: string): Prom
         eq(passkeys.credentialId, id),
         eq(passkeys.accountId, accountId),
         sql`(SELECT COUNT(*) FROM passkeys WHERE account_id = ${accountId}) > 1`,
+        sql`(
+          NOT EXISTS (SELECT 1 FROM member_secret_copies WHERE credential_id = ${id})
+          OR EXISTS (
+            SELECT 1 FROM member_secret_copies WHERE account_id = ${accountId} AND credential_id <> ${id}
+          )
+        )`,
       ),
     )
     .returning({ id: passkeys.credentialId })

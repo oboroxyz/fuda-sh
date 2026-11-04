@@ -182,10 +182,33 @@ export interface MemberPasskeyView {
   id: string
   backedUp: boolean
   createdAt: number
+  // Whether this passkey holds a copy of the member secret, so it can open Sensitive passes.
+  holdsSecret: boolean
   lastUsedAt: number | null
 }
 export interface MemberPasskeysResponse {
   passkeys: MemberPasskeyView[]
+}
+// docs/specs/pass-types-and-flows.md#sensitive-use
+export interface MemberSecretCopyView {
+  ciphertext: string
+  credentialId: string
+  iv: string
+}
+export interface MemberSecretResponse {
+  // Only passkeys with a copy, once there is one, so the prompt offers no passkey that
+  // cannot open it.
+  allowCredentials: { id: string; transports: string[] }[]
+  copies: MemberSecretCopyView[]
+  rpId: string
+}
+export interface MemberVaultView {
+  ciphertext: string
+  iv: string
+  version: number
+}
+export interface MemberVaultResponse {
+  vault: MemberVaultView | null
 }
 export interface MemberPassView {
   uid: Hex
