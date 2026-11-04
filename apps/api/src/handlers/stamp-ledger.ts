@@ -1,5 +1,5 @@
 import { normalizeUid, parseQr, StampAdjustBody, StampRedeemBody } from '@fuda/sdk'
-import type { Hex, StampSummary } from '@fuda/sdk'
+import type { Hex, StampLedger, StampSummary } from '@fuda/sdk'
 import { and, eq, ne } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
@@ -43,13 +43,20 @@ const memberOf = async (c: Context<AppEnv>, issuerId: string, uid: Hex) =>
     .where(and(eq(members.attestationUid, uid), eq(members.issuerId, issuerId), ne(members.level, 'private')))
     .get()
 
-const respond = async (c: Context<AppEnv>, issuerId: string, uid: Hex, row: AdjustmentRow) => {
+const ledgerOf = async (c: Context<AppEnv>, issuerId: string, uid: Hex): Promise<StampLedger | null> => {
   const db = c.get('db')
   const [entries, summary] = await Promise.all([
     readLedger(db, issuerId, uid),
     readStampSummary(db, uid, c.get('now')()),
   ])
-  return jsonResponse(c, { entries, entry: entryOf(row), summary })
+  return summary === null ? null : { entries, summary }
+}
+
+const respond = async (c: Context<AppEnv>, issuerId: string, uid: Hex, row: AdjustmentRow) => {
+  const ledger = await ledgerOf(c, issuerId, uid)
+  return ledger === null
+    ? errorResponse(c, 'not_found', 404)
+    : jsonResponse(c, { ...ledger, entry: entryOf(row) })
 }
 
 interface ActionBody {
@@ -70,78 +77,104 @@ const parseBody = (kind: Kind, body: unknown): ActionBody | null => {
   return parsed.success ? parsed.output : null
 }
 
-const targetUid = (body: { qr?: string | undefined; uid?: string | undefined }): Hex | null =>
-  body.uid === undefined ? parseQr((body.qr ?? '').trim()) : normalizeUid(body.uid)
+interface Target {
+  body: ActionBody
+  issuerId: string
+  operatorAddress: string
+  requestId: string
+  status: 'active' | 'revoked'
+  uid: Hex
+}
 
-const act = async (c: Context<AppEnv>, kind: Kind): Promise<Response> => {
-  c.header('cache-control', 'no-store')
+// The venue comes from the session alone; a Right of another venue is as
+// unknown as one that does not exist.
+const resolveTarget = async (c: Context<AppEnv>, kind: Kind): Promise<Response | Target> => {
   const operator = c.get('operator')
   const { issuerId } = operator
+  const raw: unknown = await c.req.json().catch(() => null)
+  const body = parseBody(kind, raw)
   if (issuerId === null) {
     return errorResponse(c, 'not_found', 404)
   }
-  const body: unknown = await c.req.json().catch(() => null)
-  const input = parseBody(kind, body)
-  if (input === null) {
+  if (body === null) {
     return errorResponse(c, 'bad_input', 400)
   }
-  const uid = targetUid(input)
+  const uid = body.uid === undefined ? parseQr((body.qr ?? '').trim()) : normalizeUid(body.uid)
   if (uid === null) {
     return errorResponse(c, 'bad_uid', 400)
   }
-  const { delta, note } = input
   const member = await memberOf(c, issuerId, uid)
   if (member === undefined) {
     return errorResponse(c, 'not_found', 404)
   }
-  const db = c.get('db')
-  const requestId = `${issuerId}:${input.requestId.toLowerCase()}`
-  const replay = async (): Promise<Response | null> => {
-    const previous = await readAdjustment(db, requestId)
-    if (previous === undefined) {
-      return null
-    }
-    if (previous.uid !== uid || previous.kind !== kind || (kind === 'adjust' && previous.delta !== delta)) {
-      return errorResponse(c, 'bad_input', 409)
-    }
-    scheduleStampPassUpdate(c, uid)
-    return await respond(c, issuerId, uid, previous)
+  return {
+    body,
+    issuerId,
+    operatorAddress: operator.address,
+    requestId: `${issuerId}:${body.requestId.toLowerCase()}`,
+    status: member.status,
+    uid,
   }
-  const replayed = await replay()
+}
+
+const replayOf = async (c: Context<AppEnv>, kind: Kind, target: Target): Promise<Response | null> => {
+  const { body, issuerId, requestId, uid } = target
+  const previous = await readAdjustment(c.get('db'), requestId)
+  if (previous === undefined) {
+    return null
+  }
+  if (
+    previous.uid !== uid ||
+    previous.kind !== kind ||
+    (kind === 'adjust' && previous.delta !== body.delta)
+  ) {
+    return errorResponse(c, 'bad_input', 409)
+  }
+  scheduleStampPassUpdate(c, uid)
+  return await respond(c, issuerId, uid, previous)
+}
+
+const refusalFor = async (
+  c: Context<AppEnv>,
+  kind: Kind,
+  target: Target,
+): Promise<Refusal | 'not_found' | null> => {
+  const summary = await readStampSummary(c.get('db'), target.uid, c.get('now')())
+  return summary === null ? 'not_found' : refusalOf(kind, target.body.delta, target.status, summary)
+}
+
+const act = async (c: Context<AppEnv>, kind: Kind): Promise<Response> => {
+  c.header('cache-control', 'no-store')
+  const target = await resolveTarget(c, kind)
+  if (target instanceof Response) {
+    return target
+  }
+  const { body, issuerId, operatorAddress, requestId, uid } = target
+  const replayed = await replayOf(c, kind, target)
   if (replayed !== null) {
     return replayed
   }
-  const now = c.get('now')()
-  const before = await readStampSummary(db, uid, now)
-  if (before === null) {
-    return errorResponse(c, 'not_found', 404)
-  }
-  const refusal = refusalOf(kind, delta, member.status, before)
+  const refusal = await refusalFor(c, kind, target)
   if (refusal !== null) {
-    return errorResponse(c, refusal, 409)
+    return errorResponse(c, refusal, refusal === 'not_found' ? 404 : 409)
   }
   const inserted = await insertAdjustment(c.env.DB, {
-    at: now,
-    delta,
+    at: c.get('now')(),
+    delta: body.delta,
     issuerId,
     kind,
-    note,
-    operatorAddress: operator.address,
+    note: body.note,
+    operatorAddress,
     requestId,
     uid,
   })
   if (!inserted) {
-    // Either an identical request won the race, or the balance moved between
-    // the read above and the guarded insert.
-    const raced = await replay()
-    if (raced !== null) {
-      return raced
-    }
-    const after = await readStampSummary(db, uid, now)
-    const lost = after === null ? null : refusalOf(kind, delta, member.status, after)
-    return errorResponse(c, lost ?? 'conflict', 409)
+    // An identical request won the race, or the balance moved between the read
+    // above and the guarded insert.
+    const raced = await replayOf(c, kind, target)
+    return raced ?? errorResponse(c, (await refusalFor(c, kind, target)) ?? 'conflict', 409)
   }
-  const row = await readAdjustment(db, requestId)
+  const row = await readAdjustment(c.get('db'), requestId)
   if (row === undefined) {
     throw new Error('stamp adjustment missing after commit')
   }
@@ -163,10 +196,6 @@ export const getV1IssuersMeStampsUid = defineHandler(operatorAuth(), async (c) =
   if (issuerId === null || (await memberOf(c, issuerId, uid)) === undefined) {
     return errorResponse(c, 'not_found', 404)
   }
-  const db = c.get('db')
-  const [entries, summary] = await Promise.all([
-    readLedger(db, issuerId, uid),
-    readStampSummary(db, uid, c.get('now')()),
-  ])
-  return summary === null ? errorResponse(c, 'not_found', 404) : jsonResponse(c, { entries, summary })
+  const ledger = await ledgerOf(c, issuerId, uid)
+  return ledger === null ? errorResponse(c, 'not_found', 404) : jsonResponse(c, ledger)
 })

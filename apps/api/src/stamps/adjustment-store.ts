@@ -4,7 +4,7 @@ import { desc, eq, and } from 'drizzle-orm'
 import type { Db } from '../db/client.ts'
 import { stampAdjustments } from '../db/schema.ts'
 
-export const LEDGER_PAGE = 10
+const LEDGER_PAGE = 10
 
 export type AdjustmentRow = typeof stampAdjustments.$inferSelect
 
