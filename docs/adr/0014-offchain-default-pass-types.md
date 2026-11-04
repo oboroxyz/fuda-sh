@@ -85,13 +85,13 @@ U4 stays deferred and unchanged.
 
 Offchain rights have no holder address to query, so fuda keeps a server-side link from a member account to their passes. This supersedes [ADR 0004](0004-member-pass-list-from-holder.md) decisions 1 to 3 for offchain rights. They still apply to on-chain rights.
 
-| Type | Recovery |
-| --- | --- |
-| Standard | passkey account, or email as backup; reissue at the shop |
-| Identified | passkey sync; otherwise reissue, because the pass names one passkey's public key |
-| Sensitive use | passkey sync; a second passkey; reissue by the Issuer, never email |
-| On-chain | as Standard; the record stays public |
-| On-chain self-held | passkey sync, owner rotation or an external wallet |
+| Type               | Recovery                                                                         |
+| ------------------ | -------------------------------------------------------------------------------- |
+| Standard           | passkey account, or email as backup; reissue at the shop                         |
+| Identified         | passkey sync; otherwise reissue, because the pass names one passkey's public key |
+| Sensitive use      | passkey sync; a second passkey; reissue by the Issuer, never email               |
+| On-chain           | as Standard; the record stays public                                             |
+| On-chain self-held | passkey sync, owner rotation or an external wallet                               |
 
 Moving between iOS and Android does not carry a passkey across, so the new phone needs an existing device, a recovery code or a reissue.
 
@@ -121,15 +121,15 @@ Member ENS names resolve to a holder address, so only on-chain types get them.
 
 Local anvil forks of Base Sepolia, Base mainnet and Soneium, with Chromium's virtual authenticator. Gas excludes the L1 data fee. The P-256 precompile answers a valid vector on all of these chains, so the passkey figures do not rely on a software fallback.
 
-| Operation | Gas |
-| --- | --- |
-| On-chain attestation (estimate) | 354,422 |
-| Root timestamp | 50,834 |
-| Offchain revocation | 51,391 |
-| Passkey wallet deployment, one owner | 213,853 |
+| Operation                                            | Gas     |
+| ---------------------------------------------------- | ------- |
+| On-chain attestation (estimate)                      | 354,422 |
+| Root timestamp                                       | 50,834  |
+| Offchain revocation                                  | 51,391  |
+| Passkey wallet deployment, one owner                 | 213,853 |
 | Revocation from a passkey wallet, through EntryPoint | 174,780 |
-| Adding a passkey owner | 227,175 |
-| On-chain delegation from a wallet with an EOA owner | 393,061 |
+| Adding a passkey owner                               | 227,175 |
+| On-chain delegation from a wallet with an EOA owner  | 393,061 |
 
 ## Conditions before acceptance
 
