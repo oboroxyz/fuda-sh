@@ -8,8 +8,8 @@
   },
   "scripts": {
     "dev": "cd targets/local && vp dev --port 8787",
-    "deploy": "cd targets/develop && void deploy",
-    "deploy:production": "cd targets/production && void deploy",
+    "deploy": "cd targets/develop && void deploy --platform cloudflare",
+    "deploy:production": "cd targets/production && void deploy --platform cloudflare",
     "test": "vp test",
     "test:scripts": "vp test --config vite.scripts.config.ts",
     "migrate:local": "cd targets/local && void db migrate",

@@ -54,6 +54,3 @@ minimumReleaseAgeExclude:
   - '@cloudflare/workers-types@5.20261102.1'
   - '@cloudflare/workers-utils@0.50.2'
   - hono@4.13.16
-patchedDependencies:
-  '@void/deploy-cloudflare@1.6.1': patches/@void__deploy-cloudflare@1.6.1.patch
-  void@1.6.1: patches/void@1.6.1.patch

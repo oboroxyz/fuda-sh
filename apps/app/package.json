@@ -7,7 +7,7 @@
     "dev": "API_BASE_URL=http://localhost:8787 VITE_APP_ORIGIN=http://localhost:5173 VITE_RP_ID=localhost VOID_INSPECTOR_PORT=false vp dev",
     "build": "vp build",
     "preview": "vp preview",
-    "deploy": "void deploy",
+    "deploy": "void deploy --platform cloudflare",
     "test": "vp test"
   },
   "dependencies": {

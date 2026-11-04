@@ -9,10 +9,6 @@ overrides:
   oxfmt: '=0.64.0'
   vite@*: npm:@voidzero-dev/vite-plus-core@0.3.0
 
-patchedDependencies:
-  '@void/deploy-cloudflare@1.6.1': 5ebea27f51871e8f22228cf90751be6ed9637b74d0224b70f7986dc4ecc4a17a
-  void@1.6.1: 55e908b1a53af1271cab6da7e2cfe37376f0a9cbc24437a13b6203378fcbe9ea
-
 importers:
 
   .:
@@ -104,7 +100,7 @@ importers:
         version: 4.1.11(@types/node@24.13.3)(@vitest/browser-preview@4.1.11)(esbuild@0.28.2)(happy-dom@20.14.0)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1)
       void:
         specifier: 1.6.1
-        version: 1.6.1(patch_hash=55e908b1a53af1271cab6da7e2cfe37376f0a9cbc24437a13b6203378fcbe9ea)(@types/node@24.13.3)(esbuild@0.28.2)(kysely@0.29.7)(solid-js@1.9.17)(tsx@4.23.13)(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261101.1)(zod@4.6.7)
+        version: 1.6.1(@types/node@24.13.3)(esbuild@0.28.2)(kysely@0.29.7)(solid-js@1.9.17)(tsx@4.23.13)(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261101.1)(zod@4.6.7)
 
   apps/app:
     dependencies:
@@ -150,7 +146,7 @@ importers:
         version: 4.3.3(@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0))
       '@void/solid':
         specifier: 1.6.1
-        version: 1.6.1(@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0))(solid-js@1.9.17)(supports-color@10.2.2)(void@1.6.1(patch_hash=55e908b1a53af1271cab6da7e2cfe37376f0a9cbc24437a13b6203378fcbe9ea)(@types/node@24.13.3)(esbuild@0.28.2)(kysely@0.29.7)(solid-js@1.9.17)(tsx@4.23.13)(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261101.1)(zod@4.6.7))
+        version: 1.6.1(@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0))(solid-js@1.9.17)(supports-color@10.2.2)(void@1.6.1(@types/node@24.13.3)(esbuild@0.28.2)(kysely@0.29.7)(solid-js@1.9.17)(tsx@4.23.13)(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261101.1)(zod@4.6.7))
       daisyui:
         specifier: 5.7.28
         version: 5.7.28
@@ -168,7 +164,7 @@ importers:
         version: 4.1.11(@types/node@24.13.3)(@vitest/browser-preview@4.1.11)(esbuild@0.28.2)(happy-dom@20.14.0)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1)
       void:
         specifier: 1.6.1
-        version: 1.6.1(patch_hash=55e908b1a53af1271cab6da7e2cfe37376f0a9cbc24437a13b6203378fcbe9ea)(@types/node@24.13.3)(esbuild@0.28.2)(kysely@0.29.7)(solid-js@1.9.17)(tsx@4.23.13)(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261101.1)(zod@4.6.7)
+        version: 1.6.1(@types/node@24.13.3)(esbuild@0.28.2)(kysely@0.29.7)(solid-js@1.9.17)(tsx@4.23.13)(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261101.1)(zod@4.6.7)
 
   apps/dash:
     dependencies:
@@ -211,7 +207,7 @@ importers:
         version: 4.3.3(@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0))
       '@void/solid':
         specifier: 1.6.1
-        version: 1.6.1(@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0))(solid-js@1.9.17)(supports-color@10.2.2)(void@1.6.1(patch_hash=55e908b1a53af1271cab6da7e2cfe37376f0a9cbc24437a13b6203378fcbe9ea)(@types/node@24.13.3)(esbuild@0.28.2)(kysely@0.29.7)(solid-js@1.9.17)(tsx@4.23.13)(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261101.1)(zod@4.6.7))
+        version: 1.6.1(@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0))(solid-js@1.9.17)(supports-color@10.2.2)(void@1.6.1(@types/node@24.13.3)(esbuild@0.28.2)(kysely@0.29.7)(solid-js@1.9.17)(tsx@4.23.13)(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261101.1)(zod@4.6.7))
       daisyui:
         specifier: 5.7.28
         version: 5.7.28
@@ -229,7 +225,7 @@ importers:
         version: 4.1.11(@types/node@24.13.3)(@vitest/browser-preview@4.1.11)(esbuild@0.28.2)(happy-dom@20.14.0)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1)
       void:
         specifier: 1.6.1
-        version: 1.6.1(patch_hash=55e908b1a53af1271cab6da7e2cfe37376f0a9cbc24437a13b6203378fcbe9ea)(@types/node@24.13.3)(esbuild@0.28.2)(kysely@0.29.7)(solid-js@1.9.17)(tsx@4.23.13)(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261101.1)(zod@4.6.7)
+        version: 1.6.1(@types/node@24.13.3)(esbuild@0.28.2)(kysely@0.29.7)(solid-js@1.9.17)(tsx@4.23.13)(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261101.1)(zod@4.6.7)
 
   apps/gate:
     dependencies:
@@ -272,7 +268,7 @@ importers:
         version: 4.1.11(@types/node@24.13.3)(@vitest/browser-preview@4.1.11)(esbuild@0.28.2)(happy-dom@20.14.0)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1)
       void:
         specifier: 1.6.1
-        version: 1.6.1(patch_hash=55e908b1a53af1271cab6da7e2cfe37376f0a9cbc24437a13b6203378fcbe9ea)(@types/node@24.13.3)(esbuild@0.28.2)(kysely@0.29.7)(solid-js@1.9.17)(tsx@4.23.13)(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261101.1)(zod@4.6.7)
+        version: 1.6.1(@types/node@24.13.3)(esbuild@0.28.2)(kysely@0.29.7)(solid-js@1.9.17)(tsx@4.23.13)(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261101.1)(zod@4.6.7)
 
   packages/e2e:
     devDependencies:
@@ -8304,7 +8300,7 @@ snapshots:
       convert-source-map: 2.0.0
       tinyrainbow: 3.2.0
 
-  '@void/deploy-cloudflare@1.6.1(patch_hash=5ebea27f51871e8f22228cf90751be6ed9637b74d0224b70f7986dc4ecc4a17a)':
+  '@void/deploy-cloudflare@1.6.1':
     dependencies:
       '@void/deploy-core': 1.6.1
       jsonc-parser: 3.3.1
@@ -8324,12 +8320,12 @@ snapshots:
     dependencies:
       pathslash: 0.1.0
 
-  '@void/solid@1.6.1(@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0))(solid-js@1.9.17)(supports-color@10.2.2)(void@1.6.1(patch_hash=55e908b1a53af1271cab6da7e2cfe37376f0a9cbc24437a13b6203378fcbe9ea)(@types/node@24.13.3)(esbuild@0.28.2)(kysely@0.29.7)(solid-js@1.9.17)(tsx@4.23.13)(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261101.1)(zod@4.6.7))':
+  '@void/solid@1.6.1(@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0))(solid-js@1.9.17)(supports-color@10.2.2)(void@1.6.1(@types/node@24.13.3)(esbuild@0.28.2)(kysely@0.29.7)(solid-js@1.9.17)(tsx@4.23.13)(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261101.1)(zod@4.6.7))':
     dependencies:
       solid-js: 1.9.17
       vite: '@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0)'
       vite-plugin-solid: 2.11.15(@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.0))(solid-js@1.9.17)(supports-color@10.2.2)
-      void: 1.6.1(patch_hash=55e908b1a53af1271cab6da7e2cfe37376f0a9cbc24437a13b6203378fcbe9ea)(@types/node@24.13.3)(esbuild@0.28.2)(kysely@0.29.7)(solid-js@1.9.17)(tsx@4.23.13)(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261101.1)(zod@4.6.7)
+      void: 1.6.1(@types/node@24.13.3)(esbuild@0.28.2)(kysely@0.29.7)(solid-js@1.9.17)(tsx@4.23.13)(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261101.1)(zod@4.6.7)
     transitivePeerDependencies:
       - '@testing-library/jest-dom'
       - supports-color
@@ -10323,7 +10319,7 @@ snapshots:
       - unrun
       - yaml
 
-  void@1.6.1(patch_hash=55e908b1a53af1271cab6da7e2cfe37376f0a9cbc24437a13b6203378fcbe9ea)(@types/node@24.13.3)(esbuild@0.28.2)(kysely@0.29.7)(solid-js@1.9.17)(tsx@4.23.13)(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261101.1)(zod@4.6.7):
+  void@1.6.1(@types/node@24.13.3)(esbuild@0.28.2)(kysely@0.29.7)(solid-js@1.9.17)(tsx@4.23.13)(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261101.1)(zod@4.6.7):
     dependencies:
       '@cloudflare/build-output-utils': 0.9.7
       '@cloudflare/codemods': 0.7.1
@@ -10334,7 +10330,7 @@ snapshots:
       '@cloudflare/workers-types': 5.20261102.1
       '@cloudflare/workers-utils': 0.50.2(vitest@4.1.11)
       '@napi-rs/keyring': 2.1.2
-      '@void/deploy-cloudflare': 1.6.1(patch_hash=5ebea27f51871e8f22228cf90751be6ed9637b74d0224b70f7986dc4ecc4a17a)
+      '@void/deploy-cloudflare': 1.6.1
       '@void/deploy-core': 1.6.1
       '@void/edge': 1.6.1
       '@void/isr': 1.6.1
