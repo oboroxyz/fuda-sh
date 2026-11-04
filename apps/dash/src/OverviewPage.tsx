@@ -40,7 +40,9 @@ export const OverviewPage = (props: OverviewPageProps): JSX.Element => {
     return current.stale ? props.copy.stale : null
   }
   const errorMessage = (): string | null =>
-    props.state.kind === 'error' ? `${props.copy.errorPrefix}: ${props.state.message}` : null
+    props.state.kind === 'error'
+      ? `${props.copy.errorPrefix}: ${props.copy.errorMessage(props.state.message)}`
+      : null
 
   const countValue = (value: number | null): JSX.Element => {
     if (value !== null) {

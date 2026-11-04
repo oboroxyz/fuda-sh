@@ -144,9 +144,34 @@ describe('localized operation views', () => {
     expect(liveStatus(host)?.getAttribute('aria-live')).toBe('polite')
   })
 
-  it('retains machine errors verbatim inside localized alert context', () => {
+  it('explains unknown errors in Japanese and retains their support code', () => {
     const host = view({ result: { error: 'RPC_DENIED [42]', network: false, ok: false, status: 503 } })
-    expect(spacedText(host.querySelector('[role="alert"]'))).toBe('発行に失敗しました: RPC_DENIED [42]')
+    expect(spacedText(host.querySelector('[role="alert"]'))).toBe(
+      '発行に失敗しました: 処理を完了できませんでした。もう一度お試しください。 (RPC_DENIED [42])',
+    )
+  })
+
+  it('retranslates a visible API error when the operator changes language', async () => {
+    const [locale, setLocale] = createSignal<'en' | 'ja'>('en')
+    const onIssue = vi.fn<() => Promise<Result<IssueResponse>>>().mockResolvedValue({
+      error: 'bad_input',
+      network: false,
+      ok: false,
+      status: 400,
+    })
+    const host = mount(() => <IssueForm copy={DASH_COPY[locale()].issue} onIssue={onIssue} />)
+    typeInto(host.querySelector<HTMLInputElement>('#issue-member-id')!, 'alice')
+    submit(host)
+    await vi.waitFor(() => {
+      expect(spacedText(host.querySelector('[role="alert"]'))).toBe(
+        'Issue failed: Check the information you entered.',
+      )
+    })
+    setLocale('ja')
+    await flush()
+    expect(spacedText(host.querySelector('[role="alert"]'))).toBe(
+      '発行に失敗しました: 入力内容を確認してください。',
+    )
   })
 
   it('labels the QR image and retains the entire readable payload', () => {

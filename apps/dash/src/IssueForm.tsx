@@ -38,10 +38,14 @@ const isLevel = (s: string): s is Form['level'] => LEVELS.some((l) => l === s)
 const fieldValue = (target: EventTarget | null): string | null =>
   target instanceof HTMLInputElement || target instanceof HTMLSelectElement ? target.value : null
 
-// The api's error code is shown verbatim so the operator sees exactly what it said.
 const outcome = (copy: DashCopy['issue'], result: Result<IssueResponse>): JSX.Element => {
   if (!result.ok) {
-    return <div role="alert" class="alert alert-error">{`${copy.errorPrefix}: ${result.error}`}</div>
+    return (
+      <div
+        role="alert"
+        class="alert alert-error"
+      >{`${copy.errorPrefix}: ${copy.errorMessage(result.error)}`}</div>
+    )
   }
   if (result.body.level === 'private') {
     return (

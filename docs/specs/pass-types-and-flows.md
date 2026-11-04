@@ -348,6 +348,12 @@ A Card may have a **capacity**, the most Passes it can ever issue. A Card at cap
 
 A claim link may carry a **source**, `?source=spring-flyer`: 1–40 lowercase letters, digits, hyphens or underscores. `POST /issuers/:handle/:slug/issue` takes it as an optional body `{ source }`, and one that breaks the rule is dropped rather than refusing the claim. It is held off chain and read only by the owning Issuer. Anyone can edit a link, so a source is good for counting and never decides anything.
 
+### Page language and dashboard errors
+
+The member app and dashboard resolve page titles, descriptions and Open Graph text from the same saved choice and `Accept-Language` ranking as their page content. Without a known language they use Japanese. The static gate HTML uses Japanese titles, descriptions, `lang` and Open Graph locale because it has no request-specific language selection. Shared venue links retain the Issuer's own name and tagline in their title and description, including the Open Graph description.
+
+Dashboard API errors that previously exposed a code in issuance, revocation, member lists, the overview and connected-app activity use one bilingual error table. Known codes show an explanation in the current language. An unrecognized code shows a general failure message in that language and the code in parentheses for support. Changing language also changes an error that is already visible. API response codes are unchanged.
+
 ## Gate protocol
 
 ### Bearer entry (`POST /verify`)

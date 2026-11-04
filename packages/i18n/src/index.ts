@@ -52,3 +52,25 @@ export const AUTH_COPY = {
   en: { signInWithPasskey: 'Sign in with Passkey', signingIn: 'Signing in…' },
   ja: { signInWithPasskey: 'パスキーでサインイン', signingIn: 'サインイン中…' },
 } satisfies Copy<{ signInWithPasskey: string; signingIn: string }>
+
+export const PAGE_COPY = {
+  en: {
+    appTitle: 'app - fuda.sh',
+    dashTitle: 'dashboard - fuda.sh',
+    description:
+      'Issue membership, loyalty, and ticket cards in minutes. Add them to Apple & Google Wallet. No app, no lock-in, verifiable by anyone.',
+    ogLocale: 'en_US',
+  },
+  ja: {
+    appTitle: 'パス - fuda.sh',
+    dashTitle: 'お店の管理 - fuda.sh',
+    description:
+      '会員証、スタンプカード、チケットを作って、Apple WalletやGoogle Walletに追加できます。専用アプリは不要です。',
+    ogLocale: 'ja_JP',
+  },
+} satisfies Copy<{
+  appTitle: string
+  dashTitle: string
+  description: string
+  ogLocale: string
+}>

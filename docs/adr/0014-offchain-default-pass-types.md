@@ -119,6 +119,8 @@ Member ENS names resolve to a holder address, so only on-chain types get them.
 - Offchain Rights need a new schema that carries the venue and, for Identified, the key. This is a new cut, not a change to the current Entitlement.
 - fuda pays for roots and revocations, and on-chain types keep paying per issuance.
 
+The supporting dashboard UI explains API errors in the selected language, with an unrecognized code retained in parentheses for support. App and dashboard metadata follow page language selection with Japanese as the fallback; the static gate metadata is Japanese. See [page language and dashboard errors](../specs/pass-types-and-flows.md#page-language-and-dashboard-errors).
+
 ## Measurements
 
 Local anvil forks of Base Sepolia, Base mainnet and Soneium, with Chromium's virtual authenticator. Gas excludes the L1 data fee. The P-256 precompile answers a valid vector on all of these chains, so the passkey figures do not rely on a software fallback.

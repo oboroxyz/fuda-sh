@@ -5,6 +5,7 @@ import type { PasskeySectionCopy } from '@fuda/ui'
 import { APPS_COPY } from './apps-copy.ts'
 import type { AppsCopy } from './apps-copy.ts'
 import type { BrandColorName } from './brand-colors.ts'
+import { dashMessage } from './error-copy.ts'
 import { MANAGEMENT_COPY } from './management-copy.ts'
 import type { ManagementCopy } from './management-copy.ts'
 
@@ -286,6 +287,7 @@ export interface DashCopy {
     unavailable: string
     configured: string
     notConfigured: string
+    errorMessage: (code: string) => string
     errorPrefix: string
     refreshing: string
     stale: string
@@ -320,6 +322,7 @@ export interface DashCopy {
     empty: string
     noMatches: string
     clearFilters: string
+    errorMessage: (code: string) => string
     errorPrefix: string
     refreshing: string
     stale: string
@@ -332,6 +335,7 @@ export interface DashCopy {
     cancel: string
     confirm: string
     revoking: string
+    errorMessage: (code: string) => string
     errorPrefix: string
   }
   issue: {
@@ -349,6 +353,7 @@ export interface DashCopy {
     usageModel: string
     submit: string
     submitting: string
+    errorMessage: (code: string) => string
     errorPrefix: string
     issued: string
     announced: string
@@ -730,6 +735,7 @@ export const DASH_COPY = {
       unavailable: 'Unavailable',
       configured: 'Configured',
       notConfigured: 'Not configured',
+      errorMessage: (code: string) => dashMessage(code, 'en'),
       errorPrefix: 'Could not load rights',
       refreshing: 'Refreshing rights',
       stale: 'Showing last loaded values',
@@ -766,6 +772,7 @@ export const DASH_COPY = {
       empty: 'No rights have been issued.',
       noMatches: 'No rights match these filters.',
       clearFilters: 'Clear filters',
+      errorMessage: (code: string) => dashMessage(code, 'en'),
       errorPrefix: 'Could not load rights',
       refreshing: 'Refreshing rights',
       stale: 'Showing last loaded rights; their status may be out of date.',
@@ -778,6 +785,7 @@ export const DASH_COPY = {
       cancel: 'Cancel',
       confirm: 'Revoke right',
       revoking: 'Revoking',
+      errorMessage: (code: string) => dashMessage(code, 'en'),
       errorPrefix: 'Revoke failed',
     },
     issue: {
@@ -795,6 +803,7 @@ export const DASH_COPY = {
       usageModel: 'Usage model',
       submit: 'Issue right',
       submitting: 'Issuing',
+      errorMessage: (code: string) => dashMessage(code, 'en'),
       errorPrefix: 'Issue failed',
       issued: 'Issued',
       announced: 'Announced',
@@ -1175,6 +1184,7 @@ export const DASH_COPY = {
       unavailable: '利用不可',
       configured: '設定済み',
       notConfigured: '未設定',
+      errorMessage: (code: string) => dashMessage(code, 'ja'),
       errorPrefix: '権利を読み込めませんでした',
       refreshing: '権利を更新中',
       stale: '最後に読み込んだ値を表示中',
@@ -1211,6 +1221,7 @@ export const DASH_COPY = {
       empty: '発行済みの権利はありません。',
       noMatches: '条件に一致する権利はありません。',
       clearFilters: '絞り込みを解除',
+      errorMessage: (code: string) => dashMessage(code, 'ja'),
       errorPrefix: '権利を読み込めませんでした',
       refreshing: '権利を更新中',
       stale: '最後に読み込んだ権利を表示中です。ステータスは最新でない可能性があります。',
@@ -1223,6 +1234,7 @@ export const DASH_COPY = {
       cancel: 'キャンセル',
       confirm: '権利を取り消す',
       revoking: '取り消し中',
+      errorMessage: (code: string) => dashMessage(code, 'ja'),
       errorPrefix: '取り消しに失敗しました',
     },
     issue: {
@@ -1240,6 +1252,7 @@ export const DASH_COPY = {
       usageModel: '利用モデル',
       submit: '権利を発行',
       submitting: '発行中',
+      errorMessage: (code: string) => dashMessage(code, 'ja'),
       errorPrefix: '発行に失敗しました',
       issued: '発行しました',
       announced: 'アナウンスしました',
