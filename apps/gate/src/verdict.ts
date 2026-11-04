@@ -1,5 +1,5 @@
 import { hasNoHolder, isUid, parseQr, TIER_LABEL } from '@fuda/sdk'
-import type { Hex, VerifyResponse } from '@fuda/sdk'
+import type { Hex, Reason, VerifyResponse } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
 import { short } from '@fuda/ui/short'
 
@@ -112,6 +112,11 @@ export const unreadableInput = (): DisplayState => ({
   tone: 'red',
 })
 
+// Most reasons are read as the code, but WRONG_VENUE is the one staff meet from a
+// customer holding a real pass, so it says in words whose pass it is.
+const rejectDetail = (reason: Reason): string =>
+  reason === 'WRONG_VENUE' ? 'WRONG_VENUE — pass of another shop' : reason
+
 // Three states, not two (docs/specs/pass-types-and-flows.md#gate-protocol): a preview ADMIT of a Signed/+Private right
 // is valid but may not enter by QR, and staff must not read it as an admit.
 export const displayState = (kind: 'preview' | 'admit', result: ApiResult): DisplayState => {
@@ -129,7 +134,7 @@ export const displayState = (kind: 'preview' | 'admit', result: ApiResult): Disp
   const facts = factsOf(body)
   const badge = badgeOf(body)
   if (body.decision === 'REJECT') {
-    return { badge, detail: body.reason, facts, title: 'REJECT', tone: 'red' }
+    return { badge, detail: rejectDetail(body.reason), facts, title: 'REJECT', tone: 'red' }
   }
   // Fail closed on a preview whose entitlement the api did not report: an
   // unknown level may be Signed/+Private, and green would wave it through.

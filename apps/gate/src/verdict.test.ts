@@ -125,6 +125,15 @@ describe(displayState, () => {
     expect(s).toMatchObject({ title: 'ADMIT', tone: 'green' })
   })
 
+  it('says whose pass it is on WRONG_VENUE', () => {
+    const s = displayState('admit', { body: { decision: 'REJECT', reason: 'WRONG_VENUE' }, ok: true })
+    expect(s).toMatchObject({
+      detail: 'WRONG_VENUE — pass of another shop',
+      title: 'REJECT',
+      tone: 'red',
+    })
+  })
+
   it('is RED with the reason for a REJECT', () => {
     const s = displayState('admit', { body: { decision: 'REJECT', reason: 'LEVEL_REQUIRED' }, ok: true })
     expect(s).toMatchObject({ detail: 'LEVEL_REQUIRED', title: 'REJECT', tone: 'red' })

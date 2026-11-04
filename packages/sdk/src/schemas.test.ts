@@ -143,6 +143,13 @@ describe('VerifyBody / RevokeBody', () => {
     expect(v.safeParse(VerifyBody, { qr: uid }).success).toBe(false)
     expect(v.safeParse(RevokeBody, { uid }).success).toBe(true)
   })
+
+  it('takes an optional venue and leaves a mistyped one for the api to reject as WRONG_VENUE', () => {
+    expect(v.safeParse(VerifyBody, { qr: `fuda:v1:${uid}`, venue: 'blue-bottle' }).success).toBe(true)
+    expect(v.safeParse(VerifyBody, { qr: `fuda:v1:${uid}`, venue: 'Not A Handle' }).success).toBe(true)
+    expect(v.safeParse(VerifyBody, { qr: `fuda:v1:${uid}`, venue: 'x'.repeat(65) }).success).toBe(false)
+    expect(v.safeParse(VerifyBody, { qr: `fuda:v1:${uid}`, venue: 1 }).success).toBe(false)
+  })
 })
 
 describe('IssuerCreateBody schema', () => {

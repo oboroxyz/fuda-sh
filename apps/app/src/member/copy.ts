@@ -261,4 +261,5 @@ export const PASS_REASON_JA = {
   REVOKED: '失効',
   UNKNOWN_USAGE_MODEL: '対応していない利用形式です',
   WRONG_SCHEMA: '対応していない形式です',
+  WRONG_VENUE: 'この発行元のパスではありません',
 } satisfies Record<Reason, string>

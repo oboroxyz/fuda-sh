@@ -141,6 +141,7 @@ const MESSAGE_COPY: Copy<Record<string, string>> = {
     'Rights discovery is not configured.': '権利の検索が設定されていません。',
     UNKNOWN_USAGE_MODEL: '対応していない利用方式です。',
     WRONG_SCHEMA: '対応していない権利です。',
+    WRONG_VENUE: 'この発行元のパスではありません。',
     bad_challenge: '入場確認の有効期限が切れているか、内容が無効です。',
     bad_input: '入力内容を確認してください。',
     bad_qr: 'QRコードが無効です。',

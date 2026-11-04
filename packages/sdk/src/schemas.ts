@@ -42,7 +42,13 @@ export const deriveIssueKind = (b: IssueRequest): 'bearer' | 'signed' | 'private
   return b.memberId === undefined ? null : 'bearer'
 }
 
-export const VerifyBody = v.object({ qr: v.pipe(v.string(), v.regex(QR_RE)) })
+// `venue` is the gate station's configured Handle. It is not checked against the
+// handle rule here: a mistyped one must answer WRONG_VENUE on the screen, not a
+// 400 the staff cannot read.
+export const VerifyBody = v.object({
+  qr: v.pipe(v.string(), v.regex(QR_RE)),
+  venue: v.optional(v.pipe(v.string(), v.maxLength(64))),
+})
 export const RevokeBody = v.object({ uid })
 export const ChallengeBody = v.object({ uid })
 export const VerifySignedBody = v.object({

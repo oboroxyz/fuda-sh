@@ -40,12 +40,12 @@ Revocation is sent per pass and not batched, because one already revoked UID rev
 
 ### 3. Gate rules
 
-The gate checks, in order: D1 revocation mirror, UID, signature domain, signature, pinned attester, schema, venue, expiry, on-chain revocation, slot.
+The gate checks, in order: the venue the gate names, D1 revocation mirror, UID, signature domain, signature, pinned attester, schema, the venue signed into the pass, expiry, on-chain revocation, slot.
 
 - Verification uses viem, not the EAS SDK verifier, which recovers an EOA only and checks neither expiry nor revocation.
 - `domain.chainId` is converted to `BigInt` after JSON. As a string, viem recovers a different address.
 - `domain.version` is read per chain: Base mainnet runs EAS 1.0.1, while Base Sepolia and Soneium run 1.4.1-beta.3.
-- The schema and venue are pinned. All venues share one attester in the first phase, so a signature alone would admit another venue's pass. Today the venue is pinned only to the D1 row and at reception: `POST /verify` takes no venue, as with on-chain rights, so a gate does not yet reject another venue's pass.
+- The schema and venue are pinned. All venues share one attester in the first phase, so a signature alone would admit another venue's pass. The signed venue is pinned to the D1 row, reception is scoped by the operator's session, and a gate is scoped by its URL: `POST /verify` takes an optional `venue`, and a pass whose issuer is another venue is rejected `WRONG_VENUE` before anything else is read and before a slot is used. The URL is station configuration for honest staff, not authentication, because the pass is a bearer token and a shop that wants to admit another shop's pass can already do so. A gate with no `venue` checks none, and `POST /verify-signed` does not take one yet.
 - `AlreadyTimestamped` counts as success, because anyone can timestamp a root first.
 
 ### 4. Identity and addresses

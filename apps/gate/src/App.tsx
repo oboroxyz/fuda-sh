@@ -3,13 +3,14 @@ import { Show, createSignal, onCleanup, onMount } from 'solid-js'
 import type { JSX } from 'solid-js'
 
 import { admitQr, previewUid } from './api.ts'
-import { cameraMode } from './config.ts'
+import { cameraMode, venueHandle } from './config.ts'
 import { classifyInput, displayState, unreadableInput } from './verdict.ts'
 import type { DisplayState } from './verdict.ts'
 import { Verdict } from './Verdict.tsx'
 import { EMPTY_WEDGE, wedgeKey } from './wedge.ts'
 
 export const App = (): JSX.Element => {
+  const venue = venueHandle(window.location.search)
   const [state, setState] = createSignal<DisplayState | null>(null)
   let busy = false
 
@@ -23,7 +24,7 @@ export const App = (): JSX.Element => {
       return
     }
     busy = true
-    const result = input.kind === 'preview' ? await previewUid(input.uid) : await admitQr(input.qr)
+    const result = input.kind === 'preview' ? await previewUid(input.uid) : await admitQr(input.qr, venue)
     setState(displayState(input.kind, result))
     busy = false
   }
@@ -57,6 +58,18 @@ export const App = (): JSX.Element => {
     <main class="min-h-screen">
       <header class="navbar bg-base-200">
         <span class="px-2 text-xl font-bold">fuda gate</span>
+        <div class="ml-auto px-2 text-sm">
+          <Show
+            when={venue}
+            fallback={
+              <span class="badge badge-warning h-auto py-1 text-center whitespace-normal">
+                no venue set: any shop's pass is admitted
+              </span>
+            }
+          >
+            {(handle) => <span class="opacity-70">checking for @{handle()}</span>}
+          </Show>
+        </div>
       </header>
       <Show
         when={state()}

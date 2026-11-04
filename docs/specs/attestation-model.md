@@ -192,7 +192,7 @@ At verify time the gate loads the Entitlement's `refUID` and requires that it is
 | challenge valid (signed endpoint only) | `BAD_CHALLENGE` |
 | signature valid (signed endpoint only) | `BAD_SIGNATURE` |
 
-Every chain error fails closed. `LEVEL_REQUIRED` is checked before slot consumption, so a photographed Signed pass cannot burn its SINGLE_USE slot. `GET /verify/:uid` reports the level but never rejects on it: it is a read-only preview that answers "is this right valid?", not "may it enter by QR?".
+`WRONG_VENUE` is not in this table because it precedes it: a `POST /verify` that names a `venue` is checked against the issuer behind the uid before the chain is read (see [Venues](#offchain-rights)). Every chain error fails closed. `LEVEL_REQUIRED` is checked before slot consumption, so a photographed Signed pass cannot burn its SINGLE_USE slot. `GET /verify/:uid` reports the level but never rejects on it: it is a read-only preview that answers "is this right valid?", not "may it enter by QR?".
 
 ### Offchain rights
 
@@ -229,7 +229,7 @@ The tree matches `StandardMerkleTree.of(uids, ['bytes32'])` from `@openzeppelin/
 
 **What an offchain right does not have.** No Attendance, no ENS member name, and no public listing. Its visits and Stamps live in D1. The UID in the QR is the bearer secret, made unguessable by the attestation's random salt.
 
-**Venues.** Every venue shares one signer, and `POST /verify` takes no venue, so as with an on-chain right it does not reject another venue's pass. Reception is scoped to the operator's venue. The signed venue and card only prove the row was not moved.
+**Venues.** Every venue shares one signer, so a signature does not say which venue a pass belongs to. `POST /verify` takes an optional `venue` (a Handle). When it is present, the Handle of the issuer behind the uid's `members` row (`members.issuer_id`) must equal it, for an offchain and an on-chain right alike. A pass of another venue, a Handle nobody holds, and a uid with no member row or no issuer all answer `REJECT WRONG_VENUE`. The check runs before the verdict is decided, so it reads no chain, consumes no slot, and the answer carries no entitlement. The attempt is appended to `entry_log` with `path: 'qr'`. When `venue` is absent the endpoint checks none. The gate sets it from its URL, which is station configuration, not authentication. Reception is scoped to the operator's venue by session. `POST /verify-signed` and the `GET /verify/:uid` preview take no venue. The signed venue and card only prove the row was not moved.
 
 **The signer key is pinned.** Verification accepts only the current key, so replacing `SIGNER_PRIVATE_KEY` invalidates every offchain pass until key rotation exists.
 
