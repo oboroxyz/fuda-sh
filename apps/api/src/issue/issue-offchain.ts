@@ -1,19 +1,20 @@
-import { passUrls, toQr, asHex } from '@fuda/sdk'
+import { LEVEL_CODE, passUrls, toQr, asHex } from '@fuda/sdk'
 import type { IssueRequest, SelfServeIssueResponse } from '@fuda/sdk'
 import type { Hex } from 'viem'
 
 import { ZERO_ADDRESS, ZERO_UID } from '../chain/client.ts'
 import type { ChainClient } from '../chain/client.ts'
 import type { Db } from '../db/client.ts'
-import { members, offchainAttestations } from '../db/schema.ts'
+import { memberPasses, members, offchainAttestations } from '../db/schema.ts'
 import {
+  encodeHolderKey,
   encodeOffchainPass,
   newOffchainMessage,
   offchainTypedData,
   offchainUid,
   toSignedJson,
 } from '../eas/offchain.ts'
-import type { OffchainDomain } from '../eas/offchain.ts'
+import type { AttestedPasskey, OffchainDomain } from '../eas/offchain.ts'
 import type { Bindings } from '../env.ts'
 
 // The domain this deployment signs under and accepts. Its version and contract
@@ -32,11 +33,18 @@ export const offchainDomain = (env: Pick<Bindings, 'EAS_ADDRESS' | 'EAS_VERSION'
   return domain
 }
 
+// Who claimed an Identified pass: the passkey it will answer to, and the account that keeps it.
+export interface PasskeyClaimant {
+  accountId: string
+  key: AttestedPasskey
+}
+
 export interface OffchainIssueParams {
   baseUrl: string
   body: IssueRequest
   cardId: string
   chain: ChainClient
+  claimant: PasskeyClaimant | null
   db: Db
   domain: OffchainDomain
   issuerHandle: string
@@ -49,11 +57,12 @@ export interface OffchainIssueParams {
 // Signing needs no transaction, and nothing exists until both rows commit, so a
 // failed insert leaves no orphan behind and the caller can simply answer the error.
 export const issueOffchainPass = async (p: OffchainIssueParams): Promise<SelfServeIssueResponse> => {
+  const level = p.claimant === null ? 'bearer' : 'signed'
   const message = newOffchainMessage({
     data: encodeOffchainPass({
       card: p.cardId,
-      holderKey: '0x',
-      level: 0,
+      holderKey: p.claimant === null ? '0x' : encodeHolderKey(p.claimant.key),
+      level: LEVEL_CODE[level],
       memberNumber: p.memberNumber,
       tier: p.body.tier,
       usageModel: p.body.usageModel,
@@ -67,31 +76,36 @@ export const issueOffchainPass = async (p: OffchainIssueParams): Promise<SelfSer
   })
   const signature: Hex = await p.chain.signOffchain(offchainTypedData(p.domain, message))
   const uid = offchainUid(message)
-  await p.db.batch([
-    p.db.insert(members).values({
-      attestationUid: uid,
-      cardId: p.cardId,
-      createdAt: p.now,
-      holder: null,
-      issuerId: p.issuerId,
-      level: 'bearer',
-      memberId: p.memberNumber,
-      source: p.source,
-      status: 'active',
-      tier: p.body.tier,
-      usageModel: p.body.usageModel,
-      validFrom: p.body.validFrom,
-      validUntil: p.body.validUntil,
-    }),
-    p.db.insert(offchainAttestations).values({
-      createdAt: p.now,
-      signed: toSignedJson({ domain: p.domain, message, signature, uid }),
-      uid,
-    }),
-  ])
+  const member = p.db.insert(members).values({
+    attestationUid: uid,
+    cardId: p.cardId,
+    createdAt: p.now,
+    holder: null,
+    issuerId: p.issuerId,
+    level,
+    memberId: p.memberNumber,
+    source: p.source,
+    status: 'active',
+    tier: p.body.tier,
+    usageModel: p.body.usageModel,
+    validFrom: p.body.validFrom,
+    validUntil: p.body.validUntil,
+  })
+  const attestation = p.db.insert(offchainAttestations).values({
+    createdAt: p.now,
+    signed: toSignedJson({ domain: p.domain, message, signature, uid }),
+    uid,
+  })
+  await (p.claimant === null
+    ? p.db.batch([member, attestation])
+    : p.db.batch([
+        member,
+        attestation,
+        p.db.insert(memberPasses).values({ accountId: p.claimant.accountId, addedAt: p.now, uid }),
+      ]))
   return {
     holder: ZERO_ADDRESS,
-    level: 'bearer',
+    level,
     memberNumber: p.memberNumber,
     passUrls: passUrls(p.baseUrl, uid),
     qr: toQr(uid),

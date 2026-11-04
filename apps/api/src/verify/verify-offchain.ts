@@ -9,13 +9,14 @@ import type { Db } from '../db/client.ts'
 import { issuers, members, offchainAttestations } from '../db/schema.ts'
 import type { Entitlement } from '../eas/codecs.ts'
 import {
+  decodeHolderKey,
   decodeOffchainPass,
   fromSignedJson,
   OFFCHAIN_PASS_SCHEMA_UID,
   offchainUid,
   recoverOffchainSigner,
 } from '../eas/offchain.ts'
-import type { OffchainDomain, OffchainPassData, SignedOffchain } from '../eas/offchain.ts'
+import type { AttestedPasskey, OffchainDomain, OffchainPassData, SignedOffchain } from '../eas/offchain.ts'
 import { checkWindow, toEntitlementView } from './verify-uid.ts'
 import type { VerifyOutcome } from './verify-uid.ts'
 
@@ -47,6 +48,13 @@ const decodeOrNull = (data: Hex): OffchainPassData | null => {
   } catch {
     return null
   }
+}
+
+// What a stored pass answers to, or null for one that answers to none.
+export const attestedPasskeyOf = (row: Pick<OffchainRow, 'signed'>): AttestedPasskey | null => {
+  const signed = fromSignedJson(row.signed)
+  const pass = signed === null ? null : decodeOrNull(signed.message.data)
+  return pass === null ? null : decodeHolderKey(pass.holderKey)
 }
 
 const sameHex = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase()
@@ -150,6 +158,7 @@ export const verifyOffchain = async (
     decision: 'ADMIT',
     delegation: { active: true, issuer: attester, name: 'fuda' },
     entitlement: toEntitlementView(canonical),
+    passkey: decodeHolderKey(pass.holderKey),
     reason: 'OK',
   }
   try {

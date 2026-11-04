@@ -44,10 +44,10 @@ Each tool acts for the token's one Issuer. `tools/list` shows only the tools the
 | Tool | Scope | Result |
 | --- | --- | --- |
 | `list_cards` | `cards:read` | `{ issuer: { handle, name }, cards }`, oldest first |
-| `create_card` | `cards:write` | `{ card }`; the Card is published at once, under the same rules as `POST /issuers/cards`, and may set a `capacity` and a `record` (`offchain` by default, fixed once created) |
+| `create_card` | `cards:write` | `{ card }`; the Card is published at once, under the same rules as `POST /issuers/cards`, and may set a `capacity`, a `record` (`offchain` by default, fixed once created) and an `identity` (`none` by default, or `passkey`, also fixed) |
 | `update_card_limits` | `cards:write` | `{ card }`; changes only the `capacity`, `claimFrom` and `claimUntil` it is given |
 | `list_passes` | `passes:read` | `{ passes, page, summary, cardStats }`, as `GET /issuers/me/passes`; filters by `cardId`, `source` and `status` |
-| `issue_pass` | `passes:issue` | `{ uid, memberNumber, passUrl }` for one Bearer Pass under a Card, with an optional `source`; `card_sold_out` at capacity |
+| `issue_pass` | `passes:issue` | `{ uid, memberNumber, passUrl }` for one Bearer Pass under a Card, with an optional `source`; `card_sold_out` at capacity; `holder_must_claim` on a Card with `identity: passkey`, whose holder has to claim the pass at its `claimUrl` |
 | `revoke_pass` | `passes:revoke` | `{ revoked: true, uid }`; revokes one Pass on chain, and cannot be undone |
 
 A Card here also has `claimUrl`, the public page where a person gets a pass, `capacity`, and `issued`, the passes it has issued. See [capacity and source](./pass-types-and-flows.md#capacity-and-source). There are two ways to hand out passes:

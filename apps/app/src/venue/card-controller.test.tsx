@@ -52,6 +52,9 @@ const venue: PublicVenue = {
 
 const io = (): CardScreenIo => ({
   appleAvailable: async () => await Promise.resolve(false),
+  claimWithPasskey: vi.fn<CardScreenIo['claimWithPasskey']>(
+    async () => await Promise.resolve({ failure: 'network', ok: false }),
+  ),
   fetchBackup: async () =>
     await Promise.resolve({ error: 'not_found', network: false, ok: false, status: 404 }),
   fetchVenue: async () => await Promise.resolve({ body: venue, ok: true }),
@@ -61,7 +64,134 @@ const io = (): CardScreenIo => ({
   ),
 })
 
+const landed = async (host: HTMLElement): Promise<void> => {
+  await vi.waitFor(() => {
+    expect(host.textContent).toContain('only you can use it')
+  })
+}
+
 describe('venue controller', () => {
+  describe('a card bound to a passkey', () => {
+    const UID = `0x${'ef'.repeat(32)}` as const
+    const [regular] = venue.cards
+    const passkeyVenue: PublicVenue = {
+      ...venue,
+      cards: regular === undefined ? [] : [{ ...regular, identity: 'passkey' }],
+    }
+    const issued = {
+      body: {
+        holder: `0x${'00'.repeat(20)}`,
+        level: 'signed',
+        memberNumber: 'qj2yxphepdrka',
+        passUrls: { apple: 'https://a/apple', google: 'https://a/google', web: 'https://a/web' },
+        qr: `fuda:v1:${UID}`,
+        uid: UID,
+      },
+      ok: true,
+    } as const
+    const deps = (over: Partial<CardScreenIo> = {}): CardScreenIo => ({
+      ...io(),
+      fetchVenue: async () => await Promise.resolve({ body: passkeyVenue, ok: true }),
+      ...over,
+    })
+    const open = (screenIo: CardScreenIo, signedIn: boolean): HTMLDivElement => {
+      globalThis.history.replaceState(null, '', `/@${venue.handle}/regular?source=flyer`)
+      const host = document.createElement('div')
+      render(
+        () => <CardScreen handle={venue.handle} slug="regular" io={screenIo} signedIn={signedIn} />,
+        host,
+      )
+      return host
+    }
+    afterEach(() => {
+      localStorage.clear()
+      globalThis.history.replaceState(null, '', '/')
+    })
+
+    it('sends someone signed out to sign in, and back to this address', async () => {
+      const screenIo = deps()
+      const host = open(screenIo, false)
+      await landed(host)
+      const link = host.querySelector<HTMLAnchorElement>('.venue-primary a')
+      expect(link?.getAttribute('href')).toBe(
+        `/signin?return=${encodeURIComponent(`/@${venue.handle}/regular?source=flyer`)}`,
+      )
+      expect(screenIo.claimWithPasskey).not.toHaveBeenCalled()
+    })
+
+    it('claims with the passkey and shows an entry action instead of a QR or Wallet', async () => {
+      const claimWithPasskey = vi.fn<CardScreenIo['claimWithPasskey']>(
+        async () => await Promise.resolve(issued),
+      )
+      const issueCard = vi.fn<CardScreenIo['issueCard']>()
+      const googleSaveUrl = vi.fn<CardScreenIo['googleSaveUrl']>(async () => await Promise.resolve(null))
+      const host = open(deps({ claimWithPasskey, googleSaveUrl, issueCard }), true)
+      await landed(host)
+      host.querySelector<HTMLButtonElement>('.venue-primary button')?.click()
+      await vi.waitFor(() => {
+        expect(host.querySelector(`a[href="/signed?uid=${UID}"]`)).not.toBeNull()
+      })
+      expect(claimWithPasskey).toHaveBeenCalledWith(venue.handle, 'regular', 'flyer')
+      expect(issueCard).not.toHaveBeenCalled()
+      expect(googleSaveUrl).not.toHaveBeenCalled()
+      expect(host.querySelector('.venue-qr')).toBeNull()
+    })
+
+    it('says why there is no code or Wallet pass, and what a backup does not do', async () => {
+      rememberCard(venue.handle, 'regular', {
+        holder: `0x${'00'.repeat(20)}`,
+        memberNumber: 'qj2yxphepdrka',
+        uid: UID,
+      })
+      const host = open(deps(), true)
+      await vi.waitFor(() => {
+        expect(host.textContent).toContain('no Wallet pass')
+      })
+      expect(host.textContent).toContain('you still need your passkey to enter')
+    })
+
+    it('offers sign-in again when the api says the session is gone', async () => {
+      const host = open(
+        deps({
+          claimWithPasskey: async () => await Promise.resolve({ failure: 'signed_out', ok: false }),
+        }),
+        true,
+      )
+      await landed(host)
+      host.querySelector<HTMLButtonElement>('.venue-primary button')?.click()
+      await vi.waitFor(() => {
+        expect(host.querySelector('.venue-primary a[href^="/signin"]')).not.toBeNull()
+      })
+    })
+
+    it('says so when the prompt is dismissed', async () => {
+      const host = open(
+        deps({
+          claimWithPasskey: async () => await Promise.resolve({ failure: 'passkey_cancelled', ok: false }),
+        }),
+        true,
+      )
+      await landed(host)
+      host.querySelector<HTMLButtonElement>('.venue-primary button')?.click()
+      await vi.waitFor(() => {
+        expect(host.querySelector('[role="alert"]')?.textContent).toContain('No passkey was used')
+      })
+    })
+
+    it('shows a held pass without a QR', async () => {
+      rememberCard(venue.handle, 'regular', {
+        holder: `0x${'00'.repeat(20)}`,
+        memberNumber: 'qj2yxphepdrka',
+        uid: UID,
+      })
+      const host = open(deps(), true)
+      await vi.waitFor(() => {
+        expect(host.querySelector(`a[href="/signed?uid=${UID}"]`)).not.toBeNull()
+      })
+      expect(host.querySelector('.venue-qr')).toBeNull()
+    })
+  })
+
   describe('a link that names a pass', () => {
     const UID = `0x${'cd'.repeat(32)}` as const
     const backup = (over: Partial<PassBackup> = {}): PassBackup => ({
@@ -69,6 +199,7 @@ describe('venue controller', () => {
       handle: venue.handle,
       holder: `0x${'00'.repeat(20)}`,
       memberNumber: 'qj2yxphepdrka',
+      passkey: false,
       proof: null,
       qr: `fuda:v1:${UID}`,
       restoreUrl: null,

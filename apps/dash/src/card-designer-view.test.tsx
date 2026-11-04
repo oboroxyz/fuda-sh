@@ -49,6 +49,7 @@ const designer = (overrides: Partial<CardDesignerViewProps> = {}): CardDesignerV
   onCategory: vi.fn<CardDesignerViewProps['onCategory']>(),
   onEditProfile: vi.fn<CardDesignerViewProps['onEditProfile']>(),
   onField: vi.fn<CardDesignerViewProps['onField']>(),
+  onIdentity: vi.fn<CardDesignerViewProps['onIdentity']>(),
   onLockScreen: vi.fn<CardDesignerViewProps['onLockScreen']>(),
   onLogoClear: vi.fn<CardDesignerViewProps['onLogoClear']>(),
   onLogoPick: vi.fn<CardDesignerViewProps['onLogoPick']>(),

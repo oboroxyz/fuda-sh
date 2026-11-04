@@ -42,6 +42,7 @@ export const cardView = (row: CardRow, now: number, badges?: readonly BadgeKind[
     claimable: isClaimable(row, now) && (row.capacity === null || row.reserved < row.capacity),
     description: row.description,
     id: row.id,
+    identity: row.identity,
     slug: row.slug,
     title: row.title,
     validFrom: row.validFrom,
@@ -56,6 +57,7 @@ export const cardView = (row: CardRow, now: number, badges?: readonly BadgeKind[
 
 export const operatorCardView = (row: CardRow, now: number): OperatorCardView => ({
   ...cardView(row, now),
+  identity: row.identity,
   lockScreen: row.lockScreen !== 0,
   record: row.record,
   venue: row.venueLat === null || row.venueLng === null ? null : { lat: row.venueLat, lng: row.venueLng },

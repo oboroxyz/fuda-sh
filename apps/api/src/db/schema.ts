@@ -61,6 +61,9 @@ export const cards = sqliteTable(
     createdAt: integer('created_at').notNull(),
     description: text('description').notNull().default(''),
     id: text('id').primaryKey(),
+    identity: text('identity', { enum: ['none', 'passkey'] })
+      .notNull()
+      .default('none'),
     issuerId: text('issuer_id')
       .notNull()
       .references(() => issuers.id),
@@ -127,7 +130,7 @@ export const passkeyChallenges = sqliteTable('passkey_challenges', {
   accountId: text('account_id'),
   challenge: text('challenge').primaryKey(),
   createdAt: integer('created_at').notNull(),
-  purpose: text('purpose', { enum: ['register', 'login', 'add'] }).notNull(),
+  purpose: text('purpose', { enum: ['register', 'login', 'add', 'claim'] }).notNull(),
   userHandle: text('user_handle'),
 })
 

@@ -4,11 +4,13 @@ import { ADDRESS_RE, META_ADDRESS_RE, NONCE_RE, QR_RE, SIGNATURE_RE, UID_RE } fr
 import {
   BRAND_COLOR_RE,
   CARD_CATEGORIES,
+  CARD_IDENTITIES,
   CARD_RECORDS,
   CARD_DESCRIPTION_MAX_LENGTH,
   hasSingleValidityRule,
   isCardSlug,
   isCardSlugReference,
+  isIdentityAllowed,
   isIssuerHandle,
   isOrderedWindow,
   normalizeBrandColor,
@@ -51,17 +53,10 @@ export const VerifyBody = v.object({
 })
 export const RevokeBody = v.object({ uid })
 export const ChallengeBody = v.object({ uid })
-export const VerifySignedBody = v.object({
-  nonce: v.pipe(v.string(), v.regex(NONCE_RE)),
-  signature: v.pipe(v.string(), v.regex(SIGNATURE_RE)),
-  uid,
-})
 
 export type VerifyRequest = v.InferOutput<typeof VerifyBody>
 export type RevokeRequest = v.InferOutput<typeof RevokeBody>
 export type ChallengeRequest = v.InferOutput<typeof ChallengeBody>
-export type VerifySignedRequest = v.InferOutput<typeof VerifySignedBody>
-
 const Base64Url = v.pipe(v.string(), v.regex(/^[A-Za-z0-9_-]+$/u))
 
 const PasskeyResponseFields = {
@@ -98,6 +93,25 @@ export const PasskeyAuthenticationBody = v.object({
   }),
 })
 
+// The two ways to answer a gate challenge: a wallet's signature, or the passkey an
+// Identified pass attests.
+export const VerifySignedBody = v.union([
+  v.object({
+    nonce: v.pipe(v.string(), v.regex(NONCE_RE)),
+    signature: v.pipe(v.string(), v.regex(SIGNATURE_RE)),
+    uid,
+  }),
+  v.object({
+    nonce: v.pipe(v.string(), v.regex(NONCE_RE)),
+    uid,
+    webauthn: PasskeyAuthenticationBody,
+  }),
+])
+export type VerifySignedRequest = v.InferOutput<typeof VerifySignedBody>
+
+// What a claim on a passkey card adds to the self-serve issue body.
+export const PasskeyClaimBody = v.object({ webauthn: PasskeyAuthenticationBody })
+
 export const MAX_LINKED_UIDS_PER_REQUEST = 50
 
 export const LinkPassesBody = v.object({
@@ -131,6 +145,7 @@ const CardFields = v.object({
   claimFrom: unixOrNull,
   claimUntil: unixOrNull,
   description: shortText(CARD_DESCRIPTION_MAX_LENGTH),
+  identity: v.optional(v.picklist(CARD_IDENTITIES), 'none'),
   lockScreen: v.optional(v.boolean(), false),
   record: v.optional(v.picklist(CARD_RECORDS), 'offchain'),
   slug: v.pipe(v.string(), v.check(isCardSlug)),
@@ -162,6 +177,10 @@ export const CardBody = v.pipe(
   v.check(
     (card: CardFieldsOutput) => isOrderedWindow(card.validFrom, card.validUntil),
     'the validity window cannot end before it starts',
+  ),
+  v.check(
+    (card: CardFieldsOutput) => isIdentityAllowed(card),
+    'a pass bound to a passkey must be recorded offchain',
   ),
 )
 

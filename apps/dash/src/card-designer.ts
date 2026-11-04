@@ -10,6 +10,7 @@ import {
 } from '@fuda/sdk'
 import type {
   CardCategory,
+  CardIdentity,
   CardRecord,
   CardRequest,
   CardUpdateRequest,
@@ -68,6 +69,7 @@ export type DesignerMode = 'card'
 export interface DesignerForm {
   brandColor: string
   category: CardCategory
+  identity: CardIdentity
   record: CardRecord
   // The four window fields hold `datetime-local` text; '' means unbounded.
   claimFrom: string
@@ -123,6 +125,7 @@ export const EMPTY_FORM: DesignerForm = {
   claimUntilEdited: false,
   description: '',
   handle: '',
+  identity: 'none',
   lockScreen: false,
   name: '',
   record: 'offchain',
@@ -244,6 +247,7 @@ export const cardBodyFrom = (form: DesignerForm): CardRequest | null => {
   const parsed = v.safeParse(CardBody, {
     category: form.category,
     description: form.description,
+    identity: form.identity,
     lockScreen: form.lockScreen && form.venue !== null,
     record: form.record,
     slug: form.slug,
@@ -285,6 +289,7 @@ export const formFromCard = (card: OperatorCardView): DesignerForm => ({
   claimUntil: localFromUnix(card.claimUntil, true),
   claimUntilEdited: true,
   description: card.description,
+  identity: card.identity,
   lockScreen: card.lockScreen,
   record: card.record,
   slug: card.slug,

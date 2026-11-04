@@ -11,6 +11,7 @@ import type { PrfResult } from '../passkey.ts'
 import * as stealth from '../private-member.ts'
 import { PrivateScreen } from './PrivateScreen.tsx'
 import { SignedGate } from './SignedGate.tsx'
+import type { SignedGateScreenIo } from './SignedGate.tsx'
 import { Verdict } from './Verdict.tsx'
 
 const disposers: (() => void)[] = []
@@ -63,6 +64,30 @@ const privateIo = (result: Promise<PrfResult>): PrivateIo => ({
   passkeys: async () =>
     await Promise.resolve({ createPasskey: async () => await result, loadPasskey: async () => await result }),
   stealth: async () => await Promise.resolve(stealth),
+})
+
+const gateIo = (kind: 'passkey' | 'wallet'): SignedGateScreenIo => ({
+  assert: async () => await Promise.reject(new Error('no prompt in this test')),
+  challenge: async () => await Promise.resolve({ error: 'unused', network: false, ok: false, status: 400 }),
+  preview: async () =>
+    await Promise.resolve({
+      body: {
+        decision: 'ADMIT',
+        entitlement: {
+          holder: kind === 'passkey' ? `0x${'00'.repeat(20)}` : `0x${'11'.repeat(20)}`,
+          issuer: `0x${'22'.repeat(20)}`,
+          level: 1,
+          schemaVersion: 1,
+          tier: 0,
+          usageModel: 1,
+          validFrom: 0,
+          validUntil: 0,
+        },
+        reason: 'OK',
+      },
+      ok: true,
+    }),
+  verify: async () => await Promise.resolve({ error: 'unused', network: false, ok: false, status: 400 }),
 })
 
 describe('entry locale changes', () => {
@@ -119,9 +144,28 @@ describe('entry locale changes', () => {
     expect(root.textContent).not.toContain('既存のパスキーを使う')
   })
 
+  it('offers only the passkey to a pass that answers to one, from the address', async () => {
+    globalThis.history.replaceState(null, '', `/signed?uid=0x${'ab'.repeat(32)}`)
+    render(
+      () => (
+        <Harness>{(locale): JSX.Element => <SignedGate io={gateIo('passkey')} locale={locale()} />}</Harness>
+      ),
+      root,
+    )
+    await setTimeout(0)
+    globalThis.history.replaceState(null, '', '/')
+    expect(root.textContent).toContain('Enter with your passkey')
+    expect(root.textContent).not.toContain('Passkey wallet')
+    expect(root.querySelector('input')).toBeNull()
+  })
+
   it('retains scanner input and selected right while translating wallet actions', async () => {
     render(
-      () => <Harness>{(locale): JSX.Element => <SignedGate provider={null} locale={locale()} />}</Harness>,
+      () => (
+        <Harness>
+          {(locale): JSX.Element => <SignedGate io={gateIo('wallet')} provider={null} locale={locale()} />}
+        </Harness>
+      ),
       root,
     )
     await setTimeout(0)

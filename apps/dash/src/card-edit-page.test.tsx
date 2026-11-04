@@ -36,6 +36,7 @@ const card: OperatorCardView = {
   claimable: true,
   description: 'Welcome',
   id: 'card-1',
+  identity: 'none',
   lockScreen: true,
   record: 'offchain',
   slug: 'membership',

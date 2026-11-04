@@ -7,7 +7,7 @@ import { fetchPassBackup, uidFromBackupFile } from '../pass-backup.ts'
 import { rememberPass } from '../pass-memory.ts'
 import { MEMBER_COPY } from './copy.ts'
 
-type Outcome = 'failed' | 'invalid' | 'restored'
+type Outcome = 'failed' | 'invalid' | 'restored' | 'restoredPasskey'
 
 // docs/specs/pass-types-and-flows.md#keeping-a-pass-without-a-provider. A member who
 // lost every device reads a pass back from a backup they saved themselves.
@@ -28,7 +28,7 @@ export const PassBackupSection = (props: { locale: Locale }): JSX.Element => {
       return
     }
     rememberPass({ holder: backup.body.holder, uid })
-    setOutcome('restored')
+    setOutcome(backup.body.passkey ? 'restoredPasskey' : 'restored')
   }
 
   return (
@@ -51,7 +51,10 @@ export const PassBackupSection = (props: { locale: Locale }): JSX.Element => {
       </label>
       <Show when={outcome()}>
         {(current) => (
-          <div class={current() === 'restored' ? 'alert alert-success' : 'alert alert-error'} role="status">
+          <div
+            class={current().startsWith('restored') ? 'alert alert-success' : 'alert alert-error'}
+            role="status"
+          >
             {copy().outcomes[current()]}
           </div>
         )}

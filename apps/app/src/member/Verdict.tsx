@@ -29,7 +29,7 @@ export const Verdict = (props: {
     >
       {props.state.banner === 'network' ? <div class="badge badge-neutral">{c().networkBanner}</div> : null}
       <div class="px-6 text-center text-5xl font-black">{c().verdict[props.state.title]}</div>
-      <div class="px-6 text-center text-xl break-all">{entryMessage(props.state.detail, locale())}</div>
+      <div class="px-6 text-center text-xl wrap-anywhere">{entryMessage(props.state.detail, locale())}</div>
       <div class="text-sm opacity-70">{c().tryAgain}</div>
     </button>
   )

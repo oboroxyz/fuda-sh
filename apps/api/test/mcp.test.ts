@@ -471,6 +471,17 @@ describe('mcp', () => {
       expect(rows.find((row) => row.id === cardId)).toStrictEqual({ claimable: false, id: cardId, issued: 1 })
     })
 
+    it('leaves a passkey card for its holder to claim', async () => {
+      const { token } = await approveAndExchange({ resource: RESOURCE, scope: ALL_SCOPES })
+      const created = await rpc(token, 'tools/call', {
+        arguments: { ...SECOND_CARD, identity: 'passkey', record: 'offchain' },
+        name: 'create_card',
+      })
+      const { id: cardId } = toolValue(Limited, created).card
+      const issued = await rpc(token, 'tools/call', { arguments: { cardId }, name: 'issue_pass' })
+      expect(toolValue(ToolError, issued)).toStrictEqual({ error: 'holder_must_claim' })
+    })
+
     it('takes every place exactly once when claims arrive together', async () => {
       const { cardId, token } = await limitedCard(3)
       const answers = await Promise.all(Array.from({ length: 6 }, async () => await claim(SECOND_CARD.slug)))

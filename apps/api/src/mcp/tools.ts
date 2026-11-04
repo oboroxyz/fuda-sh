@@ -2,6 +2,7 @@ import {
   CARD_CAPACITY_MAX,
   CardBody,
   CARD_CATEGORIES,
+  CARD_IDENTITIES,
   CARD_RECORDS,
   ClaimSource,
   isOrderedWindow,
@@ -150,6 +151,12 @@ export const MCP_TOOLS: readonly McpTool[] = [
           description:
             "Where this card's passes are recorded, fixed once created. 'offchain' (the default) issues at once with no public record per pass; 'onchain' publishes each pass.",
         },
+        identity: {
+          type: 'string',
+          enum: CARD_IDENTITIES,
+          description:
+            "Who can use this card's passes, fixed once created. 'none' (the default) means whoever shows one. 'passkey' binds each pass to the passkey of the person who claimed it, so a copied QR does not admit; it needs record 'offchain', and issue_pass cannot issue one, because the holder must claim it themselves at the card's claimUrl.",
+        },
         claimFrom: unixOrNull,
         claimUntil: unixOrNull,
         validFrom: unixOrNull,
@@ -258,7 +265,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: 'issue_pass',
     title: 'Issue pass',
     description:
-      "Issue one pass under a card, for a person you are arranging it for, and return a passUrl to give them. It works even while the card's claim window is closed. Each call issues a new pass and costs on-chain gas, so do not retry after an unclear failure without checking list_passes. For flyers or posts, share the card's claimUrl instead.",
+      "Issue one pass under a card, for a person you are arranging it for, and return a passUrl to give them. It works even while the card's claim window is closed. Each call issues a new pass and costs on-chain gas, so do not retry after an unclear failure without checking list_passes. For flyers or posts, share the card's claimUrl instead. A card with identity 'passkey' answers holder_must_claim: its holder has to claim the pass themselves at the claimUrl.",
     inputSchema: {
       type: 'object',
       properties: {

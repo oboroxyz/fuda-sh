@@ -150,6 +150,10 @@ export interface DashCopy {
     recordOffchain: string
     recordOnchain: string
     recordHint: string
+    identityLabel: string
+    identityNone: string
+    identityPasskey: string
+    identityHint: string
     cardDescriptionLabel: string
     cardDescriptionPlaceholder: string
     cardDescriptionHint: string
@@ -551,6 +555,11 @@ export const DASH_COPY = {
       recordOnchain: 'Public on the blockchain',
       recordHint:
         'Private passes are issued at once and leave no public record of each pass. Public passes can be checked by anyone, take a little longer to issue, and cannot be erased. This cannot be changed later.',
+      identityLabel: 'Who can use a pass',
+      identityNone: 'Anyone showing its code (recommended)',
+      identityPasskey: 'Only the person who got it, with their passkey',
+      identityHint:
+        'With a passkey, a photo of the pass does not get anyone in. People need a fuda account to get one, they enter by confirming on their own phone instead of showing a code, and it does not go in a Wallet app or earn stamps at reception. Private passes only. This cannot be changed later.',
       cardDescriptionLabel: 'Description',
       cardDescriptionPlaceholder: 'Tell people what this card is for and how to use it.',
       cardDescriptionHint: 'Shown on the card’s welcome page.',
@@ -954,6 +963,11 @@ export const DASH_COPY = {
       recordOnchain: 'ブロックチェーンで公開',
       recordHint:
         '非公開のパスはすぐに発行でき、1枚ごとの公開記録が残りません。公開のパスは誰でも確認できますが、発行に少し時間がかかり、記録は消せません。あとから変更できません。',
+      identityLabel: 'パスを使える人',
+      identityNone: 'コードを見せた人(おすすめ)',
+      identityPasskey: '受け取った本人のみ(パスキーで確認)',
+      identityHint:
+        'パスキーを使うと、パスの写真では入場できません。受け取るには fuda のアカウントが必要です。入場時はコードを見せる代わりに本人のスマートフォンで確認します。Wallet アプリには追加できず、受付でのスタンプも付きません。非公開のパスでのみ選べます。あとから変更できません。',
       cardDescriptionLabel: '説明',
       cardDescriptionPlaceholder: 'カードの内容や利用方法を入力してください。',
       cardDescriptionHint: 'カードの受け取りページに表示されます。',

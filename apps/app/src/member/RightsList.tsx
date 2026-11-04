@@ -2,7 +2,7 @@ import { DEFAULT_LOCALE, pick } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
 import type { QueryClient } from '@fuda/libs/query'
 import { createQuery, createQueryScope } from '@fuda/libs/query'
-import { asHex, brandTextColor, fetchRightsByHolder, normalizeUid } from '@fuda/sdk'
+import { asHex, brandTextColor, fetchRightsByHolder, isPasskeyPass, normalizeUid } from '@fuda/sdk'
 import type { GraphRight, Hex, PassCardView } from '@fuda/sdk'
 import { short } from '@fuda/ui'
 import { createEffect, createSignal, For, on, onMount } from 'solid-js'
@@ -98,6 +98,11 @@ const memberStatus = (row: MemberPassRow, locale: Locale, copy: MemberCopy['pass
   return locale === 'ja' ? PASS_REASON_JA[row.preview.reason] : row.preview.reason
 }
 
+const answersToPasskey = (row: MemberPassRow): boolean => {
+  const entitlement = row.preview?.entitlement
+  return entitlement !== undefined && isPasskeyPass(entitlement)
+}
+
 const memberPassLinks = (
   row: MemberPassRow,
   publicPass: boolean,
@@ -105,6 +110,18 @@ const memberPassLinks = (
 ): JSX.Element | null => {
   if (!publicPass) {
     return null
+  }
+  if (answersToPasskey(row)) {
+    return (
+      <span class="flex items-center gap-3">
+        <a class="link" download={`fuda-pass-${row.uid.slice(2, 10)}.json`} href={passBackupHref(row.uid)}>
+          {copy.saveBackup}
+        </a>
+        <a class="btn btn-primary btn-sm" href={`/signed?uid=${row.uid}`}>
+          {copy.enter}
+        </a>
+      </span>
+    )
   }
   return (
     <span class="flex items-center gap-3">
@@ -184,6 +201,7 @@ const memberCard = (row: MemberPassRow, locale: Locale, copy: MemberCopy['passes
         {memberPassLinks(row, publicPass, copy)}
       </div>
       {row.graph === null ? <p class="text-xs text-[var(--fuda-muted)]">{copy.saved}</p> : null}
+      {answersToPasskey(row) ? <p class="mt-1 text-xs text-[var(--fuda-muted)]">{copy.passkeyPass}</p> : null}
       {row.stamps?.enabled === true ? (
         <div class="mt-2 text-sm" aria-label={copy.stamps}>
           <div class="font-semibold">{copy.stampCount(row.stamps.total, row.stamps.goal)}</div>

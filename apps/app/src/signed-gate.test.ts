@@ -5,8 +5,8 @@ import { verifyMessage } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { describe, expect, it, vi } from 'vitest'
 
-import { displayOf, enterSigned } from './signed-gate.ts'
-import type { SignedGateIo } from './signed-gate.ts'
+import { displayOf, enterSigned, enterWithPasskey } from './signed-gate.ts'
+import type { PasskeyGateIo, SignedGateIo } from './signed-gate.ts'
 
 const account = privateKeyToAccount(`0x${'5a'.repeat(32)}`)
 const UID: Hex = `0x${'ab'.repeat(32)}`
@@ -176,5 +176,57 @@ describe(displayOf, () => {
       tone: 'red',
     })
     expect(displayOf({ error: 'x', kind: 'error', network: false })).not.toHaveProperty('banner')
+  })
+})
+
+describe(enterWithPasskey, () => {
+  const webauthn = { challenge: 'Zm9v', rpId: 'fuda.sh', userVerification: 'required' } as const
+  const assertion = {
+    clientExtensionResults: {},
+    id: 'abc',
+    rawId: 'abc',
+    response: { authenticatorData: 'YQ', clientDataJSON: 'YQ', signature: 'YQ' },
+    type: 'public-key',
+  } as const
+  const passkeyIo = (over: Partial<PasskeyGateIo> = {}): PasskeyGateIo => ({
+    assert: async () => await Promise.resolve(assertion),
+    challenge: async () =>
+      await Promise.resolve({ body: { challenge: 'x', nonce: NONCE, webauthn }, ok: true }),
+    verify: async () =>
+      await Promise.resolve({
+        body: { decision: 'ADMIT', holder: `0x${'00'.repeat(20)}`, path: 'signature', reason: 'OK' },
+        ok: true,
+      }),
+    ...over,
+  })
+
+  it('answers the request the api minted and sends back that nonce', async () => {
+    const assert = vi.fn<PasskeyGateIo['assert']>(async () => await Promise.resolve(assertion))
+    const verify = vi.fn<PasskeyGateIo['verify']>(passkeyIo().verify)
+    const outcome = await enterWithPasskey(passkeyIo({ assert, verify }), UID)
+
+    expect(assert).toHaveBeenCalledWith(webauthn)
+    expect(verify).toHaveBeenCalledWith({ nonce: NONCE, uid: UID, webauthn: assertion })
+    expect(displayOf(outcome)).toStrictEqual({ detail: '', title: 'ADMIT', tone: 'green' })
+  })
+
+  it('reads a dismissed prompt as a refusal, not an outage', async () => {
+    const outcome = await enterWithPasskey(
+      passkeyIo({
+        assert: async () => await Promise.reject(new DOMException('dismissed', 'NotAllowedError')),
+      }),
+      UID,
+    )
+    expect(outcome).toStrictEqual({ error: 'dismissed', kind: 'error', network: false })
+  })
+
+  it('refuses a pass the api names no passkey for, without a prompt', async () => {
+    const assert = vi.fn<PasskeyGateIo['assert']>(async () => await Promise.resolve(assertion))
+    const outcome = await enterWithPasskey(
+      passkeyIo({ assert, challenge: async () => await Promise.resolve(minted) }),
+      UID,
+    )
+    expect(outcome).toMatchObject({ kind: 'error', network: false })
+    expect(assert).not.toHaveBeenCalled()
   })
 })

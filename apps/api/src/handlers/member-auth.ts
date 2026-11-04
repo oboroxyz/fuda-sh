@@ -8,6 +8,7 @@ import { linkPasses, listPasses } from '../auth/member-passes.ts'
 import {
   addOptions,
   addPasskey,
+  claimOptions,
   listPasskeys,
   login,
   loginOptions,
@@ -63,6 +64,16 @@ export const postV1AuthMemberLogin = defineHandler(rateLimit({ budget: CEREMONY_
   const signedIn = await login(c.get('db'), relyingParty(c.env), parsed.output, c.get('now')())
   return signedIn === null ? errorResponse(c, 'bad_passkey', 401) : await memberSession(c, signedIn.accountId)
 })
+
+export const postV1AuthMemberClaimOptions = defineHandler(
+  rateLimit({ budget: CEREMONY_BUDGET }),
+  memberAuth(),
+  async (c) =>
+    jsonResponse(
+      c,
+      await claimOptions(c.get('db'), relyingParty(c.env), c.get('member').accountId, c.get('now')()),
+    ),
+)
 
 export const getV1AuthMemberMe = defineHandler(memberAuth(), (c) =>
   jsonResponse(c, { accountId: c.get('member').accountId }),

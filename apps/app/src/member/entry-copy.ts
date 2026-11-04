@@ -24,6 +24,9 @@ interface EntryCopy {
   enter: string
   prf: Record<'cancelled' | 'error' | 'unsupported', string>
   signedTitle: string
+  passkeyEntryTitle: string
+  passkeyEntryIntro: string
+  enterWithPasskey: string
   signedIntro: string
   signing: string
   passkeyWallet: (uid: string) => string
@@ -41,9 +44,12 @@ export const ENTRY_COPY = {
     createPasskey: 'Create passkey',
     discover: 'Discover my passes',
     enter: 'Enter',
+    enterWithPasskey: 'Enter with your passkey',
     metaAddress: 'Your meta-address',
     networkBanner: 'network error — the gate fails closed',
     noPasses: 'No pass announced to this meta-address yet.',
+    passkeyEntryIntro: 'Confirm with your passkey, then show the result to the staff.',
+    passkeyEntryTitle: 'Enter with your passkey',
     passkeyWallet: (uid: string) => `Passkey wallet: sign for ${uid}`,
     prf: {
       cancelled:
@@ -84,9 +90,12 @@ export const ENTRY_COPY = {
     createPasskey: 'パスキーを作成',
     discover: '自分の権利を探す',
     enter: '入場する',
+    enterWithPasskey: 'パスキーで入場する',
     metaAddress: 'あなたのメタアドレス',
     networkBanner: '通信エラーのため、入場を確認できません',
     noPasses: 'このメタアドレス宛ての権利はまだありません。',
+    passkeyEntryIntro: 'パスキーで確認して、結果の画面をスタッフに見せてください。',
+    passkeyEntryTitle: 'パスキーで入場',
     passkeyWallet: (uid: string) => `パスキーウォレットで署名：${uid}`,
     prf: {
       cancelled:
@@ -133,12 +142,14 @@ const MESSAGE_COPY: Copy<Record<string, string>> = {
     DELEGATION_UNAVAILABLE: '発行権限を取得できません。',
     EXPIRED: '有効期限が切れています。',
     ISSUER_NOT_DELEGATED: '発行元に発行権限がありません。',
-    LEVEL_REQUIRED: 'この権利にはウォレットでの署名が必要です。',
+    LEVEL_REQUIRED: 'この権利はコードだけでは入場できません。',
     NOT_FOUND: '権利が見つかりません。',
     NOT_YET_VALID: 'まだ有効期間が始まっていません。',
     NO_DELEGATION: '発行権限を確認できません。',
     REVOKED: 'この権利は取り消されています。',
     'Rights discovery is not configured.': '権利の検索が設定されていません。',
+    'The passkey for this pass was not used. Try again on a device that has it.':
+      'このパスのパスキーが使われませんでした。パスキーのある端末でもう一度お試しください。',
     UNKNOWN_USAGE_MODEL: '対応していない利用方式です。',
     WRONG_SCHEMA: '対応していない権利です。',
     WRONG_VENUE: 'この発行元のパスではありません。',

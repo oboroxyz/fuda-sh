@@ -1,5 +1,5 @@
 import { brandTextColor, CARD_DESCRIPTION_MAX_LENGTH } from '@fuda/sdk'
-import type { CardCategory, CardRecord, IssuerView } from '@fuda/sdk'
+import type { CardCategory, CardIdentity, CardRecord, IssuerView } from '@fuda/sdk'
 import { cn } from 'cn'
 import { createComputed, createEffect, createSignal, For, on, onCleanup } from 'solid-js'
 import type { JSX } from 'solid-js'
@@ -48,6 +48,7 @@ export interface CardDesignerViewProps {
   // are not asked for again.
   mode: DesignerMode
   onCategory: (category: CardCategory) => void
+  onIdentity: (identity: CardIdentity) => void
   onRecord: (record: CardRecord) => void
   onEditProfile: () => void
   onField: <K extends keyof DesignerForm>(key: K, value: DesignerForm[K]) => void
@@ -436,6 +437,23 @@ export const CardDesignerView = (props: CardDesignerViewProps): JSX.Element => {
           </div>
 
           <div class="flex flex-col gap-1">
+            <label for="identity">{props.copy.identityLabel}</label>
+            <select
+              class="select w-full"
+              disabled={editing() || props.form.record === 'onchain'}
+              id="identity"
+              onInput={(e) => {
+                props.onIdentity(e.currentTarget.value === 'passkey' ? 'passkey' : 'none')
+              }}
+              value={props.form.identity}
+            >
+              <option value="none">{props.copy.identityNone}</option>
+              <option value="passkey">{props.copy.identityPasskey}</option>
+            </select>
+            <p class="text-moderate text-sm">{props.copy.identityHint}</p>
+          </div>
+
+          <div class="flex flex-col gap-1">
             <label for="card-description">
               <FieldLabel label={props.copy.cardDescriptionLabel} optional={props.copy.optional} />
             </label>
@@ -647,8 +665,15 @@ export const CardDesigner = (props: CardDesignerProps): JSX.Element => {
       savedLogoUrl={props.issuer?.logoUrl ?? null}
       mode={mode}
       onField={onField}
+      onIdentity={(identity) => {
+        setForm((current) => ({ ...current, identity }))
+      }}
       onRecord={(record) => {
-        setForm((current) => ({ ...current, record }))
+        setForm((current) => ({
+          ...current,
+          identity: record === 'onchain' ? 'none' : current.identity,
+          record,
+        }))
       }}
       onEditProfile={() => {
         props.onEditProfile(form())
