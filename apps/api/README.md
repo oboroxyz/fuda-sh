@@ -129,7 +129,7 @@ Use the rights-subgraph smoke query and member app for private discovery after G
 | GET | `/health` | none | liveness |
 | POST | `/issue` | Bearer (`ADMIN_TOKEN`) | `holder` → Signed; `memberId` → Bearer; `stealthMetaAddress` → +Private (`400 bad_meta_address` for a malformed or off-curve one) |
 | GET | `/verify/:uid` | none | read-only preview, no slot consumption |
-| POST | `/verify` | none | QR scan; consumes a slot per `usageModel`; a Signed-only right answers `LEVEL_REQUIRED` here |
+| POST | `/verify` | none | QR scan; consumes a slot per `usageModel`; a Signed-only right answers `LEVEL_REQUIRED` here; an optional `venue` (a Handle) rejects another venue's pass as `WRONG_VENUE` before any slot is used |
 | POST | `/challenge` | none | mints a one-time nonce for the Signed gate; no chain lookup; sweeps expired nonces |
 | POST | `/verify-signed` | none | challenge-response admission at every level, including a discovered +Private right; consumes a slot per `usageModel`, path `signature` |
 | POST | `/revoke` | Bearer (`ADMIN_TOKEN`) | revokes the entitlement attestation |
