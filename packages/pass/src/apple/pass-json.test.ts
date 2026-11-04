@@ -79,7 +79,7 @@ describe(passJson, () => {
       ...INPUT,
       stamps: { dailyLimit: 2, enabled: true, goal: 10, today: 1, total: 4 },
     })
-    expect(json.storeCard.primaryFields).toStrictEqual([{ key: 'stamps', label: 'STAMPS', value: '4 / 10' }])
+    expect(json.storeCard.primaryFields).toStrictEqual([{ changeMessage: 'Stamps: %@', key: 'stamps', label: 'STAMPS', value: '4 / 10' }])
     expect(json.storeCard.secondaryFields).toStrictEqual([
       { key: 'tier', label: 'TIER', value: 'VIP' },
       { key: 'member', label: 'MEMBER', value: '0x1234…abcd' },
@@ -204,7 +204,7 @@ describe('branded pass.json', () => {
       value: 'QJ2Y-XPHE-PDRKA',
     })
     expect(json.storeCard.auxiliaryFields).toStrictEqual([
-      { key: 'stamps', label: 'STAMPS', value: '4 / 10' },
+      { changeMessage: 'Stamps: %@', key: 'stamps', label: 'STAMPS', value: '4 / 10' },
     ])
   })
 })
@@ -214,7 +214,7 @@ describe('branded pass.json', () => {
 // installed pass, since the serial number is the Right's uid.
 describe('badge on a generated pass.json', () => {
   const BADGE: BadgeView = { at: 1_757_000_000, kind: 'human', verifier: 'world' }
-  const BADGE_FIELD = { key: 'badge-human', label: 'BADGE', value: 'Verified human' }
+  const BADGE_FIELD = { changeMessage: 'Badge: %@', key: 'badge-human', label: 'BADGE', value: 'Verified human' }
 
   it('shows the badge on the front of a plain pass', () => {
     const json = passJson(CFG, { ...INPUT, badges: [BADGE] })
@@ -238,7 +238,7 @@ describe('badge on a generated pass.json', () => {
       stamps: { dailyLimit: 2, enabled: true, goal: 10, today: 1, total: 4 },
     })
     expect(json.storeCard.auxiliaryFields).toStrictEqual([
-      { key: 'stamps', label: 'STAMPS', value: '4 / 10' },
+      { changeMessage: 'Stamps: %@', key: 'stamps', label: 'STAMPS', value: '4 / 10' },
       BADGE_FIELD,
     ])
   })
@@ -253,5 +253,57 @@ describe('badge on a generated pass.json', () => {
     const json = JSON.stringify(passJson(CFG, { ...INPUT, badges: [BADGE] }))
     expect(json).not.toContain('world')
     expect(json).not.toContain(String(BADGE.at))
+  })
+})
+
+describe('an updatable or revoked pass', () => {
+  const STAMPS = { dailyLimit: 1, enabled: true, goal: 10, today: 0, total: 3 }
+  const SERVICE = { authenticationToken: 'token-of-sixteen-chars', url: 'https://api.test/apple' }
+  const BRANDING = {
+    brandColor: '#112233',
+    cardTitle: 'Coffee',
+    category: 'membership',
+    issuedAt: ISSUED_AT,
+    issuerName: 'Wassie Coffee',
+    logoUrl: null,
+    manageUrl: null,
+    memberNumber: '1234-5678-90123',
+    venue: null,
+  } as const
+  const back = (json: ReturnType<typeof passJson>) => json.storeCard.backFields.map(({ key }) => key)
+
+  it('names no web service and no status on a snapshot', () => {
+    const json = passJson(CFG, { ...INPUT, webService: null })
+    expect(json.webServiceURL).toBeUndefined()
+    expect(json.authenticationToken).toBeUndefined()
+    expect(json.voided).toBeUndefined()
+    expect(back(json)).not.toContain('status')
+  })
+
+  it('carries the web service, and a status Wallet can announce a change to', () => {
+    for (const branding of [null, BRANDING]) {
+      const json = passJson(CFG, { ...INPUT, branding, webService: SERVICE })
+      expect(json.webServiceURL).toBe('https://api.test/apple')
+      expect(json.authenticationToken).toBe('token-of-sixteen-chars')
+      const status = json.storeCard.backFields.find(({ key }) => key === 'status')
+      expect(status?.value).toBe('Valid')
+      expect(status?.changeMessage).toContain('%@')
+    }
+  })
+
+  it('has a stamp count announce itself, branded or not', () => {
+    const plain = passJson(CFG, { ...INPUT, stamps: STAMPS }).storeCard.primaryFields[0]
+    const branded = passJson(CFG, { ...INPUT, branding: BRANDING, stamps: STAMPS }).storeCard.auxiliaryFields?.[0]
+    expect(plain?.changeMessage).toBe('Stamps: %@')
+    expect(branded?.changeMessage).toBe('Stamps: %@')
+  })
+
+  it('marks a revoked pass void and says so, front and back, even as a snapshot', () => {
+    for (const branding of [null, BRANDING]) {
+      const json = passJson(CFG, { ...INPUT, branding, revoked: true })
+      expect(json.voided).toBe(true)
+      expect(json.storeCard.auxiliaryFields?.[0]?.value).toBe('No longer valid')
+      expect(json.storeCard.backFields.find(({ key }) => key === 'status')?.value).toBe('No longer valid')
+    }
   })
 })

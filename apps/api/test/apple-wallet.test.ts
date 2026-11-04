@@ -1,0 +1,571 @@
+import { env } from 'cloudflare:test'
+import { eq } from 'drizzle-orm'
+import type { Hex } from 'viem'
+import { beforeEach, describe, expect, it } from 'vitest'
+
+import { getDb } from '../src/db/client.ts'
+import {
+  applePassDevices,
+  applePassRegistrations,
+  applePassUpdates,
+  cards,
+  cardStampSettings,
+  entryLog,
+  issuers,
+  members,
+  offchainAttestations,
+  receptionRequests,
+  sessions,
+  slots,
+  stampCredits,
+} from '../src/db/schema.ts'
+import type { Bindings } from '../src/env.ts'
+import type { ApplePushResult, ApplePushSender } from '../src/pass/apple-push.ts'
+import { applePassToken } from '../src/pass/apple-web-service.ts'
+import { testCert } from './apple-cert.ts'
+import { appWith, fakeChain } from './env.ts'
+import { configuredEnv, NOW, ROOT, seedRight, seedRoot } from './fixtures.ts'
+import { CARD_INPUT, registerVenueWithCard, signIn } from './operator.ts'
+
+const PASS_TYPE = 'pass.sh.fuda.membership'
+const SECRET = 'web-service-secret'
+const DEVICE = 'device-library-1'
+const PUSH_TOKEN = 'ab'.repeat(32)
+const db = getDb({ DB: env.DB })
+
+const wipe = async (): Promise<void> => {
+  await db.delete(applePassRegistrations)
+  await db.delete(applePassDevices)
+  await db.delete(applePassUpdates)
+  await db.delete(cardStampSettings)
+  await db.delete(stampCredits)
+  await db.delete(receptionRequests)
+  await db.delete(slots)
+  await db.delete(entryLog)
+  await db.delete(offchainAttestations)
+  await db.delete(members)
+  await db.delete(sessions)
+  await db.delete(cards)
+  await db.delete(issuers)
+}
+
+interface Pushed {
+  passTypeId: string
+  pushToken: string
+}
+
+interface WorldOptions {
+  push?: ApplePushSender | null
+  record?: 'offchain' | 'onchain'
+  webService?: boolean
+}
+
+const world = async ({ push, record = 'onchain', webService = true }: WorldOptions = {}) => {
+  const chain = fakeChain({ signer: ROOT })
+  const delegation = seedRoot(chain)
+  const pushed: Pushed[] = []
+  let answer: () => Promise<ApplePushResult> = async () => await Promise.resolve({ outcome: 'sent' })
+  const recorder: ApplePushSender = async (pushToken, passTypeId) => {
+    pushed.push({ passTypeId, pushToken })
+    return await answer()
+  }
+  const app = appWith({ applePush: push === undefined ? recorder : push, chain, now: () => NOW })
+  const cert = await testCert()
+  const bindings: Bindings = configuredEnv(delegation, {
+    API_BASE_URL: 'https://api.test',
+    APPLE_CERT_PEM: cert.certPem,
+    APPLE_KEY_PEM: cert.keyPem,
+    APPLE_PASS_TYPE_ID: PASS_TYPE,
+    APPLE_TEAM_ID: 'TEAM123456',
+    APPLE_WEB_SERVICE_SECRET: webService ? SECRET : undefined,
+    APPLE_WWDR_PEM: cert.certPem,
+  })
+  const kept: Promise<unknown>[] = []
+  const execution = {
+    passThroughOnException: () => undefined,
+    props: {},
+    waitUntil: (promise: Promise<unknown>) => {
+      kept.push(promise)
+    },
+  }
+  const request = async (path: string, init: RequestInit = {}): Promise<Response> => {
+    const response = await app.request(path, init, bindings, execution)
+    await Promise.all(kept)
+    return response
+  }
+  const { token } = await signIn(app, bindings)
+  await registerVenueWithCard(
+    app,
+    bindings,
+    { ...CARD_INPUT, card: { ...CARD_INPUT.card, record } },
+    token,
+  )
+  const venue = await db.select().from(issuers).get()
+  const card = await db.select().from(cards).get()
+  if (venue === undefined || card === undefined) {
+    throw new Error('the venue was not created')
+  }
+  await db.insert(cardStampSettings).values({ cardId: card.id, dailyLimit: 5, enabled: true, goal: 10 })
+  const issueSeeded = async (memberId: string): Promise<Hex> => {
+    const uid = seedRight(chain, delegation)
+    await db.insert(members).values({
+      attestationUid: uid,
+      cardId: card.id,
+      createdAt: NOW,
+      issuerId: venue.id,
+      level: 'bearer',
+      memberId,
+    })
+    return uid
+  }
+  const authJson = (extra: Record<string, string> = {}): Record<string, string> => ({
+    authorization: `Bearer ${token}`,
+    'content-type': 'application/json',
+    ...extra,
+  })
+  return {
+    bindings,
+    card,
+    issueSeeded,
+    pushed,
+    register: async (uid: Hex, device = DEVICE, pushToken = PUSH_TOKEN): Promise<Response> =>
+      await request(`/apple/v1/devices/${device}/registrations/${PASS_TYPE}/${uid}`, {
+        body: JSON.stringify({ pushToken }),
+        headers: { authorization: `ApplePass ${await applePassToken(SECRET, uid)}` },
+        method: 'POST',
+      }),
+    request,
+    revoke: async (uid: Hex): Promise<Response> =>
+      await request('/v1/revoke', { body: JSON.stringify({ uid }), headers: authJson(), method: 'POST' }),
+    setPushAnswer: (next: () => Promise<ApplePushResult>): void => {
+      answer = next
+    },
+    stamp: async (uid: Hex): Promise<Response> =>
+      await request('/v1/issuers/me/reception', {
+        body: JSON.stringify({ qr: `fuda:v1:${uid}`, requestId: crypto.randomUUID() }),
+        headers: authJson(),
+        method: 'POST',
+      }),
+    authJson,
+  }
+}
+
+const auth = async (uid: Hex, secret = SECRET): Promise<Record<string, string>> => ({
+  authorization: `ApplePass ${await applePassToken(secret, uid)}`,
+})
+
+const list = async (
+  request: (path: string) => Promise<Response>,
+  since?: string,
+  device = DEVICE,
+): Promise<Response> =>
+  await request(
+    `/apple/v1/devices/${device}/registrations/${PASS_TYPE}${since === undefined ? '' : `?passesUpdatedSince=${since}`}`,
+  )
+
+const listed = async (response: Response): Promise<{ lastUpdated: string; serialNumbers: string[] }> =>
+  await response.json<{ lastUpdated: string; serialNumbers: string[] }>()
+
+// A stored ZIP, so pass.json sits in the archive as plain bytes.
+const passJsonOf = async (response: Response): Promise<string> =>
+  new TextDecoder('latin1').decode(await response.arrayBuffer())
+
+describe('the Wallet web service', () => {
+  beforeEach(wipe)
+
+  describe('registering a device', () => {
+    it('answers 201, then 200 and keeps the rotated push token', async () => {
+      const { issueSeeded, register } = await world()
+      const uid = await issueSeeded('m1')
+      expect((await register(uid)).status).toBe(201)
+      expect((await register(uid, DEVICE, 'cd'.repeat(32))).status).toBe(200)
+      const device = await db.select().from(applePassDevices).get()
+      expect(device?.pushToken).toBe('cd'.repeat(32))
+      const rows = await db.select().from(applePassRegistrations)
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({ deviceId: DEVICE, serial: uid, uid })
+    })
+
+    it('refuses a missing token, another pass token and another scheme', async () => {
+      const { issueSeeded, request } = await world()
+      const uid = await issueSeeded('m1')
+      const other = await issueSeeded('m2')
+      const path = `/apple/v1/devices/${DEVICE}/registrations/${PASS_TYPE}/${uid}`
+      const body = JSON.stringify({ pushToken: PUSH_TOKEN })
+      const refused: Record<string, string>[] = [
+        {},
+        await auth(other),
+        await auth(uid, 'another-secret'),
+        { authorization: `Bearer ${await applePassToken(SECRET, uid)}` },
+      ]
+      const statuses = await Promise.all(
+        refused.map(async (headers) => (await request(path, { body, headers, method: 'POST' })).status),
+      )
+      expect(statuses).toStrictEqual([401, 401, 401, 401])
+      await expect(db.select().from(applePassRegistrations)).resolves.toHaveLength(0)
+    })
+
+    it('answers 404 for a pass type that is not this deployment and 401 for a junk serial', async () => {
+      const { issueSeeded, request } = await world()
+      const uid = await issueSeeded('m1')
+      const body = JSON.stringify({ pushToken: PUSH_TOKEN })
+      const wrongType = await request(`/apple/v1/devices/${DEVICE}/registrations/pass.other/${uid}`, {
+        body,
+        headers: await auth(uid),
+        method: 'POST',
+      })
+      expect(wrongType.status).toBe(404)
+      const junk = await request(`/apple/v1/devices/${DEVICE}/registrations/${PASS_TYPE}/nope`, {
+        body,
+        headers: await auth(uid),
+        method: 'POST',
+      })
+      expect(junk.status).toBe(401)
+    })
+
+    it('parses the push token, because it ends up in the APNs path', async () => {
+      const { issueSeeded, register, request } = await world()
+      const uid = await issueSeeded('m1')
+      expect((await register(uid, DEVICE, '../../evil')).status).toBe(400)
+      const noBody = await request(`/apple/v1/devices/${DEVICE}/registrations/${PASS_TYPE}/${uid}`, {
+        body: 'not json',
+        headers: await auth(uid),
+        method: 'POST',
+      })
+      expect(noBody.status).toBe(400)
+      await expect(db.select().from(applePassDevices)).resolves.toHaveLength(0)
+    })
+
+    it('answers 404 for a token over a pass that does not exist', async () => {
+      const { register } = await world()
+      expect((await register(`0x${'9'.repeat(64)}`)).status).toBe(404)
+    })
+  })
+
+  describe('unregistering a device', () => {
+    it('removes the registration, and the device with its last registration', async () => {
+      const { issueSeeded, register, request } = await world()
+      const first = await issueSeeded('m1')
+      const second = await issueSeeded('m2')
+      await register(first)
+      await register(second)
+      const remove = async (uid: Hex): Promise<Response> =>
+        await request(`/apple/v1/devices/${DEVICE}/registrations/${PASS_TYPE}/${uid}`, {
+          headers: await auth(uid),
+          method: 'DELETE',
+        })
+      expect((await remove(first)).status).toBe(200)
+      await expect(db.select().from(applePassRegistrations)).resolves.toHaveLength(1)
+      await expect(db.select().from(applePassDevices)).resolves.toHaveLength(1)
+      expect((await remove(second)).status).toBe(200)
+      await expect(db.select().from(applePassRegistrations)).resolves.toHaveLength(0)
+      await expect(db.select().from(applePassDevices)).resolves.toHaveLength(0)
+      expect((await remove(second)).status).toBe(200)
+    })
+
+    it('refuses a wrong token and leaves the registration', async () => {
+      const { issueSeeded, register, request } = await world()
+      const uid = await issueSeeded('m1')
+      await register(uid)
+      const refused = await request(`/apple/v1/devices/${DEVICE}/registrations/${PASS_TYPE}/${uid}`, {
+        headers: { authorization: 'ApplePass wrong' },
+        method: 'DELETE',
+      })
+      expect(refused.status).toBe(401)
+      await expect(db.select().from(applePassRegistrations)).resolves.toHaveLength(1)
+    })
+  })
+
+  describe('listing updated serials', () => {
+    it('answers 204 for a device it does not know', async () => {
+      const { request } = await world()
+      expect((await list(request)).status).toBe(204)
+    })
+
+    it('answers every registered pass with no tag, then 204 from the tag it gave', async () => {
+      const { issueSeeded, register, request } = await world()
+      const uid = await issueSeeded('m1')
+      await register(uid)
+      const first = await list(request)
+      expect(first.status).toBe(200)
+      const body = await listed(first)
+      expect(body.serialNumbers).toStrictEqual([uid])
+      expect((await list(request, body.lastUpdated)).status).toBe(204)
+    })
+
+    it('treats a malformed tag as no tag', async () => {
+      const { issueSeeded, register, request } = await world()
+      const uid = await issueSeeded('m1')
+      await register(uid)
+      const body = await listed(await list(request, 'garbage'))
+      expect(body.serialNumbers).toStrictEqual([uid])
+    })
+
+    it('surfaces a pass with a changed tag after a stamp', async () => {
+      const { issueSeeded, register, request, stamp } = await world()
+      const uid = await issueSeeded('m1')
+      await register(uid)
+      const before = await listed(await list(request))
+      expect((await stamp(uid)).status).toBe(200)
+      const after = await listed(await list(request, before.lastUpdated))
+      expect(after.serialNumbers).toStrictEqual([uid])
+      expect(Number(after.lastUpdated)).toBeGreaterThan(Number(before.lastUpdated))
+      expect((await list(request, after.lastUpdated)).status).toBe(204)
+    })
+
+    it('does not lose a second pass that changes in the second the device last asked', async () => {
+      const { issueSeeded, register, request, stamp } = await world()
+      const first = await issueSeeded('m1')
+      const second = await issueSeeded('m2')
+      await register(first)
+      await register(second)
+      await stamp(first)
+      const asked = await listed(await list(request))
+      await stamp(second)
+      const next = await listed(await list(request, asked.lastUpdated))
+      expect(next.serialNumbers).toStrictEqual([second])
+    })
+
+    it('answers only for the device asking', async () => {
+      const { issueSeeded, register, request } = await world()
+      await register(await issueSeeded('m1'))
+      expect((await list(request, undefined, 'another-device')).status).toBe(204)
+    })
+  })
+
+  describe('getting the latest pass', () => {
+    const passPath = (uid: Hex): string => `/apple/v1/passes/${PASS_TYPE}/${uid}`
+
+    it('refuses a wrong token', async () => {
+      const { issueSeeded, request } = await world()
+      const uid = await issueSeeded('m1')
+      expect((await request(passPath(uid))).status).toBe(401)
+      const other = await issueSeeded('m2')
+      expect((await request(passPath(uid), { headers: await auth(other) })).status).toBe(401)
+    })
+
+    it('answers the pass, naming this web service, with Last-Modified', async () => {
+      const { issueSeeded, register, request } = await world()
+      const uid = await issueSeeded('m1')
+      await register(uid)
+      const res = await request(passPath(uid), { headers: await auth(uid) })
+      expect(res.status).toBe(200)
+      expect(res.headers.get('content-type')).toBe('application/vnd.apple.pkpass')
+      expect(res.headers.get('last-modified')).toBe(new Date(NOW * 1000).toUTCString())
+      const json = await passJsonOf(res)
+      expect(json).toContain('"webServiceURL":"https://api.test/apple"')
+      expect(json).toContain(`"authenticationToken":"${await applePassToken(SECRET, uid)}"`)
+      expect(json).not.toContain('"voided"')
+    })
+
+    it('answers 304 until a stamp changes it, even within the same second', async () => {
+      const { issueSeeded, register, request, stamp } = await world()
+      const uid = await issueSeeded('m1')
+      await register(uid)
+      const first = await request(passPath(uid), { headers: await auth(uid) })
+      const lastModified = first.headers.get('last-modified') ?? ''
+      const conditional = { ...(await auth(uid)), 'if-modified-since': lastModified }
+      expect((await request(passPath(uid), { headers: conditional })).status).toBe(304)
+      await stamp(uid)
+      const updated = await request(passPath(uid), { headers: conditional })
+      expect(updated.status).toBe(200)
+      expect(updated.headers.get('last-modified')).not.toBe(lastModified)
+    })
+
+    it.each(['onchain', 'offchain'] as const)(
+      'still serves a %s pass once revoked, showing it is no longer valid',
+      async (record) => {
+        const { issueSeeded, pushed, register, request, revoke } = await world({ record })
+        const uid =
+          record === 'onchain'
+            ? await issueSeeded('m1')
+            : (
+                await (
+                  await request(`/v1/issuers/${CARD_INPUT.handle}/${CARD_INPUT.card.slug}/issue`, {
+                    headers: { 'CF-Connecting-IP': '203.0.113.70' },
+                    method: 'POST',
+                  })
+                ).json<{ uid: Hex }>()
+              ).uid
+        await register(uid)
+        const before = await listed(await list(request))
+        const answered = await revoke(uid)
+        expect(answered.status).toBe(200)
+        expect(pushed).toHaveLength(1)
+        const after = await listed(await list(request, before.lastUpdated))
+        expect(after.serialNumbers).toStrictEqual([uid])
+        const res = await request(passPath(uid), { headers: await auth(uid) })
+        expect(res.status).toBe(200)
+        const json = await passJsonOf(res)
+        expect(json).toContain('"voided":true')
+        expect(json).toContain('No longer valid')
+      },
+    )
+  })
+
+  describe('the log endpoint', () => {
+    const log = (body: string): RequestInit => ({
+      body,
+      headers: { 'CF-Connecting-IP': '203.0.113.9' },
+      method: 'POST',
+    })
+
+    it('takes what Wallet reports, without a credential', async () => {
+      const { request } = await world()
+      const res = await request('/apple/v1/log', log(JSON.stringify({ logs: ['a failure'] })))
+      expect(res.status).toBe(200)
+    })
+
+    it('refuses a payload that is not Apple shape, or is unbounded', async () => {
+      const { request } = await world()
+      expect((await request('/apple/v1/log', log('{"logs":"nope"}'))).status).toBe(400)
+      const flood = JSON.stringify({ logs: Array.from({ length: 51 }, () => 'x') })
+      expect((await request('/apple/v1/log', log(flood))).status).toBe(400)
+    })
+  })
+
+  describe('pushing a change', () => {
+    it('pushes each registered device on the pass type topic after a stamp', async () => {
+      const { issueSeeded, pushed, register, stamp } = await world()
+      const uid = await issueSeeded('m1')
+      await register(uid)
+      await register(uid, 'device-library-2', 'cd'.repeat(32))
+      expect((await stamp(uid)).status).toBe(200)
+      expect(pushed.map(({ pushToken }) => pushToken).toSorted()).toStrictEqual([PUSH_TOKEN, 'cd'.repeat(32)])
+      expect(pushed.every(({ passTypeId }) => passTypeId === PASS_TYPE)).toBe(true)
+    })
+
+    it('has the new tag in place before the push goes out', async () => {
+      const { issueSeeded, register, request, setPushAnswer, stamp } = await world()
+      const uid = await issueSeeded('m1')
+      await register(uid)
+      const before = await listed(await list(request))
+      let tagAtPush = 0
+      setPushAnswer(async () => {
+        const row = await db.select().from(applePassRegistrations).get()
+        tagAtPush = row?.updatedTag ?? 0
+        return { outcome: 'sent' }
+      })
+      await stamp(uid)
+      expect(tagAtPush).toBeGreaterThan(Number(before.lastUpdated))
+    })
+
+    it('drops a device whose token APNs says is gone, and only that one', async () => {
+      const { issueSeeded, register, setPushAnswer, stamp } = await world()
+      const uid = await issueSeeded('m1')
+      await register(uid)
+      await register(uid, 'device-library-2', 'cd'.repeat(32))
+      setPushAnswer(async () => await Promise.resolve({ outcome: 'token_invalid' }))
+      await stamp(uid)
+      await expect(db.select().from(applePassDevices)).resolves.toHaveLength(0)
+      await expect(db.select().from(applePassRegistrations)).resolves.toHaveLength(0)
+    })
+
+    it('keeps a device after any other refusal', async () => {
+      const { issueSeeded, register, setPushAnswer, stamp } = await world()
+      const uid = await issueSeeded('m1')
+      await register(uid)
+      setPushAnswer(
+        async () => await Promise.resolve({ outcome: 'failed', reason: 'BadCertificate', status: 403 }),
+      )
+      expect((await stamp(uid)).status).toBe(200)
+      await expect(db.select().from(applePassDevices)).resolves.toHaveLength(1)
+    })
+
+    it('never fails the stamp when the push throws', async () => {
+      const { issueSeeded, register, request, setPushAnswer, stamp } = await world()
+      const uid = await issueSeeded('m1')
+      await register(uid)
+      const before = await listed(await list(request))
+      setPushAnswer(async () => await Promise.reject(new Error('connection refused')))
+      const res = await stamp(uid)
+      expect(res.status).toBe(200)
+      await expect(res.json()).resolves.toMatchObject({ decision: 'ADMIT' })
+      await expect(db.select().from(stampCredits)).resolves.toHaveLength(1)
+      expect((await list(request, before.lastUpdated)).status).toBe(200)
+    })
+
+    it('pushes nothing for a pass with no device', async () => {
+      const { issueSeeded, pushed, stamp } = await world()
+      await stamp(await issueSeeded('m1'))
+      expect(pushed).toHaveLength(0)
+    })
+
+    it('refreshes every pass under a card or venue that was edited', async () => {
+      const { authJson, card, issueSeeded, pushed, register, request } = await world()
+      const first = await issueSeeded('m1')
+      const second = await issueSeeded('m2')
+      await register(first)
+      await register(second, 'device-library-2', 'cd'.repeat(32))
+      const before = await listed(await list(request))
+      const venueEdit = await request('/v1/issuers/me', {
+        body: JSON.stringify({ brandColor: '#112233', name: 'New name', tagline: '' }),
+        headers: authJson(),
+        method: 'PUT',
+      })
+      expect(venueEdit.status).toBe(200)
+      expect(pushed).toHaveLength(2)
+      const after = await listed(await list(request, before.lastUpdated))
+      expect(after.serialNumbers).toStrictEqual([first])
+      const stampEdit = await request(`/v1/issuers/me/cards/${card.id}/stamps`, {
+        body: JSON.stringify({ dailyLimit: 1, enabled: true, goal: 12 }),
+        headers: authJson(),
+        method: 'PUT',
+      })
+      expect(stampEdit.status).toBe(200)
+      expect(pushed).toHaveLength(4)
+      const row = await db
+        .select()
+        .from(applePassUpdates)
+        .where(eq(applePassUpdates.uid, second))
+        .get()
+      expect(row?.tag).toBeGreaterThan(Number(before.lastUpdated))
+    })
+  })
+
+  describe('with the certificate binding missing', () => {
+    it('still records the change for pull to refresh, and pushes nothing', async () => {
+      const { issueSeeded, register, request, stamp } = await world({ push: null })
+      const uid = await issueSeeded('m1')
+      await register(uid)
+      const before = await listed(await list(request))
+      expect((await stamp(uid)).status).toBe(200)
+      expect((await listed(await list(request, before.lastUpdated))).serialNumbers).toStrictEqual([uid])
+    })
+  })
+
+  describe('with the secret unset', () => {
+    it('answers 501 on every route, and builds a snapshot that names no web service', async () => {
+      const { issueSeeded, pushed, request, stamp } = await world({ webService: false })
+      const uid = await issueSeeded('m1')
+      const registrations = `/apple/v1/devices/${DEVICE}/registrations/${PASS_TYPE}`
+      const statuses = await Promise.all([
+        request(`${registrations}/${uid}`, {
+          body: JSON.stringify({ pushToken: PUSH_TOKEN }),
+          headers: await auth(uid),
+          method: 'POST',
+        }),
+        request(`${registrations}/${uid}`, { headers: await auth(uid), method: 'DELETE' }),
+        request(registrations),
+        request(`/apple/v1/passes/${PASS_TYPE}/${uid}`, { headers: await auth(uid) }),
+      ])
+      expect(statuses.map(({ status }) => status)).toStrictEqual([501, 501, 501, 501])
+      const pass = await request(`/pass/${uid}/apple.pkpass`)
+      expect(pass.status).toBe(200)
+      const json = await passJsonOf(pass)
+      expect(json).not.toContain('webServiceURL')
+      expect(json).not.toContain('authenticationToken')
+      expect(json).not.toContain('"Status"')
+      expect((await stamp(uid)).status).toBe(200)
+      expect(pushed).toHaveLength(0)
+      await expect(db.select().from(applePassUpdates)).resolves.toHaveLength(0)
+    })
+  })
+
+  it('names the web service in a fresh download once the secret is set', async () => {
+    const { issueSeeded, request } = await world()
+    const uid = await issueSeeded('m1')
+    const pass = await request(`/pass/${uid}/apple.pkpass`)
+    expect(await passJsonOf(pass)).toContain('"webServiceURL":"https://api.test/apple"')
+  })
+})
