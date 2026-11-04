@@ -271,6 +271,7 @@ Use separate live rights for separate flows: a +Private right proves private dis
 - **ERC-6492 (undeployed smart wallet).** Issue a Signed right to a Base Account (passkey smart wallet) address, then enter it at `https://app.fuda.sh/signed` _before_ that account is deployed on chain — the api must still answer `ADMIT` through the ERC-6492 counterfactual path. This is the one path the fake chain cannot exercise, so it must be run once against Base Sepolia before the deploy is called done.
 - **Google Wallet.** Open `/pass/<uid>` on an Android phone and tap "Add to Google Wallet".
 - **Apple Wallet.** Open `/pass/<uid>/apple.pkpass` on an iPhone.
+- **Camera scan on WebKit.** Safari has no `BarcodeDetector`, so the gate reads with a JS decoder there, and only a real device shows camera permission, rear-camera choice and focus. Open `https://gate.fuda.sh` in Safari on an iPhone and on an iPad, allow the camera, and scan a pass shown (a) on paper or another phone's screen in normal light, (b) on a phone screen in a dim room, and (c) held about 30 cm away. Each scan should reach a verdict within a second or two and the camera light should go out when the verdict appears. Deny the camera once and confirm the paste box appears with a plain message. Repeat on `https://app.fuda.sh/signed` on the iPhone, which uses the same scanner.
 
 ## 11. Reconciliation
 
@@ -396,7 +397,7 @@ This is local display state only. It does not exercise wallet submission, sponso
 
 The gate accepts a keyboard-wedge QR reader on any device, with no configuration: it scans into the page, and the payload is read whether or not a field has focus, so a scan lands while a previous verdict is still displayed. Set the reader's terminator to CR, and set the **host's** hardware-keyboard layout to U.S. — the reader sends US-layout keystrokes, and a JIS layout turns the `:` in `fuda:v1:` into `+`, which the gate then reports as "not a fuda pass". A bare uid (`0x…`) contains no `:` and still resolves, but only as a preview: no slot consumed, no Entry logged.
 
-`gate.fuda.sh/?camera=off` runs the gate as a reader-only station: no camera, no paste box, one waiting line. Use it on a device whose browser has no `BarcodeDetector` — every WebKit browser, so every iPad and iPhone — where the camera can only report failure. The parameter is per-device, so one deployment serves both a laptop that scans with its camera and a tablet that only reads the USB reader. Without the parameter the camera is used when available. The paste box is part of the camera view, so the reader-only station has no manual fallback: keep a plain `gate.fuda.sh` tab for that.
+`gate.fuda.sh/?camera=off` runs the gate as a reader-only station: no camera, no paste box, one waiting line, and no camera permission prompt. Use it on a device that stands at a desk with a USB reader, such as an iPad on a stand. The parameter is per-device, so one deployment serves both a phone or laptop that scans with its camera and a tablet that only reads the USB reader. Without the parameter the camera is used when it can be opened. The paste box is part of the camera view, so the reader-only station has no manual fallback: keep a plain `gate.fuda.sh` tab for that.
 
 ### Venue reception demo
 

@@ -274,6 +274,12 @@ The gate scans `fuda:v1:<uid>`, posts `{ "qr" }`, and renders the verdict. A ver
 | YELLOW | a preview `ADMIT` with `level ≥ 1` — valid, but it has to enter through the Signed flow — or a preview whose `entitlement` is missing, which fails closed because an unknown level may be Signed |
 | RED | any `REJECT`, and any answer that is not a verdict: a `4xx`, or a `5xx` or transport failure, which additionally raise the network banner. Input the scanner cannot classify is red too, rendered as "not a fuda pass" without an api call |
 
+### Reading a pass with the camera
+
+The gate page and the member app's Enter screen share one scanner. Unless the gate is opened with `?camera=off`, it asks for the rear camera (`facingMode: environment`) and reads one frame about every 120 ms from a canvas copy of the video, scaled to at most 960 px on its longer side. The video is `playsinline` and muted, so iPhone and iPad Safari keep it inline. It uses the browser's `BarcodeDetector` where one exists and works. Safari has none, so the decoder falls back to jsQR, a pure JavaScript decoder that is fetched as its own chunk the first time a frame needs it and never otherwise. A `BarcodeDetector` that exists but rejects a frame is dropped for the rest of the page, and the JS decoder reads from then on.
+
+Reading stops, and the camera is released, at the first code read, so a camera light never stays on behind a verdict. It also pauses while the page is hidden and resumes when it is shown again. What was read goes through the same classification as pasted or keyboard-reader input, so a QR that is not a `fuda:v1:` payload or a uid reads as "not a fuda pass". A denied or missing camera shows "camera unavailable — paste below" with the paste box. `?camera=off` and the keyboard-wedge reader do not use the camera and are unchanged.
+
 ### Signed entry (`POST /challenge` → `POST /verify-signed`)
 
 `POST /challenge { "uid" }` answers `200 { "challenge", "nonce" }`; both strings are pinned in the attestation model's [wire constants](./attestation-model.md#wire-constants). There is no chain lookup: a challenge for an unknown or revoked uid is minted anyway and rejected at the next step. `400 bad_uid` for a malformed uid; `Cache-Control: no-store`. Every mint also sweeps the nonces that have outlived the TTL.
