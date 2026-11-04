@@ -121,10 +121,22 @@ Set secrets from `apps/api/targets/develop` with `void secret put <NAME>` (use `
 - `ENS_SEPOLIA_RPC_URL` — Ethereum Sepolia RPC. A secret rather than a var, because an Alchemy endpoint carries its API key in the path.
 - `ENS_PAYMASTER_UPSTREAM` — the vendor's ERC-7677 paymaster endpoint. With Alchemy this is the same URL as above; the bindings stay separate so the paymaster vendor can change without touching the chain reads.
 - `WORLD_APP_ID`, `WORLD_RP_ID`, `WORLD_ACTION`, `WORLD_RP_SIGNING_KEY` — World ID badge verification. All four or nothing: while any one is unset, `POST /badges/:kind` answers `501 badges_not_configured` and no verdict carries a badge. Only the signing key is sensitive — it is the relying party's 32-byte secp256k1 key as hex (`0x` optional), whose public half is registered in the Developer Portal — but all four are pushed as secrets rather than split between here and `targets.jsonc` vars, so there is one place to look. Do not also add these names to `vars`: a name defined twice silently resolves to the secret.
+- `TURNSTILE_SECRET_KEY` — the secret of the Cloudflare Turnstile widget that guards the public claim `POST /v1/issuers/:handle/:slug/issue`. **Optional by design:** with it unset or empty the api skips the bot check, which is how local development and the tests run, so a deployment that forgets it is open to scripted claims and says nothing. Set it together with the app's `VITE_TURNSTILE_SITE_KEY` (§6). With the secret set and no site key in the build, every claim answers `403 bot_check_failed`. If Siteverify is unreachable the claim fails closed with `503 bot_check_unavailable` and the member sees a try-again message. To create the widget, see "Turnstile widget" below.
 - `GOOGLE_ISSUER_ID`, `GOOGLE_CLASS_ID`, `GOOGLE_SA_EMAIL`, `GOOGLE_SA_KEY_PEM` — see §4.
 - `APPLE_PASS_TYPE_ID`, `APPLE_TEAM_ID`, `APPLE_CERT_PEM`, `APPLE_KEY_PEM`, `APPLE_WWDR_PEM` — see §5.
 
 PEM secrets (`GOOGLE_SA_KEY_PEM`, `APPLE_CERT_PEM`, `APPLE_KEY_PEM`, `APPLE_WWDR_PEM`): paste the PEM block as-is. A PEM copied straight out of a service-account JSON keeps its literal `\n` escapes; the api normalizes either form, so there is no need to reformat it first.
+
+### Turnstile widget
+
+One Turnstile widget serves the claim, in the Cloudflare dashboard under Turnstile, Add widget:
+
+1. Name it `fuda claim`. Add the hostnames the card page is served on: `app.fuda.sh`, plus `app.dev.fuda.sh` or whatever hostname the develop deployment uses, and `localhost` only if you want to run a real challenge locally.
+2. Widget mode: Managed. The app renders it with `interaction-only` appearance, so members see it only when Cloudflare asks for a tap. Leave pre-clearance off.
+3. Copy the **site key** into the app build (`VITE_TURNSTILE_SITE_KEY`, §6) and the **secret key** into the api with `void secret put TURNSTILE_SECRET_KEY` from the matching `apps/api/targets/<name>` directory. One widget may list the hostnames of several deployments, or each deployment may have its own.
+4. Redeploy the api and then the app. Claim a card on a phone and watch for a challenge, or for none: an invisible pass is the normal outcome. The app and the api must be switched on together.
+
+Cloudflare's documented test keys (site key `1x00000000000000000000AA`, secret `1x0000000000000000000000000000000AA`) always pass and are for local runs only. Never set them on a deployed api.
 
 See `apps/api/src/env.ts` for the full binding list and `apps/api/README.md` for what each secret gates at the route level.
 
@@ -154,6 +166,7 @@ VITE_GRAPH_RIGHTS_ENDPOINT=https://gateway.thegraph.com/api/<PUBLIC_KEY>/subgrap
 VITE_ENS_PAYMASTER_URL=https://api.fuda.sh/v1/ens/paymaster  # dash only, and the one VITE_* that carries the version prefix: the wallet fetches this URL as given
 VITE_APP_ORIGIN=https://app.fuda.sh     # app only; this is also its default
 VITE_RP_ID=fuda.sh                      # app only; this is also its default
+VITE_TURNSTILE_SITE_KEY=0x4AAAAAAA…     # app only; the public site key of the claim widget (§3). Empty disables the widget, so set the api's TURNSTILE_SECRET_KEY only together with it
 ```
 
 The Graph endpoint is browser-visible. Use a public gateway key restricted to the deployed subgraph, or a same-origin proxy; never put a Studio deploy key in a `VITE_*` value.
