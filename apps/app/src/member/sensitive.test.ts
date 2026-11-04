@@ -60,7 +60,7 @@ const fakeServer = (passkeys: string[] = ['one']) => {
       passkeys.push('new')
       return await Promise.resolve({ credentialId: 'new', ok: true, prfOutput: null })
     },
-    askPrf: async ({ allow }) => await Promise.resolve(answerFrom(allow[0] ?? 'one')),
+    askPrf: async ({ allow }) => await Promise.resolve(answerFrom(allow[0]?.id ?? 'one')),
     claim: async (_handle, _slug, _source, holderAddress) => {
       claimed.push(holderAddress)
       const body: SelfServeIssueResponse = {
@@ -140,7 +140,7 @@ describe('opening the member secret', () => {
     await openMemberSecret(server.io)
     const askPrf = vi.fn<SensitiveIo['askPrf']>(async () => await Promise.resolve(answerFrom('one')))
     await openMemberSecret({ ...server.io, askPrf })
-    expect(askPrf).toHaveBeenCalledWith({ allow: ['one'], rpId: 'fuda.sh' })
+    expect(askPrf).toHaveBeenCalledWith({ allow: [{ id: 'one', transports: [] }], rpId: 'fuda.sh' })
   })
 
   it('takes the other device’s secret when both enroll at once', async () => {
@@ -353,7 +353,7 @@ describe(addPasskeyKeepingSecret, () => {
     const server = fakeServer()
     await openMemberSecret(server.io)
     const askPrf: SensitiveIo['askPrf'] = async ({ allow }) =>
-      await Promise.resolve(allow.includes('new') ? { kind: 'none' } : answerFrom('one'))
+      await Promise.resolve(allow.some((row) => row.id === 'new') ? { kind: 'none' } : answerFrom('one'))
     await expect(addPasskeyKeepingSecret({ ...server.io, askPrf })).resolves.toStrictEqual({
       holdsSecret: false,
       ok: true,

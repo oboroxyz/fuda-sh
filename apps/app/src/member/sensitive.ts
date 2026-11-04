@@ -31,10 +31,12 @@ export type PrfAnswer =
   | { kind: 'none' }
   | { kind: 'cancelled' }
 
+type AllowedPasskey = MemberSecretResponse['allowCredentials'][number]
+
 export interface SensitiveIo {
   addCopy: (copy: Sealed & { credentialId: string; first: boolean }) => Promise<Result<{ added: true }>>
   addPasskey: () => Promise<AddPasskeyOutcome>
-  askPrf: (request: { allow: readonly string[]; rpId: string }) => Promise<PrfAnswer>
+  askPrf: (request: { allow: readonly AllowedPasskey[]; rpId: string }) => Promise<PrfAnswer>
   claim: (
     handle: string,
     slug: string,
@@ -48,6 +50,9 @@ export interface SensitiveIo {
   writeVault: (sealed: Sealed, expectedVersion: number) => Promise<Result<{ version: number }>>
 }
 
+const isTransport = (raw: string): raw is AuthenticatorTransport =>
+  ['ble', 'hybrid', 'internal', 'nfc', 'usb'].includes(raw)
+
 // A prompt on the device only. The server checks nothing here, so its challenge is random
 // and goes nowhere: what matters is what the passkey's PRF answers. A browser reports the
 // feature whatever the provider does, so only this result says whether it is there.
@@ -56,7 +61,11 @@ const askPrf: SensitiveIo['askPrf'] = async ({ allow, rpId }) => {
   try {
     credential = await navigator.credentials.get({
       publicKey: {
-        allowCredentials: allow.map((id) => ({ id: base64URLStringToBuffer(id), type: 'public-key' })),
+        allowCredentials: allow.map(({ id, transports }) => ({
+          id: base64URLStringToBuffer(id),
+          transports: transports.filter((transport) => isTransport(transport)),
+          type: 'public-key',
+        })),
         challenge: crypto.getRandomValues(new Uint8Array(32)),
         extensions: { prf: { eval: { first: PRF_SALT } } },
         rpId,
@@ -155,7 +164,7 @@ export const openMemberSecret = async (io: SensitiveIo, only?: string): Promise<
   }
   const { allowCredentials, copies, rpId } = state.body
   const answer = await io.askPrf({
-    allow: only === undefined ? allowCredentials.map((row) => row.id) : [only],
+    allow: only === undefined ? allowCredentials : [{ id: only, transports: [] }],
     rpId,
   })
   if (answer.kind === 'cancelled') {
@@ -354,7 +363,7 @@ export const addPasskeyKeepingSecret = async (io: SensitiveIo): Promise<AddWithS
   }
   const answer: PrfAnswer =
     added.prfOutput === null
-      ? await io.askPrf({ allow: [added.credentialId], rpId: state.body.rpId })
+      ? await io.askPrf({ allow: [{ id: added.credentialId, transports: [] }], rpId: state.body.rpId })
       : { credentialId: added.credentialId, kind: 'result', output: added.prfOutput }
   if (answer.kind !== 'result') {
     return { holdsSecret: false, ok: true }

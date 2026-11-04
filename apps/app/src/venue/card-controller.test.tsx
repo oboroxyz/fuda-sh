@@ -70,6 +70,13 @@ const landed = async (host: HTMLElement): Promise<void> => {
   })
 }
 
+const claimOn = async (host: HTMLElement): Promise<void> => {
+  await vi.waitFor(() => {
+    expect(host.querySelector('.venue-primary button')).not.toBeNull()
+  })
+  host.querySelector<HTMLButtonElement>('.venue-primary button')?.click()
+}
+
 describe('venue controller', () => {
   describe('a Sensitive card', () => {
     const UID = `0x${'ab'.repeat(32)}` as const
@@ -104,12 +111,6 @@ describe('venue controller', () => {
         host,
       )
       return host
-    }
-    const claimOn = async (host: HTMLElement): Promise<void> => {
-      await vi.waitFor(() => {
-        expect(host.querySelector('.venue-primary button')).not.toBeNull()
-      })
-      host.querySelector<HTMLButtonElement>('.venue-primary button')?.click()
     }
     afterEach(() => {
       localStorage.clear()
