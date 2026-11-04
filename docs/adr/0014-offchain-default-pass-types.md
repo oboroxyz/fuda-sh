@@ -48,6 +48,8 @@ The gate checks, in order: D1 revocation mirror, UID, signature domain, signatur
 - The schema and venue are pinned. All venues share one attester in the first phase, so a signature alone would admit another venue's pass. Today the venue is pinned only to the D1 row and at reception: `POST /verify` takes no venue, as with on-chain rights, so a gate does not yet reject another venue's pass.
 - `AlreadyTimestamped` counts as success, because anyone can timestamp a root first.
 
+The API tries the preferred Base Sepolia RPC and then the public endpoint on provider failure. A provider outage alone therefore does not make the chain unreadable. The gate rules above apply when neither provider supplies the required read. Contract reverts do not trigger failover.
+
 ### 4. Identity and addresses
 
 Identified attests the passkey's public key in the pass data and leaves `recipient` as the zero address. The gate checks the challenge, origin, RP ID hash, user-verification flag and signature with no chain read.
