@@ -446,14 +446,29 @@ Five routes use the fixed hourly D1 counter and require `CF-Connecting-IP`:
 
 The counter is keyed by IP and hour, not route: requests across these routes share a count, with each route applying its own threshold. Rejected requests also increment it. Announcement discovery is a browser-to-Graph query and does not pass through the API. The gate routes (`/verify`, `/challenge`, `/verify-signed`) and the admin routes (`/issue`, `/revoke`, `/members`) are never budgeted.
 
-## Offchain revocations still to send
+## Offchain jobs
 
-An offchain pass is rejected as soon as `members.status` is `revoked`, but the public record may lag if the transaction failed. Nothing retries it automatically yet. List the passes behind and revoke each again:
+Two jobs in `apps/api/crons/` run on every api target: roots hourly, and failed revocations every 15 minutes. Each target links the directory the way it links `routes`. The first deploy that includes them adds a `scheduled` handler and cron triggers to the Worker; confirm both on the Worker's Triggers page in Cloudflare.
+
+Failures only reach the Worker logs, as `offchain root not anchored` and `offchain revocation retry failed`. Nothing alerts on them, and no pass stops working, so check when you can. The usual cause is the signer running out of ETH, because both jobs and on-chain issuance spend from it:
+
+```sh
+curl -s "$BASE_RPC_URL" -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"eth_getBalance","params":["<signer address>","latest"]}'
+```
+
+These show what is behind:
 
 ```sql
+SELECT root, pass_count, created_at FROM offchain_roots WHERE anchored_at IS NULL;
+
+SELECT COUNT(*) FROM offchain_attestations WHERE root IS NULL;
+
 SELECT o.uid FROM offchain_attestations o JOIN members m ON m.attestation_uid = o.uid
 WHERE m.status = 'revoked' AND o.revoke_tx IS NULL;
 ```
+
+To run a job locally, start the api and use the `curl` command with the `x-void-dev-trigger` token that Void prints, setting `cron` to the job's expression. Local schedules never fire on their own.
 
 ## Mainnet cutover
 

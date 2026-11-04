@@ -90,6 +90,10 @@ export interface ChainClient {
   signOffchain: (typed: OffchainTypedData) => Promise<Hex>
   /** EAS.getRevokeOffchain: when `revoker` revoked `uid`, 0n if it has not. Throws ChainError on RPC failure. */
   offchainRevokedAt: (revoker: Hex, uid: Hex) => Promise<bigint>
+  /** EAS.getTimestamp: when `root` was timestamped, 0n if it has not been. Throws ChainError on RPC failure. */
+  rootTimestamp: (root: Hex) => Promise<bigint>
+  /** EAS.timestamp from the signer; waits for the receipt. Reverts if anyone timestamped `root` first. Throws NoSignerError / ChainError. */
+  timestamp: (root: Hex) => Promise<{ txHash: Hex }>
   /** EAS.revokeOffchain from the signer; waits for the receipt. Reverts on an already revoked uid, so read first. Throws NoSignerError / ChainError. */
   revokeOffchain: (uid: Hex) => Promise<{ txHash: Hex }>
 }

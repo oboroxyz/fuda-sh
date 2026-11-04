@@ -9,6 +9,8 @@ export const EAS_ABI = parseAbi([
   'function attest(AttestationRequest request) payable returns (bytes32)',
   'function revoke(RevocationRequest request) payable',
   'function getAttestation(bytes32 uid) view returns (Attestation)',
+  'function timestamp(bytes32 data) returns (uint64)',
+  'function getTimestamp(bytes32 data) view returns (uint64)',
   'function revokeOffchain(bytes32 data) returns (uint64)',
   'function getRevokeOffchain(address revoker, bytes32 data) view returns (uint64)',
   'event Attested(address indexed recipient, address indexed attester, bytes32 uid, bytes32 indexed schemaUID)',

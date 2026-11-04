@@ -48,6 +48,7 @@ export class FakeChain implements ChainClient {
   failAnnounce = false
   readonly announcements: AnnouncementLog[] = []
   readonly offchainRevocations = new Map<string, bigint>()
+  readonly rootTimestamps = new Map<string, bigint>()
   // A small in-memory chain height so the sync has a head to walk towards.
   // Monotonic across dev restarts so a persisted sync cursor from a previous
   // run never outruns the chain.
@@ -107,6 +108,24 @@ export class FakeChain implements ChainClient {
     return await Promise.resolve(
       this.offchainRevocations.get(`${revoker.toLowerCase()}:${lowerHex(uid)}`) ?? 0n,
     )
+  }
+
+  async rootTimestamp(root: Hex): Promise<bigint> {
+    if (this.failReads) {
+      throw new ChainError('rpc down')
+    }
+    return await Promise.resolve(this.rootTimestamps.get(lowerHex(root)) ?? 0n)
+  }
+
+  async timestamp(root: Hex): Promise<{ txHash: Hex }> {
+    if (this.signer === null) {
+      throw new NoSignerError('no signer configured')
+    }
+    if (this.failWrites || this.rootTimestamps.has(lowerHex(root))) {
+      throw new ChainError('timestamp reverted')
+    }
+    this.rootTimestamps.set(lowerHex(root), this.now())
+    return await Promise.resolve({ txHash: this.nextTx() })
   }
 
   async revokeOffchain(uid: Hex): Promise<{ txHash: Hex }> {

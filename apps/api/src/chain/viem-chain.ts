@@ -231,6 +231,17 @@ export const createViemChain = (
       })
     },
 
+    rootTimestamp: async (root) =>
+      await wrap(
+        async () =>
+          await publicClient.readContract({
+            abi: EAS_ABI,
+            address: eas,
+            args: [root],
+            functionName: 'getTimestamp',
+          }),
+      ),
+
     signOffchain: async (typed) => {
       if (account === null) {
         throw new NoSignerError('SIGNER_PRIVATE_KEY unset')
@@ -239,6 +250,27 @@ export const createViemChain = (
     },
 
     signerAddress: () => account?.address ?? null,
+
+    timestamp: async (root) => {
+      if (wallet === null || account === null) {
+        throw new NoSignerError('SIGNER_PRIVATE_KEY unset')
+      }
+      return await wrap(async () => {
+        const txHash = await wallet.writeContract({
+          abi: EAS_ABI,
+          account,
+          address: eas,
+          args: [root],
+          chain: baseSepolia,
+          functionName: 'timestamp',
+        })
+        const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash })
+        if (receipt.status !== 'success') {
+          throw new ChainError('timestamp reverted')
+        }
+        return { txHash }
+      })
+    },
 
     verifyMessage: async (p) => {
       try {

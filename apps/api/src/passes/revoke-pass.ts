@@ -8,6 +8,7 @@ import { findVersion, parseSchemaSets } from '../eas/schemas.ts'
 import type { AcceptedVersion } from '../eas/schemas.ts'
 import { darkenMemberName } from '../ens/mirror.ts'
 import type { AppEnv } from '../env.ts'
+import { sendOffchainRevocation } from './offchain-chores.ts'
 
 // null means "this deployment's EAS_SCHEMAS binding is malformed" — a
 // deployment defect, not caller input, so it fails closed with the same
@@ -26,8 +27,8 @@ export type RevokeOutcome = { ok: true } | { ok: false; error: RevokeError }
 
 // docs/specs/attestation-model.md#offchain-rights: D1 first, so the gate rejects at
 // once and while the chain is unreachable. The transaction may then fail or be lost
-// without undoing that. `revoke_tx` stays NULL and a later call sends it again, and
-// the read first keeps a retry from reverting on an already revoked uid.
+// without undoing that. `revoke_tx` stays NULL, and the retry job or a later call
+// sends it again.
 const revokeOffchainPass = async (c: Context<AppEnv>, uid: Hex): Promise<RevokeOutcome> => {
   const chain = c.get('chain')
   const attester = chain.offchainAttester()
@@ -37,14 +38,7 @@ const revokeOffchainPass = async (c: Context<AppEnv>, uid: Hex): Promise<RevokeO
   const db = c.get('db')
   await db.update(members).set({ status: 'revoked' }).where(eq(members.attestationUid, uid))
   try {
-    const revokedAt = await chain.offchainRevokedAt(attester, uid)
-    // Already revoked on chain: a retry whose earlier answer was lost, or a revocation
-    // made outside fuda. There is no transaction of ours to name, so the zero hash marks it done.
-    const sent = revokedAt === 0n ? await chain.revokeOffchain(uid) : { txHash: ZERO_UID }
-    await db
-      .update(offchainAttestations)
-      .set({ revokeTx: sent.txHash })
-      .where(eq(offchainAttestations.uid, uid))
+    await sendOffchainRevocation(db, chain, attester, uid)
   } catch (error) {
     if (!(error instanceof ChainError) && !(error instanceof NoSignerError)) {
       throw error
