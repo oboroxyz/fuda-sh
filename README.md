@@ -77,7 +77,7 @@ sequenceDiagram
     API->>D1: Log verdict and consume slot if admitted and single-use
     API-->>Gate: ADMIT or REJECT
     opt ADMIT
-        API->>EAS: Record Attendance asynchronously, best-effort
+        API->>EAS: Record Attendance asynchronously, best-effort, if the card has it on
     end
 ```
 

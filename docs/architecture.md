@@ -21,7 +21,7 @@ flowchart LR
     AN -. raw events .-> S
     API -->|read right + delegation| EAS
     G -->|challenge / consume / log| API
-    API -->|record Attendance except +Private| EAS
+    API -->|record Attendance when the card has it on, never +Private| EAS
 ```
 
 ## Components
