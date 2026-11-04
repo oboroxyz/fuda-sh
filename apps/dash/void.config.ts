@@ -4,8 +4,8 @@ import { defineConfig } from 'void/config'
 // (docs/adr/0010-void-pages-and-frontend-workers.md). The Worker holds the
 // session in HttpOnly cookies and calls the api with it; API_BASE_URL is where.
 // `pnpm dev` points it at the local api through the environment.
-// The first `void deploy` links the existing `fuda-dash` Worker and writes
-// `void.lock.json`, which must then be committed (docs/runbook.md).
+// `void deploy` records the generated config in `void.lock.json`, which is
+// committed (docs/runbook.md).
 export default defineConfig({
   cloudflare: {
     name: 'fuda-dash',

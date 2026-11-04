@@ -7,7 +7,7 @@
     "dev": "API_BASE_URL=http://localhost:8787 VOID_INSPECTOR_PORT=false vp dev",
     "build": "vp build",
     "preview": "vp preview",
-    "deploy": "void deploy",
+    "deploy": "void deploy --platform cloudflare",
     "test": "vp test"
   },
   "dependencies": {
@@ -25,6 +25,6 @@
     "vite": "^8.2.2",
     "vite-plugin-solid": "2.11.14",
     "vitest": "4.1.11",
-    "void": "1.5.0"
+    "void": "1.6.1"
   }
 }

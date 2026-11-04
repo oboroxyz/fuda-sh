@@ -5,9 +5,9 @@ import { defineConfig } from 'void/config'
 // same-origin /api, which calls the api at API_BASE_URL
 // (docs/adr/0010-void-pages-and-frontend-workers.md). It has no session and no
 // page worth rendering on the server, so it does not use pages. `pnpm dev`
-// points API_BASE_URL at the local api through the environment. The first
-// `void deploy` links the existing `fuda-gate` Worker and writes
-// `void.lock.json`, which must then be committed (docs/runbook.md).
+// points API_BASE_URL at the local api through the environment. `void deploy`
+// records the generated config in `void.lock.json`, which is committed
+// (docs/runbook.md).
 export default defineConfig({
   cloudflare: {
     name: 'fuda-gate',

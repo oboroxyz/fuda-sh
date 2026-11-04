@@ -4,8 +4,8 @@ import { defineConfig } from 'void/config'
 // (docs/adr/0010-void-pages-and-frontend-workers.md). The Worker holds the
 // member session in an HttpOnly cookie and calls the api with it;
 // API_BASE_URL is where. `pnpm dev` points it at the local api through the
-// environment. The first `void deploy` links the existing `fuda-app` Worker
-// and writes `void.lock.json`, which must then be committed (docs/runbook.md).
+// environment. `void deploy` records the generated config in `void.lock.json`,
+// which is committed (docs/runbook.md).
 const DESCRIPTION =
   'Issue membership, loyalty, and ticket cards in minutes. Add them to Apple & Google Wallet. No app, no lock-in, verifiable by anyone.'
 

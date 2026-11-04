@@ -7,7 +7,7 @@
     "dev": "API_BASE_URL=http://localhost:8787 VITE_APP_ORIGIN=http://localhost:5173 VITE_RP_ID=localhost VOID_INSPECTOR_PORT=false vp dev",
     "build": "vp build",
     "preview": "vp preview",
-    "deploy": "void deploy",
+    "deploy": "void deploy --platform cloudflare",
     "test": "vp test"
   },
   "dependencies": {
@@ -27,12 +27,12 @@
   "devDependencies": {
     "@base-org/account": "2.5.10",
     "@tailwindcss/vite": "4.3.3",
-    "@void/solid": "1.5.0",
+    "@void/solid": "1.6.1",
     "daisyui": "5.7.28",
     "tailwindcss": "4.3.3",
     "vite": "^8.2.2",
     "vite-plugin-solid": "2.11.14",
     "vitest": "4.1.11",
-    "void": "1.5.0"
+    "void": "1.6.1"
   }
 }

@@ -28,7 +28,7 @@ The api deploys with Void, which has no named environments, so each target is it
 | `deploy`, `migrate:remote`                | `develop`    |
 | `deploy:production`, `migrate:production` | `production` |
 
-The `migrate:*` scripts use `void db migrate`, with `--remote` for deployed D1. Each target’s `db/migrations` symlink shares the hand-written SQL in `migrations/`. Schema inference stays off: deploy does not generate or apply migrations. Remote D1 keeps its `d1_migrations` history; the patched local CLI adopts that history into `_void_migrations` while preserving existing data and the old table. No reset is needed. Local SQL uses `void db execute` through `d1:local`, with SQL as a positional argument. Remote scripts select the Cloudflare account with `void connect --platform cloudflare` before migration.
+The `migrate:*` scripts use `void db migrate`, with `--remote` for deployed D1. Each target’s `db/migrations` symlink shares the hand-written SQL in `migrations/`. Schema inference stays off: deploy does not generate or apply migrations. Remote D1 keeps its `d1_migrations` history. Local databases track theirs in `_void_migrations`; a local database with only Wrangler's history stops with an error, and `void db reset` recreates it. Local SQL uses `void db execute` through `d1:local`, with SQL as a positional argument. Remote scripts select the Cloudflare account with `void connect --platform cloudflare` before migration.
 
 ## Attendance
 
