@@ -228,6 +228,8 @@ The schema is `string venue,string card,string memberNumber,uint8 usageModel,uin
 
 The attested key is the authority, not the account. Removing a passkey from an account does not affect a pass that names it, because the holder may have moved devices, so the way to stop a pass is to revoke it. The sign count is not enforced, because nothing tracks one for an attested key and synced passkeys do not report one. The one-time challenge is what stops a replay.
 
+The key is readable by anyone with the UID, through `GET /pass/:uid/backup`. Two Identified passes claimed with one passkey carry the same key, so whoever holds both UIDs can tell they belong to one person, across venues. Per-pass keys are what [Sensitive use](../adr/0014-offchain-default-pass-types.md) is planned to add for this.
+
 **The chain cannot be read.** A SINGLE_USE right answers `502 chain_error` without consuming its slot. Any other right is admitted with `unconfirmed: true` in the verdict. `members.status` is checked before the chain, so a pass revoked through fuda stays rejected. A revocation made directly on chain, outside fuda, is not seen until the chain can be read.
 
 **Revoking.** `POST /revoke` and `revoke_pass` set `members.status` first, then read `getRevokeOffchain` and send `revokeOffchain` if it is unset. A failed transaction does not undo the D1 change, and the call still answers `{ revoked: true }`: the gate rejects at once, and `offchain_attestations.revoke_tx` stays NULL until the record lands. A job sends what is behind every 15 minutes, up to 20 passes a run, one transaction each, and stops at the first failure. Calling revoke again also sends it. `revoke_tx` holds the zero hash when the chain already showed the revocation.
