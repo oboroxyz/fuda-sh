@@ -1,5 +1,6 @@
 import type { BadgeView, VerifyResponse } from '@fuda/sdk'
 import { normalizeUid, parseQr, VerifyBody } from '@fuda/sdk'
+import { eq } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import type { Hex } from 'viem'
@@ -7,6 +8,8 @@ import { defineHandler } from 'void'
 
 import { readBadges } from '../badges/store.ts'
 import { ChainError } from '../chain/client.ts'
+import type { Db } from '../db/client.ts'
+import { issuers, members } from '../db/schema.ts'
 import type { AppEnv } from '../env.ts'
 import { offchainDomain } from '../issue/issue-offchain.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
@@ -130,7 +133,19 @@ export const getV1VerifyUid = defineHandler(async (c) => {
   return jsonResponse(c, verdictBody(resolved.out, badges))
 })
 
-// Admission by QR. Order: chain verification (docs/specs/attestation-model.md#gate-verification-order-and-reasons) → level 0 only → SINGLE_USE slot
+// The Handle of the venue that issued the uid, whichever way the right is
+// recorded. null when no member row or no issuer stands behind it.
+const venueOf = async (db: Db, uid: Hex): Promise<string | null> => {
+  const row = await db
+    .select({ handle: issuers.handle })
+    .from(members)
+    .innerJoin(issuers, eq(issuers.id, members.issuerId))
+    .where(eq(members.attestationUid, uid))
+    .get()
+  return row?.handle ?? null
+}
+
+// Admission by QR. Order: the gate's venue (when it names one) → chain verification (docs/specs/attestation-model.md#gate-verification-order-and-reasons) → level 0 only → SINGLE_USE slot
 // → entry log → onAdmit. The level check precedes slot consumption so a
 // photographed Signed pass cannot burn its holder's slot. Every decision-shaped
 // verdict is logged with path 'qr'; 4xx input errors and 502 chain errors are not.
@@ -143,6 +158,14 @@ export const postV1Verify = defineHandler(async (c) => {
   }
   // One clock reading decides the validity window and stamps the log row.
   const now = c.get('now')()
+  // A gate that names its venue turns away another venue's pass before anything
+  // else is read, so it burns no slot and reports nothing about the pass. A uid
+  // with no issuer behind it cannot be shown to belong to that venue either.
+  const venue = parsed.success ? parsed.output.venue : undefined
+  if (venue !== undefined && (await venueOf(c.get('db'), uid)) !== venue) {
+    await logEntry(c.get('db'), { at: now, decision: 'REJECT', path: 'qr', reason: 'WRONG_VENUE', uid })
+    return jsonResponse(c, verdictBody({ decision: 'REJECT', reason: 'WRONG_VENUE' }))
+  }
   const resolved = await resolveVerdict(c, uid, now)
   if (!resolved.ok) {
     return resolved.res

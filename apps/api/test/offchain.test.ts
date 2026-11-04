@@ -49,13 +49,14 @@ const setup = async (card: Partial<typeof CARD_INPUT.card> = {}, overrides: Part
       { headers: { 'CF-Connecting-IP': ip }, method: 'POST' },
       bindings,
     )
-  const scan = async (qr: string): Promise<Response> => await postJson(app, bindings, '/v1/verify', { qr })
+  const scan = async (qr: string, venue?: string): Promise<Response> =>
+    await postJson(app, bindings, '/v1/verify', { qr, venue })
   const issue = async (): Promise<Issued> => {
     const res = await claim()
     return await res.json<Issued>()
   }
-  const verdict = async (qr: string): Promise<unknown> => {
-    const res = await scan(qr)
+  const verdict = async (qr: string, venue?: string): Promise<unknown> => {
+    const res = await scan(qr, venue)
     return await res.json()
   }
   return {
@@ -277,6 +278,75 @@ describe('offchain standard passes', () => {
         decision: 'REJECT',
         reason: 'WRONG_SCHEMA',
       })
+    })
+  })
+
+  describe('at a gate set to a venue', () => {
+    const OTHER = 'other-shop'
+
+    it('admits a pass of that venue', async () => {
+      const { issue, verdict } = await setup()
+      const issued = await issue()
+      await expect(verdict(issued.qr, CARD_INPUT.handle)).resolves.toMatchObject({
+        decision: 'ADMIT',
+        reason: 'OK',
+      })
+    })
+
+    it('rejects a pass of another venue, logs it and says nothing about the pass', async () => {
+      const { issue, verdict } = await setup()
+      const issued = await issue()
+      await expect(verdict(issued.qr, OTHER)).resolves.toStrictEqual({
+        decision: 'REJECT',
+        reason: 'WRONG_VENUE',
+      })
+      const log = await db().select().from(entryLog).where(eq(entryLog.uid, issued.uid))
+      expect(log).toMatchObject([{ decision: 'REJECT', path: 'qr', reason: 'WRONG_VENUE' }])
+    })
+
+    it('rejects a handle nobody holds', async () => {
+      const { issue, verdict } = await setup()
+      const issued = await issue()
+      await expect(verdict(issued.qr, 'no-such-shop')).resolves.toMatchObject({
+        decision: 'REJECT',
+        reason: 'WRONG_VENUE',
+      })
+    })
+
+    it('answers WRONG_VENUE before it reads revocation or the chain', async () => {
+      const { chain, issue, verdict } = await setup()
+      const issued = await issue()
+      await db().update(members).set({ status: 'revoked' }).where(eq(members.attestationUid, issued.uid))
+      chain.failReads = true
+      await expect(verdict(issued.qr, OTHER)).resolves.toMatchObject({ reason: 'WRONG_VENUE' })
+    })
+
+    it('keeps the slot of a ticket from another venue', async () => {
+      const { issue, verdict } = await setup({ category: 'ticket' })
+      const issued = await issue()
+      await expect(verdict(issued.qr, OTHER)).resolves.toMatchObject({ reason: 'WRONG_VENUE' })
+      await expect(db().select().from(slots)).resolves.toHaveLength(0)
+      await expect(verdict(issued.qr, CARD_INPUT.handle)).resolves.toMatchObject({ decision: 'ADMIT' })
+      await expect(verdict(issued.qr, CARD_INPUT.handle)).resolves.toMatchObject({
+        reason: 'ALREADY_USED',
+      })
+    })
+
+    it('checks an on-chain right the same way', async () => {
+      const { issue, verdict } = await setup({ category: 'ticket', record: 'onchain' })
+      const issued = await issue()
+      await expect(verdict(issued.qr, OTHER)).resolves.toMatchObject({
+        decision: 'REJECT',
+        reason: 'WRONG_VENUE',
+      })
+      await expect(db().select().from(slots)).resolves.toHaveLength(0)
+      await expect(verdict(issued.qr, CARD_INPUT.handle)).resolves.toMatchObject({ decision: 'ADMIT' })
+    })
+
+    it('behaves as before when the gate sets no venue', async () => {
+      const { issue, verdict } = await setup()
+      const issued = await issue()
+      await expect(verdict(issued.qr)).resolves.toMatchObject({ decision: 'ADMIT', reason: 'OK' })
     })
   })
 

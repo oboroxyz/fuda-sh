@@ -78,6 +78,27 @@ describe('POST /verify', () => {
     })
   })
 
+  it('rejects WRONG_VENUE for a right with no issuer when the gate names a venue', async () => {
+    const chain = fakeChain()
+    const del = seedRoot(chain)
+    const uid = seedRight(chain, del, { usageModel: 0 })
+    const app = appWith({ chain, now: () => NOW })
+    const res = await app.request(
+      '/v1/verify',
+      {
+        body: JSON.stringify({ qr: `fuda:v1:${uid}`, venue: 'any-shop' }),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      },
+      configuredEnv(del),
+    )
+    await expect(res.json()).resolves.toStrictEqual({ decision: 'REJECT', reason: 'WRONG_VENUE' })
+    await expect(db().select().from(slots)).resolves.toHaveLength(0)
+    await expect(scanJson(app, configuredEnv(del), `fuda:v1:${uid}`)).resolves.toMatchObject({
+      decision: 'ADMIT',
+    })
+  })
+
   it('SINGLE_USE admits once and rejects ALREADY_USED the second time', async () => {
     const chain = fakeChain()
     const del = seedRoot(chain)
