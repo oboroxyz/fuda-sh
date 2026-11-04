@@ -12,7 +12,6 @@ import type { AppEnv } from '../env.ts'
 import { issuersOwnedBy } from '../issuers/queries.ts'
 import { issuerView } from '../issuers/views.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
-import { memberAuth } from '../middleware/member-auth.ts'
 import { operatorAuth } from '../middleware/operator-auth.ts'
 
 // Addresses are stored lower-cased: a Base Account may report its address in
@@ -32,7 +31,6 @@ const challenge = (audience: SessionAudience) => async (c: Context<AppEnv>) => {
 }
 
 export const postV1AuthChallenge = defineHandler(challenge('operator'))
-export const postV1AuthMemberChallenge = defineHandler(challenge('member'))
 
 // Verification order: nonce (one-time, bound to the address, inside the TTL) →
 // signature (EOA, ERC-1271 or ERC-6492 through the chain client) → session.
@@ -65,10 +63,6 @@ const verify = (audience: SessionAudience) => async (c: Context<AppEnv>) => {
   if (!valid) {
     return errorResponse(c, 'bad_signature', 401)
   }
-  if (audience === 'member') {
-    const token = await createSession(db, { address, audience, issuerId: null, now })
-    return jsonResponse(c, { address, token })
-  }
   // An account may own several issuers; a new session starts on the oldest,
   // and the dashboard switches with POST /issuers/switch.
   const [issuer] = await issuersOwnedBy(db, address)
@@ -80,16 +74,6 @@ const verify = (audience: SessionAudience) => async (c: Context<AppEnv>) => {
 }
 
 export const postV1AuthVerify = defineHandler(verify('operator'))
-export const postV1AuthMemberVerify = defineHandler(verify('member'))
-
-export const getV1AuthMemberMe = defineHandler(memberAuth(), (c) =>
-  jsonResponse(c, { address: c.get('member').address }),
-)
-
-export const postV1AuthMemberLogout = defineHandler(memberAuth(), async (c) => {
-  await deleteSession(c.get('db'), c.get('member').tokenHash)
-  return jsonResponse(c, { loggedOut: true })
-})
 
 export const postV1AuthLogout = defineHandler(operatorAuth(), async (c) => {
   await deleteSession(c.get('db'), c.get('operator').tokenHash)

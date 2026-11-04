@@ -24,6 +24,10 @@ export interface Bindings {
   ISSUER_ADDRESS: string
   DELEGATION_UID: string
   API_BASE_URL: string
+  // The passkey relying party: the domain passkeys belong to, and the comma-separated
+  // origins allowed to use them. Changing the domain orphans every member passkey.
+  WEBAUTHN_RP_ID: string
+  WEBAUTHN_ORIGINS: string
   // The member-facing origin a published card links to: `https://fuda.sh` in
   // production (the apex redirects /@* to app.fuda.sh), the app dev port locally.
   PUBLIC_BASE_URL: string
@@ -80,7 +84,7 @@ export interface Variables {
   onAdmit: AdmitHook
   // set by operatorAuth(): the signed-in operator behind a session token
   operator: OperatorSession
-  // set by memberAuth(): a member wallet session, independent of issuer data
+  // set by memberAuth(): a member account session, independent of issuer data
   member: MemberSession
 }
 

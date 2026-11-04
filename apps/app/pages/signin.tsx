@@ -1,9 +1,9 @@
-import type { SignInFailure } from '@fuda/libs/auth'
 import { useRouter } from '@void/solid'
 import { createSignal, onCleanup } from 'solid-js'
 import type { JSX } from 'solid-js'
 
-import { DEFAULT_MEMBER_IO, signInMember } from '../src/member/auth.ts'
+import { cancelPasskeyCeremony, createPasskeyAccount, signInWithPasskey } from '../src/member/auth.ts'
+import type { PasskeyFailure, PasskeyOutcome } from '../src/member/auth.ts'
 import { SignIn } from '../src/member/SignIn.tsx'
 import { useApp, useNavigate } from '../src/page-context.tsx'
 import { safeMemberReturn } from '../src/route.ts'
@@ -12,37 +12,37 @@ export default function SignInPage(): JSX.Element {
   const shared = useApp()
   const router = useRouter()
   const navigate = useNavigate()
-  const [busy, setBusy] = createSignal(false)
-  const [failure, setFailure] = createSignal<SignInFailure | null>(null)
-  let abort: AbortController | null = null
+  const [busy, setBusy] = createSignal<'create' | 'signin' | null>(null)
+  const [failure, setFailure] = createSignal<PasskeyFailure | null>(null)
+  // Moved on by a cancel or by leaving, so a ceremony that ends afterwards changes nothing.
+  let attempt = 0
   const cancel = (): void => {
-    abort?.abort()
-    abort = null
-    setBusy(false)
+    attempt += 1
+    cancelPasskeyCeremony()
+    setBusy(null)
   }
   onCleanup(cancel)
-  const onSignIn = (): void => {
-    if (abort !== null) {
+  const run = (kind: 'create' | 'signin', ceremony: () => Promise<PasskeyOutcome>): void => {
+    if (busy() !== null) {
       return
     }
-    const current = new AbortController()
-    abort = current
-    setBusy(true)
+    attempt += 1
+    const current = attempt
+    setBusy(kind)
     setFailure(null)
-    const run = async (): Promise<void> => {
-      const outcome = await signInMember(DEFAULT_MEMBER_IO, current.signal)
-      if (abort !== current) {
+    const finish = async (): Promise<void> => {
+      const outcome = await ceremony()
+      if (attempt !== current) {
         return
       }
-      abort = null
-      setBusy(false)
+      setBusy(null)
       if (!outcome.ok) {
         setFailure(outcome.failure)
         return
       }
       await router.visit(safeMemberReturn(router.query.get('return')), { replace: true })
     }
-    void run()
+    void finish()
   }
   return (
     <SignIn
@@ -50,11 +50,16 @@ export default function SignInPage(): JSX.Element {
       failure={failure()}
       locale={shared.locale}
       onCancel={cancel}
+      onCreate={() => {
+        run('create', createPasskeyAccount)
+      }}
       onNavigate={(path) => {
         cancel()
         navigate(path)
       }}
-      onSignIn={onSignIn}
+      onSignIn={() => {
+        run('signin', signInWithPasskey)
+      }}
     />
   )
 }

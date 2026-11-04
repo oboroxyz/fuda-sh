@@ -32,7 +32,9 @@ It records the vocabulary of the product design, independently of what is built:
 
 ### The people and addresses
 
-**Member**: The person who holds a Right. fuda has no identity for a Member beyond what the issuer chose to record. _Avoid_: User, customer, account
+**Member**: The person who holds a Right. Holding one takes no identity at fuda; a Member who signs in has an Account. _Avoid_: User, customer
+
+**Account**: What a Member signs in to: a set of passkeys and the Passes kept on them, with no address and no email. Optional, and unrelated to the Issuer's Member id. _Avoid_: Profile, wallet
 
 **Holder**: The address a Right is attested to (`recipient`): an unclaimed Claimable smart account for Bearer, the member's wallet for Signed, a stealth address for +Private. A Holder is an address; a Member is a person. _Avoid_: Owner, recipient (in prose), member address
 
