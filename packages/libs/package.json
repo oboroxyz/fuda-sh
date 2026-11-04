@@ -15,6 +15,7 @@
   "dependencies": {
     "@base-org/account": "2.5.10",
     "@fuda/sdk": "workspace:*",
+    "@simplewebauthn/browser": "^14.0.0",
     "@tanstack/query-core": "5.102.8",
     "hono": "^4.13.16",
     "solid-js": "1.9.17",

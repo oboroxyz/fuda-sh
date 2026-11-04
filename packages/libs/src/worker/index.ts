@@ -43,29 +43,19 @@ export const apiHeaders = (c: Context, token: string | null): ApiHeaders => {
   return headers
 }
 
-const HexString = v.pipe(v.string(), v.regex(/^0x[0-9a-fA-F]*$/u))
-const WalletSignature = v.object({ address: HexString, nonce: HexString, signature: HexString })
+// The browser's half of a sign-in is proof it holds a credential; a Worker spends it at
+// the api. On success the caller keeps the session token in a cookie the browser
+// cannot read; any other outcome is already the response to send.
+export type SpentSignIn<T> = { body: T; ok: true } | { ok: false; response: Response }
 
-export type SpentSignature<T> = { body: T; ok: true } | { ok: false; response: Response }
-
-// The browser's half of a wallet sign-in is the signature; this half spends it
-// at the api. On success the caller keeps the session token in a cookie the
-// browser cannot read; any other outcome is already the response to send.
-export const spendWalletSignature = async <T>(
+const spendSignIn = async <T>(
   c: Context,
   apiBaseUrl: string,
   path: string,
-): Promise<SpentSignature<T>> => {
-  const refused = crossOriginWrite(c)
-  if (refused !== null) {
-    return { ok: false, response: refused }
-  }
-  const parsed = v.safeParse(WalletSignature, await c.req.json().catch(() => null))
-  if (!parsed.success) {
-    return { ok: false, response: c.json({ error: 'bad_input' }, 400) }
-  }
+  body: string,
+): Promise<SpentSignIn<T>> => {
   const result = await apiFetch<T>(apiBaseUrl, path, {
-    body: JSON.stringify(parsed.output),
+    body,
     headers: apiHeaders(c, null),
     method: 'POST',
   })
@@ -76,6 +66,55 @@ export const spendWalletSignature = async <T>(
     return { ok: false, response: c.json({ error: result.error }, status) }
   }
   return { body: result.body, ok: true }
+}
+
+const HexString = v.pipe(v.string(), v.regex(/^0x[0-9a-fA-F]*$/u))
+const WalletSignature = v.object({ address: HexString, nonce: HexString, signature: HexString })
+
+// A session route's body: refused before it reaches the api if another site's page
+// sent it, or if it does not parse.
+const sameSiteBody = async <S extends v.GenericSchema>(
+  c: Context,
+  schema: S,
+): Promise<{ ok: true; value: v.InferOutput<S> } | { ok: false; response: Response }> => {
+  const refused = crossOriginWrite(c)
+  if (refused !== null) {
+    return { ok: false, response: refused }
+  }
+  const parsed = v.safeParse(schema, await c.req.json().catch(() => null))
+  return parsed.success
+    ? { ok: true, value: parsed.output }
+    : { ok: false, response: c.json({ error: 'bad_input' }, 400) }
+}
+
+export const spendWalletSignature = async <T>(
+  c: Context,
+  apiBaseUrl: string,
+  path: string,
+): Promise<SpentSignIn<T>> => {
+  const body = await sameSiteBody(c, WalletSignature)
+  return body.ok ? await spendSignIn<T>(c, apiBaseUrl, path, JSON.stringify(body.value)) : body
+}
+
+const PasskeySessionBody = v.object({
+  flow: v.picklist(['login', 'register']),
+  response: v.unknown(),
+})
+
+export const spendPasskey = async <T>(
+  c: Context,
+  apiBaseUrl: string,
+  audience: 'member' | 'operator',
+): Promise<SpentSignIn<T>> => {
+  const body = await sameSiteBody(c, PasskeySessionBody)
+  return body.ok
+    ? await spendSignIn<T>(
+        c,
+        apiBaseUrl,
+        `/auth/${audience}/${body.value.flow}`,
+        JSON.stringify(body.value.response),
+      )
+    : body
 }
 
 // Headers the browser's request may pass on to the api (the user agent picks a
