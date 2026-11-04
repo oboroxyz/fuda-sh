@@ -1,5 +1,7 @@
+import { PasskeyRegistrationBody } from '@fuda/sdk'
 import type { MemberPassesResponse, MemberPasskeysResponse, MemberSignInResponse } from '@fuda/sdk'
 import { env } from 'cloudflare:test'
+import * as v from 'valibot'
 import type { Hex } from 'viem'
 import { beforeEach, describe, expect, it } from 'vitest'
 
@@ -57,19 +59,27 @@ const setup = () => {
     const { challenge } = await res.json<{ challenge: string }>()
     return challenge
   }
+  const owners = new Map<string, SoftwarePasskey>()
   const register = async (passkey: SoftwarePasskey): Promise<MemberSignInResponse> => {
     const challenge = await challengeFrom('/v1/auth/member/register/options')
     const res = await request('/v1/auth/member/register', { body: await passkey.attest(challenge) })
     expect(res.status).toBe(200)
-    return await res.json<MemberSignInResponse>()
+    const signedIn = await res.json<MemberSignInResponse>()
+    owners.set(signedIn.token, passkey)
+    return signedIn
   }
   const login = async (passkey: SoftwarePasskey): Promise<Response> => {
     const challenge = await challengeFrom('/v1/auth/member/login/options')
     return await request('/v1/auth/member/login', { body: await passkey.assert(challenge) })
   }
   const add = async (passkey: SoftwarePasskey, token: string): Promise<Response> => {
+    const auth = await challengeFrom('/v1/auth/member/passkeys/authorize/options', token)
+    const authorization = await owners.get(token)?.assert(auth)
     const challenge = await challengeFrom('/v1/auth/member/passkeys/options', token)
-    return await request('/v1/auth/member/passkeys', { body: await passkey.attest(challenge), token })
+    return await request('/v1/auth/member/passkeys', {
+      body: { ...v.parse(PasskeyRegistrationBody, await passkey.attest(challenge)), authorization },
+      token,
+    })
   }
   return {
     add,
@@ -327,14 +337,21 @@ describe('member passkey sign-in', () => {
 
     it("cannot use another account's challenge", async () => {
       const { challengeFrom, register, request } = setup()
-      const a = await register(new SoftwarePasskey(RP))
+      const first = new SoftwarePasskey(RP)
+      const a = await register(first)
+      const auth = await challengeFrom('/v1/auth/member/passkeys/authorize/options', a.token)
+      const authorization = await first.assert(auth)
       const b = await register(new SoftwarePasskey(RP))
       const challenge = await challengeFrom('/v1/auth/member/passkeys/options', a.token)
       const res = await request('/v1/auth/member/passkeys', {
-        body: await new SoftwarePasskey(RP).attest(challenge),
+        body: {
+          ...v.parse(PasskeyRegistrationBody, await new SoftwarePasskey(RP).attest(challenge)),
+          authorization,
+        },
         token: b.token,
       })
-      expect(res.status).toBe(401)
+      expect(res.status).toBe(403)
+      await expect(statusOf(request('/v1/auth/member/me', { token: b.token }))).resolves.toBe(200)
     })
 
     it('stops at ten', async () => {

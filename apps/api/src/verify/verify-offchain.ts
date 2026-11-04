@@ -12,6 +12,7 @@ import {
   decodeHolderKey,
   decodeOffchainPass,
   fromSignedJson,
+  holderAddressOf,
   OFFCHAIN_PASS_SCHEMA_UID,
   offchainUid,
   recoverOffchainSigner,
@@ -123,8 +124,8 @@ const validityReason = (signed: SignedOffchain, canonical: Entitlement, now: num
 
 // docs/specs/attestation-model.md#offchain-rights: the order is the contract. D1's
 // revocation record comes first so a revoked pass stays rejected while the chain
-// cannot be read. A ChainError leaves here only for a single-use right, which then
-// answers 502 like an on-chain read.
+// cannot be read. A ChainError leaves here only for a single-use right or a Sensitive pass,
+// which then answer 502 like an on-chain read.
 export const verifyOffchain = async (
   deps: OffchainVerifyDeps,
   uid: Hex,
@@ -152,12 +153,14 @@ export const verifyOffchain = async (
   if (reason !== null || attester === null) {
     return reject(reason ?? 'DELEGATION_CONFIG_MISSING')
   }
+  const holderAddress = holderAddressOf(pass.holderKey)
   const admit: VerifyOutcome = {
     attester,
     canonical,
     decision: 'ADMIT',
     delegation: { active: true, issuer: attester, name: 'fuda' },
     entitlement: toEntitlementView(canonical),
+    holderAddress,
     passkey: decodeHolderKey(pass.holderKey),
     reason: 'OK',
   }
@@ -165,7 +168,7 @@ export const verifyOffchain = async (
     const revokedAt = await deps.chain.offchainRevokedAt(attester, uid)
     return revokedAt === 0n ? admit : reject('REVOKED')
   } catch (error) {
-    if (error instanceof ChainError && pass.usageModel !== USAGE_MODEL.SINGLE_USE) {
+    if (error instanceof ChainError && pass.usageModel !== USAGE_MODEL.SINGLE_USE && holderAddress === null) {
       return { ...admit, unconfirmed: true }
     }
     throw error

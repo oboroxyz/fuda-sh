@@ -9,6 +9,7 @@ import {
   addOptions,
   addPasskey,
   claimOptions,
+  claimingPasskey,
   listPasskeys,
   login,
   loginOptions,
@@ -87,7 +88,11 @@ export const postV1AuthMemberLogout = defineHandler(memberAuth(), async (c) => {
 export const getV1AuthMemberPasskeys = defineHandler(memberAuth(), async (c) => {
   const rows = await listPasskeys(c.get('db'), c.get('member').accountId)
   return jsonResponse(c, {
-    passkeys: rows.map((row) => ({ ...row, backedUp: row.backedUp !== 0 })),
+    passkeys: rows.map(({ copy, ...row }) => ({
+      ...row,
+      backedUp: row.backedUp !== 0,
+      holdsSecret: copy !== null,
+    })),
   })
 })
 
@@ -101,10 +106,37 @@ export const postV1AuthMemberPasskeysOptions = defineHandler(memberAuth(), async
   return options === null ? errorResponse(c, 'unauthorized', 401) : jsonResponse(c, options)
 })
 
+export const postV1AuthMemberPasskeysAuthorizeOptions = defineHandler(memberAuth(), async (c) =>
+  jsonResponse(
+    c,
+    await claimOptions(
+      c.get('db'),
+      relyingParty(c.env),
+      c.get('member').accountId,
+      c.get('now')(),
+      'authorize-add',
+    ),
+  ),
+)
+
 export const postV1AuthMemberPasskeys = defineHandler(memberAuth(), async (c) => {
-  const parsed = v.safeParse(PasskeyRegistrationBody, await c.req.json().catch(() => null))
+  const parsed = v.safeParse(
+    v.intersect([PasskeyRegistrationBody, v.object({ authorization: PasskeyAuthenticationBody })]),
+    await c.req.json().catch(() => null),
+  )
   if (!parsed.success) {
     return errorResponse(c, 'bad_input', 400)
+  }
+  const authorized = await claimingPasskey(
+    c.get('db'),
+    relyingParty(c.env),
+    c.get('member').accountId,
+    parsed.output.authorization,
+    c.get('now')(),
+    'authorize-add',
+  )
+  if (authorized === null) {
+    return errorResponse(c, 'bad_passkey', 403)
   }
   const result = await addPasskey(
     c.get('db'),
@@ -116,7 +148,9 @@ export const postV1AuthMemberPasskeys = defineHandler(memberAuth(), async (c) =>
   if (result === 'limit') {
     return errorResponse(c, 'passkey_limit', 409)
   }
-  return result === 'added' ? jsonResponse(c, { added: true }) : errorResponse(c, 'bad_passkey', 401)
+  // 403 and not the ceremonies' usual 401, as for a claim: the session is fine, and the
+  // member app's Worker ends a session on any 401 it forwards.
+  return result === 'added' ? jsonResponse(c, { added: true }) : errorResponse(c, 'bad_passkey', 403)
 })
 
 // A refusal does not say whether the id exists on another account.

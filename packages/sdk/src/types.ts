@@ -147,6 +147,8 @@ export interface MemberRow {
   tier: number
   status: 'active' | 'revoked'
   createdAt: number
+  // A Sensitive pass, which has no page, QR or Wallet pass to hand out. Absent otherwise.
+  sensitive?: true
   // The Badges this Right carries, for an operator surface that shows the fact
   // of a Badge beside the Right. An array rather than a `human` flag, for the
   // same reason `VerifyResponse.badges` is one: a second kind must not be a
@@ -182,10 +184,33 @@ export interface MemberPasskeyView {
   id: string
   backedUp: boolean
   createdAt: number
+  // Whether this passkey holds a copy of the member secret, so it can open Sensitive passes.
+  holdsSecret: boolean
   lastUsedAt: number | null
 }
 export interface MemberPasskeysResponse {
   passkeys: MemberPasskeyView[]
+}
+// docs/specs/pass-types-and-flows.md#sensitive-use
+export interface MemberSecretCopyView {
+  ciphertext: string
+  credentialId: string
+  iv: string
+}
+export interface MemberSecretResponse {
+  // Only passkeys with a copy, once there is one, so the prompt offers no passkey that
+  // cannot open it.
+  allowCredentials: { id: string; transports: string[] }[]
+  copies: MemberSecretCopyView[]
+  rpId: string
+}
+export interface MemberVaultView {
+  ciphertext: string
+  iv: string
+  version: number
+}
+export interface MemberVaultResponse {
+  vault: MemberVaultView | null
 }
 export interface MemberPassView {
   uid: Hex

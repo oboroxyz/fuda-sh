@@ -12,9 +12,15 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Card record**: Where a Card's Rights are recorded, fixed when the Card is created: `offchain` (the default) signs each Right with no transaction and no holder address, and `onchain` attests each Right publicly. _Avoid_: Mode, storage, chain type
 
-**Card identity**: Who can use a Card's Rights, fixed when the Card is created: `none` (the default) means whoever shows one, and `passkey` binds each Right to the passkey that claimed it. _Avoid_: Identity level, KYC
+**Card identity**: Who can use a Card's Rights, fixed when the Card is created: `none` (the default) means whoever shows one, `passkey` binds each Right to the passkey that claimed it, and `sensitive` binds each Right to a key of its own. _Avoid_: Identity level, KYC
 
 **Identified pass**: An offchain Right on a Card with `passkey` identity. It attests the passkey's credential ID and public key at the Signed level with no holder address, needs an Account to claim, and is presented by answering a challenge in the app, so a copied QR does not admit. _Avoid_: Passkey pass, Secure pass
+
+**Sensitive use**: The Card setting for employee badges and privacy-sensitive memberships: Card identity `sensitive`. Each Right attests a key unique to it, so one person's Rights are not linked across venues, and it has no Wallet pass, QR, backup file, Stamps or integrations. It rejects while the chain cannot be read. It does not hide entry from the Issuer or the gate. _Avoid_: Private pass, Secure pass, +Private
+
+**Member secret**: 32 random bytes a member's browser makes for Sensitive use, from which each Right's key derives. The server keeps only ciphertexts of it, one per passkey that supports PRF. _Avoid_: Recovery phrase, master key
+
+**Vault**: One ciphertext per Account, sealed under a key from the Member secret, listing that member's Sensitive Rights and the salts of their keys. Only the member's device can open it. _Avoid_: Wallet, backup
 
 **Pass**: A presentation of a Right — a Device wallet pass (`.pkpass` / Google Wallet object) or the browser-based pass page carrying the Right's QR. A Pass is not the Right, and lives in the Device wallet, never in the Crypto wallet. _Avoid_: Ticket, card, credential
 
@@ -27,6 +33,10 @@ It records the vocabulary of the product design, independently of what is built:
 **Verification level** (or **level**): The property baked into a Right at issuance that decides how it is verified. There are two: Bearer and Signed. +Private is Signed with the privacy extension on, not a third level — but the on-chain `level` field and the code enumerate all three states (`bearer` / `signed` / `private`) because the gate must tell them apart. Immutable for the life of the Right. _Avoid_: Mode, tier (tier is the FREE/REGULAR/VIP/FOUNDER rank), type, "three levels"
 
 **Bearer**: The level with no Crypto wallet and no app — a Pass in the Device wallet is all the member has; the Right's QR alone admits, and a copy of the QR admits too.
+
+**Member write token**: A secret-derived credential used only to add a wrapped member-secret copy or write the encrypted Sensitive vault. The server stores its hash. It never travels with a claim, challenge, or presentation.
+
+**Start over**: A fresh account passkey assertion clears Sensitive recovery data and local keys on the initiating device. It does not revoke old passes; the Issuer cancels them.
 
 **Signed**: The level where the member's own key must sign a one-time gate challenge — possession of the key is proven at the door.
 

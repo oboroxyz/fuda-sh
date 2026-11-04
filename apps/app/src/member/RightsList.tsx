@@ -28,6 +28,7 @@ import { injectedProvider, requestAccount } from '../wallet.ts'
 import type { Eip1193Provider } from '../wallet.ts'
 import { MEMBER_COPY, PASS_REASON_JA } from './copy.ts'
 import type { MemberCopy } from './copy.ts'
+import { SensitivePasses } from './SensitivePasses.tsx'
 
 export type RightsListState =
   | { kind: 'idle' }
@@ -520,6 +521,7 @@ export const RightsList = (props: RightsListProps): JSX.Element => {
       )}
       {problemNotice(problem() ?? queryProblem(), locale(), props.onNavigate)}
       <RightsListView locale={locale()} state={visibleState()} search={search()} />
+      {props.syncWithAccount === true ? <SensitivePasses locale={locale()} /> : null}
     </Dynamic>
   )
 }

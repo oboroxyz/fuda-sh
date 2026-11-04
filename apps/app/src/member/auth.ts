@@ -13,6 +13,10 @@ import { cardFailureOf, issuePasskeyCard } from '../api.ts'
 import type { CardFailure } from '../api.ts'
 import { API_BASE_URL } from '../config.ts'
 
+// What every passkey's PRF is asked about (docs/specs/pass-types-and-flows.md#sensitive-use).
+// Changing it changes every answer, and so loses every Sensitive pass.
+export const PRF_SALT = new TextEncoder().encode('fuda.sh/member-secret/prf/v1')
+
 export type PasskeyFailure = 'cancelled' | 'network' | 'rejected' | 'unavailable'
 
 export type PasskeyOutcome = { ok: true } | { ok: false; failure: PasskeyFailure }
@@ -25,7 +29,7 @@ const failureOf = (result: { network?: boolean; status?: number }): PasskeyFailu
   if (result.network === true) {
     return 'network'
   }
-  return result.status === 401 || result.status === 400 ? 'rejected' : 'unavailable'
+  return result.status === 400 || result.status === 401 || result.status === 403 ? 'rejected' : 'unavailable'
 }
 
 const ceremony = async <T>(run: () => Promise<T>): Promise<{ ok: true; value: T } | PasskeyOutcome> => {
@@ -75,25 +79,59 @@ export const createPasskeyAccount = async (): Promise<PasskeyOutcome> => {
   return 'value' in response ? await spend('register', response.value) : response
 }
 
-export type AddPasskeyOutcome = PasskeyOutcome | { ok: false; failure: 'limit' }
+export type AddPasskeyOutcome =
+  | { ok: true; credentialId: string; prfOutput: Uint8Array<ArrayBuffer> | null }
+  | { ok: false; failure: PasskeyFailure | 'limit' }
+
+// A PRF answer is typed as any buffer source, and a view may sit inside a larger buffer.
+export const bytesOfPrf = (source: ArrayBuffer | ArrayBufferView): Uint8Array<ArrayBuffer> =>
+  source instanceof ArrayBuffer
+    ? new Uint8Array(source)
+    : Uint8Array.from(new Uint8Array(source.buffer, source.byteOffset, source.byteLength))
 
 export const addPasskey = async (): Promise<AddPasskeyOutcome> => {
+  const authorize = await postJson<PublicKeyCredentialRequestOptionsJSON>(
+    '/auth/member/passkeys/authorize/options',
+  )
+  if (!authorize.ok) {
+    return { failure: failureOf(authorize), ok: false }
+  }
+  const authorization = await ceremony<AuthenticationResponseJSON>(
+    async () => await startAuthentication({ optionsJSON: authorize.body }),
+  )
+  if (!('value' in authorization)) {
+    return { failure: 'failure' in authorization ? authorization.failure : 'unavailable', ok: false }
+  }
   const options = await postJson<PublicKeyCredentialCreationOptionsJSON>('/auth/member/passkeys/options')
   if (!options.ok) {
     return { failure: failureOf(options), ok: false }
   }
+  // Some providers answer PRF at creation, which saves a prompt. The answer stays here: only
+  // the attestation goes to the api.
   const response = await ceremony<RegistrationResponseJSON>(
-    async () => await startRegistration({ optionsJSON: options.body }),
+    async () =>
+      await startRegistration({
+        optionsJSON: { ...options.body, extensions: { prf: { eval: { first: PRF_SALT } } } },
+      }),
   )
   if (!('value' in response)) {
-    return response
+    return { failure: 'failure' in response ? response.failure : 'unavailable', ok: false }
   }
   const added = await apiFetch<{ added: true }>(API_BASE_URL, '/auth/member/passkeys', {
-    body: JSON.stringify(response.value),
+    body: JSON.stringify({
+      ...response.value,
+      authorization: authorization.value,
+      clientExtensionResults: {},
+    }),
     method: 'POST',
   })
   if (added.ok) {
-    return { ok: true }
+    const first = response.value.clientExtensionResults.prf?.results?.first
+    return {
+      credentialId: response.value.id,
+      ok: true,
+      prfOutput: first === undefined ? null : bytesOfPrf(first),
+    }
   }
   return added.status === 409 ? { failure: 'limit', ok: false } : { failure: failureOf(added), ok: false }
 }

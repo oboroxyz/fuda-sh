@@ -2,6 +2,7 @@ import { challengeMessage, isUid, normalizeNonce, normalizeUid, VerifySignedBody
 import type { VerifySignedRequest, VerifySignedResponse } from '@fuda/sdk'
 import type { Context } from 'hono'
 import * as v from 'valibot'
+import { isAddressEqual, recoverMessageAddress } from 'viem'
 import type { Hex } from 'viem'
 import { defineHandler } from 'void'
 
@@ -19,9 +20,18 @@ import { resolveVerdict, waitUntilOf } from './verify.ts'
 // signature) is `bad_input`.
 const UidOnly = v.object({ uid: v.string() })
 
+// A Sensitive pass's key is a plain secp256k1 key, so this needs no chain read.
+const signedBy = async (address: Hex, message: string, signature: Hex): Promise<boolean> => {
+  try {
+    return isAddressEqual(await recoverMessageAddress({ message, signature }), address)
+  } catch {
+    return false
+  }
+}
+
 // Challenge-response admission (docs/specs/pass-types-and-flows.md#gate-protocol). An
-// Identified pass answers with its attested passkey and any other right with its holder's
-// signature; either proof on the other kind of right is a wrong signature. Order is the contract: chain
+// Identified pass answers with its attested passkey, a Sensitive pass with its attested key,
+// and any other right with its holder's signature; any proof on another kind of right is a wrong signature. Order is the contract: chain
 // verification → consume the challenge → verify the signature → SINGLE_USE slot →
 // log → onAdmit. Consuming the challenge before checking the signature is the
 // replay protection: a wrong signature burns its nonce. Every verdict is 200 in
@@ -32,9 +42,9 @@ const UidOnly = v.object({ uid: v.string() })
 const proofHolds = async (
   c: Context<AppEnv>,
   proof: VerifySignedRequest,
-  right: { holder: Hex; message: string; passkey: AttestedPasskey | null },
+  right: { holder: Hex; holderAddress: Hex | null; message: string; passkey: AttestedPasskey | null },
 ): Promise<boolean> => {
-  const { holder, message, passkey } = right
+  const { holder, holderAddress, message, passkey } = right
   if ('webauthn' in proof) {
     return (
       passkey !== null && (await verifyGateAssertion(relyingParty(c.env), passkey, message, proof.webauthn))
@@ -46,6 +56,9 @@ const proofHolds = async (
   // Annotated (not cast): SIGNATURE_RE guarantees the 0x prefix, so the template
   // literal narrows to Hex. Case is preserved — a signature is opaque bytes.
   const signature: Hex = `0x${proof.signature.slice(2)}`
+  if (holderAddress !== null) {
+    return await signedBy(holderAddress, message, signature)
+  }
   return await c.get('chain').verifyMessage({ address: holder, message, signature })
 }
 
@@ -112,6 +125,7 @@ export const postV1VerifySigned = defineHandler(async (c) => {
   try {
     valid = await proofHolds(c, parsed.output, {
       holder,
+      holderAddress: out.holderAddress ?? null,
       message: challengeMessage(uid, nonce),
       passkey: out.passkey ?? null,
     })

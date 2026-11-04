@@ -112,11 +112,12 @@ export const CARD_CATEGORIES: readonly CardCategory[] = ['membership', 'ticket']
 export type CardRecord = 'offchain' | 'onchain'
 export const CARD_RECORDS: readonly CardRecord[] = ['offchain', 'onchain']
 
-// Who can use a card's passes: whoever shows one, or only the passkey that claimed it.
-// Fixed when the card is created, and a passkey needs an offchain record, because the
-// pass attests the key rather than naming a holder address.
-export type CardIdentity = 'none' | 'passkey'
-export const CARD_IDENTITIES: readonly CardIdentity[] = ['none', 'passkey']
+// Who can use a card's passes: whoever shows one, only the passkey that claimed it, or
+// only a key unique to the pass (Sensitive use). Fixed when the card is created, and both
+// bound kinds need an offchain record, because the pass attests the key rather than naming
+// a holder address.
+export type CardIdentity = 'none' | 'passkey' | 'sensitive'
+export const CARD_IDENTITIES: readonly CardIdentity[] = ['none', 'passkey', 'sensitive']
 export const isIdentityAllowed = (card: { identity: CardIdentity; record: CardRecord }): boolean =>
   card.identity === 'none' || card.record === 'offchain'
 export const isCardCategory = (raw: string): raw is CardCategory =>

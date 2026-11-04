@@ -48,6 +48,11 @@ const defaultIo: SignedGateScreenIo = {
   assert: assertPasskey,
   challenge,
   preview: verifyUid,
+  // Lazy: only a Sensitive pass needs the key code, and this page opens for every Signed pass.
+  signForPass: async (uid, message) => {
+    const { defaultSensitiveIo, signForPass } = await import('./sensitive.ts')
+    return await signForPass(defaultSensitiveIo, uid, message)
+  },
   verify: verifySigned,
 }
 

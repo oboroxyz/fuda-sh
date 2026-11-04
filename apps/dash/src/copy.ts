@@ -154,6 +154,8 @@ export interface DashCopy {
     identityNone: string
     identityPasskey: string
     identityHint: string
+    identitySensitive: string
+    identitySensitiveHint: string
     cardDescriptionLabel: string
     cardDescriptionPlaceholder: string
     cardDescriptionHint: string
@@ -555,6 +557,9 @@ export const DASH_COPY = {
       recordOnchain: 'Public on the blockchain',
       recordHint:
         'Private passes are issued at once and leave no public record of each pass. Public passes can be checked by anyone, take a little longer to issue, and cannot be erased. This cannot be changed later.',
+      identitySensitive: 'Sensitive use: employee badges and private memberships',
+      identitySensitiveHint:
+        'Each pass gets its own key on the member’s device, so fuda’s records do not connect one person’s passes at different places. You still see how many passes you issued and when they were used, but not who holds them. Members need a fuda account and a passkey saved in iCloud Keychain, Google Password Manager or another app with this feature; anyone else is told how to save one. There are no stamps, Wallet passes, codes, backup files, member names or integrations, and entry is refused while the chain cannot be read. If a member loses every passkey, you revoke the pass and they get a new one. This cannot be changed later.',
       identityLabel: 'Who can use a pass',
       identityNone: 'Anyone showing its code (recommended)',
       identityPasskey: 'Only the person who got it, with their passkey',
@@ -963,6 +968,9 @@ export const DASH_COPY = {
       recordOnchain: 'ブロックチェーンで公開',
       recordHint:
         '非公開のパスはすぐに発行でき、1枚ごとの公開記録が残りません。公開のパスは誰でも確認できますが、発行に少し時間がかかり、記録は消せません。あとから変更できません。',
+      identitySensitive: '機密利用: 社員証やプライバシーを守りたい会員証',
+      identitySensitiveHint:
+        'パスごとに会員の端末内で専用の鍵を作るため、同じ人の別の場所のパスが fuda の記録上で結び付きません。発行数と利用日時は確認できますが、誰が持っているかはわかりません。会員には fuda のアカウントと、iCloud キーチェーン、Google パスワード マネージャーなど、この機能に対応したアプリに保存したパスキーが必要です。対応していない場合は保存方法を案内します。スタンプ、Wallet パス、コード、控えのファイル、メンバー名、連携機能はなく、チェーンを読めない間は入場できません。パスキーをすべてなくした場合は、パスを取り消して新しいものを受け取ってもらいます。あとから変更できません。',
       identityLabel: 'パスを使える人',
       identityNone: 'コードを見せた人(おすすめ)',
       identityPasskey: '受け取った本人のみ(パスキーで確認)',

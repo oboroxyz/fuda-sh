@@ -7,6 +7,23 @@ const HOLDER = `0x${'11'.repeat(20)}` as const
 const API = 'https://api.fuda.sh'
 
 describe(memberRowView, () => {
+  it('offers no QR or pass links for a Sensitive pass', () => {
+    const v = memberRowView(
+      {
+        createdAt: 1,
+        holder: null,
+        level: 'signed',
+        memberId: 'badge',
+        sensitive: true,
+        status: 'active',
+        tier: 0,
+        uid: UID,
+      },
+      API,
+    )
+    expect(v).toMatchObject({ holder: null, passUrls: null, qr: null })
+  })
+
   it('shows a short holder, tier label and QR for a bearer row', () => {
     const v = memberRowView(
       {

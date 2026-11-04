@@ -28,8 +28,8 @@ export const asHex = (s: string, bytes: number): Hex | null => {
 // An offchain right has no holder address: its recipient is the zero address.
 export const hasNoHolder = (holder: string): boolean => /^0x0{40}$/u.test(holder)
 
-// An Identified pass: signed level with no holder address, so what it answers to is the
-// passkey attested inside it (docs/specs/attestation-model.md#offchain-rights).
+// An Identified or Sensitive pass: signed level with no holder address, so what it answers
+// to is the key attested inside it (docs/specs/attestation-model.md#offchain-rights).
 export const isPasskeyPass = (right: { holder: string; level: number }): boolean =>
   right.level === 1 && hasNoHolder(right.holder)
 
@@ -112,6 +112,9 @@ export const ERROR_CODES = [
   'passkey_limit',
   'holder_must_claim',
   'last_passkey',
+  'secret_conflict',
+  'vault_conflict',
+  'integrations_not_supported',
   'bad_handle',
   'handle_taken',
   // No longer returned: an account may own several issuers (ADR 0011). Kept

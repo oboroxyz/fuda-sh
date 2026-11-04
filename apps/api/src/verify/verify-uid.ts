@@ -28,6 +28,8 @@ export type VerifyOutcome =
       canonical: Entitlement
       // What an Identified pass answers to, instead of the holder's address.
       passkey?: AttestedPasskey | null
+      // What a Sensitive pass answers to: a key unique to the pass, never the holder's.
+      holderAddress?: Hex | null
       // An offchain ADMIT whose on-chain revocation could not be read.
       unconfirmed?: true
     }

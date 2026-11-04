@@ -155,13 +155,16 @@ A member account is identified by its passkeys, with no address and no email. Us
 | `POST /auth/member/passkeys/options`, `POST /auth/member/passkeys` | Add a passkey, up to 10, or `409 passkey_limit` |
 | `DELETE /auth/member/passkeys/:id` | Remove one. `409 last_passkey` if it is the account's last or is not the account's |
 | `GET /member/passes`, `POST /member/passes { uids }` | The passes the account keeps, and linking up to 50 at once |
+| `POST /auth/member/passkeys/authorize/options` | A fresh assertion challenge from an existing account passkey, bound to `authorize-add` |
 | `POST /auth/member/claim/options` | A challenge for [claiming an Identified pass](#claiming-an-identified-pass), naming the account's passkeys |
 
-**Ceremonies.** Passkeys are ES256 and discoverable, with user verification required and attestation `none`, for the relying party in `WEBAUTHN_RP_ID` and the origins in `WEBAUTHN_ORIGINS`. A challenge is one-time, expires after 300 seconds and is bound to its purpose, and for adding a passkey to its account. A wrong response burns it. A refused ceremony answers `401 bad_passkey`, and malformed input `400 bad_input`. The ceremony routes share a budget of 60 requests per IP per hour. Passkeys need no PRF, so any provider works.
+**Ceremonies.** Passkeys are ES256 and discoverable, with user verification required and attestation `none`, for the relying party in `WEBAUTHN_RP_ID` and the origins in `WEBAUTHN_ORIGINS`. A challenge is one-time, expires after 300 seconds and is bound to its purpose, and for adding a passkey or resetting recovery to its account. A wrong response burns it. A refused ceremony answers `401 bad_passkey`, and malformed input `400 bad_input`. The ceremony routes share a budget of 60 requests per IP per hour. Passkeys need no PRF, so any provider works.
+
+**Adding a passkey.** In addition to the registration response, `POST /auth/member/passkeys` requires `authorization`, a fresh assertion from an existing passkey on this account answering `/auth/member/passkeys/authorize/options`. It is single-use, expires after 300 seconds, requires user verification, and cannot be replaced by a login, claim, or reset assertion. This prevents a stolen session from registering an attacker passkey and using it to reset recovery.
 
 **Sessions.** A member session names an account and lasts 30 days, with the token stored hashed, as for an operator. Member and operator tokens cannot be exchanged. A recognized member token is rejected before any operator-or-admin fallback, including when the deployment has no admin token configured. A member session from before accounts answers `401` and signs in again.
 
-**Passes.** Only Bearer rights link, because having the uid is what using one means, so a link grants nothing new. An Identified pass joins the account that claimed it when it is issued, and no other account can add it. Two accounts may keep the same Standard pass. A uid that names nothing, and a Signed or +Private right, is skipped without saying which. On `/rights` the app sends the passes this device remembers and brings the account's others to this device. If that fails, the device's own list still works. fuda therefore knows which passes an account keeps.
+**Passes.** Only Bearer rights link, because having the uid is what using one means, so a link grants nothing new. An Identified pass joins the account that claimed it when it is issued, and no other account can add it. A [Sensitive pass](#sensitive-use) never joins one. Two accounts may keep the same Standard pass. A uid that names nothing, and a Signed or +Private right, is skipped without saying which. On `/rights` the app sends the passes this device remembers and brings the account's others to this device. If that fails, the device's own list still works. fuda therefore knows which passes an account keeps.
 
 **Moving devices.** A passkey synced by the provider signs in on the new device, and the list follows. Between providers that do not sync, such as iCloud and Google, the member signs in on the new device with the old one through the system's cross-device prompt, then adds a passkey in Settings. A passkey in a second place, such as another password manager or a security key, also survives losing an Apple or Google account.
 
@@ -187,9 +190,59 @@ fuda holds no email or other contact detail for a member, and does not send them
 - **A backup.** The card page and `/rights` offer `GET /pass/:uid/backup` as a file: `{ version, uid, qr, holder, handle, slug, memberNumber, restoreUrl, passkey, attestation, proof }`. `passkey` is true for an Identified pass. `attestation` is the signed offchain attestation, or null for an on-chain right. `proof` is `{ root, path, anchoredAt }` once the pass's batch has been timestamped, or null. Settings reads a file back, using only its uid and asking the api about the rest. The route is public and `no-store` like `/pass/:uid`, and answers `404` for +Private. Having the file means being able to use the pass, and the screens say so.
 - **The shop.** A reissue, under a new uid.
 
-An Identified pass answers to its passkey, so these bring back its record and not the use of it, and the screens say so. It works on a new device through passkey sync. Otherwise it takes the shop's revocation and a new claim. A passkey removed from the account keeps working on passes that name it until they are revoked, because the attested key is the authority ([attestation model](./attestation-model.md#offchain-rights)). Sensitive rights will need their key as well.
+An Identified pass answers to its passkey, so these bring back its record and not the use of it, and the screens say so. It works on a new device through passkey sync. Otherwise it takes the shop's revocation and a new claim. A passkey removed from the account keeps working on passes that name it until they are revoked, because the attested key is the authority ([attestation model](./attestation-model.md#offchain-rights)).
 
-A wallet is no longer a way to sign in. Connecting one on `/rights` or `/signed` still works on that device for looking up and presenting on-chain rights. `/signed` reads the pass first: for an Identified pass it offers only the passkey, and otherwise the wallets.
+A wallet is no longer a way to sign in. Connecting one on `/rights` or `/signed` still works on that device for looking up and presenting on-chain rights. `/signed` reads the pass first: for an Identified or Sensitive pass it offers only the passkey, and otherwise the wallets.
+
+### Sensitive use
+
+For employee badges and privacy-sensitive memberships. An Issuer chooses this per Card with `identity: sensitive`, which needs `record: offchain`. Each pass attests a key of its own. Pass records and gate proofs contain no account identifier or key shared across venues. Claims, challenges, and signed presentations omit browser credentials, including cookies; the app proxy also forwards no member session or cookie on those requests. They send only the pass-specific inputs and optional claim source. This prevents direct linking by an account credential, not all correlation. The service can still observe IP addresses, user agents, request timing, and an authenticated vault write immediately after a claim. The Issuer and gate can observe entry, and the same pass remains recognizable across its uses.
+
+**The member secret.** 32 random bytes made in the browser, the first time a member claims one of these cards. Each passkey that can hold it wraps it with AES-GCM, under an HKDF key from that passkey's WebAuthn PRF output for the fixed salt `fuda.sh/member-secret/prf/v1`. The server stores only `member_secret_copies(account_id, credential_id, iv, ciphertext, created_at)` and never sees the secret or a PRF output. A copy goes with its passkey, and an account cannot remove the last passkey holding one. The client also derives a 32-byte write token with HKDF-SHA-256, empty salt, and the separate label `fuda.sh/member-secret/write/v1`. The server stores only its SHA-256 hash in `accounts.secret_write_hash`, set atomically with the first copy. Every later copy and every vault write requires this token, checked in constant time. A session alone cannot replace the vault or plant a copy to bypass the last-copy protection. The token is confined to authenticated recovery requests and never accompanies a claim or presentation.
+
+**A passkey without PRF.** A browser reports the feature whatever the passkey provider does, so only a result counts. A prompt that returns none stops the claim before anything is issued. The card page says that a website cannot choose the provider and names the ones that work, iCloud Keychain and Google Password Manager, and offers to save a new passkey and carry on with that one. Every passkey is asked to enable the feature when it is created, since some enable it only then. The first opening counts its outcome in `member_secret_outcomes(outcome, total)`, a number per outcome with no account, device or time.
+
+**A pass's key.** secp256k1, derived with HKDF-SHA-256 from the member secret with a random 32-byte salt per pass. The claim sends `POST /issuers/:handle/:slug/issue { holderAddress, source? }`. The route reads no session, and answers `400 bad_input` without an address. The address goes into `holderKey` and nowhere else: the `members` row keeps a null holder, and `member_passes` gets no row. `POST /member/passes` skips these uids, as it does any Signed right. The admin route and the MCP `issue_pass` tool answer `holder_must_claim`.
+
+**The list.** The account's vault is one ciphertext in `member_vaults(account_id, iv, ciphertext, version, updated_at)`, sealed under a key derived from the member secret, holding `{ uid, salt, venue, cardTitle }[]`. `/rights` shows a section only if the account holds a copy, and opens it with a passkey prompt on request, never on load. It asks nothing about any one pass until the member enters with it, so it shows no status, and a revoked pass is still listed until entering reports it. Entering from the list takes no second prompt, because the secret is still open on that screen.
+
+A vault write names the version it read, and a stale one answers `409 vault_conflict`. The device then reads the current vault, adds its entry and tries again, because a lost salt is a lost pass. A device never writes over a vault it cannot open. A claim is two requests, since the uid exists only once the api has signed, so if the second fails each entry waits under its own local storage key, sealed under the same key, and is added the next time the list opens on that device. Concurrent claims never replace one shared pending ciphertext. Recovery removes only the pending entries included in a confirmed vault write, leaving entries added while the write was in flight. The card page says so.
+
+**Presenting.** `/signed` and the list use the usual challenge. `POST /challenge` names no passkey for these passes, so the app opens the secret, finds the pass in the vault, derives its key and signs the challenge string. The api recovers the address and compares it with `holderKey`, reading no chain for that step ([attestation model](./attestation-model.md#offchain-rights)).
+
+**A second passkey.** Adding a passkey to an account with a member secret needs both PRF results, one to unwrap and one to wrap. An old passkey opens the secret locally, then an existing account passkey authorizes adding the new passkey with a fresh assertion. The new passkey is created next, and a further prompt is needed only if that provider gives no PRF result at creation. Settings explains this first. A new passkey with no PRF result is kept for sign-in and holds no copy, and Settings marks which passkeys open these passes. A copy may be added only beside an existing one, and the first only while there is none, so two devices enrolling at once cannot start two secrets. The loser answers `409 secret_conflict`, and carries on with the winner's secret if it used the same passkey. With a different one it cannot open it, and adds that passkey from the winning device. A stolen session can read these ciphertexts but cannot decrypt or change the recovery data without the write token or a fresh account passkey assertion.
+
+**Starting over.** With no passkey that opens the secret, a member cannot open the list or claim another of these passes, and the last passkey with a copy cannot be removed. `/rights` offers Start over after opening fails. It requires a fresh, user-verified assertion from an existing passkey on this account. The challenge is bound to this account and the purpose `reset`, expires after 300 seconds, and is spent once even if verification fails. Login, claim, and add-passkey assertions cannot authorize reset. The account's passkey need not produce PRF. With no account passkey left, the member cannot start over on this account and creates a new account instead.
+
+Start over clears the account's copies, vault, and write-token hash, and clears pending encrypted entries and opened keys on the initiating device. It does not cancel old passes. A device that still holds an old pass's key can continue to use it. The server cannot find all passes for an account because it holds no readable link between them. To cancel an old pass, the member asks the shop or organization to revoke it. The warning states this in English and Japanese. A new secret can then start, and the member claims new passes. Adding a passkey while the secret will not open still works after an existing account passkey authorizes it; that new passkey is for sign-in only.
+
+| Route | Purpose |
+| --- | --- |
+| `GET /member/secret` | `{ rpId, allowCredentials, copies }`. `allowCredentials` is every passkey until a copy exists, then only those with a copy |
+| `POST /member/secret` | `{ credentialId, iv, ciphertext, first, writeToken }` adds a copy. `400 bad_input` for missing proof, `403 secret_proof_required` for a wrong token. `409 secret_conflict` if refused |
+| `POST /member/secret/reset/options` | A reset challenge naming this account's passkeys |
+| `DELETE /member/secret` | An authentication assertion clears the account's copies and vault and write-token hash. `{ cleared: true }`, `400 bad_input` without an assertion, `403 bad_passkey` if refused |
+| `POST /member/secret/outcome` | `{ outcome: 'prf' or 'no_prf' }` adds one to the count |
+| `GET /member/vault` | `{ vault: { iv, ciphertext, version } or null }` |
+| `PUT /member/vault` | `{ iv, ciphertext, expectedVersion, writeToken }` answers `{ version }`, `400 bad_input` for missing proof, `403 secret_proof_required` for a wrong token, or `409 vault_conflict` |
+
+All of them need a member session. Reset options and assertions share the 60-request-per-IP-per-hour ceremony budget. Sensitive claims use the existing self-serve budget of 20 requests per IP per hour. Claims do not yet require Turnstile. `GET /auth/member/passkeys` adds `holdsSecret` to each passkey.
+
+**What these cards do not have.**
+
+| Feature | Behavior |
+| --- | --- |
+| Chain unreadable | Rejects with `502 chain_error`, even for a membership |
+| Attendance | None, as for any offchain right |
+| Stamps | `PUT /issuers/me/cards/:id/stamps` answers `409 stamps_not_supported`, and reception answers `LEVEL_REQUIRED` |
+| Integrations | `PUT /issuers/me/cards/:id/integrations` answers `409 integrations_not_supported`, because a human Badge's nullifier is the same at every venue |
+| Wallet pass, QR, pass page, backup file | `GET /pass/:uid` and its `card`, `backup`, `google` and `apple.pkpass` routes answer `404 not_found` |
+| Member name | None, as for any offchain right |
+| Device memory | Neither `fuda.passes.v1` nor the card memory keeps the uid, so a later visit to the card page offers a claim and points to `/rights` |
+
+Recovery is passkey sync, a second passkey, or the Issuer revoking the pass and the member claiming a new one, starting over first if the secret no longer opens.
+
+The dashboard's pass list and counts keep working from `members` rows, which identify nobody. Its row for one of these passes has no QR or pass links, which `sensitive: true` on `GET /members` tells it. `entry_log` keeps these rows as long as any other's. A shorter retention for them is still to be built.
 
 ## Issuer onboarding and the handle route
 
@@ -293,7 +346,7 @@ The gate scans `fuda:v1:<uid>`, posts `{ "qr", "venue"? }`, and renders the verd
 
 `POST /challenge { "uid" }` answers `200 { "challenge", "nonce" }`; both strings are pinned in the attestation model's [wire constants](./attestation-model.md#wire-constants). There is no chain lookup: a challenge for an unknown or revoked uid is minted anyway and rejected at the next step. For an Identified pass the answer adds `webauthn`, the request for the browser's passkey prompt, naming only the attested credential. `400 bad_uid` for a malformed uid; `Cache-Control: no-store`. Every mint also sweeps the nonces that have outlived the TTL.
 
-`POST /verify-signed { "uid", "nonce", "signature" }`, or `{ "uid", "nonce", "webauthn" }` for [an Identified pass](./attestation-model.md#offchain-rights), answers `400 bad_uid` when the uid is absent or is not a uid, and `400 bad_input` when the uid is well formed but the nonce or the proof is not. Every decision is `200` in one shape:
+`POST /verify-signed { "uid", "nonce", "signature" }`, or `{ "uid", "nonce", "webauthn" }` for [an Identified pass](./attestation-model.md#offchain-rights), with `signature` by the pass's own key for a [Sensitive pass](#sensitive-use), answers `400 bad_uid` when the uid is absent or is not a uid, and `400 bad_input` when the uid is well formed but the nonce or the proof is not. Every decision is `200` in one shape:
 
 ```jsonc
 {

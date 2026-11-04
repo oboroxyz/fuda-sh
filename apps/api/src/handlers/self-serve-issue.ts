@@ -1,13 +1,22 @@
-import { ClaimSource, isCardSlugReference, isClaimable, isIssuerHandle, PasskeyClaimBody } from '@fuda/sdk'
+import {
+  ClaimSource,
+  isCardSlugReference,
+  isClaimable,
+  isIssuerHandle,
+  PasskeyClaimBody,
+  SensitiveClaimBody,
+} from '@fuda/sdk'
+import type { CardIdentity } from '@fuda/sdk'
 import type { Context } from 'hono'
 import * as v from 'valibot'
+import { getAddress } from 'viem'
 import { defineHandler } from 'void'
 
 import { claimingPasskey, relyingParty } from '../auth/member-passkey.ts'
 import type { AppEnv } from '../env.ts'
 import { issueForCard } from '../issue/issue-for-card.ts'
 import type { CardIssueError } from '../issue/issue-for-card.ts'
-import type { PasskeyClaimant } from '../issue/issue-offchain.ts'
+import type { PassClaimant } from '../issue/issue-offchain.ts'
 import { venueOf } from '../issuers/queries.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { bearerSession } from '../middleware/bearer-session.ts'
@@ -33,10 +42,12 @@ const ClaimBody = v.object({ source: ClaimSource })
 // docs/specs/pass-types-and-flows.md#claiming-an-identified-pass. A refused assertion is
 // 403 and not the ceremonies' usual 401: the session is fine, and the member app's Worker
 // ends a session on any 401 it forwards.
+type Claim = { ok: true; claimant: PassClaimant } | { ok: false; res: Response }
+
 const passkeyClaimant = async (
   c: Context<AppEnv>,
   body: v.SafeParseResult<typeof PasskeyClaimBody>,
-): Promise<{ ok: true; claimant: PasskeyClaimant } | { ok: false; res: Response }> => {
+): Promise<Claim> => {
   const session = await bearerSession(c, 'member')
   if (session.kind !== 'valid' || session.session.accountId === null) {
     return { ok: false, res: errorResponse(c, 'unauthorized', 401) }
@@ -54,7 +65,28 @@ const passkeyClaimant = async (
   )
   return key === null
     ? { ok: false, res: errorResponse(c, 'bad_passkey', 403) }
-    : { claimant: { accountId, key }, ok: true }
+    : { claimant: { accountId, key, kind: 'passkey' }, ok: true }
+}
+
+// docs/specs/pass-types-and-flows.md#sensitive-use. No session is read: the account behind
+// this address stays out of the pass, and out of this request's handling.
+const sensitiveClaimant = (c: Context<AppEnv>, body: v.SafeParseResult<typeof SensitiveClaimBody>): Claim =>
+  body.success
+    ? { claimant: { address: getAddress(body.output.holderAddress), kind: 'address' }, ok: true }
+    : { ok: false, res: errorResponse(c, 'bad_input', 400) }
+
+const claimFor = async (
+  c: Context<AppEnv>,
+  identity: CardIdentity,
+  body: {
+    passkey: v.SafeParseResult<typeof PasskeyClaimBody>
+    sensitive: v.SafeParseResult<typeof SensitiveClaimBody>
+  },
+): Promise<Claim | null> => {
+  if (identity === 'passkey') {
+    return await passkeyClaimant(c, body.passkey)
+  }
+  return identity === 'sensitive' ? sensitiveClaimant(c, body.sensitive) : null
 }
 
 export const postV1IssuersHandleSlugIssue = defineHandler(
@@ -75,8 +107,10 @@ export const postV1IssuersHandleSlugIssue = defineHandler(
     }
     const raw: unknown = await c.req.json().catch(() => null)
     const body = v.safeParse(ClaimBody, raw)
-    const claim =
-      card.identity === 'passkey' ? await passkeyClaimant(c, v.safeParse(PasskeyClaimBody, raw)) : null
+    const claim = await claimFor(c, card.identity, {
+      passkey: v.safeParse(PasskeyClaimBody, raw),
+      sensitive: v.safeParse(SensitiveClaimBody, raw),
+    })
     if (claim !== null && !claim.ok) {
       return claim.res
     }

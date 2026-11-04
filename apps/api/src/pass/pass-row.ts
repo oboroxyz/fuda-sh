@@ -100,8 +100,20 @@ export const loadPassRow = async (c: Context<AppEnv>, rawUid: string): Promise<P
   if (uid === null) {
     return { ok: false, res: errorResponse(c, 'bad_uid', 400) }
   }
-  const row = await c.get('db').select().from(members).where(eq(members.attestationUid, uid)).get()
-  if (row === undefined) {
+  const found = await c
+    .get('db')
+    .select({ identity: cards.identity, member: members })
+    .from(members)
+    .leftJoin(cards, eq(cards.id, members.cardId))
+    .where(eq(members.attestationUid, uid))
+    .get()
+  if (found === undefined) {
+    return { ok: false, res: errorResponse(c, 'not_found', 404) }
+  }
+  const row = found.member
+  // A Sensitive pass has no page, Wallet pass, QR or backup file, since each would leave
+  // a copy of it outside the member's vault (docs/specs/pass-types-and-flows.md#sensitive-use).
+  if (found.identity === 'sensitive') {
     return { ok: false, res: errorResponse(c, 'not_found', 404) }
   }
   // A +Private right has no pass (docs/specs/pass-types-and-flows.md#passes: the private /issue response carries

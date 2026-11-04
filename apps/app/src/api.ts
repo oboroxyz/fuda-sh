@@ -21,6 +21,7 @@ import { googlePassHref } from './member-pass-list.ts'
 export const challenge = async (uid: Hex): Promise<Result<ChallengeResponse>> =>
   await apiFetch<ChallengeResponse>(API_BASE_URL, '/challenge', {
     body: JSON.stringify({ uid }),
+    credentials: 'omit',
     method: 'POST',
   })
 
@@ -29,6 +30,7 @@ export const verifySigned = async (
 ): Promise<Result<VerifySignedResponse>> =>
   await apiFetch<VerifySignedResponse>(API_BASE_URL, '/verify-signed', {
     body: JSON.stringify(body),
+    credentials: 'omit',
     method: 'POST',
   })
 
@@ -97,6 +99,20 @@ export const issuePasskeyCard = async (
     method: 'POST',
   })
 
+// The same route for a Sensitive card: only the address of a key this device derived. The
+// api reads no session for it.
+export const issueSensitiveCard = async (
+  handle: string,
+  slug: string,
+  source: string | null,
+  holderAddress: Hex,
+): Promise<Result<SelfServeIssueResponse>> =>
+  await apiFetch<SelfServeIssueResponse>(API_BASE_URL, issuePath(handle, slug), {
+    body: JSON.stringify(source === null ? { holderAddress } : { holderAddress, source }),
+    credentials: 'omit',
+    method: 'POST',
+  })
+
 export type CardFailure =
   | 'card_closed'
   | 'card_sold_out'
@@ -107,6 +123,7 @@ export type CardFailure =
   | 'passkey_cancelled'
   | 'passkey_refused'
   | 'rate_limited'
+  | 'secret_unopenable'
   | 'signed_out'
 
 // `apiFetch` folds every 5xx into a network condition and keeps only the

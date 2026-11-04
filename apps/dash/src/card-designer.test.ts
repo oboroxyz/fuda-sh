@@ -74,6 +74,8 @@ describe(cardBodyFrom, () => {
     expect(cardBodyFrom({ ...filled, slug: 'summer' })?.identity).toBe('none')
     expect(cardBodyFrom({ ...filled, identity: 'passkey', slug: 'summer' })?.identity).toBe('passkey')
     expect(cardBodyFrom({ ...filled, identity: 'passkey', record: 'onchain', slug: 'summer' })).toBeNull()
+    expect(cardBodyFrom({ ...filled, identity: 'sensitive', slug: 'summer' })?.identity).toBe('sensitive')
+    expect(cardBodyFrom({ ...filled, identity: 'sensitive', record: 'onchain', slug: 'summer' })).toBeNull()
   })
 
   it('sends where passes are recorded, offchain unless chosen', () => {

@@ -31,8 +31,9 @@ import type { BadgeState, HumanBadgeIo } from '../badges.ts'
 import { cardKey, readCard, readCardMemory, rememberCard } from '../card-memory.ts'
 import type { CardMemoryEntry } from '../card-memory.ts'
 import { applePassAvailable } from '../member-pass-list.ts'
-import { claimWithPasskey } from '../member/auth.ts'
+import { addPasskey, claimWithPasskey } from '../member/auth.ts'
 import type { PasskeyClaim } from '../member/auth.ts'
+import type { SensitiveClaim } from '../member/sensitive.ts'
 import { fetchPassBackup, passBackupHref } from '../pass-backup.ts'
 import { memberPassUrls } from '../pass-links.ts'
 import { rememberPass } from '../pass-memory.ts'
@@ -67,8 +68,12 @@ export type CardScreenState =
       googleHref: string | null
       appleHref: string | null
       badge: BadgeState
+      // A Sensitive pass that was issued but could not be listed yet.
+      unsaved?: boolean
     }
   | { kind: 'error'; card: PublicCard | null; failure: CardFailure }
+  // The passkey gave no PRF result, so a Sensitive card stops here and says what to do.
+  | { kind: 'no_prf'; card: PublicCard }
 
 export interface CardScreenIo {
   appleAvailable: (url: string) => Promise<boolean>
@@ -81,6 +86,7 @@ export interface CardScreenIo {
 
 export interface CardScreenViewProps {
   locale?: Locale
+  onAddPasskey?: () => void
   onIssue: () => void
   onReload: () => void
   onVerifyHuman: () => void
@@ -162,7 +168,11 @@ const memberCard = (card: PublicCard, issued: IssuedCard, copy: VenueCopy, local
     </>,
   )
 
-const isPasskeyCard = (card: PublicCard): boolean => card.card.identity === 'passkey'
+const isSensitiveCard = (card: PublicCard): boolean => card.card.identity === 'sensitive'
+
+// Bound to a key, so a QR or a Wallet pass would admit nobody.
+const isKeyBoundCard = (card: PublicCard): boolean =>
+  card.card.identity === 'passkey' || isSensitiveCard(card)
 
 const cardDescription = (card: PublicCard): JSX.Element | null =>
   card.card.description === '' ? null : (
@@ -320,6 +330,77 @@ const passkeyEntry = (card: PublicCard, issued: IssuedCard, copy: VenueCopy): JS
   </div>
 )
 
+// docs/specs/pass-types-and-flows.md#sensitive-use. No backup and nothing kept on this device
+// in the clear: the member's list is the only place this pass is written down.
+const sensitiveEntry = (issued: IssuedCard, unsaved: boolean, copy: VenueCopy): JSX.Element => (
+  <div class="venue-pass-actions">
+    <a class="btn btn-primary" href={`/signed?uid=${issued.uid}`}>
+      <FingerprintSimple />
+      {copy.enterWithPasskey}
+    </a>
+    <p class="mx-auto max-w-64 text-center text-xs leading-5 text-[var(--fuda-muted)]">
+      {copy.sensitiveEntryNote}
+    </p>
+    {unsaved ? (
+      <p role="status" class="alert alert-warning text-sm">
+        {copy.sensitiveUnsaved}
+      </p>
+    ) : (
+      <p class="mx-auto max-w-64 text-center text-xs leading-5 text-[var(--fuda-muted)]">
+        {copy.sensitiveFindLater}
+      </p>
+    )}
+  </div>
+)
+
+// docs/specs/pass-types-and-flows.md#sensitive-use: the web cannot choose the passkey
+// provider, so this says which ones work and lets the member save a new passkey there.
+const noPrfScreen = (
+  card: PublicCard,
+  onAddPasskey: () => void,
+  onIssue: () => void,
+  copy: VenueCopy,
+): JSX.Element => {
+  const guide = copy.sensitiveNoPrf
+  return (
+    <>
+      {landingCard(card)}
+      <section class="flex flex-col gap-3" data-testid="no-prf-guidance">
+        <h2 class="text-lg font-semibold">{guide.title}</h2>
+        <p class="text-sm leading-6">{guide.body}</p>
+        <ul class="list-disc pl-5 text-sm leading-6">
+          <li>{guide.apple}</li>
+          <li>{guide.google}</li>
+          <li>{guide.other}</li>
+        </ul>
+        <p class="text-sm leading-6 text-[var(--fuda-muted)]">{guide.keepsSigningIn}</p>
+        <button
+          class="btn btn-primary w-full"
+          type="button"
+          onClick={() => {
+            onAddPasskey()
+          }}
+        >
+          <FingerprintSimple />
+          {guide.addPasskey}
+        </button>
+        <button
+          class="btn w-full"
+          type="button"
+          onClick={() => {
+            onIssue()
+          }}
+        >
+          {guide.tryAgain}
+        </button>
+      </section>
+    </>
+  )
+}
+
+const claimNote = (card: PublicCard, copy: VenueCopy): string =>
+  isSensitiveCard(card) ? copy.claimSensitiveNote : copy.claimPasskeyNote
+
 // A pass bound to a passkey needs an account to claim, so someone signed out is sent to
 // sign in first, and comes back to this same address, with any source label on it.
 const passkeyClaim = (
@@ -356,9 +437,14 @@ const passkeyClaim = (
       </a>
     )}
     <p role="status" aria-live="polite" class="text-center text-xs opacity-70">
-      {busy ? copy.keepOpen : copy.claimPasskeyNote}
+      {busy ? copy.keepOpen : claimNote(card, copy)}
     </p>
     {signedIn || busy ? null : <p class="text-center text-xs opacity-70">{copy.needsAccount}</p>}
+    {isSensitiveCard(card) && !busy ? (
+      <a class="link text-center text-xs" href="/rights">
+        {copy.sensitiveAlreadyHeld}
+      </a>
+    ) : null}
   </div>
 )
 
@@ -455,6 +541,19 @@ const qrBlock = (card: PublicCard, issued: IssuedCard, copy: VenueCopy): JSX.Ele
   </div>
 )
 
+const readyActions = (
+  state: Extract<CardScreenState, { kind: 'ready' }>,
+  copy: VenueCopy,
+  locale: Locale,
+): JSX.Element => {
+  if (isSensitiveCard(state.card)) {
+    return sensitiveEntry(state.issued, state.unsaved === true, copy)
+  }
+  return isKeyBoundCard(state.card)
+    ? passkeyEntry(state.card, state.issued, copy)
+    : passActions(state.card, state.issued, state.googleHref, state.appleHref, copy, locale)
+}
+
 const readyScreen = (
   state: Extract<CardScreenState, { kind: 'ready' }>,
   copy: VenueCopy,
@@ -464,11 +563,9 @@ const readyScreen = (
   <>
     <section class="venue-held-card">
       {memberCard(state.card, state.issued, copy, locale)}
-      {isPasskeyCard(state.card) ? null : qrBlock(state.card, state.issued, copy)}
+      {isKeyBoundCard(state.card) ? null : qrBlock(state.card, state.issued, copy)}
     </section>
-    {isPasskeyCard(state.card)
-      ? passkeyEntry(state.card, state.issued, copy)
-      : passActions(state.card, state.issued, state.googleHref, state.appleHref, copy, locale)}
+    {readyActions(state, copy, locale)}
     {humanBadgeControl(state.badge, onVerifyHuman, copy)}
   </>
 )
@@ -496,7 +593,7 @@ const landingScreen = (
       </>
     )
   }
-  if (isPasskeyCard(state.card)) {
+  if (isKeyBoundCard(state.card)) {
     return (
       <>
         {landingCard(state.card)}
@@ -538,6 +635,7 @@ const screenOf = (
   onReload: () => void,
   onVerifyHuman: () => void,
   signedIn: boolean,
+  onAddPasskey: () => void,
 ): JSX.Element => {
   const copy = pick(VENUE_COPY, locale)
   if (state.kind === 'loading') {
@@ -586,6 +684,9 @@ const screenOf = (
       </>
     )
   }
+  if (state.kind === 'no_prf') {
+    return noPrfScreen(state.card, onAddPasskey, onIssue, copy)
+  }
   if (state.kind === 'ready') {
     return readyScreen(state, copy, locale, onVerifyHuman)
   }
@@ -607,6 +708,9 @@ export const CardScreenView = (props: CardScreenViewProps): JSX.Element => (
         props.onVerifyHuman()
       },
       props.signedIn ?? false,
+      () => {
+        props.onAddPasskey?.()
+      },
     )}
   </VenueLayout>
 )
@@ -618,6 +722,32 @@ const defaultIo: CardScreenIo = {
   fetchVenue,
   googleSaveUrl,
   issueCard,
+}
+
+// What a Sensitive card needs beyond the rest. Lazy: only these cards need the key code,
+// and this screen opens for every card.
+export interface CardSensitiveIo {
+  addPasskey: () => Promise<{ ok: true; credentialId: string } | { ok: false }>
+  claim: (
+    card: { cardTitle: string; slug: string; source: string | null; venue: string },
+    only?: string,
+  ) => Promise<SensitiveClaim>
+}
+
+const defaultSensitive: CardSensitiveIo = {
+  addPasskey: async () => {
+    const added = await addPasskey()
+    return added.ok ? { credentialId: added.credentialId, ok: true } : { ok: false }
+  },
+  claim: async (card, only) => {
+    try {
+      const { claimSensitive, defaultSensitiveIo } = await import('../member/sensitive.ts')
+      return await claimSensitive(defaultSensitiveIo, card, only)
+    } catch {
+      // A chunk that failed to load, on a connection that just dropped.
+      return { failure: 'network', ok: false }
+    }
+  },
 }
 
 const issuedFrom = (entry: CardMemoryEntry): IssuedCard => ({
@@ -675,6 +805,7 @@ export interface CardScreenProps {
   initial?: Result<PublicVenue>
   // Whether a member session cookie came with this page. The api has the last word.
   signedIn?: boolean
+  sensitive?: CardSensitiveIo
   storage?: PassMemoryStorage
 }
 
@@ -691,6 +822,7 @@ const publicClaim = async (
 export const CardScreen = (props: CardScreenProps): JSX.Element => {
   const io = props.io ?? defaultIo
   const humanBadgeIo = props.humanBadgeIo ?? defaultHumanBadgeIo
+  const sensitive = props.sensitive ?? defaultSensitive
   const [state, setState] = createSignal<CardScreenState>({ kind: 'loading' })
   const [generation, setGeneration] = createSignal(0)
   const [sessionEnded, setSessionEnded] = createSignal(false)
@@ -700,7 +832,12 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
 
   // Only probe the device's platform. The browser pass remains available until
   // its wallet is confirmed, and remains the fallback if it is not configured.
-  const showReady = async (card: PublicCard, issued: IssuedCard, isCurrent: () => boolean): Promise<void> => {
+  const showReady = async (
+    card: PublicCard,
+    issued: IssuedCard,
+    isCurrent: () => boolean,
+    unsaved = false,
+  ): Promise<void> => {
     setState({
       appleHref: null,
       badge: humanBadgeStateOf(card),
@@ -708,8 +845,9 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
       googleHref: null,
       issued,
       kind: 'ready',
+      unsaved,
     })
-    if (isPasskeyCard(card)) {
+    if (isKeyBoundCard(card)) {
       return
     }
     const platform = passPlatform(globalThis.navigator?.userAgent ?? '')
@@ -781,7 +919,23 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
     }),
   )
 
-  const issue = async (card: PublicCard): Promise<void> => {
+  const claimFor = async (
+    card: PublicCard,
+    source: string | null,
+    only?: string,
+  ): Promise<PasskeyClaim | SensitiveClaim> => {
+    if (isSensitiveCard(card)) {
+      return await sensitive.claim(
+        { cardTitle: card.card.title, slug: card.card.slug, source, venue: props.handle },
+        only,
+      )
+    }
+    return card.card.identity === 'passkey'
+      ? await io.claimWithPasskey(props.handle, card.card.slug, source)
+      : await publicClaim(io, props.handle, card.card.slug, source)
+  }
+
+  const issue = async (card: PublicCard, only?: string): Promise<void> => {
     if (issuing) {
       return
     }
@@ -790,9 +944,7 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
     const { handle, storage } = props
     setState({ card, kind: 'issuing' })
     const source = claimSourceFrom(window.location.search)
-    const result: PasskeyClaim = isPasskeyCard(card)
-      ? await io.claimWithPasskey(handle, card.card.slug, source)
-      : await publicClaim(io, handle, card.card.slug, source)
+    const result = await claimFor(card, source, only)
     const current = ticket === lifecycle
     if (current) {
       issuing = false
@@ -806,13 +958,21 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
         setState({ card, kind: 'landing' })
         return
       }
+      if (result.failure === 'no_prf') {
+        setState({ card, kind: 'no_prf' })
+        return
+      }
       setState({ card, failure: result.failure, kind: 'error' })
       return
     }
     const { holder, memberNumber, uid } = result.body
     const issuedAt = Date.now()
-    rememberCard(handle, card.card.slug, { holder, memberNumber, uid }, storage, issuedAt)
-    rememberPass({ holder, uid }, storage, issuedAt)
+    // A Sensitive pass stays out of both lists, in the clear here and synced to the account
+    // from there: the vault is its only record.
+    if (!isSensitiveCard(card)) {
+      rememberCard(handle, card.card.slug, { holder, memberNumber, uid }, storage, issuedAt)
+      rememberPass({ holder, uid }, storage, issuedAt)
+    }
     // A submitted issuance belongs to its original venue even after navigation.
     // Keep the public Pass, but never replace the next screen with this result.
     if (!current) {
@@ -824,6 +984,7 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
       // this Worker like every other call (src/pass-links.ts).
       { holder, issuedAt, memberNumber, passUrls: memberPassUrls(uid), qr: result.body.qr, uid },
       () => ticket === lifecycle,
+      'saved' in result && !result.saved,
     )
   }
 
@@ -834,9 +995,28 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
       return
     }
     // A failed issue keeps the card it was reading, so the button retries it.
+    if (current.kind === 'no_prf') {
+      void issue(current.card)
+      return
+    }
     if (current.kind === 'error' && current.card !== null) {
       void issue(current.card)
     }
+  }
+
+  // The new passkey is the one to ask next, or the chooser would offer the old one again.
+  const onAddPasskey = (): void => {
+    const current = state()
+    if (current.kind !== 'no_prf') {
+      return
+    }
+    const { card } = current
+    void (async () => {
+      const added = await sensitive.addPasskey()
+      if (added.ok) {
+        await issue(card, added.credentialId)
+      }
+    })()
   }
 
   const onVerifyHuman = (): void => {
@@ -855,6 +1035,7 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
   return (
     <CardScreenView
       locale={props.locale}
+      onAddPasskey={onAddPasskey}
       onIssue={onIssue}
       onReload={() => {
         setGeneration((value) => value + 1)

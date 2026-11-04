@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { readCard, rememberCard } from '../card-memory.ts'
 import { readPassMemory } from '../pass-memory.ts'
 import { CardScreen } from './CardScreen.tsx'
-import type { CardScreenIo } from './CardScreen.tsx'
+import type { CardScreenIo, CardSensitiveIo } from './CardScreen.tsx'
 import { VenueLayout } from './VenueLayout.tsx'
 
 const disposers: (() => void)[] = []
@@ -70,7 +70,129 @@ const landed = async (host: HTMLElement): Promise<void> => {
   })
 }
 
+const claimOn = async (host: HTMLElement): Promise<void> => {
+  await vi.waitFor(() => {
+    expect(host.querySelector('.venue-primary button')).not.toBeNull()
+  })
+  host.querySelector<HTMLButtonElement>('.venue-primary button')?.click()
+}
+
 describe('venue controller', () => {
+  describe('a Sensitive card', () => {
+    const UID = `0x${'ab'.repeat(32)}` as const
+    const [regular] = venue.cards
+    const sensitiveVenue: PublicVenue = {
+      ...venue,
+      cards: regular === undefined ? [] : [{ ...regular, identity: 'sensitive' }],
+    }
+    const issued = {
+      body: {
+        holder: `0x${'00'.repeat(20)}`,
+        level: 'signed',
+        memberNumber: 'qj2yxphepdrka',
+        passUrls: { apple: 'https://a/apple', google: 'https://a/google', web: 'https://a/web' },
+        qr: `fuda:v1:${UID}`,
+        uid: UID,
+      },
+      ok: true,
+      saved: true,
+    } as const
+    const open = (sensitive: CardSensitiveIo): HTMLDivElement => {
+      globalThis.history.replaceState(null, '', `/@${venue.handle}/regular?source=flyer`)
+      const host = document.createElement('div')
+      const screenIo: CardScreenIo = {
+        ...io(),
+        fetchVenue: async () => await Promise.resolve({ body: sensitiveVenue, ok: true }),
+      }
+      render(
+        () => (
+          <CardScreen handle={venue.handle} slug="regular" io={screenIo} sensitive={sensitive} signedIn />
+        ),
+        host,
+      )
+      return host
+    }
+    afterEach(() => {
+      localStorage.clear()
+      globalThis.history.replaceState(null, '', '/')
+    })
+
+    it('shows entry and no QR, Wallet or backup, and keeps nothing on the device', async () => {
+      const claim = vi.fn<CardSensitiveIo['claim']>(async () => await Promise.resolve(issued))
+      const host = open({ addPasskey: vi.fn<CardSensitiveIo['addPasskey']>(), claim })
+      await claimOn(host)
+      await vi.waitFor(() => {
+        expect(host.querySelector(`a[href="/signed?uid=${UID}"]`)).not.toBeNull()
+      })
+      expect(claim.mock.calls[0]?.[0]).toMatchObject({
+        slug: 'regular',
+        source: 'flyer',
+        venue: venue.handle,
+      })
+      expect(host.querySelector('.venue-qr')).toBeNull()
+      expect(host.querySelector('a[download]')).toBeNull()
+      expect(readPassMemory()).toStrictEqual([])
+      expect(readCard(venue.handle, 'regular')).toBeNull()
+    })
+
+    it('says so when a pass was issued but is not on the list yet', async () => {
+      const host = open({
+        addPasskey: vi.fn<CardSensitiveIo['addPasskey']>(),
+        claim: async () => await Promise.resolve({ ...issued, saved: false }),
+      })
+      await claimOn(host)
+      await vi.waitFor(() => {
+        expect(host.textContent).toContain('could not be added to your list yet')
+      })
+    })
+
+    it('stops at the guidance without PRF, naming the providers that work', async () => {
+      const host = open({
+        addPasskey: vi.fn<CardSensitiveIo['addPasskey']>(),
+        claim: async () => await Promise.resolve({ failure: 'no_prf', ok: false }),
+      })
+      await claimOn(host)
+      await vi.waitFor(() => {
+        expect(host.querySelector('[data-testid="no-prf-guidance"]')).not.toBeNull()
+      })
+      expect(host.textContent).toContain('iCloud Keychain')
+      expect(host.textContent).toContain('Google Password Manager')
+    })
+
+    it('asks the new passkey next, once the guidance has saved one', async () => {
+      const claim = vi
+        .fn<CardSensitiveIo['claim']>()
+        .mockResolvedValueOnce({ failure: 'no_prf', ok: false })
+        .mockResolvedValueOnce(issued)
+      const addPasskey = vi.fn<CardSensitiveIo['addPasskey']>(
+        async () => await Promise.resolve({ credentialId: 'new-passkey', ok: true }),
+      )
+      const host = open({ addPasskey, claim })
+      await claimOn(host)
+      await vi.waitFor(() => {
+        expect(host.querySelector('[data-testid="no-prf-guidance"] .btn-primary')).not.toBeNull()
+      })
+      host.querySelector<HTMLButtonElement>('[data-testid="no-prf-guidance"] .btn-primary')?.click()
+      await vi.waitFor(() => {
+        expect(host.querySelector(`a[href="/signed?uid=${UID}"]`)).not.toBeNull()
+      })
+      expect(claim.mock.calls[1]?.[1]).toBe('new-passkey')
+    })
+
+    it('says when a passkey holding a copy could not open it', async () => {
+      const host = open({
+        addPasskey: vi.fn<CardSensitiveIo['addPasskey']>(),
+        claim: async () => await Promise.resolve({ failure: 'secret_unopenable', ok: false }),
+      })
+      await claimOn(host)
+      await vi.waitFor(() => {
+        expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+          'could not open your sensitive passes',
+        )
+      })
+    })
+  })
+
   describe('a card bound to a passkey', () => {
     const UID = `0x${'ef'.repeat(32)}` as const
     const [regular] = venue.cards
