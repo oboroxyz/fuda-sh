@@ -140,7 +140,7 @@ export const getV1VerifyUid = defineHandler(async (c) => {
 
 // The Handle of the venue that issued the uid, whichever way the right is
 // recorded. null when no member row or no issuer stands behind it.
-const venueOf = async (db: Db, uid: Hex): Promise<string | null> => {
+export const venueOf = async (db: Db, uid: Hex): Promise<string | null> => {
   const row = await db
     .select({ handle: issuers.handle })
     .from(members)

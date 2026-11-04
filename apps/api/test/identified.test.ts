@@ -345,6 +345,7 @@ describe('identified passes', () => {
         holder: ZERO_ADDRESS,
         path: 'signature',
         reason: 'OK',
+        venue: CARD_INPUT.handle,
       })
       await expect(db().select().from(entryLog).where(eq(entryLog.uid, pass.uid))).resolves.toMatchObject([
         { decision: 'ADMIT', path: 'signature', reason: 'OK' },

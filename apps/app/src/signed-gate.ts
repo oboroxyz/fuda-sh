@@ -4,9 +4,14 @@ import type { Result } from '@fuda/sdk/http'
 import type { AuthenticationResponseJSON } from '@simplewebauthn/browser'
 
 export interface SignedGateIo {
-  challenge: (uid: Hex) => Promise<Result<ChallengeResponse>>
+  challenge: (uid: Hex, venue?: string) => Promise<Result<ChallengeResponse>>
   sign: (message: string) => Promise<Hex>
-  verify: (body: { uid: Hex; nonce: Hex; signature: Hex }) => Promise<Result<VerifySignedResponse>>
+  verify: (body: {
+    uid: Hex
+    nonce: Hex
+    signature: Hex
+    venue?: string
+  }) => Promise<Result<VerifySignedResponse>>
 }
 
 type PasskeyProof = { webauthn: AuthenticationResponseJSON } | { signature: Hex }
@@ -15,7 +20,9 @@ export interface PasskeyGateIo {
   assert: (options: PasskeyRequestOptions) => Promise<AuthenticationResponseJSON>
   challenge: SignedGateIo['challenge']
   signForPass: (uid: Hex, message: string) => Promise<Hex>
-  verify: (body: { uid: Hex; nonce: Hex } & PasskeyProof) => Promise<Result<VerifySignedResponse>>
+  verify: (
+    body: { uid: Hex; nonce: Hex; venue?: string } & PasskeyProof,
+  ) => Promise<Result<VerifySignedResponse>>
 }
 
 export type SignedOutcome =
@@ -32,9 +39,10 @@ const enter = async <Proof>(
   },
   uid: Hex,
   signal?: AbortSignal,
+  venue?: string,
 ): Promise<SignedOutcome> => {
   signal?.throwIfAborted()
-  const minted = await io.challenge(uid)
+  const minted = await io.challenge(uid, venue)
   signal?.throwIfAborted()
   if (!minted.ok) {
     return { error: minted.error, kind: 'error', network: minted.network }
@@ -60,15 +68,27 @@ const enter = async <Proof>(
   return { body: verified.body, kind: 'verdict' }
 }
 
-export const enterSigned = async (io: SignedGateIo, uid: Hex, signal?: AbortSignal): Promise<SignedOutcome> =>
+export const enterSigned = async (
+  io: SignedGateIo,
+  uid: Hex,
+  signal?: AbortSignal,
+  venue?: string,
+): Promise<SignedOutcome> =>
   await enter(
     {
       challenge: io.challenge,
       prove: async (minted) => await io.sign(minted.challenge),
-      verify: async (nonce, signature) => await io.verify({ nonce, signature, uid }),
+      verify: async (nonce, signature) => {
+        const body: Parameters<SignedGateIo['verify']>[0] = { nonce, signature, uid }
+        if (venue !== undefined) {
+          body.venue = venue
+        }
+        return await io.verify(body)
+      },
     },
     uid,
     signal,
+    venue,
   )
 
 // An Identified pass answers with the passkey it attests, which the api names when it mints.
@@ -78,6 +98,7 @@ export const enterWithPasskey = async (
   io: PasskeyGateIo,
   uid: Hex,
   signal?: AbortSignal,
+  venue?: string,
 ): Promise<SignedOutcome> =>
   await enter(
     {
@@ -86,10 +107,17 @@ export const enterWithPasskey = async (
         webauthn === undefined
           ? { signature: await io.signForPass(uid, challenge) }
           : { webauthn: await io.assert(webauthn) },
-      verify: async (nonce, proof) => await io.verify({ nonce, uid, ...proof }),
+      verify: async (nonce, proof) => {
+        const body: Parameters<PasskeyGateIo['verify']>[0] = { nonce, uid, ...proof }
+        if (venue !== undefined) {
+          body.venue = venue
+        }
+        return await io.verify(body)
+      },
     },
     uid,
     signal,
+    venue,
   )
 
 export interface SignedDisplay {
@@ -97,6 +125,7 @@ export interface SignedDisplay {
   title: 'ADMIT' | 'REJECT'
   detail: string
   banner?: 'network'
+  venue?: string
 }
 
 export const displayOf = (o: SignedOutcome): SignedDisplay => {
@@ -105,12 +134,17 @@ export const displayOf = (o: SignedOutcome): SignedDisplay => {
       ? { banner: 'network', detail: o.error, title: 'REJECT', tone: 'red' }
       : { detail: o.error, title: 'REJECT', tone: 'red' }
   }
-  return o.body.decision === 'ADMIT'
-    ? {
-        // An Identified pass has no address to show.
-        detail: o.body.holder === undefined || hasNoHolder(o.body.holder) ? '' : o.body.holder,
-        title: 'ADMIT',
-        tone: 'green',
-      }
-    : { detail: o.body.reason, title: 'REJECT', tone: 'red' }
+  const display: SignedDisplay =
+    o.body.decision === 'ADMIT'
+      ? {
+          // An Identified pass has no address to show.
+          detail: o.body.holder === undefined || hasNoHolder(o.body.holder) ? '' : o.body.holder,
+          title: 'ADMIT',
+          tone: 'green',
+        }
+      : { detail: o.body.reason, title: 'REJECT', tone: 'red' }
+  if (o.body.venue !== undefined) {
+    display.venue = o.body.venue
+  }
+  return display
 }

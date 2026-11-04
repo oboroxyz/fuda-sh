@@ -1,3 +1,4 @@
+import { PasskeyRegistrationBody } from '@fuda/sdk'
 import type {
   ConnectedAppGrantsResponse,
   ConnectedAppResponse,
@@ -14,6 +15,7 @@ import type {
 } from '@fuda/sdk'
 import { env } from 'cloudflare:test'
 import { eq } from 'drizzle-orm'
+import * as v from 'valibot'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { beforeEach, describe, expect, it } from 'vitest'
 
@@ -172,13 +174,23 @@ describe('operator accounts', () => {
 
     it('adds and removes passkeys on the account', async () => {
       const h = setup()
-      const { token } = await h.register(new SoftwarePasskey(RP))
+      const first = new SoftwarePasskey(RP)
+      const { token } = await h.register(first)
+      const proof = await jsonOf<{ challenge: string }>(
+        h.request('/v1/auth/operator/passkeys/authorize/options', { body: {}, token }),
+      )
+      const authorization = await first.assert(proof.challenge)
       const { challenge } = await jsonOf<{ challenge: string }>(
         h.request('/v1/auth/operator/passkeys/options', { body: {}, token }),
       )
       const second = new SoftwarePasskey(RP)
       await expect(
-        statusOf(h.request('/v1/auth/operator/passkeys', { body: await second.attest(challenge), token })),
+        statusOf(
+          h.request('/v1/auth/operator/passkeys', {
+            body: { ...v.parse(PasskeyRegistrationBody, await second.attest(challenge)), authorization },
+            token,
+          }),
+        ),
       ).resolves.toBe(200)
       const { passkeys } = await jsonOf<PasskeysResponse>(h.request('/v1/auth/operator/passkeys', { token }))
       expect(passkeys).toHaveLength(2)
@@ -536,5 +548,101 @@ describe('operator accounts', () => {
         expect(res.status).toBe(409)
       }
     })
+  })
+})
+
+describe('shared enrollment authorization', () => {
+  beforeEach(resetTables)
+
+  it.each(['member', 'operator'] as const)(
+    'requires a fresh, purpose-bound account assertion for %s enrollment',
+    async (audience) => {
+      const h = setup()
+      const first = new SoftwarePasskey(RP)
+      const { token } = await h.register(first, audience)
+      const options = async (path: string) =>
+        await jsonOf<{ challenge: string }>(h.request(path, { body: {}, token }))
+      const auth = await options(`/v1/auth/${audience}/passkeys/authorize/options`)
+      const authorization = await first.assert(auth.challenge)
+      const add = async () => {
+        const registration = await options(`/v1/auth/${audience}/passkeys/options`)
+        const credential = v.parse(
+          PasskeyRegistrationBody,
+          await new SoftwarePasskey(RP).attest(registration.challenge),
+        )
+        return await h.request(`/v1/auth/${audience}/passkeys`, {
+          body: { ...credential, authorization },
+          token,
+        })
+      }
+      await expect(statusOf(add())).resolves.toBe(200)
+      await expect(statusOf(add())).resolves.toBe(403)
+    },
+  )
+
+  it.each(['login', 'claim', 'reset', 'expired', 'other-account'] as const)(
+    'refuses an enrollment assertion for %s',
+    async (purpose) => {
+      const h = setup()
+      const first = new SoftwarePasskey(RP)
+      const { token } = await h.register(first)
+      const other = await h.register(new SoftwarePasskey(RP))
+      const paths = {
+        claim: '/v1/auth/member/claim/options',
+        expired: '/v1/auth/operator/passkeys/authorize/options',
+        login: '/v1/auth/operator/login/options',
+        'other-account': '/v1/auth/operator/passkeys/authorize/options',
+        reset: '/v1/member/secret/reset/options',
+      }
+      const path = paths[purpose]
+      const memberOptions = await h.request('/v1/auth/member/login/options', { body: {} })
+      const memberChallenge = await memberOptions.json<{ challenge: string }>()
+      const member = await jsonOf<MemberSignInResponse>(
+        h.request('/v1/auth/member/login', { body: await first.assert(memberChallenge.challenge) }),
+      )
+      let proofToken = token
+      if (purpose === 'other-account') {
+        proofToken = other.token
+      }
+      if (purpose === 'claim' || purpose === 'reset') {
+        proofToken = member.token
+      }
+      const options = await jsonOf<{ challenge: string }>(h.request(path, { body: {}, token: proofToken }))
+      if (purpose === 'expired') {
+        await env.DB.prepare('UPDATE passkey_challenges SET created_at=? WHERE challenge=?')
+          .bind(NOW - 301, options.challenge)
+          .run()
+      }
+      const registration = await jsonOf<{ challenge: string }>(
+        h.request('/v1/auth/operator/passkeys/options', { body: {}, token }),
+      )
+      const added = await h.request('/v1/auth/operator/passkeys', {
+        body: {
+          ...v.parse(PasskeyRegistrationBody, await new SoftwarePasskey(RP).attest(registration.challenge)),
+          authorization: await first.assert(options.challenge),
+        },
+        token,
+      })
+      expect(added.status).toBe(403)
+      await expect(
+        jsonOf<PasskeysResponse>(h.request('/v1/auth/operator/passkeys', { token })),
+      ).resolves.toMatchObject({ passkeys: [{ id: first.credentialId }] })
+    },
+  )
+
+  it('preserves account first-key enrollment with its authenticated session and registration challenge', async () => {
+    const h = setup()
+    const { accountId, token } = await h.register(new SoftwarePasskey(RP))
+    await env.DB.prepare('DELETE FROM passkeys WHERE account_id=?').bind(accountId).run()
+    const options = await jsonOf<{ challenge: string }>(
+      h.request('/v1/auth/operator/passkeys/options', { body: {}, token }),
+    )
+    const first = new SoftwarePasskey(RP)
+    const added = await h.request('/v1/auth/operator/passkeys', {
+      body: await first.attest(options.challenge),
+      token,
+    })
+    expect(added.status).toBe(200)
+    await expect(h.login(first)).resolves.toMatchObject({ accountId })
   })
 })

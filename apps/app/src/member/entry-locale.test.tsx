@@ -175,4 +175,19 @@ describe('entry locale changes', () => {
     expect(root.querySelector('form')).not.toBeNull()
     unmountAll()
   })
+
+  it('shows the actual venue on the verdict staff read', () => {
+    render(
+      () => (
+        <Verdict
+          state={{ detail: '', title: 'ADMIT', tone: 'green', venue: 'coffee' }}
+          locale="en"
+          onDone={() => {}}
+        />
+      ),
+      root,
+    )
+    expect(root.textContent).toContain('@coffee')
+    expect(root.textContent).toContain('ADMIT')
+  })
 })

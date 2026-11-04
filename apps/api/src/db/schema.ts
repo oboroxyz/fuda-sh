@@ -219,6 +219,7 @@ export const challenges = sqliteTable('challenges', {
   nonce: text('nonce').primaryKey(),
   uid: text('uid').notNull(),
   usedAt: integer('used_at'),
+  venue: text('venue'),
 })
 
 export const slots = sqliteTable(

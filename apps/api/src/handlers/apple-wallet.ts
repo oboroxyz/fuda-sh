@@ -16,6 +16,7 @@ import {
 import { appleAuthorized, appleWebServiceFrom } from '../pass/apple-web-service.ts'
 import type { AppleWebService } from '../pass/apple-web-service.ts'
 import { loadPassRow } from '../pass/pass-row.ts'
+import type { PassRow } from '../pass/pass-view.ts'
 import { buildApplePass } from './pass.ts'
 
 // docs/specs/pass-types-and-flows.md#apple-wallet-updates. The paths and answers are
@@ -41,7 +42,7 @@ const serviceFor = (c: Context<AppEnv>, passTypeId: string | undefined): Service
     : { ok: false, res: errorResponse(c, 'not_found', 404) }
 }
 
-type AuthorizedPass = { ok: true; uid: Hex } | { ok: false; res: Response }
+type AuthorizedPass = { ok: true; row: PassRow; uid: Hex } | { ok: false; res: Response }
 
 const authorizedPass = async (
   c: Context<AppEnv>,
@@ -53,9 +54,11 @@ const authorizedPass = async (
     return found
   }
   const uid = normalizeUid(serial)
-  return uid !== null && (await appleAuthorized(found.service.secret, uid, c.req.header('authorization')))
-    ? { ok: true, uid }
-    : { ok: false, res: errorResponse(c, 'unauthorized', 401) }
+  if (uid === null || !(await appleAuthorized(found.service.secret, uid, c.req.header('authorization')))) {
+    return { ok: false, res: errorResponse(c, 'unauthorized', 401) }
+  }
+  const pass = await loadPassRow(c, uid)
+  return pass.ok ? { ok: true, row: pass.row, uid } : pass
 }
 
 export const postAppleRegistration = defineHandler(async (c) => {
@@ -68,10 +71,6 @@ export const postAppleRegistration = defineHandler(async (c) => {
   const body = v.safeParse(RegisterBody, await c.req.json().catch(() => null))
   if (!device.success || !body.success) {
     return errorResponse(c, 'bad_input', 400)
-  }
-  const found = await loadPassRow(c, auth.uid)
-  if (!found.ok) {
-    return found.res
   }
   const created = await registerDevice(c.env.DB, {
     deviceId: device.output,
@@ -127,16 +126,12 @@ export const getApplePass = defineHandler(async (c) => {
   if (!auth.ok) {
     return auth.res
   }
-  const found = await loadPassRow(c, auth.uid)
-  if (!found.ok) {
-    return found.res
-  }
   const updatedAt = await passUpdatedAt(c.env.DB, auth.uid)
   const since = Date.parse(c.req.header('if-modified-since') ?? '')
   if (updatedAt !== null && updatedAt * 1000 <= since) {
     return c.body(null, 304, { 'last-modified': httpDate(updatedAt) })
   }
-  const pkpass = await buildApplePass(c, found.row)
+  const pkpass = await buildApplePass(c, auth.row)
   if (pkpass === null) {
     return errorResponse(c, 'apple_not_configured', 501)
   }

@@ -139,6 +139,7 @@ export interface VerifySignedResponse {
   decision: 'ADMIT' | 'REJECT'
   reason: Reason
   path: 'signature'
+  venue?: string
   holder?: Hex
   stage?: 'entitlement' | 'challenge'
 }

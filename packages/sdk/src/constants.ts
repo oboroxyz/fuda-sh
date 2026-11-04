@@ -40,7 +40,10 @@ export const normalizeNonce = (s: string): Hex | null =>
   NONCE_RE.test(s) ? `0x${s.slice(2).toLowerCase()}` : null
 
 // What the member signs (docs/specs/attestation-model.md#wire-constants): the plaintext challenge string, EIP-191 personal-sign.
-export const challengeMessage = (uid: Hex, nonce: Hex): string => `${CHALLENGE_PREFIX}${uid}:${nonce}`
+export const challengeMessage = (uid: Hex, nonce: Hex, venue?: string): string =>
+  venue === undefined
+    ? `${CHALLENGE_PREFIX}${uid}:${nonce}`
+    : `${CHALLENGE_PREFIX}${uid}:${nonce}:venue=${encodeURIComponent(venue)}`
 
 export const toQr = (uid: Hex): string => `${QR_PREFIX}${uid}`
 

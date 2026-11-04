@@ -29,7 +29,7 @@ const failureOf = (result: { network: boolean; status: number }): PasskeyFailure
   if (result.network) {
     return 'network'
   }
-  return result.status === 401 || result.status === 400 ? 'rejected' : 'unavailable'
+  return result.status === 401 || result.status === 400 || result.status === 403 ? 'rejected' : 'unavailable'
 }
 
 const ceremony = async <T>(
@@ -68,6 +68,22 @@ export const passkeyClient = <S>(audience: 'member' | 'operator', transport: Pas
 
   return {
     add: async (): Promise<AddPasskeyOutcome> => {
+      const existing = await transport.api<PasskeysResponse>(`${base}/passkeys`)
+      if (!existing.ok) {
+        return { failure: failureOf(existing), ok: false }
+      }
+      let authorization: AuthenticationResponseJSON | undefined
+      if (existing.body.passkeys.length > 0) {
+        const prompt = await optionsFrom<PublicKeyCredentialRequestOptionsJSON>('/passkeys/authorize/options')
+        if (!prompt.ok) {
+          return { failure: failureOf(prompt), ok: false }
+        }
+        const proof = await ceremony(async () => await startAuthentication({ optionsJSON: prompt.body }))
+        if (!proof.ok) {
+          return proof
+        }
+        authorization = proof.value
+      }
       const options = await optionsFrom<PublicKeyCredentialCreationOptionsJSON>('/passkeys/options')
       if (!options.ok) {
         return { failure: failureOf(options), ok: false }
@@ -79,7 +95,7 @@ export const passkeyClient = <S>(audience: 'member' | 'operator', transport: Pas
         return response
       }
       const added = await transport.api<{ added: true }>(`${base}/passkeys`, {
-        body: JSON.stringify(response.value),
+        body: JSON.stringify({ ...response.value, authorization }),
         method: 'POST',
       })
       if (added.ok) {

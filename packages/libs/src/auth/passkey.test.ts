@@ -1,4 +1,6 @@
+import type { ApiInit } from '@fuda/sdk/http'
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
+import * as v from 'valibot'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { passkeyClient } from './passkey.ts'
@@ -14,7 +16,7 @@ const OPTIONS = { body: { challenge: 'c' }, ok: true as const }
 const refused = (status: number, network = false) => ({ error: 'no', network, ok: false as const, status })
 
 const transport = (over: Partial<PasskeyTransport> = {}) => {
-  const api = vi.fn<(path: string) => Promise<unknown>>().mockResolvedValue(OPTIONS)
+  const api = vi.fn<(path: string, init?: ApiInit) => Promise<unknown>>().mockResolvedValue(OPTIONS)
   const session = vi
     .fn<(url: string) => Promise<unknown>>()
     .mockResolvedValue({ body: { issuer: null }, ok: true })
@@ -68,7 +70,10 @@ describe(passkeyClient, () => {
   it('reports the passkey limit when adding', async () => {
     vi.mocked(startRegistration).mockResolvedValue({ id: 'cred' } as never)
     const io = transport()
-    io.api.mockResolvedValueOnce(OPTIONS).mockResolvedValueOnce(refused(409))
+    io.api
+      .mockResolvedValueOnce({ body: { passkeys: [] }, ok: true })
+      .mockResolvedValueOnce(OPTIONS)
+      .mockResolvedValueOnce(refused(409))
     await expect(passkeyClient('operator', io).add()).resolves.toStrictEqual({ failure: 'limit', ok: false })
   })
 
@@ -76,5 +81,46 @@ describe(passkeyClient, () => {
     const io = transport()
     await expect(passkeyClient('operator', io).remove('a/b')).resolves.toBe(true)
     expect(io.api.mock.calls[0]?.[0]).toBe('/auth/operator/passkeys/a%2Fb')
+  })
+})
+
+describe('authorizing additional operator passkeys', () => {
+  it('confirms an existing passkey before registering and submits its assertion', async () => {
+    const authorization = { id: 'existing' } as never
+    vi.mocked(startAuthentication).mockResolvedValue(authorization)
+    vi.mocked(startRegistration).mockResolvedValue({ id: 'new' } as never)
+    const io = transport()
+    io.api
+      .mockResolvedValueOnce({ body: { passkeys: [{ id: 'existing' }] }, ok: true })
+      .mockResolvedValueOnce(OPTIONS)
+      .mockResolvedValueOnce(OPTIONS)
+      .mockResolvedValueOnce({ body: { added: true }, ok: true })
+    await expect(passkeyClient('operator', io).add()).resolves.toStrictEqual({ ok: true })
+    expect(io.api.mock.calls.map(([path]) => path)).toStrictEqual([
+      '/auth/operator/passkeys',
+      '/auth/operator/passkeys/authorize/options',
+      '/auth/operator/passkeys/options',
+      '/auth/operator/passkeys',
+    ])
+    const submitted = io.api.mock.calls.at(-1)?.[1]?.body
+    expect(JSON.parse(v.parse(v.string(), submitted))).toStrictEqual({
+      authorization,
+      id: 'new',
+    })
+  })
+
+  it('stops before creating a new key when the confirmation is dismissed', async () => {
+    vi.mocked(startAuthentication).mockRejectedValue(new DOMException('no', 'NotAllowedError'))
+    vi.mocked(startRegistration).mockClear()
+    const io = transport()
+    io.api
+      .mockResolvedValueOnce({ body: { passkeys: [{ id: 'existing' }] }, ok: true })
+      .mockResolvedValueOnce(OPTIONS)
+    await expect(passkeyClient('operator', io).add()).resolves.toStrictEqual({
+      failure: 'cancelled',
+      ok: false,
+    })
+    expect(startRegistration).not.toHaveBeenCalled()
+    expect(io.api).toHaveBeenCalledTimes(2)
   })
 })

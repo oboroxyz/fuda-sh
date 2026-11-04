@@ -76,6 +76,7 @@ export const SignedGate = (props: {
   const locale = (): Locale => props.locale ?? DEFAULT_LOCALE
   const c = (): (typeof ENTRY_COPY)[Locale] => pick(ENTRY_COPY, locale())
   const io = props.io ?? defaultIo
+  const venue = new URLSearchParams(globalThis.location?.search ?? '').get('venue') ?? undefined
   const [uid, setUid] = createSignal<Hex | null>(uidFromLocation())
   const [answer, setAnswer] = createSignal<Answer>('wallet')
   const [state, setState] = createSignal<SignedDisplay | null>(null)
@@ -112,7 +113,7 @@ export const SignedGate = (props: {
   const enterByPasskey = async (target: Hex): Promise<void> => {
     setBusy(true)
     try {
-      const outcome = await enterWithPasskey(io, target, lifetime.signal)
+      const outcome = await enterWithPasskey(io, target, lifetime.signal, venue)
       lifetime.signal.throwIfAborted()
       setState(displayOf(outcome))
     } catch (error) {
@@ -143,6 +144,7 @@ export const SignedGate = (props: {
         { challenge, sign: async (m) => await personalSign(rail, address, m), verify: verifySigned },
         target,
         lifetime.signal,
+        venue,
       )
       lifetime.signal.throwIfAborted()
       setState(displayOf(outcome))

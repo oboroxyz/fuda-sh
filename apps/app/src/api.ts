@@ -18,15 +18,18 @@ import * as v from 'valibot'
 import { API_BASE_URL } from './config.ts'
 import { googlePassHref } from './member-pass-list.ts'
 
-export const challenge = async (uid: Hex): Promise<Result<ChallengeResponse>> =>
+export const challenge = async (uid: Hex, venue?: string): Promise<Result<ChallengeResponse>> =>
   await apiFetch<ChallengeResponse>(API_BASE_URL, '/challenge', {
-    body: JSON.stringify({ uid }),
+    body: JSON.stringify({ uid, venue }),
     credentials: 'omit',
     method: 'POST',
   })
 
 export const verifySigned = async (
-  body: { uid: Hex; nonce: Hex } & ({ signature: Hex } | { webauthn: AuthenticationResponseJSON }),
+  body: { uid: Hex; nonce: Hex; venue?: string } & (
+    | { signature: Hex }
+    | { webauthn: AuthenticationResponseJSON }
+  ),
 ): Promise<Result<VerifySignedResponse>> =>
   await apiFetch<VerifySignedResponse>(API_BASE_URL, '/verify-signed', {
     body: JSON.stringify(body),

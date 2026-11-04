@@ -247,3 +247,25 @@ describe(enterWithPasskey, () => {
     expect(outcome).toStrictEqual({ error: 'dismissed', kind: 'error', network: false })
   })
 })
+
+describe('venue context on signed entry', () => {
+  it('carries the requested venue through challenge and verification', async () => {
+    const challenge = vi.fn<SignedGateIo['challenge']>(async () => await Promise.resolve(minted))
+    const verify = vi.fn<SignedGateIo['verify']>(
+      async () =>
+        await Promise.resolve({
+          body: { decision: 'ADMIT', path: 'signature', reason: 'OK', venue: 'coffee' },
+          ok: true,
+        }),
+    )
+    await enterSigned({ ...io(verify), challenge }, UID, undefined, 'coffee')
+    expect(challenge).toHaveBeenCalledWith(UID, 'coffee')
+    expect(verify).toHaveBeenCalledWith(expect.objectContaining({ uid: UID, venue: 'coffee' }))
+    expect(
+      displayOf({
+        body: { decision: 'ADMIT', path: 'signature', reason: 'OK', venue: 'coffee' },
+        kind: 'verdict',
+      }),
+    ).toMatchObject({ title: 'ADMIT', venue: 'coffee' })
+  })
+})

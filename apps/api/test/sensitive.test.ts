@@ -506,7 +506,7 @@ describe('sensitive use', () => {
       const { challenge } = await options.json<{ challenge: string }>()
       const registration = v.parse(PasskeyRegistrationBody, await attacker.attest(challenge))
       const added = await send('POST', '/v1/auth/member/passkeys', registration, token)
-      expect(added.status).toBe(400)
+      expect(added.status).toBe(403)
       const proofOptions = await send('POST', '/v1/auth/member/passkeys/authorize/options', {}, token)
       const auth = await proofOptions.json<{ challenge: string }>()
       const forged = await send(
@@ -919,27 +919,43 @@ describe('sensitive use', () => {
       })
     })
 
-    it('keeps the last passkey with a copy, and lets a copy go with its passkey', async () => {
-      const { addPasskey, copy, send, signUp } = await setup()
-      const first = passkey()
-      const second = passkey()
-      const third = passkey()
-      const token = await signUp(first)
-      await addPasskey(second, token)
-      await addPasskey(third, token)
-      await copy(token, first, true)
-      const remove = async (key: SoftwarePasskey): Promise<number> => {
-        const res = await send('DELETE', `/v1/auth/member/passkeys/${key.credentialId}`, undefined, token)
-        return res.status
-      }
-      await expect(remove(first)).resolves.toBe(409)
-      await expect(remove(third)).resolves.toBe(200)
-      await copy(token, second, false)
-      await expect(remove(first)).resolves.toBe(200)
-      const left = await db().select().from(memberSecretCopies)
-      expect(left.map((row) => row.credentialId)).toStrictEqual([second.credentialId])
-      await expect(remove(second)).resolves.toBe(409)
-    })
+    it.each(['member', 'operator'] as const)(
+      'keeps the last copy through the %s audience',
+      async (audience) => {
+        const { addPasskey, copy, send, signUp } = await setup()
+        const first = passkey()
+        const second = passkey()
+        const third = passkey()
+        const token = await signUp(first)
+        await addPasskey(second, token)
+        await addPasskey(third, token)
+        await copy(token, first, true)
+        let removalToken = token
+        if (audience === 'operator') {
+          const options = await send('POST', '/v1/auth/operator/login/options', {})
+          const { challenge } = await options.json<{ challenge: string }>()
+          const login = await send('POST', '/v1/auth/operator/login', await first.assert(challenge))
+          const session = await login.json<{ token: string }>()
+          removalToken = session.token
+        }
+        const remove = async (key: SoftwarePasskey): Promise<number> => {
+          const res = await send(
+            'DELETE',
+            `/v1/auth/${audience}/passkeys/${key.credentialId}`,
+            undefined,
+            removalToken,
+          )
+          return res.status
+        }
+        await expect(remove(first)).resolves.toBe(409)
+        await expect(remove(third)).resolves.toBe(200)
+        await copy(token, second, false)
+        await expect(remove(first)).resolves.toBe(200)
+        const left = await db().select().from(memberSecretCopies)
+        expect(left.map((row) => row.credentialId)).toStrictEqual([second.credentialId])
+        await expect(remove(second)).resolves.toBe(409)
+      },
+    )
   })
 
   describe('starting over', () => {

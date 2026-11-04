@@ -12,12 +12,12 @@ export const postV1Challenge = defineHandler(async (c) => {
   const body: unknown = await c.req.json().catch(() => null)
   const parsed = v.safeParse(ChallengeBody, body)
   const uid = parsed.success ? normalizeUid(parsed.output.uid) : null
-  if (uid === null) {
+  if (!parsed.success || uid === null) {
     return errorResponse(c, 'bad_uid', 400)
   }
   c.header('cache-control', 'no-store')
   const db = c.get('db')
-  const minted = await mintChallenge(db, uid, c.get('now')())
+  const minted = await mintChallenge(db, uid, c.get('now')(), parsed.output.venue)
   const row = await loadOffchainRow(db, uid)
   const key = row === null ? null : attestedPasskeyOf(row)
   return jsonResponse(

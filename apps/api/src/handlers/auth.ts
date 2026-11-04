@@ -106,6 +106,7 @@ export const postV1AuthOperatorLoginOptions = ceremonies.loginOptions
 export const postV1AuthOperatorLogin = ceremonies.login
 export const getV1AuthOperatorPasskeys = ceremonies.list
 export const postV1AuthOperatorPasskeysOptions = ceremonies.addOptions
+export const postV1AuthOperatorPasskeysAuthorizeOptions = ceremonies.authorizeAddOptions
 export const postV1AuthOperatorPasskeys = ceremonies.add
 export const deleteV1AuthOperatorPasskey = ceremonies.remove
 

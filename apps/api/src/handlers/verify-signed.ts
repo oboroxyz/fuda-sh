@@ -20,7 +20,7 @@ import type { AppEnv } from '../env.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { admitAndHook, logEntry } from '../verify/admit.ts'
 import { consumeChallenge } from '../verify/challenge.ts'
-import { resolveVerdict, waitUntilOf } from './verify.ts'
+import { resolveVerdict, venueOf, waitUntilOf } from './verify.ts'
 
 // Which of the two 4xx codes a malformed body earns: a uid that is absent or not
 // a uid at all is `bad_uid`; a well-formed uid with anything else wrong (nonce,
@@ -85,6 +85,14 @@ export const postV1VerifySigned = defineHandler(async (c) => {
   // One clock reading decides the TTL window and stamps every row this request writes.
   const now = c.get('now')()
   const db = c.get('db')
+  const { venue } = parsed.output
+  const actualVenue = await venueOf(db, uid)
+  const withVenue = (verdict: VerifySignedResponse): Response => {
+    if (actualVenue !== null) {
+      verdict.venue = actualVenue
+    }
+    return jsonResponse(c, verdict)
+  }
   c.header('cache-control', 'no-store')
 
   const answer = async (verdict: VerifySignedResponse): Promise<Response> => {
@@ -95,9 +103,17 @@ export const postV1VerifySigned = defineHandler(async (c) => {
       reason: verdict.reason,
       uid,
     })
-    return jsonResponse(c, verdict)
+    return withVenue(verdict)
   }
 
+  if (venue !== undefined && actualVenue !== venue) {
+    return await answer({
+      decision: 'REJECT',
+      path: 'signature',
+      reason: 'WRONG_VENUE',
+      stage: 'entitlement',
+    })
+  }
   const resolved = await resolveVerdict(c, uid, now)
   if (!resolved.ok) {
     return resolved.res
@@ -130,7 +146,7 @@ export const postV1VerifySigned = defineHandler(async (c) => {
       stage: 'entitlement',
     })
   }
-  if (!(await consumeChallenge(db, { nonce, now, uid }))) {
+  if (!(await consumeChallenge(db, { nonce, now, uid, venue }))) {
     return await answer({
       decision: 'REJECT',
       holder,
@@ -144,7 +160,7 @@ export const postV1VerifySigned = defineHandler(async (c) => {
     valid = await proofHolds(c, parsed.output, {
       holder,
       holderAddress: out.holderAddress ?? null,
-      message: challengeMessage(uid, nonce),
+      message: challengeMessage(uid, nonce, venue),
       passkey: out.passkey ?? null,
     })
   } catch (error) {
@@ -170,10 +186,11 @@ export const postV1VerifySigned = defineHandler(async (c) => {
   if (!outcome.admitted) {
     return await answer({ decision: 'REJECT', holder, path: 'signature', reason: outcome.reason })
   }
-  return jsonResponse(c, {
+  const admitted: VerifySignedResponse = {
     decision: 'ADMIT',
     holder,
     path: 'signature',
     reason: 'OK',
-  } satisfies VerifySignedResponse)
+  }
+  return withVenue(admitted)
 })

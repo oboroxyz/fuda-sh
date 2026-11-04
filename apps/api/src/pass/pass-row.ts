@@ -5,11 +5,12 @@ import type { Context } from 'hono'
 import type { Hex } from 'viem'
 
 import type { Db } from '../db/client.ts'
-import { cards, issuers, members } from '../db/schema.ts'
+import { cards, issuers } from '../db/schema.ts'
 import type { AppEnv } from '../env.ts'
 import { errorResponse } from '../json.ts'
 import { logoUrlFor } from '../media/logo.ts'
 import type { PassRow } from './pass-view.ts'
+import { loadWalletMember } from './wallet-members.ts'
 
 export type PassRowResult = { ok: true; row: PassRow } | { ok: false; res: Response }
 
@@ -98,20 +99,8 @@ export const loadPassRow = async (c: Context<AppEnv>, rawUid: string): Promise<P
   if (uid === null) {
     return { ok: false, res: errorResponse(c, 'bad_uid', 400) }
   }
-  const found = await c
-    .get('db')
-    .select({ identity: cards.identity, member: members })
-    .from(members)
-    .leftJoin(cards, eq(cards.id, members.cardId))
-    .where(eq(members.attestationUid, uid))
-    .get()
-  if (found === undefined) {
-    return { ok: false, res: errorResponse(c, 'not_found', 404) }
-  }
-  const row = found.member
-  // A Sensitive pass has no page, Wallet pass, QR or backup file, since each would leave
-  // a copy of it outside the member's vault (docs/specs/pass-types-and-flows.md#sensitive-use).
-  if (found.identity === 'sensitive') {
+  const row = await loadWalletMember(c.get('db'), uid)
+  if (row === undefined) {
     return { ok: false, res: errorResponse(c, 'not_found', 404) }
   }
   const { branding, logoPrefix } = await cardBrandingOf(

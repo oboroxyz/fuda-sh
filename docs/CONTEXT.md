@@ -28,7 +28,7 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Pass**: A presentation of a Right — a Device wallet pass (`.pkpass` / Google Wallet object) or the browser-based pass page carrying the Right's QR. A Pass is not the Right, and lives in the Device wallet, never in the Crypto wallet. _Avoid_: Ticket, card, credential
 
-**Device wallet**: Apple Wallet or Google Wallet — the phone's OS-level container for Passes. A distribution and presentation channel only: it holds no keys, signs nothing, and knows nothing about the chain. Bearer and Signed Rights can have Passes. Say "Apple Wallet" / "Google Wallet" when the platform matters. _Avoid_: Wallet (bare), wallet app, mobile wallet
+**Device wallet**: Apple Wallet or Google Wallet — the phone's OS-level container for Passes. A distribution and presentation channel only: it holds no keys, signs nothing, and knows nothing about the chain. Bearer and non-Sensitive Signed Rights can have Passes. Sensitive Rights send no Wallet data or update notifications. Say "Apple Wallet" / "Google Wallet" when the platform matters. _Avoid_: Wallet (bare), wallet app, mobile wallet
 
 **Crypto wallet** (or **wallet**): Software that controls an Ethereum key and can sign — a passkey smart wallet (Base Account) or an EOA. It is what makes a Holder _the member's_: Signed members hold one; Bearer members do not. Bare "wallet" in this glossary always means this one, never the Device wallet. _Avoid_: Account (say Holder for the address), key, signer
 
@@ -50,7 +50,7 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Member**: The person who holds a Right. Holding one takes no identity at fuda; a Member who signs in has an Account. _Avoid_: User, customer
 
-**Account**: What a person signs in to: a set of passkeys, with no address and no email. As a Member, it keeps Passes and is optional, and it is unrelated to the Issuer's Member id. As an Operator, it owns Issuers. One account serves both. _Avoid_: Profile, wallet
+**Account**: What a person signs in to: a set of passkeys, with no address and no email. As a Member, it keeps Passes and is optional, and it is unrelated to the Issuer's Member id. As an Operator, it owns Issuers. One account serves both. Adding another passkey needs an existing account passkey assertion in either audience. _Avoid_: Profile, wallet
 
 **Holder**: The address a Right is attested to (`recipient`): a fuda-owned smart account for Bearer, the member's wallet for Signed. A Holder is an address; a Member is a person. _Avoid_: Owner, recipient (in prose), member address
 

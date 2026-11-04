@@ -116,6 +116,8 @@ Member ENS names resolve to a holder address, so only on-chain types get them.
 - [ADR 0005](0005-hybrid-ensv2-resolver.md): one-time +Private resolution is removed (the `stealth_resolutions` table, the `stealth_meta_address` column and `ENS_GATEWAY_SECRET`). Member names shrink to on-chain types.
 - [ADR 0008](0008-shared-issuer-wallet.md): no conflict. It already keeps automated issuer keys out of wallet ownership.
 
+The shared Account ceremony requires an existing passkey assertion for additional credentials in both audiences. A session alone cannot authorize a credential that could reset Sensitive recovery. Wallet distribution and notification selection exclude Sensitive Rights. Signed entry binds an optional venue into its nonce and signed message, and shows the actual Issuer Handle. A member-controlled phone can mint an unpinned challenge, so staff comparison remains necessary; a station pin is not proof of location or automated door control.
+
 ## Consequences
 
 - fuda holds a link between members and their passes, which the earlier design avoided. Sensitive use limits what that link can reveal, but fuda and the Issuer can still join them.

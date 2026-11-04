@@ -6,6 +6,8 @@ import { defineHandler } from 'void'
 import {
   addOptions,
   addPasskey,
+  claimOptions,
+  claimingPasskey,
   listPasskeys,
   login,
   loginOptions,
@@ -44,9 +46,32 @@ export const passkeyCeremonies = (audience: PasskeyAudience) => {
 
   return {
     add: forAccount(async (c, accountId) => {
-      const parsed = await registrationBody(c)
+      const parsed = v.safeParse(
+        v.intersect([
+          PasskeyRegistrationBody,
+          v.object({ authorization: v.optional(PasskeyAuthenticationBody) }),
+        ]),
+        await c.req.json().catch(() => null),
+      )
       if (!parsed.success) {
         return errorResponse(c, 'bad_input', 400)
+      }
+      const held = await listPasskeys(c.get('db'), accountId)
+      if (held.length > 0) {
+        const proof = parsed.output.authorization
+        if (
+          proof === undefined ||
+          (await claimingPasskey(
+            c.get('db'),
+            relyingParty(c.env),
+            accountId,
+            proof,
+            c.get('now')(),
+            'authorize-add',
+          )) === null
+        ) {
+          return errorResponse(c, 'bad_passkey', 403)
+        }
       }
       const result = await addPasskey(
         c.get('db'),
@@ -58,13 +83,20 @@ export const passkeyCeremonies = (audience: PasskeyAudience) => {
       if (result === 'limit') {
         return errorResponse(c, 'passkey_limit', 409)
       }
-      return result === 'added' ? jsonResponse(c, { added: true }) : errorResponse(c, 'bad_passkey', 401)
+      return result === 'added' ? jsonResponse(c, { added: true }) : errorResponse(c, 'bad_passkey', 403)
     }),
 
     addOptions: forAccount(async (c, accountId) => {
       const options = await addOptions(c.get('db'), relyingParty(c.env), accountId, c.get('now')())
       return options === null ? errorResponse(c, 'unauthorized', 401) : jsonResponse(c, options)
     }),
+
+    authorizeAddOptions: forAccount(async (c, accountId) =>
+      jsonResponse(
+        c,
+        await claimOptions(c.get('db'), relyingParty(c.env), accountId, c.get('now')(), 'authorize-add'),
+      ),
+    ),
 
     list: forAccount(async (c, accountId) => {
       const rows = await listPasskeys(c.get('db'), accountId)

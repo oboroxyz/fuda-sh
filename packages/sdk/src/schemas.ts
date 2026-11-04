@@ -50,7 +50,7 @@ export const VerifyBody = v.object({
   venue: v.optional(v.pipe(v.string(), v.maxLength(64))),
 })
 export const RevokeBody = v.object({ uid })
-export const ChallengeBody = v.object({ uid })
+export const ChallengeBody = v.object({ uid, venue: v.optional(v.pipe(v.string(), v.maxLength(64))) })
 
 export type VerifyRequest = v.InferOutput<typeof VerifyBody>
 export type RevokeRequest = v.InferOutput<typeof RevokeBody>
@@ -98,10 +98,12 @@ export const VerifySignedBody = v.union([
     nonce: v.pipe(v.string(), v.regex(NONCE_RE)),
     signature: v.pipe(v.string(), v.regex(SIGNATURE_RE)),
     uid,
+    venue: v.optional(v.pipe(v.string(), v.maxLength(64))),
   }),
   v.object({
     nonce: v.pipe(v.string(), v.regex(NONCE_RE)),
     uid,
+    venue: v.optional(v.pipe(v.string(), v.maxLength(64))),
     webauthn: PasskeyAuthenticationBody,
   }),
 ])

@@ -133,7 +133,7 @@ describe('notifying Google Wallet of a changed pass', () => {
     vi.stubGlobal('fetch', async () => new Response(null, { status: 503 }))
     const kept: Promise<unknown>[] = []
     notifyPassChanged(context(kept, await googleBindings()), UID)
-    await expect(kept[0]).resolves.toBeDefined()
+    await expect(kept[0]).resolves.toBeUndefined()
   })
 
   it('schedules nothing when no wallet platform is configured', () => {

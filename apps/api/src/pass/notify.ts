@@ -17,6 +17,7 @@ import { dropDevice, pushTargets, recordPassChange } from './apple-registrations
 import type { PassScope, PushTarget } from './apple-registrations.ts'
 import { appleWebServiceFrom } from './apple-web-service.ts'
 import type { AppleWebService } from './apple-web-service.ts'
+import { loadWalletMember } from './wallet-members.ts'
 
 const sameDisplay = (left: StampSummary, right: StampSummary): boolean =>
   left.enabled === right.enabled &&
@@ -109,10 +110,15 @@ export const notifyPassChanged = (c: Context<AppEnv>, uid: Hex): void => {
     return
   }
   waitUntilOf(c)(
-    Promise.all([
-      google === null ? null : syncGooglePass(c, google, uid),
-      apple === null ? null : updateApplePasses(c, apple, { uid }),
-    ]),
+    (async () => {
+      const pass = await loadWalletMember(c.get('db'), uid)
+      if (pass !== undefined) {
+        await Promise.all([
+          google === null ? null : syncGooglePass(c, google, uid),
+          apple === null ? null : updateApplePasses(c, apple, { uid }),
+        ])
+      }
+    })(),
   )
 }
 

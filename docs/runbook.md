@@ -151,6 +151,12 @@ Chain errors retain the viem error class name but omit provider messages, URLs, 
 
 After deploying, the owner must simulate the paid provider being unavailable on the deployed Worker. Check a gate scan and smart-account signature, restore the provider, and confirm it is preferred again. Also check a normal issuance or revocation, confirm a rejected contract call stays rejected, and inspect Worker logs for credential leaks. Local HTTP tests do not establish deployed-provider behavior.
 
+Before deploying the signed venue flow, apply D1 migration `0033_signed_venue.sql`, which adds the nullable challenge venue. Deploy matching API and member-app builds so scoped challenges sign the same message. No user data migration is required.
+
+Verify additional passkey enrollment from Dash with a real authenticator. It first confirms an existing credential, then creates the new one. Cancel either prompt and confirm no key appears. Attempt deletion of the last Sensitive recovery-copy holder through both audiences and confirm refusal. Wallet-only operators still use the separate account registration flow and retain their wallet-owned Issuers.
+
+For a Sensitive ticket, open `/signed?uid=<uid>&venue=<wrong-handle>` and confirm `WRONG_VENUE` without consuming the ticket. Repeat with the correct Handle and confirm the verdict names the actual `@<handle>`. Staff must check that Handle. The member can omit the pin before minting a new challenge; the phone is not a trusted gate. With Wallet integrations enabled, confirm Sensitive downloads return 404 and revocation and Card or Issuer edits send no Wallet request or push for it. Check a Standard pass still updates.
+
 ## 4. Google Wallet setup
 
 1. Create a Google Wallet issuer account.

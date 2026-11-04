@@ -1,5 +1,7 @@
 import type { Hex } from '@fuda/sdk'
 
+import { WALLET_MEMBER_FILTER } from './wallet-members.ts'
+
 // Which passes a change touches. A card or venue edit reaches every pass under it through
 // one subquery, so a variable-length list never meets D1's bound parameter limit.
 export type PassScope = { uid: Hex } | { cardId: string } | { issuerId: string }
@@ -9,8 +11,8 @@ const scopeFilter = (scope: PassScope) => {
     return { column: 'r.uid', value: scope.uid }
   }
   return 'cardId' in scope
-    ? { column: 'm.card_id', value: scope.cardId }
-    : { column: 'm.issuer_id', value: scope.issuerId }
+    ? { column: 'members.card_id', value: scope.cardId }
+    : { column: 'members.issuer_id', value: scope.issuerId }
 }
 
 // Wallet learns of a change from the tag, so a push sent before this commits is a push
@@ -19,8 +21,8 @@ const scopeFilter = (scope: PassScope) => {
 export const recordPassChange = async (db: D1Database, scope: PassScope, now: number): Promise<void> => {
   const { column, value } = scopeFilter(scope)
   const registered = `apple_pass_registrations r
-    JOIN members m ON m.attestation_uid = r.uid
-    WHERE ${column} = ?1`
+    JOIN members ON members.attestation_uid = r.uid
+    WHERE ${column} = ?1 AND ${WALLET_MEMBER_FILTER}`
   await db.batch([
     // REPLACE draws a new tag from the sequence; the +1 keeps Last-Modified moving when
     // two changes land in one second.
@@ -58,8 +60,8 @@ export const pushTargets = async (db: D1Database, scope: PassScope): Promise<Pus
       `SELECT DISTINCT d.device_id AS deviceId, d.push_token AS pushToken
        FROM apple_pass_registrations r
        JOIN apple_pass_devices d ON d.device_id = r.device_id
-       JOIN members m ON m.attestation_uid = r.uid
-       WHERE ${column} = ?1
+       JOIN members ON members.attestation_uid = r.uid
+       WHERE ${column} = ?1 AND ${WALLET_MEMBER_FILTER}
        LIMIT ${MAX_PUSHES_PER_CHANGE}`,
     )
     .bind(value)
@@ -142,8 +144,9 @@ export const updatedSerials = async (
 ): Promise<UpdatedSerials | null> => {
   const { results } = await db
     .prepare(
-      `SELECT serial, updated_tag AS tag FROM apple_pass_registrations
-       WHERE device_id = ?1 AND updated_tag > ?2
+      `SELECT serial, updated_tag AS tag FROM apple_pass_registrations r
+       JOIN members ON members.attestation_uid = r.uid
+       WHERE device_id = ?1 AND updated_tag > ?2 AND ${WALLET_MEMBER_FILTER}
        ORDER BY updated_tag`,
     )
     .bind(deviceId, since)
