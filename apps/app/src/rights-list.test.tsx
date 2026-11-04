@@ -624,6 +624,32 @@ describe(RightsListView, () => {
     expect(hrefs).not.toContain(row.googleHref)
   })
 
+  it('offers entry for a pass bound to a passkey, and says why there is no pass to show', () => {
+    const row = memberRow({
+      memory: { addedAt: 1, holder: `0x${'00'.repeat(20)}`, uid: RIGHT },
+      preview: {
+        decision: 'ADMIT',
+        entitlement: {
+          holder: `0x${'00'.repeat(20)}`,
+          issuer: `0x${'22'.repeat(20)}`,
+          level: 1,
+          schemaVersion: 1,
+          tier: 0,
+          usageModel: 1,
+          validFrom: 0,
+          validUntil: 0,
+        },
+        reason: 'OK',
+      },
+    })
+    const host = mount(() => (
+      <RightsListView state={{ kind: 'ready', result: { indexUnavailable: false, rows: [row] } }} />
+    ))
+    expect(host.querySelector(`a[href="/signed?uid=${RIGHT}"]`)).not.toBeNull()
+    expect(host.textContent).not.toContain('View pass')
+    expect(host.textContent).toContain('opens only with your passkey')
+  })
+
   it('does not render pass links for an unclassified memory-only row', () => {
     const row = memberRow({ memory: { addedAt: 1, holder: HOLDER_A, uid: RIGHT }, preview: null })
     const view = showView({

@@ -20,7 +20,7 @@ import type {
   SelfServeIssueResponse,
 } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
-import { CardsThree, WalletButton } from '@fuda/ui'
+import { CardsThree, FingerprintSimple, WalletButton } from '@fuda/ui'
 import { createEffect, createSignal, For, on, onCleanup } from 'solid-js'
 import type { JSX } from 'solid-js'
 
@@ -31,10 +31,13 @@ import type { BadgeState, HumanBadgeIo } from '../badges.ts'
 import { cardKey, readCard, readCardMemory, rememberCard } from '../card-memory.ts'
 import type { CardMemoryEntry } from '../card-memory.ts'
 import { applePassAvailable } from '../member-pass-list.ts'
+import { claimWithPasskey } from '../member/auth.ts'
+import type { PasskeyClaim } from '../member/auth.ts'
 import { fetchPassBackup, passBackupHref } from '../pass-backup.ts'
 import { memberPassUrls } from '../pass-links.ts'
 import { rememberPass } from '../pass-memory.ts'
 import type { PassMemoryStorage } from '../pass-memory.ts'
+import { signInHref } from '../route.ts'
 import { VENUE_COPY } from './copy.ts'
 import type { VenueCopy } from './copy.ts'
 import { cardClaimHref } from './entry.ts'
@@ -69,6 +72,7 @@ export type CardScreenState =
 
 export interface CardScreenIo {
   appleAvailable: (url: string) => Promise<boolean>
+  claimWithPasskey: (handle: string, slug: string, source: string | null) => Promise<PasskeyClaim>
   fetchBackup: (uid: Hex) => Promise<Result<PassBackup>>
   fetchVenue: (handle: string) => Promise<Result<PublicVenue>>
   googleSaveUrl: (url: string) => Promise<string | null>
@@ -80,6 +84,7 @@ export interface CardScreenViewProps {
   onIssue: () => void
   onReload: () => void
   onVerifyHuman: () => void
+  signedIn?: boolean
   state: CardScreenState
 }
 
@@ -156,6 +161,8 @@ const memberCard = (card: PublicCard, issued: IssuedCard, copy: VenueCopy, local
       </div>
     </>,
   )
+
+const isPasskeyCard = (card: PublicCard): boolean => card.card.identity === 'passkey'
 
 const cardDescription = (card: PublicCard): JSX.Element | null =>
   card.card.description === '' ? null : (
@@ -291,6 +298,75 @@ const passActions = (
   </div>
 )
 
+// docs/specs/pass-types-and-flows.md#keeping-a-pass-without-a-provider. This pass answers
+// only to its passkey, so a QR or a Wallet pass would admit nobody, and neither is offered.
+const passkeyEntry = (card: PublicCard, issued: IssuedCard, copy: VenueCopy): JSX.Element => (
+  <div class="venue-pass-actions">
+    <a class="btn btn-primary" href={`/signed?uid=${issued.uid}`}>
+      <FingerprintSimple />
+      {copy.enterWithPasskey}
+    </a>
+    <p class="mx-auto max-w-64 text-center text-xs leading-5 text-[var(--fuda-muted)]">
+      {copy.passkeyEntryNote}
+    </p>
+    <p class="mx-auto max-w-64 text-center text-xs leading-5 text-[var(--fuda-muted)]">
+      {copy.keptOnAccount(nounOf(card, copy))}
+    </p>
+    <a
+      class="link mx-auto text-sm"
+      download={`fuda-pass-${issued.uid.slice(2, 10)}.json`}
+      href={passBackupHref(issued.uid)}
+    >
+      {copy.saveBackup}
+    </a>
+    <p class="mx-auto max-w-64 text-center text-xs leading-5 text-[var(--fuda-muted)]">
+      {copy.passkeyBackupHint}
+    </p>
+  </div>
+)
+
+// A pass bound to a passkey needs an account to claim, so someone signed out is sent to
+// sign in first, and comes back to this same address, with any source label on it.
+const passkeyClaim = (
+  card: PublicCard,
+  signedIn: boolean,
+  busy: boolean,
+  onIssue: () => void,
+  copy: VenueCopy,
+): JSX.Element => (
+  <div class="venue-primary">
+    {signedIn ? (
+      <button
+        class="btn btn-primary w-full"
+        type="button"
+        disabled={busy}
+        onClick={() => {
+          onIssue()
+        }}
+      >
+        {busy ? (
+          <span class="loading loading-spinner loading-xs" aria-hidden="true" />
+        ) : (
+          <FingerprintSimple />
+        )}
+        {busy ? copy.gettingCard : copy.getWithPasskey(nounOf(card, copy))}
+      </button>
+    ) : (
+      <a
+        class="btn btn-primary w-full"
+        href={signInHref(`${globalThis.location.pathname}${globalThis.location.search}`)}
+      >
+        <FingerprintSimple />
+        {copy.signInToGet(nounOf(card, copy))}
+      </a>
+    )}
+    <p role="status" aria-live="polite" class="text-center text-xs opacity-70">
+      {busy ? copy.keepOpen : copy.claimPasskeyNote}
+    </p>
+    {signedIn || busy ? null : <p class="text-center text-xs opacity-70">{copy.needsAccount}</p>}
+  </div>
+)
+
 // The control starts hidden unless this card offers the `human` kind: its
 // issuer turned the integration on and the deployment has a verifier for it
 // (docs/specs/pass-types-and-flows.md#card-integrations). Otherwise the feature
@@ -392,6 +468,7 @@ const screenOf = (
   onIssue: () => void,
   onReload: () => void,
   onVerifyHuman: () => void,
+  signedIn: boolean,
 ): JSX.Element => {
   const copy = pick(VENUE_COPY, locale)
   if (state.kind === 'loading') {
@@ -445,9 +522,11 @@ const screenOf = (
       <>
         <section class="venue-held-card">
           {memberCard(state.card, state.issued, copy, locale)}
-          {qrBlock(state.card, state.issued, copy)}
+          {isPasskeyCard(state.card) ? null : qrBlock(state.card, state.issued, copy)}
         </section>
-        {passActions(state.card, state.issued, state.googleHref, state.appleHref, copy, locale)}
+        {isPasskeyCard(state.card)
+          ? passkeyEntry(state.card, state.issued, copy)
+          : passActions(state.card, state.issued, state.googleHref, state.appleHref, copy, locale)}
         {humanBadgeControl(state.badge, onVerifyHuman, copy)}
       </>
     )
@@ -466,6 +545,15 @@ const screenOf = (
         <a class="btn" href={venueHref(state.card.handle)}>
           {copy.seeAllCards(state.card.name)}
         </a>
+      </>
+    )
+  }
+  if (isPasskeyCard(state.card)) {
+    return (
+      <>
+        {landingCard(state.card)}
+        {cardDescription(state.card)}
+        {passkeyClaim(state.card, signedIn, busy, onIssue, copy)}
       </>
     )
   }
@@ -507,12 +595,14 @@ export const CardScreenView = (props: CardScreenViewProps): JSX.Element => (
       () => {
         props.onVerifyHuman()
       },
+      props.signedIn ?? false,
     )}
   </VenueLayout>
 )
 
 const defaultIo: CardScreenIo = {
   appleAvailable: applePassAvailable,
+  claimWithPasskey,
   fetchBackup: fetchPassBackup,
   fetchVenue,
   googleSaveUrl,
@@ -572,7 +662,19 @@ export interface CardScreenProps {
   // The venue the Worker already read for this page; the first load uses it
   // instead of asking the api again.
   initial?: Result<PublicVenue>
+  // Whether a member session cookie came with this page. The api has the last word.
+  signedIn?: boolean
   storage?: PassMemoryStorage
+}
+
+const publicClaim = async (
+  io: CardScreenIo,
+  handle: string,
+  slug: string,
+  source: string | null,
+): Promise<PasskeyClaim> => {
+  const result = await io.issueCard(handle, slug, source)
+  return result.ok ? { body: result.body, ok: true } : { failure: cardFailureOf(result), ok: false }
 }
 
 export const CardScreen = (props: CardScreenProps): JSX.Element => {
@@ -580,6 +682,7 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
   const humanBadgeIo = props.humanBadgeIo ?? defaultHumanBadgeIo
   const [state, setState] = createSignal<CardScreenState>({ kind: 'loading' })
   const [generation, setGeneration] = createSignal(0)
+  const [sessionEnded, setSessionEnded] = createSignal(false)
   let issuing = false
   let lifecycle = 0
   let preloaded = props.initial
@@ -595,6 +698,9 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
       issued,
       kind: 'ready',
     })
+    if (isPasskeyCard(card)) {
+      return
+    }
     const platform = passPlatform(globalThis.navigator?.userAgent ?? '')
     const googleHref = platform === 'google' ? await io.googleSaveUrl(issued.passUrls.google) : null
     const appleReady = platform === 'apple' && (await io.appleAvailable(issued.passUrls.apple))
@@ -672,7 +778,10 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
     const ticket = lifecycle
     const { handle, storage } = props
     setState({ card, kind: 'issuing' })
-    const result = await io.issueCard(handle, card.card.slug, claimSourceFrom(window.location.search))
+    const source = claimSourceFrom(window.location.search)
+    const result: PasskeyClaim = isPasskeyCard(card)
+      ? await io.claimWithPasskey(handle, card.card.slug, source)
+      : await publicClaim(io, handle, card.card.slug, source)
     const current = ticket === lifecycle
     if (current) {
       issuing = false
@@ -681,7 +790,12 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
       if (!current) {
         return
       }
-      setState({ card, failure: cardFailureOf(result), kind: 'error' })
+      if (result.failure === 'signed_out') {
+        setSessionEnded(true)
+        setState({ card, kind: 'landing' })
+        return
+      }
+      setState({ card, failure: result.failure, kind: 'error' })
       return
     }
     const { holder, memberNumber, uid } = result.body
@@ -735,6 +849,7 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
         setGeneration((value) => value + 1)
       }}
       onVerifyHuman={onVerifyHuman}
+      signedIn={props.signedIn === true && !sessionEnded()}
       state={state()}
     />
   )

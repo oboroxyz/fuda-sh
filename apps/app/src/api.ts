@@ -12,6 +12,7 @@ import type {
 } from '@fuda/sdk'
 import { apiFetch, fetchJson } from '@fuda/sdk/http'
 import type { Result } from '@fuda/sdk/http'
+import type { AuthenticationResponseJSON } from '@simplewebauthn/browser'
 import * as v from 'valibot'
 
 import { API_BASE_URL } from './config.ts'
@@ -23,11 +24,9 @@ export const challenge = async (uid: Hex): Promise<Result<ChallengeResponse>> =>
     method: 'POST',
   })
 
-export const verifySigned = async (body: {
-  uid: Hex
-  nonce: Hex
-  signature: Hex
-}): Promise<Result<VerifySignedResponse>> =>
+export const verifySigned = async (
+  body: { uid: Hex; nonce: Hex } & ({ signature: Hex } | { webauthn: AuthenticationResponseJSON }),
+): Promise<Result<VerifySignedResponse>> =>
   await apiFetch<VerifySignedResponse>(API_BASE_URL, '/verify-signed', {
     body: JSON.stringify(body),
     method: 'POST',
@@ -64,7 +63,10 @@ export const claimSourceFrom = (search: string): string | null => {
   return parsed.success ? parsed.output : null
 }
 
-// Self-serve Bearer issuance of one card: no account. The api answers 429
+const issuePath = (handle: string, slug: string): string =>
+  `/issuers/${encodeURIComponent(handle)}/${encodeURIComponent(slug)}/issue`
+
+// Self-serve issuance of one card: no account. The api answers 429
 // `rate_limited`, 409 `card_closed` or `card_sold_out`, 501 `no_signer`, 502
 // `chain_error` or 404 `not_found` (for an unknown handle as well as an unknown slug).
 export const issueCard = async (
@@ -72,7 +74,7 @@ export const issueCard = async (
   slug: string,
   source: string | null,
 ): Promise<Result<SelfServeIssueResponse>> => {
-  const path = `/issuers/${encodeURIComponent(handle)}/${encodeURIComponent(slug)}/issue`
+  const path = issuePath(handle, slug)
   return source === null
     ? await apiFetch<SelfServeIssueResponse>(API_BASE_URL, path, { method: 'POST' })
     : await apiFetch<SelfServeIssueResponse>(API_BASE_URL, path, {
@@ -81,6 +83,20 @@ export const issueCard = async (
       })
 }
 
+// The same route for a card bound to a passkey, which also takes the member's session
+// and this claim's assertion, and answers 401 without a session and 403 for a passkey it
+// refuses.
+export const issuePasskeyCard = async (
+  handle: string,
+  slug: string,
+  source: string | null,
+  webauthn: AuthenticationResponseJSON,
+): Promise<Result<SelfServeIssueResponse>> =>
+  await apiFetch<SelfServeIssueResponse>(API_BASE_URL, issuePath(handle, slug), {
+    body: JSON.stringify(source === null ? { webauthn } : { source, webauthn }),
+    method: 'POST',
+  })
+
 export type CardFailure =
   | 'card_closed'
   | 'card_sold_out'
@@ -88,13 +104,22 @@ export type CardFailure =
   | 'network'
   | 'no_signer'
   | 'not_found'
+  | 'passkey_cancelled'
+  | 'passkey_refused'
   | 'rate_limited'
+  | 'signed_out'
 
 // `apiFetch` folds every 5xx into a network condition and keeps only the
 // status, so the card screen tells the api's 501 and 502 apart by status
 // rather than by the error code the body carried.
 export const cardFailureOf = (result: { status: number; error: string }): CardFailure => {
   switch (result.status) {
+    case 401: {
+      return 'signed_out'
+    }
+    case 403: {
+      return 'passkey_refused'
+    }
     case 404: {
       return 'not_found'
     }

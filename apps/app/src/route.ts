@@ -39,15 +39,6 @@ const originOf = (value: string): string | null => {
 const MEMBER_PATHS = new Set(['/signin', '/signed', '/private', '/rights', '/settings'])
 const PROTECTED_MEMBER_PATHS = new Set(['/signed', '/private', '/rights', '/settings'])
 
-export const safeMemberReturn = (target: string | null): string => {
-  if (target === null || !target.startsWith('/') || target.startsWith('//')) {
-    return '/rights'
-  }
-  const queryAt = target.indexOf('?')
-  const path = queryAt === -1 ? target : target.slice(0, queryAt)
-  return PROTECTED_MEMBER_PATHS.has(path) ? target : '/rights'
-}
-
 // A venue owns its full /@<handle>/* prefix. The handle must be valid, while an
 // unmatched suffix still reaches CardScreen so its missing-card recovery stays
 // within the venue instead of falling through to the member top.
@@ -72,6 +63,19 @@ const cardRouteOf = (path: string): CardRoute | null => {
   }
   return { card: handle, slug }
 }
+
+// Sign-in comes back to a member page, or to the card that asked for an account.
+export const safeMemberReturn = (target: string | null): string => {
+  if (target === null || !target.startsWith('/') || target.startsWith('//')) {
+    return '/rights'
+  }
+  const queryAt = target.indexOf('?')
+  const path = queryAt === -1 ? target : target.slice(0, queryAt)
+  return PROTECTED_MEMBER_PATHS.has(path) || cardRouteOf(path) !== null ? target : '/rights'
+}
+
+export const signInHref = (target: string): string =>
+  `/signin?return=${encodeURIComponent(safeMemberReturn(target))}`
 
 export const routeFor = (origin: string, pathname: string, appOrigin: string = APP_ORIGIN): Route => {
   const queryAt = pathname.indexOf('?')

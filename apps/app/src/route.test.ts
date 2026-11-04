@@ -157,6 +157,11 @@ describe(safeMemberReturn, () => {
     expect(safeMemberReturn('/settings')).toBe('/settings')
   })
 
+  it('returns to the card that asked for an account, with its source label', () => {
+    expect(safeMemberReturn('/@wassie-coffee/stamp?source=flyer')).toBe('/@wassie-coffee/stamp?source=flyer')
+    expect(safeMemberReturn('/@Not_A_Handle/stamp')).toBe('/rights')
+  })
+
   it('falls back to passes for public, external, and malformed targets', () => {
     expect(safeMemberReturn('//outside.example/rights')).toBe('/rights')
     expect(safeMemberReturn('https://outside.example/private')).toBe('/rights')

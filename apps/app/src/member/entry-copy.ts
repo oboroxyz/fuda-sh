@@ -24,6 +24,9 @@ interface EntryCopy {
   enter: string
   prf: Record<'cancelled' | 'error' | 'unsupported', string>
   signedTitle: string
+  passkeyEntryTitle: string
+  passkeyEntryIntro: string
+  enterWithPasskey: string
   signedIntro: string
   signing: string
   passkeyWallet: (uid: string) => string
@@ -41,9 +44,12 @@ export const ENTRY_COPY = {
     createPasskey: 'Create passkey',
     discover: 'Discover my passes',
     enter: 'Enter',
+    enterWithPasskey: 'Enter with your passkey',
     metaAddress: 'Your meta-address',
     networkBanner: 'network error — the gate fails closed',
     noPasses: 'No pass announced to this meta-address yet.',
+    passkeyEntryIntro: 'Confirm with your passkey, then show the result to the staff.',
+    passkeyEntryTitle: 'Enter with your passkey',
     passkeyWallet: (uid: string) => `Passkey wallet: sign for ${uid}`,
     prf: {
       cancelled:
@@ -84,9 +90,12 @@ export const ENTRY_COPY = {
     createPasskey: 'パスキーを作成',
     discover: '自分の権利を探す',
     enter: '入場する',
+    enterWithPasskey: 'パスキーで入場する',
     metaAddress: 'あなたのメタアドレス',
     networkBanner: '通信エラーのため、入場を確認できません',
     noPasses: 'このメタアドレス宛ての権利はまだありません。',
+    passkeyEntryIntro: 'パスキーで確認して、結果の画面をスタッフに見せてください。',
+    passkeyEntryTitle: 'パスキーで入場',
     passkeyWallet: (uid: string) => `パスキーウォレットで署名：${uid}`,
     prf: {
       cancelled:

@@ -1,3 +1,4 @@
+import type { SelfServeIssueResponse } from '@fuda/sdk'
 import { apiFetch, fetchJson } from '@fuda/sdk/http'
 import type { Result } from '@fuda/sdk/http'
 import { startAuthentication, startRegistration, WebAuthnAbortService } from '@simplewebauthn/browser'
@@ -8,6 +9,8 @@ import type {
   RegistrationResponseJSON,
 } from '@simplewebauthn/browser'
 
+import { cardFailureOf, issuePasskeyCard } from '../api.ts'
+import type { CardFailure } from '../api.ts'
 import { API_BASE_URL } from '../config.ts'
 
 export type PasskeyFailure = 'cancelled' | 'network' | 'rejected' | 'unavailable'
@@ -93,6 +96,29 @@ export const addPasskey = async (): Promise<AddPasskeyOutcome> => {
     return { ok: true }
   }
   return added.status === 409 ? { failure: 'limit', ok: false } : { failure: failureOf(added), ok: false }
+}
+
+export type PasskeyClaim = { ok: true; body: SelfServeIssueResponse } | { ok: false; failure: CardFailure }
+
+// docs/specs/pass-types-and-flows.md#claiming-an-identified-pass. The member's passkey
+// answers a challenge made for this claim, and the pass is bound to whichever one did.
+export const claimWithPasskey = async (
+  handle: string,
+  slug: string,
+  source: string | null,
+): Promise<PasskeyClaim> => {
+  const options = await postJson<PublicKeyCredentialRequestOptionsJSON>('/auth/member/claim/options')
+  if (!options.ok) {
+    return { failure: cardFailureOf(options), ok: false }
+  }
+  const response = await ceremony<AuthenticationResponseJSON>(
+    async () => await startAuthentication({ optionsJSON: options.body }),
+  )
+  if (!('value' in response)) {
+    return { failure: 'passkey_cancelled', ok: false }
+  }
+  const issued = await issuePasskeyCard(handle, slug, source, response.value)
+  return issued.ok ? { body: issued.body, ok: true } : { failure: cardFailureOf(issued), ok: false }
 }
 
 export const cancelPasskeyCeremony = (): void => {

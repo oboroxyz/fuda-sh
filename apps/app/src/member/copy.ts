@@ -28,6 +28,8 @@ const EN = {
       failed: 'The service could not be reached. Try again.',
       invalid: 'This is not a backup of a pass.',
       restored: 'The pass is back. You will find it under Your passes.',
+      restoredPasskey:
+        'The pass is back in your list, but entering still takes the passkey that claimed it. If that passkey is gone, ask the shop for a new pass.',
     },
     title: 'Restore a pass',
   },
@@ -55,6 +57,7 @@ const EN = {
     address: 'Holder address',
     browserWallet: 'Use browser wallet',
     connectionFailed: 'Could not connect wallet.',
+    enter: 'Enter',
     // the member number's label on a venue card, by card type
     holder: { membership: 'MEMBER', ticket: 'TICKET' },
     idle: 'Enter a holder address to read its on-chain rights.',
@@ -68,6 +71,8 @@ const EN = {
     noPasses: 'No passes found yet.',
     noRights: 'No rights found for this holder.',
     pass: 'Pass',
+    passkeyPass:
+      'This pass opens only with your passkey, so it has no code to show and cannot go in a Wallet app. A backup keeps its record but cannot be used to enter. If you lose the passkey, ask the shop for a new pass.',
     placeholder: '0x… holder address',
     privateNotice: 'This is a +Private pass. Open Private rights to recover it.',
     privateRights: 'Private rights',
@@ -150,6 +155,8 @@ export const MEMBER_COPY = {
         failed: 'サービスに接続できませんでした。もう一度お試しください。',
         invalid: 'パスの控えではありません。',
         restored: 'パスを戻しました。パス一覧に表示されます。',
+        restoredPasskey:
+          'パスを一覧に戻しました。入場には受け取ったときのパスキーが必要です。パスキーがなくなった場合は、お店で新しいパスを発行してもらってください。',
       },
       title: 'パスを戻す',
     },
@@ -177,6 +184,7 @@ export const MEMBER_COPY = {
       address: '保有者のアドレス',
       browserWallet: 'ブラウザのウォレットを使う',
       connectionFailed: 'ウォレットに接続できませんでした。',
+      enter: '入場する',
       holder: { membership: '会員', ticket: 'チケット' },
       idle: '保有者のアドレスを入力すると、オンチェーンの権利を確認できます。',
       indexUnavailable: '一覧を取得できないため、この端末に保存したパスを表示しています。',
@@ -189,6 +197,8 @@ export const MEMBER_COPY = {
       noPasses: 'パスはまだありません。',
       noRights: 'このアドレスの権利は見つかりませんでした。',
       pass: 'パス',
+      passkeyPass:
+        'このパスはパスキーでのみ使えます。提示するコードはなく、Wallet アプリにも追加できません。控えには記録が残りますが、控えだけでは入場できません。パスキーをなくした場合は、お店で新しいパスを発行してもらってください。',
       placeholder: '0x… 保有者のアドレス',
       privateNotice: 'これは +Private のパスです。+Private を開いて復元してください。',
       privateRights: '+Private を開く',

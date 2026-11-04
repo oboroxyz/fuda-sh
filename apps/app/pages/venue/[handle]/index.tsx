@@ -35,6 +35,7 @@ export default function VenuePage(props: Props): JSX.Element {
             handle={page().handle}
             initial={props.venue}
             locale={shared.locale}
+            signedIn={shared.signedIn}
             slug={page().slug}
           />
         )}
