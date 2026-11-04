@@ -1,6 +1,6 @@
 import type { Locale } from '@fuda/i18n'
 // @vitest-environment happy-dom
-import type { PublicVenue } from '@fuda/sdk'
+import type { PassBackup, PublicVenue } from '@fuda/sdk'
 import { createSignal } from 'solid-js'
 import type { JSX } from 'solid-js'
 import { render as solidRender } from 'solid-js/web'
@@ -52,6 +52,8 @@ const venue: PublicVenue = {
 
 const io = (): CardScreenIo => ({
   appleAvailable: async () => await Promise.resolve(false),
+  fetchBackup: async () =>
+    await Promise.resolve({ error: 'not_found', network: false, ok: false, status: 404 }),
   fetchVenue: async () => await Promise.resolve({ body: venue, ok: true }),
   googleSaveUrl: async () => await Promise.resolve(null),
   issueCard: vi.fn<CardScreenIo['issueCard']>(
@@ -60,6 +62,87 @@ const io = (): CardScreenIo => ({
 })
 
 describe('venue controller', () => {
+  describe('a link that names a pass', () => {
+    const UID = `0x${'cd'.repeat(32)}` as const
+    const backup = (over: Partial<PassBackup> = {}): PassBackup => ({
+      attestation: null,
+      handle: venue.handle,
+      holder: `0x${'00'.repeat(20)}`,
+      memberNumber: 'qj2yxphepdrka',
+      proof: null,
+      qr: `fuda:v1:${UID}`,
+      restoreUrl: null,
+      slug: 'regular',
+      uid: UID,
+      version: 1,
+      ...over,
+    })
+    const open = (deps: CardScreenIo): HTMLDivElement => {
+      globalThis.history.replaceState(null, '', `/@${venue.handle}/regular?uid=${UID}&source=qr`)
+      const host = document.createElement('div')
+      render(() => <CardScreen handle={venue.handle} slug="regular" io={deps} />, host)
+      return host
+    }
+
+    afterEach(() => {
+      globalThis.history.replaceState(null, '', '/')
+    })
+
+    it('shows that pass on a new device without offering a second one', async () => {
+      const deps = {
+        ...io(),
+        fetchBackup: vi.fn<CardScreenIo['fetchBackup']>(
+          async () => await Promise.resolve({ body: backup(), ok: true }),
+        ),
+      }
+      const host = open(deps)
+      await vi.waitFor(() => {
+        expect(host.querySelector('.venue-qr')).not.toBeNull()
+      })
+      expect(deps.issueCard).not.toHaveBeenCalled()
+      expect(localStorage.getItem('fuda.passes.v1')).toContain(UID)
+    })
+
+    it('takes the uid out of the address and keeps the rest', async () => {
+      const deps = {
+        ...io(),
+        fetchBackup: vi.fn<CardScreenIo['fetchBackup']>(
+          async () => await Promise.resolve({ body: backup(), ok: true }),
+        ),
+      }
+      open(deps)
+      await vi.waitFor(() => {
+        expect(globalThis.location.search).toBe('?source=qr')
+      })
+    })
+
+    it.each([
+      ['another venue', { handle: 'other-shop' }],
+      ['another card', { slug: 'other-card' }],
+    ])('ignores a pass from %s', async (_label, over) => {
+      const deps = {
+        ...io(),
+        fetchBackup: vi.fn<CardScreenIo['fetchBackup']>(
+          async () => await Promise.resolve({ body: backup(over), ok: true }),
+        ),
+      }
+      const host = open(deps)
+      await vi.waitFor(() => {
+        expect(deps.fetchBackup).toHaveBeenCalledWith(UID)
+        expect(host.querySelector('.venue-qr')).toBeNull()
+      })
+      expect(localStorage.getItem('fuda.passes.v1') ?? '').not.toContain(UID)
+    })
+
+    it('ignores a uid the api does not know', async () => {
+      const host = open(io())
+      await vi.waitFor(() => {
+        expect(globalThis.location.search).toBe('?source=qr')
+      })
+      expect(host.querySelector('.venue-qr')).toBeNull()
+    })
+  })
+
   afterEach(() => {
     unmountAll()
     document.body.replaceChildren()

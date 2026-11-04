@@ -7,6 +7,7 @@ import type { JSX } from 'solid-js'
 
 import type { MemberPassListIo } from '../member-pass-list.ts'
 import { MEMBER_COPY } from './copy.ts'
+import { PassBackupSection } from './PassBackupSection.tsx'
 import { PasskeySection } from './PasskeySection.tsx'
 import { RightsList } from './RightsList.tsx'
 
@@ -48,6 +49,7 @@ export const Settings = (props: {
     <main class="member-page member-page-narrow flex flex-col gap-8">
       <h1 class="member-heading">{copy().nav.settings}</h1>
       <PasskeySection locale={props.locale} />
+      <PassBackupSection locale={props.locale} />
       <section class="overflow-hidden rounded-2xl border border-[var(--fuda-border)] bg-[var(--fuda-surface)]">
         <label class="member-settings-row">
           <SettingsIcon kind="theme" />

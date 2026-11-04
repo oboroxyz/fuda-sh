@@ -85,7 +85,7 @@ const render = (state: Parameters<typeof CardScreenView>[0]['state']): HTMLEleme
 }
 const viewText = (host: HTMLElement): string => host.textContent ?? ''
 const hrefsOf = (host: HTMLElement): string[] =>
-  [...host.querySelectorAll('[href]')].map((node) => node.getAttribute('href') ?? '')
+  [...host.querySelectorAll('[href]:not([download])')].map((node) => node.getAttribute('href') ?? '')
 const brandStyle = (host: HTMLElement) => {
   const brand = host.querySelector<HTMLElement>('.venue-brand')!
   return { backgroundColor: brand.style.backgroundColor, color: brand.style.color }

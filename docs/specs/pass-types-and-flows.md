@@ -162,7 +162,17 @@ A member account is identified by its passkeys, with no address and no email. Us
 
 **Passes.** Only Bearer rights link, because having the uid is what using one means, so a link grants nothing new. Two accounts may keep the same pass. A uid that names nothing, and a Signed or +Private right, is skipped without saying which. On `/rights` the app sends the passes this device remembers and brings the account's others to this device. If that fails, the device's own list still works. fuda therefore knows which passes an account keeps.
 
-**Moving devices.** A passkey synced by the provider signs in on the new device, and the list follows. Between providers that do not sync, such as iCloud and Google, the member signs in on the new device with the old one through the system's cross-device prompt, then adds a passkey in Settings. Without the old device there is no recovery yet, and the pass is reissued by the shop.
+**Moving devices.** A passkey synced by the provider signs in on the new device, and the list follows. Between providers that do not sync, such as iCloud and Google, the member signs in on the new device with the old one through the system's cross-device prompt, then adds a passkey in Settings. A passkey in a second place, such as another password manager or a security key, also survives losing an Apple or Google account.
+
+### Keeping a pass without a provider
+
+fuda holds no email or other contact detail for a member, and does not send them mail. A Standard pass does not depend on an account or on Apple or Google, so what a member can lose is finding it again, and there are three ways back:
+
+- **The saved pass.** The Wallet pass's "Open in fuda" link is `/@<handle>/<slug>?uid=<uid>`. The card page takes the uid out of the address, asks `GET /pass/:uid/backup`, and if the pass belongs to that card, remembers it on this device and shows it instead of offering a second one. Otherwise it behaves as if no uid was given.
+- **A backup.** The card page and `/rights` offer `GET /pass/:uid/backup` as a file: `{ version, uid, qr, holder, handle, slug, memberNumber, restoreUrl, attestation, proof }`. `attestation` is the signed offchain attestation, or null for an on-chain right. `proof` is `{ root, path, anchoredAt }` once the pass's batch has been timestamped, or null. Settings reads a file back, using only its uid and asking the api about the rest. The route is public and `no-store` like `/pass/:uid`, and answers `404` for +Private. Having the file means being able to use the pass, and the screens say so.
+- **The shop.** A reissue, under a new uid.
+
+Identified and Sensitive rights will need the holder's key as well, so a saved pass alone will not bring them back.
 
 A wallet is no longer a way to sign in. Connecting one on `/rights` or `/signed` still works on that device for looking up and presenting on-chain rights.
 

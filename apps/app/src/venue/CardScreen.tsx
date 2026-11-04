@@ -4,12 +4,21 @@ import {
   brandTextColor,
   cardBySlug,
   formatMemberNumber,
+  normalizeUid,
   passPlatform,
   qrSvg,
   soleCard,
   toQr,
 } from '@fuda/sdk'
-import type { CardView, PassUrls, PublicCard, PublicVenue, SelfServeIssueResponse } from '@fuda/sdk'
+import type {
+  CardView,
+  Hex,
+  PassBackup,
+  PassUrls,
+  PublicCard,
+  PublicVenue,
+  SelfServeIssueResponse,
+} from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
 import { CardsThree, WalletButton } from '@fuda/ui'
 import { createEffect, createSignal, For, on, onCleanup } from 'solid-js'
@@ -22,6 +31,7 @@ import type { BadgeState, HumanBadgeIo } from '../badges.ts'
 import { cardKey, readCard, readCardMemory, rememberCard } from '../card-memory.ts'
 import type { CardMemoryEntry } from '../card-memory.ts'
 import { applePassAvailable } from '../member-pass-list.ts'
+import { fetchPassBackup, passBackupHref } from '../pass-backup.ts'
 import { memberPassUrls } from '../pass-links.ts'
 import { rememberPass } from '../pass-memory.ts'
 import type { PassMemoryStorage } from '../pass-memory.ts'
@@ -59,6 +69,7 @@ export type CardScreenState =
 
 export interface CardScreenIo {
   appleAvailable: (url: string) => Promise<boolean>
+  fetchBackup: (uid: Hex) => Promise<Result<PassBackup>>
   fetchVenue: (handle: string) => Promise<Result<PublicVenue>>
   googleSaveUrl: (url: string) => Promise<string | null>
   issueCard: (handle: string, slug: string, source: string | null) => Promise<Result<SelfServeIssueResponse>>
@@ -266,6 +277,16 @@ const passActions = (
     {passAction(issued, googleHref, appleHref, copy, locale)}
     <p class="mx-auto max-w-64 text-center text-xs leading-5 text-[var(--fuda-muted)]">
       {copy.savedOnDevice(nounOf(card, copy))}
+    </p>
+    <a
+      class="link mx-auto text-sm"
+      download={`fuda-pass-${issued.uid.slice(2, 10)}.json`}
+      href={passBackupHref(issued.uid)}
+    >
+      {copy.saveBackup}
+    </a>
+    <p class="mx-auto max-w-64 text-center text-xs leading-5 text-[var(--fuda-muted)]">
+      {copy.saveBackupHint}
     </p>
   </div>
 )
@@ -492,6 +513,7 @@ export const CardScreenView = (props: CardScreenViewProps): JSX.Element => (
 
 const defaultIo: CardScreenIo = {
   appleAvailable: applePassAvailable,
+  fetchBackup: fetchPassBackup,
   fetchVenue,
   googleSaveUrl,
   issueCard,
@@ -502,6 +524,37 @@ const issuedFrom = (entry: CardMemoryEntry): IssuedCard => ({
   passUrls: memberPassUrls(entry.uid),
   qr: toQr(entry.uid),
 })
+
+// A link from a saved pass names its uid (docs/specs/pass-types-and-flows.md#keeping-a-pass-without-a-provider),
+// so a new device opens that pass instead of offering a second one. The uid leaves the
+// address at once, to stay out of the history. One that does not belong to this card is ignored.
+const passFromLink = async (
+  io: CardScreenIo,
+  handle: string,
+  slug: string,
+  storage?: PassMemoryStorage,
+): Promise<IssuedCard | null> => {
+  const url = new URL(globalThis.location.href)
+  const raw = url.searchParams.get('uid')
+  if (raw === null) {
+    return null
+  }
+  url.searchParams.delete('uid')
+  globalThis.history.replaceState(globalThis.history.state, '', url)
+  const uid = normalizeUid(raw)
+  if (uid === null) {
+    return null
+  }
+  const backup = await io.fetchBackup(uid)
+  if (!backup.ok || backup.body.handle !== handle || backup.body.slug !== slug) {
+    return null
+  }
+  const { holder, memberNumber } = backup.body
+  const issuedAt = Date.now()
+  rememberCard(handle, slug, { holder, memberNumber, uid }, storage, issuedAt)
+  rememberPass({ holder, uid }, storage, issuedAt)
+  return issuedFrom({ holder, issuedAt, memberNumber, uid })
+}
 
 export const heldSlugsOf = (venue: PublicVenue, storage?: PassMemoryStorage): string[] => {
   const memory = readCardMemory(storage)
@@ -587,6 +640,14 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
               ? { heldSlugs: heldSlugsOf(venue, storage), kind: 'choose', venue }
               : { kind: 'not_found', venue },
           )
+          return
+        }
+        const brought = await passFromLink(io, handle, picked.card.slug, storage)
+        if (!current) {
+          return
+        }
+        if (brought !== null) {
+          await showReady(picked, brought, () => current)
           return
         }
         const remembered = readCard(handle, picked.card.slug, storage)
