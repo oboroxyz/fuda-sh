@@ -18,6 +18,7 @@ import {
   receptionRequests,
   sessions,
   slots,
+  stampAdjustments,
   stampCredits,
 } from '../src/db/schema.ts'
 import { appWith, fakeChain, testEnv } from './env.ts'
@@ -45,6 +46,7 @@ const clearManagementTables = async (): Promise<void> => {
   const database = db()
   await database.delete(badges)
   await database.delete(receptionRequests)
+  await database.delete(stampAdjustments)
   await database.delete(stampCredits)
   await database.delete(entryLog)
   await database.delete(slots)
