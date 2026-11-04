@@ -1,6 +1,8 @@
+import { apiFetch } from '@fuda/sdk/http'
 import type { ApiHeaders } from '@fuda/sdk/http'
 import type { Context } from 'hono'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
+import * as v from 'valibot'
 
 // The server half every fuda frontend shares: each frontend Worker is the
 // browser's only backend, holds the session in an HttpOnly cookie and calls
@@ -39,6 +41,41 @@ export const apiHeaders = (c: Context, token: string | null): ApiHeaders => {
     headers.authorization = `Bearer ${token}`
   }
   return headers
+}
+
+const HexString = v.pipe(v.string(), v.regex(/^0x[0-9a-fA-F]*$/u))
+const WalletSignature = v.object({ address: HexString, nonce: HexString, signature: HexString })
+
+export type SpentSignature<T> = { body: T; ok: true } | { ok: false; response: Response }
+
+// The browser's half of a wallet sign-in is the signature; this half spends it
+// at the api. On success the caller keeps the session token in a cookie the
+// browser cannot read; any other outcome is already the response to send.
+export const spendWalletSignature = async <T>(
+  c: Context,
+  apiBaseUrl: string,
+  path: string,
+): Promise<SpentSignature<T>> => {
+  const refused = crossOriginWrite(c)
+  if (refused !== null) {
+    return { ok: false, response: refused }
+  }
+  const parsed = v.safeParse(WalletSignature, await c.req.json().catch(() => null))
+  if (!parsed.success) {
+    return { ok: false, response: c.json({ error: 'bad_input' }, 400) }
+  }
+  const result = await apiFetch<T>(apiBaseUrl, path, {
+    body: JSON.stringify(parsed.output),
+    headers: apiHeaders(c, null),
+    method: 'POST',
+  })
+  if (!result.ok) {
+    // SAFETY: a non-zero status came from the api's own response, so it is a valid HTTP status.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Hono types the status as a literal union
+    const status = (result.status === 0 ? 502 : result.status) as 400
+    return { ok: false, response: c.json({ error: result.error }, status) }
+  }
+  return { body: result.body, ok: true }
 }
 
 // Headers the browser's request may pass on to the api (the user agent picks a
