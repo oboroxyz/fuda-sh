@@ -41,7 +41,7 @@ flowchart LR
 4. **Admit.** Admission consumes any required operational slot and creates an entry log. For a right whose `level` is `0` or `1` the API then attempts to attest Attendance without delaying the gate verdict; an Attendance write failure may leave the successful entry represented only in operational logs. **No Attendance is attested for a `level == 2` (+Private) right**: the stealth holder is unlinkable to the member, but a public Attendance would still publish that right's visit history, which is exactly what +Private exists to hide. Its entries live only in the entry log.
 5. **Revoke.** The issuer revokes the Entitlement on EAS. A later gate read rejects the same pass because the on-chain right is no longer valid.
 
-Holder-preserving activation changes the owners of a claimable smart account, not the Entitlement. Its holder address, attestation UID, Attendance history, and other public history remain unchanged.
+Holder-preserving activation is designed to change the owners of a claimable smart account, not the Entitlement, leaving its holder address, attestation UID, Attendance history, and other public history unchanged. It is not implemented.
 
 ## Identity and reference invariants
 
@@ -49,7 +49,7 @@ Holder-preserving activation changes the owners of a claimable smart account, no
 - An Entitlement's `refUID` identifies the IssuerDelegation that governs its issuer. The gate checks that delegation's schema, root attester, active flag, revocation state, and delegated issuer.
 - Attendance identifies the admitted Entitlement through `rightUID`; its EAS reference also points back to that right.
 - EAS recipients are immutable. Moving a right to a different holder requires a fresh attestation rather than editing the existing record.
-- Activating a claimable smart account does not move the right because account ownership changes behind the same holder address.
+- Activating a claimable smart account (not implemented) would not move the right, because account ownership changes behind the same holder address.
 - Crossing the +Private boundary requires a fresh holder and attestation. The transition must not publish an on-chain lineage link that correlates the private and non-private rights.
 
 The [pass types and flows](./pass-types-and-flows.md) guide explains when the holder is a claimable smart account, direct wallet, or one-time stealth address.
