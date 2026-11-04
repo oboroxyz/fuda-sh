@@ -30,7 +30,7 @@ The Issuer chooses a type per Card, separately from the `membership | ticket` ca
 
 ### 2. Offchain rights
 
-An offchain Right is an EAS offchain attestation (version 2). D1 stores the signed data, and the QR carries only its UID, so a 40 mm code stays readable (39 modules against 91 for the full attestation). The 32-byte salt makes the UID unguessable, and in Standard the UID is the bearer secret.
+An offchain Right is an EAS offchain attestation (version 2). D1 stores the signed data, and the QR carries only its UID, so a 40 mm code stays readable (39 modules against 91 for the full attestation). A NETUM NT-5090 read a test code of this form. The 32-byte salt makes the UID unguessable, and in Standard the UID is the bearer secret.
 
 Roots are timestamped in batches. A root records when a batch existed. It is not an admission condition, with the one exception in decision 5.
 
@@ -129,11 +129,10 @@ Local anvil forks of Base Sepolia, Base mainnet and Soneium, with Chromium's vir
 
 ## Conditions before acceptance
 
-- **Real devices.** Passkey creation, PRF and direct verification on iPhone and Android. Reports on Apple's developer forums describe PRF failing or returning different values over the cross-device flow, and we have not confirmed this ourselves. The result decides whether Sensitive use can rely on PRF everywhere.
+- **Real devices.** So far one iPhone (Safari 27) has created a synced P-256 passkey in Bitwarden, returned its public key and signed. Safari reports PRF support, but Bitwarden returned no PRF result in any request form, so PRF depends on the passkey provider and enrollment must detect its absence. Still open: Apple Passwords on iPhone, Android, and server-side verification of a real device's signature. Reports on Apple's developer forums describe PRF failing or returning different values over the cross-device flow, and we have not confirmed this ourselves.
 - **Recovery path for the wrapped secret.** Where the wrapped copies live, and what a member does when moving between iOS and Android.
 - **Sponsored wallet operations.** A user operation through a public bundler and paymaster on testnet. Only EntryPoint 0.6 support has been read from one public endpoint so far.
 - **Soneium.** The Coinbase Smart Wallet factory has no code at its usual address on Soneium mainnet, though it does on Minato. On-chain self-held and delegated keys need another path there.
-- **The QR reader.** The UID code on the NETUM NT-5090.
 - **Demand.** Shop conversations on whether the default type and its recovery are acceptable, and whether Sensitive use has real customers. It does not cover door control or company identity systems.
 
 ## Sources
