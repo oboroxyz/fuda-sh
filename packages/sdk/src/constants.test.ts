@@ -6,7 +6,6 @@ import {
   challengeMessage,
   isUid,
   LEVEL_CODE,
-  levelFromCode,
   normalizeNonce,
   normalizeUid,
   parseQr,
@@ -44,10 +43,8 @@ describe('wire constants', () => {
     expect(parseQr(`fuda:v1:0x${'ab'.repeat(32).toUpperCase()}`)).toBe(uid)
   })
 
-  it('level codes are 0/1/2 and invert', () => {
-    expect(LEVEL_CODE).toStrictEqual({ bearer: 0, private: 2, signed: 1 })
-    expect(levelFromCode(1)).toBe('signed')
-    expect(levelFromCode(3)).toBeNull()
+  it('level codes are 0 and 1', () => {
+    expect(LEVEL_CODE).toStrictEqual({ bearer: 0, signed: 1 })
   })
 })
 

@@ -1,6 +1,6 @@
 import * as v from 'valibot'
 
-import { ADDRESS_RE, META_ADDRESS_RE, NONCE_RE, QR_RE, SIGNATURE_RE, UID_RE } from './constants.ts'
+import { ADDRESS_RE, NONCE_RE, QR_RE, SIGNATURE_RE, UID_RE } from './constants.ts'
 import {
   BRAND_COLOR_RE,
   CARD_CATEGORIES,
@@ -18,11 +18,12 @@ const uid = v.pipe(v.string(), v.regex(UID_RE))
 const address = v.pipe(v.string(), v.regex(ADDRESS_RE))
 const unix = v.pipe(v.number(), v.integer(), v.minValue(0))
 
-export const IssueBody = v.object({
+// Strict, so a retired field such as `stealthMetaAddress` is refused instead of
+// being dropped and the request issued as a different kind of right.
+export const IssueBody = v.strictObject({
   holder: v.optional(address),
   memberId: v.optional(v.pipe(v.string(), v.minLength(1))),
   metaURI: v.optional(v.string(), ''),
-  stealthMetaAddress: v.optional(v.pipe(v.string(), v.regex(META_ADDRESS_RE))),
   tier: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(3)), 0),
   usageModel: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(2)), 1),
   validFrom: v.optional(unix, 0),
@@ -30,12 +31,9 @@ export const IssueBody = v.object({
 })
 export type IssueRequest = v.InferOutput<typeof IssueBody>
 
-// Exact rule from docs/specs/attestation-model.md#api-payloads-that-touch-attestations: stealthMetaAddress → private (holder forbidden);
-// else holder → signed (memberId forbidden); else memberId → bearer; else null.
-export const deriveIssueKind = (b: IssueRequest): 'bearer' | 'signed' | 'private' | null => {
-  if (b.stealthMetaAddress !== undefined) {
-    return b.holder === undefined ? 'private' : null
-  }
+// Exact rule from docs/specs/attestation-model.md#api-payloads-that-touch-attestations: holder → signed (memberId forbidden);
+// else memberId → bearer; else null.
+export const deriveIssueKind = (b: IssueRequest): 'bearer' | 'signed' | null => {
   if (b.holder !== undefined) {
     return b.memberId === undefined ? 'signed' : null
   }

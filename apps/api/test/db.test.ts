@@ -37,7 +37,6 @@ describe('D1 schema', () => {
       'slots',
       'stamp_credits',
       'stamp_settings',
-      'stealth_resolutions',
     ])
   })
 

@@ -12,7 +12,7 @@ import type { Hex, Transport } from 'viem'
 import { nonceManager, privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
 
-import { ANNOUNCER_ABI, EAS_ABI, FACTORY_ABI } from '../eas/abi.ts'
+import { EAS_ABI, FACTORY_ABI } from '../eas/abi.ts'
 import type { Bindings } from '../env.ts'
 import { ChainError, NoSignerError } from './client.ts'
 import type { AttestParams, ChainClient } from './client.ts'
@@ -36,10 +36,7 @@ const wrap = async <T>(fn: () => Promise<T>): Promise<T> => {
 
 // The chain client is also used by read-only Node probes. It needs no D1 or
 // Worker bindings beyond the addresses and credentials consumed here.
-type ChainBindings = Pick<
-  Bindings,
-  'ANNOUNCER_ADDRESS' | 'BASE_RPC_URL' | 'EAS_ADDRESS' | 'FACTORY_ADDRESS' | 'SIGNER_PRIVATE_KEY'
->
+type ChainBindings = Pick<Bindings, 'BASE_RPC_URL' | 'EAS_ADDRESS' | 'FACTORY_ADDRESS' | 'SIGNER_PRIVATE_KEY'>
 
 export const createViemChain = (
   env: ChainBindings,
@@ -48,35 +45,13 @@ export const createViemChain = (
   const publicClient = createPublicClient({ chain: baseSepolia, transport })
   const eas = toHexAddress(env.EAS_ADDRESS)
   const factory = toHexAddress(env.FACTORY_ADDRESS)
-  const announcer = toHexAddress(env.ANNOUNCER_ADDRESS)
   const key = env.SIGNER_PRIVATE_KEY
-  // One account with viem's nonce manager: /issue attests, announces and the
+  // One account with viem's nonce manager: /issue attests and the
   // waitUntil Attendance attest all share this signer concurrently.
   const account = key !== undefined && isHex(key) ? privateKeyToAccount(key, { nonceManager }) : null
   const wallet = account === null ? null : createWalletClient({ account, chain: baseSepolia, transport })
 
   return {
-    announce: async (p) => {
-      if (wallet === null || account === null) {
-        throw new NoSignerError('SIGNER_PRIVATE_KEY unset')
-      }
-      return await wrap(async () => {
-        const txHash = await wallet.writeContract({
-          abi: ANNOUNCER_ABI,
-          account,
-          address: announcer,
-          args: [1n, p.stealthAddress, p.ephemeralPubKey, p.metadata],
-          chain: baseSepolia,
-          functionName: 'announce',
-        })
-        const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash })
-        if (receipt.status !== 'success') {
-          throw new ChainError('announce reverted')
-        }
-        return { txHash }
-      })
-    },
-
     attest: async (p: AttestParams) => {
       if (wallet === null || account === null) {
         throw new NoSignerError('SIGNER_PRIVATE_KEY unset')
@@ -114,8 +89,6 @@ export const createViemChain = (
       })
     },
 
-    blockNumber: async () => await wrap(async () => Number(await publicClient.getBlockNumber())),
-
     chainId: () => baseSepolia.id,
 
     getAddressFromFactory: async (owners, nonce) =>
@@ -128,31 +101,6 @@ export const createViemChain = (
             functionName: 'getAddress',
           }),
       ),
-
-    getAnnouncementLogs: async (fromBlock, toBlock) =>
-      await wrap(async () => {
-        // `strict` makes viem drop any log it cannot fully decode, so every arg below is
-        // present rather than `| undefined`.
-        const logs = await publicClient.getContractEvents({
-          abi: ANNOUNCER_ABI,
-          address: announcer,
-          args: { schemeId: 1n },
-          eventName: 'Announcement',
-          fromBlock: BigInt(fromBlock),
-          strict: true,
-          toBlock: BigInt(toBlock),
-        })
-        return logs.map((log) => ({
-          blockNumber: Number(log.blockNumber),
-          caller: log.args.caller,
-          ephemeralPubKey: log.args.ephemeralPubKey,
-          logIndex: log.logIndex,
-          metadata: log.args.metadata,
-          schemeId: Number(log.args.schemeId),
-          stealthAddress: log.args.stealthAddress,
-          txHash: log.transactionHash,
-        }))
-      }),
 
     offchainAttester: () => account?.address ?? null,
 

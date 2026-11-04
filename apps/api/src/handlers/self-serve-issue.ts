@@ -19,7 +19,7 @@ const STATUS = {
   no_signer: 501,
 } as const satisfies Record<CardIssueError, number>
 
-// Self-serve Bearer issuance (docs/specs/pass-types-and-flows.md#u1-standard-issuance-and-optional-activation):
+// Self-serve Bearer issuance (docs/specs/pass-types-and-flows.md#standard-issuance):
 // no account, and a body only to say which link the claim came through. A label
 // that fails the rule is dropped, so a mangled link still gets a person their pass.
 const ClaimBody = v.object({ source: ClaimSource })

@@ -68,9 +68,13 @@ export interface PassCardResponse {
   card: PassCardView | null
 }
 
-export type IssueResponse =
-  | { uid: Hex; level: 'bearer' | 'signed'; holder: Hex; qr: string; passUrls: PassUrls }
-  | { uid: Hex; level: 'private'; announced: true; announceTx: Hex }
+export interface IssueResponse {
+  uid: Hex
+  level: 'bearer' | 'signed'
+  holder: Hex
+  qr: string
+  passUrls: PassUrls
+}
 
 export interface EntitlementView {
   holder: Hex

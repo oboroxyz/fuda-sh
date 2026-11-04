@@ -1,4 +1,4 @@
-import { LEVEL_CODE, USAGE_MODEL } from '@fuda/sdk'
+import { USAGE_MODEL } from '@fuda/sdk'
 import type { EntryPath, Reason } from '@fuda/sdk'
 import type { Hex } from 'viem'
 
@@ -83,7 +83,7 @@ export const noAdmitHook: AdmitHook = () => {
 export interface AdmitContext {
   db: Db
   uid: Hex
-  canonical: Pick<Entitlement, 'holder' | 'level' | 'usageModel'>
+  canonical: Pick<Entitlement, 'holder' | 'usageModel'>
   path: EntryPath
   now: number
   onAdmit: AdmitHook
@@ -95,11 +95,6 @@ export type AdmitOutcome =
   | { admitted: false; reason: 'ALREADY_USED' }
 
 export const notifyAdmission = (ctx: AdmitContext, entryLogId: number): void => {
-  // No Attendance for a +Private right
-  // (docs/specs/attestation-model.md#entitlement-lifecycle): a public record would publish the visit history +Private exists to hide.
-  if (ctx.canonical.level === LEVEL_CODE.private) {
-    return
-  }
   // An offchain right keeps its visits in D1 (docs/specs/attestation-model.md#offchain-rights),
   // and has no holder for an Attendance to name.
   if (ctx.canonical.holder === ZERO_ADDRESS) {

@@ -21,7 +21,6 @@ export const testEnv = (overrides: Partial<Bindings> = {}): Bindings => {
     APPLE_WWDR_PEM: undefined,
     BASE_RPC_URL: undefined,
     ENS_GAS_POLICY_ID: undefined,
-    ENS_GATEWAY_SECRET: undefined,
     ENS_GATEWAY_SIGNER_KEY: undefined,
     ENS_PARENT_NAME: undefined,
     ENS_PAYMASTER_UPSTREAM: undefined,
@@ -43,10 +42,6 @@ export const testEnv = (overrides: Partial<Bindings> = {}): Bindings => {
   return { ...base, ...overrides }
 }
 
-// Announcement tests assert exact block numbers and chunk ranges, so the fake
-// starts at a fixed head here rather than FakeChain's real-time default;
-// pass `head` explicitly to override it.
-export const fakeChain = (opts: { signer?: Hex | null; head?: number } = {}): FakeChain =>
-  new FakeChain({ head: 100, ...opts })
+export const fakeChain = (opts: { signer?: Hex | null } = {}): FakeChain => new FakeChain(opts)
 
 export const appWith = (deps: AppDeps) => createApp(deps)

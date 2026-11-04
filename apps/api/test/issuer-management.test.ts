@@ -91,7 +91,7 @@ interface SeedPass {
   createdAt: number
   holder?: string | null
   issuerId: string
-  level?: 'bearer' | 'signed' | 'private'
+  level?: 'bearer' | 'signed'
   memberNumber: string
   status?: 'active' | 'revoked'
   uidNumber: number
@@ -512,7 +512,7 @@ describe('GET /issuers/me/passes', () => {
   })
 
   /* oxlint-disable vitest/max-expects -- one rich SQL fixture checks row, aggregate, filter and privacy invariants without repeated setup */
-  it('uses immutable issuance metadata and excludes private and foreign rows from every count', async () => {
+  it('uses immutable issuance metadata and excludes foreign rows from every count', async () => {
     const { app, card, token } = await createOwnedCard()
     const secondCardId = 'second-card'
     const foreignIssuerId = 'foreign-issuer'
@@ -620,17 +620,6 @@ describe('GET /issuers/me/passes', () => {
       validUntil: NOW,
     })
     await seedPass({
-      cardId: card.id,
-      createdAt: 983,
-      issuerId: card.issuerId,
-      level: 'private',
-      memberNumber: 'private-secret',
-      uidNumber: 8,
-      usageModel: 1,
-      validFrom: 0,
-      validUntil: 0,
-    })
-    await seedPass({
       cardId: foreignCardId,
       createdAt: 982,
       issuerId: foreignIssuerId,
@@ -708,7 +697,6 @@ describe('GET /issuers/me/passes', () => {
       validUntil: 0,
     })
     expect(body.passes[5]).toMatchObject({ holder: null, status: 'unknown' })
-    expect(JSON.stringify(body)).not.toContain('private-secret')
     expect(JSON.stringify(body)).not.toContain('foreign-secret')
 
     const filtered = await getJson(app, bindings(), '/v1/issuers/me/passes?status=active', token)

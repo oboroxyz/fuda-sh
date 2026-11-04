@@ -13,7 +13,6 @@ interface PrepareOptions {
 }
 
 const NetworkConfigSchema = v.object({
-  announcerAddress: v.pipe(v.string(), v.regex(/^0x[0-9a-fA-F]{40}$/u)),
   easAddress: v.pipe(v.string(), v.regex(/^0x[0-9a-fA-F]{40}$/u)),
   network: v.literal('base-sepolia'),
 })
@@ -54,8 +53,7 @@ export const prepareRightsSubgraph = async (options: PrepareOptions): Promise<vo
   const manifest = template
     .replaceAll('__NETWORK__', network.network)
     .replaceAll('__EAS_ADDRESS__', network.easAddress)
-    .replaceAll('__ANNOUNCER_ADDRESS__', network.announcerAddress)
-    .replaceAll('__ANNOUNCER_FROM_BLOCK__', String(graphConfig.announcerFromBlock))
+    .replaceAll('__GRAPH_START_BLOCK__', String(graphConfig.startBlock))
 
   if (/__[A-Z_]+__/u.test(manifest)) {
     throw new Error('Subgraph template contains an unresolved placeholder')

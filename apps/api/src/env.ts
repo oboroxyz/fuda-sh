@@ -18,7 +18,6 @@ export interface Bindings {
   // The contract's own version() on this chain; offchain signatures commit to it.
   EAS_VERSION: string
   SCHEMA_REGISTRY_ADDRESS: string
-  ANNOUNCER_ADDRESS: string
   FACTORY_ADDRESS: string
   EAS_SCHEMAS: string
   ISSUER_ADDRESS: string
@@ -44,9 +43,8 @@ export interface Bindings {
   APPLE_CERT_PEM?: string
   APPLE_KEY_PEM?: string
   APPLE_WWDR_PEM?: string
-  // ENS transport is disabled unless all four names are configured. The two
-  // keys are Worker secrets; parent and resolver allowlist are plain bindings.
-  ENS_GATEWAY_SECRET?: string
+  // ENS transport is disabled unless all three names are configured. The key
+  // is a Worker secret; parent and resolver allowlist are plain bindings.
   ENS_GATEWAY_SIGNER_KEY?: string
   ENS_PARENT_NAME?: string
   ENS_RESOLVER_ADDRESSES?: string

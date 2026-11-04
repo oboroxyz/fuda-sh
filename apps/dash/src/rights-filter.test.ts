@@ -13,7 +13,7 @@ const rows: readonly MemberRowView[] = [
     human: false,
     level: 'bearer',
     memberId: 'alice',
-    passUrls: null,
+    passUrls: { apple: '/apple', google: '/google', web: '/web' },
     qr: `fuda:v1:${UID}`,
     status: 'active',
     tier: 'VIP',
@@ -25,7 +25,7 @@ const rows: readonly MemberRowView[] = [
     human: false,
     level: 'signed',
     memberId: 'bob',
-    passUrls: null,
+    passUrls: { apple: '/apple', google: '/google', web: '/web' },
     qr: `fuda:v1:0x${'cd'.repeat(32)}`,
     status: 'revoked',
     tier: 'GENERAL',
@@ -35,9 +35,9 @@ const rows: readonly MemberRowView[] = [
     holder: null,
     holderShort: null,
     human: false,
-    level: 'private',
+    level: 'signed',
     memberId: 'carol',
-    passUrls: null,
+    passUrls: { apple: '/apple', google: '/google', web: '/web' },
     qr: `fuda:v1:0x${'ef'.repeat(32)}`,
     status: 'active',
     tier: 'GENERAL',
@@ -59,8 +59,8 @@ describe(filterRights, () => {
 
   it('applies level and status constraints together', () => {
     expect(
-      filterRights(rows, { level: 'private', query: '', status: 'active' }).map(({ level }) => level),
-    ).toStrictEqual(['private'])
+      filterRights(rows, { level: 'signed', query: '', status: 'active' }).map(({ level }) => level),
+    ).toStrictEqual(['signed'])
   })
 })
 

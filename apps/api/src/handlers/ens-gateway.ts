@@ -13,7 +13,6 @@ import { DEFAULT_BUDGET, rateLimit } from '../middleware/rate-limit.ts'
 const GatewayBody = v.object({ data: v.string(), sender: v.string() })
 
 interface GatewayConfig {
-  allocationSecret: string
   parentName: string
   resolverAddresses: Address[]
   signerPrivateKey: string
@@ -23,16 +22,10 @@ const configuredValue = (value: string | undefined): string | null =>
   value === undefined || value.trim() === '' ? null : value.trim()
 
 const gatewayConfig = (env: Bindings): GatewayConfig | null => {
-  const allocationSecret = configuredValue(env.ENS_GATEWAY_SECRET)
   const signerPrivateKey = configuredValue(env.ENS_GATEWAY_SIGNER_KEY)
   const rawParentName = configuredValue(env.ENS_PARENT_NAME)
   const rawResolverAddresses = configuredValue(env.ENS_RESOLVER_ADDRESSES)
-  if (
-    allocationSecret === null ||
-    signerPrivateKey === null ||
-    rawParentName === null ||
-    rawResolverAddresses === null
-  ) {
+  if (signerPrivateKey === null || rawParentName === null || rawResolverAddresses === null) {
     return null
   }
   const resolverAddresses: Address[] = []
@@ -48,7 +41,6 @@ const gatewayConfig = (env: Bindings): GatewayConfig | null => {
   }
   try {
     return {
-      allocationSecret,
       parentName: normalizeParentName(rawParentName),
       resolverAddresses,
       signerPrivateKey,
@@ -97,7 +89,6 @@ export const postEnsGateway = defineHandler(
     try {
       const responseData = await resolveGatewayRequest(c.get('db'), {
         data: requestData,
-        gatewaySecret: config.allocationSecret,
         now: c.get('now')(),
         parentName: config.parentName,
         resolverAddress,

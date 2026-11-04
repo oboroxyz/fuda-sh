@@ -229,25 +229,13 @@ describe('GET /pass/:uid/apple.pkpass', () => {
     await expect(res.json()).resolves.toStrictEqual({ error: 'apple_not_configured' })
   })
 
-  // 404 precedes the platform check: a private row must never reveal whether
-  // Apple Wallet is configured.
-  it('is 404 for a private row and 400 for a junk uid even when configured', async () => {
-    const chain = fakeChain()
-    const del = seedRoot(chain)
-    const uid: Hex = `0x${'79'.repeat(32)}`
-    await db().insert(members).values({
-      attestationUid: uid,
-      createdAt: NOW,
-      holder: null,
-      level: 'private',
-      memberId: '',
-      status: 'active',
-      tier: 0,
-    })
-    const bindings = await appleEnv(del)
-    const priv = await fetchPkpass(bindings, uid)
-    const junk = await appWith({ chain, now: () => NOW }).request('/pass/nope/apple.pkpass', {}, bindings)
-    expect([priv.status, junk.status]).toStrictEqual([404, 400])
-    await expect(priv.json()).resolves.toStrictEqual({ error: 'not_found' })
+  it('is 400 for a junk uid even when configured', async () => {
+    const bindings = await appleEnv(seedRoot(fakeChain()))
+    const junk = await appWith({ chain: fakeChain(), now: () => NOW }).request(
+      '/pass/nope/apple.pkpass',
+      {},
+      bindings,
+    )
+    expect(junk.status).toBe(400)
   })
 })

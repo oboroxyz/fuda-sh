@@ -1,10 +1,9 @@
-import { ADDRESS_RE, META_ADDRESS_RE } from '@fuda/sdk'
+import { ADDRESS_RE } from '@fuda/sdk'
 
 export interface IssueForm {
-  level: 'bearer' | 'signed' | 'private'
+  level: 'bearer' | 'signed'
   memberId: string
   holder: string
-  stealthMetaAddress: string
   tier: number
   usageModel: number
 }
@@ -17,13 +16,6 @@ export const issueBodyFrom = (f: IssueForm): Record<string, string | number> | n
   if (f.level === 'bearer') {
     return memberId === '' ? null : { memberId, ...common }
   }
-  if (f.level === 'signed') {
-    const holder = f.holder.trim()
-    return ADDRESS_RE.test(holder) ? { holder, ...common } : null
-  }
-  const stealthMetaAddress = f.stealthMetaAddress.trim()
-  if (!META_ADDRESS_RE.test(stealthMetaAddress)) {
-    return null
-  }
-  return memberId === '' ? { stealthMetaAddress, ...common } : { memberId, stealthMetaAddress, ...common }
+  const holder = f.holder.trim()
+  return ADDRESS_RE.test(holder) ? { holder, ...common } : null
 }

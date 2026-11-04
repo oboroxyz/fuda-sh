@@ -6,11 +6,11 @@ fuda names two things with ENS: the **issuer** that attests rights and the **mem
 
 ## Shipped implementation boundary
 
-The repository ships the B1-independent naming implementation:
+The repository ships the naming implementation:
 
 - canonical Issuer Handle and member-number validation, construction, and parsing;
-- the D1 `ens_names` operational mirror and `stealth_resolutions` derivation ledger;
-- active and expiry-aware stable lookup plus one-time +Private address allocation;
+- the D1 `ens_names` operational mirror;
+- active and expiry-aware stable lookup;
 - the public signed EIP-3668 gateway at `POST /ens/gateway`;
 - the hybrid ENSIP-10 `FudaResolver` and voucher-gated `FudaSubnameRegistrar` contracts;
 - claim and renew EIP-712 typed-data builders and inclusive-to-exclusive expiry conversion;
@@ -58,8 +58,6 @@ The `ens_names` mirror is written in exactly three places:
 
 Only a generated member number becomes a label. The admin path accepts free text for `memberId`, and that text never reaches the ENS namespace. A mirror write for a member never fails the operation that triggered it: a name is a convenience attached to a right, and the right is the product.
 
-A +Private right has no name yet. The mirror stores a stealth meta-address in place of a holder — that column is what the gateway's one-time derivation reads — but the only path that issues a level-2 right is the admin one, which belongs to no venue and so has no issuer label to hang a member name under. Giving a +Private right a name means issuing it under a venue with a generated member number; nothing does that today.
-
 ## Deployment namespace
 
 All ENS operations target the dedicated ETHOnline 2026 ENSv2 deployment on Ethereum Sepolia (`chainId = 11155111`). It is one indivisible address family: the package pins all 40 nonzero, unique deployment addresses and must not mix them with normal Sepolia ENS addresses. In particular, every client must override viem's normal Sepolia Universal Resolver with the dedicated proxy:
@@ -99,13 +97,13 @@ Every self-serve right receives its own member number at issuance; admin-issued 
 | Display | display-only formatting on the pass and dashboard: upper-cased in `4-4-5` groups, `QJ2Y-XPHE-PDRKA` (the last character of the last group is the check). Any typed-in number is lower-cased and stripped of hyphens before lookup |
 | Transport | passed by scan (QR / pass / link); the check character lets any receiver reject a corrupted or mistyped number before a lookup |
 | Uniqueness | unique per issuer; regenerated on collision |
-| Scope | one number per **right** — a `private + loyalty` member has two unrelated numbers |
+| Scope | one number per **right** |
 
 Hyphens never enter storage, the API, or ENS; they are added by the pass and dashboard renderers only.
 
-Why random, not sequential: a counter would make member names enumerable, reveal issue order and issuer size, and correlate with the order of fuda's issuance announcements onchain. Randomness costs nothing and removes all three.
+Why random, not sequential: a counter would make member names enumerable, reveal issue order and issuer size, and correlate with the order of fuda's issuance onchain. Randomness costs nothing and removes all three.
 
-**Member number and the admin `memberId`.** The member number above is the identifier the self-serve issuance path generates for a right. The admin path (`POST /issue` from the dashboard) accepts `memberId` as free-text—any non-empty string the operator chooses—and stores it as-is in `members.member_id`; it is neither validated against nor converted to the member-number format. The two coexist: an admin-issued right has whatever id the operator typed, a self-serve right has a generated member number. `POST /issuers/:handle/:slug/issue` is the route that generates them: the generator and validator are `generateMemberNumber` / `isMemberNumber` in `@fuda/sdk`, and `formatMemberNumber` renders the `4-4-5` display form on passes. The number is stored in `members.member_id`. Uniqueness is scoped to the **issuer** — a partial unique index on `(issuer_id, member_id)`, with `members.issuer_id` denormalized from the card because SQLite cannot constrain across the join — because the number is a label under the issuer. Two cards of one venue therefore never mint the same number, and a member who claims both holds two unrelated numbers, exactly as a `private + loyalty` member does.
+**Member number and the admin `memberId`.** The member number above is the identifier the self-serve issuance path generates for a right. The admin path (`POST /issue` from the dashboard) accepts `memberId` as free-text—any non-empty string the operator chooses—and stores it as-is in `members.member_id`; it is neither validated against nor converted to the member-number format. The two coexist: an admin-issued right has whatever id the operator typed, a self-serve right has a generated member number. `POST /issuers/:handle/:slug/issue` is the route that generates them: the generator and validator are `generateMemberNumber` / `isMemberNumber` in `@fuda/sdk`, and `formatMemberNumber` renders the `4-4-5` display form on passes. The number is stored in `members.member_id`. Uniqueness is scoped to the **issuer** — a partial unique index on `(issuer_id, member_id)`, with `members.issuer_id` denormalized from the card because SQLite cannot constrain across the join — because the number is a label under the issuer. Two cards of one venue therefore never mint the same number, and a member who claims both holds two unrelated numbers.
 
 A card's slug (`fuda.sh/@<handle>/<slug>`) is a product path and never an ENS label: the hierarchy stays `<member-no>.<issuer>.fuda.eth` with no card level.
 
@@ -113,13 +111,12 @@ A card's slug (`fuda.sh/@<handle>/<slug>`) is a product path and never an ENS la
 
 Member address answers keep their existing destination semantics:
 
-| Right                 | Member `addr()` result                                                            |
-| --------------------- | --------------------------------------------------------------------------------- |
-| `standard` (Bearer)   | the right's stable claimable smart-account address, unchanged by later Activation |
-| `standard` (Signed)   | the same stable Holder address                                                    |
-| `private` / U3 access | a fresh one-time stealth address on every query                                   |
+| Right               | Member `addr()` result                              |
+| ------------------- | --------------------------------------------------- |
+| `standard` (Bearer) | the right's stable fuda-owned smart-account address |
+| `standard` (Signed) | the same stable Holder address                      |
 
-A +Private name is therefore usable as a destination without exposing a stable address or creating a durable onchain link to the member. The member label itself is random and reveals nothing about the person.
+The member label itself is random and reveals nothing about the person.
 
 `FudaResolver` first parses and hashes the complete DNS-wire name, validates a supported ETH address record's node against that namehash, and locates an exact or nearest-ancestor claimed issuer marker. When a marker exists, it reads the issuer's current owner from the User Registry before deciding whether the query may go offchain.
 
@@ -157,7 +154,7 @@ sequenceDiagram
 
     Client->>Gateway: sender + original request
     Gateway->>DB: Look up ENS name
-    DB-->>Gateway: Stable address or one-time stealth allocation
+    DB-->>Gateway: Stable address
     Gateway->>Gateway: Sign resolver + expiry<br/>+ request + result
     Gateway-->>Client: Signed response envelope
 
@@ -185,23 +182,15 @@ keccak256(
 
 `expires` is the earlier of five minutes after the request and the name's own expiry. The callback binds the signature to the resolver, request, result, and expiry; rejects expired, malformed, invalid-recovery-id, high-s, and wrong-signer responses; then re-executes the exact signed request against the resolver. It returns the signed result only if the request still produces the current exact `OffchainLookup` envelope. Local routing, an inactive issuer, registry failure, malformed input, or any other outcome fails closed with a callback-state error. Onchain issuer answers never enter this callback and require no gateway signature.
 
-The endpoint requires all four bindings before it resolves anything:
+The endpoint requires all three bindings before it resolves anything:
 
 | Binding                  | Kind          | Meaning                                                  |
 | ------------------------ | ------------- | -------------------------------------------------------- |
 | `ENS_PARENT_NAME`        | plain binding | canonical two-label parent, `fuda.eth`                   |
 | `ENS_RESOLVER_ADDRESSES` | plain binding | comma-separated allowlist of deployed resolver addresses |
 | `ENS_GATEWAY_SIGNER_KEY` | Worker secret | 32-byte ECDSA private key for response signatures        |
-| `ENS_GATEWAY_SECRET`     | Worker secret | separate 32-byte HMAC key for +Private derivation        |
 
-The gateway signer, voucher signer, allocation key, parent owner, and EAS issuer key are separate roles and must not reuse keys.
-
-### +Private member resolution
-
-- A +Private lookup derives a fresh ERC-5564 stealth address from the member's stealth meta-address and a deterministic per-name nonce. The counter and derived `(stealthAddress, ephemeralPublicKey, viewTag)` are persisted only after the request and both gateway secrets validate. Private answers are never cached.
-- A lookup is never announced. An ERC-5564 announcement marks an onchain use, not the creation of an address. Announcing lookups would reveal query volume and inflate the member's scan set.
-- fuda announces when it issues a right to a resolved name; an ERC-5564-aware sender announces its own transfer. A watcher may announce a previously resolved address after observing activity there.
-- Members discover rights by scanning announcements with their passkey-derived viewing key. The name adds no second discovery path.
+The gateway signer, voucher signer, parent owner, and EAS issuer key are separate roles and must not reuse keys.
 
 ## Issuer claim and renewal
 
@@ -261,17 +250,13 @@ A claim voucher is signed only while the deployment's issuing delegation is live
 
 Revoking an issuer's delegation does not take its claimed name dark. The name keeps resolving to the issuer's wallet, and its member descendants keep resolving, until the registry expiry passes. This is deliberate, not a missing seam: a name is a destination, the delegation check is a separate fact every surface performs, and tying revocation to an onchain unregister would require handing revocation power to a live principal. A member name does go dark when its own right is revoked, because its answer comes from the mirror.
 
-Bearer-to-Signed Activation is not implemented. As designed, it changes the claimable account's owners, not its address, so the member name, right, and history would remain unchanged.
-
 ## Invariants
 
 - **Not authority.** A resolving name never makes an issuer legitimate or a right valid. Surfaces show the name and the delegation/right check as separate facts and fall back to the raw address when resolution fails.
 - **Revocation does not dark a claimed name.** A revoked delegation leaves the issuer's claimed name resolving until expiry. The mirror-backed member answers are the only ones a revocation can stop.
-- **Not in the Gate path.** Admission never waits on ENS. Member names are never shown at the Gate, written to Entry logs, or included in announcements.
+- **Not in the Gate path.** Admission never waits on ENS. Member names are never shown at the Gate, written to Entry logs, or included in any public record.
 - **No offchain resurrection.** Once claimed, an inactive issuer namespace cannot fall back to stale gateway data.
 - **No self-identifying labels.** Labels are Issuer Handles or random member numbers. No email, member database id, attestation UID, or proof material is published in an ENS record.
-- **No stable address for +Private.** A +Private name must never resolve to the same address twice or to any address that appears elsewhere with the member.
-- **Two numbers in `private + loyalty`.** The access and loyalty rights carry unrelated member numbers, so names do not link them.
 - **Offchain member layer.** Members never own subnames; only issuer labels are User Registry entries.
 
 ## Related specs

@@ -1,6 +1,6 @@
 # fuda rights subgraph
 
-This independently installed Graph package indexes fuda Entitlements, IssuerDelegations, Attendance records, revocations, and raw ERC-5564 announcements on Base Sepolia.
+This independently installed Graph package indexes fuda Entitlements, IssuerDelegations, Attendance records, and revocations on Base Sepolia.
 
 Install this package independently with its committed lockfile, then run its lifecycle from the repository root (the root workspace install does not install it):
 
@@ -12,7 +12,7 @@ pnpm graph:test
 pnpm graph:build
 ```
 
-`graph:prepare` reads only the `EAS_SCHEMAS` and `ANNOUNCER_FROM_BLOCK` values of the live `develop` target in `apps/api/targets.jsonc`. It deliberately fails while schema sets are empty or the start block is zero. Populate those values from live deployment receipts before generating a deployable `subgraph.yaml`; fixture-generated manifests and schema constants must not be committed.
+`graph:prepare` reads only the `EAS_SCHEMAS` and `GRAPH_START_BLOCK` values of the live `develop` target in `apps/api/targets.jsonc`. It deliberately fails while schema sets are empty or the start block is zero. Populate those values from live deployment receipts before generating a deployable `subgraph.yaml`; fixture-generated manifests and schema constants must not be committed.
 
 `subgraph.yaml`, `src/schema-uids.ts` and `generated/` are gitignored, so a fresh clone must run `graph:prepare` and `graph:codegen` before the mappings will compile.
 
@@ -27,7 +27,7 @@ pnpm --ignore-workspace exec graph auth --studio <DEPLOY_KEY>
 pnpm --ignore-workspace exec graph deploy --studio <SUBGRAPH_SLUG>
 ```
 
-Use [`queries/smoke.graphql`](queries/smoke.graphql) with real right, delegation, and attendance UIDs. Compare the returned holders, metadata, relations, and revocation timestamps with their transaction receipts. The query also returns recent raw announcements so their bytes and transaction/log identity can be checked directly.
+Use [`queries/smoke.graphql`](queries/smoke.graphql) with real right, delegation, and attendance UIDs. Compare the returned holders, metadata, relations, and revocation timestamps with their transaction receipts.
 
 ## Building without production configuration
 
@@ -77,7 +77,7 @@ node --input-type=module -e '
     }],
   };
   await writeFile(process.env.FUDA_GRAPH_FIXTURE_CONFIG, JSON.stringify({
-    develop: { vars: { ANNOUNCER_FROM_BLOCK: "1", EAS_SCHEMAS: JSON.stringify(schemas) } },
+    develop: { vars: { GRAPH_START_BLOCK: "1", EAS_SCHEMAS: JSON.stringify(schemas) } },
   }));
   const rootDir = path.resolve("packages/subgraphs/rights");
   await prepareRightsSubgraph({

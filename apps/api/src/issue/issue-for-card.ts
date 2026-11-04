@@ -120,7 +120,7 @@ const issueOffchain = async (
   }
 }
 
-// One Bearer pass under a card (docs/specs/pass-types-and-flows.md#u1-standard-issuance-and-optional-activation).
+// One Bearer pass under a card (docs/specs/pass-types-and-flows.md#standard-issuance).
 // The card fixes tier, usage model and validity. Its caller decides who may ask.
 export const issueForCard = async (
   c: Context<AppEnv>,
@@ -150,9 +150,6 @@ export const issueForCard = async (
   try {
     const issued = await issueBearer(ctx, body, { cardId: card.id, issuerId: issuer.id, source })
     minted = true
-    if (issued.level === 'private') {
-      return { error: 'internal', ok: false }
-    }
     // The member's own name under the venue. Best-effort by design: a name that
     // failed to mirror costs a resolution, not a card (apps/api/src/ens/mirror.ts).
     if (c.env.ENS_PARENT_NAME !== undefined) {
@@ -164,7 +161,6 @@ export const issueForCard = async (
         now: ctx.now,
         parentName: c.env.ENS_PARENT_NAME,
         rightUid: issued.uid,
-        stealthMetaAddress: null,
       })
     }
     return { ok: true, pass: { ...issued, level: 'bearer', memberNumber } }

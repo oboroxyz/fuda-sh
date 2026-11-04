@@ -27,7 +27,6 @@ const ADDR_ABI = parseAbi(['function addr(bytes32 node) view returns (address)']
 const OWNER = `0x${'11'.repeat(20)}` as const
 const TARGET = `0x${'22'.repeat(20)}` as const
 const SIGNER_KEY = `0x${'33'.repeat(32)}` as const
-const GATEWAY_SECRET = `0x${'44'.repeat(32)}` as const
 const RESOLVER = privateKeyToAccount(`0x${'55'.repeat(32)}`).address
 const OTHER_RESOLVER = privateKeyToAccount(`0x${'66'.repeat(32)}`).address
 const IP = '203.0.113.42'
@@ -45,7 +44,6 @@ const requestData = (name: string): Hex =>
 const configured = (overrides: Partial<Bindings> = {}): Bindings =>
   testEnv({
     ADMIN_TOKEN: 'admin-token',
-    ENS_GATEWAY_SECRET: GATEWAY_SECRET,
     ENS_GATEWAY_SIGNER_KEY: SIGNER_KEY,
     ENS_PARENT_NAME: 'fuda.eth',
     ENS_RESOLVER_ADDRESSES: `${OTHER_RESOLVER}, ${RESOLVER}`,
@@ -163,13 +161,11 @@ describe('POST /ens/gateway', () => {
   })
 
   it.each([
-    ['allocation secret', { ENS_GATEWAY_SECRET: undefined }],
     ['signer key', { ENS_GATEWAY_SIGNER_KEY: undefined }],
     ['parent name', { ENS_PARENT_NAME: undefined }],
     ['resolver allowlist', { ENS_RESOLVER_ADDRESSES: undefined }],
     ['malformed parent', { ENS_PARENT_NAME: 'not..eth' }],
     ['malformed resolver allowlist', { ENS_RESOLVER_ADDRESSES: 'not-an-address' }],
-    ['invalid allocation secret', { ENS_GATEWAY_SECRET: '0x1234' }],
     ['invalid signer key', { ENS_GATEWAY_SIGNER_KEY: '0x1234' }],
   ])('503s before resolution when %s is not configured', async (_case, overrides) => {
     const res = await post(

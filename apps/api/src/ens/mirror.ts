@@ -2,7 +2,6 @@ import { isMemberNumber } from '@fuda/sdk'
 import { and, eq, inArray, ne } from 'drizzle-orm'
 import type { Hex } from 'viem'
 
-import { ZERO_ADDRESS } from '../chain/client.ts'
 import type { Db } from '../db/client.ts'
 import { issuerEnsName, memberEnsName } from './names.ts'
 import { ensNames } from './schema.ts'
@@ -27,29 +26,20 @@ const quietly = async <T>(what: string, write: () => Promise<T>): Promise<void> 
 }
 
 export interface MemberNameInput {
-  holder: Hex | null
+  holder: Hex
   issuerHandle: string
-  level: 'bearer' | 'signed' | 'private'
+  level: 'bearer' | 'signed'
   memberNumber: string
   now: number
   parentName: string
   rightUid: Hex
-  stealthMetaAddress: Hex | null
 }
 
 // One name per right, written at issuance. Only a generated member number is a
 // legal label: the admin path takes free text for `memberId` and that text must
 // never reach the ENS namespace (docs/specs/ens-naming.md#member-number).
-//
-// A private right is mirrored by meta-address rather than by holder, because its
-// answer is a fresh stealth address on every query and its stable holder must
-// never be stored.
 export const mirrorMemberName = async (db: Db, input: MemberNameInput): Promise<void> => {
   if (!isMemberNumber(input.memberNumber)) {
-    return
-  }
-  const isPrivate = input.level === 'private'
-  if (isPrivate ? input.stealthMetaAddress === null : input.holder === null) {
     return
   }
   let name: string
@@ -67,14 +57,10 @@ export const mirrorMemberName = async (db: Db, input: MemberNameInput): Promise<
         kind: 'member',
         level: input.level,
         name,
-        // The holder owns the right. A private right has no holder fuda may record
-        // — that is the point of it — so the column carries the zero address rather
-        // than a stand-in that would read like a real account.
-        ownerAddress: input.holder ?? ZERO_ADDRESS,
+        ownerAddress: input.holder,
         rightUid: input.rightUid,
         status: 'offchain',
-        stealthMetaAddress: isPrivate ? input.stealthMetaAddress : null,
-        targetAddress: isPrivate ? null : input.holder,
+        targetAddress: input.holder,
         updatedAt: input.now,
       }),
   )

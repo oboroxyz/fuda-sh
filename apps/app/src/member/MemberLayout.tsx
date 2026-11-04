@@ -6,12 +6,11 @@ import type { JSX } from 'solid-js'
 import type { Route } from '../route.ts'
 import { MEMBER_COPY } from './copy.ts'
 
-export type MemberRoute = Extract<Route, 'private' | 'rights' | 'settings' | 'signed'>
+export type MemberRoute = Extract<Route, 'rights' | 'settings' | 'signed'>
 
 const LINKS: readonly { href: string; route: MemberRoute }[] = [
   { href: '/rights', route: 'rights' },
   { href: '/signed', route: 'signed' },
-  { href: '/private', route: 'private' },
   { href: '/settings', route: 'settings' },
 ]
 
@@ -26,9 +25,6 @@ const DockIcon = (props: { route: MemberRoute }): JSX.Element => (
     </Match>
     <Match when={props.route === 'signed'}>
       <path d="M4 12h14m-5-5 5 5-5 5M7 5H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2" />
-    </Match>
-    <Match when={props.route === 'private'}>
-      <path d="M12 3a4 4 0 0 0-4 4v3m8 0V7a4 4 0 0 0-1-2.7M5 10h14v11H5zM12 14v3" />
     </Match>
   </Switch>
 )

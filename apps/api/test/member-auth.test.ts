@@ -85,11 +85,7 @@ const setup = () => {
 
 const uidOf = (n: number): Hex => `0x${n.toString(16).padStart(64, '0')}`
 
-const insertPass = async (
-  n: number,
-  level: 'bearer' | 'private' | 'signed' = 'bearer',
-  holder: Hex | null = null,
-) => {
+const insertPass = async (n: number, level: 'bearer' | 'signed' = 'bearer', holder: Hex | null = null) => {
   await db()
     .insert(members)
     .values({
@@ -447,9 +443,9 @@ describe('member passkey sign-in', () => {
       await expect(list(request, b.token)).resolves.toHaveLength(0)
     })
 
-    it.each(['signed', 'private'] as const)('skips a %s right', async (level) => {
+    it('skips a signed right', async () => {
       const { register, request } = setup()
-      await insertPass(1, level)
+      await insertPass(1, 'signed')
       const { token } = await register(new SoftwarePasskey(RP))
       const res = await request('/v1/member/passes', { body: { uids: [uidOf(1)] }, token })
       await expect(res.json()).resolves.toStrictEqual({ linked: 0 })

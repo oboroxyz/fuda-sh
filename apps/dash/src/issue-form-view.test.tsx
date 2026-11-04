@@ -22,7 +22,6 @@ const form: Form = {
   holder: '',
   level: 'bearer',
   memberId: 'alice',
-  stealthMetaAddress: '',
   tier: 1,
   usageModel: 1,
 }
@@ -65,7 +64,6 @@ describe('localized operation views', () => {
   it.each([
     ['bearer', 'メンバー ID', 'Bearer — アプリ不要のデバイスウォレットパス'],
     ['signed', '保有者アドレス', 'Signed — ゲートでメンバーのウォレットが署名'],
-    ['private', 'ステルスメタアドレス', '+Private — メタアドレスからステルスアドレスを生成'],
   ] as const)('labels every %s control and explains the selected level', (level, identity, description) => {
     const host = view({ form: { ...form, level } })
     const labels = [...host.querySelectorAll('label')]
@@ -78,8 +76,7 @@ describe('localized operation views', () => {
       labelled: controls.every((control) =>
         labels.some((label) => label.htmlFor === control.id && control.id !== ''),
       ),
-      optionalMemberId: labels.map(spacedText).includes('メンバー ID（任意の代表 ID）'),
-    }).toStrictEqual({ described: true, labelled: true, optionalMemberId: level === 'private' })
+    }).toStrictEqual({ described: true, labelled: true })
   })
 
   it('blocks invalid and busy submissions and uses the busy label', () => {
@@ -129,20 +126,6 @@ describe('localized operation views', () => {
       })
     },
   )
-
-  it('announces private discovery and transaction prefix without a public pass', () => {
-    const host = view({
-      result: { body: { announceTx: UID, announced: true, level: 'private', uid: UID }, ok: true },
-    })
-    expect(spacedText(host)).toContain('アナウンスしました')
-    expect(spacedText(host)).toContain('メンバーがアプリで検出します。')
-    expect(spacedText(host)).toContain('トランザクション 0xaaaaaaaa…')
-    expect({
-      links: host.querySelectorAll('a').length,
-      qrs: host.querySelectorAll('div[role="img"]').length,
-    }).toStrictEqual({ links: 0, qrs: 0 })
-    expect(liveStatus(host)?.getAttribute('aria-live')).toBe('polite')
-  })
 
   it('retains machine errors verbatim inside localized alert context', () => {
     const host = view({ result: { error: 'RPC_DENIED [42]', network: false, ok: false, status: 503 } })

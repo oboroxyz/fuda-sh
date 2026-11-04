@@ -10,7 +10,6 @@ import { ensNames } from './schema.ts'
 
 const VECTOR_RESOLVER: Address = '0x1111111111111111111111111111111111111111'
 const VECTOR_KEY: Hex = '0x0000000000000000000000000000000000000000000000000000000000000001'
-const VECTOR_GATEWAY_SECRET: Hex = '0x2222222222222222222222222222222222222222222222222222222222222222'
 const VECTOR_SIGNER: Address = '0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf'
 const VECTOR_EXPIRES = 2_000_000_000n
 const VECTOR_REQUEST: Hex =
@@ -64,7 +63,6 @@ describe('ENS gateway conformance vector', () => {
 
     const response = await resolveGatewayRequest(db, {
       data: VECTOR_REQUEST,
-      gatewaySecret: VECTOR_GATEWAY_SECRET,
       now: 1_999_999_700,
       parentName: 'fuda.eth',
       resolverAddress: VECTOR_RESOLVER,

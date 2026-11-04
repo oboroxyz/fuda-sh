@@ -59,7 +59,7 @@ describe('POST /issue (bearer)', () => {
     })
   })
 
-  it('attests the Entitlement to the Claimable smart account with level 0', async () => {
+  it('attests the Entitlement to the fuda-owned smart account with level 0', async () => {
     const chain = fakeChain({ signer: ROOT })
     const del = seedRoot(chain)
     const res = await post(appWith({ chain, now: () => NOW }), configuredEnv(del), {
@@ -151,6 +151,24 @@ describe('POST /issue (bearer)', () => {
     const payloads = await Promise.all(responses.map(async (res) => await res.json()))
     expect(responses.map((res) => res.status)).toStrictEqual([400, 400, 400, 400])
     expect(payloads).toStrictEqual(bodies.map(() => ({ error: 'bad_input' })))
+  })
+
+  it('refuses the removed stealthMetaAddress field with 400 bad_input and issues nothing', async () => {
+    const chain = fakeChain({ signer: ROOT })
+    const del = seedRoot(chain)
+    const app = appWith({ chain, now: () => NOW })
+    const stealthMetaAddress = `0x${'cd'.repeat(66)}`
+    const responses = await Promise.all(
+      [{ stealthMetaAddress }, { memberId: 'alice', stealthMetaAddress }].map(
+        async (body) => await post(app, configuredEnv(del), body),
+      ),
+    )
+    expect(responses.map((res) => res.status)).toStrictEqual([400, 400])
+    await expect(Promise.all(responses.map(async (res) => await res.json()))).resolves.toStrictEqual([
+      { error: 'bad_input' },
+      { error: 'bad_input' },
+    ])
+    await expect(getDb({ DB: env.DB }).select().from(members)).resolves.toHaveLength(0)
   })
 
   it('501 no_signer when no signer is configured', async () => {

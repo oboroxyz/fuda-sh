@@ -7,9 +7,6 @@ import type { Accessor, JSX } from 'solid-js'
 import { render as solidRender } from 'solid-js/web'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import type { PrfResult } from '../passkey.ts'
-import * as stealth from '../private-member.ts'
-import { PrivateScreen } from './PrivateScreen.tsx'
 import { SignedGate } from './SignedGate.tsx'
 import { Verdict } from './Verdict.tsx'
 
@@ -29,7 +26,6 @@ const unmountAll = (): void => {
 }
 
 const root = document.createElement('div')
-type PrivateIo = NonNullable<Parameters<typeof PrivateScreen>[0]['io']>
 
 // The screen is built once and reads the language as it changes, so a switch
 // translates it in place instead of rebuilding it.
@@ -58,65 +54,10 @@ const click = (label: string): void => {
   button.click()
 }
 
-const privateIo = (result: Promise<PrfResult>): PrivateIo => ({
-  fetchRows: async () => await Promise.resolve([]),
-  passkeys: async () =>
-    await Promise.resolve({ createPasskey: async () => await result, loadPasskey: async () => await result }),
-  stealth: async () => await Promise.resolve(stealth),
-})
-
 describe('entry locale changes', () => {
   afterEach(() => {
     unmountAll()
     root.replaceChildren()
-  })
-
-  it('keeps a pending private ceremony and translates its result using the current language', async () => {
-    const pending = Promise.withResolvers<PrfResult>()
-    const io = privateIo(pending.promise)
-    render(
-      () => <Harness>{(locale): JSX.Element => <PrivateScreen io={io} locale={locale()} />}</Harness>,
-      root,
-    )
-    await setTimeout(0)
-    click('Use existing passkey')
-    await setTimeout(0)
-    click('Language')
-    await setTimeout(0)
-    expect(root.textContent).toContain('既存のパスキーを使う')
-    expect(root.querySelector<HTMLButtonElement>('.btn-primary')?.disabled).toBe(true)
-    pending.resolve({ detail: 'prompt dismissed', ok: false, reason: 'cancelled' })
-    await setTimeout(0)
-    expect(root.textContent).toContain('パスキーの操作をキャンセルしました。')
-    click('Language')
-    await setTimeout(0)
-    expect(root.textContent).toContain('The passkey prompt was dismissed.')
-    expect(root.textContent).toContain('prompt dismissed')
-  })
-
-  it('retains unlocked private keys across a language change', async () => {
-    const output = new Uint8Array(32).fill(7)
-    const io = privateIo(Promise.resolve({ ok: true, output }))
-    render(
-      () => <Harness>{(locale): JSX.Element => <PrivateScreen io={io} locale={locale()} />}</Harness>,
-      root,
-    )
-    await setTimeout(0)
-    click('Use existing passkey')
-    await setTimeout(0)
-    const metaAddress = root.querySelector('.font-mono')?.textContent
-    expect(metaAddress).toBeTruthy()
-    click('Meta-address details')
-    await setTimeout(0)
-    expect(root.querySelector('dialog')?.textContent).toContain(stealth.keysFromPrf(output).metaAddress)
-    click('Language')
-    await setTimeout(0)
-    expect(root.textContent).toContain('自分の権利を探す')
-    expect({
-      compact: root.querySelector('.font-mono')?.textContent,
-      full: root.querySelector('dialog dd')?.textContent?.includes(stealth.keysFromPrf(output).metaAddress),
-    }).toStrictEqual({ compact: metaAddress, full: true })
-    expect(root.textContent).not.toContain('既存のパスキーを使う')
   })
 
   it('retains scanner input and selected right while translating wallet actions', async () => {

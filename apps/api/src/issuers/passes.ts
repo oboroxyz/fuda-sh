@@ -80,7 +80,7 @@ const PASS_ROWS = `
     END AS status
   FROM members m
   LEFT JOIN cards c ON c.id = m.card_id AND c.issuer_id = m.issuer_id
-  WHERE m.issuer_id = ? AND m.level != 'private'
+  WHERE m.issuer_id = ?
 `
 
 const escapeLike = (value: string): string =>

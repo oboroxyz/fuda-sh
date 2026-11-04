@@ -39,10 +39,8 @@ flowchart LR
 1. **Delegate.** The configured root attests an IssuerDelegation for an issuer. This creates the trust path the gate will later validate.
 2. **Issue.** An authorized issuer attests an Entitlement whose recipient is its holder and whose `refUID` points to the governing IssuerDelegation. The public MVP waits for confirmed chain state before returning the issued UID.
 3. **Verify.** The gate reads the Entitlement and delegation from EAS. It checks accepted schemas, delegation authority, revocation, validity bounds, and the usage model. Signed policies additionally verify a fresh challenge against the holder.
-4. **Admit.** Admission consumes any required operational slot and creates an entry log. For a right whose `level` is `0` or `1` the API then attempts to attest Attendance without delaying the gate verdict; an Attendance write failure may leave the successful entry represented only in operational logs. **No Attendance is attested for a `level == 2` (+Private) right**: the stealth holder is unlinkable to the member, but a public Attendance would still publish that right's visit history, which is exactly what +Private exists to hide. Its entries live only in the entry log.
+4. **Admit.** Admission consumes any required operational slot and creates an entry log. For an on-chain right the API then attempts to attest Attendance without delaying the gate verdict; an Attendance write failure may leave the successful entry represented only in operational logs. An offchain right has no holder to name, so its entries live only in the entry log.
 5. **Revoke.** The issuer revokes the Entitlement on EAS. A later gate read rejects the same pass because the on-chain right is no longer valid.
-
-Holder-preserving activation is designed to change the owners of a claimable smart account, not the Entitlement, leaving its holder address, attestation UID, Attendance history, and other public history unchanged. It is not implemented.
 
 ## Identity and reference invariants
 
@@ -50,10 +48,8 @@ Holder-preserving activation is designed to change the owners of a claimable sma
 - An Entitlement's `refUID` identifies the IssuerDelegation that governs its issuer. The gate checks that delegation's schema, root attester, active flag, revocation state, and delegated issuer.
 - Attendance identifies the admitted Entitlement through `rightUID`; its EAS reference also points back to that right.
 - EAS recipients are immutable. Moving a right to a different holder requires a fresh attestation rather than editing the existing record.
-- Activating a claimable smart account (not implemented) would not move the right, because account ownership changes behind the same holder address.
-- Crossing the +Private boundary requires a fresh holder and attestation. The transition must not publish an on-chain lineage link that correlates the private and non-private rights.
 
-The [pass types and flows](./pass-types-and-flows.md) guide explains when the holder is a claimable smart account, direct wallet, or one-time stealth address.
+The [pass types and flows](./pass-types-and-flows.md) guide explains when the holder is a fuda-owned smart account or a direct wallet.
 
 ## On-chain authority and D1(SQLite) operational state
 
@@ -63,7 +59,6 @@ The [pass types and flows](./pass-types-and-flows.md) guide explains when the ho
 | IssuerDelegation authority and revocation | One-time Signed challenges and consumption timestamps |
 | Entitlement contents and revocation | SINGLE_USE slot consumption |
 | Confirmed Attendance evidence | Gate entry logs and optional Attendance UID backfill |
-| ERC-5564 announcement events | — (queried from the rights subgraph) |
 
 D1 can make the product responsive and enforce admission state that EAS does not model, but it cannot make an invalid or revoked Entitlement valid. If the gate cannot read required chain or delegation state, it must **fail closed** instead of trusting a cached D1 copy.
 
@@ -91,8 +86,7 @@ The values below are the implementation contract for the public MVP on Base Sepo
 | EAS | `0x4200000000000000000000000000000000000021` |
 | SchemaRegistry | `0x4200000000000000000000000000000000000020` |
 | Chain / RPC | Base Sepolia; `BASE_RPC_URL` secret, fallback `https://sepolia.base.org` |
-| ERC-5564 Announcer | `0x55649E01B5Df198D18D95b5cc5051630cfD45564` (`ANNOUNCER_ADDRESS`); indexed by the rights subgraph from its configured start block |
-| Coinbase Smart Wallet factory | `0x0BA5ED0c6AA8c49038F819E587E2633c4A9F428a` (`FACTORY_ADDRESS`); derives the counterfactual claimable-smart-account address for Bearer holders |
+| Coinbase Smart Wallet factory | `0x0BA5ED0c6AA8c49038F819E587E2633c4A9F428a` (`FACTORY_ADDRESS`); derives the counterfactual fuda-owned smart-account address for Bearer holders |
 
 ### Wire constants
 
@@ -103,9 +97,6 @@ Every string a client and the api must agree on byte-for-byte. Changing any of t
 | Pass / QR payload | `fuda:v1:<uid>` (uid = `0x` + 64 lowercase hex) |
 | Challenge string (what is signed, EIP-191 personal-sign) | `fuda-gate:<uid>:<nonce>` |
 | Challenge nonce | `0x` + 32 hex (16 random bytes); TTL 300 s; one-time |
-| Announcement metadata | `0x` + viewTag (2 hex) + uid (64 hex) |
-| HKDF domain salt (`@fuda/stealth-address`) | `fuda.sh/stealth/v1` (UTF-8 bytes) |
-| WebAuthn PRF eval input | `prf: { eval: { first: utf8('fuda.sh/stealth/prf/v1') } }` — the PRF output is a function of this input; it must never change |
 | WebAuthn `rp.id` | `fuda.sh` for every fuda passkey ceremony in production (`VITE_RP_ID`, baked into the member app at build time); local development uses `localhost` |
 
 `uid` values are normalized to lowercase at every route entry; a mixed-case uid in a QR, path or body is accepted and treated as the same right.
@@ -124,7 +115,7 @@ address holder,address issuer,uint8 usageModel,uint8 tier,uint8 level,bytes32 se
 
 - `usageModel`: `0 = SINGLE_USE`, `1 = MULTI_USE`, `2 = METERED`. Values `> 2` fail closed at the gate (`UNKNOWN_USAGE_MODEL`).
 - `tier`: `0 = FREE`, `1 = REGULAR`, `2 = VIP`, `3 = FOUNDER`.
-- `level`: the verification level the right was issued at: `0 = bearer`, `1 = signed`, `2 = private`. The QR path (`POST /verify`) admits only `level == 0`; any higher level presented as a bare QR is `REJECT LEVEL_REQUIRED`, so a photo or copied UID of a Signed or +Private pass never admits. `/verify-signed` accepts every level. `/issue` sets the value from the issuance level; it is never taken from the request.
+- `level`: the verification level the right was issued at: `0 = bearer`, `1 = signed`. The QR path (`POST /verify`) admits only `level == 0`; any higher level presented as a bare QR is `REJECT LEVEL_REQUIRED`, so a photo or copied UID of a Signed pass never admits. `/verify-signed` admits levels `0` and `1`. A right on chain at level `2` (issued before +Private was removed) is still decoded, so the gate reads and reports it, and is refused by both paths with `LEVEL_REQUIRED`; the signature path refuses it before spending the challenge. `/issue` sets the value from the issuance level; it is never taken from the request.
 - `validFrom` / `validUntil`: unix seconds; `0` means unbounded on that side.
 - Attested with `recipient = holder`, `revocable = true`, and `refUID = <the root IssuerDelegation UID>`.
 
@@ -152,8 +143,7 @@ Attested with `recipient = holder` and `refUID = rightUID`.
 | `EAS_VERSION` | `apps/api/targets.jsonc` `vars` | The EAS contract's `version()` on this chain. Offchain signatures commit to it, and it differs by chain: `1.4.1-beta.3` on Base Sepolia, `1.0.1` on Base mainnet. A wrong value still verifies inside fuda but fails in EAS tooling, so check it against the contract |
 | `DELEGATION_UID` | `apps/api/targets.jsonc` `vars` | UID of the root IssuerDelegation that every issued Entitlement references |
 | `ISSUER_ADDRESS` | `apps/api/targets.jsonc` `vars` | The configured root attester; the gate accepts only delegations attested by this address |
-| `ANNOUNCER_ADDRESS` | `apps/api/targets.jsonc` `vars` | The ERC-5564 Announcer `/issue` writes +Private announcements to |
-| `ANNOUNCER_FROM_BLOCK` | `apps/api/targets.jsonc` `vars` | Graph-manifest generation source for both rights-subgraph data-source start blocks; it is not read by the API |
+| `GRAPH_START_BLOCK` | `apps/api/targets.jsonc` `vars` | Graph-manifest generation source for the rights-subgraph data-source start block; it is not read by the API |
 | `FACTORY_ADDRESS` | `apps/api/targets.jsonc` `vars` | Coinbase Smart Wallet factory used to derive Bearer holder addresses |
 | `PUBLIC_BASE_URL` | `apps/api/targets.jsonc` `vars` | The member-facing origin a published card links to (`https://fuda.sh`; the apex redirects `/@*` to `app.fuda.sh`). `POST /issuers` and `GET /issuers/me` build `publicUrl` from it, never from the request URL |
 | `API_BASE_URL` | `apps/api/targets.jsonc` `vars` | Absolute base for the `passUrls` in `/issue` responses; its origin is the api entry in the Google Wallet `origins` claim, which also lists `https://dash.fuda.sh` and `https://app.fuda.sh` |
@@ -242,7 +232,6 @@ Errors are `{ "error": "<code>" }` with these statuses. Every gate _decision_ is
 | `bad_input` | 400 | body fails validation |
 | `bad_uid` | 400 | uid is not `0x` + 64 hex |
 | `bad_qr` | 400 | QR payload is not `fuda:v1:<uid>` |
-| `bad_meta_address` | 400 | +Private meta-address is malformed or off-curve |
 | `client_ip_required` | 400 | budgeted route called without `CF-Connecting-IP` |
 | `unauthorized` | 401 | admin bearer missing or wrong, or admin routes locked; on operator/member session routes, no live token for that audience |
 | `bad_address` | 400 | operator/member auth challenge address is not 20-byte hex |
@@ -264,7 +253,7 @@ Errors are `{ "error": "<code>" }` with these statuses. Every gate _decision_ is
 | `media_not_configured` | 501 | logo upload without the `MEDIA_BUCKET` binding |
 | `bad_upload` | 400 | logo multipart malformed, or a variant failing its signature, dimension or size check |
 | `upload_not_found` | 400 | staged logo id unknown, expired, already spent, or another session's |
-| `not_found` | 404 | no `members` row for the uid (also a +Private row on the pass routes) |
+| `not_found` | 404 | no `members` row for the uid |
 | `rate_limited` | 429 | per-IP hourly budget exceeded |
 | `internal` | 500 | unclassified defect; logged |
 | `no_signer` | 501 | write route without `SIGNER_PRIVATE_KEY` |
@@ -303,13 +292,12 @@ A version prefix on a URL that can never be reissued would only guarantee that `
 
 ### API payloads that touch attestations
 
-**`POST /issue`** derives the level from the keys present: `stealthMetaAddress` → +Private (`memberId` optional, `holder` forbidden); else `holder` → Signed (`memberId` forbidden); else `memberId` → Bearer; anything else → `400 bad_input`.
+**`POST /issue`** derives the level from the keys present: `holder` → Signed (`memberId` forbidden); else `memberId` → Bearer; anything else → `400 bad_input`. A field the body does not define, such as the removed `stealthMetaAddress`, is `400 bad_input` too.
 
 ```jsonc
 {
-  "memberId": "alice", // Bearer: any non-empty string. +Private: optional representative id
+  "memberId": "alice", // Bearer: any non-empty string
   "holder": "0x…40", // Signed: the member's wallet address
-  "stealthMetaAddress": "0x…132hex", // +Private: 66-byte meta-address
   "tier": 1, // optional, 0–3, default 0
   "usageModel": 1, // optional, 0–2, default 1 (MULTI_USE)
   "validFrom": 0,
@@ -318,7 +306,7 @@ A version prefix on a URL that can never be reissued would only guarantee that `
 }
 ```
 
-Issuance is synchronous: the endpoint submits the attestation transaction and waits for the receipt before returning the UID. A Bearer or Signed issuance answers:
+Issuance is synchronous: the endpoint submits the attestation transaction and waits for the receipt before returning the UID. It answers:
 
 ```jsonc
 {
@@ -336,7 +324,7 @@ Issuance is synchronous: the endpoint submits the attestation transaction and wa
 
 **`POST /issuers/:handle/:slug/issue`** is the self-serve Bearer path behind `fuda.sh/@<handle>/<slug>` (docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route). Its only body is an optional `{ source }` label ([capacity and source](./pass-types-and-flows.md#capacity-and-source)): the card fixes `tier` (0), `usageModel` (`SINGLE_USE` for a `ticket`, `MULTI_USE` otherwise) and the validity window — `validUntil` = claim time plus `validity_days` for a relative card, the card's own `valid_from`/`valid_until` for an absolute one, and 0 for a card that never expires. A claim outside the card's claim window answers `409 card_closed` before anything is attested. The api generates the member number, derives the holder exactly as the admin Bearer path does (nonce preimage = the member number), attests, and answers the Bearer `/issue` shape plus `memberNumber`.
 
-All three `passUrls` are absolute against `API_BASE_URL` and always present, even where a wallet platform is unconfigured (that route answers `501`). A +Private issuance answers the other arm — `{ "uid", "level": "private", "announced": true, "announceTx" }` — with no `holder`, no `qr` and no `passUrls`, because a +Private right has no pass ([passes](./pass-types-and-flows.md#passes)).
+All three `passUrls` are absolute against `API_BASE_URL` and always present, even where a wallet platform is unconfigured (that route answers `501`).
 
 **`POST /revoke`** takes `{ "uid": "0x…64" }`, calls `revoke(entitlementSchemaUid, uid)` on EAS, then marks the member row `revoked`. Response `{ "revoked": true, "uid" }`. Errors: `400 bad_uid`, `501 no_signer`, `502 chain_error` (an unknown UID reverts on EAS and surfaces here; the member row is left untouched). A UID already revoked on chain skips the transaction and marks the row, so a retry after a lost answer ends in the same state.
 
@@ -364,8 +352,6 @@ All three `passUrls` are absolute against `API_BASE_URL` and always present, eve
 
 **Threat model of the public verify endpoints.** `GET /verify/:uid` and `POST /verify` are unauthenticated, and every Bearer uid is public on chain and in the pass URL scheme (`/pass/<uid>`). Anyone who learns a uid can preview it and, for a SINGLE_USE right, burn its slot with a bare `POST /verify`. This is by design: a Bearer right is a bearer credential, and the issuer's own gate scanner shares the same anonymous path. Rights that must resist this are issued at Signed, where admission needs a challenge signature from the holder.
 
-**+Private privacy boundary.** Unlinkability holds against chain observers, not against the issuer: the issuer attested the right, chose the stealth address at issue time, and its own `members` row may carry the representative `member_id` next to the uid, so it can join member id, uid, and stealth address. The gate additionally learns which right entered from the stealth-key signature.
-
 **Signature verification and RPC outages.** `POST /verify-signed` verifies possession through viem's `publicClient.verifyMessage`, which covers EOAs (ecrecover), deployed smart accounts (ERC-1271) and undeployed ones (ERC-6492) in one call. viem folds a transport error during the ERC-1271/6492 path into a `false` result, so an RPC outage surfaces as `BAD_SIGNATURE` (fail closed) rather than `502`; the burned challenge is cheap to re-mint. The api's wrapper keeps a fail-closed branch for a client that does throw — an `HttpRequestError`, `TimeoutError` or `RpcRequestError` becomes a `ChainError` and a `502` — so a viem version that stops swallowing transport failures changes the status, not the safety. Re-test this behaviour on every viem major bump.
 
 ### D1 tables that mirror or extend attestations
@@ -375,9 +361,9 @@ The core operational tables originate in `apps/api/migrations/0000_init.sql`. Th
 ```sql
 CREATE TABLE members (
   attestation_uid TEXT PRIMARY KEY,          -- 0x…64; one row per issued right
-  member_id       TEXT NOT NULL DEFAULT '',  -- persistent id: operator-chosen (bearer), holder address (signed), optional representative id (private); NOT unique
-  holder          TEXT,                      -- attested address (bearer/signed); NULL for private rows — the stealth address is never stored
-  level           TEXT NOT NULL,             -- 'bearer' | 'signed' | 'private' (mirror of the on-chain `level`)
+  member_id       TEXT NOT NULL DEFAULT '',  -- persistent id: operator-chosen (bearer), holder address (signed), NOT unique
+  holder          TEXT,                      -- attested address (bearer/signed); NULL for an offchain right
+  level           TEXT NOT NULL,             -- 'bearer' | 'signed' (mirror of the on-chain `level`)
   tier            INTEGER NOT NULL DEFAULT 0,
   status          TEXT NOT NULL DEFAULT 'active',  -- 'active' | 'revoked'
   created_at      INTEGER NOT NULL           -- unix seconds
@@ -427,32 +413,28 @@ Authenticated venue reception shares the same `slots` table but evaluates slot a
 
 Issuer onboarding adds four things (`0004_issuers.sql`, extended by `0005_member_number_per_issuer.sql` and `0006_card_slug.sql`): `issuers` (`handle` UNIQUE, `name`, `tagline`, `brand_color`, `operator_address`, `created_at`; an operator address may own several rows since `0018_issuers_per_account.sql`, indexed on `(operator_address, created_at)`), `cards` (`issuer_id`, `slug` with `(issuer_id, slug)` UNIQUE, `title`, `category` in `membership|ticket`, `description`, `lock_screen`, `venue_lat`, `venue_lng`, the claim window `claim_from`/`claim_until`, and one validity rule — either `validity_days` (relative to the claim) or `valid_from`/`valid_until` (absolute), never both), `sessions` (`token_hash` PK — only the SHA-256 of the bearer token is stored — `address`, `audience` (`operator` or `member`, existing rows default to `operator`), nullable `issuer_id` — the one issuer the session acts for, set once and never moved; another issuer of the same address takes another session — `created_at`, `expires_at` = created + 30 days), and on `members` the nullable `card_id` and `issuer_id` of a self-serve right. A generated member number is unique per **issuer**: a partial unique index on `(issuer_id, member_id) WHERE issuer_id IS NOT NULL`, because the number is an ENS label under the issuer ([ENS naming](./ens-naming.md#member-number)). Admin-issued rows leave both columns NULL and keep their free-text `member_id`. Sign-in nonces reuse the `challenges` table under an `operator:<address>` or `member:<address>` subject, with the gate's TTL and sweep. Member sessions never have an issuer binding. An issuer is a product and branding entity only: every attestation is still made by the fuda signer under `DELEGATION_UID`, and no per-issuer IssuerDelegation exists.
 
-### Announcement discovery
-
-The rights subgraph indexes every ERC-5564 `Announcement` without caller, scheme, or view-tag filtering. The member app fetches pages of 1,000 from a public Graph endpoint with a stable `(blockNumber, id)` cursor, validates every response field, preserves Graph integer scalars as JavaScript `bigint`, and passes the raw candidates to local viewing-key matching. No announcement or stealth holder is persisted in D1, and `GET /announcements` does not exist. The subgraph reads the EAS and Announcer contracts directly; it neither consumes the Substreams packages nor requires a Substreams process or sink.
-
 ### Rights and on-chain status views
 
 The shared SDK queries the rights subgraph for Rights by normalized holder, Attendance by right UID, and IssuerDelegation by normalized issuer. It validates the complete response shape at the network boundary, converts Graph integer scalars to JavaScript `bigint`, and surfaces HTTP, GraphQL, and malformed-data failures instead of rendering partial chain state.
 
-GraphQL errors take precedence even when a response includes data, including announcement discovery responses. A Right preserves its raw EAS reference as `refUID`. Its nullable `delegation` relation is populated only when that UID names an accepted Delegation already indexed when the Right is handled. Zero, unaccepted-schema, and missing references leave `delegation: null`; the Right remains queryable and the dashboard displays the unresolved reference. This is an index relation, not proof of delegation authority or gate admission. If the Delegation predates the indexed history, resolving it requires reindexing from an earlier start block.
+GraphQL errors take precedence even when a response includes data. A Right preserves its raw EAS reference as `refUID`. Its nullable `delegation` relation is populated only when that UID names an accepted Delegation already indexed when the Right is handled. Zero, unaccepted-schema, and missing references leave `delegation: null`; the Right remains queryable and the dashboard displays the unresolved reference. This is an index relation, not proof of delegation authority or gate admission. If the Delegation predates the indexed history, resolving it requires reindexing from an earlier start block.
 
 Subgraph configuration preserves all accepted UID/version entries from the MVP schema sets. The current wire decoders support v1 for Entitlement, IssuerDelegation, and Attendance, using the same flat ABI parameters as the API encoders. A future wire version needs an explicit decoder and canonical upcast before it can index; a configured positive version is not silently decoded as v1. Unsupported wire versions produce no decoded entity.
 
-The member app's `/rights` list combines public holder queries with passes remembered by the browser and refreshes each row through `GET /verify/:uid`. When the index is unavailable, device-remembered rows remain visible. The operator dashboard's `/rights` view reads D1 operational rows using a venue-scoped session or the deployment admin token and presents on-chain status in a separate section. On-chain status does not depend on a matching member row and never writes query results to D1. In particular, entering a +Private stealth holder for a local lookup must not attach that address to the D1 member record.
+The member app's `/rights` list combines public holder queries with passes remembered by the browser and refreshes each row through `GET /verify/:uid`. When the index is unavailable, device-remembered rows remain visible. The operator dashboard's `/rights` view reads D1 operational rows using a venue-scoped session or the deployment admin token and presents on-chain status in a separate section. On-chain status does not depend on a matching member row and never writes query results to D1.
 
 ### Operational reconciliation
 
 Two writes are deliberately non-atomic across the chain and D1, and each leaves a trace an operator reconciles by hand:
 
-- **Orphan attestation.** `POST /issue` attests first, then (for +Private) announces, and writes the `members` row last. If the announce or the row insert fails, the route answers `502 chain_error`, persists nothing, and logs the uid. The right exists on chain but fuda's ledger does not know it; revoke it by uid from the dashboard, or re-run the issue. A re-run attests a second right, so the orphan is the duplicate to revoke.
-- **Lost `attendance_uid`.** Attendance is attested best-effort after the verdict; if the attest or the write-back fails, the `entry_log` row keeps `attendance_uid = NULL` and the failure is logged. The admission stands; the on-chain evidence is missing for that entry. `SELECT * FROM entry_log WHERE decision = 'ADMIT' AND attendance_uid IS NULL` lists candidates, including +Private admissions whose missing Attendance is intentional. Check the entitlement level before classifying a failure.
+- **Orphan attestation.** `POST /issue` attests first and writes the `members` row last. If the row insert fails, the route answers `502 chain_error`, persists nothing, and logs the uid. The right exists on chain but fuda's ledger does not know it; revoke it by uid from the dashboard, or re-run the issue. A re-run attests a second right, so the orphan is the duplicate to revoke.
+- **Lost `attendance_uid`.** Attendance is attested best-effort after the verdict; if the attest or the write-back fails, the `entry_log` row keeps `attendance_uid = NULL` and the failure is logged. The admission stands; the on-chain evidence is missing for that entry. `SELECT * FROM entry_log WHERE decision = 'ADMIT' AND attendance_uid IS NULL` lists candidates, including admissions of offchain rights, which never attest Attendance.
 
 ### Tests that pin this model
 
 - **Unit (api helpers):** schema UID computation vs the registry; Entitlement codec round-trip including `level`; Attendance codec round-trip; reason ordering (`LEVEL_REQUIRED` precedes `ALREADY_USED`); versioning seam: unknown UID → `WRONG_SCHEMA`, v1 decode → canonical upcast identity, delegation accepted-set lookup; EAS `expirationTime` in the past → `EXPIRED`, taking precedence over the usage-model check.
-- **Integration (api, workerd + real D1):** issue → verify ADMIT (bearer); revoke → REJECT; SINGLE_USE double-scan; signed-level right by QR → `LEVEL_REQUIRED` with its slot left unconsumed; same holder issued twice → two rows; delegation-missing REJECT; `/revoke` unknown uid → `502 chain_error`; +Private issue → member row has `holder = NULL` and `member_id` = the supplied representative id; +Private ADMIT via `/verify-signed` → no Attendance attest is attempted and `attendance_uid` stays `NULL`; admin routes locked (`401`, `x-auth-mode: locked`) without `ADMIN_TOKEN` when a signer is set, and equally when only `BASE_RPC_URL` is set; `/pass/:uid` `404` for a +Private row (the shared row load precedes any platform check).
-- **Unit (member app):** announcement paging — a short page ends the walk, a full page resumes using the stable `(blockNumber, id)` cursor; app-only route selection and active, revoked, empty, loading, and error card states.
+- **Integration (api, workerd + real D1):** issue → verify ADMIT (bearer); revoke → REJECT; SINGLE_USE double-scan; signed-level right by QR → `LEVEL_REQUIRED` with its slot left unconsumed; same holder issued twice → two rows; delegation-missing REJECT; `/revoke` unknown uid → `502 chain_error`; a body with `stealthMetaAddress` → `400 bad_input` and nothing attested; a right on chain at level 2 → `LEVEL_REQUIRED` by QR, and by `/verify-signed` with its challenge left unspent; admin routes locked (`401`, `x-auth-mode: locked`) without `ADMIN_TOKEN` when a signer is set, and equally when only `BASE_RPC_URL` is set.
+- **Unit (member app):** app-only route selection and active, revoked, empty, loading, and error card states.
 - **Unit (Graph views):** holder and issuer normalization; multiple, revoked, empty, malformed, and GraphQL-error responses; Attendance and delegation relation loading; and dashboard rendering without a D1 member row.
 
 ## Related specs

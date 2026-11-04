@@ -83,7 +83,7 @@ export const getPassUid = defineHandler(async (c) => {
 })
 
 // The venue's look behind a pass, as JSON, for a client that lists passes in
-// that look (the member app). Same lookup and same 400 → 404 → 404-for-+Private
+// that look (the member app). Same lookup and same 400 → 404
 // contract as the page. An admin-issued right answers `card: null`: it has no
 // venue card and keeps the plain fuda look.
 export const getPassUidCard = defineHandler(async (c) => {

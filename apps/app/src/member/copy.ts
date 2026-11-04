@@ -45,7 +45,6 @@ const EN = {
   },
   nav: {
     label: 'Member navigation',
-    private: '+Private',
     rights: 'Your passes',
     settings: 'Settings',
     signed: 'Enter',
@@ -69,8 +68,6 @@ const EN = {
     noRights: 'No rights found for this holder.',
     pass: 'Pass',
     placeholder: '0x… holder address',
-    privateNotice: 'This is a +Private pass. Open Private rights to recover it.',
-    privateRights: 'Private rights',
     recoveryFailed: 'Could not recover this pass:',
     revoked: 'REVOKED',
     saveBackup: 'Save a backup',
@@ -167,7 +164,6 @@ export const MEMBER_COPY = {
     },
     nav: {
       label: 'メンバーメニュー',
-      private: '+Private',
       rights: 'あなたのパス',
       settings: '設定',
       signed: '入場',
@@ -190,8 +186,6 @@ export const MEMBER_COPY = {
       noRights: 'このアドレスの権利は見つかりませんでした。',
       pass: 'パス',
       placeholder: '0x… 保有者のアドレス',
-      privateNotice: 'これは +Private のパスです。+Private を開いて復元してください。',
-      privateRights: '+Private を開く',
       recoveryFailed: 'パスを復元できませんでした：',
       revoked: '失効',
       saveBackup: '控えを保存',

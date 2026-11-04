@@ -1,6 +1,6 @@
 # Deploy runbook
 
-Operator instructions for standing up fuda on Cloudflare and Base Sepolia, in order. The checked-in `develop` target of the api (`apps/api/targets.jsonc`) already contains the Sepolia schema UIDs, root delegation, database id, and Announcer start block. The bootstrap steps below are for a new deployment; verify and reuse the existing resources when operating this checkout.
+Operator instructions for standing up fuda on Cloudflare and Base Sepolia, in order. The checked-in `develop` target of the api (`apps/api/targets.jsonc`) already contains the Sepolia schema UIDs, root delegation, database id, and subgraph start block. The bootstrap steps below are for a new deployment; verify and reuse the existing resources when operating this checkout.
 
 For local setup, start at [Local development](#12-local-development). API paths in prose omit `/v1` except for the unversioned pass, asset, ENS gateway, and health routes; see [API versioning](./specs/attestation-model.md#api-versioning).
 
@@ -42,7 +42,7 @@ Run these in order; each fills a placeholder the next step or the deploy depends
 
    `PUBLIC_BASE_URL` (`develop` `vars`) is the member-facing origin the dashboard's published card links to, `https://fuda.sh`; the `local` value is the app dev port. It never needs regenerating.
 
-4. Look up the `Announcer` contract's deployment block on the Base Sepolia explorer and set the `develop` target's `vars.ANNOUNCER_FROM_BLOCK` to it. The checked-in Sepolia value is `"7552655"`; a fresh deployment must verify its own value. This value is the start block used when generating both data sources in the rights-subgraph manifest; it is not an API binding or a D1 cache floor. `pnpm graph:prepare` rejects zero, missing, and malformed values.
+4. Set the `develop` target's `vars.GRAPH_START_BLOCK` to a block at or before the first fuda attestation on Base Sepolia, for example the block of the schema registrations in step 1. The checked-in Sepolia value is `"7552655"`; a fresh deployment must verify its own value. This value is the start block of the EAS data source in the rights-subgraph manifest; it is not an API binding or a D1 cache floor. `pnpm graph:prepare` rejects zero, missing, and malformed values.
 5. Create the D1 database and paste its id into both `database_id` entries in `apps/api/targets.jsonc` (the `develop` and `local` targets):
 
    ```bash
@@ -55,11 +55,11 @@ Run these in order; each fills a placeholder the next step or the deploy depends
    pnpm --filter api migrate:remote
    ```
 
-Apply migration `0009_session_audience.sql` before deploying the member-login API. It adds the member/operator audience to existing session storage, preserving old operator sessions. Member login uses the same API and signature-verification chain configuration as dashboard login; no new Worker, domain or member database is needed. The app's Base Account sign-in is separate from its dedicated +Private PRF passkey.
+Apply migration `0009_session_audience.sql` before deploying the member-login API. It adds the member/operator audience to existing session storage, preserving old operator sessions. Member login uses the same API and signature-verification chain configuration as dashboard login; no new Worker, domain or member database is needed.
 
 ### ENSv2 parent and hybrid resolver topology
 
-The D1 migrations create the `ens_names` mirror and `stealth_resolutions` ledger. The API exposes `POST /ens/gateway`, and `packages/ens-contracts` contains the matching hybrid ENSIP-10 resolver, issuer registrar, pinned ETHOnline 2026 Sepolia address family, and noninteractive deployment tools. The gateway route fails closed with 503 unless all four API-side ENS bindings are present, so the ordinary deployment above does not need placeholder ENS values.
+The D1 migrations create the `ens_names` mirror. The API exposes `POST /ens/gateway`, and `packages/ens-contracts` contains the matching hybrid ENSIP-10 resolver, issuer registrar, pinned ETHOnline 2026 Sepolia address family, and noninteractive deployment tools. The gateway route fails closed with 503 unless all three API-side ENS bindings are present, so the ordinary deployment above does not need placeholder ENS values.
 
 Use only the dedicated deployment on Ethereum Sepolia (`11155111`). Every client must use its Universal Resolver override `0xd26f2040d083af1cd2962ba303f4bea0c4faf142`; do not substitute normal Sepolia ENS addresses. Keep the parent, voucher, gateway, allocation, and EAS issuer keys separate, and never paste real keys into a checked-in file.
 
@@ -116,7 +116,6 @@ Set secrets from `apps/api/targets/develop` with `void secret put <NAME>` (use `
 - `ADMIN_TOKEN` — **required whenever a chain binding is set.** With `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL` configured and no `ADMIN_TOKEN`, the api locks every admin route (`401 unauthorized`) and every response carries `x-auth-mode: locked`. This is deliberate fail-closed behavior, not a misconfiguration to work around.
 - `BASE_RPC_URL` — Base Sepolia RPC endpoint.
 - `ENS_GATEWAY_SIGNER_KEY` — dedicated 32-byte ECDSA private key that signs gateway responses. Do not reuse `SIGNER_PRIVATE_KEY` or the ENS parent key.
-- `ENS_GATEWAY_SECRET` — separate 32-byte HMAC key used to derive deterministic one-time +Private destinations.
 - `ENS_VOUCHER_KEY` — dedicated 32-byte ECDSA private key that signs claim and renew vouchers. It is the key the deployed registrar checks against, so it must be the same one `ens:topology:deploy` was given, and it must not be the gateway signer, the parent key, or `SIGNER_PRIVATE_KEY`.
 - `ENS_SEPOLIA_RPC_URL` — Ethereum Sepolia RPC. A secret rather than a var, because an Alchemy endpoint carries its API key in the path.
 - `ENS_PAYMASTER_UPSTREAM` — the vendor's ERC-7677 paymaster endpoint. With Alchemy this is the same URL as above; the bindings stay separate so the paymaster vendor can change without touching the chain reads.
@@ -160,7 +159,7 @@ The Graph endpoint is browser-visible. Use a public gateway key restricted to th
 
 ## 7. Build and deploy the rights subgraph
 
-Install the independent package, then generate and verify the deployable manifest from the Sepolia `EAS_SCHEMAS` and `ANNOUNCER_FROM_BLOCK` values of the `develop` target in `apps/api/targets.jsonc`:
+Install the independent package, then generate and verify the deployable manifest from the Sepolia `EAS_SCHEMAS` and `GRAPH_START_BLOCK` values of the `develop` target in `apps/api/targets.jsonc`:
 
 ```bash
 pnpm --ignore-workspace --dir packages/subgraphs/rights install --frozen-lockfile
@@ -177,6 +176,8 @@ cd packages/subgraphs/rights
 pnpm --ignore-workspace exec graph auth --studio <DEPLOY_KEY>
 pnpm --ignore-workspace exec graph deploy --studio <SUBGRAPH_SLUG>
 ```
+
+Removing the Announcer data source and the `Announcement` entity changes the subgraph, so deploy it as a new version in Studio and wait for it to sync before pointing clients at it. A browser client bakes `VITE_GRAPH_RIGHTS_ENDPOINT` in at build time, so update it to the new version's query URL and redeploy the app and the dashboard.
 
 Use the Studio query URL for the controlled event demo. Before building the browser clients, provision a public gateway endpoint (or same-origin proxy) and use it as `VITE_GRAPH_RIGHTS_ENDPOINT`. Deployment and receipt comparison are live gates; verify them with §9 below and [`integrations/thegraph.md`](./integrations/thegraph.md).
 
@@ -234,11 +235,11 @@ API_URL=https://api.fuda.sh ADMIN_TOKEN=… SMOKE_OPERATOR_KEY=… \
   pnpm --filter api smoke:live --ladder bearer,signed,card
 ```
 
-Runs the supported ladders end to end against the live API. The `card` ladder is the one that covers the venue's own front door — an operator signs in with their wallet, publishes a card, and a member claims it off the public page with no admin token — so it exercises what a phone in the queue does. Set `SMOKE_OPERATOR_KEY` to a dedicated operator key whose venue is already registered; its ENS name need not be claimed. The script checks this prerequisite before running the selected ladders, creates a card with a unique slug, and leaves that card behind in the venue. It does not acquire an ENS name or fund a wallet. Use `--ladder bearer,signed` when testing without an operator venue; the card ladder is not silently skipped. Fresh issuer registration and card creation for an unclaimed venue are also covered by the API test suite. There is no `private` ladder: discovery is a browser-to-Graph query and the script would have nothing to drive. Verify +Private discovery through the rights subgraph and member app, then enter through the ordinary Signed challenge-response flow, as documented in [`integrations/thegraph.md`](./integrations/thegraph.md). The Attendance attestation for the Bearer/Signed ladder's ADMIT verdicts appears on the Base Sepolia explorer within a few blocks.
+Runs the supported ladders end to end against the live API. The `card` ladder is the one that covers the venue's own front door — an operator signs in with their wallet, publishes a card, and a member claims it off the public page with no admin token — so it exercises what a phone in the queue does. Set `SMOKE_OPERATOR_KEY` to a dedicated operator key whose venue is already registered; its ENS name need not be claimed. The script checks this prerequisite before running the selected ladders, creates a card with a unique slug, and leaves that card behind in the venue. It does not acquire an ENS name or fund a wallet. Use `--ladder bearer,signed` when testing without an operator venue; the card ladder is not silently skipped. Fresh issuer registration and card creation for an unclaimed venue are also covered by the API test suite. The Attendance attestation for the Bearer/Signed ladder's ADMIT verdicts appears on the Base Sepolia explorer within a few blocks.
 
 Once ENS is configured, send one known ENSIP-10 request through the deployed resolver or directly to `POST /ens/gateway`. A successful direct response is `{"data":"0x…"}` with `Cache-Control: no-store`; malformed, unknown, and infrastructure failures use `{"message":"…"}` and are also never cached. The gateway is public, so do not send `ADMIN_TOKEN`.
 
-Query the deployed rights subgraph with real right, delegation, and Attendance UIDs, and compare the returned holders, metadata, relations, announcement identity, and revocation timestamps with their transaction receipts. Export the identifiers from real receipts, never from fixture constants:
+Query the deployed rights subgraph with real right, delegation, and Attendance UIDs, and compare the returned holders, metadata, relations, and revocation timestamps with their transaction receipts. Export the identifiers from real receipts, never from fixture constants:
 
 ```bash
 export GRAPH_RIGHTS_ENDPOINT="<STUDIO_OR_PUBLIC_QUERY_URL>"
@@ -261,13 +262,12 @@ jq -n \
       "$GRAPH_RIGHTS_ENDPOINT"
 ```
 
-Every requested entity must be non-null, the holder and relations must agree with the receipts, the raw announcement bytes and transaction/log identity must match, and `right.revokedAt` must be `null` before a revoke and non-null after.
+Every requested entity must be non-null, the holder and relations must agree with the receipts, and `right.revokedAt` must be `null` before a revoke and non-null after.
 
-Use separate live rights for separate flows: a +Private right proves private discovery and Signed entry, a Bearer right with a QR pass proves the green scan and the red scan after revoke. A +Private right is not a scannable Bearer pass — presenting its UID to the QR verification path returns `LEVEL_REQUIRED`.
+Use separate live rights for separate flows: a Signed right proves Signed entry, a Bearer right with a QR pass proves the green scan and the red scan after revoke. A Signed right is not a scannable Bearer pass — presenting its UID to the QR verification path returns `LEVEL_REQUIRED`.
 
 ## 10. Manual checks that no script covers
 
-- **WebAuthn PRF.** On a real phone, open `https://app.fuda.sh/private`, create a passkey, and confirm the derived meta-address renders.
 - **ERC-6492 (undeployed smart wallet).** Issue a Signed right to a Base Account (passkey smart wallet) address, then enter it at `https://app.fuda.sh/signed` _before_ that account is deployed on chain — the api must still answer `ADMIT` through the ERC-6492 counterfactual path. This is the one path the fake chain cannot exercise, so it must be run once against Base Sepolia before the deploy is called done.
 - **Google Wallet.** Open `/pass/<uid>` on an Android phone and tap "Add to Google Wallet".
 - **Apple Wallet.** Open `/pass/<uid>/apple.pkpass` on an iPhone.
@@ -276,14 +276,14 @@ Use separate live rights for separate flows: a +Private right proves private dis
 
 Two writes are deliberately non-atomic across the chain and D1; check both after a deploy and periodically thereafter (see `docs/specs/attestation-model.md` for the full model):
 
-- **Orphan attestations.** A `502 chain_error` on `/issue` after the uid was logged means the right was attested on chain but the announcement or the `members` row write failed. Revoke that uid from the dashboard, or re-issue (a re-run attests a second right, so the orphan becomes the duplicate to revoke).
+- **Orphan attestations.** A `502 chain_error` on `/issue` after the uid was logged means the right was attested on chain but the `members` row write failed. Revoke that uid from the dashboard, or re-issue (a re-run attests a second right, so the orphan becomes the duplicate to revoke).
 - **Missing `attendance_uid` candidates.** Attendance attests best-effort after the verdict; a failed attest leaves the admission standing but the on-chain evidence missing. List them, from `apps/api/targets/develop`:
 
   ```bash
   void db execute --remote "SELECT id, uid, at FROM entry_log WHERE decision = 'ADMIT' AND attendance_uid IS NULL"
   ```
 
-The query also includes +Private admissions, which intentionally have no Attendance. Check the right's level before treating a row as a failure; `members.level` can help when a matching operational row exists. For mainnet, run the same command from `apps/api/targets/production`.
+The query also includes admissions of offchain rights, which intentionally have no Attendance. Check whether the right is offchain before treating a row as a failure. For mainnet, run the same command from `apps/api/targets/production`.
 
 ## 12. Local development
 
@@ -425,7 +425,7 @@ Reception records commit before the asynchronous Attendance and Google Wallet ef
 Each frontend's `dev` script sets what local development needs: `API_BASE_URL=http://localhost:8787` for its Worker, `VOID_INSPECTOR_PORT=false` so it does not collide with the api's dev server on the inspector port, and for the app `VITE_APP_ORIGIN=http://localhost:5173` and `VITE_RP_ID=localhost`. The `VITE_*` names of step 6 are baked in at build time, so changing one means restarting the dev server. A dev server may fail a page's first request with a 500 while Vite re-optimizes a dependency it had not seen; reload. The frequent ones are pre-bundled in each `vite.config.ts`.
 
 - **`API_BASE_URL`** (all three, Worker var) — the dev scripts point it at the local api. Override it in the shell to use another.
-- **`VITE_GRAPH_RIGHTS_ENDPOINT`** (dash, app) — the public Graph endpoint the on-chain status views read; the member app also loads raw announcements from it before matching them locally. There is no local substitute; point it at a deployed rights subgraph.
+- **`VITE_GRAPH_RIGHTS_ENDPOINT`** (dash, app) — the public Graph endpoint the on-chain status views read. There is no local substitute; point it at a deployed rights subgraph.
 - **`VITE_APP_ORIGIN`** (app) — the dev script sets `http://localhost:5173`; otherwise the Worker redirects member and card pages to the production origin (`https://app.fuda.sh`). These routes render only on the configured app origin. The deployed app Worker owns `app.fuda.sh`; apex `/@*` redirects are managed separately at the zone.
 - **`VITE_RP_ID`** (app) — the dev script sets `localhost`; the browser refuses the production default (`fuda.sh`), which is not a registrable suffix of the dev host.
 
@@ -443,7 +443,7 @@ Five routes use the fixed hourly D1 counter and require `CF-Connecting-IP`:
 | `POST /v1/oauth/token`                 | 120                      |
 | `POST /v1/oauth/revoke`                | 120                      |
 
-The counter is keyed by IP and hour, not route: requests across these routes share a count, with each route applying its own threshold. Rejected requests also increment it. Announcement discovery is a browser-to-Graph query and does not pass through the API. The gate routes (`/verify`, `/challenge`, `/verify-signed`) and the admin routes (`/issue`, `/revoke`, `/members`) are never budgeted.
+The counter is keyed by IP and hour, not route: requests across these routes share a count, with each route applying its own threshold. Rejected requests also increment it. The gate routes (`/verify`, `/challenge`, `/verify-signed`) and the admin routes (`/issue`, `/revoke`, `/members`) are never budgeted.
 
 ## Member passkeys
 
@@ -493,7 +493,7 @@ EAS and the SchemaRegistry are OP-stack predeploys at the same addresses on both
 
 The `production` target deliberately carries `routes: []`. Adding a custom domain there before the Sepolia deployment has moved off it would take a live hostname away from the running beta, so the order matters:
 
-1. Register the mainnet EAS schemas and attest the root delegation, then fill the `production` target's `EAS_SCHEMAS`, `ISSUER_ADDRESS`, `DELEGATION_UID` and `ANNOUNCER_FROM_BLOCK`. Until then issuance answers `502 chain_error` rather than attesting under the wrong configuration.
+1. Register the mainnet EAS schemas and attest the root delegation, then fill the `production` target's `EAS_SCHEMAS`, `ISSUER_ADDRESS`, `DELEGATION_UID` and `GRAPH_START_BLOCK`. Until then issuance answers `502 chain_error` rather than attesting under the wrong configuration.
 2. `cf d1 create --name fuda` and paste the id; `cf r2 buckets create --name fuda-media`.
 3. Set every secret again for the new Worker (`void secret put <NAME>` from `apps/api/targets/production`). Deploy first if the Worker does not exist yet. The mainnet root must be a Safe with a hot issuer, not the Sepolia EOA.
 4. Apply migrations against the new database (`pnpm --filter api migrate:production`) and deploy with no routes (`pnpm --filter api run deploy:production`); smoke it on its `workers.dev` hostname.
