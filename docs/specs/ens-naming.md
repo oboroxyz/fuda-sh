@@ -261,7 +261,7 @@ A claim voucher is signed only while the deployment's issuing delegation is live
 
 Revoking an issuer's delegation does not take its claimed name dark. The name keeps resolving to the issuer's wallet, and its member descendants keep resolving, until the registry expiry passes. This is deliberate, not a missing seam: a name is a destination, the delegation check is a separate fact every surface performs, and tying revocation to an onchain unregister would require handing revocation power to a live principal. A member name does go dark when its own right is revoked, because its answer comes from the mirror.
 
-Bearer-to-Signed Activation changes the claimable account's owners, not its address, so the member name, right, and history remain unchanged.
+Bearer-to-Signed Activation is not implemented. As designed, it changes the claimable account's owners, not its address, so the member name, right, and history would remain unchanged.
 
 ## Invariants
 

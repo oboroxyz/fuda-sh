@@ -71,7 +71,7 @@ fuda's core is decentralized and ownable: a right is an on-chain attestation tha
 | Issuance | fuda API with the backend included | the issuer attests directly with its own key; IssuerDelegation is an on-chain record | proof of issuing authority stays on-chain |
 | Signing keys | passkey with OS sync | bring-your-own EOA or compatible smart wallet | open signature rails: ECDSA, ERC-1271, ERC-6492 |
 | Sign-up (first mile) | self-serve card mint to a claimable smart account | direct Signed issuance to a member wallet | issuance still works; the instant, frictionless path is fuda's added value |
-| Account control | unclaimed account managed by fuda for instant Bearer | activation swaps in the member's own key at the same address; fuda removes itself | self-custody at the same holder address |
+| Account control | unclaimed account managed by fuda for instant Bearer | activation (not implemented) swaps in the member's own key at the same address; fuda removes itself | self-custody at the same holder address, once activation exists |
 | +Private discovery | browser query of the public rights subgraph, followed by local matching | direct client-side scan of ERC-5564 announcements; deterministic re-enumeration from the member's root secret | the full rights list is rebuildable without any fuda server |
 | Restore | OS-standard passkey sync and pass re-download | key restore at the same holder, owner rotation, or issuer re-attestation as a last resort | points and history persist on-chain at the stable holder |
 
@@ -124,5 +124,6 @@ The strings a client and the api must agree on byte-for-byte — the QR payload,
 - [ADR 0005 — one hybrid resolver for the claimed and offchain ENS tree](./adr/0005-hybrid-ensv2-resolver.md)
 - [ADR 0006 — one deployment per chain, nothing migrated at the cutover](./adr/0006-per-chain-environments.md)
 - [ADR 0007 — fuda keeps root custody of the issuer registry](./adr/0007-root-custody-of-the-issuer-registry.md)
+- [ADR 0014 — offchain rights by default (proposed)](./adr/0014-offchain-default-pass-types.md)
 - [api README](../apps/api/README.md) — running the api locally, endpoints, error codes
 - [Glossary](./CONTEXT.md)

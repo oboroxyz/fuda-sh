@@ -2,15 +2,17 @@
 
 This document explains which fuda template fits a use case, what the member does during onboarding, and which pass and holder type the resulting right uses. The template is a product-policy choice; Bearer and Signed remain the verification rules applied by the gate.
 
+[ADR 0014](../adr/0014-offchain-default-pass-types.md) proposes replacing these templates with offchain rights by default. It is not accepted or built; this document describes the current system.
+
 API paths below omit `/v1` except where shown explicitly; pass, asset, gateway, and health URLs are unversioned. See [API versioning](./attestation-model.md#api-versioning).
 
 ## Choose by use case
 
 Templates and the self-serve handle route are the product model. The api derives a right's level from the keys present in the request on the admin `POST /issue`; the self-serve route `POST /issuers/:handle/:slug/issue` issues only `standard` (Bearer) rights under the issuer's card (see [Issuer onboarding and the handle route](#issuer-onboarding-and-the-handle-route)); the `fuda.sh` apex redirects `/@*` to `app.fuda.sh`; other apex handling is outside this repository.
 
-**The template is the issuer's choice, made at issuance time.** The issuer configures which templates are available and sets the default. An authorized operator selects one when issuing a right. In a self-service flow such as `fuda.sh/@wassie-coffee`, the issuer binds the route to a template in advance, so each member does not need an operator to approve the issuance manually.
+**The template is the issuer's choice, made at issuance time.** The intended design is that the issuer configures which templates are available and sets the default, an authorized operator selects one when issuing a right, and a self-service flow such as `fuda.sh/@wassie-coffee` binds the route to a template in advance. None of this is implemented: no setting or request field names a template, and templates exist only in this document. Today the level follows from the rule above, so `private` is reachable only through the admin route, and nothing issues the two linked rights of `private + loyalty`.
 
-The onboarding flow behind each column is detailed in the U1–U4 sections below. U4 is a v2 design and is not implemented; its column shows the intended product behaviour, not something the api offers today. Legend: ◎ effortless · ◯ supported, with some setup or conditions · △ partial · − not provided.
+The onboarding flow behind each column is detailed in the U1–U4 sections below. U4 is a v2 design and is not implemented; its column shows the intended product behaviour, not something the api offers today. Activation is also not implemented, which limits the U1 column as footnotes 1 and 2 state. Legend: ◎ effortless · ◯ supported, with some setup or conditions · △ partial · − not provided.
 
 |  | **U1: `standard`** | **U2: `private`** | **U3: `private + loyalty`** | **U4: `anonymous`**<br>v2 design — not implemented |
 | --- | --- | --- | --- | --- |
@@ -23,8 +25,8 @@ The onboarding flow behind each column is detailed in the U1–U4 sections below
 | **Loyalty** — points and history build up in one place | **◯** | − | **◯** | − |
 | **Name** — `<member-no>.<issuer>.fuda.eth`, see [ENS naming](./ens-naming.md) | **◯**<br>resolves to the stable holder | **◯**<br>resolves to a fresh stealth address per lookup | **◯**<br>two numbers: access rotates, loyalty is stable | **△**<br>derived member number; resolution not yet specified |
 
-1. A `standard` right starts unclaimed, with fuda controlling the holder account. Activation replaces fuda with the member's passkey or EOA at the same address; from then on ownership and open-rail control are ◯.
-2. OS-standard features already cover most of restore: the pass comes back with the platform's own device restore or a pass re-download, and an activated member key comes back through standard passkey sync (iCloud Keychain, Google Password Manager) or the external wallet's backup. The chain adds what the OS cannot: the right itself is an on-chain attestation at a stable holder address, never data stored on the phone, so a restored key at the same address brings back the card, points, and history unchanged — and because the holder is a smart account, an owner key can be rotated, or the issuer can re-attest to a new holder as a last resort.
+1. A `standard` right starts unclaimed, with fuda controlling the holder account. Activation is designed to replace fuda with the member's passkey or EOA at the same address, making ownership and open-rail control ◯. It is not implemented, so a `standard` right stays under fuda's key today.
+2. Today the pass comes back with the platform's own device restore or a pass re-download; a member's own key cannot find an unactivated right. The rest of this note describes the design once Activation exists. An activated member key comes back through standard passkey sync (iCloud Keychain, Google Password Manager) or the external wallet's backup. The chain adds what the OS cannot: the right itself is an on-chain attestation at a stable holder address, never data stored on the phone, so a restored key at the same address brings back the card, points, and history unchanged — and because the holder is a smart account, an owner key can be rotated, or the issuer can re-attest to a new holder as a last resort.
 3. +Private keys derive from the PRF passkey, and the same OS-standard passkey sync restores that credential on a new device. From the restored keys, every stealth right can be re-enumerated deterministically from on-chain announcements — no fuda server is needed to rebuild the list. If the platform does not sync the PRF credential and it is lost, the derived keys are gone, and recovery falls back to re-issuing the rights to freshly enrolled keys.
 4. `private + loyalty` deliberately splits into two rights: the private-access right is unlinkable, while the loyalty (persistent-value) right uses a stable public holder by design. The two must not be correlated at the gate.
 5. U4 keys derive from a passkey-held identity secret that is also exportable (ADR 0001, decision 8), so a `fuda.sh` passkey is not the only key that can hold it. The membership tree and the member's Merkle path are rebuilt from the issuer's on-chain root attestations, with no fuda server.
@@ -32,6 +34,8 @@ The onboarding flow behind each column is detailed in the U1–U4 sections below
 ## U1. Standard issuance and optional activation
 
 U1 uses `standard` for shops, communities, loyalty cards, stamps, tickets, and other rights where instant acquisition matters more than hiding the right's public history.
+
+Steps 1 to 4 are implemented. **Activation (steps 5 and 6, the diagram and the passkey note below) is a design and is not implemented**: no route adds or removes an owner, and no Claim key is issued. A member key can hold a right today only through direct Signed issuance on the admin route.
 
 1. The member opens a handle route such as `fuda.sh/@wassie-coffee` and requests a card without creating an account or connecting a crypto wallet.
 2. fuda creates an opaque member identifier and derives a counterfactual claimable-smart-account address. The address is known before the account is deployed.
@@ -382,16 +386,16 @@ The wallet rail determines how the member holds signing keys: managed, self-cust
 A claimable smart account can be **unclaimed** or **claimed**:
 
 - Unclaimed means fuda initially controls the account so a Bearer right can be issued before the member creates a key.
-- Claimed means the member's passkey or EOA controls that same account.
+- Claimed means the member's passkey or EOA controls that same account. Nothing can reach this state yet, because Activation is not implemented.
 
-Activation changes account control. It does not change the Entitlement holder address or create a new verification level.
+Activation is designed to change account control. It would not change the Entitlement holder address or create a new verification level.
 
 ### Holder and owner relationships
 
 | Path | Entitlement holder | Authorized key or owner | Address continuity |
 | --- | --- | --- | --- |
 | Unclaimed standard right | counterfactual claimable smart account | fuda's initial key; no member key required | holder address is fixed at issuance |
-| Activated standard right | the same claimable smart account | member passkey or EOA; fuda removes itself | Entitlement and history stay at the same address |
+| Activated standard right (not implemented) | the same claimable smart account | member passkey or EOA; fuda removes itself | Entitlement and history stay at the same address |
 | Direct Signed issuance | member EOA or compatible smart account | the member's external wallet | no activation step; no holder-address separation for a direct EOA |
 | Signed +Private | fresh one-time stealth address | one-time key recovered client-side from the member's PRF-derived keys | a new address for every private right |
 
