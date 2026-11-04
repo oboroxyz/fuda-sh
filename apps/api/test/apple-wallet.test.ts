@@ -60,7 +60,9 @@ interface WorldOptions {
   webService?: boolean
 }
 
-const SENT = async (): Promise<ApplePushResult> => await Promise.resolve({ outcome: 'sent' })
+type PushAnswer = (pushToken: string) => Promise<ApplePushResult>
+
+const SENT: PushAnswer = async () => await Promise.resolve({ outcome: 'sent' })
 
 const world = async ({ push, record = 'onchain', webService = true }: WorldOptions = {}) => {
   const chain = fakeChain({ signer: ROOT })
@@ -69,7 +71,7 @@ const world = async ({ push, record = 'onchain', webService = true }: WorldOptio
   let answer = SENT
   const recorder: ApplePushSender = async (pushToken, passTypeId) => {
     pushed.push({ passTypeId, pushToken })
-    return await answer()
+    return await answer(pushToken)
   }
   const app = appWith({ applePush: push === undefined ? recorder : push, chain, now: () => NOW })
   const cert = await testCert()
@@ -131,7 +133,7 @@ const world = async ({ push, record = 'onchain', webService = true }: WorldOptio
     request,
     revoke: async (uid: Hex): Promise<Response> =>
       await request('/v1/revoke', { body: JSON.stringify({ uid }), headers: authJson, method: 'POST' }),
-    setPushAnswer: (next: () => Promise<ApplePushResult>): void => {
+    setPushAnswer: (next: PushAnswer): void => {
       answer = next
     },
     stamp: async (uid: Hex): Promise<Response> =>
@@ -467,10 +469,31 @@ describe('the Wallet web service', () => {
       const uid = await issueSeeded('m1')
       await register(uid)
       await register(uid, 'device-library-2', 'cd'.repeat(32))
-      setPushAnswer(async () => await Promise.resolve({ outcome: 'token_invalid' }))
+      setPushAnswer(
+        async (pushToken) =>
+          await Promise.resolve(
+            pushToken === PUSH_TOKEN ? { outcome: 'token_invalid' } : { outcome: 'sent' },
+          ),
+      )
       await stamp(uid)
-      await expect(db.select().from(applePassDevices)).resolves.toHaveLength(0)
-      await expect(db.select().from(applePassRegistrations)).resolves.toHaveLength(0)
+      const kept = await db.select().from(applePassDevices)
+      expect(kept.map(({ deviceId }) => deviceId)).toStrictEqual(['device-library-2'])
+      await expect(stored()).resolves.toStrictEqual({ devices: 1, registrations: 1 })
+    })
+
+    it('keeps a device that registered a fresh token while the old one was being refused', async () => {
+      const { issueSeeded, register, setPushAnswer, stamp } = await world()
+      const uid = await issueSeeded('m1')
+      await register(uid)
+      const fresh = 'cd'.repeat(32)
+      setPushAnswer(async () => {
+        await db.update(applePassDevices).set({ pushToken: fresh })
+        return { outcome: 'token_invalid' }
+      })
+      await stamp(uid)
+      const device = await db.select().from(applePassDevices).get()
+      expect(device?.pushToken).toBe(fresh)
+      await expect(stored()).resolves.toStrictEqual({ devices: 1, registrations: 1 })
     })
 
     it('keeps a device after any other refusal', async () => {
