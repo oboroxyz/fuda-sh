@@ -217,4 +217,21 @@ describe('entry locale changes', () => {
     await setTimeout(0)
     expect(dismissed).toBe(true)
   })
+
+  it('answers a code that is not a pass, then brings the scanner back', async () => {
+    render(() => <SignedGate provider={null} />, root)
+    const input = root.querySelector('input')
+    if (input === null) {
+      throw new Error('the paste box is missing')
+    }
+    input.value = 'https://example.com/menu'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    root.querySelector('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    await setTimeout(0)
+    expect(root.textContent).toContain('This is not a fuda pass code.')
+    root.querySelector('button')?.click()
+    await setTimeout(0)
+    expect(root.querySelector('form')).not.toBeNull()
+    unmountAll()
+  })
 })

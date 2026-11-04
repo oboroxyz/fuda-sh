@@ -28,6 +28,7 @@ interface EntryCopy {
   passkeyEntryIntro: string
   enterWithPasskey: string
   signedIntro: string
+  signedUnreadable: string
   signing: string
   passkeyWallet: (uid: string) => string
   browserWallet: (uid: string) => string
@@ -78,6 +79,7 @@ export const ENTRY_COPY = {
     },
     signedIntro: 'Scan or paste your pass, then confirm entry with your wallet.',
     signedTitle: 'Enter with your wallet',
+    signedUnreadable: 'This is not a fuda pass code.',
     signing: 'Signing…',
     stealthAddress: 'stealth address',
     tryAgain: 'tap to try again',
@@ -124,6 +126,7 @@ export const ENTRY_COPY = {
     },
     signedIntro: 'パスを読み取るか貼り付けて、ウォレットで入場を承認してください。',
     signedTitle: 'ウォレットで入場',
+    signedUnreadable: 'fuda のパスのコードではありません。',
     signing: '署名中…',
     stealthAddress: 'ステルスアドレス',
     tryAgain: 'タップしてもう一度試す',
