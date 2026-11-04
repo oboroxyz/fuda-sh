@@ -710,7 +710,12 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
       if (!current) {
         return
       }
-      setState({ card, failure: cardFailureOf(result), kind: 'error' })
+      // Only this call answers 503, for a Siteverify outage, so the venue load keeps its own wording.
+      setState({
+        card,
+        failure: result.status === 503 ? 'bot_check_unavailable' : cardFailureOf(result),
+        kind: 'error',
+      })
       return
     }
     const { holder, memberNumber, uid } = result.body

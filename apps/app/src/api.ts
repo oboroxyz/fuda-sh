@@ -120,9 +120,6 @@ export const cardFailureOf = (result: { status: number; error: string }): CardFa
     case 502: {
       return 'chain_error'
     }
-    case 503: {
-      return 'bot_check_unavailable'
-    }
     default: {
       return 'network'
     }

@@ -159,9 +159,8 @@ describe(issueCard, () => {
     expect(claimSourceFrom('')).toBeNull()
   })
 
-  it('tells a failed bot check from a down one and from any other 403', () => {
+  it('tells a failed bot check from any other 403', () => {
     expect(cardFailureOf({ error: 'bot_check_failed', status: 403 })).toBe('bot_check_failed')
-    expect(cardFailureOf({ error: 'api 503', status: 503 })).toBe('bot_check_unavailable')
     expect(cardFailureOf({ error: 'forbidden', status: 403 })).toBe('network')
   })
 

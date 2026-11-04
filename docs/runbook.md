@@ -131,7 +131,7 @@ PEM secrets (`GOOGLE_SA_KEY_PEM`, `APPLE_CERT_PEM`, `APPLE_KEY_PEM`, `APPLE_WWDR
 
 One Turnstile widget serves the claim, in the Cloudflare dashboard under Turnstile, Add widget:
 
-1. Name it `fuda claim`. Add the hostnames the card page is served on: `app.fuda.sh`, plus `app.dev.fuda.sh` or whatever hostname the develop deployment uses, and `localhost` only if you want to run a real challenge locally.
+1. Name it `fuda claim`. Add the hostnames the card page is served on: `app.fuda.sh`, plus the develop deployment's hostname. Never add `localhost` or `127.0.0.1`: the api does not check the hostname Siteverify returns, so the widget's domain list is the only boundary, and a token solved on someone's own `localhost` page would be accepted. Every listed host must be one you control. Run locally with Cloudflare's test keys instead (below).
 2. Widget mode: Managed. The app renders it with `interaction-only` appearance, so members see it only when Cloudflare asks for a tap. Leave pre-clearance off.
 3. Copy the **site key** into the app build (`VITE_TURNSTILE_SITE_KEY`, §6) and the **secret key** into the api with `void secret put TURNSTILE_SECRET_KEY` from the matching `apps/api/targets/<name>` directory. One widget may list the hostnames of several deployments, or each deployment may have its own.
 4. Redeploy the api and then the app. Claim a card on a phone and watch for a challenge, or for none: an invisible pass is the normal outcome. The app and the api must be switched on together.
