@@ -461,3 +461,28 @@ export const connectedAppEvents = sqliteTable(
   },
   (t) => [index('connected_app_events_address').on(t.address, t.createdAt)],
 )
+
+// docs/specs/pass-types-and-flows.md#apple-wallet-updates
+export const applePassDevices = sqliteTable('apple_pass_devices', {
+  deviceId: text('device_id').primaryKey(),
+  pushToken: text('push_token').notNull(),
+})
+
+export const applePassUpdates = sqliteTable('apple_pass_updates', {
+  tag: integer('tag').primaryKey({ autoIncrement: true }),
+  uid: text('uid').notNull().unique(),
+  updatedAt: integer('updated_at').notNull(),
+})
+
+export const applePassRegistrations = sqliteTable(
+  'apple_pass_registrations',
+  {
+    deviceId: text('device_id')
+      .notNull()
+      .references(() => applePassDevices.deviceId),
+    serial: text('serial').notNull(),
+    uid: text('uid').notNull(),
+    updatedTag: integer('updated_tag').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.deviceId, t.uid] }), index('apple_pass_registrations_uid').on(t.uid)],
+)

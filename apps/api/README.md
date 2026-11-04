@@ -138,6 +138,10 @@ Use the rights-subgraph smoke query and member app for private discovery after G
 | GET | `/pass/:uid/card` | none | `{ card }`: the venue card behind the pass (`issuerName`, `cardTitle`, `category`, `brandColor`, `logoUrl`, `memberNumber`) for a client drawing it in the venue's look, or `card: null` for an admin-issued right; `404 not_found` for an unknown uid or a +Private row |
 | GET | `/pass/:uid/google` | none | `{ saveUrl }`, a signed Google Wallet save link; `501 google_not_configured` unless all four `GOOGLE_*` secrets are set; `404 not_found` first for an unknown uid or a +Private row |
 | GET | `/pass/:uid/apple.pkpass` | none | the `.pkpass` bundle; `501 apple_not_configured` unless all five `APPLE_*` secrets are set; `404 not_found` first for an unknown uid or a +Private row |
+| POST, DELETE | `/apple/v1/devices/:deviceId/registrations/:passTypeId/:serial` | `ApplePass` pass token | Wallet registers or unregisters a device for a pass; `501 apple_not_configured` without `APPLE_WEB_SERVICE_SECRET` |
+| GET | `/apple/v1/devices/:deviceId/registrations/:passTypeId` | the device id | serials changed since `passesUpdatedSince`, or `204` |
+| GET | `/apple/v1/passes/:passTypeId/:serial` | `ApplePass` pass token | the latest `.pkpass`, or `304` on `If-Modified-Since`; a revoked pass still answers |
+| POST | `/apple/v1/log` | none, per-IP budget (120/h) | Wallet's own error report, written to the Worker log |
 | POST | `/ens/gateway` | none, per-IP budget (120/h) | EIP-3668 `{ sender, data }`; disabled with 503 until all four `ENS_*` bindings are configured; success `{ data }`, errors `{ message }`, always `Cache-Control: no-store` |
 
 ## Error codes

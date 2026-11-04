@@ -4,6 +4,7 @@ import type { MemberSession, OperatorSession } from './auth/session.ts'
 import type { ChainClient } from './chain/client.ts'
 import type { AccessGrant } from './connected-apps/store.ts'
 import type { Db } from './db/client.ts'
+import type { ApplePushSender } from './pass/apple-push.ts'
 import type { AdmitHook } from './verify/admit.ts'
 
 export interface Bindings {
@@ -44,6 +45,13 @@ export interface Bindings {
   APPLE_CERT_PEM?: string
   APPLE_KEY_PEM?: string
   APPLE_WWDR_PEM?: string
+  // Unset, installed passes stay snapshots. Set, pass.json names the Wallet web service
+  // (docs/specs/pass-types-and-flows.md#apple-wallet-updates).
+  APPLE_WEB_SERVICE_SECRET?: string
+  // The mTLS binding that holds the Pass Type ID certificate, which is what APNs
+  // authenticates a pass update by. Absent, nothing is pushed and the web service still
+  // answers, so a member can pull to refresh.
+  APPLE_PUSH_CERT?: Pick<Fetcher, 'fetch'>
   // ENS transport is disabled unless all four names are configured. The two
   // keys are Worker secrets; parent and resolver allowlist are plain bindings.
   ENS_GATEWAY_SECRET?: string
@@ -76,6 +84,8 @@ export interface Variables {
   // The venue a request is acting for, or null for fuda's own admin token.
   // Set by operatorOrAdmin() on the routes that serve both.
   actingIssuer: string | null
+  // null without the APPLE_PUSH_CERT binding: nothing is pushed
+  applePush: ApplePushSender | null
   chain: ChainClient
   // set by connectedAppAuth(): the approval behind a connected app's access
   // token, bound to one issuer (docs/specs/connected-apps.md)

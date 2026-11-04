@@ -9,7 +9,15 @@ const HOLDER = '0x1111111111111111111111111111111111111111' as const
 describe(passView, () => {
   it('maps an active ADMIT to VALID with tier label and short holder', () => {
     const view = passView(
-      { branding: null, holder: HOLDER, level: 'bearer', logoPrefix: null, tier: 2, uid: UID },
+      {
+        branding: null,
+        holder: HOLDER,
+        level: 'bearer',
+        logoPrefix: null,
+        revoked: false,
+        tier: 2,
+        uid: UID,
+      },
       { decision: 'ADMIT', reason: 'OK' },
     )
     expect(view).toMatchObject({
@@ -22,7 +30,15 @@ describe(passView, () => {
 
   it('surfaces the REJECT reason as the status', () => {
     const view = passView(
-      { branding: null, holder: HOLDER, level: 'bearer', logoPrefix: null, tier: 0, uid: UID },
+      {
+        branding: null,
+        holder: HOLDER,
+        level: 'bearer',
+        logoPrefix: null,
+        revoked: false,
+        tier: 0,
+        uid: UID,
+      },
       { decision: 'REJECT', reason: 'REVOKED' },
     )
     expect(view.status).toBe('REVOKED')
@@ -30,7 +46,7 @@ describe(passView, () => {
 
   it('reports UNKNOWN when the chain could not be read and — for a missing holder', () => {
     const view = passView(
-      { branding: null, holder: null, level: 'private', logoPrefix: null, tier: 1, uid: UID },
+      { branding: null, holder: null, level: 'private', logoPrefix: null, revoked: false, tier: 1, uid: UID },
       null,
     )
     expect(view).toMatchObject({ holderShort: '—', status: 'UNKNOWN' })
@@ -38,7 +54,15 @@ describe(passView, () => {
 
   it('falls back to a numbered label for a tier beyond the known ones', () => {
     const view = passView(
-      { branding: null, holder: HOLDER, level: 'bearer', logoPrefix: null, tier: 9, uid: UID },
+      {
+        branding: null,
+        holder: HOLDER,
+        level: 'bearer',
+        logoPrefix: null,
+        revoked: false,
+        tier: 9,
+        uid: UID,
+      },
       null,
     )
     expect(view.tier).toBe('TIER 9')
@@ -53,6 +77,7 @@ describe(PassPage, () => {
         holder: `0x${'11'.repeat(20)}`,
         level: 'bearer',
         logoPrefix: null,
+        revoked: false,
         tier: 1,
         uid: `0x${'ab'.repeat(32)}`,
       },
@@ -74,6 +99,7 @@ describe(PassPage, () => {
         holder: `0x${'11'.repeat(20)}`,
         level: 'bearer',
         logoPrefix: null,
+        revoked: false,
         tier: 1,
         uid: `0x${'ab'.repeat(32)}`,
       },

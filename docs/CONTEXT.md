@@ -24,6 +24,8 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Pass**: A presentation of a Right — a Device wallet pass (`.pkpass` / Google Wallet object) or the browser-based pass page carrying the Right's QR. A Pass is not the Right, and lives in the Device wallet, never in the Crypto wallet. _Avoid_: Ticket, card, credential
 
+**Pass update**: Wallet fetching a newer copy of an installed Pass, because fuda recorded a change and usually pushed a notice. It changes what the Pass shows, never the Right. _Avoid_: Sync
+
 **Device wallet**: Apple Wallet or Google Wallet — the phone's OS-level container for Passes. A distribution and presentation channel only: it holds no keys, signs nothing, and knows nothing about the chain. Bearer and Signed Rights can have Passes; +Private Rights use the signing and discovery flow without a Pass. Say "Apple Wallet" / "Google Wallet" when the platform matters. _Avoid_: Wallet (bare), wallet app, mobile wallet
 
 **Crypto wallet** (or **wallet**): Software that controls an Ethereum key and can sign — a passkey smart wallet (Base Account) or an EOA. It is what makes a Holder _the member's_: Signed and +Private members hold one; Bearer members do not until Activation. Bare "wallet" in this glossary always means this one, never the Device wallet. _Avoid_: Account (say Holder for the address), key, signer

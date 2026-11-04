@@ -7,7 +7,7 @@ import { verifierFor } from '../badges/verifier.ts'
 import { cardAllowsBadge } from '../integrations/store.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { rateLimit } from '../middleware/rate-limit.ts'
-import { scheduleBadgePassUpdate } from '../pass/badge-update.ts'
+import { notifyPassChanged } from '../pass/notify.ts'
 import { resolveVerdict } from './verify.ts'
 
 // The route names the claim, not the vendor: replacing the verifier behind a
@@ -82,6 +82,6 @@ export const postV1BadgesKind = defineHandler(rateLimit({ budget: BADGE_BUDGET }
   }
   // Best-effort only, after the badge is durably saved: never on a 409 or any
   // earlier error path, and it cannot change this response either way.
-  scheduleBadgePassUpdate(c, uid)
+  notifyPassChanged(c, uid)
   return jsonResponse(c, { badge: saved.badge })
 })

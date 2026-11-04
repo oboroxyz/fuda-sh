@@ -12,6 +12,8 @@ export interface PassRow {
   branding: PassBranding | null
   // where the venue's logo objects live, for the builders that embed bytes
   logoPrefix: string | null
+  // fuda's record of a revocation, which every revoke path writes, on-chain and offchain
+  revoked: boolean
 }
 
 // null = the chain could not be read at render time.

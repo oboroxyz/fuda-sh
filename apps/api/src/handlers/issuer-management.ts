@@ -12,6 +12,7 @@ import { readIssuerPasses } from '../issuers/passes.ts'
 import { operatorCardView } from '../issuers/views.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { operatorAuth } from '../middleware/operator-auth.ts'
+import { notifyPassesChanged } from '../pass/notify.ts'
 
 const PASS_STATUSES: readonly IssuerPassStatus[] = [
   'active',
@@ -96,9 +97,11 @@ export const putV1IssuersMeCardsCardId = defineHandler(operatorAuth(), async (c)
         ])
       : await c.get('db').batch([update])
   const [updated] = updatedRows
-  return updated === undefined
-    ? errorResponse(c, 'not_found', 404)
-    : jsonResponse(c, { card: operatorCardView(updated, c.get('now')()) })
+  if (updated === undefined) {
+    return errorResponse(c, 'not_found', 404)
+  }
+  notifyPassesChanged(c, { cardId: updated.id })
+  return jsonResponse(c, { card: operatorCardView(updated, c.get('now')()) })
 })
 
 // docs/specs/pass-types-and-flows.md#card-integrations — a Card's optional

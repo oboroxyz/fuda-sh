@@ -16,7 +16,13 @@
 // GOOGLE_ISSUER_ID, GOOGLE_CLASS_ID, GOOGLE_SA_EMAIL, GOOGLE_SA_KEY_PEM
 // (all four, or GET /pass/:uid/google answers 501) and
 // APPLE_PASS_TYPE_ID, APPLE_TEAM_ID, APPLE_CERT_PEM, APPLE_KEY_PEM,
-// APPLE_WWDR_PEM (all five, or GET /pass/:uid/apple.pkpass answers 501).
+// APPLE_WWDR_PEM (all five, or GET /pass/:uid/apple.pkpass answers 501) and
+// APPLE_WEB_SERVICE_SECRET (unset, installed passes stay snapshots).
+//
+// `mtls_certificates` is optional on a target and carries the APPLE_PUSH_CERT
+// binding. No target lists it until its certificate is uploaded, because a
+// certificate_id that does not exist fails the deploy (docs/runbook.md §5). It
+// cannot exist on `local`: local runs have no mTLS binding.
 //
 // Deploy-time fills (docs/runbook.md replaces each one; every one of
 // them fails closed until it is): `d1_databases[].database_id`, and in `vars`

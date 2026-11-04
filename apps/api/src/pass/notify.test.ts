@@ -4,9 +4,9 @@ import type { Context } from 'hono'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getDb } from '../db/client.ts'
-import { cards, cardStampSettings, issuers, members } from '../db/schema.ts'
+import { badges, cards, cardStampSettings, issuers, members } from '../db/schema.ts'
 import type { AppEnv, Bindings } from '../env.ts'
-import { scheduleStampPassUpdate } from './stamp-update.ts'
+import { notifyPassChanged } from './notify.ts'
 
 const UID = `0x${'ab'.repeat(32)}` as const
 const db = getDb({ DB: env.DB })
@@ -33,8 +33,16 @@ const context = (kept: Promise<unknown>[], bindings: Partial<Bindings>): Context
     get: (key: string) => (key === 'db' ? db : () => 1_757_000_000),
   }) as unknown as Context<AppEnv>
 
-describe(scheduleStampPassUpdate, () => {
+const googleBindings = async (): Promise<Partial<Bindings>> => ({
+  GOOGLE_CLASS_ID: 'class',
+  GOOGLE_ISSUER_ID: '338',
+  GOOGLE_SA_EMAIL: 'sa@example.com',
+  GOOGLE_SA_KEY_PEM: await pem(),
+})
+
+describe('notifying Google Wallet of a changed pass', () => {
   beforeEach(async () => {
+    await db.delete(badges)
     await db.delete(cardStampSettings)
     await db.delete(members)
     await db.delete(cards)
@@ -68,7 +76,7 @@ describe(scheduleStampPassUpdate, () => {
 
   afterEach(() => vi.unstubAllGlobals())
 
-  it('schedules a best-effort update carrying the latest durable summary', async () => {
+  it('patches the latest durable stamp summary, even one that changed during the patch', async () => {
     const requests: Request[] = []
     vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = new Request(input, init)
@@ -85,35 +93,52 @@ describe(scheduleStampPassUpdate, () => {
       return Response.json({})
     })
     const kept: Promise<unknown>[] = []
-    scheduleStampPassUpdate(
-      context(kept, {
-        GOOGLE_CLASS_ID: 'class',
-        GOOGLE_ISSUER_ID: '338',
-        GOOGLE_SA_EMAIL: 'sa@example.com',
-        GOOGLE_SA_KEY_PEM: await pem(),
-      }),
-      UID,
-    )
+    notifyPassChanged(context(kept, await googleBindings()), UID)
     expect(kept).toHaveLength(1)
-    await expect(kept[0]).resolves.toBeUndefined()
+    await kept[0]
     const patches = requests.filter(({ method }) => method === 'PATCH')
-    expect(patches).toHaveLength(2)
     expect(JSON.stringify(await patches[1]?.json())).toContain('0 / 12')
   })
 
-  it('isolates Google failures from the durable reception result', async () => {
+  it('patches the stored badges, not any earlier claim', async () => {
+    await db.insert(badges).values({
+      credential: 'orb',
+      expiresAt: null,
+      kind: 'human',
+      scope: 'app_test:action',
+      subjectKey: '0xdead',
+      uid: UID,
+      verifiedAt: 1_757_000_000,
+      verifier: 'world',
+    })
+    const bodies: string[] = []
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      if (request.url.includes('oauth2.googleapis.com')) {
+        return Response.json({ access_token: 'access' })
+      }
+      if (request.method === 'PATCH') {
+        bodies.push(await request.text())
+      }
+      return Response.json({ textModulesData: [] })
+    })
+    const kept: Promise<unknown>[] = []
+    notifyPassChanged(context(kept, await googleBindings()), UID)
+    await kept[0]
+    expect(bodies.at(-1)).toContain('Verified human')
+  })
+
+  it('isolates a Google failure from the action it follows', async () => {
     // oxlint-disable-next-line require-await -- Fetch-compatible failure double
     vi.stubGlobal('fetch', async () => new Response(null, { status: 503 }))
     const kept: Promise<unknown>[] = []
-    scheduleStampPassUpdate(
-      context(kept, {
-        GOOGLE_CLASS_ID: 'class',
-        GOOGLE_ISSUER_ID: '338',
-        GOOGLE_SA_EMAIL: 'sa@example.com',
-        GOOGLE_SA_KEY_PEM: await pem(),
-      }),
-      UID,
-    )
-    await expect(kept[0]).resolves.toBeUndefined()
+    notifyPassChanged(context(kept, await googleBindings()), UID)
+    await expect(kept[0]).resolves.toBeDefined()
+  })
+
+  it('schedules nothing when no wallet platform is configured', () => {
+    const kept: Promise<unknown>[] = []
+    notifyPassChanged(context(kept, {}), UID)
+    expect(kept).toHaveLength(0)
   })
 })

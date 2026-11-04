@@ -163,6 +163,8 @@ Attested with `recipient = holder` and `refUID = rightUID`.
 | `BASE_RPC_URL` | Worker secret | Base Sepolia RPC; falls back to the public endpoint |
 | `GOOGLE_ISSUER_ID`, `GOOGLE_CLASS_ID`, `GOOGLE_SA_EMAIL`, `GOOGLE_SA_KEY_PEM` | Worker secrets | Google Wallet; all four or `GET /pass/:uid/google` answers `501 google_not_configured` |
 | `APPLE_PASS_TYPE_ID`, `APPLE_TEAM_ID`, `APPLE_CERT_PEM`, `APPLE_KEY_PEM`, `APPLE_WWDR_PEM` | Worker secrets | Apple Wallet; all five or `GET /pass/:uid/apple.pkpass` answers `501 apple_not_configured` |
+| `APPLE_WEB_SERVICE_SECRET` | Worker secret | Derives each pass's `authenticationToken`. Unset, installed Apple passes stay snapshots and `/apple/v1/*` answers `501 apple_not_configured` |
+| `APPLE_PUSH_CERT` | mTLS certificate binding | The Pass Type ID certificate, presented to APNs. Absent, nothing is pushed and a pull to refresh still works |
 
 Issuance always writes the newest version in the set; verification accepts every listed version and decodes through a per-version codec (`decodeEntitlementV1 → toCanonical`, the identity for v1). A future v2 is added by appending a set entry and a codec, with no change to gate logic. Deprecation policies, `refUID` supersession chains, and touch-time migration are deliberately not in the MVP.
 
@@ -307,11 +309,12 @@ The unversioned `GET /` returns HTTP 200 with `Content-Type: text/plain; charset
 
 Every route a program calls fuda for is served under `/v1`, so a breaking change can ship as `/v2` while `/v1` keeps answering. Paths in this document are written as the routes see them; the version prefix sits in front of each one.
 
-Four families are deliberately outside it, because each URL is held by someone fuda cannot reach to update:
+Five families are deliberately outside it, because each URL is held by someone fuda cannot reach to update:
 
 | Path | Held by |
 | --- | --- |
 | `/pass/:uid`, `/pass/:uid/card`, `/pass/:uid/google`, `/pass/:uid/apple.pkpass` | the member's Apple or Google Wallet, and their home screen |
+| `/apple/v1/*` | every installed Apple pass, whose `webServiceURL` is fixed for its life, with paths Apple defines |
 | `/assets/:handle/logo/:variant` | pages and passes that already carry the mark |
 | `/ens/gateway` | the deployed `FudaResolver`, which stores the URL on chain |
 | `/health` | whatever monitors the deployment |
