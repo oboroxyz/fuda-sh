@@ -424,13 +424,29 @@ describe('pending recovery concurrency', () => {
 })
 
 describe('pending entry lifetime', () => {
-  it('retains all failed entries until a vault write succeeds', async () => {
+  it.each([UID, OTHER_UID])('retains all failed entries when %s is stored first', async (firstStored) => {
     const server = fakeServer()
     await openMemberSecret(server.io)
-    await Promise.all([
-      claimSensitive({ ...server.io, writeVault: failingWrite }, CARD),
-      claimSensitive({ ...server.io, writeVault: failingWrite }, CARD),
-    ])
+    const stored = Promise.withResolvers<null>()
+    const io: SensitiveIo = {
+      ...server.io,
+      claim: async (...args) => {
+        const issued = await server.io.claim(...args)
+        if (issued.ok && issued.body.uid !== firstStored) {
+          await stored.promise
+        }
+        return issued
+      },
+      storage: () => ({
+        ...server.storage,
+        setItem: (key, value) => {
+          server.storage.setItem(key, value)
+          stored.resolve(null)
+        },
+      }),
+      writeVault: failingWrite,
+    }
+    await Promise.all([claimSensitive(io, CARD), claimSensitive(io, CARD)])
     const opened = await openMemberSecret(server.io)
     if (opened.kind !== 'open') {
       throw new Error('expected an open secret')
@@ -440,10 +456,12 @@ describe('pending entry lifetime', () => {
       readVaultEntries({ ...server.io, writeVault: failingWrite }, opened.secret),
     ).resolves.toStrictEqual({ ok: false })
     expect(server.storage.items).toStrictEqual(before)
-    await expect(readVaultEntries(server.io, opened.secret)).resolves.toMatchObject({
-      entries: [{ uid: UID }, { uid: OTHER_UID }],
-      ok: true,
-    })
+    const recovered = await readVaultEntries(server.io, opened.secret)
+    expect(recovered.ok).toBe(true)
+    expect(recovered.ok ? recovered.entries.map((entry) => entry.uid).toSorted() : []).toStrictEqual([
+      UID,
+      OTHER_UID,
+    ])
     expect(server.storage.items.size).toBe(0)
   })
 
