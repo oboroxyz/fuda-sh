@@ -4,6 +4,8 @@ import type { JSX } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
 
 import type { DashCopy } from './copy.ts'
+import { settled } from './network-result.ts'
+import { SettingsFooter, SettingsLoadState } from './SettingsParts.tsx'
 
 export interface StampSettingsProps {
   copy: DashCopy['stamps']
@@ -48,12 +50,7 @@ export const StampSettings = (props: StampSettingsProps): JSX.Element => {
     setSaved(false)
     setBusy(true)
     const run = async (): Promise<void> => {
-      let result: Result<StampSettingsValue>
-      try {
-        result = await props.load()
-      } catch {
-        result = { error: 'network', network: true, ok: false, status: 0 }
-      }
+      const result = await settled(async () => await props.load())
       if (!mounted.current || loadRevision.current !== ticket) {
         return
       }
@@ -88,12 +85,7 @@ export const StampSettings = (props: StampSettingsProps): JSX.Element => {
     setError(null)
     setSaved(false)
     const run = async (): Promise<void> => {
-      let result: Result<StampSettingsValue>
-      try {
-        result = await props.save(submitted)
-      } catch {
-        result = { error: 'network', network: true, ok: false, status: 0 }
-      }
+      const result = await settled(async () => await props.save(submitted))
       if (!mounted.current || saveRevision.current !== ticket) {
         return
       }
@@ -165,27 +157,25 @@ export const StampSettings = (props: StampSettingsProps): JSX.Element => {
       {numberInput(props.copy.goal, current.goal, 1000, (goal) => {
         setSettings((latest) => (latest === null ? latest : { ...latest, goal }))
       })}
-      {error === null ? null : (
-        <p class="text-error" role="alert">
-          {props.copy.failures[error ?? 'load']}
-        </p>
-      )}
-      {saved ? <p role="status">{props.copy.saved}</p> : null}
-      <button class="btn btn-primary self-start" disabled={busy} type="button" onClick={submit}>
-        {busy ? props.copy.saving : props.copy.save}
-      </button>
+      <SettingsFooter
+        busy={busy}
+        copy={props.copy}
+        error={error}
+        failures={props.copy.failures}
+        onSubmit={submit}
+        saved={saved}
+      />
     </form>
   )
 
   return settings === null ? (
-    <div class="card flex items-start gap-3 p-5" role={error === 'load' ? 'alert' : 'status'}>
-      <span>{busy ? props.copy.loading : props.copy.failures.load}</span>
-      {error === 'load' ? (
-        <button class="btn btn-sm" type="button" onClick={runLoad}>
-          {props.copy.retry}
-        </button>
-      ) : null}
-    </div>
+    <SettingsLoadState
+      busy={busy}
+      class="card flex items-start gap-3 p-5"
+      copy={props.copy}
+      failed={error === 'load'}
+      onRetry={runLoad}
+    />
   ) : (
     editor(settings)
   )

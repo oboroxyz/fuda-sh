@@ -3,6 +3,7 @@ import type { ComponentChildren, JSX } from 'preact'
 import { useEffect, useId, useRef, useState } from 'preact/hooks'
 
 import type { DashCopy } from './copy.ts'
+import { isPlainClick } from './plain-click.ts'
 import { ProfileMenu } from './ProfileMenu.tsx'
 import type { ProfileChoices } from './ProfileMenu.tsx'
 import { navigationRoute } from './router.ts'
@@ -46,9 +47,6 @@ interface DesktopBreakpoint {
 
 const desktopBreakpoint = (): DesktopBreakpoint | null =>
   globalThis.matchMedia?.(DASH_DESKTOP_MEDIA_QUERY) ?? null
-
-const isPrimaryNavigation = (event: MouseEvent): boolean =>
-  event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey
 
 // The two surfaces never share a menu: an admin token runs the console, a
 // passkey session runs one venue's card.
@@ -109,7 +107,7 @@ const Navigation = (props: NavigationProps): JSX.Element => (
             class={cn('dash-menu-item', navigationRoute(props.route) === item.route && 'menu-active')}
             href={item.route}
             onClick={(event) => {
-              if (!isPrimaryNavigation(event)) {
+              if (!isPlainClick(event)) {
                 return
               }
               event.preventDefault()
@@ -148,36 +146,68 @@ const Brand = (props: { copy: DashCopy['chrome'] }): JSX.Element => (
   </div>
 )
 
-export const DashboardShell = (props: DashboardShellProps): JSX.Element => {
-  const drawerId = useId()
-  const venue = props.venue ?? null
+const visibleControls = (sidebar: HTMLElement | null): HTMLElement[] =>
+  [...(sidebar?.querySelectorAll<HTMLElement>('a[href], button:not([disabled])') ?? [])].filter(
+    (element) => element.closest('dialog:not([open]), [hidden], [inert]') === null,
+  )
+
+const wrapTab = (event: KeyboardEvent, controls: HTMLElement[]): void => {
+  const [first] = controls
+  const last = controls.at(-1)
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last?.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first?.focus()
+  }
+}
+
+// Keeps keyboard focus inside the drawer while it covers the page: Escape closes it
+// and Tab wraps between its first and last visible control.
+const keepFocusInDrawer = (
+  event: KeyboardEvent,
+  sidebar: HTMLElement | null,
+  modal: boolean,
+  close: () => void,
+): void => {
+  const inDialog = event.target instanceof Element && event.target.closest('dialog') !== null
+  if (inDialog || !modal) {
+    return
+  }
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    close()
+  } else if (event.key === 'Tab') {
+    wrapTab(event, visibleControls(sidebar))
+  }
+}
+
+// The mobile drawer: open state, the breakpoint that makes it permanent, closing on a
+// route change and moving focus into it while it covers the page and back out after.
+const useDrawer = (route: DashRoute) => {
   const [open, setOpen] = useState(false)
   const [desktop, setDesktop] = useState(() => desktopBreakpoint()?.matches ?? false)
   const opener = useRef<HTMLButtonElement>(null)
   const sidebar = useRef<HTMLElement>(null)
   const modal = open && !desktop
   const restoreFocus = useRef(false)
-  // SAFETY: Preact types an aside's role narrowly, but the open drawer really is a modal dialog.
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the typed attribute set has no dialog role for an aside
-  const modalAttributes = (
-    modal ? { 'aria-modal': 'true', role: 'dialog' } : {}
-  ) as JSX.IntrinsicElements['aside']
   const closeDrawer = (): void => {
     restoreFocus.current = true
     setOpen(false)
   }
 
   // A route change closes the drawer; the first render has no previous route.
-  const previousRoute = useRef(props.route)
+  const previousRoute = useRef(route)
   useEffect(() => {
-    if (previousRoute.current === props.route) {
+    if (previousRoute.current === route) {
       return
     }
-    previousRoute.current = props.route
+    previousRoute.current = route
     if (open) {
       closeDrawer()
     }
-  }, [props.route])
+  }, [route])
 
   useEffect(() => {
     const breakpoint = desktopBreakpoint()
@@ -223,6 +253,16 @@ export const DashboardShell = (props: DashboardShellProps): JSX.Element => {
       cancelAnimationFrame(frame)
     }
   }, [modal])
+
+  return { closeDrawer, modal, open, opener, setOpen, sidebar }
+}
+
+export const DashboardShell = (props: DashboardShellProps): JSX.Element => {
+  const drawerId = useId()
+  const venue = props.venue ?? null
+  const { closeDrawer, modal, open, opener, setOpen, sidebar } = useDrawer(props.route)
+  // Preact types an aside's role narrowly, but the open drawer really is a modal dialog.
+  const modalAttributes: Record<string, string> = modal ? { 'aria-modal': 'true', role: 'dialog' } : {}
 
   return (
     <div class="dash-app drawer md:drawer-open min-h-svh bg-[var(--fuda-bg)] text-[var(--fuda-text)] print:block">
@@ -275,35 +315,7 @@ export const DashboardShell = (props: DashboardShellProps): JSX.Element => {
           {...modalAttributes}
           aria-label={props.copy.chrome.navigation}
           onKeyDown={(event) => {
-            if (event.target instanceof Element && event.target.closest('dialog') !== null) {
-              return
-            }
-            if (!modal) {
-              return
-            }
-            if (event.key === 'Escape') {
-              event.preventDefault()
-              closeDrawer()
-              return
-            }
-            if (event.key !== 'Tab') {
-              return
-            }
-            const controls = [
-              ...(sidebar.current?.querySelectorAll<HTMLElement>('a[href], button:not([disabled])') ?? []),
-            ]
-            const visibleControls = controls.filter(
-              (element) => element.closest('dialog:not([open]), [hidden], [inert]') === null,
-            )
-            const [first] = visibleControls
-            const last = visibleControls.at(-1)
-            if (event.shiftKey && document.activeElement === first) {
-              event.preventDefault()
-              last?.focus()
-            } else if (!event.shiftKey && document.activeElement === last) {
-              event.preventDefault()
-              first?.focus()
-            }
+            keepFocusInDrawer(event, sidebar.current, modal, closeDrawer)
           }}
         >
           <div class="flex h-14 shrink-0 items-center justify-between gap-2 px-5">

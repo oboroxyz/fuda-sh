@@ -32,6 +32,7 @@ import type { DashCopy } from './copy.ts'
 import { FieldLabel } from './FieldLabel.tsx'
 import { browserLogoTools, EMPTY_LOGO, generateLogoSet, withLogoResult } from './logo.ts'
 import type { LogoSet, LogoState } from './logo.ts'
+import { isPlainClick } from './plain-click.ts'
 
 const identityOf = (raw: string): CardIdentity => CARD_IDENTITIES.find((row) => row === raw) ?? 'none'
 
@@ -87,6 +88,13 @@ const validityModeLabel = (copy: DashCopy['designer'], mode: ValidityMode): stri
   return mode === 'fixed' ? copy.validityFixed : copy.validityNone
 }
 
+const labelled = (id: string, label: string, control: JSX.Element): JSX.Element => (
+  <div class="flex flex-col gap-1">
+    <label for={id}>{label}</label>
+    {control}
+  </div>
+)
+
 // One optional instant. `datetime-local` shows the operator's own wall clock
 // and carries no timezone; `card-designer.ts` converts it through the local
 // `Date`, so an empty field means the end is unbounded.
@@ -95,9 +103,10 @@ const datetimeField = (
   label: () => string,
   value: () => string,
   onValue: (next: string) => void,
-): JSX.Element => (
-  <div class="flex flex-col gap-1">
-    <label for={id}>{label()}</label>
+): JSX.Element =>
+  labelled(
+    id,
+    label(),
     <input
       class="input w-full"
       id={id}
@@ -107,9 +116,8 @@ const datetimeField = (
       type="datetime-local"
       step="1"
       value={value()}
-    />
-  </div>
-)
+    />,
+  )
 
 // The same two rules the schema checks, said in the operator's words; the
 // submit stays disabled while one of them holds.
@@ -278,9 +286,10 @@ const textField = (
   value: () => string,
   placeholder: () => string,
   onValue: (next: string) => void,
-): JSX.Element => (
-  <div class="flex flex-col gap-1">
-    <label for={id}>{label()}</label>
+): JSX.Element =>
+  labelled(
+    id,
+    label(),
     <input
       class="input w-full"
       id={id}
@@ -290,9 +299,8 @@ const textField = (
       placeholder={placeholder()}
       type="text"
       value={value()}
-    />
-  </div>
-)
+    />,
+  )
 
 // A name typed under a fixed prefix, with the rule's verdict under it.
 const prefixedField = (field: {
@@ -354,7 +362,7 @@ export const CardDesignerView = (props: CardDesignerViewProps): JSX.Element => {
             class="link"
             href="/profile"
             onClick={(event) => {
-              if (event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+              if (!isPlainClick(event)) {
                 return
               }
               event.preventDefault()

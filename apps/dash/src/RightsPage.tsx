@@ -13,6 +13,7 @@ import { DEFAULT_RIGHTS_FILTERS, filterRights, hasRightsFilters } from './rights
 import type { RightsFilters } from './rights-filter.ts'
 import { RightsList } from './RightsList.tsx'
 import { createSingleFlight } from './single-flight.ts'
+import { useLifetime } from './use-lifetime.ts'
 
 export interface RightsPageProps {
   copy: DashCopy
@@ -24,6 +25,78 @@ export interface RightsPageProps {
 const fieldValue = (target: EventTarget | null): string | null =>
   target instanceof HTMLInputElement || target instanceof HTMLSelectElement ? target.value : null
 
+const RightsFilterBar = (props: {
+  copy: DashCopy['rights']
+  filters: RightsFilters
+  onChange: (change: (current: RightsFilters) => RightsFilters) => void
+}): JSX.Element => (
+  <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+    <label class="flex min-w-0 grow flex-col gap-1 text-sm">
+      {props.copy.searchLabel}
+      <input
+        type="search"
+        class="input w-full"
+        aria-label={props.copy.searchLabel}
+        placeholder={props.copy.searchPlaceholder}
+        value={props.filters.query}
+        onInput={(event) => {
+          const value = fieldValue(event.currentTarget)
+          if (value !== null) {
+            props.onChange((current) => ({ ...current, query: value }))
+          }
+        }}
+      />
+    </label>
+    <label class="flex flex-col gap-1 text-sm">
+      {props.copy.statusFilter}
+      <select
+        class="select"
+        aria-label={props.copy.statusFilter}
+        value={props.filters.status}
+        onInput={(event) => {
+          const value = fieldValue(event.currentTarget)
+          if (value === 'all' || value === 'active' || value === 'revoked') {
+            props.onChange((current) => ({ ...current, status: value }))
+          }
+        }}
+      >
+        <option value="all">{props.copy.all}</option>
+        <option value="active">{props.copy.active}</option>
+        <option value="revoked">{props.copy.revoked}</option>
+      </select>
+    </label>
+    <label class="flex flex-col gap-1 text-sm">
+      {props.copy.levelFilter}
+      <select
+        class="select"
+        aria-label={props.copy.levelFilter}
+        value={props.filters.level}
+        onInput={(event) => {
+          const value = fieldValue(event.currentTarget)
+          if (value === 'all' || value === 'bearer' || value === 'signed') {
+            props.onChange((current) => ({ ...current, level: value }))
+          }
+        }}
+      >
+        <option value="all">{props.copy.all}</option>
+        <option value="bearer">{props.copy.bearer}</option>
+        <option value="signed">{props.copy.signed}</option>
+      </select>
+    </label>
+    {hasRightsFilters(props.filters) ? (
+      <button
+        type="button"
+        class="btn btn-ghost"
+        onClick={() => {
+          props.onChange(() => DEFAULT_RIGHTS_FILTERS)
+        }}
+      >
+        {props.copy.clearFilters}
+      </button>
+    ) : null}
+  </div>
+)
+
 export const RightsPage = (props: RightsPageProps): JSX.Element => {
   const [filters, setFilters] = useState<RightsFilters>(DEFAULT_RIGHTS_FILTERS)
   const [openQr, setOpenQr] = useState<string | null>(null)
@@ -33,13 +106,7 @@ export const RightsPage = (props: RightsPageProps): JSX.Element => {
   const [flight] = useState(() => createSingleFlight<string>())
   const invoker = useRef<HTMLButtonElement | null>(null)
   const heading = useRef<HTMLHeadingElement>(null)
-  const mounted = useRef(true)
-  useEffect(() => {
-    mounted.current = true
-    return () => {
-      mounted.current = false
-    }
-  }, [])
+  const { mounted } = useLifetime()
   const snapshot = memberSnapshot(props.members)
   const rows = snapshot === null ? [] : filterRights(snapshot.rows, filters)
 
@@ -103,10 +170,6 @@ export const RightsPage = (props: RightsPageProps): JSX.Element => {
     }
   }
 
-  const clearFilters = (): void => {
-    setFilters(DEFAULT_RIGHTS_FILTERS)
-  }
-
   const collection = (): ComponentChild => {
     const current = snapshot
     if (current === null) {
@@ -148,65 +211,7 @@ export const RightsPage = (props: RightsPageProps): JSX.Element => {
           </h1>
           <p class="opacity-70">{props.copy.rights.description}</p>
         </header>
-        <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-          <label class="flex min-w-0 grow flex-col gap-1 text-sm">
-            {props.copy.rights.searchLabel}
-            <input
-              type="search"
-              class="input w-full"
-              aria-label={props.copy.rights.searchLabel}
-              placeholder={props.copy.rights.searchPlaceholder}
-              value={filters.query}
-              onInput={(event) => {
-                const value = fieldValue(event.currentTarget)
-                if (value !== null) {
-                  setFilters((current) => ({ ...current, query: value }))
-                }
-              }}
-            />
-          </label>
-          <label class="flex flex-col gap-1 text-sm">
-            {props.copy.rights.statusFilter}
-            <select
-              class="select"
-              aria-label={props.copy.rights.statusFilter}
-              value={filters.status}
-              onInput={(event) => {
-                const value = fieldValue(event.currentTarget)
-                if (value === 'all' || value === 'active' || value === 'revoked') {
-                  setFilters((current) => ({ ...current, status: value }))
-                }
-              }}
-            >
-              <option value="all">{props.copy.rights.all}</option>
-              <option value="active">{props.copy.rights.active}</option>
-              <option value="revoked">{props.copy.rights.revoked}</option>
-            </select>
-          </label>
-          <label class="flex flex-col gap-1 text-sm">
-            {props.copy.rights.levelFilter}
-            <select
-              class="select"
-              aria-label={props.copy.rights.levelFilter}
-              value={filters.level}
-              onInput={(event) => {
-                const value = fieldValue(event.currentTarget)
-                if (value === 'all' || value === 'bearer' || value === 'signed') {
-                  setFilters((current) => ({ ...current, level: value }))
-                }
-              }}
-            >
-              <option value="all">{props.copy.rights.all}</option>
-              <option value="bearer">{props.copy.rights.bearer}</option>
-              <option value="signed">{props.copy.rights.signed}</option>
-            </select>
-          </label>
-          {hasRightsFilters(filters) ? (
-            <button type="button" class="btn btn-ghost" onClick={clearFilters}>
-              {props.copy.rights.clearFilters}
-            </button>
-          ) : null}
-        </div>
+        <RightsFilterBar copy={props.copy.rights} filters={filters} onChange={setFilters} />
         {props.members.kind === 'error' ? (
           <p role="alert" class="alert alert-error">
             {`${props.copy.rights.errorPrefix}: ${props.copy.rights.errorMessage(props.members.message)}`}

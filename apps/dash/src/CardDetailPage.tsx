@@ -4,6 +4,7 @@ import type { JSX } from 'preact'
 import { cardUrl, displayUrl } from './card-designer.ts'
 import { cardClaimText, cardValidityText } from './card-display.ts'
 import type { DashCopy } from './copy.ts'
+import { isPlainClick } from './plain-click.ts'
 import { QrBlock } from './QrBlock.tsx'
 import { cardEditPath } from './router.ts'
 import type { DashRoute } from './router.ts'
@@ -32,7 +33,7 @@ export const CardDetailPage = (props: CardDetailPageProps): JSX.Element => {
   const clipboard = useCopyText()
   const { management: labels, published } = props.copy
   const link = (event: MouseEvent, route: DashRoute): void => {
-    if (event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+    if (!isPlainClick(event)) {
       return
     }
     event.preventDefault()

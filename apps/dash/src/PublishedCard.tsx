@@ -6,9 +6,10 @@ import { cardUrl, displayUrl } from './card-designer.ts'
 import { cardClaimText, cardValidityText } from './card-display.ts'
 import type { DashCopy } from './copy.ts'
 import { useIssuerPasses } from './issuer-passes-state.ts'
-import type { PassesLoad } from './issuer-passes-state.ts'
+import type { IssuerPassesState, PassesLoad } from './issuer-passes-state.ts'
 import type { ManagementCopy } from './management-copy.ts'
 import { ManagementSummary } from './ManagementSummary.tsx'
+import { isPlainClick } from './plain-click.ts'
 import { cardEditPath, cardSettingsPath } from './router.ts'
 import type { DashRoute } from './router.ts'
 import { useCopyText } from './use-copy-text.ts'
@@ -34,8 +35,110 @@ type DefaultSave =
   | { kind: 'saved' }
   | { kind: 'failed' }
 
-const isPlainClick = (event: MouseEvent): boolean =>
-  event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey
+const PublishedHeader = (props: {
+  copy: DashCopy['published']
+  onAddCard: () => void
+  storeUrl: string
+}): JSX.Element => (
+  <header class="dash-page-header">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <h1 class="dash-page-title">{props.copy.title}</h1>
+      <a
+        class="link link-hover inline-flex min-h-11 items-center text-sm"
+        href="/cards/new"
+        onClick={(event) => {
+          if (!isPlainClick(event)) {
+            return
+          }
+          event.preventDefault()
+          props.onAddCard()
+        }}
+      >
+        {props.copy.addCard}
+      </a>
+    </div>
+    <p class="text-[var(--fuda-muted)]">{props.copy.description}</p>
+    <a
+      class="link link-hover inline-flex min-h-11 items-center self-start text-sm"
+      href={props.storeUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {props.copy.storeDisplay}
+    </a>
+  </header>
+)
+
+const PassNotices = (props: {
+  copy: ManagementCopy
+  onRetry: () => void
+  ready: IssuerPassesResponse | null
+  state: IssuerPassesState
+}): JSX.Element => (
+  <>
+    {props.state.kind === 'failed' ? (
+      <div role="alert" class="flex flex-wrap items-center gap-3 text-sm">
+        <span>{props.copy.loadFailed}</span>
+        <button class="btn btn-sm" type="button" onClick={props.onRetry}>
+          {props.copy.retry}
+        </button>
+      </div>
+    ) : null}
+    {props.state.kind === 'loading' ? (
+      <p class="text-sm text-[var(--fuda-muted)]" role="status">
+        {props.copy.loading}
+      </p>
+    ) : null}
+    {(props.ready?.summary.unknown ?? 0) > 0 ? (
+      <p class="text-sm text-[var(--fuda-muted)]">
+        {props.copy.unknownHint.replace('{count}', String(props.ready?.summary.unknown ?? 0))}
+      </p>
+    ) : null}
+  </>
+)
+
+const CardFilters = (props: {
+  category: CardCategory | 'all'
+  copy: ManagementCopy
+  loading: boolean
+  onCategory: (category: CardCategory | 'all') => void
+  onRefresh: () => void
+  onSearch: (search: string) => void
+  search: string
+}): JSX.Element => (
+  <div class="flex flex-wrap items-end gap-3 border-b border-[var(--fuda-border)] p-4">
+    <label class="flex min-w-0 flex-1 basis-52 flex-col gap-1.5 text-sm">
+      <span>{props.copy.searchCards}</span>
+      <input
+        class="input w-full"
+        type="search"
+        value={props.search}
+        placeholder={props.copy.searchCardsPlaceholder}
+        onInput={(event) => {
+          props.onSearch(event.currentTarget.value)
+        }}
+      />
+    </label>
+    <label class="flex flex-col gap-1.5 text-sm">
+      <span>{props.copy.type}</span>
+      <select
+        class="select min-w-40"
+        value={props.category}
+        onInput={(event) => {
+          const { value } = event.currentTarget
+          props.onCategory(value === 'membership' || value === 'ticket' ? value : 'all')
+        }}
+      >
+        <option value="all">{props.copy.allTypes}</option>
+        <option value="membership">{props.copy.membership}</option>
+        <option value="ticket">{props.copy.ticket}</option>
+      </select>
+    </label>
+    <button class="btn btn-sm" type="button" disabled={props.loading} onClick={props.onRefresh}>
+      {props.copy.refresh}
+    </button>
+  </div>
+)
 
 export const PublishedCard = (props: PublishedCardProps): JSX.Element => {
   const { state, refresh } = useIssuerPasses(props.loadPasses, { page: 1, pageSize: 1 })
@@ -169,86 +272,20 @@ export const PublishedCard = (props: PublishedCardProps): JSX.Element => {
   }
   return (
     <section class="dash-page flex min-w-0 flex-col gap-6">
-      <header class="dash-page-header">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <h1 class="dash-page-title">{props.copy.title}</h1>
-          <a
-            class="link link-hover inline-flex min-h-11 items-center text-sm"
-            href="/cards/new"
-            onClick={(event) => {
-              if (event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
-                return
-              }
-              event.preventDefault()
-              props.onAddCard()
-            }}
-          >
-            {props.copy.addCard}
-          </a>
-        </div>
-        <p class="text-[var(--fuda-muted)]">{props.copy.description}</p>
-        <a
-          class="link link-hover inline-flex min-h-11 items-center self-start text-sm"
-          href={storeUrl()}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          {props.copy.storeDisplay}
-        </a>
-      </header>
+      <PublishedHeader copy={props.copy} onAddCard={props.onAddCard} storeUrl={storeUrl()} />
       <ManagementSummary state={state} copy={labels} />
-      {state.kind === 'failed' ? (
-        <div role="alert" class="flex flex-wrap items-center gap-3 text-sm">
-          <span>{labels.loadFailed}</span>
-          <button class="btn btn-sm" type="button" onClick={refresh}>
-            {labels.retry}
-          </button>
-        </div>
-      ) : null}
-      {state.kind === 'loading' ? (
-        <p class="text-sm text-[var(--fuda-muted)]" role="status">
-          {labels.loading}
-        </p>
-      ) : null}
-      {(ready?.summary.unknown ?? 0) > 0 ? (
-        <p class="text-sm text-[var(--fuda-muted)]">
-          {labels.unknownHint.replace('{count}', String(ready?.summary.unknown ?? 0))}
-        </p>
-      ) : null}
+      <PassNotices copy={labels} onRetry={refresh} ready={ready} state={state} />
       {props.cards.length > 0 ? (
         <div class="card overflow-hidden">
-          <div class="flex flex-wrap items-end gap-3 border-b border-[var(--fuda-border)] p-4">
-            <label class="flex min-w-0 flex-1 basis-52 flex-col gap-1.5 text-sm">
-              <span>{labels.searchCards}</span>
-              <input
-                class="input w-full"
-                type="search"
-                value={search}
-                placeholder={labels.searchCardsPlaceholder}
-                onInput={(event) => {
-                  setSearch(event.currentTarget.value)
-                }}
-              />
-            </label>
-            <label class="flex flex-col gap-1.5 text-sm">
-              <span>{labels.type}</span>
-              <select
-                class="select min-w-40"
-                value={category}
-                onInput={(event) => {
-                  const { value } = event.currentTarget
-                  setCategory(value === 'membership' || value === 'ticket' ? value : 'all')
-                }}
-              >
-                <option value="all">{labels.allTypes}</option>
-                <option value="membership">{labels.membership}</option>
-                <option value="ticket">{labels.ticket}</option>
-              </select>
-            </label>
-            <button class="btn btn-sm" type="button" disabled={state.kind === 'loading'} onClick={refresh}>
-              {labels.refresh}
-            </button>
-          </div>
+          <CardFilters
+            category={category}
+            copy={labels}
+            loading={state.kind === 'loading'}
+            onCategory={setCategory}
+            onRefresh={refresh}
+            onSearch={setSearch}
+            search={search}
+          />
           {filtered.length === 0 ? (
             <div class="flex flex-col items-start gap-3 p-6">
               <p role="status">{labels.noCardsMatch}</p>

@@ -4,8 +4,10 @@ import type { JSX } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
 
 import type { DashCopy } from './copy.ts'
+import { settled } from './network-result.ts'
 import { StampActions } from './StampActions.tsx'
 import type { StampIo } from './StampActions.tsx'
+import { useLifetime } from './use-lifetime.ts'
 
 export type ReceptionIo = (qr: string, requestId: string) => Promise<Result<ReceptionResponse>>
 
@@ -34,6 +36,69 @@ const failureOf = (error: string): keyof DashCopy['reception']['failures'] => {
   return 'rejected'
 }
 
+const stampText = (copy: DashCopy['reception'], body: ReceptionResponse): string => {
+  const { status, summary } = body.stamp
+  if (status === 'awarded' && summary !== null) {
+    return `${copy.stamp.awarded} ${summary.total} / ${summary.goal}`
+  }
+  return copy.stamp[status]
+}
+
+const stampTargetOf = (body: ReceptionResponse): { summary: StampSummary; uid: Hex } | null => {
+  const { summary } = body.stamp
+  if (summary === null || !summary.enabled || body.stamp.status === 'not_admitted') {
+    return null
+  }
+  return { summary, uid: body.uid }
+}
+
+const ReceptionOutcome = (props: {
+  body: ReceptionResponse
+  copy: DashCopy['reception']
+  onDone: () => void
+  stamps: StampIo
+  ticket: number
+}): JSX.Element => {
+  const target = stampTargetOf(props.body)
+  return (
+    <div class="grid gap-3" aria-live="polite">
+      <div class={props.body.decision === 'ADMIT' ? 'alert alert-success' : 'alert alert-error'}>
+        <strong>{props.body.decision}</strong>
+        <span>{props.body.reason}</span>
+      </div>
+      <div class="alert" role="status">
+        {stampText(props.copy, props.body)}
+      </div>
+      {target === null ? null : (
+        <div key={props.ticket} class="border-base-300 rounded-box border p-4">
+          <StampActions
+            copy={props.copy.card}
+            io={props.stamps}
+            summary={target.summary}
+            uid={target.uid}
+            onDone={props.onDone}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+const ReceptionFailure = (props: {
+  copy: DashCopy['reception']
+  failure: keyof DashCopy['reception']['failures']
+  onRetry: () => void
+}): JSX.Element => (
+  <div class="alert alert-error" role="alert">
+    <span>{props.copy.failures[props.failure]}</span>
+    {props.failure === 'network' ? (
+      <button class="btn btn-sm" type="button" onClick={props.onRetry}>
+        {props.copy.retry}
+      </button>
+    ) : null}
+  </div>
+)
+
 export const ReceptionPage = (props: ReceptionPageProps): JSX.Element => {
   const createRequestId = (): string => (props.createRequestId ?? (() => crypto.randomUUID()))()
   const [qr, setQr] = useState('')
@@ -45,15 +110,7 @@ export const ReceptionPage = (props: ReceptionPageProps): JSX.Element => {
   const [failure, setFailure] = useState<keyof DashCopy['reception']['failures'] | null>(null)
   const retry = useRef<RetryRequest | null>(null)
   const input = useRef<HTMLInputElement>(null)
-  const mounted = useRef(true)
-  const revision = useRef(0)
-  useEffect(() => {
-    mounted.current = true
-    return () => {
-      mounted.current = false
-      revision.current += 1
-    }
-  }, [])
+  const { mounted, revision } = useLifetime()
   // A different reception endpoint (another session) starts from a clean slate.
   const endpoint = useRef(props.receive)
   useEffect(() => {
@@ -85,12 +142,7 @@ export const ReceptionPage = (props: ReceptionPageProps): JSX.Element => {
     revision.current += 1
     const ticket = revision.current
     const run = async (): Promise<void> => {
-      let outcome: Result<ReceptionResponse>
-      try {
-        outcome = await props.receive(request.qr, request.requestId)
-      } catch {
-        outcome = { error: 'network', network: true, ok: false, status: 0 }
-      }
+      const outcome = await settled(async () => await props.receive(request.qr, request.requestId))
       if (!mounted.current || revision.current !== ticket) {
         return
       }
@@ -112,32 +164,6 @@ export const ReceptionPage = (props: ReceptionPageProps): JSX.Element => {
     }
     void run()
   }
-
-  const stampText = (): string | null => {
-    if (result === null) {
-      return null
-    }
-    const { status, summary } = result.body.stamp
-    if (status === 'awarded' && summary !== null) {
-      return `${props.copy.stamp.awarded} ${summary.total} / ${summary.goal}`
-    }
-    return props.copy.stamp[status]
-  }
-
-  const stampTarget = (): { summary: StampSummary; uid: Hex } | null => {
-    const current = result?.body
-    const summary = current?.stamp.summary ?? null
-    if (
-      current === undefined ||
-      summary === null ||
-      !summary.enabled ||
-      current.stamp.status === 'not_admitted'
-    ) {
-      return null
-    }
-    return { summary, uid: current.uid }
-  }
-  const target = stampTarget()
 
   return (
     <section class="dash-page flex max-w-3xl flex-col gap-6">
@@ -172,44 +198,25 @@ export const ReceptionPage = (props: ReceptionPageProps): JSX.Element => {
         </label>
         {pending ? <p role="status">{props.copy.checking}</p> : null}
         {result === null ? null : (
-          <div class="grid gap-3" aria-live="polite">
-            <div class={result.body.decision === 'ADMIT' ? 'alert alert-success' : 'alert alert-error'}>
-              <strong>{result.body.decision}</strong>
-              <span>{result.body.reason}</span>
-            </div>
-            <div class="alert" role="status">
-              {stampText()}
-            </div>
-            {target === null ? null : (
-              <div key={result.ticket} class="border-base-300 rounded-box border p-4">
-                <StampActions
-                  copy={props.copy.card}
-                  io={props.stamps}
-                  summary={target.summary}
-                  uid={target.uid}
-                  onDone={() => input.current?.focus()}
-                />
-              </div>
-            )}
-          </div>
+          // The ticket remounts the stamp actions for each reception, even of the same pass.
+          <ReceptionOutcome
+            body={result.body}
+            copy={props.copy}
+            onDone={() => input.current?.focus()}
+            stamps={props.stamps}
+            ticket={result.ticket}
+          />
         )}
         {failure === null ? null : (
-          <div class="alert alert-error" role="alert">
-            <span>{props.copy.failures[failure ?? 'rejected']}</span>
-            {failure === 'network' ? (
-              <button
-                class="btn btn-sm"
-                type="button"
-                onClick={() => {
-                  if (retry.current !== null) {
-                    submit(retry.current)
-                  }
-                }}
-              >
-                {props.copy.retry}
-              </button>
-            ) : null}
-          </div>
+          <ReceptionFailure
+            copy={props.copy}
+            failure={failure}
+            onRetry={() => {
+              if (retry.current !== null) {
+                submit(retry.current)
+              }
+            }}
+          />
         )}
       </div>
     </section>

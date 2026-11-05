@@ -11,7 +11,10 @@ import type { CardStampIo } from './CardStampSettings.tsx'
 import type { DashCopy } from './copy.ts'
 import { IntegrationSettings } from './IntegrationSettings.tsx'
 import type { CardIntegrationsIo } from './IntegrationSettings.tsx'
+import { settled } from './network-result.ts'
+import { isPlainClick } from './plain-click.ts'
 import type { DashRoute } from './router.ts'
+import { useLifetime } from './use-lifetime.ts'
 
 export interface CardEditPageProps {
   card: CardView | null
@@ -28,24 +31,76 @@ const available = async (): Promise<'available'> => await Promise.resolve('avail
 
 type EditorProps = Omit<CardEditPageProps, 'card' | 'load'> & { card: OperatorCardView }
 
+// Each optional service opens on demand, so its settings load only when the operator asks.
+const StampsOption = (props: {
+  busy: boolean
+  cardId: string
+  copy: DashCopy
+  onToggle: (open: boolean) => void
+  open: boolean
+  settings: CardStampIo
+}): JSX.Element => {
+  const { open } = props
+  return (
+    <details
+      class="rounded-box border border-[var(--fuda-border)]"
+      open={open}
+      onToggle={(event) => {
+        props.onToggle(event.currentTarget.open)
+      }}
+    >
+      <summary class="cursor-pointer p-4 font-semibold">{props.copy.management.stampOption}</summary>
+      {open ? (
+        <fieldset class="min-w-0 p-4 pt-0" disabled={props.busy}>
+          <p class="mb-3 text-sm text-[var(--fuda-muted)]">{props.copy.management.stampHint}</p>
+          <CardStampSettings cardId={props.cardId} copy={props.copy.stamps} settings={props.settings} />
+        </fieldset>
+      ) : null}
+    </details>
+  )
+}
+
+const IntegrationsOption = (props: {
+  busy: boolean
+  cardId: string
+  copy: DashCopy
+  integrations: CardIntegrationsIo
+  onToggle: (open: boolean) => void
+  open: boolean
+}): JSX.Element => {
+  const { open } = props
+  return (
+    <details
+      class="rounded-box border border-[var(--fuda-border)]"
+      data-testid="card-integrations"
+      open={open}
+      onToggle={(event) => {
+        props.onToggle(event.currentTarget.open)
+      }}
+    >
+      <summary class="cursor-pointer p-4 font-semibold">{props.copy.management.integrationsOption}</summary>
+      {open ? (
+        <fieldset class="min-w-0 p-4 pt-0" disabled={props.busy}>
+          <p class="mb-3 text-sm text-[var(--fuda-muted)]">{props.copy.management.integrationsHint}</p>
+          <IntegrationSettings cardId={props.cardId} copy={props.copy.integrations} io={props.integrations} />
+        </fieldset>
+      ) : null}
+    </details>
+  )
+}
+
 // Mounted once per loaded Card: the form starts from that Card and keeps its own draft.
 const LoadedCardEditor = (props: EditorProps): JSX.Element => {
   const initial = props.card
   const [draft, setDraft] = useState(() => formFromCard(initial))
   const [savedCard, setSavedCard] = useState(initial)
   const [busy, setBusy] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [failed, setFailed] = useState(false)
   const [stampsOpen, setStampsOpen] = useState(false)
   const [integrationsOpen, setIntegrationsOpen] = useState(false)
-  const mounted = useRef(true)
+  const [saved, setSaved] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const { mounted } = useLifetime()
   const saving = useRef(false)
-  useEffect(() => {
-    mounted.current = true
-    return () => {
-      mounted.current = false
-    }
-  }, [])
   const changed = (form: DesignerForm): void => {
     setDraft(form)
     setSaved(false)
@@ -65,12 +120,7 @@ const LoadedCardEditor = (props: EditorProps): JSX.Element => {
     setSaved(false)
     setFailed(false)
     const run = async (): Promise<void> => {
-      let result: Result<CardUpdateResponse>
-      try {
-        result = await props.save(initial.id, body)
-      } catch {
-        result = { error: 'network', network: true, ok: false, status: 0 }
-      }
+      const result = await settled(async () => await props.save(initial.id, body))
       if (!mounted.current) {
         return
       }
@@ -126,45 +176,24 @@ const LoadedCardEditor = (props: EditorProps): JSX.Element => {
       {savedCard.identity !== 'sensitive' &&
       savedCard.category === 'membership' &&
       draft.category === 'membership' ? (
-        <details
-          class="rounded-box border border-[var(--fuda-border)]"
+        <StampsOption
+          busy={busy}
+          cardId={initial.id}
+          copy={props.copy}
+          onToggle={setStampsOpen}
           open={stampsOpen}
-          onToggle={(event) => {
-            setStampsOpen(event.currentTarget.open)
-          }}
-        >
-          <summary class="cursor-pointer p-4 font-semibold">{props.copy.management.stampOption}</summary>
-          {stampsOpen ? (
-            <fieldset class="min-w-0 p-4 pt-0" disabled={busy}>
-              <p class="mb-3 text-sm text-[var(--fuda-muted)]">{props.copy.management.stampHint}</p>
-              <CardStampSettings cardId={initial.id} copy={props.copy.stamps} settings={props.settings} />
-            </fieldset>
-          ) : null}
-        </details>
+          settings={props.settings}
+        />
       ) : null}
       {savedCard.identity === 'sensitive' ? null : (
-        <details
-          class="rounded-box border border-[var(--fuda-border)]"
-          data-testid="card-integrations"
+        <IntegrationsOption
+          busy={busy}
+          cardId={initial.id}
+          copy={props.copy}
+          integrations={props.integrations}
+          onToggle={setIntegrationsOpen}
           open={integrationsOpen}
-          onToggle={(event) => {
-            setIntegrationsOpen(event.currentTarget.open)
-          }}
-        >
-          <summary class="cursor-pointer p-4 font-semibold">
-            {props.copy.management.integrationsOption}
-          </summary>
-          {integrationsOpen ? (
-            <fieldset class="min-w-0 p-4 pt-0" disabled={busy}>
-              <p class="mb-3 text-sm text-[var(--fuda-muted)]">{props.copy.management.integrationsHint}</p>
-              <IntegrationSettings
-                cardId={initial.id}
-                copy={props.copy.integrations}
-                io={props.integrations}
-              />
-            </fieldset>
-          ) : null}
-        </details>
+        />
       )}
     </>
   )
@@ -238,7 +267,7 @@ export const CardEditPage = (props: CardEditPageProps): JSX.Element => (
       class="link link-hover self-start text-sm"
       href="/cards"
       onClick={(event) => {
-        if (event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+        if (!isPlainClick(event)) {
           return
         }
         event.preventDefault()

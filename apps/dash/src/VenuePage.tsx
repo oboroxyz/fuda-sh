@@ -8,6 +8,7 @@ import type { DashCopy } from './copy.ts'
 import { browserLogoTools, EMPTY_LOGO, generateLogoSet, withLogoResult } from './logo.ts'
 import type { LogoSet, LogoState } from './logo.ts'
 import { LogoField } from './LogoField.tsx'
+import { isPlainClick } from './plain-click.ts'
 import type { DashRoute } from './router.ts'
 import { EMPTY_VENUE_FORM, venueBodyFrom } from './venue.ts'
 import type { VenueForm } from './venue.ts'
@@ -184,7 +185,7 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
             class="btn"
             href="/cards"
             onClick={(event) => {
-              if (event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+              if (!isPlainClick(event)) {
                 return
               }
               event.preventDefault()

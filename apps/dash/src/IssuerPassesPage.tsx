@@ -98,6 +98,121 @@ const PassTable = (props: { passes: IssuerPassView[]; copy: ManagementCopy }): J
   </div>
 )
 
+const PassFilters = (props: {
+  cards: CardView[]
+  copy: ManagementCopy
+  onCard: (cardId: string) => void
+  onSearch: (search: string) => void
+  onStatus: (status: IssuerPassStatus | undefined) => void
+  query: PassQuery
+  search: string
+}): JSX.Element => (
+  <div class="flex flex-wrap items-end gap-3 border-b border-[var(--fuda-border)] p-4">
+    <label class="flex min-w-0 flex-1 basis-56 flex-col gap-1.5 text-sm">
+      <span>{props.copy.searchPasses}</span>
+      <input
+        class="input w-full"
+        type="search"
+        value={props.search}
+        maxLength={120}
+        placeholder={props.copy.searchPassesPlaceholder}
+        onInput={(event) => {
+          props.onSearch(event.currentTarget.value)
+        }}
+      />
+    </label>
+    <label class="flex min-w-0 flex-col gap-1.5 text-sm">
+      <span>{props.copy.card}</span>
+      <select
+        class="select max-w-full sm:max-w-52"
+        name="cardId"
+        value={props.query.cardId ?? ''}
+        onInput={(event) => {
+          props.onCard(event.currentTarget.value)
+        }}
+      >
+        <option value="">{props.copy.allCards}</option>
+        {props.cards.map((card) => (
+          <option key={card.id} value={card.id}>
+            {card.title}
+          </option>
+        ))}
+      </select>
+    </label>
+    <label class="flex flex-col gap-1.5 text-sm">
+      <span>{props.copy.status}</span>
+      <select
+        class="select"
+        name="status"
+        value={props.query.status ?? ''}
+        onInput={(event) => {
+          const { value } = event.currentTarget
+          props.onStatus(STATUSES.find((candidate) => candidate === value))
+        }}
+      >
+        <option value="">{props.copy.allStatuses}</option>
+        {STATUSES.map((status) => (
+          <option key={status} value={status}>
+            {props.copy.statuses[status]}
+          </option>
+        ))}
+      </select>
+    </label>
+  </div>
+)
+
+const LoadedPasses = (props: {
+  copy: ManagementCopy
+  data: IssuerPassesResponse
+  onClear: () => void
+  onPage: (page: number) => void
+  page: number
+  pages: number
+}): JSX.Element => (
+  <>
+    {props.data.passes.length === 0 ? (
+      <div class="flex flex-col items-start gap-3 p-6">
+        <p role="status">{props.data.summary.total === 0 ? props.copy.noPasses : props.copy.noPassesMatch}</p>
+        {props.data.summary.total === 0 ? null : (
+          <button class="btn btn-sm" type="button" onClick={props.onClear}>
+            {props.copy.clearFilters}
+          </button>
+        )}
+      </div>
+    ) : (
+      <PassTable passes={props.data.passes} copy={props.copy} />
+    )}
+    <div class="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--fuda-border)] px-4 py-3 text-xs">
+      <p class="text-[var(--fuda-muted)]">
+        {props.copy.results.replace('{count}', props.data.page.total.toLocaleString())}
+      </p>
+      <div class="flex flex-wrap items-center gap-3">
+        <p>{props.copy.page.replace('{page}', String(props.page)).replace('{pages}', String(props.pages))}</p>
+        <button
+          class="btn btn-sm"
+          type="button"
+          disabled={props.page <= 1}
+          onClick={() => {
+            props.onPage(props.page - 1)
+          }}
+        >
+          {props.copy.previous}
+        </button>
+        <button
+          class="btn btn-sm"
+          type="button"
+          disabled={props.page >= props.pages}
+          onClick={() => {
+            props.onPage(props.page + 1)
+          }}
+        >
+          {props.copy.next}
+        </button>
+      </div>
+    </div>
+  </>
+)
+
 export const IssuerPassesPage = (props: {
   cards: CardView[]
   copy: ManagementCopy
@@ -147,60 +262,19 @@ export const IssuerPassesPage = (props: {
         ) : null}
       </div>
       <div class="card overflow-hidden">
-        <div class="flex flex-wrap items-end gap-3 border-b border-[var(--fuda-border)] p-4">
-          <label class="flex min-w-0 flex-1 basis-56 flex-col gap-1.5 text-sm">
-            <span>{props.copy.searchPasses}</span>
-            <input
-              class="input w-full"
-              type="search"
-              value={search}
-              maxLength={120}
-              placeholder={props.copy.searchPassesPlaceholder}
-              onInput={(event) => {
-                setSearch(event.currentTarget.value)
-              }}
-            />
-          </label>
-          <label class="flex min-w-0 flex-col gap-1.5 text-sm">
-            <span>{props.copy.card}</span>
-            <select
-              class="select max-w-full sm:max-w-52"
-              name="cardId"
-              value={query.cardId ?? ''}
-              onInput={(event) => {
-                const cardId = event.currentTarget.value
-                setQuery((current) => ({ ...current, cardId, page: 1 }))
-              }}
-            >
-              <option value="">{props.copy.allCards}</option>
-              {props.cards.map((card) => (
-                <option key={card.id} value={card.id}>
-                  {card.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label class="flex flex-col gap-1.5 text-sm">
-            <span>{props.copy.status}</span>
-            <select
-              class="select"
-              name="status"
-              value={query.status ?? ''}
-              onInput={(event) => {
-                const { value } = event.currentTarget
-                const status = STATUSES.find((candidate) => candidate === value)
-                setQuery((current) => ({ ...current, page: 1, status }))
-              }}
-            >
-              <option value="">{props.copy.allStatuses}</option>
-              {STATUSES.map((status) => (
-                <option key={status} value={status}>
-                  {props.copy.statuses[status]}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+        <PassFilters
+          cards={props.cards}
+          copy={props.copy}
+          onSearch={setSearch}
+          onStatus={(status) => {
+            setQuery((current) => ({ ...current, page: 1, status }))
+          }}
+          onCard={(cardId) => {
+            setQuery((current) => ({ ...current, cardId, page: 1 }))
+          }}
+          query={query}
+          search={search}
+        />
         {state.kind === 'loading' ? (
           <p class="p-6 text-sm" role="status">
             {props.copy.loading}
@@ -215,52 +289,16 @@ export const IssuerPassesPage = (props: {
           </div>
         ) : null}
         {ready === null ? null : (
-          <>
-            {ready.passes.length === 0 ? (
-              <div class="flex flex-col items-start gap-3 p-6">
-                <p role="status">
-                  {ready.summary.total === 0 ? props.copy.noPasses : props.copy.noPassesMatch}
-                </p>
-                {ready.summary.total === 0 ? null : (
-                  <button class="btn btn-sm" type="button" onClick={clear}>
-                    {props.copy.clearFilters}
-                  </button>
-                )}
-              </div>
-            ) : (
-              <PassTable passes={ready.passes} copy={props.copy} />
-            )}
-            <div class="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--fuda-border)] px-4 py-3 text-xs">
-              <p class="text-[var(--fuda-muted)]">
-                {props.copy.results.replace('{count}', ready.page.total.toLocaleString())}
-              </p>
-              <div class="flex flex-wrap items-center gap-3">
-                <p>
-                  {props.copy.page.replace('{page}', String(query.page)).replace('{pages}', String(pages))}
-                </p>
-                <button
-                  class="btn btn-sm"
-                  type="button"
-                  disabled={query.page <= 1}
-                  onClick={() => {
-                    setQuery((current) => ({ ...current, page: current.page - 1 }))
-                  }}
-                >
-                  {props.copy.previous}
-                </button>
-                <button
-                  class="btn btn-sm"
-                  type="button"
-                  disabled={query.page >= pages}
-                  onClick={() => {
-                    setQuery((current) => ({ ...current, page: current.page + 1 }))
-                  }}
-                >
-                  {props.copy.next}
-                </button>
-              </div>
-            </div>
-          </>
+          <LoadedPasses
+            copy={props.copy}
+            data={ready}
+            onClear={clear}
+            onPage={(page) => {
+              setQuery((current) => ({ ...current, page }))
+            }}
+            page={query.page}
+            pages={pages}
+          />
         )}
       </div>
       <div class="space-y-1 text-xs text-[var(--fuda-muted)]">

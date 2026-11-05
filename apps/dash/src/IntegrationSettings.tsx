@@ -1,9 +1,12 @@
 import type { CardIntegrations } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
 import type { JSX } from 'preact'
-import { useEffect, useRef, useState } from 'preact/hooks'
+import { useEffect, useState } from 'preact/hooks'
 
 import type { DashCopy } from './copy.ts'
+import { settled } from './network-result.ts'
+import { SettingsFooter, SettingsLoadState } from './SettingsParts.tsx'
+import { useLifetime } from './use-lifetime.ts'
 
 export interface CardIntegrationsIo {
   load: (cardId: string) => Promise<Result<CardIntegrations>>
@@ -25,16 +28,7 @@ export const IntegrationSettings = (props: IntegrationSettingsProps): JSX.Elemen
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<'load' | 'save' | null>(null)
   const [saved, setSaved] = useState(false)
-  const mounted = useRef(true)
-  const revision = useRef(0)
-
-  useEffect(() => {
-    mounted.current = true
-    return () => {
-      mounted.current = false
-      revision.current += 1
-    }
-  }, [])
+  const { mounted, revision } = useLifetime()
 
   const runLoad = (): void => {
     revision.current += 1
@@ -45,12 +39,7 @@ export const IntegrationSettings = (props: IntegrationSettingsProps): JSX.Elemen
     setSaved(false)
     setBusy(true)
     const run = async (): Promise<void> => {
-      let result: Result<CardIntegrations>
-      try {
-        result = await props.io.load(cardId)
-      } catch {
-        result = { error: 'network', network: true, ok: false, status: 0 }
-      }
+      const result = await settled(async () => await props.io.load(cardId))
       if (!mounted.current || revision.current !== ticket) {
         return
       }
@@ -80,12 +69,7 @@ export const IntegrationSettings = (props: IntegrationSettingsProps): JSX.Elemen
     setError(null)
     setSaved(false)
     const run = async (): Promise<void> => {
-      let result: Result<CardIntegrations>
-      try {
-        result = await props.io.save(cardId, submitted)
-      } catch {
-        result = { error: 'network', network: true, ok: false, status: 0 }
-      }
+      const result = await settled(async () => await props.io.save(cardId, submitted))
       if (!mounted.current || revision.current !== ticket) {
         return
       }
@@ -125,27 +109,25 @@ export const IntegrationSettings = (props: IntegrationSettingsProps): JSX.Elemen
           <span class="text-sm opacity-70">{props.copy.worldIdHint}</span>
         </span>
       </label>
-      {error === null ? null : (
-        <p class="text-error" role="alert">
-          {props.copy.failures[error ?? 'load']}
-        </p>
-      )}
-      {saved ? <p role="status">{props.copy.saved}</p> : null}
-      <button class="btn btn-primary self-start" disabled={busy} type="button" onClick={submit}>
-        {busy ? props.copy.saving : props.copy.save}
-      </button>
+      <SettingsFooter
+        busy={busy}
+        copy={props.copy}
+        error={error}
+        failures={props.copy.failures}
+        onSubmit={submit}
+        saved={saved}
+      />
     </form>
   )
 
   return value === null ? (
-    <div class="flex items-start gap-3" role={error === 'load' ? 'alert' : 'status'}>
-      <span>{busy ? props.copy.loading : props.copy.failures.load}</span>
-      {error === 'load' ? (
-        <button class="btn btn-sm" type="button" onClick={runLoad}>
-          {props.copy.retry}
-        </button>
-      ) : null}
-    </div>
+    <SettingsLoadState
+      busy={busy}
+      class="flex items-start gap-3"
+      copy={props.copy}
+      failed={error === 'load'}
+      onRetry={runLoad}
+    />
   ) : (
     editor(value)
   )
