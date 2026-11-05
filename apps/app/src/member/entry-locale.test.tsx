@@ -5,7 +5,7 @@ import type { Locale } from '@fuda/i18n'
 import { mount as mountView } from '@fuda/ui-preact/test'
 import type { ComponentChild, JSX } from 'preact'
 import { useState } from 'preact/hooks'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { SignedGate } from './SignedGate.tsx'
 import type { SignedGateScreenIo } from './SignedGate.tsx'
@@ -124,8 +124,9 @@ describe('entry locale changes', () => {
         detail: {},
       }),
     )
-    await setTimeout(0)
-    expect(root.textContent).toContain('Passkey wallet: sign for')
+    await vi.waitFor(() => {
+      expect(root.textContent).toContain('Passkey wallet: sign for')
+    })
     const video = root.querySelector('video')
     click('Language')
     await setTimeout(0)
