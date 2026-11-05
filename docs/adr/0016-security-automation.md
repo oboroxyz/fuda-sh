@@ -1,4 +1,4 @@
-# ADR 0015: Public security checks and private AI audits
+# ADR 0016: Public security checks and private AI audits
 
 - **Status**: Accepted 2026-11-05.
 - **Scope**: Dependency upkeep, security checks, and AI audit publication.

@@ -704,7 +704,7 @@ The `dependency-review` job runs only on pull requests and blocks high or critic
 
 Enable **CodeQL default setup** and **Private vulnerability reporting** under **Settings → Code security**. CodeQL default setup manages its own analysis without a custom workflow. [SECURITY.md](../SECURITY.md) directs reporters to GitHub's private advisory form instead of public issues.
 
-The AI audit workflow and all retained audit outputs live in the private `oboroxyz/fuda-sh-staff` repository under `security-audit/`. Dispatch it on demand first, measure its cost, and then add the monthly schedule there. Never copy audit findings, logs, or artifacts into this public repository. A person decides when to publish fixes. See [ADR 0015](adr/0015-security-automation.md).
+The AI audit workflow and all retained audit outputs live in the private `oboroxyz/fuda-sh-staff` repository under `security-audit/`. Dispatch it on demand first, measure its cost, and then add the monthly schedule there. Never copy audit findings, logs, or artifacts into this public repository. A person decides when to publish fixes. See [ADR 0016](adr/0016-security-automation.md).
 
 GitHub Secret scanning and push protection are enabled in the repository's **Settings → Code security**. Keep them enabled independently of CI; they protect supported secret patterns and do not replace the `.gitignore` rules for local key material.
 
