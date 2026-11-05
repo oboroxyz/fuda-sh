@@ -98,18 +98,20 @@ const runEntry = async (owner: EntryOwner, work: () => Promise<SignedOutcome>): 
 }
 
 const usePassAnswer = (uid: Hex | null, io: SignedGateScreenIo): Answer => {
-  const [answer, setAnswer] = useState<Answer>('wallet')
+  const [known, setKnown] = useState<{ answer: Answer; uid: Hex } | null>(null)
   useEffect(() => {
     if (uid === null) {
       return
     }
     const previewController = new AbortController()
-    setAnswer('checking')
     void (async () => {
       const preview = await io.preview(uid, previewController.signal)
       const entitlement = preview.ok ? preview.body.entitlement : undefined
       if (!previewController.signal.aborted) {
-        setAnswer(entitlement !== undefined && isPasskeyPass(entitlement) ? 'passkey' : 'wallet')
+        setKnown({
+          answer: entitlement !== undefined && isPasskeyPass(entitlement) ? 'passkey' : 'wallet',
+          uid,
+        })
       }
     })()
     return () => {
@@ -117,7 +119,12 @@ const usePassAnswer = (uid: Hex | null, io: SignedGateScreenIo): Answer => {
     }
   }, [uid, io])
 
-  return answer
+  if (uid === null) {
+    return 'wallet'
+  }
+  // Compared in render, not reset in the effect: an effect runs after paint, and an
+  // entry chosen before then would use the previous pass's answer.
+  return known?.uid === uid ? known.answer : 'checking'
 }
 
 // docs/specs/pass-types-and-flows.md#gate-protocol: enter or scan the pass uid, or arrive

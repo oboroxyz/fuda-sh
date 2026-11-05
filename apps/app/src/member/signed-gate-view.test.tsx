@@ -4,6 +4,7 @@ import { mount, settle } from '@fuda/ui/test'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import * as baseAccount from '../base-account.ts'
+import type { Eip1193Provider } from '../wallet.ts'
 import { SignedGate } from './SignedGate.tsx'
 import type { SignedGateScreenIo } from './SignedGate.tsx'
 
@@ -145,5 +146,34 @@ describe('signed entry component lifetime', () => {
     expect(view.host.textContent).toContain('rail chunk unavailable')
     expect(load).toHaveBeenCalledOnce()
     expect(deps.challenge).not.toHaveBeenCalled()
+  })
+
+  it('offers no wallet for a newly scanned pass until its own preview answers', async () => {
+    const request = vi.fn<Eip1193Provider['request']>().mockRejectedValue(new Error('wrong rail opened'))
+    const second = Promise.withResolvers<Awaited<ReturnType<SignedGateScreenIo['preview']>>>()
+    const screen = io()
+    vi.mocked(screen.preview).mockImplementation(async (target) =>
+      target === uid ? fail : await second.promise,
+    )
+    window.history.replaceState(null, '', `/signed?uid=${uid}`)
+    const view = mount(<SignedGate io={screen} provider={{ request }} />)
+    disposers.push(view.dispose)
+    await vi.waitFor(() => {
+      expect(view.host.querySelector('button.btn-ghost')).not.toBeNull()
+    })
+    const input = view.host.querySelector('input')
+    if (input !== null) {
+      input.value = secondUid
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+    view.host.querySelector('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    await Promise.resolve()
+    await Promise.resolve()
+    view.host.querySelector<HTMLButtonElement>('button.btn-ghost')?.click()
+    await settle()
+    expect(request).not.toHaveBeenCalled()
+    second.resolve(fail)
+    await settle()
+    window.history.replaceState(null, '', '/signed')
   })
 })
