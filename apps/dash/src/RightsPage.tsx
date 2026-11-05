@@ -1,6 +1,6 @@
 import type { RevokeResponse } from '@fuda/sdk'
-import { createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js'
-import type { JSX } from 'solid-js'
+import type { ComponentChild, JSX } from 'preact'
+import { useEffect, useRef, useState } from 'preact/hooks'
 
 import type { Result } from './api.ts'
 import type { DashCopy } from './copy.ts'
@@ -13,6 +13,7 @@ import { DEFAULT_RIGHTS_FILTERS, filterRights, hasRightsFilters } from './rights
 import type { RightsFilters } from './rights-filter.ts'
 import { RightsList } from './RightsList.tsx'
 import { createSingleFlight } from './single-flight.ts'
+import { useLifetime } from './use-lifetime.ts'
 
 export interface RightsPageProps {
   copy: DashCopy
@@ -24,48 +25,112 @@ export interface RightsPageProps {
 const fieldValue = (target: EventTarget | null): string | null =>
   target instanceof HTMLInputElement || target instanceof HTMLSelectElement ? target.value : null
 
-export const RightsPage = (props: RightsPageProps): JSX.Element => {
-  const [filters, setFilters] = createSignal<RightsFilters>(DEFAULT_RIGHTS_FILTERS)
-  const [openQr, setOpenQr] = createSignal<string | null>(null)
-  const [revokeTarget, setRevokeTarget] = createSignal<MemberRowView | null>(null)
-  const [revokeError, setRevokeError] = createSignal<string | null>(null)
-  const [revokingUid, setRevokingUid] = createSignal<string | null>(null)
-  const flight = createSingleFlight<string>()
-  let invoker: HTMLButtonElement | null = null
-  let heading: HTMLHeadingElement | undefined
-  let mounted = true
-  onCleanup(() => {
-    mounted = false
-  })
-  const snapshot = createMemo(() => memberSnapshot(props.members))
-  const rows = createMemo(() => {
-    const current = snapshot()
-    return current === null ? [] : filterRights(current.rows, filters())
-  })
-
-  createEffect(
-    on(revokeTarget, (target) => {
-      if (target === null && invoker !== null) {
-        // Run after the dialog's closing effect so the invoker is no longer inert.
-        queueMicrotask(() => {
-          if (mounted) {
-            const restoring = invoker
-            const canRestore = restoring !== null && restoring.isConnected && !restoring.disabled
-            if (canRestore) {
-              restoring.focus()
-            }
-            if (!canRestore || document.activeElement !== restoring) {
-              heading?.focus()
-            }
-            invoker = null
+const RightsFilterBar = (props: {
+  copy: DashCopy['rights']
+  filters: RightsFilters
+  onChange: (change: (current: RightsFilters) => RightsFilters) => void
+}): JSX.Element => (
+  <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+    <label class="flex min-w-0 grow flex-col gap-1 text-sm">
+      {props.copy.searchLabel}
+      <input
+        type="search"
+        class="input w-full"
+        aria-label={props.copy.searchLabel}
+        placeholder={props.copy.searchPlaceholder}
+        value={props.filters.query}
+        onInput={(event) => {
+          const value = fieldValue(event.currentTarget)
+          if (value !== null) {
+            props.onChange((current) => ({ ...current, query: value }))
           }
-        })
-      }
-    }),
-  )
+        }}
+      />
+    </label>
+    <label class="flex flex-col gap-1 text-sm">
+      {props.copy.statusFilter}
+      <select
+        class="select"
+        aria-label={props.copy.statusFilter}
+        value={props.filters.status}
+        onInput={(event) => {
+          const value = fieldValue(event.currentTarget)
+          if (value === 'all' || value === 'active' || value === 'revoked') {
+            props.onChange((current) => ({ ...current, status: value }))
+          }
+        }}
+      >
+        <option value="all">{props.copy.all}</option>
+        <option value="active">{props.copy.active}</option>
+        <option value="revoked">{props.copy.revoked}</option>
+      </select>
+    </label>
+    <label class="flex flex-col gap-1 text-sm">
+      {props.copy.levelFilter}
+      <select
+        class="select"
+        aria-label={props.copy.levelFilter}
+        value={props.filters.level}
+        onInput={(event) => {
+          const value = fieldValue(event.currentTarget)
+          if (value === 'all' || value === 'bearer' || value === 'signed') {
+            props.onChange((current) => ({ ...current, level: value }))
+          }
+        }}
+      >
+        <option value="all">{props.copy.all}</option>
+        <option value="bearer">{props.copy.bearer}</option>
+        <option value="signed">{props.copy.signed}</option>
+      </select>
+    </label>
+    {hasRightsFilters(props.filters) ? (
+      <button
+        type="button"
+        class="btn btn-ghost"
+        onClick={() => {
+          props.onChange(() => DEFAULT_RIGHTS_FILTERS)
+        }}
+      >
+        {props.copy.clearFilters}
+      </button>
+    ) : null}
+  </div>
+)
+
+export const RightsPage = (props: RightsPageProps): JSX.Element => {
+  const [filters, setFilters] = useState<RightsFilters>(DEFAULT_RIGHTS_FILTERS)
+  const [openQr, setOpenQr] = useState<string | null>(null)
+  const [revokeTarget, setRevokeTarget] = useState<MemberRowView | null>(null)
+  const [revokeError, setRevokeError] = useState<string | null>(null)
+  const [revokingUid, setRevokingUid] = useState<string | null>(null)
+  const [flight] = useState(() => createSingleFlight<string>())
+  const invoker = useRef<HTMLButtonElement | null>(null)
+  const heading = useRef<HTMLHeadingElement>(null)
+  const { mounted } = useLifetime()
+  const snapshot = memberSnapshot(props.members)
+  const rows = snapshot === null ? [] : filterRights(snapshot.rows, filters)
+
+  useEffect(() => {
+    if (revokeTarget === null && invoker.current !== null) {
+      // Run after the dialog's closing effect so the invoker is no longer inert.
+      queueMicrotask(() => {
+        if (mounted.current) {
+          const restoring = invoker.current
+          const canRestore = restoring !== null && restoring.isConnected && !restoring.disabled
+          if (canRestore) {
+            restoring.focus()
+          }
+          if (!canRestore || document.activeElement !== restoring) {
+            heading.current?.focus()
+          }
+          invoker.current = null
+        }
+      })
+    }
+  }, [revokeTarget])
 
   const cancelRevoke = (): void => {
-    const target = revokeTarget()
+    const target = revokeTarget
     if (target !== null && !flight.isRunning(target.uid)) {
       setRevokeTarget(null)
       setRevokeError(null)
@@ -73,7 +138,7 @@ export const RightsPage = (props: RightsPageProps): JSX.Element => {
   }
 
   const confirmRevoke = async (): Promise<void> => {
-    const target = revokeTarget()
+    const target = revokeTarget
     if (target === null || target.status === 'revoked') {
       return
     }
@@ -86,7 +151,7 @@ export const RightsPage = (props: RightsPageProps): JSX.Element => {
       setRevokeError(null)
       try {
         const result = await promise
-        if (mounted) {
+        if (mounted.current) {
           if (result.ok) {
             setRevokeTarget(null)
           } else if (result.status !== 401) {
@@ -94,49 +159,45 @@ export const RightsPage = (props: RightsPageProps): JSX.Element => {
           }
         }
       } finally {
-        if (mounted) {
+        if (mounted.current) {
           setRevokingUid(null)
         }
       }
     } catch (error) {
-      if (mounted) {
+      if (mounted.current) {
         setRevokeError(error instanceof Error ? error.message : String(error))
       }
     }
   }
 
-  const clearFilters = (): void => {
-    setFilters(DEFAULT_RIGHTS_FILTERS)
-  }
-
-  const collection = (): JSX.Element => {
-    const current = snapshot()
+  const collection = (): ComponentChild => {
+    const current = snapshot
     if (current === null) {
       return null
     }
     if (current.rows.length === 0) {
       return <p class="rounded-box bg-base-200 p-6 text-sm">{props.copy.rights.empty}</p>
     }
-    if (rows().length === 0) {
+    if (rows.length === 0) {
       return <p class="rounded-box bg-base-200 p-6 text-sm">{props.copy.rights.noMatches}</p>
     }
     return (
       <RightsList
         copy={props.copy.rights}
-        openQr={openQr()}
+        openQr={openQr}
         onRequestRevoke={(row, button) => {
           if (row.status === 'revoked' || flight.isRunning(row.uid)) {
             return
           }
-          invoker = button
+          invoker.current = button
           setRevokeError(null)
           setRevokeTarget(row)
         }}
         onToggleQr={(uid) => {
-          setOpenQr(openQr() === uid ? null : uid)
+          setOpenQr((open) => (open === uid ? null : uid))
         }}
-        revokingUid={revokingUid()}
-        rows={rows()}
+        revokingUid={revokingUid}
+        rows={rows}
       />
     )
   }
@@ -145,77 +206,12 @@ export const RightsPage = (props: RightsPageProps): JSX.Element => {
     <div class="flex flex-col gap-8">
       <section class="flex flex-col gap-6" aria-labelledby="rights-title">
         <header class="dash-page-header">
-          <h1
-            ref={(el) => {
-              heading = el
-            }}
-            id="rights-title"
-            class="dash-page-title"
-            tabIndex={-1}
-          >
+          <h1 ref={heading} id="rights-title" class="dash-page-title" tabIndex={-1}>
             {props.copy.rights.title}
           </h1>
           <p class="opacity-70">{props.copy.rights.description}</p>
         </header>
-        <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-          <label class="flex min-w-0 grow flex-col gap-1 text-sm">
-            {props.copy.rights.searchLabel}
-            <input
-              type="search"
-              class="input w-full"
-              aria-label={props.copy.rights.searchLabel}
-              placeholder={props.copy.rights.searchPlaceholder}
-              value={filters().query}
-              onInput={(event) => {
-                const value = fieldValue(event.currentTarget)
-                if (value !== null) {
-                  setFilters({ ...filters(), query: value })
-                }
-              }}
-            />
-          </label>
-          <label class="flex flex-col gap-1 text-sm">
-            {props.copy.rights.statusFilter}
-            <select
-              class="select"
-              aria-label={props.copy.rights.statusFilter}
-              value={filters().status}
-              onInput={(event) => {
-                const value = fieldValue(event.currentTarget)
-                if (value === 'all' || value === 'active' || value === 'revoked') {
-                  setFilters({ ...filters(), status: value })
-                }
-              }}
-            >
-              <option value="all">{props.copy.rights.all}</option>
-              <option value="active">{props.copy.rights.active}</option>
-              <option value="revoked">{props.copy.rights.revoked}</option>
-            </select>
-          </label>
-          <label class="flex flex-col gap-1 text-sm">
-            {props.copy.rights.levelFilter}
-            <select
-              class="select"
-              aria-label={props.copy.rights.levelFilter}
-              value={filters().level}
-              onInput={(event) => {
-                const value = fieldValue(event.currentTarget)
-                if (value === 'all' || value === 'bearer' || value === 'signed') {
-                  setFilters({ ...filters(), level: value })
-                }
-              }}
-            >
-              <option value="all">{props.copy.rights.all}</option>
-              <option value="bearer">{props.copy.rights.bearer}</option>
-              <option value="signed">{props.copy.rights.signed}</option>
-            </select>
-          </label>
-          {hasRightsFilters(filters()) ? (
-            <button type="button" class="btn btn-ghost" onClick={clearFilters}>
-              {props.copy.rights.clearFilters}
-            </button>
-          ) : null}
-        </div>
+        <RightsFilterBar copy={props.copy.rights} filters={filters} onChange={setFilters} />
         {props.members.kind === 'error' ? (
           <p role="alert" class="alert alert-error">
             {`${props.copy.rights.errorPrefix}: ${props.copy.rights.errorMessage(props.members.message)}`}
@@ -226,7 +222,7 @@ export const RightsPage = (props: RightsPageProps): JSX.Element => {
             {props.copy.rights.refreshing}
           </p>
         ) : null}
-        {snapshot()?.stale === true ? (
+        {snapshot?.stale === true ? (
           <p role="status" class="text-sm opacity-70">
             {props.copy.rights.stale}
           </p>
@@ -237,14 +233,14 @@ export const RightsPage = (props: RightsPageProps): JSX.Element => {
         <OnChainStatus copy={props.copy.chain} endpoint={props.graphEndpoint} />
       </section>
       <RevokeDialog
-        busy={revokingUid() !== null}
+        busy={revokingUid !== null}
         copy={props.copy.revoke}
-        error={revokeError()}
+        error={revokeError}
         onCancel={cancelRevoke}
         onConfirm={() => {
           void confirmRevoke()
         }}
-        target={revokeTarget()}
+        target={revokeTarget}
       />
     </div>
   )

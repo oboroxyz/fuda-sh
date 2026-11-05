@@ -1,5 +1,5 @@
-import { ConfirmAction } from '@fuda/ui'
-import type { JSX } from 'solid-js'
+import { ConfirmAction } from '@fuda/ui-preact'
+import type { JSX } from 'preact'
 
 import type { DashCopy } from './copy.ts'
 

@@ -3,14 +3,18 @@ import type { ComponentChild } from 'preact'
 import { act } from 'preact/test-utils'
 
 interface MountedView {
-  host: HTMLDivElement
+  host: HTMLElement
   update: (view: ComponentChild) => void
   dispose: () => void
 }
 
-export const mount = (view: ComponentChild): MountedView => {
-  const host = document.createElement('div')
-  document.body.append(host)
+// Mounts into a fresh host on document.body, or into one the test owns; only a
+// host made here is removed on dispose.
+export const mount = (view: ComponentChild, owned?: HTMLElement): MountedView => {
+  const host = owned ?? document.createElement('div')
+  if (owned === undefined) {
+    document.body.append(host)
+  }
   const update = (next: ComponentChild): void => {
     void act(() => {
       render(next, host)
@@ -20,7 +24,9 @@ export const mount = (view: ComponentChild): MountedView => {
   return {
     dispose: () => {
       update(null)
-      host.remove()
+      if (owned === undefined) {
+        host.remove()
+      }
     },
     host,
     update,

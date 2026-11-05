@@ -1,4 +1,4 @@
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
 
 import { revokeRight } from '../src/api.ts'
 import { GRAPH_RIGHTS_ENDPOINT } from '../src/config.ts'
@@ -12,7 +12,7 @@ export default function Rights(props: Props): JSX.Element {
   const expired = useSessionExpired()
   return (
     <RightsPage
-      copy={copy()}
+      copy={copy}
       graphEndpoint={GRAPH_RIGHTS_ENDPOINT}
       members={props.members}
       onRevoke={async (uid) => {

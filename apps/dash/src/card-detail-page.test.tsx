@@ -1,22 +1,11 @@
 // @vitest-environment happy-dom
-import type { JSX } from 'solid-js'
-import { render as solidRender } from 'solid-js/web'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CardDetailPage } from './CardDetailPage.tsx'
 import { DASH_COPY } from './copy.ts'
 import type { DashRoute } from './router.ts'
 import { membershipCard } from './test/management-fixtures.ts'
-
-const disposers: (() => void)[] = []
-const render = (view: () => JSX.Element, host: HTMLElement): void => {
-  disposers.push(solidRender(view, host))
-}
-const unmountAll = (): void => {
-  for (const dispose of disposers.splice(0)) {
-    dispose()
-  }
-}
+import { cleanup as cleanupAll, render } from './test/render.tsx'
 
 let root: HTMLDivElement
 
@@ -26,7 +15,7 @@ describe('Card detail', () => {
     document.body.append(root)
   })
   afterEach(() => {
-    unmountAll()
+    cleanupAll()
     root.remove()
     vi.restoreAllMocks()
   })
@@ -34,14 +23,12 @@ describe('Card detail', () => {
   it('offers real back and edit links, preserving modified navigation', () => {
     const navigate = vi.fn<(route: DashRoute) => void>()
     render(
-      () => (
-        <CardDetailPage
-          card={membershipCard}
-          copy={DASH_COPY.en}
-          publicUrl="https://fuda.sh/@coffee"
-          onNavigate={navigate}
-        />
-      ),
+      <CardDetailPage
+        card={membershipCard}
+        copy={DASH_COPY.en}
+        publicUrl="https://fuda.sh/@coffee"
+        onNavigate={navigate}
+      />,
       root,
     )
     const back = root.querySelector<HTMLAnchorElement>('a[href="/cards"]')!
@@ -58,14 +45,12 @@ describe('Card detail', () => {
 
   it('links to the shared editor', () => {
     render(
-      () => (
-        <CardDetailPage
-          card={membershipCard}
-          copy={DASH_COPY.en}
-          publicUrl="https://fuda.sh/@coffee"
-          onNavigate={() => {}}
-        />
-      ),
+      <CardDetailPage
+        card={membershipCard}
+        copy={DASH_COPY.en}
+        publicUrl="https://fuda.sh/@coffee"
+        onNavigate={() => {}}
+      />,
       root,
     )
     expect(root.querySelector('a[href="/cards/membership/edit"]')?.textContent).toBe('Edit')
@@ -77,14 +62,12 @@ describe('Card detail', () => {
     vi.stubGlobal('print', print)
     const clipboard = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
     render(
-      () => (
-        <CardDetailPage
-          card={membershipCard}
-          copy={DASH_COPY.en}
-          publicUrl="https://fuda.sh/@coffee"
-          onNavigate={() => {}}
-        />
-      ),
+      <CardDetailPage
+        card={membershipCard}
+        copy={DASH_COPY.en}
+        publicUrl="https://fuda.sh/@coffee"
+        onNavigate={() => {}}
+      />,
       root,
     )
     const button = (label: string) =>
@@ -101,14 +84,12 @@ describe('Card detail', () => {
 
   it('does not expose actions for an unknown Card', () => {
     render(
-      () => (
-        <CardDetailPage
-          card={null}
-          copy={DASH_COPY.en}
-          publicUrl="https://fuda.sh/@coffee"
-          onNavigate={() => {}}
-        />
-      ),
+      <CardDetailPage
+        card={null}
+        copy={DASH_COPY.en}
+        publicUrl="https://fuda.sh/@coffee"
+        onNavigate={() => {}}
+      />,
       root,
     )
     expect(root.textContent).toContain(DASH_COPY.en.stamps.cardNotFound)

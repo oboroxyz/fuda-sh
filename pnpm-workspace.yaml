@@ -45,6 +45,8 @@ minimumReleaseAgeExclude:
   - '@void/platform@1.6.2'
   - '@void/solid@1.6.2'
   - void@1.6.2
+  # The Preact adapter for Void, published 2026-11-05 and pinned exactly.
+  - void-preact@0.1.2
   - '@cloudflare/build-output-utils@0.9.7'
   - '@cloudflare/codemods@0.7.1'
   - '@cloudflare/config@0.29.1'

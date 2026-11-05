@@ -1,5 +1,5 @@
-import { useRouter } from '@void/solid'
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
+import { useRouter } from 'void-preact'
 
 import { CardDetailPage } from '../../../src/CardDetailPage.tsx'
 import { useCopy, useNavigate, useOperator } from '../../../src/page-context.tsx'
@@ -13,10 +13,10 @@ export default function CardDetail(): JSX.Element {
   const { cards, publicUrl } = useOperator()
   return (
     <CardDetailPage
-      card={cards().find((card) => card.slug === router.params.slug) ?? null}
-      copy={copy()}
+      card={cards.find((card) => card.slug === router.params.slug) ?? null}
+      copy={copy}
       onNavigate={navigate}
-      publicUrl={publicUrl() ?? ''}
+      publicUrl={publicUrl ?? ''}
     />
   )
 }

@@ -1,13 +1,12 @@
 // @vitest-environment happy-dom
 import { pick } from '@fuda/i18n'
-import { createSignal } from 'solid-js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { DASH_COPY } from './copy.ts'
 import type { MemberRowView } from './members-view.ts'
 import { RevokeDialog } from './RevokeDialog.tsx'
 import type { RevokeDialogProps } from './RevokeDialog.tsx'
-import { cleanup, mount, spacedText } from './test/render.tsx'
+import { cleanup, mount, open, spacedText } from './test/render.tsx'
 
 const UID = `0x${'ab'.repeat(32)}` as const
 const row: MemberRowView = {
@@ -35,7 +34,7 @@ const props = (overrides: Partial<RevokeDialogProps> = {}): RevokeDialogProps =>
 
 const show = (overrides: Partial<RevokeDialogProps> = {}): HTMLElement => {
   const value = props(overrides)
-  return mount(() => <RevokeDialog {...value} />)
+  return mount(<RevokeDialog {...value} />)
 }
 
 const actionButtons = (host: HTMLElement): HTMLButtonElement[] => [
@@ -69,16 +68,16 @@ describe('revoke dialog', () => {
   })
 
   it('opens modally and focuses Cancel, then closes when the target clears', () => {
-    const [target, setTarget] = createSignal<MemberRowView | null>(row)
     const value = props()
-    const host = mount(() => <RevokeDialog {...value} target={target()} />)
+    const view = open(<RevokeDialog {...value} target={row} />)
+    const { host } = view
     const dialog = dialogOf(host)
     const [cancel] = actionButtons(host)
 
     expect(dialog.open).toBe(true)
     expect(document.activeElement).toBe(cancel)
 
-    setTarget(null)
+    view.update(<RevokeDialog {...value} target={null} />)
     expect(dialog.open).toBe(false)
   })
 

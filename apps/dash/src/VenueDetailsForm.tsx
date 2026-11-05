@@ -1,8 +1,8 @@
 import { brandTextColor } from '@fuda/sdk'
 import type { IssuerUpdateRequest, IssuerView } from '@fuda/sdk'
 import { cn } from 'cn'
-import { createEffect, createMemo, createSignal, For, on, onCleanup } from 'solid-js'
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
+import { useEffect, useRef, useState } from 'preact/hooks'
 
 import { BRAND_SWATCHES } from './brand-colors.ts'
 import type { DashCopy } from './copy.ts'
@@ -20,33 +20,31 @@ interface VenueDetailsFormProps {
 }
 
 export const VenueDetailsForm = (props: VenueDetailsFormProps): JSX.Element => {
-  const [draft, setDraft] = createSignal<IssuerUpdateRequest | null>(null)
-  const [state, setState] = createSignal<'idle' | 'saving' | 'saved' | 'failed'>('idle')
-  let saving = false
-  let revision = 0
-  createEffect(
-    on(
-      () => props.logo.pending,
-      (pending) => {
-        if (pending) {
-          setState((current) => (current === 'saved' ? 'idle' : current))
-        }
-      },
-    ),
+  const [draft, setDraft] = useState<IssuerUpdateRequest | null>(null)
+  const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle')
+  const saving = useRef(false)
+  const revision = useRef(0)
+  useEffect(() => {
+    if (props.logo.pending) {
+      setState((current) => (current === 'saved' ? 'idle' : current))
+    }
+  }, [props.logo.pending])
+  useEffect(
+    () => () => {
+      revision.current += 1
+    },
+    [],
   )
-  onCleanup(() => {
-    revision += 1
-  })
 
   const saved = (): IssuerUpdateRequest => ({
     brandColor: props.issuer.brandColor,
     name: props.issuer.name,
     tagline: props.issuer.tagline,
   })
-  const form = (): IssuerUpdateRequest => draft() ?? saved()
-  const body = createMemo(() => venueUpdateBodyFrom(form()))
+  const form = (): IssuerUpdateRequest => draft ?? saved()
+  const body = venueUpdateBodyFrom(form())
   const changed = (): boolean => {
-    const current = body()
+    const current = body
     return (
       current !== null &&
       (props.logo.pending ||
@@ -61,19 +59,19 @@ export const VenueDetailsForm = (props: VenueDetailsFormProps): JSX.Element => {
   }
 
   const submit = (): void => {
-    const current = body()
-    if (current === null || !changed() || props.logo.busy || saving) {
+    const current = body
+    if (current === null || !changed() || props.logo.busy || saving.current) {
       return
     }
-    saving = true
+    saving.current = true
     setState('saving')
-    const ticket = revision
+    const ticket = revision.current
     const run = async (): Promise<void> => {
       const ok = await props.onUpdate(current).catch(() => false)
-      if (ticket !== revision) {
+      if (ticket !== revision.current) {
         return
       }
-      saving = false
+      saving.current = false
       if (ok) {
         setDraft(null)
       }
@@ -108,7 +106,7 @@ export const VenueDetailsForm = (props: VenueDetailsFormProps): JSX.Element => {
         )}
         {props.ens}
       </header>
-      <fieldset class="flex flex-col gap-5" disabled={state() === 'saving'}>
+      <fieldset class="flex flex-col gap-5" disabled={state === 'saving'}>
         <VenueIdentityFields
           copy={props.copy}
           onChange={(key, value) => {
@@ -122,25 +120,21 @@ export const VenueDetailsForm = (props: VenueDetailsFormProps): JSX.Element => {
         <fieldset class="fieldset">
           <legend class="text-base font-normal">{props.copy.designer.colorLabel}</legend>
           <div class="grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
-            <For each={BRAND_SWATCHES}>
-              {({ color, name }) => (
-                <button
-                  aria-label={`${props.copy.designer.colorNames[name]} ${color}`}
-                  aria-pressed={form().brandColor.toUpperCase() === color ? 'true' : 'false'}
-                  class={cn(
-                    'dash-swatch',
-                    form().brandColor.toUpperCase() === color && 'dash-swatch-selected',
-                  )}
-                  style={{ background: color, color: brandTextColor(color) }}
-                  type="button"
-                  onClick={() => {
-                    update('brandColor', color)
-                  }}
-                >
-                  <span aria-hidden="true">Aa</span>
-                </button>
-              )}
-            </For>
+            {BRAND_SWATCHES.map(({ color, name }) => (
+              <button
+                key={name}
+                aria-label={`${props.copy.designer.colorNames[name]} ${color}`}
+                aria-pressed={form().brandColor.toUpperCase() === color ? 'true' : 'false'}
+                class={cn('dash-swatch', form().brandColor.toUpperCase() === color && 'dash-swatch-selected')}
+                style={{ background: color, color: brandTextColor(color) }}
+                type="button"
+                onClick={() => {
+                  update('brandColor', color)
+                }}
+              >
+                <span aria-hidden="true">Aa</span>
+              </button>
+            ))}
           </div>
           <label class="mt-2 flex items-center gap-3">
             <span>{props.copy.designer.customColorLabel}</span>
@@ -157,22 +151,22 @@ export const VenueDetailsForm = (props: VenueDetailsFormProps): JSX.Element => {
         </fieldset>
         {props.logo.field}
       </fieldset>
-      {state() === 'failed' ? (
+      {state === 'failed' ? (
         <p class="text-danger text-sm" role="alert">
           {props.copy.venue.saveFailed}
         </p>
       ) : null}
-      {state() === 'saved' ? (
+      {state === 'saved' ? (
         <p class="text-moderate text-sm" role="status">
           {props.copy.venue.saved}
         </p>
       ) : null}
       <button
         class="btn btn-primary sm:self-start"
-        disabled={!changed() || props.logo.busy || state() === 'saving'}
+        disabled={!changed() || props.logo.busy || state === 'saving'}
         type="submit"
       >
-        {state() === 'saving' ? props.copy.venue.saving : props.copy.venue.save}
+        {state === 'saving' ? props.copy.venue.saving : props.copy.venue.save}
       </button>
     </form>
   )

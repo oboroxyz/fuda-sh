@@ -17,7 +17,7 @@ const noop = (): void => {
 }
 
 const show = (state: ClaimState): HTMLElement =>
-  mount(() => <EnsClaim copy={copy} name={NAME} onClaim={noop} ownerAddress={OWNER} state={state} />)
+  mount(<EnsClaim copy={copy} name={NAME} onClaim={noop} ownerAddress={OWNER} state={state} />)
 
 describe(EnsClaim, () => {
   afterEach(cleanup)
@@ -31,9 +31,9 @@ describe(EnsClaim, () => {
   })
 
   it('says a wallet is needed instead of offering a claim, when no wallet owns the venue', () => {
-    const host = mount(() => (
-      <EnsClaim copy={copy} name={NAME} onClaim={noop} ownerAddress={null} state={{ kind: 'unclaimed' }} />
-    ))
+    const host = mount(
+      <EnsClaim copy={copy} name={NAME} onClaim={noop} ownerAddress={null} state={{ kind: 'unclaimed' }} />,
+    )
 
     expect(textOf(host)).toContain(NAME)
     expect(textOf(host)).toContain(copy.walletRequired)

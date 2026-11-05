@@ -1,7 +1,7 @@
 import type { GraphAttendance, GraphDelegation, GraphRight } from '@fuda/sdk'
-import { short } from '@fuda/ui'
-import { createSignal, For } from 'solid-js'
-import type { JSX } from 'solid-js'
+import { short } from '@fuda/ui/short'
+import type { JSX } from 'preact'
+import { useRef, useState } from 'preact/hooks'
 
 import type { DashCopy } from './copy.ts'
 import { graphOnChainStatusIo, loadOnChainStatus } from './on-chain-status.ts'
@@ -82,35 +82,31 @@ const statusView = (copy: DashCopy['chain'], state: OnChainStatusState): JSX.Ele
   return (
     <div class="flex flex-col gap-3">
       <h3 class="font-bold">{copy.statusHeading}</h3>
-      <For each={state.rights}>
-        {(right) => (
-          <article class="rounded-box border-base-300 border p-3">
-            <div class="font-mono text-xs break-all">{right.id}</div>
-            <div>{right.revokedAt === null ? copy.active : `${copy.revokedAt} ${right.revokedAt}`}</div>
-            <div>{`${copy.holder} ${short(right.holder)}`}</div>
-            <div class="dash-chain-reference">
-              {right.delegation === null
-                ? `${copy.unresolvedDelegation} ${right.refUID}`
-                : `${copy.delegation} ${right.delegation.id}`}
-            </div>
-            <ul>
-              <For each={state.attendances[right.id] ?? []}>
-                {(attendance) => <li>{`${copy.enteredAt} ${attendance.enteredAt}`}</li>}
-              </For>
-            </ul>
-          </article>
-        )}
-      </For>
+      {state.rights.map((right) => (
+        <article key={right.id} class="rounded-box border-base-300 border p-3">
+          <div class="font-mono text-xs break-all">{right.id}</div>
+          <div>{right.revokedAt === null ? copy.active : `${copy.revokedAt} ${right.revokedAt}`}</div>
+          <div>{`${copy.holder} ${short(right.holder)}`}</div>
+          <div class="dash-chain-reference">
+            {right.delegation === null
+              ? `${copy.unresolvedDelegation} ${right.refUID}`
+              : `${copy.delegation} ${right.delegation.id}`}
+          </div>
+          <ul>
+            {(state.attendances[right.id] ?? []).map((attendance) => (
+              <li key={attendance.id}>{`${copy.enteredAt} ${attendance.enteredAt}`}</li>
+            ))}
+          </ul>
+        </article>
+      ))}
       <h3 class="font-bold">{copy.delegations}</h3>
       <ul class="flex flex-col gap-2">
-        <For each={state.delegations}>
-          {(delegation) => (
-            <li class="rounded-box border-base-300 border p-2">
-              <div class="dash-chain-name">{`${delegationState(copy, delegation)} ${delegation.name}`}</div>
-              <div class="font-mono text-xs break-all">{delegation.id}</div>
-            </li>
-          )}
-        </For>
+        {state.delegations.map((delegation) => (
+          <li key={delegation.id} class="rounded-box border-base-300 border p-2">
+            <div class="dash-chain-name">{`${delegationState(copy, delegation)} ${delegation.name}`}</div>
+            <div class="font-mono text-xs break-all">{delegation.id}</div>
+          </li>
+        ))}
       </ul>
     </div>
   )
@@ -121,10 +117,11 @@ export const OnChainStatusView = (props: OnChainStatusViewProps): JSX.Element =>
 )
 
 export const OnChainStatus = (props: OnChainStatusProps): JSX.Element => {
-  const [holder, setHolder] = createSignal('')
-  const [state, setState] = createSignal<OnChainStatusState>({ kind: 'idle' })
+  const [holder, setHolder] = useState('')
+  const [state, setState] = useState<OnChainStatusState>({ kind: 'idle' })
+  const querying = useRef(false)
   const load = async (): Promise<void> => {
-    if (state().kind === 'loading') {
+    if (querying.current) {
       return
     }
     const { endpoint } = props
@@ -132,17 +129,20 @@ export const OnChainStatus = (props: OnChainStatusProps): JSX.Element => {
       setState({ kind: 'error', message: UNCONFIGURED })
       return
     }
+    querying.current = true
     setState({ kind: 'loading' })
     try {
       setState({
         kind: 'ready',
-        ...(await loadOnChainStatus(graphOnChainStatusIo, endpoint, holder())),
+        ...(await loadOnChainStatus(graphOnChainStatusIo, endpoint, holder)),
       })
     } catch (error) {
       setState({
         kind: 'error',
         message: error instanceof Error ? `${EXTERNAL_ERROR}${error.message}` : LOOKUP_FAILED,
       })
+    } finally {
+      querying.current = false
     }
   }
   return (
@@ -162,17 +162,17 @@ export const OnChainStatus = (props: OnChainStatusProps): JSX.Element => {
             id="chain-holder"
             class="input input-bordered w-full font-mono"
             placeholder={props.copy.holderPlaceholder}
-            value={holder()}
+            value={holder}
             onInput={(event) => {
               setHolder(event.currentTarget.value)
             }}
           />
         </div>
-        <button class="btn btn-primary" type="submit" disabled={state().kind === 'loading'}>
-          {state().kind === 'loading' ? props.copy.querying : props.copy.query}
+        <button class="btn btn-primary" type="submit" disabled={state.kind === 'loading'}>
+          {state.kind === 'loading' ? props.copy.querying : props.copy.query}
         </button>
       </form>
-      <OnChainStatusView copy={props.copy} state={state()} />
+      <OnChainStatusView copy={props.copy} state={state} />
     </section>
   )
 }

@@ -1,10 +1,10 @@
 import { isLocale, pick } from '@fuda/i18n'
-import { applyThemeMode, LanguageSwitcher, ThemeToggle, watchThemeMode } from '@fuda/ui'
-import type { ThemeMode } from '@fuda/ui'
-import { useRouter, useShared } from '@void/solid'
-import { createEffect, createMemo, createSignal, onCleanup } from 'solid-js'
-import type { Accessor, JSX } from 'solid-js'
-import { isServer } from 'solid-js/web'
+import { LanguageSwitcher, ThemeToggle } from '@fuda/ui-preact'
+import { applyThemeMode, watchThemeMode } from '@fuda/ui/theme'
+import type { ThemeMode } from '@fuda/ui/theme'
+import type { JSX } from 'preact'
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
+import { useRouter, useShared } from 'void-preact'
 
 import { LOCALE_COOKIE, THEME_COOKIE } from './cookie-names.ts'
 import { DASH_COPY } from './copy.ts'
@@ -19,40 +19,44 @@ import { endSession } from './session-client.ts'
 // presentation preferences.
 export const useDash = (): DashShared => useShared()
 
-export const useCopy = (): Accessor<DashCopy> => {
-  const shared = useDash()
-  return createMemo(() => pick(DASH_COPY, shared.locale))
+// A callback whose identity never changes and which always calls the latest
+// closure: pages hand these to components that compare or depend on them, so a
+// rerender must not look like a new endpoint.
+const useStable = <A extends unknown[], R>(fn: (...args: A) => R): ((...args: A) => R) => {
+  const latest = useRef(fn)
+  latest.current = fn
+  return useCallback((...args: A) => latest.current(...args), [])
 }
 
+export const useCopy = (): DashCopy => pick(DASH_COPY, useDash().locale)
+
 // The current route, from the URL Void's router reports.
-export const useRoute = (): Accessor<DashRoute> => {
-  const router = useRouter()
-  return createMemo(() => routeFromPath(router.path))
-}
+export const useRoute = (): DashRoute => routeFromPath(useRouter().path)
 
 export const useNavigate = (): ((route: string) => void) => {
   const router = useRouter()
-  return (route) => {
+  return useStable((route: string) => {
     void router.visit(route)
-  }
+  })
 }
 
 // An api 401 has already ended the session in the Worker (src/server/forward.ts);
 // sign-in says why.
 export const useSessionExpired = (): (() => void) => {
   const router = useRouter()
-  return () => {
+  return useStable(() => {
     void router.visit('/signin?reason=unauthorized')
-  }
+  })
 }
 
 const signOutAndLeave = async (): Promise<void> => {
   await endSession()
   window.location.assign('/signin')
 }
-export const useSignOut = (): (() => void) => () => {
+const signOut = (): void => {
   void signOutAndLeave()
 }
+export const useSignOut = (): (() => void) => signOut
 
 // A year: preferences outlive sessions.
 const PREFERENCE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60
@@ -68,26 +72,20 @@ export const Appearance = (): JSX.Element => {
   const shared = useDash()
   const copy = useCopy()
   const router = useRouter()
-  const [theme, setTheme] = createSignal<ThemeMode>(shared.theme)
-  createEffect(() => {
-    if (!isServer) {
-      document.documentElement.lang = shared.locale
-    }
-  })
-  createEffect(() => {
-    if (!isServer) {
-      onCleanup(watchThemeMode(theme()))
-    }
-  })
+  const [theme, setTheme] = useState<ThemeMode>(shared.theme)
+  useEffect(() => {
+    document.documentElement.lang = shared.locale
+  }, [shared.locale])
+  useEffect(() => watchThemeMode(theme), [theme])
   return (
     <div class="dash-appearance">
       <LanguageSwitcher
         class="h-9 w-9"
         current={shared.locale}
-        label={copy().chrome.language}
+        label={copy.chrome.language}
         options={[
-          { label: copy().chrome.english, value: 'en' },
-          { label: copy().chrome.japanese, value: 'ja' },
+          { label: copy.chrome.english, value: 'en' },
+          { label: copy.chrome.japanese, value: 'ja' },
         ]}
         onChange={(value) => {
           if (isLocale(value)) {
@@ -98,8 +96,8 @@ export const Appearance = (): JSX.Element => {
       />
       <ThemeToggle
         class="h-9 w-9"
-        labels={copy().chrome.theme}
-        mode={theme()}
+        labels={copy.chrome.theme}
+        mode={theme}
         onChange={(mode) => {
           writePreference(THEME_COOKIE, mode)
           applyThemeMode(mode)
@@ -111,29 +109,45 @@ export const Appearance = (): JSX.Element => {
 }
 
 // Wraps a browser api call so a 401 (the Worker has already ended the session)
-// sends the operator to sign-in, wherever the call came from.
+// sends the operator to sign-in, wherever the call came from. Wrapping the same
+// call twice returns the same function, so props built from it stay equal.
 export const useGuarded = (): (<A extends unknown[], R extends { ok: boolean; status?: number }>(
   call: (...args: A) => Promise<R>,
 ) => (...args: A) => Promise<R>) => {
   const expired = useSessionExpired()
-  return (call) =>
-    async (...args) => {
-      const result = await call(...args)
-      if (!result.ok && result.status === 401) {
-        expired()
+  const wrapped = useRef(new WeakMap<object, object>())
+  return useCallback(
+    <A extends unknown[], R extends { ok: boolean; status?: number }>(
+      call: (...args: A) => Promise<R>,
+    ): ((...args: A) => Promise<R>) => {
+      const known = wrapped.current.get(call)
+      if (known !== undefined) {
+        // SAFETY: the cache is keyed by `call` and only ever stores its own wrapper.
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a WeakMap cannot carry the per-key function type
+        return known as (...args: A) => Promise<R>
       }
-      return result
-    }
+      const guard = async (...args: A): Promise<R> => {
+        const result = await call(...args)
+        if (!result.ok && result.status === 401) {
+          expired()
+        }
+        return result
+      }
+      wrapped.current.set(call, guard)
+      return guard
+    },
+    [expired],
+  )
 }
 
 // The operator's venue and cards, which the middleware reads on every request.
 export const useOperator = () => {
   const shared = useDash()
   return {
-    cards: () => shared.operator?.cards ?? [],
-    issuer: () => shared.operator?.issuer ?? null,
-    operator: () => shared.operator,
-    publicUrl: () => shared.operator?.publicUrl ?? null,
+    cards: shared.operator?.cards ?? [],
+    issuer: shared.operator?.issuer ?? null,
+    operator: shared.operator,
+    publicUrl: shared.operator?.publicUrl ?? null,
   }
 }
 
@@ -141,7 +155,7 @@ export const useOperator = () => {
 // component and its form state stay, only the server's data changes.
 export const useRefresh = (): (() => Promise<void>) => {
   const router = useRouter()
-  return async () => {
+  return useStable(async () => {
     await router.refresh({ preserveScroll: true, preserveState: true })
-  }
+  })
 }

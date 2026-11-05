@@ -1,6 +1,6 @@
 # ADR 0015: Preact frontends through void-preact
 
-- **Status**: Accepted 2026-11-05. Migration is not yet implemented. Replaces the Solid renderer decision in [ADR 0009](0009-void-and-solid.md) and the renderer-specific parts of [ADR 0010](0010-void-pages-and-frontend-workers.md). Their Worker, cookie, loader, and gate timing contracts stand.
+- **Status**: Accepted 2026-11-05. Gate and dash are migrated; app is not yet. Replaces the Solid renderer decision in [ADR 0009](0009-void-and-solid.md) and the renderer-specific parts of [ADR 0010](0010-void-pages-and-frontend-workers.md). Their Worker, cookie, loader, and gate timing contracts stand.
 - **Scope**: `apps/gate`, `apps/dash`, `apps/app`, and their renderer-specific shared UI and query bindings. The API remains on Void with its existing server rendering.
 
 ## Context
@@ -50,14 +50,15 @@ The spike's bounded pages passed SSR, hydration, cookie-driven shared-data refre
 
 The bounded profile page's static client dependency closure was 24,032 bytes gzipped with Preact and 22,484 with Solid, an increase of 1,548 bytes, about 1.5 KB. Card detail increased by 1,648 bytes. The script followed static imports from each production client manifest, deduplicated chunks, and gzipped each response separately at level 9. It excluded CSS, server code, other routes, and untriggered dynamic imports. Five repetitions gave identical counts, and repeat builds gave identical client output.
 
-These are static byte counts, not network timings or isolated framework runtime sizes. The full Solid pages include much more application behavior and cannot be compared with the bounded Preact pages to claim a reduction. Full-app Preact size remains unmeasured. The spike establishes no latency, CPU, or hydration-speed advantage.
+Dash, measured the same way on the whole application, is 79 to 1,393 bytes larger gzipped per route than the Solid build, and the profile route, the largest, is 122 bytes larger. About 85 to 109 KB of each route is shared application code such as viem, which neither renderer changes. These are static byte counts, not network timings or isolated framework runtime sizes. The full Solid pages include much more application behavior and cannot be compared with the bounded Preact pages to claim a reduction. Full-app Preact size remains unmeasured. The spike establishes no latency, CPU, or hydration-speed advantage.
 
 ## Consequences
 
 - The migration requires manual lifecycle work and temporarily maintains two renderer-specific UI implementations.
 - The owner accepts an adapter whose own documentation advises against production use. Exact pins constrain upgrades but do not prove correctness.
-- The spike did not port or verify the full dashboard shell, profile editing, ENS claims, wallet sign-in, passkey ceremonies, a real camera, or early hardware-reader input under Preact.
-- Query observer teardown, draft publication before navigation, and session-version replacement with preserved route state still need proof in the converted apps.
+- The dash move ported every dashboard route and checked each in Chromium, in both languages, in development and on the built Worker, with a virtual authenticator for passkey sign-in and for adding a second passkey. A real device's authenticator, a real wallet sign-in and an ENS claim on a live chain remain owner checks. A real camera and hardware reader are still unverified under Preact.
+- Draft publication before navigation and session-version replacement with preserved route state are proven in dash by DOM tests and in the browser. Query observer teardown still needs proof when app moves.
+- A component that reads a function prop in an effect dependency list reruns that effect whenever its parent hands it a new function. Solid ran such effects once, because props were lazy getters. Dash therefore gives its pages stable callbacks and caches the guarded API wrappers. A function stored with `useState` must be wrapped, because Preact calls a function argument as a lazy initializer.
 - Suspended route layout resets, deferred loaders, actions and forms, islands, deeper nested layouts, and Preact-specific error handling were not exercised.
 - The paired Solid 1.6.2 baseline passed all four repository gates. The incomplete Preact slice did not pass Fallow and did not run the full dashboard E2E suite. Those results cannot establish full converted-app parity.
 

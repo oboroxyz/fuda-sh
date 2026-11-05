@@ -1,32 +1,19 @@
 // @vitest-environment happy-dom
 import type { IssuerPassesResponse } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
-import type { JSX } from 'solid-js'
-import { render as solidRender } from 'solid-js/web'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DASH_COPY } from './copy.ts'
 import type { PassesLoad } from './issuer-passes-state.ts'
 import { IssuerPassesPage } from './IssuerPassesPage.tsx'
 import { membershipCard, passesResponse, ticketCard } from './test/management-fixtures.ts'
-
-const disposers: (() => void)[] = []
-const render = (view: () => JSX.Element, host: HTMLElement): void => {
-  disposers.push(solidRender(view, host))
-}
-const unmountAll = (): void => {
-  for (const dispose of disposers.splice(0)) {
-    dispose()
-  }
-}
+import { cleanup as cleanupAll, render } from './test/render.tsx'
 
 let root: HTMLDivElement
 
 const start = (load: PassesLoad): void => {
   render(
-    () => (
-      <IssuerPassesPage cards={[membershipCard, ticketCard]} copy={DASH_COPY.en.management} load={load} />
-    ),
+    <IssuerPassesPage cards={[membershipCard, ticketCard]} copy={DASH_COPY.en.management} load={load} />,
     root,
   )
 }
@@ -40,7 +27,7 @@ describe('Issuer pass list', () => {
     document.body.append(root)
   })
   afterEach(() => {
-    unmountAll()
+    cleanupAll()
     root.remove()
   })
 

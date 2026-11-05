@@ -1,5 +1,5 @@
-import { createEffect } from 'solid-js'
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
+import { useEffect, useRef } from 'preact/hooks'
 
 import type { DashCopy } from './copy.ts'
 import type { MemberRowView } from './members-view.ts'
@@ -14,23 +14,23 @@ export interface RevokeDialogProps {
 }
 
 export const RevokeDialog = (props: RevokeDialogProps): JSX.Element => {
-  let dialog: HTMLDialogElement | undefined
-  let cancelButton: HTMLButtonElement | undefined
+  const dialog = useRef<HTMLDialogElement>(null)
+  const cancelButton = useRef<HTMLButtonElement>(null)
 
-  createEffect(() => {
-    const { target } = props
-    if (dialog === undefined) {
+  useEffect(() => {
+    const element = dialog.current
+    if (element === null) {
       return
     }
-    if (target === null) {
-      if (dialog.open) {
-        dialog.close()
+    if (props.target === null) {
+      if (element.open) {
+        element.close()
       }
-    } else if (!dialog.open) {
-      dialog.showModal()
-      cancelButton?.focus()
+    } else if (!element.open) {
+      element.showModal()
+      cancelButton.current?.focus()
     }
-  })
+  }, [props.target])
 
   const cancel = (): void => {
     if (!props.busy) {
@@ -40,9 +40,7 @@ export const RevokeDialog = (props: RevokeDialogProps): JSX.Element => {
 
   return (
     <dialog
-      ref={(el) => {
-        dialog = el
-      }}
+      ref={dialog}
       class="modal"
       aria-modal="true"
       aria-labelledby="revoke-title"
@@ -53,7 +51,7 @@ export const RevokeDialog = (props: RevokeDialogProps): JSX.Element => {
       }}
       onClose={() => {
         if (props.busy && props.target !== null) {
-          dialog?.showModal()
+          dialog.current?.showModal()
         } else if (props.target !== null) {
           cancel()
         }
@@ -92,15 +90,7 @@ export const RevokeDialog = (props: RevokeDialogProps): JSX.Element => {
           {props.busy ? props.copy.revoking : ''}
         </p>
         <div class="modal-action">
-          <button
-            ref={(el) => {
-              cancelButton = el
-            }}
-            type="button"
-            class="btn"
-            disabled={props.busy}
-            onClick={cancel}
-          >
+          <button ref={cancelButton} type="button" class="btn" disabled={props.busy} onClick={cancel}>
             {props.copy.cancel}
           </button>
           <button

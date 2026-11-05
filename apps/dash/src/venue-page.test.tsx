@@ -1,23 +1,14 @@
 // @vitest-environment happy-dom
-import type { JSX } from 'solid-js'
-import { render as solidRender } from 'solid-js/web'
+import { setTimeout } from 'node:timers/promises'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DASH_COPY } from './copy.ts'
 import { EnsClaim } from './EnsClaim.tsx'
 import * as logoTools from './logo.ts'
+import { cleanup as cleanupAll, render } from './test/render.tsx'
 import { VenuePage } from './VenuePage.tsx'
 import type { VenuePageProps } from './VenuePage.tsx'
-
-const disposers: (() => void)[] = []
-const render = (view: () => JSX.Element, host: HTMLElement): void => {
-  disposers.push(solidRender(view, host))
-}
-const unmountAll = (): void => {
-  for (const dispose of disposers.splice(0)) {
-    dispose()
-  }
-}
 
 const png = new Blob(['image'], { type: 'image/png' })
 const variants = { logo1x: png, logo2x: png, logo3x: png, master: png }
@@ -80,13 +71,13 @@ describe('venue registration and details', () => {
   })
 
   afterEach(() => {
-    unmountAll()
+    cleanupAll()
     root.remove()
     vi.restoreAllMocks()
   })
 
   it('links to the card list and designer from the profile without an ENS claim', () => {
-    render(() => <VenuePage {...props()} />, root)
+    render(<VenuePage {...props()} />, root)
     expect(root.querySelector('a[href="/cards"]')?.textContent).toBe('Your cards')
     expect(root.querySelector('a[href="/cards/new"]')?.textContent).toBe('+ Add card')
   })
@@ -101,14 +92,12 @@ describe('venue registration and details', () => {
   ])('handles $name footer Card clicks without overriding browser gestures', ({ click, intercepted }) => {
     const navigated: string[] = []
     render(
-      () => (
-        <VenuePage
-          {...props()}
-          onNavigate={(route) => {
-            navigated.push(route)
-          }}
-        />
-      ),
+      <VenuePage
+        {...props()}
+        onNavigate={(route) => {
+          navigated.push(route)
+        }}
+      />,
       root,
     )
     const cards = root.querySelector<HTMLAnchorElement>('a[href="/cards"]')!
@@ -120,7 +109,7 @@ describe('venue registration and details', () => {
   })
 
   it('starts with only handle, name and optional tagline, with only an unobtrusive optional label', () => {
-    render(() => <VenuePage {...props()} issuer={null} />, root)
+    render(<VenuePage {...props()} issuer={null} />, root)
 
     expect([...root.querySelectorAll('input')].map((input) => input.name)).toStrictEqual([
       'handle',
@@ -139,7 +128,7 @@ describe('venue registration and details', () => {
 
   it('registers without a tagline, custom colour or logo', async () => {
     const input = props()
-    render(() => <VenuePage {...input} issuer={null} />, root)
+    render(<VenuePage {...input} issuer={null} />, root)
     typeField('handle', 'new-coffee')
     typeField('name', 'New Coffee')
     await vi.waitFor(() => {
@@ -153,7 +142,7 @@ describe('venue registration and details', () => {
   })
 
   it('shows the saved venue name and public link before editable name and tagline', () => {
-    render(() => <VenuePage {...props()} />, root)
+    render(<VenuePage {...props()} />, root)
     expect(root.querySelector('input[name="handle"]')).toBeNull()
     const form = field('name').closest('form')!
     expect([form.querySelector('h2')?.textContent, field('name').value]).toStrictEqual(['Coffee', 'Coffee'])
@@ -172,24 +161,22 @@ describe('venue registration and details', () => {
     const input = props()
     const onClaim = vi.fn<() => void>()
     render(
-      () => (
-        <VenuePage
-          {...input}
-          ens={
-            <EnsClaim
-              copy={input.copy.ens}
-              name="coffee.fuda.eth"
-              onClaim={onClaim}
-              ownerAddress={input.issuer?.operatorAddress ?? null}
-              state={
-                claimed
-                  ? { claimTxHash: null, kind: 'claimed', name: 'coffee.fuda.eth' }
-                  : { kind: 'unclaimed' }
-              }
-            />
-          }
-        />
-      ),
+      <VenuePage
+        {...input}
+        ens={
+          <EnsClaim
+            copy={input.copy.ens}
+            name="coffee.fuda.eth"
+            onClaim={onClaim}
+            ownerAddress={input.issuer?.operatorAddress ?? null}
+            state={
+              claimed
+                ? { claimTxHash: null, kind: 'claimed', name: 'coffee.fuda.eth' }
+                : { kind: 'unclaimed' }
+            }
+          />
+        }
+      />,
       root,
     )
     const identity = root.querySelector('a[href="https://fuda.test/@coffee"]')!.parentElement!
@@ -204,7 +191,7 @@ describe('venue registration and details', () => {
 
   it('saves the name and clears an optional tagline without sending the handle', async () => {
     const input = props()
-    render(() => <VenuePage {...input} />, root)
+    render(<VenuePage {...input} />, root)
     typeField('name', 'New Coffee')
     typeField('tagline', '')
     await vi.waitFor(() => {
@@ -226,7 +213,7 @@ describe('venue registration and details', () => {
   it('keeps unsaved text after a failed update and permits retry', async () => {
     const input = props()
     vi.spyOn(input, 'onUpdate').mockResolvedValue(false)
-    render(() => <VenuePage {...input} />, root)
+    render(<VenuePage {...input} />, root)
     typeField('name', 'New Coffee')
     await vi.waitFor(() => {
       expect(button('Save').disabled).toBe(false)
@@ -250,7 +237,7 @@ describe('venue logo preview', () => {
   })
 
   afterEach(() => {
-    unmountAll()
+    cleanupAll()
     root.remove()
     vi.restoreAllMocks()
   })
@@ -258,7 +245,7 @@ describe('venue logo preview', () => {
   it('previews a replacement locally and uploads only when the operator confirms', async () => {
     const input = props()
     const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL')
-    render(() => <VenuePage {...input} />, root)
+    render(<VenuePage {...input} />, root)
     pickImage()
     await vi.waitFor(() => {
       expect(root.querySelector('img[src="blob:logo-preview"]')).not.toBeNull()
@@ -278,7 +265,7 @@ describe('venue logo preview', () => {
 
   it('shows only one preview and restores the saved Logo when a replacement is removed', async () => {
     const input = props()
-    render(() => <VenuePage {...input} issuer={{ ...input.issuer!, logoUrl: '/saved-logo.png' }} />, root)
+    render(<VenuePage {...input} issuer={{ ...input.issuer!, logoUrl: '/saved-logo.png' }} />, root)
     expect(root.querySelectorAll('img')).toHaveLength(1)
     pickImage()
     await vi.waitFor(() => {
@@ -296,7 +283,7 @@ describe('venue logo preview', () => {
     const pending = Promise.withResolvers<Awaited<ReturnType<typeof logoTools.generateLogoSet>>>()
     vi.spyOn(logoTools, 'generateLogoSet').mockReturnValue(pending.promise)
     const input = props()
-    render(() => <VenuePage {...input} />, root)
+    render(<VenuePage {...input} />, root)
     typeField('name', 'New Coffee')
     pickImage()
     await vi.waitFor(() => {
@@ -313,7 +300,7 @@ describe('venue logo preview', () => {
   it('retains the profile draft after Logo success and retries without uploading twice', async () => {
     const input = props()
     vi.spyOn(input, 'onUpdate').mockResolvedValueOnce(false).mockResolvedValueOnce(true)
-    render(() => <VenuePage {...input} />, root)
+    render(<VenuePage {...input} />, root)
     typeField('name', 'New Coffee')
     pickImage()
     await vi.waitFor(() => {
@@ -335,7 +322,7 @@ describe('venue logo preview', () => {
 
   it('discards a replacement without uploading it', async () => {
     const input = props()
-    render(() => <VenuePage {...input} />, root)
+    render(<VenuePage {...input} />, root)
     pickImage()
     await vi.waitFor(() => {
       expect(root.querySelector('img[src="blob:logo-preview"]')).not.toBeNull()
@@ -350,7 +337,7 @@ describe('venue logo preview', () => {
   it('keeps the preview available to retry a failed upload', async () => {
     const input = props()
     vi.spyOn(input, 'onCommitLogo').mockResolvedValue(false)
-    render(() => <VenuePage {...input} />, root)
+    render(<VenuePage {...input} />, root)
     pickImage()
     await vi.waitFor(() => {
       expect(root.querySelector('img[src="blob:logo-preview"]')).not.toBeNull()
@@ -362,5 +349,98 @@ describe('venue logo preview', () => {
     expect(root.querySelector('img[src="blob:logo-preview"]')).not.toBeNull()
     expect(button('Save').disabled).toBe(false)
     expect(input.onUpdate).not.toHaveBeenCalled()
+  })
+
+  it('releases the preview URL when the page goes away', async () => {
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL')
+    render(<VenuePage {...props()} />, root)
+    pickImage()
+    await vi.waitFor(() => {
+      expect(root.querySelector('img[src="blob:logo-preview"]')).not.toBeNull()
+    })
+    expect(revokeObjectURL).not.toHaveBeenCalled()
+    cleanupAll()
+    expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:logo-preview')
+  })
+
+  it('creates no preview URL for a decode that finishes after the page went away', async () => {
+    const decode = Promise.withResolvers<Awaited<ReturnType<typeof logoTools.generateLogoSet>>>()
+    vi.spyOn(logoTools, 'generateLogoSet').mockReturnValue(decode.promise)
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL')
+    render(<VenuePage {...props()} />, root)
+    pickImage()
+    cleanupAll()
+    decode.resolve({ ok: true, variants })
+    await setTimeout(0)
+    expect(createObjectURL).not.toHaveBeenCalled()
+  })
+
+  it('drops the decode of an earlier choice when a later one replaces it', async () => {
+    const first = Promise.withResolvers<Awaited<ReturnType<typeof logoTools.generateLogoSet>>>()
+    const generate = vi.spyOn(logoTools, 'generateLogoSet').mockReturnValueOnce(first.promise)
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL')
+    render(<VenuePage {...props()} />, root)
+    pickImage()
+    pickImage()
+    await vi.waitFor(() => {
+      expect(root.querySelector('img[src="blob:logo-preview"]')).not.toBeNull()
+    })
+    first.resolve({ ok: true, variants })
+    await setTimeout(0)
+    expect(generate).toHaveBeenCalledTimes(2)
+    expect(createObjectURL).toHaveBeenCalledOnce()
+  })
+})
+
+describe('venue handle check', () => {
+  const registering = (): VenuePageProps => ({ ...props(), issuer: null })
+
+  beforeEach(() => {
+    root = document.createElement('div')
+    document.body.append(root)
+  })
+
+  afterEach(() => {
+    cleanupAll()
+    root.remove()
+    vi.restoreAllMocks()
+  })
+
+  it('asks the api for a well-formed handle once typing pauses', async () => {
+    const input = registering()
+    render(<VenuePage {...input} />, root)
+    typeField('handle', 'new-shop')
+    expect(input.onCheckHandle).not.toHaveBeenCalled()
+    await vi.waitFor(() => {
+      expect(input.onCheckHandle).toHaveBeenCalledExactlyOnceWith('new-shop')
+    })
+  })
+
+  it('never asks once the page is gone before the pause ends', async () => {
+    const input = registering()
+    render(<VenuePage {...input} />, root)
+    typeField('handle', 'new-shop')
+    cleanupAll()
+    await setTimeout(450)
+    expect(input.onCheckHandle).not.toHaveBeenCalled()
+  })
+
+  it('shows the answer for the handle on screen, not for one typed before it', async () => {
+    const earlier = Promise.withResolvers<'available' | 'taken' | 'unknown'>()
+    const input = registering()
+    vi.mocked(input.onCheckHandle).mockReturnValueOnce(earlier.promise).mockResolvedValue('available')
+    render(<VenuePage {...input} />, root)
+    typeField('handle', 'first-shop')
+    await vi.waitFor(() => {
+      expect(input.onCheckHandle).toHaveBeenCalledWith('first-shop')
+    })
+    typeField('handle', 'second-shop')
+    await vi.waitFor(() => {
+      expect(root.textContent).toContain(DASH_COPY.en.designer.handleStatus.available)
+    })
+    earlier.resolve('taken')
+    await setTimeout(0)
+    expect(root.textContent).toContain(DASH_COPY.en.designer.handleStatus.available)
+    expect(root.textContent).not.toContain(DASH_COPY.en.designer.handleStatus.taken)
   })
 })

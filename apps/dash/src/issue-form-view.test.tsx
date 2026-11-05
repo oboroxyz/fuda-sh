@@ -1,6 +1,5 @@
 // @vitest-environment happy-dom
 import type { IssueResponse } from '@fuda/sdk'
-import { createSignal } from 'solid-js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { Result } from './api.ts'
@@ -12,7 +11,7 @@ import { graphOnChainStatusIo } from './on-chain-status.ts'
 import { OnChainStatus } from './OnChainStatus.tsx'
 import { QrBlock } from './QrBlock.tsx'
 import { SignIn } from './SignIn.tsx'
-import { cleanup, flush, mount, spacedText, typeInto } from './test/render.tsx'
+import { act, cleanup, flush, mount, open, spacedText, typeInto } from './test/render.tsx'
 
 const copy = DASH_COPY.ja.issue
 const UID = `0x${'aa'.repeat(32)}` as const
@@ -44,15 +43,21 @@ const view = (patch: Partial<IssueFormViewProps> = {}): HTMLElement => {
     result: null,
     ...patch,
   }
-  return mount(() => <IssueFormView {...value} />)
+  return mount(<IssueFormView {...value} />)
 }
 const submitButton = (host: ParentNode): HTMLButtonElement =>
   host.querySelector<HTMLButtonElement>('button[type="submit"]')!
 const submit = (host: ParentNode): void => {
-  host.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+  act(() => {
+    host.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+  })
 }
 const liveStatus = (host: ParentNode): Element | undefined =>
   [...host.querySelectorAll('[role="status"]')].find((node) => spacedText(node) !== '')
+
+const graphStatus = (language: 'en' | 'ja') => (
+  <OnChainStatus copy={DASH_COPY[language].chain} endpoint="https://index.example/rights" />
+)
 
 describe('localized operation views', () => {
   afterEach(() => {
@@ -135,14 +140,15 @@ describe('localized operation views', () => {
   })
 
   it('retranslates a visible API error when the operator changes language', async () => {
-    const [locale, setLocale] = createSignal<'en' | 'ja'>('en')
     const onIssue = vi.fn<() => Promise<Result<IssueResponse>>>().mockResolvedValue({
       error: 'bad_input',
       network: false,
       ok: false,
       status: 400,
     })
-    const host = mount(() => <IssueForm copy={DASH_COPY[locale()].issue} onIssue={onIssue} />)
+    const issueForm = (locale: 'en' | 'ja') => <IssueForm copy={DASH_COPY[locale].issue} onIssue={onIssue} />
+    const mounted = open(issueForm('en'))
+    const { host } = mounted
     typeInto(host.querySelector<HTMLInputElement>('#issue-member-id')!, 'alice')
     submit(host)
     await vi.waitFor(() => {
@@ -150,15 +156,14 @@ describe('localized operation views', () => {
         'Issue failed: Check the information you entered.',
       )
     })
-    setLocale('ja')
-    await flush()
+    mounted.update(issueForm('ja'))
     expect(spacedText(host.querySelector('[role="alert"]'))).toBe(
       '発行に失敗しました: 入力内容を確認してください。',
     )
   })
 
   it('labels the QR image and retains the entire readable payload', () => {
-    const host = mount(() => <QrBlock label="発行した権利の QR" qr={qr} />)
+    const host = mount(<QrBlock label="発行した権利の QR" qr={qr} />)
     const image = host.querySelector('div[role="img"]')!
     expect(image.getAttribute('aria-label')).toBe('発行した権利の QR')
     expect(image.innerHTML).toContain('<svg')
@@ -169,7 +174,7 @@ describe('localized operation views', () => {
     'labels the token, exposes appearance and error, and accepts trimmed value %j',
     (value) => {
       const onToken = vi.fn<(token: string) => void>()
-      const host = mount(() => (
+      const host = mount(
         <SignIn
           appearance={<aside>appearance controls</aside>}
           copy={DASH_COPY.ja.auth}
@@ -180,8 +185,8 @@ describe('localized operation views', () => {
           onSignIn={(): void => {}}
           onToken={onToken}
           onWallet={(): void => {}}
-        />
-      ))
+        />,
+      )
       const password = host.querySelector<HTMLInputElement>('input[type="password"]')!
       const label = host.querySelector('label')!
       expect({ label: spacedText(label), target: label.htmlFor }).toStrictEqual({
@@ -201,7 +206,7 @@ describe('localized operation views', () => {
   )
 
   it('renders the brand mark before the centered dashboard title', () => {
-    const host = mount(() => (
+    const host = mount(
       <SignIn
         appearance={<aside />}
         copy={DASH_COPY.en.auth}
@@ -212,8 +217,8 @@ describe('localized operation views', () => {
         onSignIn={(): void => {}}
         onToken={(): void => {}}
         onWallet={(): void => {}}
-      />
-    ))
+      />,
+    )
     const logo = host.querySelector('svg[aria-label="fuda."]')!
     const title = host.querySelector('h1')!
     const order = [...host.querySelectorAll('svg[aria-label="fuda."], h1')]
@@ -237,7 +242,7 @@ describe('localized operation views', () => {
       .fn<(payload: Record<string, string | number>) => Promise<Result<IssueResponse>>>()
       .mockReturnValueOnce(pending.promise)
       .mockResolvedValueOnce({ body: publicBody, ok: true })
-    const host = mount(() => <IssueForm copy={copy} onIssue={onIssue} />)
+    const host = mount(<IssueForm copy={copy} onIssue={onIssue} />)
     typeInto(host.querySelector<HTMLInputElement>('#issue-member-id')!, ' alice ')
 
     submit(host)
@@ -261,9 +266,7 @@ describe('localized operation views', () => {
   it('queries the injected Graph endpoint and holder with localized loading and empty states', async () => {
     const pending = Promise.withResolvers<[]>()
     const rights = vi.spyOn(graphOnChainStatusIo, 'rightsByHolder').mockReturnValue(pending.promise)
-    const host = mount(() => (
-      <OnChainStatus copy={DASH_COPY.ja.chain} endpoint="https://index.example/rights" />
-    ))
+    const host = mount(<OnChainStatus copy={DASH_COPY.ja.chain} endpoint="https://index.example/rights" />)
     expect([...host.querySelectorAll('label')].map(spacedText)).toContain('保有者アドレス')
 
     typeInto(host.querySelector<HTMLInputElement>('#chain-holder')!, holder)
@@ -288,7 +291,7 @@ describe('localized operation views', () => {
     'renders localized configuration or unknown-error fallback for endpoint %j',
     async (endpoint, message) => {
       const rights = vi.spyOn(graphOnChainStatusIo, 'rightsByHolder').mockRejectedValue('offline')
-      const host = mount(() => <OnChainStatus copy={DASH_COPY.ja.chain} endpoint={endpoint} />)
+      const host = mount(<OnChainStatus copy={DASH_COPY.ja.chain} endpoint={endpoint} />)
       submit(host)
       await vi.waitFor(() => {
         expect(spacedText(host.querySelector('[role="alert"]'))).toBe(message)
@@ -305,16 +308,19 @@ describe('localized operation views', () => {
     'retranslates internal Graph errors after a language change for endpoint %j',
     async (endpoint, english, japanese) => {
       vi.spyOn(graphOnChainStatusIo, 'rightsByHolder').mockRejectedValue('offline')
-      const [language, setLanguage] = createSignal<'en' | 'ja'>('en')
-      const host = mount(() => <OnChainStatus copy={DASH_COPY[language()].chain} endpoint={endpoint} />)
+      const status = (language: 'en' | 'ja') => (
+        <OnChainStatus copy={DASH_COPY[language].chain} endpoint={endpoint} />
+      )
+      const mounted = open(status('en'))
+      const { host } = mounted
       const alertText = (): string => spacedText(host.querySelector('[role="alert"]'))
       submit(host)
       await vi.waitFor(() => {
         expect(alertText()).toBe(english)
       })
-      setLanguage('ja')
+      mounted.update(status('ja'))
       expect(alertText()).toBe(japanese)
-      setLanguage('en')
+      mounted.update(status('en'))
       expect(alertText()).toBe(english)
     },
   )
@@ -331,12 +337,10 @@ describe('localized operation views', () => {
   ])('uses the current language when an in-flight Graph query rejects with %j', async (failure, message) => {
     const pending = Promise.withResolvers<[]>()
     vi.spyOn(graphOnChainStatusIo, 'rightsByHolder').mockReturnValue(pending.promise)
-    const [language, setLanguage] = createSignal<'en' | 'ja'>('en')
-    const host = mount(() => (
-      <OnChainStatus copy={DASH_COPY[language()].chain} endpoint="https://index.example/rights" />
-    ))
+    const mounted = open(graphStatus('en'))
+    const { host } = mounted
     submit(host)
-    setLanguage('ja')
+    mounted.update(graphStatus('ja'))
     expect(spacedText(host.querySelector('[role="status"]'))).toBe('オンチェーンステータスを読み込み中です。')
     pending.reject(failure)
     await flush()

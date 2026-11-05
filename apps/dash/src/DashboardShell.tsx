@@ -1,8 +1,9 @@
 import { cn } from 'cn'
-import { createEffect, createSignal, createUniqueId, For, on, onCleanup, onMount, Show } from 'solid-js'
-import type { JSX } from 'solid-js'
+import type { ComponentChildren, JSX } from 'preact'
+import { useEffect, useId, useRef, useState } from 'preact/hooks'
 
 import type { DashCopy } from './copy.ts'
+import { isPlainClick } from './plain-click.ts'
 import { ProfileMenu } from './ProfileMenu.tsx'
 import type { ProfileChoices } from './ProfileMenu.tsx'
 import { navigationRoute } from './router.ts'
@@ -13,7 +14,7 @@ export interface DashboardShellProps {
   profiles?: ProfileChoices | null
   appearance: JSX.Element
   venue?: { name: string; publicUrl: string | null } | null
-  children: JSX.Element
+  children: ComponentChildren
   copy: DashCopy
   hasIssuer: boolean
   onNavigate: (route: DashRoute) => void
@@ -46,9 +47,6 @@ interface DesktopBreakpoint {
 
 const desktopBreakpoint = (): DesktopBreakpoint | null =>
   globalThis.matchMedia?.(DASH_DESKTOP_MEDIA_QUERY) ?? null
-
-const isPrimaryNavigation = (event: MouseEvent): boolean =>
-  event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey
 
 // The two surfaces never share a menu: an admin token runs the console, a
 // passkey session runs one venue's card.
@@ -102,28 +100,26 @@ const navigationIcon = (route: MainDashRoute): JSX.Element => {
 const Navigation = (props: NavigationProps): JSX.Element => (
   <nav aria-label={props.copy.chrome.navigation}>
     <ul class="menu w-full gap-1.5 px-2 py-4">
-      <For each={navigationItems(props.copy, props.surface, props.hasIssuer)}>
-        {(item) => (
-          <li>
-            <a
-              aria-current={navigationRoute(props.route) === item.route ? 'page' : undefined}
-              class={cn('dash-menu-item', navigationRoute(props.route) === item.route && 'menu-active')}
-              href={item.route}
-              onClick={(event) => {
-                if (!isPrimaryNavigation(event)) {
-                  return
-                }
-                event.preventDefault()
-                props.onSelection?.()
-                props.onNavigate(item.route)
-              }}
-            >
-              {navigationIcon(item.route)}
-              <span>{item.label}</span>
-            </a>
-          </li>
-        )}
-      </For>
+      {navigationItems(props.copy, props.surface, props.hasIssuer).map((item) => (
+        <li key={item.route}>
+          <a
+            aria-current={navigationRoute(props.route) === item.route ? 'page' : undefined}
+            class={cn('dash-menu-item', navigationRoute(props.route) === item.route && 'menu-active')}
+            href={item.route}
+            onClick={(event) => {
+              if (!isPlainClick(event)) {
+                return
+              }
+              event.preventDefault()
+              props.onSelection?.()
+              props.onNavigate(item.route)
+            }}
+          >
+            {navigationIcon(item.route)}
+            <span>{item.label}</span>
+          </a>
+        </li>
+      ))}
     </ul>
   </nav>
 )
@@ -150,33 +146,70 @@ const Brand = (props: { copy: DashCopy['chrome'] }): JSX.Element => (
   </div>
 )
 
-export const DashboardShell = (props: DashboardShellProps): JSX.Element => {
-  const drawerId = createUniqueId()
-  const venue = (): { name: string; publicUrl: string | null } | null => props.venue ?? null
-  const [open, setOpen] = createSignal(false)
-  const [desktop, setDesktop] = createSignal(desktopBreakpoint()?.matches ?? false)
-  let opener: HTMLButtonElement | undefined
-  let sidebar: HTMLElement | undefined
-  const modal = (): boolean => open() && !desktop()
-  let restoreFocus = false
+const visibleControls = (sidebar: HTMLElement | null): HTMLElement[] =>
+  [...(sidebar?.querySelectorAll<HTMLElement>('a[href], button:not([disabled])') ?? [])].filter(
+    (element) => element.closest('dialog:not([open]), [hidden], [inert]') === null,
+  )
+
+const wrapTab = (event: KeyboardEvent, controls: HTMLElement[]): void => {
+  const [first] = controls
+  const last = controls.at(-1)
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last?.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first?.focus()
+  }
+}
+
+// Keeps keyboard focus inside the drawer while it covers the page: Escape closes it
+// and Tab wraps between its first and last visible control.
+const keepFocusInDrawer = (
+  event: KeyboardEvent,
+  sidebar: HTMLElement | null,
+  modal: boolean,
+  close: () => void,
+): void => {
+  const inDialog = event.target instanceof Element && event.target.closest('dialog') !== null
+  if (inDialog || !modal) {
+    return
+  }
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    close()
+  } else if (event.key === 'Tab') {
+    wrapTab(event, visibleControls(sidebar))
+  }
+}
+
+// The mobile drawer: open state, the breakpoint that makes it permanent, closing on a
+// route change and moving focus into it while it covers the page and back out after.
+const useDrawer = (route: DashRoute) => {
+  const [open, setOpen] = useState(false)
+  const [desktop, setDesktop] = useState(() => desktopBreakpoint()?.matches ?? false)
+  const opener = useRef<HTMLButtonElement>(null)
+  const sidebar = useRef<HTMLElement>(null)
+  const modal = open && !desktop
+  const restoreFocus = useRef(false)
   const closeDrawer = (): void => {
-    restoreFocus = true
+    restoreFocus.current = true
     setOpen(false)
   }
 
-  createEffect(
-    on(
-      () => props.route,
-      () => {
-        if (open()) {
-          closeDrawer()
-        }
-      },
-      { defer: true },
-    ),
-  )
+  // A route change closes the drawer; the first render has no previous route.
+  const previousRoute = useRef(route)
+  useEffect(() => {
+    if (previousRoute.current === route) {
+      return
+    }
+    previousRoute.current = route
+    if (open) {
+      closeDrawer()
+    }
+  }, [route])
 
-  onMount(() => {
+  useEffect(() => {
     const breakpoint = desktopBreakpoint()
     if (breakpoint === null) {
       return
@@ -188,38 +221,48 @@ export const DashboardShell = (props: DashboardShellProps): JSX.Element => {
       }
     }
     breakpoint.addEventListener('change', changed)
-    onCleanup(() => {
+    return () => {
       breakpoint.removeEventListener('change', changed)
-    })
-  })
+    }
+  }, [])
 
-  createEffect(
-    on(modal, (isModal) => {
-      if (isModal) {
-        let frame = 0
-        const focusDrawer = (): void => {
-          const first = sidebar?.querySelector<HTMLElement>('button, a')
-          if (!first || sidebar?.contains(document.activeElement) === true) {
-            return
-          }
-          // daisyUI delays visibility while the drawer begins its transition.
-          // Browsers ignore focus until that transition makes the control visible.
-          if (getComputedStyle(first).visibility === 'hidden') {
-            frame = requestAnimationFrame(focusDrawer)
-            return
-          }
-          first.focus()
-        }
-        focusDrawer()
-        onCleanup(() => {
-          cancelAnimationFrame(frame)
-        })
-      } else if (restoreFocus) {
-        restoreFocus = false
-        opener?.focus()
+  useEffect(() => {
+    if (!modal) {
+      if (restoreFocus.current) {
+        restoreFocus.current = false
+        opener.current?.focus()
       }
-    }),
-  )
+      return
+    }
+    let frame = 0
+    const focusDrawer = (): void => {
+      const first = sidebar.current?.querySelector<HTMLElement>('button, a')
+      if (!first || sidebar.current?.contains(document.activeElement) === true) {
+        return
+      }
+      // daisyUI delays visibility while the drawer begins its transition.
+      // Browsers ignore focus until that transition makes the control visible.
+      if (getComputedStyle(first).visibility === 'hidden') {
+        frame = requestAnimationFrame(focusDrawer)
+        return
+      }
+      first.focus()
+    }
+    focusDrawer()
+    return () => {
+      cancelAnimationFrame(frame)
+    }
+  }, [modal])
+
+  return { closeDrawer, modal, open, opener, setOpen, sidebar }
+}
+
+export const DashboardShell = (props: DashboardShellProps): JSX.Element => {
+  const drawerId = useId()
+  const venue = props.venue ?? null
+  const { closeDrawer, modal, open, opener, setOpen, sidebar } = useDrawer(props.route)
+  // Preact types an aside's role narrowly, but the open drawer really is a modal dialog.
+  const modalAttributes: Record<string, string> = modal ? { 'aria-modal': 'true', role: 'dialog' } : {}
 
   return (
     <div class="dash-app drawer md:drawer-open min-h-svh bg-[var(--fuda-bg)] text-[var(--fuda-text)] print:block">
@@ -227,22 +270,20 @@ export const DashboardShell = (props: DashboardShellProps): JSX.Element => {
         id={drawerId}
         class="drawer-toggle"
         type="checkbox"
-        checked={open()}
+        checked={open}
         tabIndex={-1}
         aria-label={props.copy.chrome.openMenu}
         onInput={(event) => {
           setOpen(event.currentTarget.checked)
         }}
       />
-      <div class="drawer-content min-w-0" inert={modal()}>
+      <div class="drawer-content min-w-0" inert={modal}>
         <header class="sticky top-0 z-20 flex h-14 items-center gap-4 border-b border-[var(--fuda-border)] bg-[var(--fuda-surface)] px-4 md:hidden print:hidden!">
           <Brand copy={props.copy.chrome} />
           <button
-            ref={(el) => {
-              opener = el
-            }}
+            ref={opener}
             aria-label={props.copy.chrome.openMenu}
-            aria-expanded={open()}
+            aria-expanded={open}
             aria-controls={`${drawerId}-side`}
             class="btn btn-ghost btn-square ml-auto"
             type="button"
@@ -268,44 +309,13 @@ export const DashboardShell = (props: DashboardShellProps): JSX.Element => {
           }}
         />
         <aside
-          ref={(el) => {
-            sidebar = el
-          }}
+          ref={sidebar}
           id={`${drawerId}-side`}
           class="dash-sidebar flex min-h-dvh w-64 flex-col border-r border-[var(--fuda-border)] bg-[var(--fuda-surface)] pb-6 print:hidden!"
-          role={modal() ? 'dialog' : undefined}
-          aria-modal={modal() ? 'true' : undefined}
+          {...modalAttributes}
           aria-label={props.copy.chrome.navigation}
           onKeyDown={(event) => {
-            if (event.target instanceof Element && event.target.closest('dialog') !== null) {
-              return
-            }
-            if (!modal()) {
-              return
-            }
-            if (event.key === 'Escape') {
-              event.preventDefault()
-              closeDrawer()
-              return
-            }
-            if (event.key !== 'Tab') {
-              return
-            }
-            const controls = [
-              ...(sidebar?.querySelectorAll<HTMLElement>('a[href], button:not([disabled])') ?? []),
-            ]
-            const visibleControls = controls.filter(
-              (element) => element.closest('dialog:not([open]), [hidden], [inert]') === null,
-            )
-            const [first] = visibleControls
-            const last = visibleControls.at(-1)
-            if (event.shiftKey && document.activeElement === first) {
-              event.preventDefault()
-              last?.focus()
-            } else if (!event.shiftKey && document.activeElement === last) {
-              event.preventDefault()
-              first?.focus()
-            }
+            keepFocusInDrawer(event, sidebar.current, modal, closeDrawer)
           }}
         >
           <div class="flex h-14 shrink-0 items-center justify-between gap-2 px-5">
@@ -319,27 +329,22 @@ export const DashboardShell = (props: DashboardShellProps): JSX.Element => {
               <span aria-hidden="true">×</span>
             </button>
           </div>
-          {props.surface === 'operator' ? (
-            <Show when={venue()}>
-              {(current) => (
-                // A new route closes the menu by mounting a fresh one.
-                <Show when={props.route} keyed>
-                  <ProfileMenu
-                    profiles={props.profiles}
-                    copy={props.copy}
-                    venue={current()}
-                    onSignOut={props.onSignOut}
-                  />
-                </Show>
-              )}
-            </Show>
+          {props.surface === 'operator' && venue !== null ? (
+            // A new route closes the menu by mounting a fresh one.
+            <ProfileMenu
+              key={props.route}
+              profiles={props.profiles}
+              copy={props.copy}
+              venue={venue}
+              onSignOut={props.onSignOut}
+            />
           ) : null}
           <Navigation
             copy={props.copy}
             hasIssuer={props.hasIssuer}
             onNavigate={props.onNavigate}
             onSelection={() => {
-              if (open()) {
+              if (open) {
                 closeDrawer()
               }
             }}
@@ -347,7 +352,7 @@ export const DashboardShell = (props: DashboardShellProps): JSX.Element => {
             surface={props.surface}
           />
           <div class="mt-auto flex flex-col gap-3">
-            {props.onSignOut === null || (props.surface === 'operator' && venue() !== null) ? null : (
+            {props.onSignOut === null || (props.surface === 'operator' && venue !== null) ? null : (
               <SignOutButton
                 copy={props.copy.auth}
                 onSignOut={() => {

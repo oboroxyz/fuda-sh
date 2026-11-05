@@ -1,25 +1,15 @@
 // @vitest-environment happy-dom
 import { setTimeout } from 'node:timers/promises'
 
-import { createSignal } from 'solid-js'
-import type { JSX } from 'solid-js'
-import { render as solidRender } from 'solid-js/web'
+import type { JSX } from 'preact'
+import { useState } from 'preact/hooks'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DASH_COPY } from './copy.ts'
 import { ReceptionPage } from './ReceptionPage.tsx'
 import type { ReceptionIo } from './ReceptionPage.tsx'
 import type { StampIo } from './StampActions.tsx'
-
-const disposers: (() => void)[] = []
-const render = (view: () => JSX.Element, host: HTMLElement): void => {
-  disposers.push(solidRender(view, host))
-}
-const unmountAll = (): void => {
-  for (const dispose of disposers.splice(0)) {
-    dispose()
-  }
-}
+import { cleanup as cleanupAll, render } from './test/render.tsx'
 
 let root: HTMLDivElement
 const response = {
@@ -65,7 +55,7 @@ describe(ReceptionPage, () => {
     document.body.append(root)
   })
   afterEach(() => {
-    unmountAll()
+    cleanupAll()
     root.remove()
   })
 
@@ -73,14 +63,12 @@ describe(ReceptionPage, () => {
     const pending = deferred<Awaited<ReturnType<ReceptionIo>>>()
     const receive = vi.fn<ReceptionIo>().mockReturnValue(pending.promise)
     render(
-      () => (
-        <ReceptionPage
-          copy={DASH_COPY.en.reception}
-          stamps={stamps}
-          createRequestId={() => 'request-1'}
-          receive={receive}
-        />
-      ),
+      <ReceptionPage
+        copy={DASH_COPY.en.reception}
+        stamps={stamps}
+        createRequestId={() => 'request-1'}
+        receive={receive}
+      />,
       root,
     )
 
@@ -101,14 +89,12 @@ describe(ReceptionPage, () => {
   it('reads the complete scanner value when input and Enter arrive in one render frame', () => {
     const receive = vi.fn<ReceptionIo>().mockReturnValue(deferred<Awaited<ReturnType<ReceptionIo>>>().promise)
     render(
-      () => (
-        <ReceptionPage
-          copy={DASH_COPY.en.reception}
-          stamps={stamps}
-          createRequestId={() => 'id'}
-          receive={receive}
-        />
-      ),
+      <ReceptionPage
+        copy={DASH_COPY.en.reception}
+        stamps={stamps}
+        createRequestId={() => 'id'}
+        receive={receive}
+      />,
       root,
     )
     input().value = 'fuda:v1:complete'
@@ -124,14 +110,12 @@ describe(ReceptionPage, () => {
       .mockResolvedValueOnce({ body: response, ok: true })
       .mockReturnValueOnce(second.promise)
     render(
-      () => (
-        <ReceptionPage
-          copy={DASH_COPY.en.reception}
-          stamps={stamps}
-          createRequestId={() => 'id'}
-          receive={receive}
-        />
-      ),
+      <ReceptionPage
+        copy={DASH_COPY.en.reception}
+        stamps={stamps}
+        createRequestId={() => 'id'}
+        receive={receive}
+      />,
       root,
     )
     await scan('first')
@@ -148,14 +132,12 @@ describe(ReceptionPage, () => {
       .mockResolvedValueOnce({ error: 'network', network: true, ok: false, status: 0 })
       .mockResolvedValueOnce({ body: response, ok: true })
     render(
-      () => (
-        <ReceptionPage
-          copy={DASH_COPY.en.reception}
-          stamps={stamps}
-          createRequestId={() => 'stable-id'}
-          receive={receive}
-        />
-      ),
+      <ReceptionPage
+        copy={DASH_COPY.en.reception}
+        stamps={stamps}
+        createRequestId={() => 'stable-id'}
+        receive={receive}
+      />,
       root,
     )
     await scan('fuda:v1:member')
@@ -179,14 +161,12 @@ describe(ReceptionPage, () => {
     ['bad_input', 'This scan could not be accepted. Scan the QR code again.'],
   ])('explains the %s scan failure', async (error, message) => {
     render(
-      () => (
-        <ReceptionPage
-          copy={DASH_COPY.en.reception}
-          stamps={stamps}
-          createRequestId={() => 'id'}
-          receive={async () => await Promise.resolve({ error, network: false, ok: false, status: 400 })}
-        />
-      ),
+      <ReceptionPage
+        copy={DASH_COPY.en.reception}
+        stamps={stamps}
+        createRequestId={() => 'id'}
+        receive={async () => await Promise.resolve({ error, network: false, ok: false, status: 400 })}
+      />,
       root,
     )
     await scan('scan')
@@ -201,7 +181,7 @@ describe(ReceptionPage, () => {
     let replaceSession!: () => void
     const oldReceive = async (): Promise<Awaited<ReturnType<ReceptionIo>>> => await pending.promise
     const Harness = (): JSX.Element => {
-      const [receive, setReceive] = createSignal<ReceptionIo>(oldReceive)
+      const [receive, setReceive] = useState<ReceptionIo>(() => oldReceive)
       replaceSession = () => {
         setReceive(
           () => async () =>
@@ -213,11 +193,11 @@ describe(ReceptionPage, () => {
           copy={DASH_COPY.en.reception}
           stamps={stamps}
           createRequestId={() => 'id'}
-          receive={receive()}
+          receive={receive}
         />
       )
     }
-    render(() => <Harness />, root)
+    render(<Harness />, root)
     await scan('old-session')
     replaceSession()
     await setTimeout(0)

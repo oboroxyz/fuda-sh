@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import '@fuda/styles/base.css';
+@source '../../../packages/ui-preact/src';
 
 .dash-app,
 .dash-auth {

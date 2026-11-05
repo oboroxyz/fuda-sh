@@ -1,4 +1,4 @@
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
 
 import { issueRight } from '../src/api.ts'
 import { IssueForm } from '../src/IssueForm.tsx'
@@ -9,7 +9,7 @@ export default function Issue(): JSX.Element {
   const expired = useSessionExpired()
   return (
     <IssueForm
-      copy={copy().issue}
+      copy={copy.issue}
       onIssue={async (body) => {
         const result = await issueRight(body)
         if (!result.ok && result.status === 401) {

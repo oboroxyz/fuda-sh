@@ -5,8 +5,8 @@ import type {
   ConnectedAppView,
 } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
-import { createEffect, createSignal, on, onCleanup } from 'solid-js'
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
+import { useEffect, useState } from 'preact/hooks'
 
 import type { AppsCopy } from './apps-copy.ts'
 import { formatInstant } from './card-designer.ts'
@@ -56,43 +56,41 @@ export interface ConnectedAppsPageProps {
 }
 
 export const ConnectedAppsPage = (props: ConnectedAppsPageProps): JSX.Element => {
-  const [loaded, setLoaded] = createSignal<Loaded>({ kind: 'loading' })
-  const [revision, setRevision] = createSignal(0)
-  const [name, setName] = createSignal('')
-  const [redirects, setRedirects] = createSignal('')
-  const [busy, setBusy] = createSignal(false)
-  const [failure, setFailure] = createSignal<string | null>(null)
-  const [confirming, setConfirming] = createSignal<string | null>(null)
+  const [loaded, setLoaded] = useState<Loaded>({ kind: 'loading' })
+  const [revision, setRevision] = useState(0)
+  const [name, setName] = useState('')
+  const [redirects, setRedirects] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [failure, setFailure] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState<string | null>(null)
 
-  createEffect(
-    on(revision, () => {
-      let live = true
-      const run = async (): Promise<void> => {
-        const [apps, grants, activity] = await Promise.all([
-          props.io.list(),
-          props.io.grants(),
-          props.io.activity(),
-        ])
-        if (!live) {
-          return
-        }
-        setLoaded(
-          apps.ok && grants.ok && activity.ok
-            ? {
-                apps: apps.body.apps,
-                events: activity.body.events,
-                grants: grants.body.grants,
-                kind: 'ready',
-              }
-            : { kind: 'failed' },
-        )
+  useEffect(() => {
+    let live = true
+    const run = async (): Promise<void> => {
+      const [apps, grants, activity] = await Promise.all([
+        props.io.list(),
+        props.io.grants(),
+        props.io.activity(),
+      ])
+      if (!live) {
+        return
       }
-      void run()
-      onCleanup(() => {
-        live = false
-      })
-    }),
-  )
+      setLoaded(
+        apps.ok && grants.ok && activity.ok
+          ? {
+              apps: apps.body.apps,
+              events: activity.body.events,
+              grants: grants.body.grants,
+              kind: 'ready',
+            }
+          : { kind: 'failed' },
+      )
+    }
+    void run()
+    return () => {
+      live = false
+    }
+  }, [revision])
 
   const reload = (): void => {
     setRevision((value) => value + 1)
@@ -120,8 +118,8 @@ export const ConnectedAppsPage = (props: ConnectedAppsPageProps): JSX.Element =>
     setFailure(null)
     const run = async (): Promise<void> => {
       const result = await props.io.register({
-        name: name().trim(),
-        redirectUris: redirectLines(redirects()),
+        name: name.trim(),
+        redirectUris: redirectLines(redirects),
       })
       setBusy(false)
       if (result.ok) {
@@ -136,7 +134,7 @@ export const ConnectedAppsPage = (props: ConnectedAppsPageProps): JSX.Element =>
   }
 
   const lists = (): JSX.Element => {
-    const current = loaded()
+    const current = loaded
     if (current.kind === 'loading') {
       return <p role="status">{props.copy.loading}</p>
     }
@@ -172,10 +170,10 @@ export const ConnectedAppsPage = (props: ConnectedAppsPageProps): JSX.Element =>
                   </ul>
                 </div>
                 <button
-                  class={confirming() === app.clientId ? 'btn btn-error btn-sm' : 'btn btn-sm'}
-                  disabled={busy()}
+                  class={confirming === app.clientId ? 'btn btn-error btn-sm' : 'btn btn-sm'}
+                  disabled={busy}
                   onClick={() => {
-                    if (confirming() === app.clientId) {
+                    if (confirming === app.clientId) {
                       act(async () => await props.io.remove(app.clientId))
                     } else {
                       setConfirming(app.clientId)
@@ -183,7 +181,7 @@ export const ConnectedAppsPage = (props: ConnectedAppsPageProps): JSX.Element =>
                   }}
                   type="button"
                 >
-                  {confirming() === app.clientId ? props.copy.confirmDelete : props.copy.deleteApp}
+                  {confirming === app.clientId ? props.copy.confirmDelete : props.copy.deleteApp}
                 </button>
               </div>
             </article>
@@ -209,7 +207,7 @@ export const ConnectedAppsPage = (props: ConnectedAppsPageProps): JSX.Element =>
               </div>
               <button
                 class="btn btn-sm"
-                disabled={busy()}
+                disabled={busy}
                 onClick={() => {
                   act(async () => await props.io.revoke(grant.id))
                 }}
@@ -272,7 +270,7 @@ export const ConnectedAppsPage = (props: ConnectedAppsPageProps): JSX.Element =>
               setName(inputValue(event))
             }}
             required
-            value={name()}
+            value={name}
           />
         </label>
         <label class="flex flex-col gap-1">
@@ -285,17 +283,17 @@ export const ConnectedAppsPage = (props: ConnectedAppsPageProps): JSX.Element =>
             placeholder="https://your-app.figma.site/"
             required
             rows={3}
-            value={redirects()}
+            value={redirects}
           />
           <span class="text-sm text-[var(--fuda-muted)]">{props.copy.redirectHint}</span>
         </label>
-        {failure() === null ? null : (
+        {failure === null ? null : (
           <p role="alert" class="alert alert-error">
-            {failure()}
+            {failure}
           </p>
         )}
-        <button class="btn btn-primary self-start" disabled={busy()} type="submit">
-          {busy() ? props.copy.registering : props.copy.register}
+        <button class="btn btn-primary self-start" disabled={busy} type="submit">
+          {busy ? props.copy.registering : props.copy.register}
         </button>
       </form>
       {lists()}

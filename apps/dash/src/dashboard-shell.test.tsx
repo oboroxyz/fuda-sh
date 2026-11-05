@@ -2,24 +2,14 @@
 import { setTimeout } from 'node:timers/promises'
 
 import { pick } from '@fuda/i18n'
-import { createSignal, Show } from 'solid-js'
-import type { JSX } from 'solid-js'
-import { render as solidRender } from 'solid-js/web'
+import type { ComponentChild } from 'preact'
+import { useState } from 'preact/hooks'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DASH_COPY } from './copy.ts'
 import { DashboardShell } from './DashboardShell.tsx'
 import type { DashRoute, DashSurface } from './router.ts'
-
-const disposers: (() => void)[] = []
-const render = (view: () => JSX.Element, host: HTMLElement): void => {
-  disposers.push(solidRender(view, host))
-}
-const unmountAll = (): void => {
-  for (const dispose of disposers.splice(0)) {
-    dispose()
-  }
-}
+import { act, cleanup as cleanupAll, render, tap } from './test/render.tsx'
 
 let breakpoint: MediaQueryList
 let root: HTMLDivElement
@@ -27,39 +17,37 @@ let dispose: (() => void) | undefined
 let changeRoute: ((route: DashRoute) => void) | undefined
 const signOut = vi.fn<() => void>()
 const start = (surface: DashSurface = 'operator', hasIssuer = true): void => {
-  const Harness = (): JSX.Element => {
-    const [mounted, setMounted] = createSignal(true)
-    const [route, setRoute] = createSignal<DashRoute>(surface === 'operator' ? '/cards' : '/')
+  const Harness = (): ComponentChild => {
+    const [mounted, setMounted] = useState(true)
+    const [route, setRoute] = useState<DashRoute>(surface === 'operator' ? '/cards' : '/')
     dispose = () => {
       setMounted(false)
     }
     changeRoute = (next) => {
       setRoute(next)
     }
-    return (
-      <Show when={mounted()}>
-        <DashboardShell
-          appearance={<span>Appearance</span>}
-          copy={pick(DASH_COPY, 'en')}
-          hasIssuer={hasIssuer}
-          onNavigate={(next) => {
-            setRoute(next)
-          }}
-          onSignOut={signOut}
-          route={route()}
-          surface={surface}
-          venue={
-            surface === 'operator' && hasIssuer
-              ? { name: 'Fuda Coffee Roasters', publicUrl: 'https://fuda.test/@coffee' }
-              : null
-          }
-        >
-          <p>Page content</p>
-        </DashboardShell>
-      </Show>
-    )
+    return mounted ? (
+      <DashboardShell
+        appearance={<span>Appearance</span>}
+        copy={pick(DASH_COPY, 'en')}
+        hasIssuer={hasIssuer}
+        onNavigate={(next) => {
+          setRoute(next)
+        }}
+        onSignOut={signOut}
+        route={route}
+        surface={surface}
+        venue={
+          surface === 'operator' && hasIssuer
+            ? { name: 'Fuda Coffee Roasters', publicUrl: 'https://fuda.test/@coffee' }
+            : null
+        }
+      >
+        <p>Page content</p>
+      </DashboardShell>
+    ) : null
   }
-  render(() => <Harness />, root)
+  render(<Harness />, root)
 }
 const button = (label: string): HTMLButtonElement => {
   const found = [...root.querySelectorAll('button')].find(
@@ -81,10 +69,11 @@ describe('dashboard navigation', () => {
     dispose = undefined
     changeRoute = undefined
   })
-  afterEach(async () => {
-    dispose?.()
-    await setTimeout(0)
-    unmountAll()
+  afterEach(() => {
+    act(() => {
+      dispose?.()
+    })
+    cleanupAll()
     root.remove()
     vi.restoreAllMocks()
   })
@@ -93,7 +82,7 @@ describe('dashboard navigation', () => {
     start()
     const trigger = button('Fuda Coffee Roasters')
     expect(trigger.getAttribute('aria-expanded')).toBe('false')
-    trigger.click()
+    tap(trigger)
     await vi.waitFor(() => {
       expect(trigger.getAttribute('aria-expanded')).toBe('true')
     })
@@ -115,8 +104,8 @@ describe('dashboard navigation', () => {
 
   it('closes profile actions on Escape before closing the mobile drawer', async () => {
     start()
-    button('Open menu').click()
-    button('Fuda Coffee Roasters').click()
+    tap(button('Open menu'))
+    tap(button('Fuda Coffee Roasters'))
     await setTimeout(0)
     button('Sign out').dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Escape' }))
     await vi.waitFor(() => {
@@ -128,7 +117,7 @@ describe('dashboard navigation', () => {
 
   it('closes profile actions on an outside press', async () => {
     start()
-    button('Fuda Coffee Roasters').click()
+    tap(button('Fuda Coffee Roasters'))
     await setTimeout(0)
     root.querySelector('nav')!.dispatchEvent(new Event('pointerdown', { bubbles: true }))
     await vi.waitFor(() => {
@@ -150,28 +139,28 @@ describe('dashboard navigation', () => {
 
   it('requires confirmation and cancels without ending the session', async () => {
     start()
-    button('Fuda Coffee Roasters').click()
+    tap(button('Fuda Coffee Roasters'))
     await setTimeout(0)
-    button('Sign out').click()
+    tap(button('Sign out'))
     expect(signOut).not.toHaveBeenCalled()
     await vi.waitFor(() => {
       expect(root.querySelector('dialog.modal')?.hasAttribute('open')).toBe(true)
     })
-    button('Cancel').click()
+    tap(button('Cancel'))
     expect(signOut).not.toHaveBeenCalled()
     expect(root.querySelector('dialog.modal')?.hasAttribute('open')).toBe(false)
-    button('Sign out').click()
+    tap(button('Sign out'))
     const confirm = root.querySelector<HTMLButtonElement>('dialog.modal .btn-error')
     if (confirm === null) {
       throw new Error('Missing confirmation')
     }
-    confirm.click()
+    tap(confirm)
     expect(signOut).toHaveBeenCalledOnce()
   })
 
   it('closes the drawer on Escape and restores focus to its opener', async () => {
     start()
-    button('Open menu').click()
+    tap(button('Open menu'))
     await vi.waitFor(() => {
       expect(root.querySelector<HTMLInputElement>('.drawer-toggle')?.checked).toBe(true)
     })
@@ -187,7 +176,7 @@ describe('dashboard navigation', () => {
     const close = button('Close menu')
     close.style.visibility = 'hidden'
     const focus = vi.spyOn(close, 'focus')
-    button('Open menu').click()
+    tap(button('Open menu'))
     await vi.waitFor(() => {
       expect(root.querySelector('aside')?.getAttribute('role')).toBe('dialog')
     })
@@ -202,7 +191,7 @@ describe('dashboard navigation', () => {
     start()
     const close = button('Close menu')
     close.style.visibility = 'hidden'
-    button('Open menu').click()
+    tap(button('Open menu'))
     await vi.waitFor(() => {
       expect(root.querySelector('aside')?.getAttribute('role')).toBe('dialog')
     })
@@ -217,7 +206,7 @@ describe('dashboard navigation', () => {
 
   it('closes the drawer when navigation changes externally', async () => {
     start('admin')
-    button('Open menu').click()
+    tap(button('Open menu'))
     await vi.waitFor(() => {
       expect(root.querySelector<HTMLInputElement>('.drawer-toggle')?.checked).toBe(true)
     })
@@ -230,7 +219,7 @@ describe('dashboard navigation', () => {
 
   it('keeps modified links native and closes after normal navigation', async () => {
     start('admin')
-    button('Open menu').click()
+    tap(button('Open menu'))
     await setTimeout(0)
     const link = root.querySelector<HTMLAnchorElement>('nav a[href="/rights"]')
     if (link === null) {
@@ -252,15 +241,16 @@ describe('dashboard navigation', () => {
   it('closes mobile state on desktop entry and removes the breakpoint listener on unmount', async () => {
     const remove = vi.spyOn(breakpoint, 'removeEventListener')
     start()
-    button('Open menu').click()
+    tap(button('Open menu'))
     await setTimeout(0)
     breakpoint.dispatchEvent(Object.assign(new Event('change'), { matches: true }))
     await vi.waitFor(() => {
       expect(root.querySelector<HTMLInputElement>('.drawer-toggle')?.checked).toBe(false)
     })
     expect(root.querySelector('aside')?.getAttribute('aria-modal')).toBeNull()
-    dispose?.()
-    await setTimeout(0)
+    act(() => {
+      dispose?.()
+    })
     expect(remove).toHaveBeenCalledWith('change', expect.any(Function))
   })
 
@@ -276,7 +266,7 @@ describe('dashboard navigation', () => {
 
   it('traps mobile navigation focus without including closed modal controls', async () => {
     start()
-    button('Open menu').click()
+    tap(button('Open menu'))
     await setTimeout(0)
     const lastLink = root.querySelector<HTMLAnchorElement>('nav a[href="/apps"]')!
     lastLink.focus()

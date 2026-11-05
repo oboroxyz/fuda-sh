@@ -1,4 +1,4 @@
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
 
 import { APPS_COPY } from '../src/apps-copy.ts'
 import {

@@ -1,5 +1,5 @@
-import { useRouter } from '@void/solid'
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
+import { useRouter } from 'void-preact'
 
 import { approveAuthorization, authorizePreview } from '../../src/connected-apps-api.ts'
 import { CONSENT_COPY } from '../../src/consent-copy.ts'

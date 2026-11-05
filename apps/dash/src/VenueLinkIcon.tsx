@@ -1,4 +1,4 @@
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
 
 // Phosphor Icons (regular), MIT. License: public/phosphor-license.txt.
 const paths = {

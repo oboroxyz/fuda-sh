@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { pick } from '@fuda/i18n'
 import type { RevokeResponse } from '@fuda/sdk'
-import { createSignal } from 'solid-js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { Result } from './api.ts'
@@ -9,7 +8,7 @@ import { DASH_COPY } from './copy.ts'
 import type { MembersState } from './members-state.ts'
 import type { MemberRowView } from './members-view.ts'
 import { RightsPage } from './RightsPage.tsx'
-import { buttonNamed, choose, cleanup, flush, mount, spacedText, typeInto } from './test/render.tsx'
+import { buttonNamed, choose, cleanup, flush, open, spacedText, tap, typeInto } from './test/render.tsx'
 
 const UID = `0x${'ab'.repeat(32)}` as const
 const row: MemberRowView = {
@@ -46,19 +45,19 @@ const show = (
   onRevoke: Revoke = async () => await Promise.resolve(success),
   locale: 'en' | 'ja' = 'en',
 ): Shown => {
-  const [state, setState] = createSignal(members)
-  const host = mount(() => (
+  const element = (state: MembersState) => (
     <RightsPage
       copy={DASH_COPY[locale]}
       graphEndpoint="https://index.example/rights"
-      members={state()}
+      members={state}
       onRevoke={onRevoke}
     />
-  ))
+  )
+  const view = open(element(members))
   return {
-    host,
+    host: view.host,
     setMembers: (next) => {
-      setState(next)
+      view.update(element(next))
     },
   }
 }
@@ -89,7 +88,7 @@ describe('rights page', () => {
     const { host } = show()
     typeInto(search(host), 'nobody')
     const filtered = says(host)
-    buttonNamed(host, 'Clear filters').click()
+    tap(buttonNamed(host, 'Clear filters'))
 
     expect({
       cleared: {
@@ -172,13 +171,13 @@ describe('rights page', () => {
     const onRevoke = vi.fn<Revoke>(async () => await pending.promise)
     const { host } = show(ready, onRevoke)
 
-    tableRevoke(host).click()
+    tap(tableRevoke(host))
     expect(dialog(host).open).toBe(true)
     expect(dialog(host).querySelector('code')?.getAttribute('title')).toBe(UID)
 
-    confirmButton(host).click()
-    confirmButton(host).click()
-    cancelButton(host).click()
+    tap(confirmButton(host))
+    tap(confirmButton(host))
+    tap(cancelButton(host))
     expect(onRevoke).toHaveBeenCalledExactlyOnceWith(UID)
     expect({
       confirm: confirmButton(host).disabled,
@@ -204,8 +203,8 @@ describe('rights page', () => {
       .mockResolvedValueOnce(success)
     const { host } = show(ready, onRevoke)
 
-    tableRevoke(host).click()
-    confirmButton(host).click()
+    tap(tableRevoke(host))
+    tap(confirmButton(host))
     await vi.waitFor(() => {
       expect(spacedText(dialog(host))).toContain(
         'Revoke failed: Something went wrong. Try again. (RPC says: denied [42])',
@@ -214,7 +213,7 @@ describe('rights page', () => {
     expect(dialog(host).open).toBe(true)
     expect(confirmButton(host).disabled).toBe(false)
 
-    confirmButton(host).click()
+    tap(confirmButton(host))
     expect(dialog(host).querySelector('[role="alert"]')).toBeNull()
     await vi.waitFor(() => {
       expect(dialog(host).open).toBe(false)
@@ -228,14 +227,14 @@ describe('rights page', () => {
     document.body.append(elsewhere)
 
     elsewhere.focus()
-    tableRevoke(host).click()
-    cancelButton(host).click()
+    tap(tableRevoke(host))
+    tap(cancelButton(host))
     await flush()
     expect(document.activeElement).toBe(tableRevoke(host))
 
     elsewhere.focus()
-    tableRevoke(host).click()
-    confirmButton(host).click()
+    tap(tableRevoke(host))
+    tap(confirmButton(host))
     await vi.waitFor(() => {
       expect(dialog(host).open).toBe(false)
     })
@@ -251,8 +250,8 @@ describe('rights page', () => {
     const { host, setMembers } = show(ready, async () => await pending.promise)
     choose(host.querySelector<HTMLSelectElement>('select[aria-label="Filter by status"]')!, filter)
 
-    tableRevoke(host).click()
-    confirmButton(host).click()
+    tap(tableRevoke(host))
+    tap(confirmButton(host))
     setMembers({ kind: 'ready', rows: [{ ...row, status: 'revoked' }] })
     pending.resolve(success)
     await vi.waitFor(() => {
@@ -270,8 +269,8 @@ describe('rights page', () => {
       .fn<Revoke>()
       .mockResolvedValueOnce({ error: 'Unauthorized', network: false, ok: false, status: 401 })
     const { host } = show(ready, onRevoke)
-    tableRevoke(host).click()
-    confirmButton(host).click()
+    tap(tableRevoke(host))
+    tap(confirmButton(host))
     await vi.waitFor(() => {
       expect(confirmButton(host).disabled).toBe(false)
     })
@@ -279,7 +278,7 @@ describe('rights page', () => {
 
     const pending = Promise.withResolvers<Result<RevokeResponse>>()
     onRevoke.mockReturnValueOnce(pending.promise)
-    confirmButton(host).click()
+    tap(confirmButton(host))
     cleanup()
     pending.resolve(success)
     await flush()

@@ -1,12 +1,12 @@
 // @vitest-environment happy-dom
 import type { StampActionResponse, StampSummary } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
-import { render as solidRender } from 'solid-js/web'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DASH_COPY } from './copy.ts'
 import { ReceptionPage } from './ReceptionPage.tsx'
 import type { StampIo } from './StampActions.tsx'
+import { act, cleanup as cleanupAll, render, tap, typeInto } from './test/render.tsx'
 
 const UID = `0x${'cd'.repeat(32)}` as const
 const summary = (total: number): StampSummary => ({ dailyLimit: 1, enabled: true, goal: 10, today: 1, total })
@@ -30,27 +30,25 @@ const done = (kind: 'adjust' | 'redeem', delta: number, total: number): Result<S
   ok: true,
 })
 
-let dispose: () => void
 let root: HTMLDivElement
 
 const mount = (stamps: StampIo, total: number, lang: 'en' | 'ja' = 'en'): void => {
-  dispose = solidRender(
-    () => (
-      <ReceptionPage
-        copy={DASH_COPY[lang].reception}
-        receive={async () => await Promise.resolve(admitted(total))}
-        stamps={stamps}
-      />
-    ),
+  render(
+    <ReceptionPage
+      copy={DASH_COPY[lang].reception}
+      receive={async () => await Promise.resolve(admitted(total))}
+      stamps={stamps}
+    />,
     root,
   )
 }
 
 const scan = async (): Promise<void> => {
   const input = root.querySelector('input')!
-  input.value = `fuda:v1:${UID}`
-  input.dispatchEvent(new Event('input', { bubbles: true }))
-  input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter' }))
+  typeInto(input, `fuda:v1:${UID}`)
+  act(() => {
+    input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter' }))
+  })
   await vi.waitFor(() => {
     expect(root.querySelector('[data-testid="stamp-actions"]')).not.toBeNull()
   })
@@ -78,7 +76,7 @@ describe('stamp actions at reception', () => {
     document.body.append(root)
   })
   afterEach(() => {
-    dispose()
+    cleanupAll()
     root.remove()
   })
 
@@ -87,7 +85,7 @@ describe('stamp actions at reception', () => {
     mount(io, 10)
     await scan()
     expect(root.textContent).toContain('The card is full')
-    button('Give the reward').click()
+    tap(button('Give the reward'))
     expect(io.redeem).not.toHaveBeenCalled()
     expect(root.textContent).toContain('10 stamps come off this card')
   })
@@ -97,8 +95,8 @@ describe('stamp actions at reception', () => {
     vi.mocked(io.redeem).mockResolvedValue(done('redeem', -10, 0))
     mount(io, 10)
     await scan()
-    button('Give the reward').click()
-    button('Yes, give the reward').click()
+    tap(button('Give the reward'))
+    tap(button('Yes, give the reward'))
     await vi.waitFor(() => {
       expect(root.textContent).toContain('Reward recorded')
     })
@@ -122,12 +120,12 @@ describe('stamp actions at reception', () => {
       .mockResolvedValueOnce(done('redeem', -10, 0))
     mount(io, 10)
     await scan()
-    button('Give the reward').click()
-    button('Yes, give the reward').click()
+    tap(button('Give the reward'))
+    tap(button('Yes, give the reward'))
     await vi.waitFor(() => {
       expect(root.textContent).toContain('may not have been saved')
     })
-    button('Try again').click()
+    tap(button('Try again'))
     await vi.waitFor(() => {
       expect(root.textContent).toContain('Reward recorded')
     })
@@ -141,7 +139,7 @@ describe('stamp actions at reception', () => {
     vi.mocked(io.redeem).mockReturnValue(pending.promise)
     mount(io, 10)
     await scan()
-    button('Give the reward').click()
+    tap(button('Give the reward'))
     const confirm = button('Yes, give the reward')
     confirm.click()
     confirm.click()
@@ -157,13 +155,13 @@ describe('stamp actions at reception', () => {
     vi.mocked(io.adjust).mockResolvedValue(done('adjust', -2, 8))
     mount(io, 10)
     await scan()
-    button('Adjust').click()
+    tap(button('Adjust'))
     const [amount, reason] = [...root.querySelectorAll<HTMLInputElement>('form input')]
-    amount.value = '-2'
-    amount.dispatchEvent(new Event('input', { bubbles: true }))
-    reason.value = ' counted twice '
-    reason.dispatchEvent(new Event('input', { bubbles: true }))
-    root.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    typeInto(amount, '-2')
+    typeInto(reason, ' counted twice ')
+    act(() => {
+      root.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    })
     await vi.waitFor(() => {
       expect(root.textContent).toContain('Change saved')
     })
@@ -175,18 +173,18 @@ describe('stamp actions at reception', () => {
     const io = baseIo()
     mount(io, 10)
     await scan()
-    button('Adjust').click()
+    tap(button('Adjust'))
     const submit = (): void => {
-      root.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+      act(() => {
+        root.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+      })
     }
     submit()
     expect(io.adjust).not.toHaveBeenCalled()
     expect(root.querySelector('[role="alert"]')?.textContent).toContain('whole number')
     const [amount, reason] = [...root.querySelectorAll<HTMLInputElement>('form input')]
-    amount.value = '99'
-    amount.dispatchEvent(new Event('input', { bubbles: true }))
-    reason.value = 'why'
-    reason.dispatchEvent(new Event('input', { bubbles: true }))
+    typeInto(amount, '99')
+    typeInto(reason, 'why')
     submit()
     expect(io.adjust).not.toHaveBeenCalled()
   })
@@ -196,8 +194,8 @@ describe('stamp actions at reception', () => {
     vi.mocked(io.redeem).mockResolvedValue({ error: 'revoked', network: false, ok: false, status: 409 })
     mount(io, 10)
     await scan()
-    button('Give the reward').click()
-    button('Yes, give the reward').click()
+    tap(button('Give the reward'))
+    tap(button('Yes, give the reward'))
     await vi.waitFor(() => {
       expect(root.querySelector('[role="alert"]')?.textContent).toContain('revoked')
     })

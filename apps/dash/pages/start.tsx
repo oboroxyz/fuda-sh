@@ -1,8 +1,8 @@
-import { createSignal } from 'solid-js'
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
+import { useState } from 'preact/hooks'
 
 import type { CreateFailure } from '../src/card-designer.ts'
-import { cardDraft } from '../src/card-draft.ts'
+import { useCardDraft } from '../src/card-draft.ts'
 import { DEFAULT_DESIGN_IO, submitVenue } from '../src/design-actions.ts'
 import { useCopy, useNavigate, useSessionExpired } from '../src/page-context.tsx'
 import { handleCheck } from '../src/venue-actions.ts'
@@ -11,17 +11,18 @@ import { VenuePage } from '../src/VenuePage.tsx'
 // Registration: an operator without a venue creates one, then lands on its profile.
 export default function Start(): JSX.Element {
   const copy = useCopy()
+  const cardDraft = useCardDraft()
   const navigate = useNavigate()
   const expired = useSessionExpired()
-  const [busy, setBusy] = createSignal(false)
-  const [failure, setFailure] = createSignal<CreateFailure | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [failure, setFailure] = useState<CreateFailure | null>(null)
   return (
     <VenuePage
-      busy={busy()}
-      copy={copy()}
+      busy={busy}
+      copy={copy}
       ens={null}
-      failure={failure()}
-      hasCardDraft={cardDraft() !== null}
+      failure={failure}
+      hasCardDraft={cardDraft !== null}
       issuer={null}
       onCheckHandle={handleCheck(expired)}
       onCommitLogo={async () => await Promise.resolve(false)}
