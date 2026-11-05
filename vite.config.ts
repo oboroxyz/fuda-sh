@@ -101,6 +101,9 @@ export default defineConfig({
     proseWrap: 'never',
     ignorePatterns: [
       ...(oxfmtPreset.ignorePatterns ?? []),
+      // Void owns these files and rewrites them with its own JSON layout on deploy.
+      'apps/*/void.lock.json',
+      'apps/api/targets/develop/void.lock.json',
       'packages/subgraphs/rights/generated/**',
       'packages/subgraphs/rights/src/**',
       'packages/subgraphs/rights/tests/**',
