@@ -18,20 +18,23 @@
     "@fuda/sdk": "workspace:*",
     "@fuda/styles": "workspace:*",
     "@fuda/ui": "workspace:*",
+    "@fuda/ui-preact": "workspace:*",
     "cn": "0.2.6",
     "hono": "^4.13.16",
-    "solid-js": "1.9.17",
+    "preact": "11.1.1",
+    "preact-render-to-string": "6.8.2",
     "valibot": "^1.1.0",
     "viem": "^2.56.3"
   },
   "devDependencies": {
+    "@babel/core": "^7.29.0",
+    "@preact/preset-vite": "2.10.6",
     "@tailwindcss/vite": "4.3.3",
-    "@void/solid": "1.6.2",
     "daisyui": "5.7.28",
     "tailwindcss": "4.3.3",
     "vite": "^8.2.2",
-    "vite-plugin-solid": "2.11.14",
     "vitest": "4.1.11",
-    "void": "1.6.2"
+    "void": "1.6.2",
+    "void-preact": "0.1.2"
   }
 }
