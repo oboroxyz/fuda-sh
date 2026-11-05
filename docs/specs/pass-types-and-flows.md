@@ -320,6 +320,8 @@ The gate page and the member app's Enter screen share one scanner. Unless the ga
 
 Reading stops, and the camera is released, at the first code read, so a camera light never stays on behind a verdict. It also pauses while the page is hidden and resumes when it is shown again. What was read goes through the same classification as pasted or keyboard-reader input, so a QR that is not a `fuda:v1:` payload or a uid reads as "not a fuda pass". A denied or missing camera shows "camera unavailable — paste below" with the paste box. `?camera=off` and the keyboard-wedge reader do not use the camera and are unchanged.
 
+Only one frame decode runs at a time, including across visibility changes. Failed camera playback releases the stream and shows the same unavailable-camera fallback. After teardown, pending camera acquisition, playback, and decoding cannot update the view or deliver a code. A stream acquired after teardown is stopped immediately.
+
 ### Signed entry (`POST /challenge` → `POST /verify-signed`)
 
 `POST /challenge { "uid", "venue"? }` answers `200 { "challenge", "nonce" }`; both strings are pinned in the attestation model's [wire constants](./attestation-model.md#wire-constants). There is no chain lookup: a challenge for an unknown or revoked uid is minted anyway and rejected at the next step. For an Identified pass the answer adds `webauthn`, the request for the browser's passkey prompt, naming only the attested credential. `400 bad_uid` for a malformed uid; `Cache-Control: no-store`. Every mint also sweeps the nonces that have outlived the TTL.
