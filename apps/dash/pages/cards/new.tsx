@@ -1,6 +1,6 @@
-import { useRouter } from '@void/solid'
-import { createSignal } from 'solid-js'
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
+import { useState } from 'preact/hooks'
+import { useRouter } from 'void-preact'
 
 import type { CreateFailure } from '../../src/card-designer.ts'
 import { cardDraft, setCardDraft } from '../../src/card-draft.ts'
@@ -15,16 +15,16 @@ export default function NewCard(): JSX.Element {
   const navigate = useNavigate()
   const expired = useSessionExpired()
   const { issuer } = useOperator()
-  const [busy, setBusy] = createSignal(false)
-  const [failure, setFailure] = createSignal<CreateFailure | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [failure, setFailure] = useState<CreateFailure | null>(null)
   return (
     <CardDesigner
-      busy={busy()}
-      copy={copy().designer}
-      failure={failure()}
+      busy={busy}
+      copy={copy.designer}
+      failure={failure}
       initialDraft={cardDraft()}
-      issuer={issuer()}
-      logoCopy={copy().logo}
+      issuer={issuer}
+      logoCopy={copy.logo}
       onCheckHandle={handleCheck(expired)}
       onCheckSlug={slugCheck(expired)}
       onDraftChange={(form) => {

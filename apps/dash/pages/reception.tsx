@@ -1,4 +1,4 @@
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
 
 import { adjustStamps, fetchStampLedger, receiveAtReception, redeemStamps } from '../src/api.ts'
 import { useCopy, useGuarded } from '../src/page-context.tsx'
@@ -9,7 +9,7 @@ export default function Reception(): JSX.Element {
   const guarded = useGuarded()
   return (
     <ReceptionPage
-      copy={copy().reception}
+      copy={copy.reception}
       receive={guarded(receiveAtReception)}
       stamps={{
         adjust: guarded(adjustStamps),

@@ -1,11 +1,11 @@
+import { preact } from '@preact/preset-vite'
 import tailwindcss from '@tailwindcss/vite'
-import { voidSolid } from '@void/solid/plugin'
-import solid from 'vite-plugin-solid'
 import { defineConfig } from 'vite-plus'
 import { voidPlugin } from 'void'
+import { voidPreact } from 'void-preact/plugin'
 
-// Vitest renders components in happy-dom, so it compiles Solid for the
-// browser; Void's adapter would compile them for its server renderer.
+// Vitest renders components in happy-dom, so it compiles them for the browser;
+// Void's adapter would compile them for its server renderer.
 const testing = process.env.VITEST !== undefined
 
 // Dependencies the dev server would otherwise discover on a page's first
@@ -28,8 +28,12 @@ export default defineConfig({
   environments: { void_worker: { optimizeDeps: { include: PREBUNDLED } } },
   optimizeDeps: { include: PREBUNDLED },
   plugins: testing
-    ? [tailwindcss(), solid({ hot: false })]
-    : [tailwindcss(), voidPlugin(), voidSolid({ solid: { hot: false } })],
+    ? [tailwindcss(), preact({ prefreshEnabled: false, reactAliasesEnabled: false })]
+    : [
+        tailwindcss(),
+        voidPlugin(),
+        voidPreact({ preact: { prefreshEnabled: false, reactAliasesEnabled: false } }),
+      ],
   server: { host: '127.0.0.1', port: 5175, strictPort: true },
   test: { environment: 'node', include: ['src/**/*.test.{ts,tsx}'], unstubGlobals: true },
 })

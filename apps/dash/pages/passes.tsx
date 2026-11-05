@@ -1,4 +1,4 @@
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
 
 import { IssuerPassesPage } from '../src/IssuerPassesPage.tsx'
 import { listIssuerPasses } from '../src/management-api.ts'
@@ -8,5 +8,5 @@ export default function Passes(): JSX.Element {
   const copy = useCopy()
   const guarded = useGuarded()
   const { cards } = useOperator()
-  return <IssuerPassesPage cards={cards()} copy={copy().management} load={guarded(listIssuerPasses)} />
+  return <IssuerPassesPage cards={cards} copy={copy.management} load={guarded(listIssuerPasses)} />
 }
