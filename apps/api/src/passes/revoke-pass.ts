@@ -7,7 +7,7 @@ import { members, offchainAttestations } from '../db/schema.ts'
 import { findVersion, parseSchemaSets } from '../eas/schemas.ts'
 import type { AcceptedVersion } from '../eas/schemas.ts'
 import { darkenMemberName } from '../ens/mirror.ts'
-import type { AppEnv } from '../env.ts'
+import type { ActingScope, AppEnv } from '../env.ts'
 import { notifyPassChanged } from '../pass/notify.ts'
 import { sendOffchainRevocation } from './offchain-chores.ts'
 
@@ -60,20 +60,20 @@ const revokeOffchainPass = async (c: Context<AppEnv>, uid: Hex): Promise<RevokeO
 // skips the transaction and finishes the row, so a retry after a lost answer or
 // a failed row write ends in the same state.
 //
-// `issuerId` is the venue asking, or null for fuda's admin token. A venue may
+// `scope` is the venue asking, or fuda's admin token. A venue may
 // revoke only what it issued, and an unknown uid reads the same as another
 // venue's: it learns nothing about a right that is not theirs.
 export const revokePass = async (
   c: Context<AppEnv>,
   uid: Hex,
-  issuerId: string | null,
+  scope: ActingScope,
 ): Promise<RevokeOutcome> => {
-  if (issuerId !== null) {
+  if (scope.kind === 'venue') {
     const owned = await c
       .get('db')
       .select({ uid: members.attestationUid })
       .from(members)
-      .where(and(eq(members.attestationUid, uid), eq(members.issuerId, issuerId)))
+      .where(and(eq(members.attestationUid, uid), eq(members.issuerId, scope.issuerId)))
       .get()
     if (owned === undefined) {
       return { error: 'not_found', ok: false }

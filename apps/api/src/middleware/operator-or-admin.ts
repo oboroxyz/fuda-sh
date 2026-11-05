@@ -1,6 +1,7 @@
 import type { MiddlewareHandler } from 'hono'
 
 import type { AppEnv } from '../env.ts'
+import { errorResponse } from '../json.ts'
 import { adminAuth } from './admin-auth.ts'
 import { operatorBearerSession } from './bearer-session.ts'
 
@@ -13,19 +14,21 @@ import { operatorBearerSession } from './bearer-session.ts'
 // Both credentials arrive in the same header, so this resolves a session first
 // and falls through to the admin check when there is none. A route that sees an
 // operator scopes itself to that venue; a route that sees the admin token keeps
-// its whole-deployment view.
+// its whole-deployment view. A session that owns no venue has nothing to act on.
 export const operatorOrAdmin = (): MiddlewareHandler<AppEnv> => async (c, next) => {
   const resolved = await operatorBearerSession(c)
   if (resolved.kind === 'wrong-audience') {
     return c.json({ error: 'unauthorized' }, 401)
   }
   if (resolved.kind === 'invalid') {
-    // `actingIssuer` is always set, so a route never has to ask whether the
-    // middleware ran: null is "the admin token", which no venue owns.
-    c.set('actingIssuer', null)
+    c.set('actingScope', { kind: 'admin' })
     return await adminAuth()(c, next)
   }
   c.set('operator', resolved.session)
-  c.set('actingIssuer', resolved.session.issuerId)
+  const { issuerId } = resolved.session
+  if (issuerId === null) {
+    return errorResponse(c, 'not_found', 404)
+  }
+  c.set('actingScope', { issuerId, kind: 'venue' })
   await next()
 }

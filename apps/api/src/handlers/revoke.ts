@@ -20,7 +20,7 @@ export const postV1Revoke = defineHandler(operatorOrAdmin(), async (c) => {
   if (uid === null) {
     return errorResponse(c, 'bad_uid', 400)
   }
-  const outcome = await revokePass(c, uid, c.get('actingIssuer'))
+  const outcome = await revokePass(c, uid, c.get('actingScope'))
   return outcome.ok
     ? jsonResponse(c, { revoked: true, uid })
     : errorResponse(c, outcome.error, STATUS[outcome.error])

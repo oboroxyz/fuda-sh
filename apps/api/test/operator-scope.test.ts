@@ -103,6 +103,23 @@ describe('operator-scoped members and revoke', () => {
 
     expect(listed.status).toBe(401)
   })
+
+  it('gives a session that owns no venue neither the list nor the revoke', async () => {
+    const app = appWith({ chain: fakeChain() })
+    const theirs = await venue(app, OTHER_VENUE)
+    const { issuer, token } = await signIn(app, bindings(), privateKeyToAccount(generatePrivateKey()))
+    expect(issuer).toBeNull()
+
+    const listed = await getJson(app, bindings(), '/v1/members', token)
+    const revoked = await postJson(app, bindings(), '/v1/revoke', { uid: theirs.uid }, token)
+
+    expect(listed.status).toBe(404)
+    expect(revoked.status).toBe(404)
+    const row = await env.DB.prepare('SELECT status FROM members WHERE attestation_uid = ?')
+      .bind(theirs.uid)
+      .first<{ status: string }>()
+    expect(row?.status).not.toBe('revoked')
+  })
 })
 
 describe('a venue with a second card', () => {
