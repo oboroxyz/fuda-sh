@@ -19,9 +19,11 @@ updates:
       interval: weekly
     cooldown:
       default-days: 3
+    # Major updates stay in separate pull requests, so a failure names its package.
     groups:
       npm:
         patterns: ['*']
+        update-types: [minor, patch]
     # These packages must be upgraded together with the workspace overrides.
     ignore:
       - dependency-name: vite-plus
@@ -30,3 +32,6 @@ updates:
       - dependency-name: oxfmt
       - dependency-name: vitest
       - dependency-name: ultracite
+      # Types follow the Node major that package.json provisions.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
