@@ -1,4 +1,6 @@
 // @vitest-environment happy-dom
+import { setTimeout } from 'node:timers/promises'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DASH_COPY } from './copy.ts'
@@ -347,5 +349,98 @@ describe('venue logo preview', () => {
     expect(root.querySelector('img[src="blob:logo-preview"]')).not.toBeNull()
     expect(button('Save').disabled).toBe(false)
     expect(input.onUpdate).not.toHaveBeenCalled()
+  })
+
+  it('releases the preview URL when the page goes away', async () => {
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL')
+    render(<VenuePage {...props()} />, root)
+    pickImage()
+    await vi.waitFor(() => {
+      expect(root.querySelector('img[src="blob:logo-preview"]')).not.toBeNull()
+    })
+    expect(revokeObjectURL).not.toHaveBeenCalled()
+    cleanupAll()
+    expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:logo-preview')
+  })
+
+  it('creates no preview URL for a decode that finishes after the page went away', async () => {
+    const decode = Promise.withResolvers<Awaited<ReturnType<typeof logoTools.generateLogoSet>>>()
+    vi.spyOn(logoTools, 'generateLogoSet').mockReturnValue(decode.promise)
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL')
+    render(<VenuePage {...props()} />, root)
+    pickImage()
+    cleanupAll()
+    decode.resolve({ ok: true, variants })
+    await setTimeout(0)
+    expect(createObjectURL).not.toHaveBeenCalled()
+  })
+
+  it('drops the decode of an earlier choice when a later one replaces it', async () => {
+    const first = Promise.withResolvers<Awaited<ReturnType<typeof logoTools.generateLogoSet>>>()
+    const generate = vi.spyOn(logoTools, 'generateLogoSet').mockReturnValueOnce(first.promise)
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL')
+    render(<VenuePage {...props()} />, root)
+    pickImage()
+    pickImage()
+    await vi.waitFor(() => {
+      expect(root.querySelector('img[src="blob:logo-preview"]')).not.toBeNull()
+    })
+    first.resolve({ ok: true, variants })
+    await setTimeout(0)
+    expect(generate).toHaveBeenCalledTimes(2)
+    expect(createObjectURL).toHaveBeenCalledOnce()
+  })
+})
+
+describe('venue handle check', () => {
+  const registering = (): VenuePageProps => ({ ...props(), issuer: null })
+
+  beforeEach(() => {
+    root = document.createElement('div')
+    document.body.append(root)
+  })
+
+  afterEach(() => {
+    cleanupAll()
+    root.remove()
+    vi.restoreAllMocks()
+  })
+
+  it('asks the api for a well-formed handle once typing pauses', async () => {
+    const input = registering()
+    render(<VenuePage {...input} />, root)
+    typeField('handle', 'new-shop')
+    expect(input.onCheckHandle).not.toHaveBeenCalled()
+    await vi.waitFor(() => {
+      expect(input.onCheckHandle).toHaveBeenCalledExactlyOnceWith('new-shop')
+    })
+  })
+
+  it('never asks once the page is gone before the pause ends', async () => {
+    const input = registering()
+    render(<VenuePage {...input} />, root)
+    typeField('handle', 'new-shop')
+    cleanupAll()
+    await setTimeout(450)
+    expect(input.onCheckHandle).not.toHaveBeenCalled()
+  })
+
+  it('shows the answer for the handle on screen, not for one typed before it', async () => {
+    const earlier = Promise.withResolvers<'available' | 'taken' | 'unknown'>()
+    const input = registering()
+    vi.mocked(input.onCheckHandle).mockReturnValueOnce(earlier.promise).mockResolvedValue('available')
+    render(<VenuePage {...input} />, root)
+    typeField('handle', 'first-shop')
+    await vi.waitFor(() => {
+      expect(input.onCheckHandle).toHaveBeenCalledWith('first-shop')
+    })
+    typeField('handle', 'second-shop')
+    await vi.waitFor(() => {
+      expect(root.textContent).toContain(DASH_COPY.en.designer.handleStatus.available)
+    })
+    earlier.resolve('taken')
+    await setTimeout(0)
+    expect(root.textContent).toContain(DASH_COPY.en.designer.handleStatus.available)
+    expect(root.textContent).not.toContain(DASH_COPY.en.designer.handleStatus.taken)
   })
 })
