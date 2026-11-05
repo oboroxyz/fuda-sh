@@ -1,7 +1,6 @@
 import { DEFAULT_LOCALE, pick } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
-import { Show } from 'solid-js'
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
 
 import type { SignedDisplay } from '../signed-gate.ts'
 import { ENTRY_COPY, entryMessage } from './entry-copy.ts'
@@ -29,9 +28,10 @@ export const Verdict = (props: {
       }}
     >
       {props.state.banner === 'network' ? <div class="badge badge-neutral">{c().networkBanner}</div> : null}
-      <Show when={props.state.venue}>
-        {(venue) => <div class="px-6 text-center text-3xl font-semibold">@{venue()}</div>}
-      </Show>
+      {((venue) =>
+        venue !== undefined && venue !== '' ? (
+          <div class="px-6 text-center text-3xl font-semibold">@{venue}</div>
+        ) : null)(props.state.venue)}
       <div class="px-6 text-center text-5xl font-black">{c().verdict[props.state.title]}</div>
       <div class="px-6 text-center text-xl wrap-anywhere">{entryMessage(props.state.detail, locale())}</div>
       <div class="text-sm opacity-70">{c().tryAgain}</div>

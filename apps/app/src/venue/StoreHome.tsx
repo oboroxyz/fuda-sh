@@ -2,8 +2,8 @@ import { DEFAULT_LOCALE, pick } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
 import { brandTextColor, qrSvg } from '@fuda/sdk'
 import type { PublicVenue } from '@fuda/sdk'
-import { createSignal, For } from 'solid-js'
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
+import { useState } from 'preact/hooks'
 
 import { VENUE_COPY } from './copy.ts'
 import type { VenueCopy } from './copy.ts'
@@ -87,27 +87,26 @@ const CardTabs = (props: {
   const tabbed = (): boolean => props.selected !== null
   return (
     <div role={tabbed() ? 'tablist' : 'group'} aria-label={props.label} class="tabs tabs-box store-home-tabs">
-      <For each={props.cards}>
-        {(item, index) => (
-          <button
-            type="button"
-            id={`store-tab-${item.slug}`}
-            role={tabbed() ? 'tab' : 'button'}
-            aria-controls={tabbed() ? 'store-home-card' : undefined}
-            aria-selected={tabbed() ? selectedState(props.selected === item.slug) : undefined}
-            tabIndex={!tabbed() || props.selected === item.slug ? 0 : -1}
-            class="tab"
-            onKeyDown={(event) => {
-              onTabKey(event, index())
-            }}
-            onClick={() => {
-              props.onSelect(item.slug)
-            }}
-          >
-            {item.title}
-          </button>
-        )}
-      </For>
+      {(props.cards ?? []).map((item, index) => (
+        <button
+          key={item.slug}
+          type="button"
+          id={`store-tab-${item.slug}`}
+          role={tabbed() ? 'tab' : 'button'}
+          aria-controls={tabbed() ? 'store-home-card' : undefined}
+          aria-selected={tabbed() ? selectedState(props.selected === item.slug) : undefined}
+          tabIndex={!tabbed() || props.selected === item.slug ? 0 : -1}
+          class="tab"
+          onKeyDown={(event) => {
+            onTabKey(event, index)
+          }}
+          onClick={() => {
+            props.onSelect(item.slug)
+          }}
+        >
+          {item.title}
+        </button>
+      ))}
     </div>
   )
 }
@@ -126,7 +125,7 @@ const claimPanel = (
         role="img"
         aria-label={`${copy.title}: ${card.title}`}
         // Generated locally from the card URL, never from remote SVG markup.
-        innerHTML={qrSvg(href, { modulePx: 12 })}
+        dangerouslySetInnerHTML={{ __html: qrSvg(href, { modulePx: 12 }) }}
       />
       <div class="flex flex-col gap-2">
         <p class="text-base font-semibold sm:text-xl">{copy.scan}</p>
@@ -156,9 +155,9 @@ export const StoreHome = (props: {
   locale?: Locale
   requested?: string | null
 }): JSX.Element => {
-  const [selected, setSelected] = createSignal(initialSlug(props.venue, props.requested ?? null))
+  const [selected, setSelected] = useState(() => initialSlug(props.venue, props.requested ?? null))
   const card = (): PublicVenue['cards'][number] | undefined =>
-    props.venue.cards.find(({ slug }) => slug === selected())
+    props.venue.cards.find(({ slug }) => slug === selected)
   const copy = (): (typeof HOME_COPY)['en'] => pick(HOME_COPY, props.locale ?? DEFAULT_LOCALE)
   const venueCopy = (): VenueCopy => pick(VENUE_COPY, props.locale ?? DEFAULT_LOCALE)
   const href = (): string | null => {

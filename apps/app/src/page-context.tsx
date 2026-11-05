@@ -1,11 +1,11 @@
 import { isLocale, pick } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
-import { applyThemeMode, LanguageSwitcher, ThemeToggle, watchThemeMode } from '@fuda/ui'
-import type { ThemeMode } from '@fuda/ui'
-import { useRouter, useShared } from '@void/solid'
-import { createEffect, createSignal, onCleanup } from 'solid-js'
-import type { Accessor, JSX } from 'solid-js'
-import { isServer } from 'solid-js/web'
+import { LanguageSwitcher, ThemeToggle } from '@fuda/ui-preact'
+import { useStable } from '@fuda/ui-preact/hooks'
+import { useAppearance } from '@fuda/ui-preact/preferences'
+import type { ThemeMode } from '@fuda/ui/theme'
+import type { JSX } from 'preact'
+import { useRouter, useShared } from 'void-preact'
 
 import { LOCALE_COOKIE, THEME_COOKIE } from './cookie-names.ts'
 import { MEMBER_COPY } from './member/copy.ts'
@@ -17,78 +17,48 @@ export const useApp = (): AppShared => useShared()
 
 export const useNavigate = (): ((path: string) => void) => {
   const router = useRouter()
-  return (path) => {
+  return useStable((path: string) => {
     void router.visit(path)
-  }
-}
-
-// A year: preferences outlive sessions.
-const PREFERENCE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60
-
-const writePreference = (name: string, value: string): void => {
-  // oxlint-disable-next-line unicorn/no-document-cookie -- a preference cookie the server reads for the first render; there is no Cookie Store API in every supported browser
-  document.cookie = `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${PREFERENCE_MAX_AGE_SECONDS}; SameSite=Lax`
+  })
 }
 
 export interface Preferences {
-  locale: Accessor<Locale>
+  locale: Locale
   setLocale: (locale: Locale) => void
   setTheme: (theme: ThemeMode) => void
-  theme: Accessor<ThemeMode>
+  theme: ThemeMode
 }
 
-// Language and theme, saved in cookies the server reads for its first render.
-// A language change re-renders from the server, which owns the copy, keeping
-// the page's state; a theme change applies at once.
 export const usePreferences = (): Preferences => {
   const shared = useApp()
   const router = useRouter()
-  const [theme, setThemeSignal] = createSignal<ThemeMode>(shared.theme)
-  createEffect(() => {
-    if (!isServer) {
-      document.documentElement.lang = shared.locale
-    }
-  })
-  createEffect(() => {
-    if (!isServer) {
-      onCleanup(watchThemeMode(theme()))
-    }
-  })
-  return {
-    locale: () => shared.locale,
-    setLocale: (locale) => {
-      writePreference(LOCALE_COOKIE, locale)
+  return useAppearance({
+    locale: shared.locale,
+    localeCookie: LOCALE_COOKIE,
+    refresh: () => {
       void router.refresh({ preserveScroll: true, preserveState: true })
     },
-    setTheme: (mode) => {
-      writePreference(THEME_COOKIE, mode)
-      applyThemeMode(mode)
-      setThemeSignal(mode)
-    },
-    theme,
-  }
+    theme: shared.theme,
+    themeCookie: THEME_COOKIE,
+  })
 }
 
-export const useSignOut = (): (() => void) => {
-  const router = useRouter()
-  return () => {
-    const run = async (): Promise<void> => {
-      await endSession()
-      await router.visit('/')
-    }
-    void run()
-  }
+export const useSignOut = (): (() => void) => () => {
+  void (async () => {
+    await endSession()
+    window.location.assign('/')
+  })()
 }
 
 // The language and theme controls on the member top.
 export const Appearance = (): JSX.Element => {
   const preferences = usePreferences()
-  const copy = () => pick(MEMBER_COPY, preferences.locale())
+  const copy = () => pick(MEMBER_COPY, preferences.locale)
   return (
     <div class="app-appearance" role="group" aria-label={copy().settings.appearance}>
       <LanguageSwitcher
         class="h-9 w-9"
-        current={preferences.locale()}
+        current={preferences.locale}
         label={copy().chrome.language}
         options={[
           { label: 'English', value: 'en' },
@@ -103,7 +73,7 @@ export const Appearance = (): JSX.Element => {
       <ThemeToggle
         class="h-9 w-9"
         labels={copy().chrome.theme}
-        mode={preferences.theme()}
+        mode={preferences.theme}
         onChange={(mode) => {
           preferences.setTheme(mode)
         }}

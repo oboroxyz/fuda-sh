@@ -1,4 +1,4 @@
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
 
 import { Landing } from '../src/member/Landing.tsx'
 import { Appearance, useApp, useNavigate } from '../src/page-context.tsx'

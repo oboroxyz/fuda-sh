@@ -42,6 +42,14 @@ const Passes = () => {
 
 Use query keys for every input that changes the identity of returned data. Do not put session tokens, signing keys, PRF output, wallet credentials, or authentication UI state in query keys or cached result data. Clear or replace a scope when its authorization boundary changes. Write workflows remain explicit; after a successful write, update or invalidate the affected read query through the client.
 
+## `@fuda/libs/query-preact`
+
+The member app uses the same Query Core client and option builders through Preact hooks. `useQueryScope()` creates one client lazily, mounts it for focus and reconnect handling, and clears and unmounts it with its component. `useQuery(client, options)` accepts an options object and returns the current `QueryObserverResult`, including `refetch`.
+
+One lazy observer belongs to each hook. Its external-store subscription survives rerenders, and optimistic results switch keys in the render that receives the new options. A key change never displays the previous key's result. Unsubscribing cancels a request when no other observer needs it and the query function consumes its AbortSignal. Independent scopes never share a cache. SSR does not subscribe, mount a client or start a query request.
+
+Use `createQueryClient` when the caller needs an explicit cache lifetime. Keep signing keys, member secrets, PRF output and vault contents out of query state. The Solid binding remains for the final migration cleanup.
+
 ## `@fuda/libs/wallet`
 
 `baseAccountProvider({ appChainIds, appName?, paymasterUrls? })` lazily loads Base Account. The caller selects chains and sponsorship; member entry and venue ENS claims use different configuration. `requestAccount` validates and checksums the account, and `personalSign` validates the returned signature. `injectedProvider` reads an optional browser wallet. All providers implement `Eip1193Provider`.

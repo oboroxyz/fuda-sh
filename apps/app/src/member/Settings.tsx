@@ -1,9 +1,9 @@
 import { isLocale, pick } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
-import { ConfirmAction } from '@fuda/ui'
-import type { ThemeMode } from '@fuda/ui'
-import { createSignal } from 'solid-js'
-import type { JSX } from 'solid-js'
+import { ConfirmAction } from '@fuda/ui-preact'
+import type { ThemeMode } from '@fuda/ui/theme'
+import type { JSX } from 'preact'
+import { useState } from 'preact/hooks'
 
 import type { MemberPassListIo } from '../member-pass-list.ts'
 import { MEMBER_COPY } from './copy.ts'
@@ -44,7 +44,7 @@ export const Settings = (props: {
   passIo?: MemberPassListIo
 }): JSX.Element => {
   const copy = (): (typeof MEMBER_COPY)[Locale] => pick(MEMBER_COPY, props.locale)
-  const [lookupOpen, setLookupOpen] = createSignal(false)
+  const [lookupOpen, setLookupOpen] = useState(false)
   return (
     <main class="member-page member-page-narrow flex flex-col gap-8">
       <h1 class="member-heading">{copy().nav.settings}</h1>
@@ -103,7 +103,7 @@ export const Settings = (props: {
         <button
           class="member-settings-row"
           type="button"
-          aria-expanded={lookupOpen()}
+          aria-expanded={lookupOpen}
           onClick={() => {
             setLookupOpen((open) => !open)
           }}
@@ -111,10 +111,10 @@ export const Settings = (props: {
           <SettingsIcon kind="lookup" />
           <span class="grow">{copy().passes.lookupAnother}</span>
           <span aria-hidden="true" class="text-[var(--fuda-muted)]">
-            {lookupOpen() ? '−' : '›'}
+            {lookupOpen ? '−' : '›'}
           </span>
         </button>
-        {lookupOpen() ? (
+        {lookupOpen ? (
           <div class="border-b border-[var(--fuda-border)] px-4 py-5">
             <p class="mb-4 text-sm leading-relaxed text-[var(--fuda-muted)]">
               {copy().settings.lookupDescription}

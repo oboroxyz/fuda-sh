@@ -37,8 +37,8 @@ export const verifySigned = async (
     method: 'POST',
   })
 
-export const verifyUid = async (uid: Hex): Promise<Result<VerifyResponse>> =>
-  await apiFetch<VerifyResponse>(API_BASE_URL, `/verify/${uid}`, { method: 'GET' })
+export const verifyUid = async (uid: Hex, signal?: AbortSignal): Promise<Result<VerifyResponse>> =>
+  await apiFetch<VerifyResponse>(API_BASE_URL, `/verify/${uid}`, { method: 'GET', signal })
 
 export const fetchStampSummary = async (uid: Hex): Promise<StampSummary | null> => {
   const result = await apiFetch<StampSummary>(API_BASE_URL, `/stamps/${uid}`, { method: 'GET' })

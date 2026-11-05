@@ -20,9 +20,11 @@ import type {
   SelfServeIssueResponse,
 } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
-import { CardsThree, FingerprintSimple, WalletButton } from '@fuda/ui'
-import { createEffect, createSignal, For, on, onCleanup } from 'solid-js'
-import type { JSX } from 'solid-js'
+import { CardsThree, FingerprintSimple } from '@fuda/ui-preact'
+import { WalletButton } from '@fuda/ui-preact/wallet-button'
+import { Fragment } from 'preact'
+import type { JSX } from 'preact'
+import { useLayoutEffect, useRef, useState } from 'preact/hooks'
 
 import { cardFailureOf, claimSourceFrom, fetchVenue, googleSaveUrl, issueCard } from '../api.ts'
 import type { CardFailure } from '../api.ts'
@@ -99,7 +101,7 @@ export interface CardScreenIo {
 
 export interface CardScreenViewProps {
   // Receives the element the bot check renders in, which stays mounted across states.
-  botCheckRef?: (element: HTMLDivElement) => void
+  botCheckRef?: (element: HTMLDivElement | null) => void
   locale?: Locale
   onAddPasskey?: () => void
   onIssue: () => void
@@ -247,7 +249,9 @@ const chooser = (venue: PublicVenue, heldSlugs: readonly string[], copy: VenueCo
       <p class="venue-empty">{copy.noCards(venue.name)}</p>
     ) : (
       <ul class="flex flex-col gap-3">
-        <For each={venue.cards}>{(card) => chooserRow(venue, card, heldSlugs.includes(card.slug), copy)}</For>
+        {(venue.cards ?? []).map((card) => (
+          <Fragment key={card.slug}>{chooserRow(venue, card, heldSlugs.includes(card.slug), copy)}</Fragment>
+        ))}
       </ul>
     )}
   </>
@@ -513,7 +517,7 @@ const humanBadgeControl = (
           class="w-36 max-w-full bg-white p-2"
           // qrSvg builds the markup locally from the URI; the URI only decides
           // which modules are dark, and never reaches the document as markup.
-          innerHTML={qrSvg(badge.connectorUri, { modulePx: 144 })}
+          dangerouslySetInnerHTML={{ __html: qrSvg(badge.connectorUri, { modulePx: 144 }) }}
         />
         <p class="text-center text-xs leading-5 text-[var(--fuda-muted)]">{copy.keepOpen}</p>
       </div>
@@ -550,7 +554,7 @@ const qrBlock = (card: PublicCard, issued: IssuedCard, copy: VenueCopy): JSX.Ele
       class="w-44 max-w-full bg-white p-3"
       // The markup is built locally by qrSvg from the right's uid — no remote or
       // venue-entered content reaches it.
-      innerHTML={qrSvg(issued.qr, { modulePx: 120 })}
+      dangerouslySetInnerHTML={{ __html: qrSvg(issued.qr, { modulePx: 120 }) }}
     />
     <p class="text-center text-xs leading-5 text-[var(--fuda-muted)]">{copy.showQr}</p>
   </div>
@@ -847,13 +851,13 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
   const io = props.io ?? defaultIo
   const humanBadgeIo = props.humanBadgeIo ?? defaultHumanBadgeIo
   const sensitive = props.sensitive ?? defaultSensitive
-  const [state, setState] = createSignal<CardScreenState>({ kind: 'loading' })
-  const [generation, setGeneration] = createSignal(0)
-  const [sessionEnded, setSessionEnded] = createSignal(false)
-  let issuing = false
-  let lifecycle = 0
-  let botCheck: HTMLDivElement | null = null
-  let preloaded = props.initial
+  const [state, setState] = useState<CardScreenState>({ kind: 'loading' })
+  const [generation, setGeneration] = useState(0)
+  const [sessionEnded, setSessionEnded] = useState(false)
+  const issuing = useRef(false)
+  const lifecycle = useRef(0)
+  const botCheck = useRef<HTMLDivElement | null>(null)
+  const preloaded = useRef(props.initial)
 
   // Only probe the device's platform. The browser pass remains available until
   // its wallet is confirmed, and remains the fallback if it is not configured.
@@ -888,61 +892,60 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
     }
   }
 
-  createEffect(
-    on([generation, () => props.handle, () => props.slug], ([, handle, slug]) => {
-      lifecycle += 1
-      issuing = false
-      let current = true
-      const { storage } = props
-      setState({ kind: 'loading' })
-      void (async () => {
-        const result = preloaded ?? (await io.fetchVenue(handle))
-        preloaded = undefined
-        if (!current) {
-          return
-        }
-        if (!result.ok) {
-          const failure = cardFailureOf(result)
-          setState(
-            failure === 'not_found'
-              ? { kind: 'not_found', venue: null }
-              : { card: null, failure, kind: 'error' },
-          )
-          return
-        }
-        const venue = result.body
-        // A link that named a card opens that card; a bare venue address opens
-        // its only card, or asks the member to pick when there are several.
-        const picked = slug === null ? soleCard(venue) : cardBySlug(venue, slug)
-        if (picked === null) {
-          setState(
-            slug === null
-              ? { heldSlugs: heldSlugsOf(venue, storage), kind: 'choose', venue }
-              : { kind: 'not_found', venue },
-          )
-          return
-        }
-        const brought = await passFromLink(io, handle, picked.card.slug, storage)
-        if (!current) {
-          return
-        }
-        if (brought !== null) {
-          await showReady(picked, brought, () => current)
-          return
-        }
-        const remembered = readCard(handle, picked.card.slug, storage)
-        if (remembered === null) {
-          setState({ card: picked, kind: 'landing' })
-          return
-        }
-        await showReady(picked, issuedFrom(remembered), () => current)
-      })()
-      onCleanup(() => {
-        current = false
-        lifecycle += 1
-      })
-    }),
-  )
+  useLayoutEffect(() => {
+    const { handle, slug } = props
+    lifecycle.current += 1
+    issuing.current = false
+    let current = true
+    const { storage } = props
+    setState({ kind: 'loading' })
+    void (async () => {
+      const result = preloaded.current ?? (await io.fetchVenue(handle))
+      preloaded.current = undefined
+      if (!current) {
+        return
+      }
+      if (!result.ok) {
+        const failure = cardFailureOf(result)
+        setState(
+          failure === 'not_found'
+            ? { kind: 'not_found', venue: null }
+            : { card: null, failure, kind: 'error' },
+        )
+        return
+      }
+      const venue = result.body
+      // A link that named a card opens that card; a bare venue address opens
+      // its only card, or asks the member to pick when there are several.
+      const picked = slug === null ? soleCard(venue) : cardBySlug(venue, slug)
+      if (picked === null) {
+        setState(
+          slug === null
+            ? { heldSlugs: heldSlugsOf(venue, storage), kind: 'choose', venue }
+            : { kind: 'not_found', venue },
+        )
+        return
+      }
+      const brought = await passFromLink(io, handle, picked.card.slug, storage)
+      if (!current) {
+        return
+      }
+      if (brought !== null) {
+        await showReady(picked, brought, () => current)
+        return
+      }
+      const remembered = readCard(handle, picked.card.slug, storage)
+      if (remembered === null) {
+        setState({ card: picked, kind: 'landing' })
+        return
+      }
+      await showReady(picked, issuedFrom(remembered), () => current)
+    })()
+    return () => {
+      current = false
+      lifecycle.current += 1
+    }
+  }, [generation, props.handle, props.slug])
 
   const claimFor = async (
     card: PublicCard,
@@ -962,26 +965,26 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
   }
 
   const issue = async (card: PublicCard, only?: string): Promise<void> => {
-    if (issuing) {
+    if (issuing.current) {
       return
     }
-    issuing = true
-    const ticket = lifecycle
+    issuing.current = true
+    const ticket = lifecycle.current
     const { handle, storage } = props
     setState({ card, kind: 'issuing' })
     const source = claimSourceFrom(window.location.search)
-    const check = await io.claimToken(botCheck)
+    const check = await io.claimToken(botCheck.current)
     if (!check.ok) {
-      if (ticket === lifecycle) {
-        issuing = false
+      if (ticket === lifecycle.current) {
+        issuing.current = false
         setState({ card, failure: 'bot_check_failed', kind: 'error' })
       }
       return
     }
     const result = await claimFor(card, source, check.token, only)
-    const current = ticket === lifecycle
+    const current = ticket === lifecycle.current
     if (current) {
-      issuing = false
+      issuing.current = false
     }
     if (!result.ok) {
       if (!current) {
@@ -1017,13 +1020,13 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
       // The api answers its own absolute URLs; the member's links go through
       // this Worker like every other call (src/pass-links.ts).
       { holder, issuedAt, memberNumber, passUrls: memberPassUrls(uid), qr: result.body.qr, uid },
-      () => ticket === lifecycle,
+      () => ticket === lifecycle.current,
       'saved' in result && !result.saved,
     )
   }
 
   const onIssue = (): void => {
-    const current = state()
+    const current = state
     if (current.kind === 'landing') {
       void issue(current.card)
       return
@@ -1040,7 +1043,7 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
 
   // The new passkey is the one to ask next, or the chooser would offer the old one again.
   const onAddPasskey = (): void => {
-    const current = state()
+    const current = state
     if (current.kind !== 'no_prf') {
       return
     }
@@ -1054,7 +1057,7 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
   }
 
   const onVerifyHuman = (): void => {
-    const current = state()
+    const current = state
     if (current.kind !== 'ready') {
       return
     }
@@ -1069,7 +1072,7 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
   return (
     <CardScreenView
       botCheckRef={(element) => {
-        botCheck = element
+        botCheck.current = element
       }}
       locale={props.locale}
       onAddPasskey={onAddPasskey}
@@ -1078,8 +1081,8 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
         setGeneration((value) => value + 1)
       }}
       onVerifyHuman={onVerifyHuman}
-      signedIn={props.signedIn === true && !sessionEnded()}
-      state={state()}
+      signedIn={props.signedIn === true && !sessionEnded}
+      state={state}
     />
   )
 }

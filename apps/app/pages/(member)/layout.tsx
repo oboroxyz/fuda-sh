@@ -1,7 +1,6 @@
 import { pick } from '@fuda/i18n'
-import { useRouter } from '@void/solid'
-import { Show } from 'solid-js'
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
+import { useRouter } from 'void-preact'
 
 import { MEMBER_COPY } from '../../src/member/copy.ts'
 import { MemberLayout } from '../../src/member/MemberLayout.tsx'
@@ -20,35 +19,30 @@ export default function MemberPages(props: { children?: JSX.Element }): JSX.Elem
   const navigate = useNavigate()
   const signOut = useSignOut()
   const copy = () => pick(MEMBER_COPY, shared.locale)
-  return (
-    <Show
-      when={!shared.restoreFailed}
-      fallback={
-        <main class="member-auth-page">
-          <section class="member-panel flex w-full flex-col gap-4" role="status">
-            <h1 class="member-heading">{copy().auth.failed}</h1>
-            <p class="text-sm text-[var(--fuda-muted)]">{copy().auth.preserved}</p>
-            <div class="flex flex-col gap-2 sm:flex-row">
-              <button
-                class="btn btn-primary"
-                type="button"
-                onClick={() => {
-                  void router.refresh()
-                }}
-              >
-                {copy().common.retry}
-              </button>
-              <button class="btn btn-ghost" type="button" onClick={signOut}>
-                {copy().auth.signOutLocal}
-              </button>
-            </div>
-          </section>
-        </main>
-      }
-    >
-      <MemberLayout locale={shared.locale} navigate={navigate} route={memberRouteOf(router.path)}>
-        {props.children}
-      </MemberLayout>
-    </Show>
+  return shared.restoreFailed ? (
+    <main class="member-auth-page">
+      <section class="member-panel flex w-full flex-col gap-4" role="status">
+        <h1 class="member-heading">{copy().auth.failed}</h1>
+        <p class="text-sm text-[var(--fuda-muted)]">{copy().auth.preserved}</p>
+        <div class="flex flex-col gap-2 sm:flex-row">
+          <button
+            class="btn btn-primary"
+            type="button"
+            onClick={() => {
+              void router.refresh()
+            }}
+          >
+            {copy().common.retry}
+          </button>
+          <button class="btn btn-ghost" type="button" onClick={signOut}>
+            {copy().auth.signOutLocal}
+          </button>
+        </div>
+      </section>
+    </main>
+  ) : (
+    <MemberLayout locale={shared.locale} navigate={navigate} route={memberRouteOf(router.path)}>
+      {props.children}
+    </MemberLayout>
   )
 }

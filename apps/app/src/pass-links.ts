@@ -5,7 +5,7 @@ import { API_BASE_URL } from './config.ts'
 
 // The api's public origin, which the root layout learns from the Worker
 // (src/server/session.ts). Module state rather than context: it is one value per
-// deployment, and a layout's context never reaches its page in @void/solid.
+// deployment; the root layout supplies it before any pass link renders.
 let publicOrigin = ''
 
 export const setPublicApiOrigin = (origin: string): void => {

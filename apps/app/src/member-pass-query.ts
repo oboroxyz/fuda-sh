@@ -1,4 +1,4 @@
-import type { QueryOptions } from '@fuda/libs/query'
+import type { QueryOptions } from '@fuda/libs/query-preact'
 import type { Hex } from '@fuda/sdk'
 
 import { loadMemberPassList, rememberQueryPass } from './member-pass-list.ts'

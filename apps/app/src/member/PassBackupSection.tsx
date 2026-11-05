@@ -1,7 +1,7 @@
 import { pick } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
-import { createSignal, Show } from 'solid-js'
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
+import { useState } from 'preact/hooks'
 
 import { fetchPassBackup, uidFromBackupFile } from '../pass-backup.ts'
 import { rememberPass } from '../pass-memory.ts'
@@ -13,7 +13,7 @@ type Outcome = 'failed' | 'invalid' | 'restored' | 'restoredPasskey'
 // lost every device reads a pass back from a backup they saved themselves.
 export const PassBackupSection = (props: { locale: Locale }): JSX.Element => {
   const copy = (): (typeof MEMBER_COPY)[Locale]['backup'] => pick(MEMBER_COPY, props.locale).backup
-  const [outcome, setOutcome] = createSignal<Outcome | null>(null)
+  const [outcome, setOutcome] = useState<Outcome | null>(null)
 
   const read = async (file: File): Promise<void> => {
     setOutcome(null)
@@ -49,16 +49,14 @@ export const PassBackupSection = (props: { locale: Locale }): JSX.Element => {
           }}
         />
       </label>
-      <Show when={outcome()}>
-        {(current) => (
-          <div
-            class={current().startsWith('restored') ? 'alert alert-success' : 'alert alert-error'}
-            role="status"
-          >
-            {copy().outcomes[current()]}
-          </div>
-        )}
-      </Show>
+      {outcome ? (
+        <div
+          class={outcome.startsWith('restored') ? 'alert alert-success' : 'alert alert-error'}
+          role="status"
+        >
+          {copy().outcomes[outcome]}
+        </div>
+      ) : null}
     </section>
   )
 }

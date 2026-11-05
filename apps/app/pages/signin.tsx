@@ -1,7 +1,7 @@
 import { cancelPasskeyCeremony } from '@fuda/libs/auth'
-import { useRouter } from '@void/solid'
-import { createSignal, onCleanup } from 'solid-js'
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
+import { useEffect, useRef, useState } from 'preact/hooks'
+import { useRouter } from 'void-preact'
 
 import { memberPasskeys } from '../src/member/auth.ts'
 import type { PasskeyFailure, PasskeyOutcome } from '../src/member/auth.ts'
@@ -13,29 +13,33 @@ export default function SignInPage(): JSX.Element {
   const shared = useApp()
   const router = useRouter()
   const navigate = useNavigate()
-  const [busy, setBusy] = createSignal<'create' | 'signin' | null>(null)
-  const [failure, setFailure] = createSignal<PasskeyFailure | null>(null)
+  const [busy, setBusy] = useState<'create' | 'signin' | null>(null)
+  const [failure, setFailure] = useState<PasskeyFailure | null>(null)
   // Moved on by a cancel or by leaving, so a ceremony that ends afterwards changes nothing.
-  let attempt = 0
+  const attempt = useRef(0)
+  const busyRef = useRef(false)
   const cancel = (): void => {
-    attempt += 1
+    attempt.current += 1
     cancelPasskeyCeremony()
+    busyRef.current = false
     setBusy(null)
   }
-  onCleanup(cancel)
+  useEffect(() => cancel, [])
   const run = (kind: 'create' | 'signin', ceremony: () => Promise<PasskeyOutcome>): void => {
-    if (busy() !== null) {
+    if (busyRef.current) {
       return
     }
-    attempt += 1
-    const current = attempt
+    attempt.current += 1
+    const { current } = attempt
+    busyRef.current = true
     setBusy(kind)
     setFailure(null)
     const finish = async (): Promise<void> => {
       const outcome = await ceremony()
-      if (attempt !== current) {
+      if (attempt.current !== current) {
         return
       }
+      busyRef.current = false
       setBusy(null)
       if (!outcome.ok) {
         setFailure(outcome.failure)
@@ -47,8 +51,8 @@ export default function SignInPage(): JSX.Element {
   }
   return (
     <SignIn
-      busy={busy()}
-      failure={failure()}
+      busy={busy}
+      failure={failure}
       locale={shared.locale}
       onCancel={cancel}
       onCreate={() => {

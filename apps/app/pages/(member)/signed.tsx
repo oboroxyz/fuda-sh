@@ -1,4 +1,4 @@
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
 
 import { SignedGate } from '../../src/member/SignedGate.tsx'
 import { useApp } from '../../src/page-context.tsx'

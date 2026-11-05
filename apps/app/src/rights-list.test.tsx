@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import type { GraphRight, Hex, VerifyResponse } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
-import type { JSX } from 'solid-js'
-import { render as solidRender } from 'solid-js/web'
+import { mount as mountView } from '@fuda/ui-preact/test'
+import type { JSX } from 'preact'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import {
@@ -22,12 +22,12 @@ const DELEGATION = `0x${'bb'.repeat(32)}` as const
 
 type RightsListViewProps = Parameters<typeof RightsListView>[0]
 
-const mount = (view: () => JSX.Element): HTMLElement => {
+const mount = (View: () => JSX.Element): HTMLElement => {
   const host = document.createElement('div')
   document.body.append(host)
-  const dispose = solidRender(view, host)
+  const dispose = mountView(<View />, host)
   onTestFinished(() => {
-    dispose()
+    dispose.dispose()
     host.remove()
   })
   return host
@@ -302,6 +302,24 @@ describe(loadMemberPassList, () => {
 
     expect(result.rows).toMatchObject([{ appleHref: null, googleHref: null, preview: null, uid: RIGHT }])
     expect(fetchRights).not.toHaveBeenCalled()
+    expect(googleHref).not.toHaveBeenCalled()
+    expect(appleAvailable).not.toHaveBeenCalled()
+  })
+
+  it('never probes Wallet endpoints for an Identified pass', async () => {
+    const googleHref = vi.fn<MemberPassListIo['googleHref']>()
+    const appleAvailable = vi.fn<MemberPassListIo['appleAvailable']>()
+    const zero: Hex = `0x${'00'.repeat(20)}`
+    const result = await loadMemberPassList(
+      { addresses: [], graphConfigured: false, memory: [{ addedAt: 1, holder: zero, uid: RIGHT }] },
+      {
+        ...memberIo(async () => await Promise.resolve([])),
+        appleAvailable,
+        googleHref,
+        verify: async () => await Promise.resolve(admitted(zero)),
+      },
+    )
+    expect(result.rows).toMatchObject([{ appleHref: null, googleHref: null, uid: RIGHT }])
     expect(googleHref).not.toHaveBeenCalled()
     expect(appleAvailable).not.toHaveBeenCalled()
   })

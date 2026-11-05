@@ -89,14 +89,15 @@ The principle behind that split is **decentralized at the core, hosted rails onl
 .
 ├── apps
 │   ├── api              issuance, gate verification, passes (Workers + D1)
-│   ├── app              member app — /@handle, /signed, /rights
+│   ├── app              Preact member app — /@handle, /signed, /rights
 │   ├── dash             operator dashboard — issue, revoke, members, card designer
 │   └── gate             Preact scanner — camera QR → verdict screen
 ├── packages
 │   ├── sdk              shared types, validators, qrSvg
 │   ├── libs             shared query, wallet, and authentication integrations
 │   ├── pass             Apple .pkpass and Google Wallet save-link builders
-│   ├── ui               shared web UI components
+│   ├── ui               renderer-independent helpers and transitional Solid UI
+│   ├── ui-preact        shared Preact components and page tooling
 │   ├── styles           shared base CSS
 │   ├── i18n             shared message catalogue
 │   ├── ens-contracts    ENS resolver contracts and naming scripts

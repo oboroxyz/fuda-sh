@@ -1,4 +1,4 @@
-import { hasNoHolder } from '@fuda/sdk'
+import { hasNoHolder, isPasskeyPass } from '@fuda/sdk'
 import type { GraphRight, Hex, PassCardView, PassUrls, StampSummary, VerifyResponse } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
 
@@ -259,11 +259,9 @@ export const loadMemberPassList = async (
       if (isUnsupportedPreview(preview)) {
         return null
       }
-      const links =
-        isSupportedLevel(seed.graph?.level) || isSupportedPreview(preview)
-          ? await linksOf(seed.uid, io)
-          : unlinkedPassesOf(seed.uid)
       const supportedRow = isSupportedLevel(seed.graph?.level) || isSupportedPreview(preview)
+      const keyBound = preview?.entitlement !== undefined && isPasskeyPass(preview.entitlement)
+      const links = supportedRow && !keyBound ? await linksOf(seed.uid, io) : unlinkedPassesOf(seed.uid)
       const [stamps, card] = supportedRow
         ? await Promise.all([settledValue(io.stampSummary(seed.uid)), settledValue(io.card(seed.uid))])
         : [null, null]

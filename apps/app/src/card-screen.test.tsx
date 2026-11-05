@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { soleCard } from '@fuda/sdk'
 import type { Hex, PublicCard, PublicVenue } from '@fuda/sdk'
-import { render as solidRender } from 'solid-js/web'
+import { mount as mountView } from '@fuda/ui-preact/test'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import { CardScreenView, humanBadgeStateOf, issueDateOf } from './venue/CardScreen.tsx'
@@ -72,12 +72,12 @@ const noop = (): void => {}
 const render = (state: Parameters<typeof CardScreenView>[0]['state']): HTMLElement => {
   const host = document.createElement('div')
   document.body.append(host)
-  const dispose = solidRender(
-    () => <CardScreenView locale="en" onIssue={noop} onReload={noop} onVerifyHuman={noop} state={state} />,
+  const dispose = mountView(
+    <CardScreenView locale="en" onIssue={noop} onReload={noop} onVerifyHuman={noop} state={state} />,
     host,
   )
   onTestFinished(() => {
-    dispose()
+    dispose.dispose()
     host.remove()
     vi.unstubAllGlobals()
   })

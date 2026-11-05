@@ -1,4 +1,4 @@
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
 
 import { Settings } from '../../src/member/Settings.tsx'
 import { usePreferences, useSignOut } from '../../src/page-context.tsx'
@@ -8,11 +8,11 @@ export default function SettingsPage(): JSX.Element {
   const signOut = useSignOut()
   return (
     <Settings
-      locale={preferences.locale()}
+      locale={preferences.locale}
       onLocaleChange={preferences.setLocale}
       onSignOut={signOut}
       onThemeChange={preferences.setTheme}
-      theme={preferences.theme()}
+      theme={preferences.theme}
     />
   )
 }

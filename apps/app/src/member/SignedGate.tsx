@@ -3,14 +3,15 @@ import type { Locale } from '@fuda/i18n'
 import { isPasskeyPass, normalizeUid, parseQr } from '@fuda/sdk'
 import type { Hex, VerifyResponse } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
-import { Scanner, short } from '@fuda/ui'
+import { Scanner } from '@fuda/ui-preact'
+import { short } from '@fuda/ui/short'
 import { startAuthentication } from '@simplewebauthn/browser'
-import { createEffect, createSignal, on, onCleanup, Show } from 'solid-js'
-import type { JSX } from 'solid-js'
+import type { JSX, RefObject } from 'preact'
+import { useEffect, useRef, useState } from 'preact/hooks'
 
 import { challenge, verifySigned, verifyUid } from '../api.ts'
 import { displayOf, enterSigned, enterWithPasskey } from '../signed-gate.ts'
-import type { PasskeyGateIo, SignedDisplay } from '../signed-gate.ts'
+import type { PasskeyGateIo, SignedDisplay, SignedOutcome } from '../signed-gate.ts'
 import { injectedProvider, personalSign, requestAccount } from '../wallet.ts'
 import type { Eip1193Provider } from '../wallet.ts'
 import { ENTRY_COPY } from './entry-copy.ts'
@@ -29,7 +30,7 @@ const passkeyRail = async (): Promise<Eip1193Provider> => {
 }
 
 export interface SignedGateScreenIo extends PasskeyGateIo {
-  preview: (uid: Hex) => Promise<Result<VerifyResponse>>
+  preview: (uid: Hex, signal?: AbortSignal) => Promise<Result<VerifyResponse>>
 }
 
 // The browser will not say whether the prompt was dismissed or this device lacks the
@@ -57,17 +58,135 @@ const defaultIo: SignedGateScreenIo = {
 }
 
 const uidFromLocation = (): Hex | null =>
-  normalizeUid(new URLSearchParams(globalThis.location?.search ?? '').get('uid') ?? '')
+  import.meta.env.SSR ? null : normalizeUid(new URLSearchParams(location.search).get('uid') ?? '')
 
 // What a pass answers to decides what the screen offers. If that cannot be read, the
 // wallet buttons stay as they were, and a wrong proof is refused at the gate.
 type Answer = 'checking' | 'passkey' | 'wallet'
+
+interface EntryOwner {
+  busy: RefObject<boolean>
+  controller: AbortController
+  setBusy: (value: boolean) => void
+  setState: (value: SignedDisplay | null) => void
+}
+
+const runEntry = async (owner: EntryOwner, work: () => Promise<SignedOutcome>): Promise<void> => {
+  if (owner.busy.current) {
+    return
+  }
+  owner.busy.current = true
+  owner.setBusy(true)
+  try {
+    const outcome = await work()
+    owner.controller.signal.throwIfAborted()
+    owner.setState(displayOf(outcome))
+  } catch (error) {
+    if (!owner.controller.signal.aborted) {
+      owner.setState({
+        detail: error instanceof Error ? error.message : 'signing error',
+        title: 'REJECT',
+        tone: 'red',
+      })
+    }
+  } finally {
+    owner.busy.current = false
+    if (!owner.controller.signal.aborted) {
+      owner.setBusy(false)
+    }
+  }
+}
+
+const usePassAnswer = (uid: Hex | null, io: SignedGateScreenIo): Answer => {
+  const [known, setKnown] = useState<{ answer: Answer; uid: Hex } | null>(null)
+  useEffect(() => {
+    if (uid === null) {
+      return
+    }
+    const previewController = new AbortController()
+    void (async () => {
+      const preview = await io.preview(uid, previewController.signal)
+      const entitlement = preview.ok ? preview.body.entitlement : undefined
+      if (!previewController.signal.aborted) {
+        setKnown({
+          answer: entitlement !== undefined && isPasskeyPass(entitlement) ? 'passkey' : 'wallet',
+          uid,
+        })
+      }
+    })()
+    return () => {
+      previewController.abort()
+    }
+  }, [uid, io])
+
+  if (uid === null) {
+    return 'wallet'
+  }
+  // Compared in render, not reset in the effect: an effect runs after paint, and an
+  // entry chosen before then would use the previous pass's answer.
+  return known?.uid === uid ? known.answer : 'checking'
+}
 
 // docs/specs/pass-types-and-flows.md#gate-protocol: enter or scan the pass uid, or arrive
 // with it in the address → challenge → answer it → verify → full-screen verdict. An
 // Identified pass answers with its passkey. Anything else answers through any EIP-1193
 // provider, either a browser-injected wallet or the Base Account passkey wallet, which the
 // member picks once a pass uid is on screen.
+const EntryActions = (props: {
+  answer: Answer
+  busy: boolean
+  copy: (typeof ENTRY_COPY)['en']
+  onPasskey: (uid: Hex) => Promise<void>
+  onWallet: (uid: Hex, rail: () => Promise<Eip1193Provider>) => Promise<void>
+  uid: Hex | null
+  wallet: Eip1193Provider | null
+}): JSX.Element | null => {
+  const { uid, wallet } = props
+  if (uid === null || props.answer === 'checking') {
+    return null
+  }
+  if (props.answer === 'passkey') {
+    return (
+      <button
+        type="button"
+        class="btn btn-primary"
+        disabled={props.busy}
+        onClick={() => {
+          void props.onPasskey(uid)
+        }}
+      >
+        {props.busy ? props.copy.signing : props.copy.enterWithPasskey}
+      </button>
+    )
+  }
+  return (
+    <div class="flex flex-col items-center gap-2">
+      <button
+        type="button"
+        class="btn btn-primary"
+        disabled={props.busy}
+        onClick={() => {
+          void props.onWallet(uid, passkeyRail)
+        }}
+      >
+        {props.busy ? props.copy.signing : props.copy.passkeyWallet(short(uid))}
+      </button>
+      {wallet === null ? null : (
+        <button
+          type="button"
+          class="btn btn-ghost"
+          disabled={props.busy}
+          onClick={() => {
+            void props.onWallet(uid, async () => await Promise.resolve(wallet))
+          }}
+        >
+          {props.busy ? props.copy.signing : props.copy.browserWallet(short(uid))}
+        </button>
+      )}
+    </div>
+  )
+}
+
 export const SignedGate = (props: {
   io?: SignedGateScreenIo
   provider?: Eip1193Provider | null
@@ -76,175 +195,88 @@ export const SignedGate = (props: {
   const locale = (): Locale => props.locale ?? DEFAULT_LOCALE
   const c = (): (typeof ENTRY_COPY)[Locale] => pick(ENTRY_COPY, locale())
   const io = props.io ?? defaultIo
-  const venue = new URLSearchParams(globalThis.location?.search ?? '').get('venue') ?? undefined
-  const [uid, setUid] = createSignal<Hex | null>(uidFromLocation())
-  const [answer, setAnswer] = createSignal<Answer>('wallet')
-  const [state, setState] = createSignal<SignedDisplay | null>(null)
-  const [busy, setBusy] = createSignal(false)
-  const lifetime = new AbortController()
+  const [venue] = useState(() =>
+    import.meta.env.SSR ? undefined : (new URLSearchParams(location.search).get('venue') ?? undefined),
+  )
+  const [uid, setUid] = useState<Hex | null>(() => uidFromLocation())
+  const [state, setState] = useState<SignedDisplay | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [ready, setReady] = useState(false)
+  const [lifetime] = useState(() => new AbortController())
+  const busyRef = useRef(false)
   const injected = (): Eip1193Provider | null =>
     props.provider === undefined ? injectedProvider() : props.provider
 
-  onCleanup(() => {
-    lifetime.abort()
-  })
-
-  createEffect(
-    on(uid, (target) => {
-      if (target === null) {
-        return
-      }
-      let current = true
-      onCleanup(() => {
-        current = false
-      })
-      setAnswer('checking')
-      const check = async (): Promise<void> => {
-        const preview = await io.preview(target)
-        const entitlement = preview.ok ? preview.body.entitlement : undefined
-        if (current) {
-          setAnswer(entitlement !== undefined && isPasskeyPass(entitlement) ? 'passkey' : 'wallet')
-        }
-      }
-      void check()
-    }),
-  )
-
-  const enterByPasskey = async (target: Hex): Promise<void> => {
-    setBusy(true)
-    try {
-      const outcome = await enterWithPasskey(io, target, lifetime.signal, venue)
-      lifetime.signal.throwIfAborted()
-      setState(displayOf(outcome))
-    } catch (error) {
-      if (!lifetime.signal.aborted) {
-        setState({
-          detail: error instanceof Error ? error.message : 'passkey error',
-          title: 'REJECT',
-          tone: 'red',
-        })
-      }
-    } finally {
-      if (!lifetime.signal.aborted) {
-        setBusy(false)
-      }
+  useEffect(() => {
+    setReady(true)
+    return () => {
+      lifetime.abort()
     }
+  }, [lifetime])
+  const answer = usePassAnswer(uid, io)
+
+  const owner: EntryOwner = { busy: busyRef, controller: lifetime, setBusy, setState }
+  const enterByPasskey = async (target: Hex): Promise<void> => {
+    await runEntry(owner, async () => await enterWithPasskey(io, target, lifetime.signal, venue))
   }
 
-  // The rail arrives as a thunk so a lazily-loaded one is resolved inside the
-  // try: a failed chunk fetch reads as a REJECT verdict, not an unhandled throw.
+  // Resolve the chunk inside run so a failed fetch becomes a REJECT verdict.
   const enter = async (target: Hex, openRail: () => Promise<Eip1193Provider>): Promise<void> => {
-    setBusy(true)
-    try {
+    await runEntry(owner, async () => {
       const rail = await openRail()
       lifetime.signal.throwIfAborted()
       const address = await requestAccount(rail)
       lifetime.signal.throwIfAborted()
-      const outcome = await enterSigned(
+      return await enterSigned(
         { challenge, sign: async (m) => await personalSign(rail, address, m), verify: verifySigned },
         target,
         lifetime.signal,
         venue,
       )
-      lifetime.signal.throwIfAborted()
-      setState(displayOf(outcome))
-    } catch (error) {
-      if (lifetime.signal.aborted) {
-        return
-      }
-      setState({
-        detail: error instanceof Error ? error.message : 'wallet error',
-        title: 'REJECT',
-        tone: 'red',
-      })
-    } finally {
-      if (!lifetime.signal.aborted) {
-        setBusy(false)
-      }
-    }
+    })
   }
 
+  if (state !== null) {
+    return (
+      <Verdict
+        locale={locale()}
+        state={state}
+        onDone={() => {
+          setState(null)
+        }}
+      />
+    )
+  }
   return (
-    <Show
-      when={state()}
-      fallback={
-        <main class="member-page member-page-narrow flex flex-col items-center gap-6">
-          <h1 class="member-heading text-center">
-            {answer() === 'passkey' ? c().passkeyEntryTitle : c().signedTitle}
-          </h1>
-          <p class="text-center text-sm leading-relaxed text-[var(--fuda-muted)]">
-            {answer() === 'passkey' ? c().passkeyEntryIntro : c().signedIntro}
-          </p>
-          <Show when={answer() !== 'passkey'}>
-            <Scanner
-              labels={c().scanner}
-              onInput={(text) => {
-                const u = uidOf(text)
-                if (u === null) {
-                  setState({ detail: c().signedUnreadable, title: 'REJECT', tone: 'red' })
-                  return
-                }
-                setUid(u)
-              }}
-            />
-          </Show>
-          <Show when={answer() === 'passkey' ? uid() : null}>
-            {(target) => (
-              <button
-                type="button"
-                class="btn btn-primary"
-                disabled={busy()}
-                onClick={() => {
-                  void enterByPasskey(target())
-                }}
-              >
-                {busy() ? c().signing : c().enterWithPasskey}
-              </button>
-            )}
-          </Show>
-          <Show when={answer() === 'wallet' ? uid() : null}>
-            {(target) => (
-              <div class="flex flex-col items-center gap-2">
-                <button
-                  type="button"
-                  class="btn btn-primary"
-                  disabled={busy()}
-                  onClick={() => {
-                    void enter(target(), passkeyRail)
-                  }}
-                >
-                  {busy() ? c().signing : c().passkeyWallet(short(target()))}
-                </button>
-                <Show when={injected()}>
-                  {(wallet) => (
-                    <button
-                      type="button"
-                      class="btn btn-ghost"
-                      disabled={busy()}
-                      onClick={() => {
-                        const rail = wallet()
-                        void enter(target(), async () => await Promise.resolve(rail))
-                      }}
-                    >
-                      {busy() ? c().signing : c().browserWallet(short(target()))}
-                    </button>
-                  )}
-                </Show>
-              </div>
-            )}
-          </Show>
-        </main>
-      }
-    >
-      {(verdict) => (
-        <Verdict
-          locale={locale()}
-          state={verdict()}
-          onDone={() => {
-            setState(null)
+    <main class="member-page member-page-narrow flex flex-col items-center gap-6">
+      <h1 class="member-heading text-center">
+        {answer === 'passkey' ? c().passkeyEntryTitle : c().signedTitle}
+      </h1>
+      <p class="text-center text-sm leading-relaxed text-[var(--fuda-muted)]">
+        {answer === 'passkey' ? c().passkeyEntryIntro : c().signedIntro}
+      </p>
+      {answer === 'passkey' ? null : (
+        <Scanner
+          labels={c().scanner}
+          onInput={(text) => {
+            const u = uidOf(text)
+            if (u === null) {
+              setState({ detail: c().signedUnreadable, title: 'REJECT', tone: 'red' })
+              return
+            }
+            setUid(u)
           }}
         />
       )}
-    </Show>
+      <EntryActions
+        answer={answer}
+        busy={busy}
+        copy={c()}
+        uid={ready ? uid : null}
+        wallet={injected()}
+        onPasskey={enterByPasskey}
+        onWallet={enter}
+      />
+    </main>
   )
 }
