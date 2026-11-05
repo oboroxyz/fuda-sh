@@ -1,6 +1,6 @@
 version: 2
-# npm updates remain manual until Dependabot supports pnpm 11. Cargo updates for
-# the Substreams crates also remain manual to preserve The Graph compatibility.
+# Dependabot supports pnpm 11 as of 2026-10-20. The independent Subgraph and
+# Substreams crates stay manual to preserve The Graph compatibility.
 updates:
   - package-ecosystem: github-actions
     directories:
@@ -13,3 +13,20 @@ updates:
     groups:
       actions:
         patterns: ['*']
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 3
+    groups:
+      npm:
+        patterns: ['*']
+    # These packages must be upgraded together with the workspace overrides.
+    ignore:
+      - dependency-name: vite-plus
+      - dependency-name: '@voidzero-dev/*'
+      - dependency-name: oxlint
+      - dependency-name: oxfmt
+      - dependency-name: vitest
+      - dependency-name: ultracite
