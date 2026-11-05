@@ -10,6 +10,7 @@
       }
     ],
     "name": "fuda-api",
+    "preview_urls": true,
     "r2_buckets": [
       {
         "binding": "MEDIA_BUCKET",
@@ -22,13 +23,12 @@
         "pattern": "api.fuda.sh"
       }
     ],
-    "preview_urls": true,
     "vars": {
       "EAS_ADDRESS": "0x4200000000000000000000000000000000000021",
       "EAS_VERSION": "1.4.1-beta.3",
+      "OFFCHAIN_RETIRED_SIGNERS": "",
       "SCHEMA_REGISTRY_ADDRESS": "0x4200000000000000000000000000000000000020",
-      "ANNOUNCER_ADDRESS": "0x55649E01B5Df198D18D95b5cc5051630cfD45564",
-      "ANNOUNCER_FROM_BLOCK": "7552655",
+      "GRAPH_START_BLOCK": "7552655",
       "FACTORY_ADDRESS": "0x0BA5ED0c6AA8c49038F819E587E2633c4A9F428a",
       "EAS_SCHEMAS": "{\"attendance\":[{\"uid\":\"0x22a41470aabe3a0edec1f9948975a887f21adddd6cf009e865e267cac6e10241\",\"version\":1}],\"entitlement\":[{\"uid\":\"0x42ffdba952267e373cb33ecf9fdc190fb27b30140d0695dabb8383bbed86d616\",\"version\":1}],\"issuerDelegation\":[{\"uid\":\"0x62c93e6e95f3956ba5937fc8454203ba781af5e455657952e915e71c3895f327\",\"version\":1}]}",
       "ISSUER_ADDRESS": "0xAA64E3814A88f4bA4588787EB04e5eACBabcd77E",
@@ -36,7 +36,7 @@
       "API_BASE_URL": "https://api.fuda.sh",
       "PUBLIC_BASE_URL": "https://fuda.sh",
       "WEBAUTHN_RP_ID": "fuda.sh",
-      "WEBAUTHN_ORIGINS": "https://app.fuda.sh",
+      "WEBAUTHN_ORIGINS": "https://app.fuda.sh,https://dash.fuda.sh",
       "DASH_BASE_URL": "https://dash.fuda.sh",
       "ENS_PARENT_NAME": "fuda.eth",
       "ENS_RESOLVER_ADDRESSES": "0x133e6eeb3eAf0F804FbB9c1536AcA090B36A93AB",
@@ -67,32 +67,32 @@
         "pattern": "api.fuda.sh"
       }
     ],
+    "preview_urls": true,
     "vars": {
       "EAS_ADDRESS": "0x4200000000000000000000000000000000000021",
+      "EAS_VERSION": "1.4.1-beta.3",
       "SCHEMA_REGISTRY_ADDRESS": "0x4200000000000000000000000000000000000020",
-      "ANNOUNCER_ADDRESS": "0x55649E01B5Df198D18D95b5cc5051630cfD45564",
-      "ANNOUNCER_FROM_BLOCK": "7552655",
       "FACTORY_ADDRESS": "0x0BA5ED0c6AA8c49038F819E587E2633c4A9F428a",
       "EAS_SCHEMAS": "{\"attendance\":[{\"uid\":\"0x22a41470aabe3a0edec1f9948975a887f21adddd6cf009e865e267cac6e10241\",\"version\":1}],\"entitlement\":[{\"uid\":\"0x42ffdba952267e373cb33ecf9fdc190fb27b30140d0695dabb8383bbed86d616\",\"version\":1}],\"issuerDelegation\":[{\"uid\":\"0x62c93e6e95f3956ba5937fc8454203ba781af5e455657952e915e71c3895f327\",\"version\":1}]}",
       "ISSUER_ADDRESS": "0xAA64E3814A88f4bA4588787EB04e5eACBabcd77E",
       "DELEGATION_UID": "0x7bb324ad1ec399488f18178153a046d7bcca44bb9688e72e0ce9581a61a6e155",
       "API_BASE_URL": "https://api.fuda.sh",
       "PUBLIC_BASE_URL": "https://fuda.sh",
+      "WEBAUTHN_RP_ID": "fuda.sh",
+      "WEBAUTHN_ORIGINS": "https://app.fuda.sh,https://dash.fuda.sh",
       "DASH_BASE_URL": "https://dash.fuda.sh",
       "ENS_PARENT_NAME": "fuda.eth",
       "ENS_RESOLVER_ADDRESSES": "0x133e6eeb3eAf0F804FbB9c1536AcA090B36A93AB",
       "ENS_REGISTRAR_ADDRESS": "0x58AF04ff5e6DAB45ECD17bD38fC4f4BBa45778B9",
       "ENS_GAS_POLICY_ID": "62252670-ee0e-4c90-869f-4cb26a606e76",
-      "EAS_VERSION": "1.4.1-beta.3",
-      "WEBAUTHN_RP_ID": "fuda.sh",
-      "WEBAUTHN_ORIGINS": "https://app.fuda.sh"
+      "OFFCHAIN_RETIRED_SIGNERS": "",
+      "GRAPH_START_BLOCK": "7552655"
     },
+    "workers_dev": false,
     "account_id": "4d8de8be5b03d5f77ca1be4e3c0db5b2",
     "keep_vars": true,
     "compatibility_date": "2025-09-01",
-    "compatibility_flags": ["nodejs_compat"],
-    "preview_urls": true,
-    "workers_dev": false
+    "compatibility_flags": ["nodejs_compat"]
   },
-  "text": "{\n  \"d1_databases\": [\n    {\n      \"binding\": \"DB\",\n      \"database_id\": \"d4cd9c4d-8986-4bbc-a14d-15c453b6d620\",\n      \"database_name\": \"fuda-beta\",\n      \"migrations_dir\": \"./db/migrations\"\n    }\n  ],\n  \"name\": \"fuda-api\",\n  \"r2_buckets\": [\n    {\n      \"binding\": \"MEDIA_BUCKET\",\n      \"bucket_name\": \"fuda-media-dev\"\n    }\n  ],\n  \"routes\": [\n    {\n      \"custom_domain\": true,\n      \"pattern\": \"api.fuda.sh\"\n    }\n  ],\n  \"vars\": {\n    \"EAS_ADDRESS\": \"0x4200000000000000000000000000000000000021\",\n    \"SCHEMA_REGISTRY_ADDRESS\": \"0x4200000000000000000000000000000000000020\",\n    \"ANNOUNCER_ADDRESS\": \"0x55649E01B5Df198D18D95b5cc5051630cfD45564\",\n    \"ANNOUNCER_FROM_BLOCK\": \"7552655\",\n    \"FACTORY_ADDRESS\": \"0x0BA5ED0c6AA8c49038F819E587E2633c4A9F428a\",\n    \"EAS_SCHEMAS\": \"{\\\"attendance\\\":[{\\\"uid\\\":\\\"0x22a41470aabe3a0edec1f9948975a887f21adddd6cf009e865e267cac6e10241\\\",\\\"version\\\":1}],\\\"entitlement\\\":[{\\\"uid\\\":\\\"0x42ffdba952267e373cb33ecf9fdc190fb27b30140d0695dabb8383bbed86d616\\\",\\\"version\\\":1}],\\\"issuerDelegation\\\":[{\\\"uid\\\":\\\"0x62c93e6e95f3956ba5937fc8454203ba781af5e455657952e915e71c3895f327\\\",\\\"version\\\":1}]}\",\n    \"ISSUER_ADDRESS\": \"0xAA64E3814A88f4bA4588787EB04e5eACBabcd77E\",\n    \"DELEGATION_UID\": \"0x7bb324ad1ec399488f18178153a046d7bcca44bb9688e72e0ce9581a61a6e155\",\n    \"API_BASE_URL\": \"https://api.fuda.sh\",\n    \"PUBLIC_BASE_URL\": \"https://fuda.sh\",\n    \"DASH_BASE_URL\": \"https://dash.fuda.sh\",\n    \"ENS_PARENT_NAME\": \"fuda.eth\",\n    \"ENS_RESOLVER_ADDRESSES\": \"0x133e6eeb3eAf0F804FbB9c1536AcA090B36A93AB\",\n    \"ENS_REGISTRAR_ADDRESS\": \"0x58AF04ff5e6DAB45ECD17bD38fC4f4BBa45778B9\",\n    \"ENS_GAS_POLICY_ID\": \"62252670-ee0e-4c90-869f-4cb26a606e76\",\n    \"EAS_VERSION\": \"1.4.1-beta.3\",\n    \"WEBAUTHN_RP_ID\": \"fuda.sh\",\n    \"WEBAUTHN_ORIGINS\": \"https://app.fuda.sh\"\n  },\n  \"account_id\": \"4d8de8be5b03d5f77ca1be4e3c0db5b2\",\n  \"keep_vars\": true,\n  \"compatibility_date\": \"2025-09-01\",\n  \"compatibility_flags\": [\n    \"nodejs_compat\"\n  ],\n  \"preview_urls\": true,\n  \"workers_dev\": false\n}\n"
+  "text": "{\n  \"d1_databases\": [\n    {\n      \"binding\": \"DB\",\n      \"database_id\": \"d4cd9c4d-8986-4bbc-a14d-15c453b6d620\",\n      \"database_name\": \"fuda-beta\",\n      \"migrations_dir\": \"./db/migrations\"\n    }\n  ],\n  \"name\": \"fuda-api\",\n  \"r2_buckets\": [\n    {\n      \"binding\": \"MEDIA_BUCKET\",\n      \"bucket_name\": \"fuda-media-dev\"\n    }\n  ],\n  \"routes\": [\n    {\n      \"custom_domain\": true,\n      \"pattern\": \"api.fuda.sh\"\n    }\n  ],\n  \"preview_urls\": true,\n  \"vars\": {\n    \"EAS_ADDRESS\": \"0x4200000000000000000000000000000000000021\",\n    \"EAS_VERSION\": \"1.4.1-beta.3\",\n    \"SCHEMA_REGISTRY_ADDRESS\": \"0x4200000000000000000000000000000000000020\",\n    \"FACTORY_ADDRESS\": \"0x0BA5ED0c6AA8c49038F819E587E2633c4A9F428a\",\n    \"EAS_SCHEMAS\": \"{\\\"attendance\\\":[{\\\"uid\\\":\\\"0x22a41470aabe3a0edec1f9948975a887f21adddd6cf009e865e267cac6e10241\\\",\\\"version\\\":1}],\\\"entitlement\\\":[{\\\"uid\\\":\\\"0x42ffdba952267e373cb33ecf9fdc190fb27b30140d0695dabb8383bbed86d616\\\",\\\"version\\\":1}],\\\"issuerDelegation\\\":[{\\\"uid\\\":\\\"0x62c93e6e95f3956ba5937fc8454203ba781af5e455657952e915e71c3895f327\\\",\\\"version\\\":1}]}\",\n    \"ISSUER_ADDRESS\": \"0xAA64E3814A88f4bA4588787EB04e5eACBabcd77E\",\n    \"DELEGATION_UID\": \"0x7bb324ad1ec399488f18178153a046d7bcca44bb9688e72e0ce9581a61a6e155\",\n    \"API_BASE_URL\": \"https://api.fuda.sh\",\n    \"PUBLIC_BASE_URL\": \"https://fuda.sh\",\n    \"WEBAUTHN_RP_ID\": \"fuda.sh\",\n    \"WEBAUTHN_ORIGINS\": \"https://app.fuda.sh,https://dash.fuda.sh\",\n    \"DASH_BASE_URL\": \"https://dash.fuda.sh\",\n    \"ENS_PARENT_NAME\": \"fuda.eth\",\n    \"ENS_RESOLVER_ADDRESSES\": \"0x133e6eeb3eAf0F804FbB9c1536AcA090B36A93AB\",\n    \"ENS_REGISTRAR_ADDRESS\": \"0x58AF04ff5e6DAB45ECD17bD38fC4f4BBa45778B9\",\n    \"ENS_GAS_POLICY_ID\": \"62252670-ee0e-4c90-869f-4cb26a606e76\",\n    \"OFFCHAIN_RETIRED_SIGNERS\": \"\",\n    \"GRAPH_START_BLOCK\": \"7552655\"\n  },\n  \"workers_dev\": false,\n  \"account_id\": \"4d8de8be5b03d5f77ca1be4e3c0db5b2\",\n  \"keep_vars\": true,\n  \"compatibility_date\": \"2025-09-01\",\n  \"compatibility_flags\": [\n    \"nodejs_compat\"\n  ]\n}\n"
 }
