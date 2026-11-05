@@ -1,5 +1,4 @@
-import { Show } from 'solid-js'
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
 
 import type { DisplayState, VerdictFacts } from './verdict.ts'
 
@@ -9,44 +8,28 @@ const TONE = {
   yellow: 'bg-warning text-warning-content',
 } as const
 
-// What was presented, under the verdict word: what kind of right it is, how long
-// it lasts, and the holder. Each line is omitted when the api did not report it,
-// so a NOT_FOUND stays a bare REJECT.
-//
-// The delegation comes last and small. It is the chain of authority the Right was
-// issued under — fuda's own root for every Right this deployment signs — so it
-// reads as provenance. Given the top line it would be mistaken for the venue,
-// which is not in a verdict at all.
-const Facts = (props: { facts: VerdictFacts }): JSX.Element => {
-  const grade = (): string =>
-    [props.facts.tier, props.facts.usage].filter((part) => part !== null).join(' · ')
-  const empty = (): boolean =>
-    props.facts.delegation === null &&
-    grade() === '' &&
-    props.facts.validUntil === null &&
-    props.facts.holder === null
-  return (
-    <Show when={!empty()}>
-      <div class="flex flex-col items-center gap-1 px-6 text-center">
-        <Show when={grade() !== ''}>
-          <div class="text-2xl font-semibold">{grade()}</div>
-        </Show>
-        <Show when={props.facts.validUntil}>
-          {(validUntil) => <div class="text-base opacity-80">valid until {validUntil()}</div>}
-        </Show>
-        <Show when={props.facts.holder}>
-          {(holder) => <div class="font-mono text-sm opacity-70">{holder()}</div>}
-        </Show>
-        <Show when={props.facts.delegation}>
-          {(delegation) => <div class="text-xs opacity-60">issued under {delegation()}</div>}
-        </Show>
-      </div>
-    </Show>
+const Facts = (props: { facts: VerdictFacts }): JSX.Element | null => {
+  const { facts } = props
+  const grade = [facts.tier, facts.usage].filter((part) => part !== null).join(' · ')
+  const rows = [
+    { className: 'text-2xl font-semibold', kind: 'grade', prefix: '', value: grade },
+    { className: 'text-base opacity-80', kind: 'expiry', prefix: 'valid until ', value: facts.validUntil },
+    { className: 'font-mono text-sm opacity-70', kind: 'holder', prefix: '', value: facts.holder },
+    { className: 'text-xs opacity-60', kind: 'delegation', prefix: 'issued under ', value: facts.delegation },
+  ].filter((row) => row.value !== null && row.value !== '')
+  return rows.length === 0 ? null : (
+    <div class="flex flex-col items-center gap-1 px-6 text-center">
+      {rows.map((row) => (
+        <div class={row.className} key={row.kind}>
+          {row.prefix}
+          {row.value}
+        </div>
+      ))}
+    </div>
   )
 }
 
-// Full-screen and unmissable from arm's length: the whole verdict is the button
-// that clears it, so a member of staff can dismiss it without aiming.
+// The whole verdict dismisses it so staff can tap without aiming.
 export const Verdict = (props: { state: DisplayState; onDone: () => void }): JSX.Element => (
   <button
     type="button"
@@ -55,25 +38,18 @@ export const Verdict = (props: { state: DisplayState; onDone: () => void }): JSX
       props.onDone()
     }}
   >
-    <Show when={props.state.tone === 'red' && props.state.banner === 'network'}>
+    {props.state.tone === 'red' && props.state.banner === 'network' ? (
       <div class="badge badge-neutral">network error — gate fails closed</div>
-    </Show>
+    ) : null}
     <div class="px-6 text-center text-5xl font-black">{props.state.title}</div>
-    <Show when={props.state.detail !== ''}>
-      <div class="px-6 text-center text-xl">{props.state.detail}</div>
-    </Show>
+    {props.state.detail === '' ? null : <div class="px-6 text-center text-xl">{props.state.detail}</div>}
     <Facts facts={props.state.facts} />
-    <Show when={props.state.badge}>
-      {(badge) => (
-        // The chip names the claim, never the verifier behind it, so swapping the
-        // verifier for a kind stays invisible to every client. The badge outlives
-        // the right it is on, so it can appear beside a REJECT.
-        <div class="flex flex-col items-center gap-1">
-          <div class="badge badge-neutral">verified human</div>
-          <div class="text-xs opacity-70">{badge().at}</div>
-        </div>
-      )}
-    </Show>
+    {props.state.badge === null ? null : (
+      <div class="flex flex-col items-center gap-1">
+        <div class="badge badge-neutral">verified human</div>
+        <div class="text-xs opacity-70">{props.state.badge.at}</div>
+      </div>
+    )}
     <div class="text-sm opacity-70">tap to scan again</div>
   </button>
 )

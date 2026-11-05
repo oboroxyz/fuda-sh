@@ -91,7 +91,7 @@ The principle behind that split is **decentralized at the core, hosted rails onl
 │   ├── api              issuance, gate verification, passes (Workers + D1)
 │   ├── app              member app — /@handle, /signed, /rights
 │   ├── dash             operator dashboard — issue, revoke, members, card designer
-│   └── gate             scanner — camera QR → verdict screen
+│   └── gate             Preact scanner — camera QR → verdict screen
 ├── packages
 │   ├── sdk              shared types, validators, qrSvg
 │   ├── libs             shared query, wallet, and authentication integrations

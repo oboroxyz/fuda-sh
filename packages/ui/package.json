@@ -5,6 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./camera": "./src/camera.ts",
+    "./scanner": "./src/scanner.ts",
     "./short": "./src/short.ts",
     "./theme": "./src/theme.ts",
     "./wallet-button": "./src/wallet-button.ts"

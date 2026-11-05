@@ -1,2 +1,35 @@
 @import 'tailwindcss';
 @import '@fuda/styles/base.css';
+
+@source '../../../packages/ui-preact/src';
+
+/* The shared base disables daisyUI themes; verdict colors must exist at the station. */
+@theme inline {
+  --color-base-100: var(--fuda-surface);
+  --color-base-200: var(--fuda-bg);
+  --color-base-300: var(--fuda-border);
+  --color-base-content: var(--fuda-text);
+  --color-primary: var(--fuda-accent);
+  --color-primary-content: var(--fuda-bg);
+  --color-neutral: var(--fuda-border);
+  --color-neutral-content: var(--fuda-text);
+  --color-success: #26704b;
+  --color-success-content: #ffffff;
+  --color-warning: #f3d99a;
+  --color-warning-content: #513c0c;
+  --color-error: #b42332;
+  --color-error-content: #ffffff;
+  --radius-box: 1rem;
+  --radius-field: 0.75rem;
+  --radius-selector: 0.5rem;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex min-h-11 items-center justify-center px-5 py-2.5 text-sm;
+  }
+
+  .btn-primary {
+    @apply bg-primary text-primary-content;
+  }
+}
