@@ -1,52 +1,35 @@
 # AGENTS.md
 
-Guidance for AI coding agents working in this repository.
+Guidance for AI coding agents in this repository.
 
-## Start of task
+@.agents/rules/workflow-policy.md
 
-Read [.agents/rules/start-of-task.md](.agents/rules/start-of-task.md) during read-only triage, before editing files or choosing a branch or worktree. Agents that resolve `@`-imports load it via the line below; other agents must read that file directly.
+## Repository
 
-@.agents/rules/start-of-task.md
+**fuda** is a pnpm monorepo. `apps/*` are deployable Cloudflare Workers, and direct children of `packages/*` with a `package.json` are shared packages. Projects nested under `packages/subgraphs/` and `packages/substreams/` build on their own, outside the workspace.
 
-## Documentation
+Before changing product behavior or a protocol, read the relevant [specification](docs/specs/README.md). Use [the glossary](docs/CONTEXT.md) for domain terms. Setup and deployment live in [the runbook](docs/runbook.md).
 
-When changing product behavior or protocol contracts, read the relevant [canonical specification](docs/specs/README.md) and update it with the change. Use [the glossary](docs/CONTEXT.md) when choosing domain terms. For setup or deployment changes, update [the runbook](docs/runbook.md). The documentation hierarchy and verification cadence are defined in the workflow policy imported below.
-
-## Repository layout
-
-**fuda** is a pnpm workspace monorepo. `apps/*` contains deployable Cloudflare Workers, and direct children of `packages/*` with a `package.json` are shared workspace packages. Nested projects under `packages/subgraphs/` and `packages/substreams/` are built independently and do not join the pnpm workspace.
-
-Author code, specifications, and designs from scratch within this repository's build window. Treat other repositories, including sibling projects on this machine, as out of scope for copying.
-
-## Local verification artifacts
-
-Save screenshots, recordings, and review evidence under `artifacts/<YYYY-MM-DD>-<task>/` at the repository root. This directory is Git-ignored: leave its contents local and exclude them from commits and merges unless the user explicitly requests otherwise. Use `/tmp` for disposable capture scripts, browser profiles, downloads, and intermediate logs.
-
-When handing off captures, provide their absolute paths and identify the viewport, locale, theme, and any fictional data. Keep application assets, reusable tests, and canonical documentation in their normal tracked locations; do not make builds or tests depend on `artifacts/` or `/tmp`.
+Before changing frontend UI or styling under `apps/app`, `apps/dash`, `apps/gate`, `packages/ui` or `packages/styles`, read `.agents/rules/frontend-design.md`.
 
 ## Toolchain
 
-Vite+ (`vp`) drives frontend development and builds, workspace tests, linting, and formatting. Package-level `vite.config.ts` files configure app and test behavior; the root `vite.config.ts` holds shared lint and formatting policy. The API dev server uses the local Void target through `vp dev`. Database operations use `void db`; only the E2E built-Worker harness depends directly on Wrangler. Before changing lint rules, read the root file's header and the comments beside the relevant configuration; they record the structural exceptions and dependency constraints.
+Vite+ (`vp`) drives builds, tests, linting and formatting. Package `vite.config.ts` files configure each app. The root one holds shared lint and format policy, and its comments record the exceptions. Database work uses `void db`.
 
-- Use the root `package.json` scripts as entry points, including `pnpm lint`, `pnpm format`, and `pnpm check`. Install with `pnpm install --frozen-lockfile`; pnpm provisions the repository's Node version. These commands are entry points, not a requirement to run every command at every workflow checkpoint; follow the verification cadence in `.agents/rules/workflow-policy.md`.
-- Keep lint strict. Suppress a rule only at the narrowest applicable line and include the reason: `// oxlint-disable-next-line <rule> -- <why>`.
-- Fallow handles repository-wide analysis: unused code, duplication, complexity, and import cycles. Before handing off a change, run `pnpm fallow:audit`; CI fails on the findings a pull request introduces. Before deleting code it calls unused, confirm with `pnpm exec fallow dead-code --trace <file>:<export>` or `--trace-dependency <name>`. When Void adds a file-routed directory, add it to `entry` in `.fallowrc.json`.
-- When upgrading Vite+, update the linked `oxlint`, `oxfmt`, and `vite-plus-core` overrides in `pnpm-workspace.yaml` together. The comments in that file explain why their versions must remain aligned.
-
-## Conditional instructions
-
-### Frontend design
+- Use the root `package.json` scripts: `pnpm check`, `pnpm test`, `pnpm fallow:audit`, `pnpm e2e`. Install with `pnpm install --frozen-lockfile`.
+- `pnpm e2e` rewrites `apps/*/void.lock.json` with local values. Restore them afterwards and never commit the result. It uses fixed ports, so run one at a time.
+- Keep lint strict. Suppress a rule only on the narrowest line, with the reason: `// oxlint-disable-next-line <rule> -- <why>`.
+- Fallow fails a pull request on the unused code, duplication and complexity it introduces. Before deleting code it calls unused, confirm with `pnpm exec fallow dead-code --trace <file>:<export>` or `--trace-dependency <name>`. When Void adds a file-routed directory, add it to `entry` in `.fallowrc.json`.
+- Upgrade Vite+ together with its `oxlint`, `oxfmt` and `vite-plus-core` overrides in `pnpm-workspace.yaml`.
 
 All three frontends use Preact. Shared components and page tooling live in `@fuda/ui`; `@fuda/libs/query` exposes the Preact query hooks. Keep the API's `@fuda/ui/wallet-button` Hono HTML helper independent of the frontend renderer.
 
 When changing frontend UI or styling under `apps/app`, `apps/dash`, `apps/gate`, `packages/ui`, or `packages/styles`, read `.agents/rules/frontend-design.md` before editing.
 
-### D1 writes
+## Evidence
 
-When building a variable-length, multi-row D1 statement, batch it below D1's limit of 100 bound parameters per statement.
+Save screenshots, recordings and review evidence under `artifacts/<YYYY-MM-DD>-<task>/`, which is Git-ignored. Use `/tmp` for disposable scripts and logs. Builds and tests must not depend on either. When handing off a capture, give its absolute path, viewport, locale, theme and any fictional data.
 
-### Workflow and documentation policy
+## D1 writes
 
-The full policy lives in `.agents/rules/workflow-policy.md` (`.claude/rules/` is a symlink to `.agents/rules/`). Agents that resolve `@`-imports load it via the line below; other agents must read that file directly.
-
-@.agents/rules/workflow-policy.md
+Batch a variable-length, multi-row D1 statement below D1's limit of 100 bound parameters per statement.
