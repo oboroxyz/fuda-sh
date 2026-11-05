@@ -4,8 +4,8 @@ import type { JSX } from 'solid-js'
 import { CardDetailPage } from '../../../src/CardDetailPage.tsx'
 import { useCopy, useNavigate, useOperator } from '../../../src/page-context.tsx'
 
-// `useRouter().params`, not `useParams()`: @void/solid 1.4.0's params context
-// keeps the first page's values after client navigation.
+// Retain the working router params until the Preact port. Void 1.6.2 also fixes
+// the stale useParams context (voidzero-dev/void#709).
 export default function CardDetail(): JSX.Element {
   const copy = useCopy()
   const router = useRouter()

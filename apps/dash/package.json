@@ -26,12 +26,12 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.3.3",
-    "@void/solid": "1.6.1",
+    "@void/solid": "1.6.2",
     "daisyui": "5.7.28",
     "tailwindcss": "4.3.3",
     "vite": "^8.2.2",
     "vite-plugin-solid": "2.11.14",
     "vitest": "4.1.11",
-    "void": "1.6.1"
+    "void": "1.6.2"
   }
 }

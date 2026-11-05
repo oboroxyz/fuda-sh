@@ -1,6 +1,6 @@
 # ADR 0009: move the apps onto Void, with Solid for the frontends
 
-- **Status**: Accepted 2026-10-31. Every app has moved and is deployed with Void: `gate`, `dash` and `app` run on Solid 1.9 behind their own Workers, and `apps/api` is a Void app with one project per target. The api's `production` target has not been deployed yet, because it waits for the mainnet cutover. [ADR 0010](0010-void-pages-and-frontend-workers.md) supersedes the decision below not to server-render the frontends. [ADR 0012](0012-void-api-routing.md) supersedes the API middleware bridge with native Void server routing. The browser end-to-end suite (`packages/e2e`, `pnpm e2e`) is the safety net.
+- **Status**: Accepted 2026-10-31. Every app has moved and is deployed with Void: `gate`, `dash` and `app` run on Solid 1.9 behind their own Workers, and `apps/api` is a Void app with one project per target. The api's `production` target has not been deployed yet, because it waits for the mainnet cutover. [ADR 0010](0010-void-pages-and-frontend-workers.md) supersedes the decision below not to server-render the frontends. [ADR 0012](0012-void-api-routing.md) supersedes the API middleware bridge with native Void server routing. [ADR 0015](0015-preact-frontends.md) partly supersedes this ADR by replacing the Solid renderer decision with Preact. The Worker and deployment decisions stand. The browser end-to-end suite (`packages/e2e`, `pnpm e2e`) is the safety net.
 - **Scope**: `apps/gate`, `apps/dash`, `apps/app`, `packages/ui` and `apps/api`.
 
 ## Context

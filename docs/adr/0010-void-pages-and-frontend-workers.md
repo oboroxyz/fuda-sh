@@ -1,6 +1,6 @@
 # ADR 0010: render the frontends with Void pages, behind their own Workers
 
-- **Status**: Accepted 2026-10-31. Supersedes the "server-rendered pages are not part of this decision" line of [ADR 0009](0009-void-and-solid.md). The rest of ADR 0009 stands.
+- **Status**: Accepted 2026-10-31. Supersedes the "server-rendered pages are not part of this decision" line of [ADR 0009](0009-void-and-solid.md). [ADR 0015](0015-preact-frontends.md) partly supersedes this ADR's renderer-specific decisions. Its Worker, cookie, loader, and gate timing contracts stand.
 - **Scope**: `apps/dash`, `apps/app`, `apps/gate`, and the shared packages they import. `apps/api` does not change.
 
 ## Context
@@ -43,7 +43,7 @@ A spike on 2026-10-31 (Void 1.4.0, `@void/solid` 1.4.0) confirmed the pieces:
 
 ## Consequences
 
-- **The hand-written routers go.** Navigation uses `Link` and `useRouter()`, and nested screens use `layout.tsx`. `@void/solid` 1.4.0's `useParams()` keeps the first page's params after client navigation, so pages read `useRouter().params`, which updates.
+- **The hand-written routers go.** Navigation uses `Link` and `useRouter()`, and nested screens use `layout.tsx`. `@void/solid` 1.4.0's `useParams()` kept the first page's params after client navigation, so pages used `useRouter().params`. Void 1.6.2 includes the fix ([voidzero-dev/void#709](https://github.com/voidzero-dev/void/pull/709)). The dashboard card-detail page retains its working router params until the Preact rewrite.
 - **Session plumbing in the browser goes.** Restoring a saved token, the token store in `@fuda/libs`, and the per-token generation checks in `dash` all existed because the browser held the token. A session change is now a navigation, so they are deleted. Guards that keep a late save from overwriting a newer one are unrelated and stay.
 - **Every frontend runs a Worker.** Gate and dash stop being static-assets-only deployments. Local development and `pnpm e2e` start each frontend with `vp dev`. Two Void dev servers collide on the inspector port 9229, so the stack sets `VOID_INSPECTOR_PORT=false`.
 - **A layout's context never reaches its page.** `@void/solid` creates the page before its layout, so state the member pages share (the pass-list query cache) is module state, not a layout provider.
