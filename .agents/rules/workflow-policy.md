@@ -1,87 +1,38 @@
-# Workflow and Documentation Policy
+# Workflow policy
 
-This file is imported by `AGENTS.md` (via `@.agents/rules/workflow-policy.md`; also reachable as `.claude/rules/` via symlink). It governs which documents are authoritative, where design decisions are recorded, and how often to verify.
+Which documents are authoritative, how work reaches `main`, and how often to verify.
 
-## Documentation hierarchy
+## Before editing
 
-When determining the current behavior or intended specification of the system, use sources in this order:
+Triage read-only. If the task leaves requirements, product behavior, interfaces or architecture open, settle them with the user first. A fully specified, local, reversible change needs no design discussion.
 
-1. **Tests and implementation** — actual current behavior
-2. **`docs/specs/`** — current product and system specification
-3. **`docs/adr/`** — durable architectural decisions and their rationale
+## Documents
 
-If implementation or tests conflict with `docs/specs/`, do not silently choose one. Identify the discrepancy and update the canonical documentation as part of the change when appropriate.
+When sources disagree, trust them in this order, and do not silently pick one: tests and implementation, then `docs/specs/`, then `docs/adr/`.
 
-Keep working notes, plans and task breakdowns out of the repository. Before a change lands, move anything worth keeping into `docs/`:
+- `docs/specs/` says what the system does now: behavior, rules, interfaces, security constraints. No task breakdowns, edit lists or debugging notes.
+- `docs/adr/` records a decision future maintainers will question, and why. Skip it for routine choices the code explains.
+- The runbook holds operational procedures and pitfalls.
 
-- an architectural decision and its rationale goes in an ADR;
-- an operational pitfall or procedure goes in the runbook;
-- a change in behavior goes in the relevant spec.
+Keep working notes and plans out of the repository. Update the relevant document in the change that makes it wrong, using as little text as the change needs.
 
-## Workspace order
+## Reaching main
 
-1. Inspect and triage the current checkout read-only. Decide whether the task is routine direct work or has unresolved requirements, product semantics, interfaces, architecture or other design decisions.
-2. Settle those design decisions with the user before editing. Agree on a design in chat; when the decision is architectural, record it as an ADR.
-3. Work in the current checkout unless the user asked for isolation. A file changing is not by itself a reason to create a worktree.
+Every change reaches `main` through a pull request. Merge with a merge commit, never squash, so history keeps each commit. Agents working in parallel each use their own worktree.
 
-When a feature branch is used, merge it with a merge commit or rebase, not squash, so Git history keeps the individual commits.
+A feature that spans several pull requests uses one integration branch:
 
-## Verification cadence
+1. Create `feat/<topic>` from `main`. Record any architectural decision in an ADR first.
+2. Base every pull request on `feat/<topic>`, not on another pull request's branch. One that needs another's code waits until that code is merged there. Merge `main` in when it moves.
+3. Review and merge each pull request into `feat/<topic>`.
+4. Open one pull request from `feat/<topic>` to `main`. Run the full checks and an independent review of the combined change, then merge. Delete the branch last.
 
-Treat verification as fresh until the checked content changes, rather than rerunning the same commands at every workflow boundary.
+## Verification
 
-- During implementation, run the narrowest test, type check, lint, or build that exercises the changed behavior. Repeat targeted checks as the code changes.
-- Before declaring a substantive change complete, run `pnpm check` and `pnpm test` once against the final content. Record which commands ran and their results in the handoff.
-- Reuse that final verification for review, commit, and pre-merge gates while no tracked or untracked content has changed. A commit, rebase, or workflow transition alone does not invalidate results when it preserves the checked content.
-- After a local merge, reuse the result when the merged tree is identical to the verified tree. If conflict resolution, upstream changes, generated output, or any other content changes the tree, rerun checks proportionate to the difference; use the full suite when the resulting interaction risk is broad or unclear.
-- For documentation, ignore rules, and metadata-only changes, inspect the exact diff and run only a narrow structural check such as `git diff --check`. Run broader checks only when those files affect generated output, executable configuration, or runtime behavior.
+A result stays valid until the checked content changes. Read each result before relying on it. A failed or stale result is never reported as passed.
 
-A failed or stale result is never reusable. Review feedback or integration work that changes content starts a new targeted cycle and requires a new final verification before completion is claimed.
-
-### Herdr controller/worker worktrees
-
-Consider Herdr only after the user has asked for both worktree isolation and Herdr delegation. Its installation or availability alone does not trigger it, and it is never part of initial triage. An existing linked worktree takes precedence, and never gets a nested worktree.
-
-- If `command -v herdr` reports that `herdr` is absent from `PATH`, use an ordinary Git worktree.
-- If `herdr` is installed but `HERDR_ENV` is not `1`, do not control another Herdr session. Use an ordinary Git worktree and report that Herdr is inactive.
-- If Herdr is installed, active, reachable, and compatible, let its controller create, supervise, adopt, integrate, and clean up the worktree. The worker never removes its own workspace.
-- If Herdr is active but unreachable or incompatible, stop before changing anything. Do not silently fall back to an unmanaged Git worktree.
-
-Baseline verification, dirty-worktree protection and confirmation before discarding work still apply either way.
-
-## Canonical specifications
-
-`docs/specs/` should describe **what the system does now**, not how a particular change was implemented.
-
-Keep canonical specs focused on durable information such as:
-
-- externally observable behavior
-- product rules
-- invariants
-- interfaces and contracts
-- security constraints
-- compatibility requirements
-- important system-level constraints
-
-Avoid copying implementation details into canonical specs, including:
-
-- task breakdowns
-- file-by-file edit instructions
-- intermediate migration steps that no longer apply
-- commit instructions
-- debugging notes
-- implementation sequencing
-
-## Architectural decisions
-
-Use `docs/adr/` for decisions where future maintainers are likely to ask **why** the system was designed a particular way.
-
-An ADR should capture the durable decision and rationale, not the complete implementation history.
-
-Do not create an ADR for routine implementation choices that can be understood directly from the code.
-
-## Small and bounded changes
-
-Handle fully specified, local, reversible changes directly, without a design discussion. Examples include exact configuration changes, typo corrections, and mechanical edits with clear acceptance criteria.
-
-Prefer the smallest amount of documentation necessary for the scope of the change.
+- While working, run the narrowest check that exercises the change.
+- Before calling a substantive change complete, run `pnpm check`, `pnpm test`, `pnpm fallow:audit` and, when a frontend or an api route changed, `pnpm e2e` once on the final content. Report what ran and its result.
+- A commit or a clean merge that leaves the tree identical keeps the result. A change in content starts a new check, proportionate to the difference.
+- For documentation and metadata, read the exact diff and run `git diff --check`, plus `pnpm check` when a formatted file changed.
+- Say plainly what you could not verify, such as real devices and deployed services.
