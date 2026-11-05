@@ -28,20 +28,20 @@
     "@fuda/sdk": "workspace:*",
     "@fuda/ui": "workspace:*",
     "@simplewebauthn/server": "^14.0.3",
-    "@worldcoin/idkit-core": "^4.3.0",
-    "@worldcoin/idkit-server": "^1.1.1",
-    "drizzle-orm": "^0.45.2",
+    "@worldcoin/idkit-core": "^4.6.0",
+    "@worldcoin/idkit-server": "^1.2.0",
+    "drizzle-orm": "^0.45.4",
     "hono": "^4.13.16",
-    "valibot": "^1.1.0",
-    "viem": "^2.37.0"
+    "valibot": "^1.5.0",
+    "viem": "^2.57.14"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.22.0",
-    "@cloudflare/workers-types": "^4.20250905.0",
-    "asn1js": "3.0.10",
-    "drizzle-kit": "^0.31.0",
+    "@cloudflare/vitest-pool-workers": "^0.23.0",
+    "@cloudflare/workers-types": "^5.20261102.1",
+    "asn1js": "4.0.0",
+    "drizzle-kit": "^0.31.11",
     "jsonc-parser": "3.3.1",
-    "pkijs": "3.4.0",
+    "pkijs": "4.0.1",
     "vitest": "4.1.11",
     "void": "1.6.2"
   }

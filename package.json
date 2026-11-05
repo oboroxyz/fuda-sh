@@ -37,11 +37,11 @@
     "e2e": "pnpm --filter @fuda/e2e e2e"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
+    "@types/node": "^26.6.6",
     "esbuild": "^0.28.2",
     "fallow": "^3.38.1",
-    "happy-dom": "20.14.0",
-    "tsx": "^4.23.13",
+    "happy-dom": "21.0.4",
+    "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "ultracite": "^7.10.7",
     "vite-plus": "^0.3.0"

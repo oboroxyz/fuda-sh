@@ -14,18 +14,18 @@
     "test": "vp test"
   },
   "dependencies": {
-    "@base-org/account": "2.5.10",
+    "@base-org/account": "2.6.0",
     "@fuda/sdk": "workspace:*",
     "@simplewebauthn/browser": "^14.0.0",
-    "@tanstack/query-core": "5.102.8",
+    "@tanstack/query-core": "5.105.2",
     "hono": "^4.13.16",
     "preact": "11.1.1",
-    "solid-js": "1.9.17",
-    "valibot": "^1.1.0",
-    "viem": "^2.56.3"
+    "solid-js": "1.9.18",
+    "valibot": "^1.5.0",
+    "viem": "^2.57.14"
   },
   "devDependencies": {
-    "vite-plugin-solid": "2.11.14",
+    "vite-plugin-solid": "2.11.15",
     "vitest": "4.1.11"
   }
 }
