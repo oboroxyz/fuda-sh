@@ -39,7 +39,9 @@ flowchart LR
 
 `@fuda/libs` exposes shared library integrations through separate subpaths, with no root barrel. Browser and backend integrations may coexist, provided that runtime-specific dependencies stay behind their own entry points.
 
-Gate mounts from `index.html` without a pages router. Its hardware-reader listener is installed before paint. `@fuda/ui-preact` supplies its Scanner view, while the Solid apps continue using `@fuda/ui`. Both Scanner views use the same renderer-independent camera lifetime and labels. This boundary is temporary during the [Preact migration](./adr/0015-preact-frontends.md).
+Gate mounts from `index.html` without a pages router. Its hardware-reader listener is installed before paint. Gate and the operator dashboard render with Preact: gate through `@fuda/ui-preact` and dash through `void-preact`. The member app still uses Solid and `@fuda/ui`. Both Scanner views use the same renderer-independent camera lifetime and labels. This boundary is temporary during the [Preact migration](./adr/0015-preact-frontends.md).
+
+Dash keeps three lifetimes outside its components. The card draft is module state behind a subscription hook (`useSyncExternalStore`), so it survives a route change inside the browser and is dropped by a full navigation; a server render never reads or writes it. The layout compares the cookie session it first rendered with against the shared session on every refresh, and on a difference renders nothing and reloads instead of letting an old form write under the new session. Ceremonies, requests and timers that outlive a render keep their generation and in-flight guard in refs and are dropped on unmount.
 
 The member app's public pass list uses `@fuda/libs/query`, a Solid adapter over TanStack Query Core. Each mounted scope owns an independent in-memory client and clears it when disposed. Reads become stale after 30 seconds and refresh on focus or reconnect; the public pass list also refreshes every 30 seconds while visible. Transient read failures retry once, HTTP 4xx failures do not, and writes have no automatic retry.
 
