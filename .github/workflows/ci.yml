@@ -56,6 +56,32 @@ jobs:
       - run: gh extension install github/gh-actions-lock --pin v0.4.0
       - run: gh actions-lock --verify
 
+  zizmor:
+    name: Audit Actions configuration
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: zizmorcore/zizmor-action@v0.8.1
+        with:
+          advanced-security: false
+          online-audits: false
+
+  dependency-review:
+    name: Review dependency changes
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@v5.0.0
+        with:
+          fail-on-severity: high
+
   checks:
     name: Format, lint and type check
     needs: plan
@@ -171,7 +197,7 @@ jobs:
   ci:
     name: CI
     if: always()
-    needs: [plan, lockfile, checks, fallow, packages, subgraph, substreams]
+    needs: [plan, lockfile, zizmor, dependency-review, checks, fallow, packages, subgraph, substreams]
     runs-on: ubuntu-22.04
     timeout-minutes: 2
     steps:

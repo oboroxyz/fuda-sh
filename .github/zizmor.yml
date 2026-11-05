@@ -1,0 +1,9 @@
+rules:
+  unpinned-uses:
+    ignore:
+      # actions.lock pins the setup action's third-party actions.
+      - action.yml
+  dependabot-cooldown:
+    ignore:
+      # Three days intentionally matches pnpm minimumReleaseAge: 4320.
+      - dependabot.yml
