@@ -69,7 +69,9 @@ describe('appearance controls', () => {
   })
 
   it('renders the language choice as a labelled globe menu', () => {
-    const host = open(<LanguageSwitcher current="en" label="Language" onChange={() => {}} options={OPTIONS} />)
+    const host = open(
+      <LanguageSwitcher current="en" label="Language" onChange={() => {}} options={OPTIONS} />,
+    )
     expect(host.querySelector('details')?.className).toBe('fuda-language-menu')
     const summary = host.querySelector('summary')
     expect(summary?.getAttribute('aria-label')).toBe('Language')

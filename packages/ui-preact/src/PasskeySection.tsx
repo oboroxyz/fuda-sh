@@ -130,7 +130,9 @@ export const PasskeySection = (props: PasskeySectionProps): JSX.Element => {
               class="flex items-center gap-3 rounded-xl border border-[var(--fuda-border)] p-3"
             >
               <div class="flex grow flex-col">
-                <span class="text-sm font-medium">{props.copy.name.replace('{number}', String(index + 1))}</span>
+                <span class="text-sm font-medium">
+                  {props.copy.name.replace('{number}', String(index + 1))}
+                </span>
                 <span class="text-xs text-[var(--fuda-muted)]">
                   {props.copy.created.replace('{date}', props.formatDate(passkey.createdAt))}
                   {passkey.backedUp ? ` · ${props.copy.synced}` : ''}

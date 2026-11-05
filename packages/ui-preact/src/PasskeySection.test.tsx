@@ -106,13 +106,8 @@ describe(PasskeySection, () => {
   })
 
   it('starts one ceremony for a double click, and none from a rerender', async () => {
-    let release: (outcome: { ok: true }) => void = () => {}
-    const add = vi.fn<PasskeySectionProps['io']['add']>(
-      async () =>
-        await new Promise((resolve) => {
-          release = resolve
-        }),
-    )
+    const ceremony = Promise.withResolvers<{ ok: true }>()
+    const add = vi.fn<PasskeySectionProps['io']['add']>(async () => await ceremony.promise)
     const host = render({ add })
     await vi.waitFor(() => {
       expect(host.textContent).toContain('Passkey 1')
@@ -124,7 +119,7 @@ describe(PasskeySection, () => {
     })
     expect(add).toHaveBeenCalledOnce()
     expect(button.textContent).toBe('Adding')
-    release({ ok: true })
+    ceremony.resolve({ ok: true })
     await vi.waitFor(() => {
       expect(button.textContent).toBe('Add')
     })
@@ -132,22 +127,21 @@ describe(PasskeySection, () => {
   })
 
   it('writes nothing after it unmounts while a list is pending', async () => {
-    let finish: (list: ReturnType<typeof PASSKEY>[]) => void = () => {}
-    const list = vi.fn<PasskeySectionProps['io']['list']>(
-      async () =>
-        await new Promise((resolve) => {
-          finish = resolve
-        }),
-    )
+    const pending = Promise.withResolvers<ReturnType<typeof PASSKEY>[]>()
+    const list = vi.fn<PasskeySectionProps['io']['list']>(async () => await pending.promise)
     const mounted = mount(
       <PasskeySection
         copy={COPY}
         formatDate={() => 'today'}
-        io={{ add: async () => await Promise.resolve({ ok: true as const }), list, remove: async () => true }}
+        io={{
+          add: async () => await Promise.resolve({ ok: true as const }),
+          list,
+          remove: async () => await Promise.resolve(true),
+        }}
       />,
     )
     mounted.dispose()
-    finish([PASSKEY('a')])
+    pending.resolve([PASSKEY('a')])
     await settle()
     expect(mounted.host.textContent).toBe('')
   })

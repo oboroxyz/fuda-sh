@@ -53,7 +53,7 @@ describe(ConfirmAction, () => {
     expect(confirm).toHaveBeenCalledOnce()
   })
 
-  it('labels the dialog by ids that stay stable across a rerender', async () => {
+  it('labels the dialog by ids that stay stable across a rerender', () => {
     const view = (
       <ConfirmAction
         label="Sign out"
