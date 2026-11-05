@@ -13,7 +13,7 @@ import { cleanup, mount, spacedText } from './test/render.tsx'
 const UID = `0x${'ab'.repeat(32)}` as const
 const copy = pick(DASH_COPY, 'en').overview
 
-const show = (props: OverviewPageProps): HTMLElement => mount(() => <OverviewPage {...props} />)
+const show = (props: OverviewPageProps): HTMLElement => mount(<OverviewPage {...props} />)
 const shown = (props: OverviewPageProps): string => spacedText(show(props))
 
 const rows: readonly MemberRowView[] = [

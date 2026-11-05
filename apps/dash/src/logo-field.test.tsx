@@ -34,7 +34,7 @@ describe('logo preview connection', () => {
       vi.stubEnv('DEV', dev)
       vi.resetModules()
       const { LogoField } = await import('./LogoField.tsx')
-      const host = mount(() => (
+      const host = mount(
         <LogoField
           busy={false}
           copy={DASH_COPY.en.logo}
@@ -44,8 +44,8 @@ describe('logo preview connection', () => {
           onPick={vi.fn<(file: File) => void>()}
           savedUrl={url}
           state={EMPTY_LOGO}
-        />
-      ))
+        />,
+      )
       expect(host.querySelector('img')?.getAttribute('src')).toBe(expected)
     },
   )

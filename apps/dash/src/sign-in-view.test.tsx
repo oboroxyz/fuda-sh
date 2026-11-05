@@ -13,9 +13,9 @@ const renderSignIn = (busy: 'create' | 'signin' | 'wallet' | null = null) => {
     onToken: vi.fn<(token: string) => void>(),
     onWallet: vi.fn<() => void>(),
   }
-  const host = mount(() => (
-    <SignIn appearance={<aside />} busy={busy} copy={DASH_COPY.en.auth} error={null} {...handlers} />
-  ))
+  const host = mount(
+    <SignIn appearance={<aside />} busy={busy} copy={DASH_COPY.en.auth} error={null} {...handlers} />,
+  )
   const button = (name: string): HTMLButtonElement =>
     [...host.querySelectorAll('button')].find((candidate) => candidate.textContent?.trim() === name)!
   return { button, handlers, host }

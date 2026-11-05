@@ -1,61 +1,60 @@
-// @vitest-environment happy-dom
-import { SharedContext } from '@void/solid'
-import { createStore } from 'solid-js/store'
-import type { SetStoreFunction } from 'solid-js/store'
-import { render } from 'solid-js/web'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+// @vitest-environment happy-dom
+import { SharedContext } from 'void-preact'
 
 import Layout from '../pages/layout.tsx'
 import type { DashShared } from './server/session.ts'
 import { setSessionVersion } from './session-request.ts'
+import { cleanup, open } from './test/render.tsx'
 
-let shared: DashShared
-let setShared: SetStoreFunction<DashShared>
 vi.mock(import('./session-request.ts'), async (original) => ({
   ...(await original()),
   setSessionVersion: vi.fn<(value: string | null) => void>(),
 }))
 
+const sharedAt = (sessionVersion: string): DashShared => ({
+  locale: 'en',
+  operator: null,
+  restoreFailed: false,
+  sessionVersion,
+  surface: null,
+  theme: 'system',
+})
+
+const page = (sessionVersion: string) => (
+  <SharedContext.Provider value={{ ...sharedAt(sessionVersion) }}>
+    <Layout>
+      <input value="old draft" />
+    </Layout>
+  </SharedContext.Provider>
+)
+
 describe('dashboard session boundary', () => {
-  let dispose: (() => void) | undefined
-  let host: HTMLDivElement | undefined
   afterEach(() => {
-    dispose?.()
-    host?.remove()
+    cleanup()
     vi.restoreAllMocks()
   })
 
-  it('reloads instead of blessing an old form with a refreshed session identifier', () => {
-    ;[shared, setShared] = createStore<DashShared>({
-      locale: 'en',
-      operator: null,
-      restoreFailed: false,
-      sessionVersion: 'original',
-      surface: null,
-      theme: 'system',
-    })
+  it('records the session identifier the layout first rendered with', () => {
+    open(page('original'))
+    expect(setSessionVersion).toHaveBeenLastCalledWith('original')
+  })
+
+  it('keeps the same identifier across a refresh that does not change the session', () => {
+    const view = open(page('original'))
+    view.update(page('original'))
+    expect(setSessionVersion).toHaveBeenLastCalledWith('original')
+    expect(view.host.querySelector('input')).not.toBeNull()
+  })
+
+  it('reloads and drops the old form instead of blessing it with a refreshed session identifier', () => {
     const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => {})
-    host = document.createElement('div')
-    document.body.append(host)
-    const context = {
-      ...shared,
-      get sessionVersion() {
-        return shared.sessionVersion
-      },
-    }
-    dispose = render(
-      () => (
-        <SharedContext.Provider value={context}>
-          <Layout>
-            <input value="old store draft" />
-          </Layout>
-        </SharedContext.Provider>
-      ),
-      host,
-    )
-    expect(setSessionVersion).toHaveBeenLastCalledWith('original')
-    setShared('sessionVersion', 'new-session')
+    const view = open(page('original'))
+    expect(view.host.querySelector('input')?.value).toBe('old draft')
+    view.update(page('new-session'))
     expect(reload).toHaveBeenCalledOnce()
+    expect(setSessionVersion).not.toHaveBeenCalledWith('new-session')
     expect(setSessionVersion).toHaveBeenLastCalledWith('original')
+    expect(view.host.querySelector('input')).toBeNull()
   })
 })

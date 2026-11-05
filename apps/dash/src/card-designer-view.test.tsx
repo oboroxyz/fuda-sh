@@ -1,6 +1,5 @@
 // @vitest-environment happy-dom
 import type { IssuerView } from '@fuda/sdk'
-import { render } from 'solid-js/web'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { EMPTY_FORM, withCategory } from './card-designer.ts'
@@ -11,7 +10,7 @@ import { DASH_COPY } from './copy.ts'
 import { EMPTY_LOGO } from './logo.ts'
 import { LogoField } from './LogoField.tsx'
 import type { LogoFieldProps } from './LogoField.tsx'
-import { cleanup, mount, spacedText } from './test/render.tsx'
+import { cleanup, mount, render, spacedText, typeInto } from './test/render.tsx'
 
 const filled: DesignerForm = { ...EMPTY_FORM, handle: 'wassie-coffee', name: 'Wassie Coffee' }
 
@@ -30,9 +29,8 @@ const logoField = (overrides: Partial<LogoFieldProps> = {}): LogoFieldProps => (
   ...overrides,
 })
 
-const showDesigner = (props: CardDesignerViewProps): HTMLElement =>
-  mount(() => <CardDesignerView {...props} />)
-const showLogo = (props: LogoFieldProps): HTMLElement => mount(() => <LogoField {...props} />)
+const showDesigner = (props: CardDesignerViewProps): HTMLElement => mount(<CardDesignerView {...props} />)
+const showLogo = (props: LogoFieldProps): HTMLElement => mount(<LogoField {...props} />)
 
 const submitOf = (props: CardDesignerViewProps): boolean =>
   showDesigner(props).querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled === true
@@ -96,21 +94,19 @@ describe(CardDesignerView, () => {
     let dispose: (() => void) | undefined
     try {
       dispose = render(
-        () => (
-          <CardDesigner
-            busy={false}
-            copy={DASH_COPY.en.designer}
-            failure={null}
-            initialDraft={{ ...filled, title: 'Previous session draft' }}
-            issuer={issuer}
-            logoCopy={DASH_COPY.en.logo}
-            onCheckHandle={async () => await Promise.resolve('available')}
-            onCheckSlug={async () => await Promise.resolve('available')}
-            onDraftChange={onDraftChange}
-            onEditProfile={vi.fn<() => void>()}
-            onSubmit={vi.fn<() => void>()}
-          />
-        ),
+        <CardDesigner
+          busy={false}
+          copy={DASH_COPY.en.designer}
+          failure={null}
+          initialDraft={{ ...filled, title: 'Previous session draft' }}
+          issuer={issuer}
+          logoCopy={DASH_COPY.en.logo}
+          onCheckHandle={async () => await Promise.resolve('available')}
+          onCheckSlug={async () => await Promise.resolve('available')}
+          onDraftChange={onDraftChange}
+          onEditProfile={vi.fn<() => void>()}
+          onSubmit={vi.fn<() => void>()}
+        />,
         root,
       )
       dispose()
@@ -127,6 +123,59 @@ describe(CardDesignerView, () => {
     }
   })
 
+  describe('draft publication', () => {
+    const showLive = (onDraftChange: (form: DesignerForm) => void, initialDraft = filled) => {
+      const root = document.createElement('div')
+      const dispose = render(
+        <CardDesigner
+          busy={false}
+          copy={DASH_COPY.en.designer}
+          failure={null}
+          initialDraft={initialDraft}
+          issuer={issuer}
+          logoCopy={DASH_COPY.en.logo}
+          onCheckHandle={async () => await Promise.resolve('available')}
+          onCheckSlug={async () => await Promise.resolve('available')}
+          onDraftChange={onDraftChange}
+          onEditProfile={vi.fn<() => void>()}
+          onSubmit={vi.fn<() => void>()}
+        />,
+        root,
+      )
+      return { dispose, root }
+    }
+
+    it('publishes the opening draft when the screen mounts', () => {
+      const onDraftChange = vi.fn<(form: DesignerForm) => void>()
+      showLive(onDraftChange, { ...filled, title: 'Opening' })
+      expect(onDraftChange).toHaveBeenCalledOnce()
+      expect(onDraftChange).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Opening' }))
+    })
+
+    it('publishes a keystroke in the event itself, so leaving at once cannot lose it', () => {
+      const onDraftChange = vi.fn<(form: DesignerForm) => void>()
+      const { dispose, root } = showLive(onDraftChange)
+      onDraftChange.mockClear()
+      typeInto(root.querySelector<HTMLInputElement>('#card-title')!, 'Spring pass')
+      // Nothing has been flushed: no effect and no rerender has run yet.
+      expect(onDraftChange).toHaveBeenCalledOnce()
+      expect(onDraftChange).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Spring pass' }))
+      dispose()
+      expect(onDraftChange).toHaveBeenCalledOnce()
+    })
+
+    it('keeps two changes made before a rerender', () => {
+      const onDraftChange = vi.fn<(form: DesignerForm) => void>()
+      const { root } = showLive(onDraftChange)
+      onDraftChange.mockClear()
+      typeInto(root.querySelector<HTMLInputElement>('#card-title')!, 'Spring pass')
+      typeInto(root.querySelector<HTMLTextAreaElement>('#card-description')!, 'Open all week')
+      expect(onDraftChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({ description: 'Open all week', title: 'Spring pass' }),
+      )
+    })
+  })
+
   it.each([
     { expected: null, logoUrl: null },
     { expected: 'https://cdn.example/logo.png?v=1', logoUrl: 'https://cdn.example/logo.png?v=1' },
@@ -139,19 +188,17 @@ describe(CardDesignerView, () => {
     let dispose: (() => void) | undefined
     try {
       dispose = render(
-        () => (
-          <CardDesigner
-            busy={false}
-            copy={DASH_COPY.en.designer}
-            failure={null}
-            issuer={{ ...issuer, logoUrl }}
-            logoCopy={DASH_COPY.en.logo}
-            onCheckHandle={async () => await Promise.resolve('available')}
-            onCheckSlug={async () => await Promise.resolve('available')}
-            onEditProfile={vi.fn<() => void>()}
-            onSubmit={vi.fn<() => void>()}
-          />
-        ),
+        <CardDesigner
+          busy={false}
+          copy={DASH_COPY.en.designer}
+          failure={null}
+          issuer={{ ...issuer, logoUrl }}
+          logoCopy={DASH_COPY.en.logo}
+          onCheckHandle={async () => await Promise.resolve('available')}
+          onCheckSlug={async () => await Promise.resolve('available')}
+          onEditProfile={vi.fn<() => void>()}
+          onSubmit={vi.fn<() => void>()}
+        />,
         root,
       )
       const preview = root.querySelector('.dash-card-preview')

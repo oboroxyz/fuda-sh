@@ -1,18 +1,13 @@
 // @vitest-environment happy-dom
 import { setTimeout } from 'node:timers/promises'
 
-import type { JSX } from 'solid-js'
-import { render as solidRender } from 'solid-js/web'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { APPS_COPY } from './apps-copy.ts'
 import { ConnectedAppsPage, redirectLines } from './ConnectedAppsPage.tsx'
 import type { ConnectedAppsIo } from './ConnectedAppsPage.tsx'
+import { cleanup as cleanupAll, render } from './test/render.tsx'
 
-const disposers: (() => void)[] = []
-const render = (view: () => JSX.Element, host: HTMLElement): void => {
-  disposers.push(solidRender(view, host))
-}
 let root: HTMLDivElement
 
 const APP = { clientId: 'app_1', createdAt: 1, name: 'Shop app', redirectUris: ['https://shop.figma.site/'] }
@@ -79,21 +74,19 @@ describe(ConnectedAppsPage, () => {
     document.body.append(root)
   })
   afterEach(() => {
-    for (const dispose of disposers.splice(0)) {
-      dispose()
-    }
+    cleanupAll()
     root.remove()
   })
 
   it('lists apps with their client id and the live approvals', async () => {
-    render(() => <ConnectedAppsPage copy={APPS_COPY.en} io={ioWith()} />, root)
+    render(<ConnectedAppsPage copy={APPS_COPY.en} io={ioWith()} />, root)
     await setTimeout(0)
     expect(root.textContent).toContain('app_1')
     expect(root.textContent).toContain('Wassie Coffee')
   })
 
   it('shows when an approval was last used, and what apps did, including failures', async () => {
-    render(() => <ConnectedAppsPage copy={APPS_COPY.en} io={ioWith()} />, root)
+    render(<ConnectedAppsPage copy={APPS_COPY.en} io={ioWith()} />, root)
     await setTimeout(0)
     expect(root.textContent).toContain('Not used yet')
     expect(root.textContent).toContain('Revoked a pass')
@@ -103,7 +96,7 @@ describe(ConnectedAppsPage, () => {
 
   it('revokes an approval, and deletes an app only on the second press', async () => {
     const io = ioWith()
-    render(() => <ConnectedAppsPage copy={APPS_COPY.en} io={io} />, root)
+    render(<ConnectedAppsPage copy={APPS_COPY.en} io={io} />, root)
     await setTimeout(0)
     buttonNamed('Revoke').click()
     await setTimeout(0)
@@ -120,7 +113,7 @@ describe(ConnectedAppsPage, () => {
 
   it('explains a refused return address', async () => {
     const io = ioWith()
-    render(() => <ConnectedAppsPage copy={APPS_COPY.en} io={io} />, root)
+    render(<ConnectedAppsPage copy={APPS_COPY.en} io={io} />, root)
     await setTimeout(0)
     const name = root.querySelector('input')
     const uris = root.querySelector('textarea')

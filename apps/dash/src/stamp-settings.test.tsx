@@ -1,24 +1,14 @@
 import { setTimeout } from 'node:timers/promises'
 
+import type { JSX } from 'preact'
 // @vitest-environment happy-dom
-import { createSignal } from 'solid-js'
-import type { JSX } from 'solid-js'
-import { render as solidRender } from 'solid-js/web'
+import { useState } from 'preact/hooks'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DASH_COPY } from './copy.ts'
 import { StampSettings } from './StampSettings.tsx'
 import type { StampSettingsProps } from './StampSettings.tsx'
-
-const disposers: (() => void)[] = []
-const render = (view: () => JSX.Element, host: HTMLElement): void => {
-  disposers.push(solidRender(view, host))
-}
-const unmountAll = (): void => {
-  for (const dispose of disposers.splice(0)) {
-    dispose()
-  }
-}
+import { cleanup as cleanupAll, render } from './test/render.tsx'
 
 const deferred = <T,>() => Promise.withResolvers<T>()
 
@@ -30,7 +20,7 @@ describe(StampSettings, () => {
     document.body.append(root)
   })
   afterEach(() => {
-    unmountAll()
+    cleanupAll()
     root.remove()
   })
 
@@ -40,15 +30,13 @@ describe(StampSettings, () => {
       ok: true,
     })
     render(
-      () => (
-        <StampSettings
-          copy={DASH_COPY.en.stamps}
-          load={async () =>
-            await Promise.resolve({ body: { dailyLimit: 1, enabled: false, goal: 10 }, ok: true })
-          }
-          save={save}
-        />
-      ),
+      <StampSettings
+        copy={DASH_COPY.en.stamps}
+        load={async () =>
+          await Promise.resolve({ body: { dailyLimit: 1, enabled: false, goal: 10 }, ok: true })
+        }
+        save={save}
+      />,
       root,
     )
     await vi.waitFor(() => {
@@ -72,7 +60,7 @@ describe(StampSettings, () => {
     const old = deferred<{ body: { dailyLimit: number; enabled: boolean; goal: number }; ok: true }>()
     let replace!: () => void
     const Harness = (): JSX.Element => {
-      const [load, setLoad] = createSignal<StampSettingsProps['load']>(async () => await old.promise)
+      const [load, setLoad] = useState<StampSettingsProps['load']>(() => async () => await old.promise)
       replace = () => {
         setLoad(
           () => async () =>
@@ -80,10 +68,10 @@ describe(StampSettings, () => {
         )
       }
       return (
-        <StampSettings copy={DASH_COPY.en.stamps} load={load()} save={vi.fn<StampSettingsProps['save']>()} />
+        <StampSettings copy={DASH_COPY.en.stamps} load={load} save={vi.fn<StampSettingsProps['save']>()} />
       )
     }
-    render(() => <Harness />, root)
+    render(<Harness />, root)
     replace()
     await vi.waitFor(() => {
       expect(root.querySelector<HTMLInputElement>('input[type="number"]')?.value).toBe('2')
@@ -97,15 +85,13 @@ describe(StampSettings, () => {
     const pending = deferred<{ body: { dailyLimit: number; enabled: boolean; goal: number }; ok: true }>()
     const save = vi.fn<StampSettingsProps['save']>().mockReturnValue(pending.promise)
     render(
-      () => (
-        <StampSettings
-          copy={DASH_COPY.en.stamps}
-          load={async () =>
-            await Promise.resolve({ body: { dailyLimit: 1, enabled: true, goal: 10 }, ok: true })
-          }
-          save={save}
-        />
-      ),
+      <StampSettings
+        copy={DASH_COPY.en.stamps}
+        load={async () =>
+          await Promise.resolve({ body: { dailyLimit: 1, enabled: true, goal: 10 }, ok: true })
+        }
+        save={save}
+      />,
       root,
     )
     await vi.waitFor(() => {
@@ -128,9 +114,7 @@ describe(StampSettings, () => {
       .mockResolvedValueOnce({ error: 'network', network: true, ok: false, status: 0 })
       .mockResolvedValueOnce({ body: { dailyLimit: 1, enabled: false, goal: 10 }, ok: true })
     render(
-      () => (
-        <StampSettings copy={DASH_COPY.en.stamps} load={load} save={vi.fn<StampSettingsProps['save']>()} />
-      ),
+      <StampSettings copy={DASH_COPY.en.stamps} load={load} save={vi.fn<StampSettingsProps['save']>()} />,
       root,
     )
     await vi.waitFor(() => {

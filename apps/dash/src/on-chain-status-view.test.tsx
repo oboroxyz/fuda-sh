@@ -14,7 +14,7 @@ const RIGHT_UID = `0x${'aa'.repeat(32)}` as const
 const DELEGATION_UID = `0x${'bb'.repeat(32)}` as const
 
 const show = (props: { copy: DashCopy['chain']; state: OnChainStatusState }): HTMLElement =>
-  mount(() => <OnChainStatusView copy={props.copy} state={props.state} />)
+  mount(<OnChainStatusView copy={props.copy} state={props.state} />)
 
 const delegation: GraphDelegation = {
   active: true,

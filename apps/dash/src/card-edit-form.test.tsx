@@ -1,23 +1,12 @@
 // @vitest-environment happy-dom
 import type { IssuerView } from '@fuda/sdk'
-import type { JSX } from 'solid-js'
-import { render as solidRender } from 'solid-js/web'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { EMPTY_FORM } from './card-designer.ts'
 import { CardDesigner } from './CardDesigner.tsx'
 import type { CardDesignerProps } from './CardDesigner.tsx'
 import { DASH_COPY } from './copy.ts'
-
-const disposers: (() => void)[] = []
-const render = (view: () => JSX.Element, host: HTMLElement): void => {
-  disposers.push(solidRender(view, host))
-}
-const unmountAll = (): void => {
-  for (const dispose of disposers.splice(0)) {
-    dispose()
-  }
-}
+import { cleanup as cleanupAll, render } from './test/render.tsx'
 
 const issuer: IssuerView = {
   brandColor: '#0073EB',
@@ -59,13 +48,13 @@ describe('shared card edit form', () => {
     document.body.append(root)
   })
   afterEach(() => {
-    unmountAll()
+    cleanupAll()
     root.remove()
   })
 
   it('keeps the published slug read-only and submits existing custom validity without a name check', async () => {
     const input = props()
-    render(() => <CardDesigner {...input} />, root)
+    render(<CardDesigner {...input} />, root)
     expect(root.querySelector<HTMLInputElement>('#card-slug')?.readOnly).toBe(true)
     expect(root.querySelector<HTMLSelectElement>('#validity-days')?.value).toBe('45')
     const title = root.querySelector<HTMLInputElement>('#card-title')!
@@ -87,7 +76,7 @@ describe('shared card edit form', () => {
 
   it('allows an existing reserved new slug to be edited without changing the URL', async () => {
     const input = props()
-    render(() => <CardDesigner {...input} initialDraft={{ ...input.initialDraft!, slug: 'new' }} />, root)
+    render(<CardDesigner {...input} initialDraft={{ ...input.initialDraft!, slug: 'new' }} />, root)
     await vi.waitFor(() => {
       expect(root.querySelector<HTMLButtonElement>('button[type=submit]')?.disabled).toBe(false)
     })

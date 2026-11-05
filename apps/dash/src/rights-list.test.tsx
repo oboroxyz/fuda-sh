@@ -67,7 +67,7 @@ const show = (overrides: Partial<RightsListProps> = {}): HTMLElement => {
     rows,
     ...overrides,
   }
-  return mount(() => <RightsList {...value} />)
+  return mount(<RightsList {...value} />)
 }
 const buttons = (scope: ParentNode): HTMLButtonElement[] => [
   ...scope.querySelectorAll<HTMLButtonElement>('button[type="button"]'),

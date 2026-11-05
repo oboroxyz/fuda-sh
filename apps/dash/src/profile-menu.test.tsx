@@ -1,18 +1,13 @@
 // @vitest-environment happy-dom
 import { setTimeout } from 'node:timers/promises'
 
-import type { JSX } from 'solid-js'
-import { render as solidRender } from 'solid-js/web'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DASH_COPY } from './copy.ts'
 import { ProfileMenu } from './ProfileMenu.tsx'
 import type { ProfileChoices } from './ProfileMenu.tsx'
+import { cleanup as cleanupAll, render } from './test/render.tsx'
 
-const disposers: (() => void)[] = []
-const render = (view: () => JSX.Element, host: HTMLElement): void => {
-  disposers.push(solidRender(view, host))
-}
 let root: HTMLDivElement
 
 const choices = (): ProfileChoices => ({
@@ -39,23 +34,19 @@ describe(ProfileMenu, () => {
     document.body.append(root)
   })
   afterEach(() => {
-    for (const dispose of disposers.splice(0)) {
-      dispose()
-    }
+    cleanupAll()
     root.remove()
   })
 
   it('marks the active profile, switches to another and opens a new one', async () => {
     const profiles = choices()
     render(
-      () => (
-        <ProfileMenu
-          copy={DASH_COPY.en}
-          onSignOut={null}
-          profiles={profiles}
-          venue={{ name: 'Coffee', publicUrl: null }}
-        />
-      ),
+      <ProfileMenu
+        copy={DASH_COPY.en}
+        onSignOut={null}
+        profiles={profiles}
+        venue={{ name: 'Coffee', publicUrl: null }}
+      />,
       root,
     )
     buttonWith('Coffee').click()

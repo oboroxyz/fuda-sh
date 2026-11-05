@@ -2,8 +2,6 @@
 import { setTimeout } from 'node:timers/promises'
 
 import type { AuthorizePreviewResponse } from '@fuda/sdk'
-import type { JSX } from 'solid-js'
-import { render as solidRender } from 'solid-js/web'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CONSENT_COPY } from './consent-copy.ts'
@@ -16,6 +14,7 @@ import {
 } from './consent.ts'
 import { OAuthConsentPage } from './OAuthConsentPage.tsx'
 import type { ConsentIo } from './OAuthConsentPage.tsx'
+import { cleanup as cleanupAll, render } from './test/render.tsx'
 
 const SEARCH =
   '?response_type=code&client_id=app_1&redirect_uri=https%3A%2F%2Fshop.figma.site%2F&scope=cards%3Awrite' +
@@ -32,10 +31,6 @@ const PREVIEW: AuthorizePreviewResponse = {
   scope: ['cards:write'],
 }
 
-const disposers: (() => void)[] = []
-const render = (view: () => JSX.Element, host: HTMLElement): void => {
-  disposers.push(solidRender(view, host))
-}
 let root: HTMLDivElement
 
 const ioWith = (overrides: Partial<ConsentIo> = {}): ConsentIo => ({
@@ -52,15 +47,13 @@ const ioWith = (overrides: Partial<ConsentIo> = {}): ConsentIo => ({
 
 const show = async (io: ConsentIo, search = SEARCH, signedIn = true): Promise<void> => {
   render(
-    () => (
-      <OAuthConsentPage
-        signedIn={signedIn}
-        copy={CONSENT_COPY.en}
-        dashboardUrl="/"
-        io={io}
-        request={readAuthorizeRequest(search)}
-      />
-    ),
+    <OAuthConsentPage
+      signedIn={signedIn}
+      copy={CONSENT_COPY.en}
+      dashboardUrl="/"
+      io={io}
+      request={readAuthorizeRequest(search)}
+    />,
     root,
   )
   await setTimeout(0)
@@ -95,9 +88,7 @@ describe(OAuthConsentPage, () => {
     document.body.append(root)
   })
   afterEach(() => {
-    for (const dispose of disposers.splice(0)) {
-      dispose()
-    }
+    cleanupAll()
     root.remove()
   })
 
