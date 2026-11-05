@@ -28,7 +28,7 @@ flowchart LR
 | API | `apps/api` | Coordinates issuance, revocation, gate operational state, and pass generation. Void discovers its server routes and runs shared request middleware ([ADR 0012](./adr/0012-void-api-routing.md)) |
 | Operator dashboard | `apps/dash` | Gives authorized issuers routed Overview, Rights, and Issue views; derives operational summaries from D1 member rows, issues and revokes through the API, and queries chain status separately through the rights subgraph. Its Void Worker renders the pages, holds the session in HttpOnly cookies and forwards the browser's api calls ([ADR 0010](./adr/0010-void-pages-and-frontend-workers.md)) |
 | Member app | `apps/app` | Holds member signing rails, answers Signed challenges, lists public member passes from holder addresses and device memory |
-| Gate | `apps/gate` | Reads presented rights, requests proof when required, and renders an ADMIT or REJECT verdict |
+| Gate | `apps/gate` | A directly mounted Preact SPA that reads presented rights and renders an ADMIT or REJECT verdict through its Worker |
 | EAS on Base | External; `apps/api` | Records Entitlements, issuer delegation, revocation, and Attendance evidence |
 | D1 (SQLite) | `apps/api/migrations` | Stores operational state such as challenges, SINGLE_USE consumption, entry logs, and member indexes |
 | Passes | `packages/pass` | Builds the Google Wallet save link and the Apple `.pkpass`; the api renders the browser-based pass. Passes present a right and are never its source of truth |
@@ -38,6 +38,8 @@ flowchart LR
 ## Browser query state
 
 `@fuda/libs` exposes shared library integrations through separate subpaths, with no root barrel. Browser and backend integrations may coexist, provided that runtime-specific dependencies stay behind their own entry points.
+
+Gate mounts from `index.html` without a pages router. Its hardware-reader listener is installed before paint. `@fuda/ui-preact` supplies its Scanner view, while the Solid apps continue using `@fuda/ui`. Both Scanner views use the same renderer-independent camera lifetime and labels. This boundary is temporary during the [Preact migration](./adr/0015-preact-frontends.md).
 
 The member app's public pass list uses `@fuda/libs/query`, a Solid adapter over TanStack Query Core. Each mounted scope owns an independent in-memory client and clears it when disposed. Reads become stale after 30 seconds and refresh on focus or reconnect; the public pass list also refreshes every 30 seconds while visible. Transient read failures retry once, HTTP 4xx failures do not, and writes have no automatic retry.
 

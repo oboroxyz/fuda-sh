@@ -2,31 +2,8 @@ import { Show, createSignal, onCleanup, onMount } from 'solid-js'
 import type { JSX } from 'solid-js'
 
 import { startCamera } from './camera.ts'
-
-export interface ScannerLabels {
-  cameraUnavailable: string
-  placeholder: string
-  check: string
-  ready?: string
-}
-
-// In `cameraMode: 'off'` this line is the whole screen, so it is stated as an
-// instruction to the person presenting, not as a status.
-const READY = 'present your pass'
-
-const DEFAULT_LABELS: ScannerLabels = {
-  cameraUnavailable: 'camera unavailable — paste below',
-  check: 'Check',
-  placeholder: 'paste fuda:v1:… or 0x…',
-  ready: READY,
-}
-
-export interface ScannerProps {
-  onInput: (text: string) => void
-  labels?: ScannerLabels
-  autoFocus?: boolean
-  cameraMode?: 'auto' | 'off'
-}
+import { SCANNER_LABELS, SCANNER_READY } from './scanner.ts'
+import type { ScannerLabels, ScannerProps } from './scanner.ts'
 
 // Camera loop: a throttled decode of the video's frames, paused while the page
 // is hidden and ended by the first code read. The paste box is always present
@@ -45,7 +22,7 @@ export interface ScannerProps {
 // nothing focused. The scan then arrives through
 // the caller's own document-level listener, which must be wired before use.
 export const Scanner = (props: ScannerProps): JSX.Element => {
-  const labels = (): ScannerLabels => props.labels ?? DEFAULT_LABELS
+  const labels = (): ScannerLabels => props.labels ?? SCANNER_LABELS
   const [camera, setCamera] = createSignal<'idle' | 'on' | 'done' | 'unavailable'>('idle')
   const [pasted, setPasted] = createSignal('')
   let video: HTMLVideoElement | undefined
@@ -75,7 +52,7 @@ export const Scanner = (props: ScannerProps): JSX.Element => {
       when={props.cameraMode !== 'off'}
       fallback={
         <div class="flex min-h-[60vh] flex-col items-center justify-center p-8">
-          <div class="text-center text-3xl font-semibold opacity-80">{labels().ready ?? READY}</div>
+          <div class="text-center text-3xl font-semibold opacity-80">{labels().ready ?? SCANNER_READY}</div>
         </div>
       }
     >

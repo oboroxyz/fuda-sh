@@ -1,8 +1,8 @@
-import { render } from 'solid-js/web'
+import { render } from 'preact'
 
 import { App } from './App.tsx'
 
 const root = document.querySelector<HTMLElement>('#root')
 if (root !== null) {
-  render(() => <App />, root)
+  render(<App />, root)
 }
