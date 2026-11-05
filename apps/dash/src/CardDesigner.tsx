@@ -605,19 +605,25 @@ const withIssuer = (form: DesignerForm, issuer: IssuerView | null): DesignerForm
         tagline: issuer.tagline,
       }
 
-export const CardDesigner = (props: CardDesignerProps): JSX.Element => {
-  const mode: DesignerMode = 'card'
-  const editing = props.editing ?? false
-  const [draft, setDraft] = useState<DesignerForm>(props.initialDraft ?? EMPTY_FORM)
+const useDesignerDraft = (
+  initialDraft: DesignerForm | null | undefined,
+  publish: ((draft: DesignerForm) => void) | undefined,
+) => {
+  const [draft, setDraft] = useState<DesignerForm>(initialDraft ?? EMPTY_FORM)
   const latestDraft = useRef(draft)
-  const onDraftChange = useRef(props.onDraftChange)
-  onDraftChange.current = props.onDraftChange
-  const form = withIssuer(draft, props.issuer)
+  const mounted = useRef(true)
+  const onDraftChange = useRef(publish)
+  onDraftChange.current = publish
   // Publish in the same event that changes a field, not in an effect: a passive
   // effect runs after paint, and a trip to the profile can unmount this screen
   // before then, losing the last keystroke. Reading the previous draft from the
   // ref keeps two changes in one event from overwriting each other.
   const setForm = (change: (current: DesignerForm) => DesignerForm): void => {
+    // A location answer can arrive after this screen left, and must not replace
+    // whatever draft the operator has started since.
+    if (!mounted.current) {
+      return
+    }
     const next = change(latestDraft.current)
     if (next === latestDraft.current) {
       return
@@ -629,8 +635,20 @@ export const CardDesigner = (props: CardDesignerProps): JSX.Element => {
   // The opening draft is published too, so a screen opened and left unedited
   // still leaves its draft in place of an older session's.
   useLayoutEffect(() => {
+    mounted.current = true
     onDraftChange.current?.(latestDraft.current)
+    return () => {
+      mounted.current = false
+    }
   }, [])
+  return { draft, latestDraft, setForm }
+}
+
+export const CardDesigner = (props: CardDesignerProps): JSX.Element => {
+  const mode: DesignerMode = 'card'
+  const editing = props.editing ?? false
+  const { draft, latestDraft, setForm } = useDesignerDraft(props.initialDraft, props.onDraftChange)
+  const form = withIssuer(draft, props.issuer)
   // The designer adds a card to an existing venue, whose handle is settled.
   const handleStatus: FieldStatus = 'available'
   const [slugStatus, setSlugStatus] = useState<FieldStatus>('idle')
@@ -741,7 +759,8 @@ export const CardDesigner = (props: CardDesignerProps): JSX.Element => {
         }))
       }}
       onEditProfile={() => {
-        props.onEditProfile(form)
+        // Read the ref: an input in this same tick has not rendered yet.
+        props.onEditProfile(withIssuer(latestDraft.current, props.issuer))
       }}
       onCategory={(next) => {
         setForm((current) => withCategory(current, next))
@@ -756,7 +775,7 @@ export const CardDesigner = (props: CardDesignerProps): JSX.Element => {
         setForm((current) => withSlug(current, next))
       }}
       onSubmit={() => {
-        props.onSubmit(mode, form, logo.pick?.variants ?? null)
+        props.onSubmit(mode, withIssuer(latestDraft.current, props.issuer), logo.pick?.variants ?? null)
       }}
       onTitle={(next) => {
         setForm((current) => withTitle(current, next))
