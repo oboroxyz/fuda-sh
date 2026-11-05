@@ -1,6 +1,6 @@
 # ADR 0010: render the frontends with Void pages, behind their own Workers
 
-- **Status**: Accepted 2026-10-31. Supersedes the "server-rendered pages are not part of this decision" line of [ADR 0009](0009-void-and-solid.md). The rest of ADR 0009 stands.
+- **Status**: Accepted 2026-10-31. Supersedes the "server-rendered pages are not part of this decision" line of [ADR 0009](0009-void-and-solid.md). [ADR 0015](0015-preact-frontends.md) partly supersedes this ADR's renderer-specific decisions. Its Worker, cookie, loader, and gate timing contracts stand.
 - **Scope**: `apps/dash`, `apps/app`, `apps/gate`, and the shared packages they import. `apps/api` does not change.
 
 ## Context
