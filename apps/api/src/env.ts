@@ -81,10 +81,11 @@ export interface Bindings {
   TURNSTILE_SECRET_KEY?: string
 }
 
+export type ActingScope = { kind: 'admin' } | { issuerId: string; kind: 'venue' }
+
 export interface Variables {
-  // The venue a request is acting for, or null for fuda's own admin token.
-  // Set by operatorOrAdmin() on the routes that serve both.
-  actingIssuer: string | null
+  // Who a request acts for. Set by operatorOrAdmin() on the routes that serve both.
+  actingScope: ActingScope
   // null without the APPLE_PUSH_CERT binding: nothing is pushed
   applePush: ApplePushSender | null
   chain: ChainClient

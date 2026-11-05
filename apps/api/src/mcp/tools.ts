@@ -336,7 +336,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
       if (!(await spendBudget(c.get('db'), `mcp-revoke:${issuer.id}`, c.get('now')(), REVOKE_BUDGET))) {
         return { ok: false, error: 'rate_limited', subject: uid }
       }
-      const outcome = await revokePass(c, uid, issuer.id)
+      const outcome = await revokePass(c, uid, { issuerId: issuer.id, kind: 'venue' })
       return outcome.ok
         ? { ok: true, subject: uid, value: { revoked: true, uid } }
         : { ok: false, error: outcome.error, subject: uid }

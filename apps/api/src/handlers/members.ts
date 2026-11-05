@@ -14,14 +14,14 @@ const MEMBERS_LIMIT = 200
 // Scoping by `issuer_id` rather than by card keeps a venue's second card in the
 // same list (docs/specs/pass-types-and-flows.md#surfaces).
 export const getV1Members = defineHandler(operatorOrAdmin(), async (c) => {
-  const issuerId = c.get('actingIssuer')
+  const scope = c.get('actingScope')
   const scoped = c
     .get('db')
     .select({ identity: cards.identity, member: members })
     .from(members)
     .leftJoin(cards, eq(cards.id, members.cardId))
     .$dynamic()
-  const rows = await (issuerId === null ? scoped : scoped.where(eq(members.issuerId, issuerId)))
+  const rows = await (scope.kind === 'admin' ? scoped : scoped.where(eq(members.issuerId, scope.issuerId)))
     .orderBy(desc(members.createdAt), asc(members.attestationUid))
     .limit(MEMBERS_LIMIT)
   // attestation_uid and holder are written only from validated Hex values; a row
