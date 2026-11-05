@@ -2,9 +2,6 @@ import { isIssuerHandle } from '@fuda/sdk'
 
 import { APP_ORIGIN } from './config.ts'
 
-// The member top. Imported where it is a link target: Solid inlines a literal
-// `href="/"` into its template as the unquoted `href=/>`, which some HTML
-// parsers (happy-dom among them) read as a self-closing tag with no href.
 export const TOP_PATH = '/'
 
 export type Route =

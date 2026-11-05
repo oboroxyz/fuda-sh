@@ -1,5 +1,5 @@
-import { createQueryClient } from '@fuda/libs/query-preact'
-import type { QueryClient } from '@fuda/libs/query-preact'
+import { createQueryClient } from '@fuda/libs/query'
+import type { QueryClient } from '@fuda/libs/query'
 
 // Public pass data survives member-route navigation. A full sign-out navigation
 // drops the document and this cache; server renders never share a client.

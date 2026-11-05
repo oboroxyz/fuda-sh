@@ -94,7 +94,7 @@ A badge is refused for a Right that would not be admitted: the route resolves th
 
 [`apps/app/src/badges.ts`](../../apps/app/src/badges.ts) · [`apps/app/src/venue/CardScreen.tsx`](../../apps/app/src/venue/CardScreen.tsx)
 
-Headless `@worldcoin/idkit-core` in a Solid app — the React widget is never imported. The request asks for `any(proof_of_human, mnc)`: a deployment in Japan serves many members who hold a My Number Card credential and have never been to an Orb, and the nullifier does not depend on which credential produced it.
+Headless `@worldcoin/idkit-core` in a Preact app — the React widget is never imported. The request asks for `any(proof_of_human, mnc)`: a deployment in Japan serves many members who hold a My Number Card credential and have never been to an Orb, and the nullifier does not depend on which credential produced it.
 
 The hand-off URI is rendered as a link and a QR rather than assigned to `location.href`: `pollUntilCompletion()` only resolves while the page is alive, and navigating away loses a verification the member has already completed. A failure shows the vendor's own code under the button, because a silent button is indistinguishable from a broken one.
 

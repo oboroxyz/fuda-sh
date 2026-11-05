@@ -2,7 +2,7 @@ import { pick } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
 import type { MemberSecretResponse } from '@fuda/sdk'
 import { apiFetch } from '@fuda/sdk/http'
-import { ConfirmAction } from '@fuda/ui-preact'
+import { ConfirmAction } from '@fuda/ui'
 import type { JSX } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
 

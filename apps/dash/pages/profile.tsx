@@ -1,4 +1,4 @@
-import { PasskeySection } from '@fuda/ui-preact'
+import { PasskeySection } from '@fuda/ui'
 import type { JSX } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
 

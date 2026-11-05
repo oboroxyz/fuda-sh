@@ -1,8 +1,0 @@
-export { ConfirmAction } from './ConfirmAction.tsx'
-export { LanguageSwitcher, ThemeToggle } from './controls.tsx'
-export { FingerprintSimple } from './FingerprintSimple.tsx'
-export { FudaMark } from './FudaMark.tsx'
-export { PasskeySection } from './PasskeySection.tsx'
-export type { PasskeySectionCopy } from './PasskeySection.tsx'
-export { Scanner } from './Scanner.tsx'
-export { CardsThree } from './CardsThree.tsx'

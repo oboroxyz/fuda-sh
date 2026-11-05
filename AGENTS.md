@@ -37,6 +37,8 @@ Vite+ (`vp`) drives frontend development and builds, workspace tests, linting, a
 
 ### Frontend design
 
+All three frontends use Preact. Shared components and page tooling live in `@fuda/ui`; `@fuda/libs/query` exposes the Preact query hooks. Keep the API's `@fuda/ui/wallet-button` Hono HTML helper independent of the frontend renderer.
+
 When changing frontend UI or styling under `apps/app`, `apps/dash`, `apps/gate`, `packages/ui`, or `packages/styles`, read `.agents/rules/frontend-design.md` before editing.
 
 ### D1 writes

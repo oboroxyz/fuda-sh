@@ -1,4 +1,4 @@
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
 
 export const FudaMark = (props: { class: string }): JSX.Element => (
   <svg aria-label="fuda." class={props.class} fill="none" role="img" viewBox="0 0 260 260">

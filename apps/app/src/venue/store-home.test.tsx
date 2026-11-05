@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import type { PublicVenue } from '@fuda/sdk'
-import { mount as mountView } from '@fuda/ui-preact/test'
+import { mount as mountView } from '@fuda/ui/test'
 import type { ComponentChild } from 'preact'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 

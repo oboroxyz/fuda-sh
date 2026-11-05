@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 @import '@fuda/styles/base.css';
 
-@source '../../../packages/ui-preact/src';
+@source '../../../packages/ui/src';
 
 /* The shared base disables daisyUI themes; verdict colors must exist at the station. */
 @theme inline {

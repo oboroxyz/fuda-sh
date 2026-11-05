@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
-import { createQueryClient, useQuery, useQueryScope } from '@fuda/libs/query-preact'
-import type { QueryClient } from '@fuda/libs/query-preact'
-import { mount, settle } from '@fuda/ui-preact/test'
+import { createQueryClient, useQuery, useQueryScope } from '@fuda/libs/query'
+import type { QueryClient } from '@fuda/libs/query'
+import { mount, settle } from '@fuda/ui/test'
 import type { JSX } from 'preact'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 

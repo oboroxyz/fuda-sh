@@ -5,11 +5,16 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./test": "./test/dom.ts",
+    "./hooks": "./src/hooks.ts",
+    "./preferences": "./src/preferences.ts",
+    "./vite-pages": "./vite-pages.ts",
+    "./wallet-button": "./src/wallet-button.ts",
+    "./wallet-view": "./src/WalletButton.tsx",
     "./camera": "./src/camera.ts",
     "./scanner": "./src/scanner.ts",
     "./short": "./src/short.ts",
-    "./theme": "./src/theme.ts",
-    "./wallet-button": "./src/wallet-button.ts"
+    "./theme": "./src/theme.ts"
   },
   "scripts": {
     "test": "vp test"
@@ -19,10 +24,15 @@
     "cn": "0.2.6",
     "hono": "^4.13.16",
     "jsqr": "1.4.0",
-    "solid-js": "1.9.17"
+    "preact": "11.1.1"
   },
   "devDependencies": {
-    "vite-plugin-solid": "2.11.14",
-    "vitest": "4.1.11"
+    "@babel/core": "^7.29.0",
+    "@preact/preset-vite": "2.10.6",
+    "@tailwindcss/vite": "4.3.3",
+    "preact-render-to-string": "6.8.2",
+    "vitest": "4.1.11",
+    "void": "1.6.2",
+    "void-preact": "0.1.2"
   }
 }

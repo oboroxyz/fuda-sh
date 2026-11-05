@@ -1,10 +1,10 @@
 import { setTimeout as sleep } from 'node:timers/promises'
 
-import { mount as mountView, settle } from '@fuda/ui-preact/test'
+import { mount as mountView, settle } from '@fuda/ui/test'
 import type { ComponentChild } from 'preact'
 import { act as testAct } from 'preact/test-utils'
 
-// DOM test helpers for Preact views, on the shared ui-preact mount. Each mount is
+// DOM test helpers for Preact views, on the shared UI mount. Each mount is
 // disposed and the body cleared by `cleanup`, which the test files call from afterEach.
 interface Mounted {
   dispose: () => void

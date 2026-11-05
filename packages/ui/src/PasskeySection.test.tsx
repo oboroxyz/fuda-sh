@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
+import { mount, settle } from '@fuda/ui/test'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { PasskeySection } from './PasskeySection.tsx'
 import type { PasskeySectionCopy, PasskeySectionProps } from './PasskeySection.tsx'
-import { mount } from './test-render.tsx'
 
 const COPY: PasskeySectionCopy = {
   add: 'Add',
@@ -30,8 +30,10 @@ const COPY: PasskeySectionCopy = {
 
 const PASSKEY = (id: string) => ({ backedUp: id === 'a', createdAt: 1, id })
 
-const render = (io: Partial<PasskeySectionProps['io']>): HTMLElement =>
-  mount(() => (
+const disposers: (() => void)[] = []
+
+const render = (io: Partial<PasskeySectionProps['io']>): HTMLElement => {
+  const mounted = mount(
     <PasskeySection
       copy={COPY}
       formatDate={() => 'today'}
@@ -41,12 +43,17 @@ const render = (io: Partial<PasskeySectionProps['io']>): HTMLElement =>
         remove: async () => await Promise.resolve(true),
         ...io,
       }}
-    />
-  ))
+    />,
+  )
+  disposers.push(mounted.dispose)
+  return mounted.host
+}
 
 describe(PasskeySection, () => {
   afterEach(() => {
-    document.body.replaceChildren()
+    for (const dispose of disposers.splice(0)) {
+      dispose()
+    }
   })
 
   it('lists the passkeys, and offers no removal of the last one', async () => {
@@ -67,7 +74,9 @@ describe(PasskeySection, () => {
     await vi.waitFor(() => {
       expect(host.textContent).toContain('Passkey 1')
     })
-    host.querySelector<HTMLButtonElement>('button.btn-outline.w-full')?.click()
+    await settle(() => {
+      host.querySelector<HTMLButtonElement>('button.btn-outline.w-full')?.click()
+    })
     await vi.waitFor(() => {
       expect(host.textContent).toContain('Passkey 2')
     })
@@ -80,7 +89,9 @@ describe(PasskeySection, () => {
     await vi.waitFor(() => {
       expect(host.textContent).toContain('Passkey 1')
     })
-    host.querySelector<HTMLButtonElement>('button.btn-outline.w-full')?.click()
+    await settle(() => {
+      host.querySelector<HTMLButtonElement>('button.btn-outline.w-full')?.click()
+    })
     await vi.waitFor(() => {
       expect(host.querySelector('.alert-error')?.textContent).toBe('limit')
     })
@@ -92,5 +103,46 @@ describe(PasskeySection, () => {
     await vi.waitFor(() => {
       expect(host.querySelector('.alert-error')?.textContent).toBe('load failed')
     })
+  })
+
+  it('starts one ceremony for a double click, and none from a rerender', async () => {
+    const ceremony = Promise.withResolvers<{ ok: true }>()
+    const add = vi.fn<PasskeySectionProps['io']['add']>(async () => await ceremony.promise)
+    const host = render({ add })
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain('Passkey 1')
+    })
+    const button = host.querySelector<HTMLButtonElement>('button.btn-outline.w-full')!
+    await settle(() => {
+      button.click()
+      button.click()
+    })
+    expect(add).toHaveBeenCalledOnce()
+    expect(button.textContent).toBe('Adding')
+    ceremony.resolve({ ok: true })
+    await vi.waitFor(() => {
+      expect(button.textContent).toBe('Add')
+    })
+    expect(add).toHaveBeenCalledOnce()
+  })
+
+  it('writes nothing after it unmounts while a list is pending', async () => {
+    const pending = Promise.withResolvers<ReturnType<typeof PASSKEY>[]>()
+    const list = vi.fn<PasskeySectionProps['io']['list']>(async () => await pending.promise)
+    const mounted = mount(
+      <PasskeySection
+        copy={COPY}
+        formatDate={() => 'today'}
+        io={{
+          add: async () => await Promise.resolve({ ok: true as const }),
+          list,
+          remove: async () => await Promise.resolve(true),
+        }}
+      />,
+    )
+    mounted.dispose()
+    pending.resolve([PASSKEY('a')])
+    await settle()
+    expect(mounted.host.textContent).toBe('')
   })
 })

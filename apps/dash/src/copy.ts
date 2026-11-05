@@ -1,6 +1,6 @@
 import { AUTH_COPY } from '@fuda/i18n'
 import type { Copy } from '@fuda/i18n'
-import type { PasskeySectionCopy } from '@fuda/ui-preact'
+import type { PasskeySectionCopy } from '@fuda/ui'
 
 import { APPS_COPY } from './apps-copy.ts'
 import type { AppsCopy } from './apps-copy.ts'

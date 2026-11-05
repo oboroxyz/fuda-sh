@@ -1,5 +1,5 @@
 import { cn } from 'cn'
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
 
 export interface IconButtonProps {
   class?: string

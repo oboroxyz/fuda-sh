@@ -96,8 +96,7 @@ The principle behind that split is **decentralized at the core, hosted rails onl
 │   ├── sdk              shared types, validators, qrSvg
 │   ├── libs             shared query, wallet, and authentication integrations
 │   ├── pass             Apple .pkpass and Google Wallet save-link builders
-│   ├── ui               renderer-independent helpers and transitional Solid UI
-│   ├── ui-preact        shared Preact components and page tooling
+│   ├── ui               shared Preact components, helpers, and page tooling
 │   ├── styles           shared base CSS
 │   ├── i18n             shared message catalogue
 │   ├── ens-contracts    ENS resolver contracts and naming scripts

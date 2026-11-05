@@ -1,4 +1,4 @@
-import { Scanner } from '@fuda/ui-preact'
+import { Scanner } from '@fuda/ui'
 import type { JSX } from 'preact'
 import { useLayoutEffect, useRef, useState } from 'preact/hooks'
 

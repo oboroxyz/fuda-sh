@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { soleCard } from '@fuda/sdk'
 import type { Hex, PublicCard, PublicVenue } from '@fuda/sdk'
-import { mount as mountView } from '@fuda/ui-preact/test'
+import { mount as mountView } from '@fuda/ui/test'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import { CardScreenView, humanBadgeStateOf, issueDateOf } from './venue/CardScreen.tsx'

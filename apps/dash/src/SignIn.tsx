@@ -1,4 +1,4 @@
-import { FingerprintSimple, FudaMark } from '@fuda/ui-preact'
+import { FingerprintSimple, FudaMark } from '@fuda/ui'
 import type { JSX } from 'preact'
 import { useState } from 'preact/hooks'
 

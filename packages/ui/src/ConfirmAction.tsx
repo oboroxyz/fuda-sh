@@ -1,5 +1,5 @@
-import { createUniqueId } from 'solid-js'
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
+import { useId, useRef } from 'preact/hooks'
 
 export interface ConfirmActionProps {
   label: string
@@ -14,26 +14,24 @@ export interface ConfirmActionProps {
 }
 
 export const ConfirmAction = (props: ConfirmActionProps): JSX.Element => {
-  const titleId = createUniqueId()
-  const descriptionId = createUniqueId()
-  let dialog: HTMLDialogElement | undefined
-  let cancel: HTMLButtonElement | undefined
-  let opener: HTMLButtonElement | undefined
+  const titleId = useId()
+  const descriptionId = useId()
+  const dialog = useRef<HTMLDialogElement>(null)
+  const cancel = useRef<HTMLButtonElement>(null)
+  const opener = useRef<HTMLButtonElement>(null)
   const close = (): void => {
-    dialog?.close()
+    dialog.current?.close()
   }
   return (
     <>
       <button
         class={props.class ?? 'btn btn-ghost btn-sm self-start'}
         disabled={props.disabled}
-        ref={(el) => {
-          opener = el
-        }}
+        ref={opener}
         type="button"
         onClick={() => {
-          dialog?.showModal()
-          cancel?.focus()
+          dialog.current?.showModal()
+          cancel.current?.focus()
         }}
       >
         {props.icon}
@@ -41,13 +39,11 @@ export const ConfirmAction = (props: ConfirmActionProps): JSX.Element => {
       </button>
       <dialog
         class="modal"
-        ref={(el) => {
-          dialog = el
-        }}
+        ref={dialog}
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
         onClose={() => {
-          opener?.focus()
+          opener.current?.focus()
         }}
         onClick={(event) => {
           if (event.target === event.currentTarget) {
@@ -63,21 +59,14 @@ export const ConfirmAction = (props: ConfirmActionProps): JSX.Element => {
             {props.description}
           </p>
           <div class="modal-action">
-            <button
-              ref={(el) => {
-                cancel = el
-              }}
-              class="btn"
-              type="button"
-              onClick={close}
-            >
+            <button ref={cancel} class="btn" type="button" onClick={close}>
               {props.cancelLabel}
             </button>
             <button
               class="btn btn-error"
               type="button"
               onClick={() => {
-                if (dialog?.open !== true) {
+                if (dialog.current?.open !== true) {
                   return
                 }
                 close()

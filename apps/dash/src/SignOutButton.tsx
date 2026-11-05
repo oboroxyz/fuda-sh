@@ -1,4 +1,4 @@
-import { ConfirmAction } from '@fuda/ui-preact'
+import { ConfirmAction } from '@fuda/ui'
 import type { JSX } from 'preact'
 
 import type { DashCopy } from './copy.ts'

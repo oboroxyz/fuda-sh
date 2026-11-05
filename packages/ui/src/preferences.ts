@@ -1,6 +1,7 @@
-import { applyThemeMode, watchThemeMode } from '@fuda/ui/theme'
-import type { ThemeMode } from '@fuda/ui/theme'
 import { useEffect, useState } from 'preact/hooks'
+
+import { applyThemeMode, watchThemeMode } from './theme.ts'
+import type { ThemeMode } from './theme.ts'
 
 const PREFERENCE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60
 const writePreference = (name: string, value: string): void => {
