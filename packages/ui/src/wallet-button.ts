@@ -13,6 +13,14 @@ export interface WalletButtonProps {
   newTab?: boolean
 }
 
+export const walletArtwork = (platform: WalletButtonProps['platform'], locale: 'en' | 'ja'): string => {
+  const apple = platform === 'apple'
+  const appleArtwork = locale === 'ja' ? APPLE_WALLET_JA : APPLE_WALLET_EN
+  const googleArtwork = locale === 'ja' ? GOOGLE_WALLET_JA : GOOGLE_WALLET_EN
+  const artwork = apple ? appleArtwork : googleArtwork
+  return artwork
+}
+
 // Both the DOM app and self-contained server Pass use this markup. All dynamic
 // attributes and copy are escaped by Hono; artwork is bundled, never fetched.
 // Every interpolation is synchronous, so Hono returns HtmlEscapedString.
@@ -25,10 +33,7 @@ export const walletButton = ({
   hidden = false,
   newTab = false,
 }: WalletButtonProps): HtmlEscapedString => {
-  const apple = platform === 'apple'
-  const appleArtwork = locale === 'ja' ? APPLE_WALLET_JA : APPLE_WALLET_EN
-  const googleArtwork = locale === 'ja' ? GOOGLE_WALLET_JA : GOOGLE_WALLET_EN
-  const artwork = apple ? appleArtwork : googleArtwork
+  const artwork = walletArtwork(platform, locale)
   const markup = html`<a
     class="fuda-wallet-button fuda-wallet-button-${platform}"
     href="${href}"

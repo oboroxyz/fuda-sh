@@ -1,9 +1,9 @@
 import { isLocale, pick } from '@fuda/i18n'
 import { LanguageSwitcher, ThemeToggle } from '@fuda/ui-preact'
-import { applyThemeMode, watchThemeMode } from '@fuda/ui/theme'
-import type { ThemeMode } from '@fuda/ui/theme'
+import { useStable } from '@fuda/ui-preact/hooks'
+import { useAppearance } from '@fuda/ui-preact/preferences'
 import type { JSX } from 'preact'
-import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
+import { useCallback, useRef } from 'preact/hooks'
 import { useRouter, useShared } from 'void-preact'
 
 import { LOCALE_COOKIE, THEME_COOKIE } from './cookie-names.ts'
@@ -18,15 +18,6 @@ import { endSession } from './session-client.ts'
 // (src/server/session.ts): the session's surface, the operator's venue and the
 // presentation preferences.
 export const useDash = (): DashShared => useShared()
-
-// A callback whose identity never changes and which always calls the latest
-// closure: pages hand these to components that compare or depend on them, so a
-// rerender must not look like a new endpoint.
-const useStable = <A extends unknown[], R>(fn: (...args: A) => R): ((...args: A) => R) => {
-  const latest = useRef(fn)
-  latest.current = fn
-  return useCallback((...args: A) => latest.current(...args), [])
-}
 
 export const useCopy = (): DashCopy => pick(DASH_COPY, useDash().locale)
 
@@ -58,25 +49,21 @@ const signOut = (): void => {
 }
 export const useSignOut = (): (() => void) => signOut
 
-// A year: preferences outlive sessions.
-const PREFERENCE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60
-
-const writePreference = (name: string, value: string): void => {
-  // oxlint-disable-next-line unicorn/no-document-cookie -- a preference cookie the server reads for the first render; there is no Cookie Store API in every supported browser
-  document.cookie = `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${PREFERENCE_MAX_AGE_SECONDS}; SameSite=Lax`
-}
-
 // The language and theme controls. A language change re-renders from the
 // server, which owns the copy; a theme change applies at once.
 export const Appearance = (): JSX.Element => {
   const shared = useDash()
   const copy = useCopy()
   const router = useRouter()
-  const [theme, setTheme] = useState<ThemeMode>(shared.theme)
-  useEffect(() => {
-    document.documentElement.lang = shared.locale
-  }, [shared.locale])
-  useEffect(() => watchThemeMode(theme), [theme])
+  const preferences = useAppearance({
+    locale: shared.locale,
+    localeCookie: LOCALE_COOKIE,
+    refresh: () => {
+      void router.refresh({ preserveScroll: true, preserveState: true })
+    },
+    theme: shared.theme,
+    themeCookie: THEME_COOKIE,
+  })
   return (
     <div class="dash-appearance">
       <LanguageSwitcher
@@ -89,19 +76,16 @@ export const Appearance = (): JSX.Element => {
         ]}
         onChange={(value) => {
           if (isLocale(value)) {
-            writePreference(LOCALE_COOKIE, value)
-            void router.refresh({ preserveScroll: true, preserveState: true })
+            preferences.setLocale(value)
           }
         }}
       />
       <ThemeToggle
         class="h-9 w-9"
         labels={copy.chrome.theme}
-        mode={theme}
+        mode={preferences.theme}
         onChange={(mode) => {
-          writePreference(THEME_COOKIE, mode)
-          applyThemeMode(mode)
-          setTheme(mode)
+          preferences.setTheme(mode)
         }}
       />
     </div>
