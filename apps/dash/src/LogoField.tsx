@@ -1,4 +1,4 @@
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
 
 import { assetUrlForDisplay } from './config.ts'
 import type { DashCopy } from './copy.ts'

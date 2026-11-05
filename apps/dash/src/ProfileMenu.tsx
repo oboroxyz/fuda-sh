@@ -1,6 +1,6 @@
 import type { IssuerSummary } from '@fuda/sdk'
-import { createEffect, createSignal, createUniqueId, onCleanup } from 'solid-js'
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
+import { useEffect, useId, useRef, useState } from 'preact/hooks'
 
 import type { DashCopy } from './copy.ts'
 import { SignOutButton } from './SignOutButton.tsx'
@@ -19,60 +19,59 @@ export const ProfileMenu = (props: {
   venue: { name: string; publicUrl: string | null }
   onSignOut: (() => void) | null
 }): JSX.Element => {
-  const [open, setOpen] = createSignal(false)
-  const menuId = createUniqueId()
-  let container: HTMLDivElement | undefined
-  let trigger: HTMLButtonElement | undefined
+  const [open, setOpen] = useState(false)
+  const menuId = useId()
+  const container = useRef<HTMLDivElement>(null)
+  const trigger = useRef<HTMLButtonElement>(null)
 
-  createEffect(() => {
-    if (!open()) {
+  useEffect(() => {
+    if (!open) {
       return
     }
     const outside = (event: PointerEvent): void => {
-      if (event.target instanceof Node && container?.contains(event.target) === false) {
+      if (event.target instanceof Node && container.current?.contains(event.target) === false) {
         setOpen(false)
       }
     }
     document.addEventListener('pointerdown', outside)
-    onCleanup(() => {
+    return () => {
       document.removeEventListener('pointerdown', outside)
-    })
-  })
+    }
+  }, [open])
 
   return (
     <div class="min-w-0 space-y-2 border-y border-[var(--fuda-border)] p-3">
       <div
-        ref={(el) => {
-          container = el
-        }}
+        ref={container}
         class="dropdown relative block"
         onKeyDown={(event) => {
           if (event.target instanceof Element && event.target.closest('dialog') !== null) {
             return
           }
-          if (event.key === 'Escape' && open()) {
+          if (event.key === 'Escape' && open) {
             event.preventDefault()
             event.stopPropagation()
             setOpen(false)
-            trigger?.focus()
+            trigger.current?.focus()
           }
         }}
         onFocusOut={(event) => {
-          if (event.relatedTarget instanceof Node && container?.contains(event.relatedTarget) === false) {
+          if (
+            event.relatedTarget instanceof Node &&
+            container.current?.contains(event.relatedTarget) === false
+          ) {
             setOpen(false)
           }
         }}
       >
         <button
-          ref={(el) => {
-            trigger = el
-          }}
+          ref={trigger}
           class="font-display flex h-auto min-h-11 w-full items-center justify-between gap-2 px-2 py-2 text-left"
           type="button"
-          aria-expanded={open() ? 'true' : 'false'}
+          aria-expanded={open ? 'true' : 'false'}
           aria-controls={menuId}
           onClick={() => {
-            setOpen(!open())
+            setOpen(!open)
           }}
         >
           <span class="min-w-0 flex-1 wrap-anywhere">{props.venue.name}</span>
@@ -85,7 +84,7 @@ export const ProfileMenu = (props: {
             stroke-width="1.5"
           >
             <path
-              d={open() ? 'm6 15 6-6 6 6' : 'm6 9 6 6 6-6'}
+              d={open ? 'm6 15 6-6 6 6' : 'm6 9 6 6 6-6'}
               stroke-linecap="round"
               stroke-linejoin="round"
             />
@@ -93,11 +92,12 @@ export const ProfileMenu = (props: {
         </button>
         <div
           id={menuId}
-          hidden={!open()}
+          hidden={!open}
           class="absolute top-full right-0 left-0 z-40 mt-2 rounded-xl border border-[var(--fuda-border)] bg-[var(--fuda-surface)] p-1 shadow-lg"
         >
           {props.profiles?.issuers.map((issuer) => (
             <button
+              key={issuer.id}
               class="dash-menu-item btn btn-ghost w-full !border-0 font-normal shadow-none"
               aria-current={issuer.id === props.profiles?.activeId ? 'true' : undefined}
               disabled={issuer.id === props.profiles?.activeId}

@@ -1,5 +1,5 @@
 import { qrSvg } from '@fuda/sdk'
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
 
 export interface QrBlockProps {
   label: string
@@ -14,7 +14,7 @@ export const QrBlock = (props: QrBlockProps): JSX.Element => (
       class="rounded-box bg-white p-2"
       // The markup is built locally by qrSvg from the right's uid — no remote or
       // operator-entered content reaches it.
-      innerHTML={qrSvg(props.qr, { modulePx: 160 })}
+      dangerouslySetInnerHTML={{ __html: qrSvg(props.qr, { modulePx: 160 }) }}
     />
     <code class="text-xs break-all">{props.qr}</code>
   </div>

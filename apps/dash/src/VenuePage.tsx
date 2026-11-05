@@ -1,6 +1,6 @@
 import type { IssuerUpdateRequest, IssuerView } from '@fuda/sdk'
-import { createEffect, createMemo, createSignal, on, onCleanup, Show } from 'solid-js'
-import type { JSX } from 'solid-js'
+import type { ComponentChild, JSX } from 'preact'
+import { useEffect, useRef, useState } from 'preact/hooks'
 
 import { handleStatusOf } from './card-designer.ts'
 import type { CreateFailure, FieldStatus } from './card-designer.ts'
@@ -19,7 +19,7 @@ export interface VenuePageProps {
   copy: DashCopy
   ens: JSX.Element | null
   // The account's passkeys, on a venue an account owns.
-  passkeys?: JSX.Element
+  passkeys?: ComponentChild
   failure: CreateFailure | null
   issuer: IssuerView | null
   publicUrl: string | null
@@ -32,90 +32,101 @@ export interface VenuePageProps {
 }
 
 export const VenuePage = (props: VenuePageProps): JSX.Element => {
-  const [form, setForm] = createSignal<VenueForm>(EMPTY_VENUE_FORM)
-  const [status, setStatus] = createSignal<FieldStatus>('idle')
-  const [logo, setLogo] = createSignal<LogoState>(EMPTY_LOGO)
-  const [logoBusy, setLogoBusy] = createSignal(false)
-  const [logoFailed, setLogoFailed] = createSignal(false)
-  let checkRevision = 0
-  let logoRevision = 0
+  const [form, setForm] = useState<VenueForm>(EMPTY_VENUE_FORM)
+  const [status, setStatus] = useState<FieldStatus>('idle')
+  const [logo, setLogo] = useState<LogoState>(EMPTY_LOGO)
+  const [logoBusy, setLogoBusy] = useState(false)
+  const [logoFailed, setLogoFailed] = useState(false)
+  // Guards for work that outlives a render: a newer logo choice, a newer handle
+  // edit or an unmount makes the older result stale.
+  const checkRevision = useRef(0)
+  const logoRevision = useRef(0)
+  const logoWorking = useRef(false)
+  const startLogoWork = (): void => {
+    logoWorking.current = true
+    setLogoBusy(true)
+  }
+  const endLogoWork = (): void => {
+    logoWorking.current = false
+    setLogoBusy(false)
+  }
 
-  onCleanup(() => {
-    logoRevision += 1
-  })
+  useEffect(
+    () => () => {
+      logoRevision.current += 1
+    },
+    [],
+  )
 
-  createEffect(() => {
-    const previewUrl = logo().pick?.previewUrl
-    onCleanup(() => {
+  const previewUrl = logo.pick?.previewUrl
+  useEffect(
+    () => () => {
       if (previewUrl !== undefined) {
         URL.revokeObjectURL(previewUrl)
       }
-    })
-  })
-
-  createEffect(
-    on(
-      () => form().handle,
-      (handle) => {
-        const local = handleStatusOf(handle)
-        setStatus(local)
-        checkRevision += 1
-        const revision = checkRevision
-        if (local !== 'checking') {
-          return
-        }
-        const timer = setTimeout(() => {
-          const run = async (): Promise<void> => {
-            const next = await props.onCheckHandle(handle)
-            if (checkRevision === revision) {
-              setStatus(next)
-            }
-          }
-          void run()
-        }, 300)
-        onCleanup(() => {
-          clearTimeout(timer)
-        })
-      },
-    ),
+    },
+    [previewUrl],
   )
 
+  useEffect(() => {
+    const local = handleStatusOf(form.handle)
+    setStatus(local)
+    checkRevision.current += 1
+    const revision = checkRevision.current
+    if (local !== 'checking') {
+      return
+    }
+    const timer = setTimeout(() => {
+      const run = async (): Promise<void> => {
+        const next = await props.onCheckHandle(form.handle)
+        if (checkRevision.current === revision) {
+          setStatus(next)
+        }
+      }
+      void run()
+    }, 300)
+    return () => {
+      clearTimeout(timer)
+      checkRevision.current += 1
+    }
+  }, [form.handle])
+
   const pickLogo = (file: File): void => {
-    logoRevision += 1
-    const revision = logoRevision
-    setLogoBusy(true)
+    logoRevision.current += 1
+    const revision = logoRevision.current
+    startLogoWork()
     setLogoFailed(false)
     const run = async (): Promise<void> => {
       const result = await generateLogoSet(file, browserLogoTools)
-      if (revision !== logoRevision) {
+      if (revision !== logoRevision.current) {
         return
       }
       setLogo(withLogoResult(result, (blob) => URL.createObjectURL(blob)))
-      setLogoBusy(false)
+      endLogoWork()
     }
     void run()
   }
 
   const clearLogo = (): void => {
-    logoRevision += 1
+    logoRevision.current += 1
     setLogo(EMPTY_LOGO)
     setLogoFailed(false)
   }
 
   const saveVenue = async (body: IssuerUpdateRequest): Promise<boolean> => {
-    if (logoBusy()) {
+    if (logoWorking.current) {
       return false
     }
-    const { pick } = logo()
+    const { pick } = logo
     if (pick !== null) {
-      const revision = logoRevision
-      setLogoBusy(true)
+      const revision = logoRevision.current
+      startLogoWork()
       setLogoFailed(false)
       const ok = await props.onCommitLogo(pick.variants).catch(() => false)
-      if (revision !== logoRevision) {
+      if (revision !== logoRevision.current) {
         return false
       }
-      setLogoBusy(false)
+      endLogoWork()
       if (!ok) {
         setLogoFailed(true)
         return false
@@ -125,24 +136,20 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
     return await props.onUpdate(body)
   }
 
-  // One profile form per venue: switching venues starts a fresh draft.
-  const issuerId = createMemo(() => props.issuer?.id ?? null)
-
-  const profile = (issuer: () => IssuerView): JSX.Element => {
-    // Built once so the file input keeps its state while the form re-renders.
+  const profile = (issuer: IssuerView): JSX.Element => {
     const logoField = (
       <section aria-label={props.copy.logo.label} class="flex flex-col gap-3">
         <LogoField
-          busy={logoBusy()}
+          busy={logoBusy}
           copy={props.copy.logo}
           id="change-logo"
           label={props.copy.logo.label}
           onClear={clearLogo}
           onPick={pickLogo}
-          savedUrl={issuer().logoUrl}
-          state={logo()}
+          savedUrl={issuer.logoUrl}
+          state={logo}
         />
-        {logoFailed() ? <p class="text-error text-sm">{props.copy.logo.updateFailed}</p> : null}
+        {logoFailed ? <p class="text-error text-sm">{props.copy.logo.updateFailed}</p> : null}
       </section>
     )
     const ens = (
@@ -154,15 +161,7 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
         )}
       </>
     )
-    const logoProps = {
-      get busy() {
-        return logoBusy()
-      },
-      field: logoField,
-      get pending() {
-        return logo().pick !== null
-      },
-    }
+    const logoProps = { busy: logoBusy, field: logoField, pending: logo.pick !== null }
     return (
       <section class="dash-page flex max-w-3xl flex-col gap-6">
         <header class="dash-page-header">
@@ -170,9 +169,11 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
           <p class="opacity-70">{props.copy.venue.profileDescription}</p>
         </header>
         <VenueDetailsForm
+          // One profile form per venue: switching venues starts a fresh draft.
+          key={issuer.id}
           copy={props.copy}
           ens={ens}
-          issuer={issuer()}
+          issuer={issuer}
           publicUrl={props.publicUrl}
           onUpdate={saveVenue}
           logo={logoProps}
@@ -218,21 +219,21 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
         class="card flex flex-col gap-5 px-6 py-8"
         onSubmit={(event) => {
           event.preventDefault()
-          if (!props.busy && status() !== 'taken' && venueBodyFrom(form()) !== null) {
-            props.onCreate(form(), null)
+          if (!props.busy && status !== 'taken' && venueBodyFrom(form) !== null) {
+            props.onCreate(form, null)
           }
         }}
       >
         <VenueIdentityFields
           copy={props.copy}
-          handleStatus={status()}
+          handleStatus={status}
           onChange={update}
           registering
-          value={form()}
+          value={form}
         />
         <button
           class="btn btn-primary sm:self-start"
-          disabled={props.busy || status() === 'taken' || venueBodyFrom(form()) === null}
+          disabled={props.busy || status === 'taken' || venueBodyFrom(form) === null}
           type="submit"
         >
           {props.busy ? props.copy.venue.registering : props.copy.venue.register}
@@ -241,9 +242,5 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
     </section>
   )
 
-  return (
-    <Show when={issuerId()} keyed fallback={register()}>
-      {(_id: string) => <Show when={props.issuer}>{(issuer) => profile(issuer)}</Show>}
-    </Show>
-  )
+  return props.issuer === null ? register() : profile(props.issuer)
 }

@@ -1,6 +1,6 @@
-import { FingerprintSimple, FudaMark } from '@fuda/ui'
-import { createSignal } from 'solid-js'
-import type { JSX } from 'solid-js'
+import { FingerprintSimple, FudaMark } from '@fuda/ui-preact'
+import type { JSX } from 'preact'
+import { useState } from 'preact/hooks'
 
 import type { DashCopy } from './copy.ts'
 import type { OperatorSignInFailure } from './operator-sign-in.ts'
@@ -25,7 +25,7 @@ export const signInErrorOf = (copy: DashCopy['auth'], failure: OperatorSignInFai
 // The admin credential stays in memory; App persists only operator sessions
 // (docs/specs/pass-types-and-flows.md#surfaces).
 export const SignIn = (props: SignInProps): JSX.Element => {
-  const [value, setValue] = createSignal('')
+  const [value, setValue] = useState('')
   return (
     <main class="dash-auth">
       <div class="dash-auth-appearance">{props.appearance}</div>
@@ -98,7 +98,7 @@ export const SignIn = (props: SignInProps): JSX.Element => {
               class="mt-3 flex flex-col gap-3"
               onSubmit={(e) => {
                 e.preventDefault()
-                props.onToken(value().trim())
+                props.onToken(value.trim())
               }}
             >
               <p class="text-sm opacity-70">{props.copy.description}</p>
@@ -108,7 +108,7 @@ export const SignIn = (props: SignInProps): JSX.Element => {
                 class="input w-full"
                 type="password"
                 placeholder={props.copy.tokenPlaceholder}
-                value={value()}
+                value={value}
                 onInput={(e) => {
                   setValue(e.currentTarget.value)
                 }}

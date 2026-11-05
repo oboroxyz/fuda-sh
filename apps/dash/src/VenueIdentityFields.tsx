@@ -1,6 +1,6 @@
 import { ISSUER_HANDLE_MAX_LENGTH } from '@fuda/sdk'
 import { cn } from 'cn'
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
 
 import type { FieldStatus } from './card-designer.ts'
 import type { DashCopy } from './copy.ts'

@@ -1,8 +1,8 @@
 import type { AuthorizePreviewResponse } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
-import { FingerprintSimple, FudaMark } from '@fuda/ui'
-import { createEffect, createSignal, on, onCleanup } from 'solid-js'
-import type { JSX } from 'solid-js'
+import { FingerprintSimple, FudaMark } from '@fuda/ui-preact'
+import type { JSX } from 'preact'
+import { useEffect, useState } from 'preact/hooks'
 
 import type { approveAuthorization, authorizePreview } from './connected-apps-api.ts'
 import type { ConsentCopy } from './consent-copy.ts'
@@ -43,46 +43,44 @@ export interface OAuthConsentPageProps {
 }
 
 export const OAuthConsentPage = (props: OAuthConsentPageProps): JSX.Element => {
-  const [signedIn, setSignedIn] = createSignal(props.signedIn)
-  const [view, setView] = createSignal<View>({ kind: 'loading' })
+  const [signedIn, setSignedIn] = useState(props.signedIn)
+  const [view, setView] = useState<View>({ kind: 'loading' })
 
-  createEffect(
-    on(signedIn, () => {
-      if (!signedIn()) {
-        setView({ failed: false, kind: 'sign-in', pending: false })
+  useEffect(() => {
+    if (!signedIn) {
+      setView({ failed: false, kind: 'sign-in', pending: false })
+      return
+    }
+    if (props.request.codeChallenge === '') {
+      setView({ error: 'invalid_request', kind: 'failed' })
+      return
+    }
+    let live = true
+    setView({ kind: 'loading' })
+    const run = async (): Promise<void> => {
+      const result: Result<AuthorizePreviewResponse> = await props.io.preview(previewParams(props.request))
+      if (!live) {
         return
       }
-      if (props.request.codeChallenge === '') {
-        setView({ error: 'invalid_request', kind: 'failed' })
-        return
+      if (result.ok) {
+        setView({
+          allowRevoke: false,
+          approving: false,
+          issuerId: result.body.issuers[0]?.id ?? '',
+          kind: 'ready',
+          preview: result.body,
+        })
+      } else if (result.status === 401) {
+        setSignedIn(false)
+      } else {
+        setView({ error: result.error, kind: 'failed' })
       }
-      let live = true
-      setView({ kind: 'loading' })
-      const run = async (): Promise<void> => {
-        const result: Result<AuthorizePreviewResponse> = await props.io.preview(previewParams(props.request))
-        if (!live) {
-          return
-        }
-        if (result.ok) {
-          setView({
-            allowRevoke: false,
-            approving: false,
-            issuerId: result.body.issuers[0]?.id ?? '',
-            kind: 'ready',
-            preview: result.body,
-          })
-        } else if (result.status === 401) {
-          setSignedIn(false)
-        } else {
-          setView({ error: result.error, kind: 'failed' })
-        }
-      }
-      void run()
-      onCleanup(() => {
-        live = false
-      })
-    }),
-  )
+    }
+    void run()
+    return () => {
+      live = false
+    }
+  }, [signedIn])
 
   const signIn = (method: ConsentIo['signIn']): void => {
     setView({ failed: false, kind: 'sign-in', pending: true })
@@ -98,7 +96,7 @@ export const OAuthConsentPage = (props: OAuthConsentPageProps): JSX.Element => {
   }
 
   const approve = (ready: Extract<View, { kind: 'ready' }>): void => {
-    if (!signedIn()) {
+    if (!signedIn) {
       return
     }
     setView({ ...ready, approving: true })
@@ -116,7 +114,7 @@ export const OAuthConsentPage = (props: OAuthConsentPageProps): JSX.Element => {
   }
 
   const body = (): JSX.Element => {
-    const current = view()
+    const current = view
     if (current.kind === 'loading') {
       return <p role="status">{props.copy.loading}</p>
     }

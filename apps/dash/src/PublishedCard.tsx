@@ -1,17 +1,17 @@
 import type { CardCategory, CardView, IssuerPassesResponse, IssuerView } from '@fuda/sdk'
-import { createMemo, createSignal, For } from 'solid-js'
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
+import { useRef, useState } from 'preact/hooks'
 
 import { cardUrl, displayUrl } from './card-designer.ts'
 import { cardClaimText, cardValidityText } from './card-display.ts'
 import type { DashCopy } from './copy.ts'
-import { createIssuerPasses } from './issuer-passes-state.ts'
+import { useIssuerPasses } from './issuer-passes-state.ts'
 import type { PassesLoad } from './issuer-passes-state.ts'
 import type { ManagementCopy } from './management-copy.ts'
 import { ManagementSummary } from './ManagementSummary.tsx'
 import { cardEditPath, cardSettingsPath } from './router.ts'
 import type { DashRoute } from './router.ts'
-import { createCopyText } from './use-copy-text.ts'
+import { useCopyText } from './use-copy-text.ts'
 
 export interface PublishedCardProps {
   cards: CardView[]
@@ -38,25 +38,20 @@ const isPlainClick = (event: MouseEvent): boolean =>
   event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey
 
 export const PublishedCard = (props: PublishedCardProps): JSX.Element => {
-  const { state, refresh } = createIssuerPasses(props.loadPasses, () => ({ page: 1, pageSize: 1 }))
-  const [search, setSearch] = createSignal('')
-  const [category, setCategory] = createSignal<CardCategory | 'all'>('all')
-  const [defaultSave, setDefaultSave] = createSignal<DefaultSave>({ kind: 'idle' })
-  let defaultSavePending = false
-  const clipboard = createCopyText()
-  const labels = (): ManagementCopy => props.managementCopy
-  const filtered = createMemo(() => {
-    const needle = search().trim().toLocaleLowerCase()
-    return props.cards.filter(
-      (card) =>
-        (category() === 'all' || card.category === category()) &&
-        `${card.title} ${card.id} ${card.slug}`.toLocaleLowerCase().includes(needle),
-    )
-  })
-  const ready = (): IssuerPassesResponse | null => {
-    const current = state()
-    return current.kind === 'ready' ? current.data : null
-  }
+  const { state, refresh } = useIssuerPasses(props.loadPasses, { page: 1, pageSize: 1 })
+  const [search, setSearch] = useState('')
+  const [category, setCategory] = useState<CardCategory | 'all'>('all')
+  const [defaultSave, setDefaultSave] = useState<DefaultSave>({ kind: 'idle' })
+  const defaultSavePending = useRef(false)
+  const clipboard = useCopyText()
+  const labels = props.managementCopy
+  const needle = search.trim().toLocaleLowerCase()
+  const filtered = props.cards.filter(
+    (card) =>
+      (category === 'all' || card.category === category) &&
+      `${card.title} ${card.id} ${card.slug}`.toLocaleLowerCase().includes(needle),
+  )
+  const ready: IssuerPassesResponse | null = state.kind === 'ready' ? state.data : null
   const now = Math.floor(Date.now() / MS_PER_SECOND)
   const clear = (): void => {
     setSearch('')
@@ -64,10 +59,10 @@ export const PublishedCard = (props: PublishedCardProps): JSX.Element => {
   }
   const storeUrl = (): string => `${props.publicUrl.replace(/\/$/u, '')}/home`
   const saveDefault = (slug: string | null): void => {
-    if (defaultSavePending) {
+    if (defaultSavePending.current) {
       return
     }
-    defaultSavePending = true
+    defaultSavePending.current = true
     setDefaultSave({ kind: 'saving', slug })
     const run = async (): Promise<void> => {
       let saved = false
@@ -76,7 +71,7 @@ export const PublishedCard = (props: PublishedCardProps): JSX.Element => {
       } catch {
         saved = false
       }
-      defaultSavePending = false
+      defaultSavePending.current = false
       setDefaultSave(saved ? { kind: 'saved' } : { kind: 'failed' })
     }
     void run()
@@ -86,20 +81,17 @@ export const PublishedCard = (props: PublishedCardProps): JSX.Element => {
     const isDefault = (): boolean => props.issuer.defaultCardSlug === card.slug
     const nextDefault = (): string | null => (isDefault() ? null : card.slug)
     const defaultAction = (): string => {
-      const save = defaultSave()
-      if (save.kind === 'saving' && save.slug === nextDefault()) {
+      if (defaultSave.kind === 'saving' && defaultSave.slug === nextDefault()) {
         return props.copy.defaultSaving
       }
       return isDefault() ? props.copy.clearDefault : props.copy.setDefault
     }
-    const stats = (): { active: number; issued: number } | null => {
-      const data = ready()
-      return data === null
+    const stats = (): { active: number; issued: number } | null =>
+      ready === null
         ? null
-        : (data.cardStats.find((entry) => entry.cardId === card.id) ?? { active: 0, issued: 0 })
-    }
+        : (ready.cardStats.find((entry) => entry.cardId === card.id) ?? { active: 0, issued: 0 })
     return (
-      <tr>
+      <tr key={card.id}>
         <th scope="row" class="min-w-40 font-normal">
           <a
             class="link link-hover font-semibold"
@@ -123,7 +115,7 @@ export const PublishedCard = (props: PublishedCardProps): JSX.Element => {
         <td class="text-right tabular-nums">{stats()?.active.toLocaleString() ?? '—'}</td>
         <td>
           <span class="badge badge-ghost whitespace-nowrap">
-            {card.category === 'membership' ? labels().membership : labels().ticket}
+            {card.category === 'membership' ? labels.membership : labels.ticket}
           </span>
         </td>
         <td class="max-w-64 min-w-44">
@@ -141,7 +133,7 @@ export const PublishedCard = (props: PublishedCardProps): JSX.Element => {
               clipboard.copy(url())
             }}
           >
-            {clipboard.copied() === url() ? props.copy.copied : props.copy.copy}
+            {clipboard.copied === url() ? props.copy.copied : props.copy.copy}
           </button>
         </td>
         <td>
@@ -157,12 +149,12 @@ export const PublishedCard = (props: PublishedCardProps): JSX.Element => {
                 props.onSettings(card.id)
               }}
             >
-              {labels().edit}
+              {labels.edit}
             </a>
             <button
               aria-pressed={isDefault() ? 'true' : 'false'}
               class="link link-hover inline-flex min-h-11 items-center text-left"
-              disabled={defaultSave().kind === 'saving'}
+              disabled={defaultSave.kind === 'saving'}
               type="button"
               onClick={() => {
                 saveDefault(nextDefault())
@@ -204,64 +196,64 @@ export const PublishedCard = (props: PublishedCardProps): JSX.Element => {
           {props.copy.storeDisplay}
         </a>
       </header>
-      <ManagementSummary state={state()} copy={labels()} />
-      {state().kind === 'failed' ? (
+      <ManagementSummary state={state} copy={labels} />
+      {state.kind === 'failed' ? (
         <div role="alert" class="flex flex-wrap items-center gap-3 text-sm">
-          <span>{labels().loadFailed}</span>
+          <span>{labels.loadFailed}</span>
           <button class="btn btn-sm" type="button" onClick={refresh}>
-            {labels().retry}
+            {labels.retry}
           </button>
         </div>
       ) : null}
-      {state().kind === 'loading' ? (
+      {state.kind === 'loading' ? (
         <p class="text-sm text-[var(--fuda-muted)]" role="status">
-          {labels().loading}
+          {labels.loading}
         </p>
       ) : null}
-      {(ready()?.summary.unknown ?? 0) > 0 ? (
+      {(ready?.summary.unknown ?? 0) > 0 ? (
         <p class="text-sm text-[var(--fuda-muted)]">
-          {labels().unknownHint.replace('{count}', String(ready()?.summary.unknown ?? 0))}
+          {labels.unknownHint.replace('{count}', String(ready?.summary.unknown ?? 0))}
         </p>
       ) : null}
       {props.cards.length > 0 ? (
         <div class="card overflow-hidden">
           <div class="flex flex-wrap items-end gap-3 border-b border-[var(--fuda-border)] p-4">
             <label class="flex min-w-0 flex-1 basis-52 flex-col gap-1.5 text-sm">
-              <span>{labels().searchCards}</span>
+              <span>{labels.searchCards}</span>
               <input
                 class="input w-full"
                 type="search"
-                value={search()}
-                placeholder={labels().searchCardsPlaceholder}
+                value={search}
+                placeholder={labels.searchCardsPlaceholder}
                 onInput={(event) => {
                   setSearch(event.currentTarget.value)
                 }}
               />
             </label>
             <label class="flex flex-col gap-1.5 text-sm">
-              <span>{labels().type}</span>
+              <span>{labels.type}</span>
               <select
                 class="select min-w-40"
-                value={category()}
+                value={category}
                 onInput={(event) => {
                   const { value } = event.currentTarget
                   setCategory(value === 'membership' || value === 'ticket' ? value : 'all')
                 }}
               >
-                <option value="all">{labels().allTypes}</option>
-                <option value="membership">{labels().membership}</option>
-                <option value="ticket">{labels().ticket}</option>
+                <option value="all">{labels.allTypes}</option>
+                <option value="membership">{labels.membership}</option>
+                <option value="ticket">{labels.ticket}</option>
               </select>
             </label>
-            <button class="btn btn-sm" type="button" disabled={state().kind === 'loading'} onClick={refresh}>
-              {labels().refresh}
+            <button class="btn btn-sm" type="button" disabled={state.kind === 'loading'} onClick={refresh}>
+              {labels.refresh}
             </button>
           </div>
-          {filtered().length === 0 ? (
+          {filtered.length === 0 ? (
             <div class="flex flex-col items-start gap-3 p-6">
-              <p role="status">{labels().noCardsMatch}</p>
+              <p role="status">{labels.noCardsMatch}</p>
               <button class="btn btn-sm" type="button" onClick={clear}>
-                {labels().clearFilters}
+                {labels.clearFilters}
               </button>
             </div>
           ) : (
@@ -274,29 +266,27 @@ export const PublishedCard = (props: PublishedCardProps): JSX.Element => {
               <table class="table w-full min-w-190 text-sm">
                 <thead>
                   <tr>
-                    <th scope="col">{labels().card}</th>
+                    <th scope="col">{labels.card}</th>
                     <th scope="col" class="text-right">
-                      {labels().issued}
+                      {labels.issued}
                     </th>
                     <th scope="col" class="text-right">
-                      {labels().active}
+                      {labels.active}
                     </th>
-                    <th scope="col">{labels().type}</th>
-                    <th scope="col">{labels().validity}</th>
-                    <th scope="col">{labels().url}</th>
+                    <th scope="col">{labels.type}</th>
+                    <th scope="col">{labels.validity}</th>
+                    <th scope="col">{labels.url}</th>
                     <th scope="col">
-                      <span class="sr-only">{labels().actions}</span>
+                      <span class="sr-only">{labels.actions}</span>
                     </th>
                   </tr>
                 </thead>
-                <tbody>
-                  <For each={filtered()}>{(card) => cardRow(card)}</For>
-                </tbody>
+                <tbody>{filtered.map((card) => cardRow(card))}</tbody>
               </table>
             </div>
           )}
           <p class="border-t border-[var(--fuda-border)] px-4 py-3 text-xs text-[var(--fuda-muted)]">
-            {labels().results.replace('{count}', String(filtered().length))}
+            {labels.results.replace('{count}', String(filtered.length))}
           </p>
         </div>
       ) : (
@@ -313,22 +303,22 @@ export const PublishedCard = (props: PublishedCardProps): JSX.Element => {
           </button>
         </div>
       )}
-      {defaultSave().kind === 'saved' ? (
+      {defaultSave.kind === 'saved' ? (
         <p class="text-sm" role="status">
           {props.copy.defaultSaved}
         </p>
       ) : null}
-      {defaultSave().kind === 'failed' ? (
+      {defaultSave.kind === 'failed' ? (
         <p class="text-error text-sm" role="alert">
           {props.copy.defaultSaveFailed}
         </p>
       ) : null}
-      {clipboard.failed() === null ? null : (
+      {clipboard.failed === null ? null : (
         <p class="text-error text-sm" role="alert">
-          {labels().copyFailed}
+          {labels.copyFailed}
         </p>
       )}
-      <p class="text-xs text-[var(--fuda-muted)]">{labels().snapshotHint}</p>
+      <p class="text-xs text-[var(--fuda-muted)]">{labels.snapshotHint}</p>
     </section>
   )
 }

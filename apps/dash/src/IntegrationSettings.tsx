@@ -1,7 +1,7 @@
 import type { CardIntegrations } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
-import { createEffect, createSignal, on, onCleanup, Show } from 'solid-js'
-import type { Accessor, JSX } from 'solid-js'
+import type { JSX } from 'preact'
+import { useEffect, useRef, useState } from 'preact/hooks'
 
 import type { DashCopy } from './copy.ts'
 
@@ -21,21 +21,24 @@ export interface IntegrationSettingsProps {
 // integration with its own switch; the whole object is saved together, and
 // every switch starts off, so a Card offers nothing its operator did not turn on.
 export const IntegrationSettings = (props: IntegrationSettingsProps): JSX.Element => {
-  const [value, setValue] = createSignal<CardIntegrations | null>(null)
-  const [busy, setBusy] = createSignal(false)
-  const [error, setError] = createSignal<'load' | 'save' | null>(null)
-  const [saved, setSaved] = createSignal(false)
-  let mounted = true
-  let revision = 0
+  const [value, setValue] = useState<CardIntegrations | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<'load' | 'save' | null>(null)
+  const [saved, setSaved] = useState(false)
+  const mounted = useRef(true)
+  const revision = useRef(0)
 
-  onCleanup(() => {
-    mounted = false
-    revision += 1
-  })
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      revision.current += 1
+    }
+  }, [])
 
   const runLoad = (): void => {
-    revision += 1
-    const ticket = revision
+    revision.current += 1
+    const ticket = revision.current
     const { cardId } = props
     setValue(null)
     setError(null)
@@ -48,7 +51,7 @@ export const IntegrationSettings = (props: IntegrationSettingsProps): JSX.Elemen
       } catch {
         result = { error: 'network', network: true, ok: false, status: 0 }
       }
-      if (!mounted || revision !== ticket) {
+      if (!mounted.current || revision.current !== ticket) {
         return
       }
       setBusy(false)
@@ -63,15 +66,15 @@ export const IntegrationSettings = (props: IntegrationSettingsProps): JSX.Elemen
 
   // Reload when the Card changes; a re-render with the same Card keeps an
   // unsaved switch.
-  createEffect(on(() => props.cardId, runLoad))
+  useEffect(runLoad, [props.cardId])
 
   const submit = (): void => {
-    const submitted = value()
-    if (submitted === null || busy()) {
+    const submitted = value
+    if (submitted === null || busy) {
       return
     }
-    revision += 1
-    const ticket = revision
+    revision.current += 1
+    const ticket = revision.current
     const { cardId } = props
     setBusy(true)
     setError(null)
@@ -83,7 +86,7 @@ export const IntegrationSettings = (props: IntegrationSettingsProps): JSX.Elemen
       } catch {
         result = { error: 'network', network: true, ok: false, status: 0 }
       }
-      if (!mounted || revision !== ticket) {
+      if (!mounted.current || revision.current !== ticket) {
         return
       }
       setBusy(false)
@@ -97,7 +100,7 @@ export const IntegrationSettings = (props: IntegrationSettingsProps): JSX.Elemen
     void run()
   }
 
-  const editor = (current: Accessor<CardIntegrations>): JSX.Element => (
+  const editor = (current: CardIntegrations): JSX.Element => (
     <form
       noValidate
       class="flex flex-col gap-4"
@@ -110,8 +113,8 @@ export const IntegrationSettings = (props: IntegrationSettingsProps): JSX.Elemen
         <input
           class="toggle mt-1 shrink-0"
           type="checkbox"
-          checked={current().badges.includes('human')}
-          disabled={busy()}
+          checked={current.badges.includes('human')}
+          disabled={busy}
           onInput={(event) => {
             setValue({ badges: event.currentTarget.checked ? ['human'] : [] })
             setSaved(false)
@@ -122,33 +125,28 @@ export const IntegrationSettings = (props: IntegrationSettingsProps): JSX.Elemen
           <span class="text-sm opacity-70">{props.copy.worldIdHint}</span>
         </span>
       </label>
-      {error() === null ? null : (
+      {error === null ? null : (
         <p class="text-error" role="alert">
-          {props.copy.failures[error() ?? 'load']}
+          {props.copy.failures[error ?? 'load']}
         </p>
       )}
-      {saved() ? <p role="status">{props.copy.saved}</p> : null}
-      <button class="btn btn-primary self-start" disabled={busy()} type="button" onClick={submit}>
-        {busy() ? props.copy.saving : props.copy.save}
+      {saved ? <p role="status">{props.copy.saved}</p> : null}
+      <button class="btn btn-primary self-start" disabled={busy} type="button" onClick={submit}>
+        {busy ? props.copy.saving : props.copy.save}
       </button>
     </form>
   )
 
-  return (
-    <Show
-      when={value()}
-      fallback={
-        <div class="flex items-start gap-3" role={error() === 'load' ? 'alert' : 'status'}>
-          <span>{busy() ? props.copy.loading : props.copy.failures.load}</span>
-          {error() === 'load' ? (
-            <button class="btn btn-sm" type="button" onClick={runLoad}>
-              {props.copy.retry}
-            </button>
-          ) : null}
-        </div>
-      }
-    >
-      {(current) => editor(current)}
-    </Show>
+  return value === null ? (
+    <div class="flex items-start gap-3" role={error === 'load' ? 'alert' : 'status'}>
+      <span>{busy ? props.copy.loading : props.copy.failures.load}</span>
+      {error === 'load' ? (
+        <button class="btn btn-sm" type="button" onClick={runLoad}>
+          {props.copy.retry}
+        </button>
+      ) : null}
+    </div>
+  ) : (
+    editor(value)
   )
 }

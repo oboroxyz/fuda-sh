@@ -1,7 +1,7 @@
 import { TIER_LABEL, USAGE_MODEL } from '@fuda/sdk'
 import type { IssueResponse } from '@fuda/sdk'
-import { createMemo, createSignal, For } from 'solid-js'
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
+import { useState } from 'preact/hooks'
 
 import type { Result } from './api.ts'
 import type { DashCopy } from './copy.ts'
@@ -134,7 +134,11 @@ export const IssueFormView = (props: IssueFormViewProps): JSX.Element => {
             value={String(props.form.tier)}
             onInput={onText((v) => ({ tier: Number(v) }))}
           >
-            <For each={TIER_LABEL}>{(label, i) => <option value={String(i())}>{label}</option>}</For>
+            {TIER_LABEL.map((label, tier) => (
+              <option key={label} value={String(tier)}>
+                {label}
+              </option>
+            ))}
           </select>
         </div>
         <div class="flex min-w-0 flex-col gap-1">
@@ -145,7 +149,11 @@ export const IssueFormView = (props: IssueFormViewProps): JSX.Element => {
             value={String(props.form.usageModel)}
             onInput={onText((v) => ({ usageModel: Number(v) }))}
           >
-            <For each={USAGE}>{(u) => <option value={String(u.value)}>{u.label}</option>}</For>
+            {USAGE.map((u) => (
+              <option key={u.value} value={String(u.value)}>
+                {u.label}
+              </option>
+            ))}
           </select>
         </div>
       </div>
@@ -161,19 +169,19 @@ export const IssueFormView = (props: IssueFormViewProps): JSX.Element => {
 }
 
 export const IssueForm = (props: IssueFormProps): JSX.Element => {
-  const [form, setForm] = createSignal<Form>({
+  const [form, setForm] = useState<Form>({
     holder: '',
     level: 'bearer',
     memberId: '',
     tier: 1,
     usageModel: 1,
   })
-  const [result, setResult] = createSignal<Result<IssueResponse> | null>(null)
-  const [busy, setBusy] = createSignal(false)
-  const flight = createSingleFlight<'issue'>()
-  const body = createMemo(() => issueBodyFrom(form()))
+  const [result, setResult] = useState<Result<IssueResponse> | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [flight] = useState(() => createSingleFlight<'issue'>())
+  const body = issueBodyFrom(form)
   const submit = async (): Promise<void> => {
-    const current = body()
+    const current = body
     if (current === null) {
       return
     }
@@ -191,17 +199,17 @@ export const IssueForm = (props: IssueFormProps): JSX.Element => {
   }
   return (
     <IssueFormView
-      body={body()}
-      busy={busy()}
+      body={body}
+      busy={busy}
       copy={props.copy}
-      form={form()}
+      form={form}
       onChange={(patch) => {
-        setForm({ ...form(), ...patch })
+        setForm((current) => ({ ...current, ...patch }))
       }}
       onSubmit={() => {
         void submit()
       }}
-      result={result()}
+      result={result}
     />
   )
 }

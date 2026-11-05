@@ -1,8 +1,8 @@
 import type { Hex, StampActionResponse, StampLedger, StampLedgerEntry, StampSummary } from '@fuda/sdk'
 import { STAMP_ADJUST_MAX } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
-import { createSignal, For, onCleanup, onMount, Show } from 'solid-js'
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
+import { useEffect, useRef, useState } from 'preact/hooks'
 
 import type { DashCopy } from './copy.ts'
 
@@ -60,26 +60,24 @@ const parseAmount = (text: string): number | null => {
 // give the reward twice.
 export const StampActions = (props: StampActionsProps): JSX.Element => {
   const newRequestId = (): string => (props.createRequestId ?? (() => crypto.randomUUID()))()
-  const [summary, setSummary] = createSignal(props.summary)
-  const [entries, setEntries] = createSignal<StampLedgerEntry[]>([])
-  const [mode, setMode] = createSignal<Mode>('idle')
-  const [amount, setAmount] = createSignal('')
-  const [reason, setReason] = createSignal('')
-  const [busy, setBusy] = createSignal(false)
-  const [failure, setFailure] = createSignal<Failure | null>(null)
-  const [done, setDone] = createSignal<'adjust' | 'reward' | null>(null)
-  let busyNow = false
-  let mounted = true
-  let pendingId: { key: string; requestId: string } | null = null
-  onCleanup(() => {
-    mounted = false
-  })
+  const [summary, setSummary] = useState(props.summary)
+  const [entries, setEntries] = useState<StampLedgerEntry[]>([])
+  const [mode, setMode] = useState<Mode>('idle')
+  const [amount, setAmount] = useState('')
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [failure, setFailure] = useState<Failure | null>(null)
+  const [done, setDone] = useState<'adjust' | 'reward' | null>(null)
+  const busyNow = useRef(false)
+  const mounted = useRef(true)
+  const pendingId = useRef<{ key: string; requestId: string } | null>(null)
 
-  onMount(() => {
+  useEffect(() => {
+    mounted.current = true
     void (async () => {
       try {
         const loaded = await props.io.ledger(props.uid)
-        if (mounted && loaded.ok) {
+        if (mounted.current && loaded.ok) {
           setEntries(loaded.body.entries)
           setSummary(loaded.body.summary)
         }
@@ -87,20 +85,34 @@ export const StampActions = (props: StampActionsProps): JSX.Element => {
         // The scan result already shows the count; the history is a convenience.
       }
     })()
+    return () => {
+      mounted.current = false
+    }
+  }, [])
+
+  // Ledger rows have no id and are immutable, so identical rows are interchangeable;
+  // the occurrence number only keeps their keys distinct.
+  const seen = new Map<string, number>()
+  const keyedEntries = entries.map((entry) => {
+    const base = `${entry.at}:${entry.kind}:${entry.delta}:${entry.note}`
+    const occurrence = seen.get(base) ?? 0
+    seen.set(base, occurrence + 1)
+    return { entry, key: `${base}#${occurrence}` }
   })
 
-  const full = (): boolean => summary().total >= summary().goal
+  const full = (): boolean => summary.total >= summary.goal
 
   const run = (key: string, call: (requestId: string) => Promise<Result<StampActionResponse>>): void => {
-    if (busyNow) {
+    if (busyNow.current) {
       return
     }
-    busyNow = true
+    busyNow.current = true
     setBusy(true)
     setFailure(null)
     setDone(null)
-    pendingId = pendingId?.key === key ? pendingId : { key, requestId: newRequestId() }
-    const { requestId } = pendingId
+    const pending = pendingId.current?.key === key ? pendingId.current : { key, requestId: newRequestId() }
+    pendingId.current = pending
+    const { requestId } = pending
     void (async () => {
       let outcome: Result<StampActionResponse>
       try {
@@ -108,13 +120,13 @@ export const StampActions = (props: StampActionsProps): JSX.Element => {
       } catch {
         outcome = { error: 'network', network: true, ok: false, status: 0 }
       }
-      if (!mounted) {
+      if (!mounted.current) {
         return
       }
-      busyNow = false
+      busyNow.current = false
       setBusy(false)
       if (outcome.ok) {
-        pendingId = null
+        pendingId.current = null
         setEntries(outcome.body.entries)
         setSummary(outcome.body.summary)
         setMode('idle')
@@ -125,7 +137,7 @@ export const StampActions = (props: StampActionsProps): JSX.Element => {
         return
       }
       if (!outcome.network) {
-        pendingId = null
+        pendingId.current = null
       }
       setFailure(outcome.network ? 'network' : failureOf(outcome.error))
     })()
@@ -136,8 +148,8 @@ export const StampActions = (props: StampActionsProps): JSX.Element => {
   }
 
   const saveAdjustment = (): void => {
-    const delta = parseAmount(amount())
-    const note = reason().trim()
+    const delta = parseAmount(amount)
+    const note = reason.trim()
     if (delta === null || note === '') {
       setFailure('badAmount')
       return
@@ -149,10 +161,10 @@ export const StampActions = (props: StampActionsProps): JSX.Element => {
   }
 
   const cancel = (): void => {
-    if (!busy()) {
+    if (!busy) {
       setMode('idle')
       setFailure(null)
-      pendingId = null
+      pendingId.current = null
       props.onDone()
     }
   }
@@ -163,15 +175,13 @@ export const StampActions = (props: StampActionsProps): JSX.Element => {
         <div>
           <div class="text-sm opacity-70">{props.copy.balance}</div>
           <div class="text-2xl font-semibold" aria-live="polite">
-            {summary().total} / {summary().goal}
+            {summary.total} / {summary.goal}
           </div>
-          <Show when={full()}>
-            <div class="text-sm font-medium">{props.copy.full}</div>
-          </Show>
+          {full() ? <div class="text-sm font-medium">{props.copy.full}</div> : null}
         </div>
-        <Show when={mode() === 'idle'}>
+        {mode === 'idle' ? (
           <div class="flex flex-wrap gap-2">
-            <Show when={full()}>
+            {full() ? (
               <button
                 class="btn btn-primary btn-lg"
                 type="button"
@@ -183,7 +193,7 @@ export const StampActions = (props: StampActionsProps): JSX.Element => {
               >
                 {props.copy.giveReward}
               </button>
-            </Show>
+            ) : null}
             <button
               class="btn btn-lg"
               type="button"
@@ -196,28 +206,28 @@ export const StampActions = (props: StampActionsProps): JSX.Element => {
               {props.copy.adjust}
             </button>
           </div>
-        </Show>
+        ) : null}
       </div>
 
-      <Show when={mode() === 'confirm'}>
+      {mode === 'confirm' ? (
         <div
           class="alert flex flex-col items-start gap-3"
           role="alertdialog"
           aria-label={props.copy.giveReward}
         >
-          <span>{props.copy.confirmRewardHint(summary().goal)}</span>
+          <span>{props.copy.confirmRewardHint(summary.goal)}</span>
           <div class="flex gap-2">
-            <button class="btn btn-primary" disabled={busy()} type="button" onClick={giveReward}>
-              {busy() ? props.copy.working : props.copy.confirmReward}
+            <button class="btn btn-primary" disabled={busy} type="button" onClick={giveReward}>
+              {busy ? props.copy.working : props.copy.confirmReward}
             </button>
-            <button class="btn" disabled={busy()} type="button" onClick={cancel}>
+            <button class="btn" disabled={busy} type="button" onClick={cancel}>
               {props.copy.cancel}
             </button>
           </div>
         </div>
-      </Show>
+      ) : null}
 
-      <Show when={mode() === 'adjust'}>
+      {mode === 'adjust' ? (
         <form
           class="flex flex-col gap-3"
           onSubmit={(event) => {
@@ -230,10 +240,10 @@ export const StampActions = (props: StampActionsProps): JSX.Element => {
             <span>{props.copy.amountLabel}</span>
             <input
               class="input w-full"
-              disabled={busy()}
+              disabled={busy}
               inputmode="numeric"
               placeholder={props.copy.amountPlaceholder}
-              value={amount()}
+              value={amount}
               onInput={(event) => {
                 setAmount(event.currentTarget.value)
               }}
@@ -243,41 +253,41 @@ export const StampActions = (props: StampActionsProps): JSX.Element => {
             <span>{props.copy.reasonLabel}</span>
             <input
               class="input w-full"
-              disabled={busy()}
+              disabled={busy}
               maxLength={200}
               placeholder={props.copy.reasonPlaceholder}
-              value={reason()}
+              value={reason}
               onInput={(event) => {
                 setReason(event.currentTarget.value)
               }}
             />
           </label>
           <div class="flex gap-2">
-            <button class="btn btn-primary" disabled={busy()} type="submit">
-              {busy() ? props.copy.working : props.copy.save}
+            <button class="btn btn-primary" disabled={busy} type="submit">
+              {busy ? props.copy.working : props.copy.save}
             </button>
-            <button class="btn" disabled={busy()} type="button" onClick={cancel}>
+            <button class="btn" disabled={busy} type="button" onClick={cancel}>
               {props.copy.cancel}
             </button>
           </div>
         </form>
-      </Show>
+      ) : null}
 
-      <Show when={done() !== null}>
+      {done === null ? null : (
         <div class="alert alert-success" role="status">
-          {done() === 'reward' ? props.copy.done.reward : props.copy.done.adjust}
+          {done === 'reward' ? props.copy.done.reward : props.copy.done.adjust}
         </div>
-      </Show>
-      <Show when={failure() !== null}>
+      )}
+      {failure === null ? null : (
         <div class="alert alert-error" role="alert">
-          <span>{props.copy.failures[failure() ?? 'generic']}</span>
-          <Show when={failure() === 'network'}>
+          <span>{props.copy.failures[failure]}</span>
+          {failure === 'network' ? (
             <button
               class="btn btn-sm"
-              disabled={busy()}
+              disabled={busy}
               type="button"
               onClick={() => {
-                if (mode() === 'confirm') {
+                if (mode === 'confirm') {
                   giveReward()
                 } else {
                   saveAdjustment()
@@ -286,33 +296,28 @@ export const StampActions = (props: StampActionsProps): JSX.Element => {
             >
               {props.copy.retry}
             </button>
-          </Show>
+          ) : null}
         </div>
-      </Show>
+      )}
 
       <section class="grid gap-2" aria-label={props.copy.historyTitle}>
         <h2 class="text-sm font-semibold">{props.copy.historyTitle}</h2>
-        <Show
-          when={entries().length > 0}
-          fallback={<p class="text-sm opacity-70">{props.copy.historyEmpty}</p>}
-        >
+        {entries.length > 0 ? (
           <ul class="grid gap-1 text-sm">
-            <For each={entries()}>
-              {(entry) => (
-                <li class="flex flex-wrap items-baseline gap-x-3">
-                  <span class="font-mono font-semibold">{signed(entry.delta)}</span>
-                  <span>{entry.kind === 'redeem' ? props.copy.historyReward : props.copy.historyAdjust}</span>
-                  <Show when={entry.note !== ''}>
-                    <span class="opacity-70">{entry.note}</span>
-                  </Show>
-                  <time class="ml-auto opacity-60" datetime={new Date(entry.at * 1000).toISOString()}>
-                    {new Date(entry.at * 1000).toLocaleString()}
-                  </time>
-                </li>
-              )}
-            </For>
+            {keyedEntries.map(({ entry, key }) => (
+              <li key={key} class="flex flex-wrap items-baseline gap-x-3">
+                <span class="font-mono font-semibold">{signed(entry.delta)}</span>
+                <span>{entry.kind === 'redeem' ? props.copy.historyReward : props.copy.historyAdjust}</span>
+                {entry.note === '' ? null : <span class="opacity-70">{entry.note}</span>}
+                <time class="ml-auto opacity-60" datetime={new Date(entry.at * 1000).toISOString()}>
+                  {new Date(entry.at * 1000).toLocaleString()}
+                </time>
+              </li>
+            ))}
           </ul>
-        </Show>
+        ) : (
+          <p class="text-sm opacity-70">{props.copy.historyEmpty}</p>
+        )}
       </section>
     </div>
   )

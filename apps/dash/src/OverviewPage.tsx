@@ -1,4 +1,4 @@
-import type { JSX } from 'solid-js'
+import type { ComponentChild, JSX } from 'preact'
 
 import type { DashCopy } from './copy.ts'
 import { apiConnectionStatus, countMembers, graphIsConfigured, memberSnapshot } from './members-state.ts'
@@ -44,7 +44,7 @@ export const OverviewPage = (props: OverviewPageProps): JSX.Element => {
       ? `${props.copy.errorPrefix}: ${props.copy.errorMessage(props.state.message)}`
       : null
 
-  const countValue = (value: number | null): JSX.Element => {
+  const countValue = (value: number | null): ComponentChild => {
     if (value !== null) {
       return String(value)
     }

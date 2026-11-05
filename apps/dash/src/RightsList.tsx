@@ -1,5 +1,5 @@
 import { cn } from 'cn'
-import type { JSX } from 'solid-js'
+import type { ComponentChild, JSX } from 'preact'
 
 import type { DashCopy } from './copy.ts'
 import type { MemberRowView } from './members-view.ts'
@@ -52,7 +52,7 @@ const humanBadge = (copy: DashCopy['rights'], row: MemberRowView): JSX.Element =
     <span class="opacity-50">—</span>
   )
 
-const passLinks = (copy: DashCopy['rights'], row: MemberRowView): JSX.Element =>
+const passLinks = (copy: DashCopy['rights'], row: MemberRowView): ComponentChild =>
   row.passUrls === null ? null : (
     <span class="dash-actions text-xs">
       <a class="link" href={row.passUrls.web} target="_blank" rel="noreferrer">

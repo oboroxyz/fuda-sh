@@ -1,8 +1,8 @@
 import { brandTextColor, CARD_DESCRIPTION_MAX_LENGTH, CARD_IDENTITIES } from '@fuda/sdk'
 import type { CardCategory, CardIdentity, CardRecord, IssuerView } from '@fuda/sdk'
 import { cn } from 'cn'
-import { createComputed, createEffect, createSignal, For, on, onCleanup } from 'solid-js'
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks'
 
 import {
   canSubmit,
@@ -87,9 +87,6 @@ const validityModeLabel = (copy: DashCopy['designer'], mode: ValidityMode): stri
   return mode === 'fixed' ? copy.validityFixed : copy.validityNone
 }
 
-// The helpers below take accessors and read them only inside attributes and
-// text, so each input is created once and keeps focus while the form changes.
-
 // One optional instant. `datetime-local` shows the operator's own wall clock
 // and carries no timezone; `card-designer.ts` converts it through the local
 // `Date`, so an empty field means the end is unbounded.
@@ -173,9 +170,11 @@ const validityDaysField = (props: CardDesignerViewProps): JSX.Element => {
         {offList() === null ? null : (
           <option value={String(offList())}>{expiryLabel(props.copy, offList() ?? 0)}</option>
         )}
-        <For each={EXPIRY_DAY_CHOICES}>
-          {(days) => <option value={String(days)}>{expiryLabel(props.copy, days)}</option>}
-        </For>
+        {EXPIRY_DAY_CHOICES.map((days) => (
+          <option key={days} value={String(days)}>
+            {expiryLabel(props.copy, days)}
+          </option>
+        ))}
       </select>
     </div>
   )
@@ -196,9 +195,11 @@ const validitySection = (props: CardDesignerViewProps): JSX.Element => (
         }}
         value={props.form.validityMode}
       >
-        <For each={VALIDITY_MODES}>
-          {(mode) => <option value={mode}>{validityModeLabel(props.copy, mode)}</option>}
-        </For>
+        {VALIDITY_MODES.map((mode) => (
+          <option key={mode} value={mode}>
+            {validityModeLabel(props.copy, mode)}
+          </option>
+        ))}
       </select>
     </div>
     {props.form.validityMode === 'days' ? validityDaysField(props) : null}
@@ -557,7 +558,8 @@ const CHECK_DELAY_MS = 300
 type StatusSetter = (update: (current: FieldStatus) => FieldStatus) => void
 
 // The local rule decides first; only a well-formed, unreserved name is worth an
-// api round trip, and that one is debounced.
+// api round trip, and that one is debounced. The returned cleanup also drops an
+// answer that arrives after the name changed or the designer closed.
 const scheduleCheck = (
   setStatus: StatusSetter,
   local: FieldStatus,
@@ -568,14 +570,18 @@ const scheduleCheck = (
   if (local !== 'checking') {
     return
   }
+  let stale = false
   const timer = setTimeout((): void => {
     const run = async (): Promise<void> => {
       const result = await check(value)
-      setStatus((current) => (current === 'checking' ? result : current))
+      if (!stale) {
+        setStatus((current) => (current === 'checking' ? result : current))
+      }
     }
     void run()
   }, CHECK_DELAY_MS)
   return () => {
+    stale = true
     clearTimeout(timer)
   }
 }
@@ -593,37 +599,67 @@ const withIssuer = (form: DesignerForm, issuer: IssuerView | null): DesignerForm
 
 export const CardDesigner = (props: CardDesignerProps): JSX.Element => {
   const mode: DesignerMode = 'card'
-  const editing = (): boolean => props.editing ?? false
-  const [draft, setForm] = createSignal<DesignerForm>(props.initialDraft ?? EMPTY_FORM)
-  const form = (): DesignerForm => withIssuer(draft(), props.issuer)
-  // Publish synchronously with every change, so leaving the screen never loses
-  // the latest draft or restores a previous session's.
-  createComputed(() => {
-    props.onDraftChange?.(draft())
-  })
-  const [handleStatus, setHandleStatus] = createSignal<FieldStatus>('idle')
-  const [slugStatus, setSlugStatus] = createSignal<FieldStatus>('idle')
-  const [locationDenied, setLocationDenied] = createSignal(false)
+  const editing = props.editing ?? false
+  const [draft, setDraft] = useState<DesignerForm>(props.initialDraft ?? EMPTY_FORM)
+  const latestDraft = useRef(draft)
+  const onDraftChange = useRef(props.onDraftChange)
+  onDraftChange.current = props.onDraftChange
+  const form = withIssuer(draft, props.issuer)
+  // Publish in the same event that changes a field, not in an effect: a passive
+  // effect runs after paint, and a trip to the profile can unmount this screen
+  // before then, losing the last keystroke. Reading the previous draft from the
+  // ref keeps two changes in one event from overwriting each other.
+  const setForm = (change: (current: DesignerForm) => DesignerForm): void => {
+    const next = change(latestDraft.current)
+    if (next === latestDraft.current) {
+      return
+    }
+    latestDraft.current = next
+    setDraft(next)
+    onDraftChange.current?.(next)
+  }
+  // The opening draft is published too, so a screen opened and left unedited
+  // still leaves its draft in place of an older session's.
+  useLayoutEffect(() => {
+    onDraftChange.current?.(latestDraft.current)
+  }, [])
+  // The designer adds a card to an existing venue, whose handle is settled.
+  const handleStatus: FieldStatus = 'available'
+  const [slugStatus, setSlugStatus] = useState<FieldStatus>('idle')
+  const [locationDenied, setLocationDenied] = useState(false)
   // The picked logo waits here until submit: uploading on pick would stage an
   // upload that expires, or is never spent, every time the operator changes
   // their mind.
-  const [logo, setLogo] = createSignal<LogoState>(EMPTY_LOGO)
+  const [logo, setLogo] = useState<LogoState>(EMPTY_LOGO)
+  const logoRevision = useRef(0)
 
   // The preview is an object URL, so each one is released when it is replaced
-  // and when the designer goes away.
-  createEffect(() => {
-    const url = logo().pick?.previewUrl ?? null
-    onCleanup(() => {
-      if (url !== null) {
-        URL.revokeObjectURL(url)
+  // and when the designer goes away; a decode that finishes after either is
+  // dropped before it can create a URL nothing would release.
+  const previewUrl = logo.pick?.previewUrl ?? null
+  useEffect(
+    () => () => {
+      if (previewUrl !== null) {
+        URL.revokeObjectURL(previewUrl)
       }
-    })
-  })
+    },
+    [previewUrl],
+  )
+  useEffect(
+    () => () => {
+      logoRevision.current += 1
+    },
+    [],
+  )
 
   const onLogoPick = (file: File): void => {
+    logoRevision.current += 1
+    const revision = logoRevision.current
     const run = async (): Promise<void> => {
       const result = await generateLogoSet(file, browserLogoTools)
-      setLogo(withLogoResult(result, (blob) => URL.createObjectURL(blob)))
+      if (revision === logoRevision.current) {
+        setLogo(withLogoResult(result, (blob) => URL.createObjectURL(blob)))
+      }
     }
     void run()
   }
@@ -632,28 +668,20 @@ export const CardDesigner = (props: CardDesignerProps): JSX.Element => {
     setForm((current) => ({ ...current, [key]: value }))
   }
 
-  // The designer adds a card to an existing venue, whose handle is settled.
-  setHandleStatus('available')
-
-  createEffect(
-    on([editing, () => form().slug], ([isEditing, slug]) => {
-      if (isEditing) {
-        setSlugStatus('available')
-        return
-      }
-      const stop = scheduleCheck(
-        (update) => {
-          setSlugStatus(update)
-        },
-        slugStatusOf(slug),
-        slug,
-        props.onCheckSlug,
-      )
-      onCleanup(() => {
-        stop?.()
-      })
-    }),
-  )
+  useEffect(() => {
+    if (editing) {
+      setSlugStatus('available')
+      return
+    }
+    return scheduleCheck(
+      (update) => {
+        setSlugStatus(update)
+      },
+      slugStatusOf(form.slug),
+      form.slug,
+      props.onCheckSlug,
+    )
+  }, [editing, form.slug])
 
   const onLockScreen = (enabled: boolean): void => {
     if (!enabled) {
@@ -680,13 +708,13 @@ export const CardDesigner = (props: CardDesignerProps): JSX.Element => {
   return (
     <CardDesignerView
       busy={props.busy}
-      editing={editing()}
+      editing={editing}
       readonlySlugHint={props.readonlySlugHint}
       copy={props.copy}
       failure={props.failure}
-      form={form()}
-      locationDenied={locationDenied()}
-      logo={logo()}
+      form={form}
+      locationDenied={locationDenied}
+      logo={logo}
       logoCopy={props.logoCopy}
       savedLogoUrl={props.issuer?.logoUrl ?? null}
       mode={mode}
@@ -705,13 +733,14 @@ export const CardDesigner = (props: CardDesignerProps): JSX.Element => {
         }))
       }}
       onEditProfile={() => {
-        props.onEditProfile(form())
+        props.onEditProfile(form)
       }}
       onCategory={(next) => {
         setForm((current) => withCategory(current, next))
       }}
       onLockScreen={onLockScreen}
       onLogoClear={() => {
+        logoRevision.current += 1
         setLogo(EMPTY_LOGO)
       }}
       onLogoPick={onLogoPick}
@@ -719,7 +748,7 @@ export const CardDesigner = (props: CardDesignerProps): JSX.Element => {
         setForm((current) => withSlug(current, next))
       }}
       onSubmit={() => {
-        props.onSubmit(mode, form(), logo().pick?.variants ?? null)
+        props.onSubmit(mode, form, logo.pick?.variants ?? null)
       }}
       onTitle={(next) => {
         setForm((current) => withTitle(current, next))
@@ -733,7 +762,7 @@ export const CardDesigner = (props: CardDesignerProps): JSX.Element => {
       onWindow={(field, next) => {
         setForm((current) => withWindow(current, field, next))
       }}
-      status={{ handle: handleStatus(), slug: slugStatus() }}
+      status={{ handle: handleStatus, slug: slugStatus }}
     />
   )
 }
