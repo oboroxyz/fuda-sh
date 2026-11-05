@@ -4,51 +4,15 @@ Shared library integrations, exposed through independent subpaths. Import only t
 
 ## `@fuda/libs/query`
 
-Shared in-memory read caching for fuda's Solid applications. The package is a small adapter around TanStack Query Core; its results and cache remain Query Core's rather than a second state model.
-
-### API
-
-- `createQueryClient()` creates an independent client. Read data stays fresh for 30 seconds. Failed reads retry once unless the error has a 4xx status. Mutations do not retry.
-- `createQueryScope()` creates one client for the current Solid owner, enables focus and reconnect handling, and clears and unmounts the client when that owner is disposed.
-- `createQuery(client, options)` observes a query. `options` is a function, so the observer follows the signals it reads. The client is explicit so ownership and protected-data boundaries stay visible. It returns an accessor of Query Core's `QueryObserverResult`.
-- `readQueryResult(result)` unwraps a successful `@fuda/sdk/http` result. A failed result throws `QueryError`, which exposes `status` and `network`.
-
-`QueryOptions<T>`, `QueryClient`, `QueryKey`, and `QueryObserverResult` are exported for consumers. The adapter supports Query Core observer options, including `enabled`, `initialData`, `staleTime`, `retry`, `refetchInterval`, focus and reconnect policies, and imperative `refetch` through the returned result. It does not provide Suspense or error-boundary integration.
-
-### Solid
-
-```tsx
-import { createQuery, createQueryScope, readQueryResult } from '@fuda/libs/query'
-import { Match, Switch } from 'solid-js'
-
-const Passes = () => {
-  const client = createQueryScope()
-  const passes = createQuery(client, () => ({
-    queryKey: ['passes', apiEndpoint, holderAddresses()],
-    queryFn: async ({ signal }) => readQueryResult(await loadPasses({ signal })),
-    refetchInterval: 30_000,
-  }))
-
-  return (
-    <Switch fallback={<p>Loading…</p>}>
-      <Match when={passes().isError}>
-        <p>{passes().error?.message}</p>
-      </Match>
-      <Match when={passes().data}>{(data) => <PassList passes={data()} />}</Match>
-    </Switch>
-  )
-}
-```
-
-Use query keys for every input that changes the identity of returned data. Do not put session tokens, signing keys, PRF output, wallet credentials, or authentication UI state in query keys or cached result data. Clear or replace a scope when its authorization boundary changes. Write workflows remain explicit; after a successful write, update or invalidate the affected read query through the client.
-
-## `@fuda/libs/query-preact`
-
-The member app uses the same Query Core client and option builders through Preact hooks. `useQueryScope()` creates one client lazily, mounts it for focus and reconnect handling, and clears and unmounts it with its component. `useQuery(client, options)` accepts an options object and returns the current `QueryObserverResult`, including `refetch`.
+Shared in-memory read caching for Preact uses TanStack Query Core. Its results and cache remain Query Core's rather than a second state model. `useQueryScope()` creates one client lazily, mounts it for focus and reconnect handling, and clears and unmounts it with its component. `useQuery(client, options)` accepts an options object and returns the current `QueryObserverResult`, including `refetch`.
 
 One lazy observer belongs to each hook. Its external-store subscription survives rerenders, and optimistic results switch keys in the render that receives the new options. A key change never displays the previous key's result. Unsubscribing cancels a request when no other observer needs it and the query function consumes its AbortSignal. Independent scopes never share a cache. SSR does not subscribe, mount a client or start a query request.
 
-Use `createQueryClient` when the caller needs an explicit cache lifetime. Keep signing keys, member secrets, PRF output and vault contents out of query state. The Solid binding remains for the final migration cleanup.
+Use `createQueryClient` when the caller needs an explicit cache lifetime. Keep signing keys, member secrets, PRF output and vault contents out of query state.
+
+`readQueryResult(result)` unwraps a successful SDK result and throws `QueryError` with `status` and `network` on failure.
+
+`createQueryClient()` keeps reads fresh for 30 seconds and retries failed reads once unless the error has a 4xx status. Mutations do not retry. Query keys must include every input that changes the returned data, and must exclude session tokens and credentials. Clear or replace a scope when its authorization boundary changes. Writes remain explicit and update or invalidate the affected read query after success.
 
 ## `@fuda/libs/wallet`
 

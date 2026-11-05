@@ -1,11 +1,21 @@
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
 
-import { walletButton } from './wallet-button.ts'
+import { walletArtwork } from './wallet-button.ts'
 import type { WalletButtonProps } from './wallet-button.ts'
 
-// The markup comes from the same `hono/html` helper the server pass page uses,
-// so the member app and the pass render one button. walletButton only
-// interpolates synchronous primitives and escapes them.
 export const WalletButton = (props: WalletButtonProps): JSX.Element => (
-  <span class="flex w-full justify-center" innerHTML={String(walletButton(props))} />
+  <span class="flex w-full justify-center">
+    <a
+      aria-label={props.label}
+      class={`fuda-wallet-button fuda-wallet-button-${props.platform}`}
+      hidden={props.hidden ?? false}
+      href={props.href}
+      id={props.id}
+      rel={props.newTab === true ? 'noreferrer' : undefined}
+      target={props.newTab === true ? '_blank' : undefined}
+    >
+      <img alt="" src={walletArtwork(props.platform, props.locale ?? 'en')} />
+      <span class="fuda-wallet-label">{props.label}</span>
+    </a>
+  </span>
 )

@@ -9,6 +9,8 @@ paths:
 
 # Frontend design
 
+Use Preact hooks for frontend components and `@fuda/ui` for shared UI. App and dash use `@fuda/ui/vite-pages` with the pinned `void-preact` adapter; gate mounts directly from `index.html`.
+
 For `apps/app`, `apps/dash`, and `apps/gate`, import `tailwindcss` and then `@fuda/styles/base.css` from the app's `src/styles.css`. Keep variables, base rules, and reusable `.fuda-*` classes emitted by `packages/ui` in `packages/styles/base.css`; keep each product's visual design in its app.
 
 Prefer daisyUI components for standard UI patterns when they fit the desired behavior and visual design. Compose them with Tailwind utilities rather than reimplementing the same patterns from scratch.

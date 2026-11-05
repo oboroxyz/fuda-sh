@@ -1,6 +1,6 @@
 import { isLocale, pick } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
-import { ConfirmAction } from '@fuda/ui-preact'
+import { ConfirmAction } from '@fuda/ui'
 import type { ThemeMode } from '@fuda/ui/theme'
 import type { JSX } from 'preact'
 import { useState } from 'preact/hooks'

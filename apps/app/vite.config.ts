@@ -1,4 +1,4 @@
-import { preactPagesConfig } from '@fuda/ui-preact/vite-pages'
+import { preactPagesConfig } from '@fuda/ui/vite-pages'
 
 // Dependencies the dev server would otherwise discover on a page's first
 // request, re-optimize and reload in the middle of it, failing that render.

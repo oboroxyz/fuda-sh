@@ -2,7 +2,7 @@
 import { setTimeout } from 'node:timers/promises'
 
 import type { Locale } from '@fuda/i18n'
-import { mount as mountView } from '@fuda/ui-preact/test'
+import { mount as mountView } from '@fuda/ui/test'
 import type { ComponentChild, JSX } from 'preact'
 import { useState } from 'preact/hooks'
 import { afterEach, describe, expect, it, vi } from 'vitest'

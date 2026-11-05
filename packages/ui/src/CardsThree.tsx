@@ -1,4 +1,4 @@
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
 
 // Phosphor Icons: Cards Three (regular), MIT licensed; see ../LICENSE.phosphor.
 // https://github.com/phosphor-icons/core/blob/main/assets/regular/cards-three.svg

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import type { GraphRight, Hex, VerifyResponse } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
-import { mount as mountView } from '@fuda/ui-preact/test'
+import { mount as mountView } from '@fuda/ui/test'
 import type { JSX } from 'preact'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 

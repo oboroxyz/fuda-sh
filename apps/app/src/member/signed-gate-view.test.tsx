@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import type { Hex } from '@fuda/sdk'
-import { mount, settle } from '@fuda/ui-preact/test'
+import { mount, settle } from '@fuda/ui/test'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import * as baseAccount from '../base-account.ts'

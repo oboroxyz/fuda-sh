@@ -19,14 +19,5 @@
   "ignoreDependencies": ["@fuda/styles", "daisyui", "esbuild"],
   "workspaces": {
     "patterns": ["apps/*", "packages/*"]
-  },
-  "duplicates": {
-    "ignore": [
-      "packages/ui-preact/src/ConfirmAction.tsx",
-      "packages/ui-preact/src/FudaMark.tsx",
-      "packages/ui-preact/src/IconButton.tsx",
-      "packages/ui-preact/src/PasskeySection.tsx",
-      "packages/ui-preact/src/controls.tsx"
-    ]
   }
 }

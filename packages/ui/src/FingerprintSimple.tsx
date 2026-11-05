@@ -1,4 +1,4 @@
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
 
 // Phosphor Icons: Fingerprint Simple (regular), MIT licensed.
 // https://github.com/phosphor-icons/core

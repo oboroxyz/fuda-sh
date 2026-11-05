@@ -1,4 +1,4 @@
-import { FudaMark } from '@fuda/ui-preact'
+import { FudaMark } from '@fuda/ui'
 import type { ComponentChildren, JSX } from 'preact'
 
 export const VenueLayout = (props: { children?: ComponentChildren }): JSX.Element => (

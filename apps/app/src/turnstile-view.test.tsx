@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { mount, settle } from '@fuda/ui-preact/test'
+import { mount, settle } from '@fuda/ui/test'
 import type { JSX } from 'preact'
 import { useRef, useState } from 'preact/hooks'
 import { afterEach, describe, expect, it, vi } from 'vitest'

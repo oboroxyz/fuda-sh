@@ -17,7 +17,6 @@
     "@fuda/sdk": "workspace:*",
     "@fuda/styles": "workspace:*",
     "@fuda/ui": "workspace:*",
-    "@fuda/ui-preact": "workspace:*",
     "@simplewebauthn/browser": "^14.0.0",
     "@worldcoin/idkit-core": "^4.3.0",
     "hono": "^4.13.16",

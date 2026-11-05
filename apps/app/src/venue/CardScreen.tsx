@@ -20,8 +20,8 @@ import type {
   SelfServeIssueResponse,
 } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
-import { CardsThree, FingerprintSimple } from '@fuda/ui-preact'
-import { WalletButton } from '@fuda/ui-preact/wallet-button'
+import { CardsThree, FingerprintSimple } from '@fuda/ui'
+import { WalletButton } from '@fuda/ui/wallet-view'
 import { Fragment } from 'preact'
 import type { JSX } from 'preact'
 import { useLayoutEffect, useRef, useState } from 'preact/hooks'

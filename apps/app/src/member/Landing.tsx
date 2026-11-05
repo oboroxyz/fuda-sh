@@ -1,6 +1,6 @@
 import { AUTH_COPY, DEFAULT_LOCALE, pick } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
-import { FingerprintSimple, FudaMark } from '@fuda/ui-preact'
+import { FingerprintSimple, FudaMark } from '@fuda/ui'
 import type { JSX } from 'preact'
 
 import { APP_ORIGIN } from '../config.ts'

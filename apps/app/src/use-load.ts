@@ -1,4 +1,4 @@
-import { useStable } from '@fuda/ui-preact/hooks'
+import { useStable } from '@fuda/ui/hooks'
 import { useEffect, useRef, useState } from 'preact/hooks'
 
 // Metadata reads may race a refetch or finish after the page leaves.

@@ -22,6 +22,10 @@ Vite+ (`vp`) drives builds, tests, linting and formatting. Package `vite.config.
 - Fallow fails a pull request on the unused code, duplication and complexity it introduces. Before deleting code it calls unused, confirm with `pnpm exec fallow dead-code --trace <file>:<export>` or `--trace-dependency <name>`. When Void adds a file-routed directory, add it to `entry` in `.fallowrc.json`.
 - Upgrade Vite+ together with its `oxlint`, `oxfmt` and `vite-plus-core` overrides in `pnpm-workspace.yaml`.
 
+All three frontends use Preact. Shared components and page tooling live in `@fuda/ui`; `@fuda/libs/query` exposes the Preact query hooks. Keep the API's `@fuda/ui/wallet-button` Hono HTML helper independent of the frontend renderer.
+
+When changing frontend UI or styling under `apps/app`, `apps/dash`, `apps/gate`, `packages/ui`, or `packages/styles`, read `.agents/rules/frontend-design.md` before editing.
+
 ## Evidence
 
 Save screenshots, recordings and review evidence under `artifacts/<YYYY-MM-DD>-<task>/`, which is Git-ignored. Use `/tmp` for disposable scripts and logs. Builds and tests must not depend on either. When handing off a capture, give its absolute path, viewport, locale, theme and any fictional data.

@@ -3,7 +3,7 @@ import { setTimeout } from 'node:timers/promises'
 
 import type { GraphRight, Hex, VerifyResponse } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
-import { mount as mountView } from '@fuda/ui-preact/test'
+import { mount as mountView } from '@fuda/ui/test'
 import type { ComponentChild, JSX } from 'preact'
 import { useState } from 'preact/hooks'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'

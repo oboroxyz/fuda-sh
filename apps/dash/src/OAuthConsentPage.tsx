@@ -1,6 +1,6 @@
 import type { AuthorizePreviewResponse } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
-import { FingerprintSimple, FudaMark } from '@fuda/ui-preact'
+import { FingerprintSimple, FudaMark } from '@fuda/ui'
 import type { JSX } from 'preact'
 import { useEffect, useState } from 'preact/hooks'
 

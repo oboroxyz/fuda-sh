@@ -43,7 +43,6 @@ minimumReleaseAgeExclude:
   - '@void/edge@1.6.2'
   - '@void/isr@1.6.2'
   - '@void/platform@1.6.2'
-  - '@void/solid@1.6.2'
   - void@1.6.2
   # The Preact adapter for Void, published 2026-11-05 and pinned exactly.
   - void-preact@0.1.2
