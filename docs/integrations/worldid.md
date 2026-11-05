@@ -108,7 +108,7 @@ The verdict names the verifier and when it verified — `verified human · world
 
 [`packages/pass/src/google.ts`](../../packages/pass/src/google.ts) · [`packages/pass/src/apple/pass-json.ts`](../../packages/pass/src/apple/pass-json.ts) · [`apps/api/src/pass/badge-update.ts`](../../apps/api/src/pass/badge-update.ts)
 
-Both wallet passes carry the badge as a snapshot taken when the pass is built. An installed Apple pass has no push channel, so re-adding is how it updates — the serial number is the Right's uid, so a re-add replaces it. A saved Google object is patched best-effort after a badge is stored, never in a way that can fail the badge.
+Both wallet passes carry the badge as a snapshot taken when the pass is built. An installed Apple pass updates through the [Wallet web service](../specs/pass-types-and-flows.md#apple-wallet-updates) where that is configured; elsewhere re-adding is how it updates — the serial number is the Right's uid, so a re-add replaces it. A saved Google object is patched best-effort after a badge is stored, never in a way that can fail the badge.
 
 ## Configuration
 

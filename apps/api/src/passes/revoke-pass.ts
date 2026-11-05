@@ -8,6 +8,7 @@ import { findVersion, parseSchemaSets } from '../eas/schemas.ts'
 import type { AcceptedVersion } from '../eas/schemas.ts'
 import { darkenMemberName } from '../ens/mirror.ts'
 import type { AppEnv } from '../env.ts'
+import { notifyPassChanged } from '../pass/notify.ts'
 import { sendOffchainRevocation } from './offchain-chores.ts'
 
 // null means "this deployment's EAS_SCHEMAS binding is malformed" — a
@@ -46,6 +47,7 @@ const revokeOffchainPass = async (c: Context<AppEnv>, uid: Hex): Promise<RevokeO
     // oxlint-disable-next-line no-console -- the gate already rejects this pass; only the public record is behind, and this names which one
     console.error('offchain revocation not sent', { error, uid })
   }
+  notifyPassChanged(c, uid)
   return { ok: true }
 }
 
@@ -117,5 +119,6 @@ export const revokePass = async (
   // A name that still resolved after its right was revoked would outlive the
   // thing it names, so it goes dark on the same request.
   await darkenMemberName(c.get('db'), { now: c.get('now')(), rightUid: uid })
+  notifyPassChanged(c, uid)
   return { ok: true }
 }

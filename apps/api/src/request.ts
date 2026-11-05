@@ -4,11 +4,13 @@ import { attendanceHook } from './attendance/attendance-hook.ts'
 import { getDb } from './db/client.ts'
 import type { AppEnv, Variables } from './env.ts'
 import { errorResponse } from './json.ts'
+import { applePushSenderFrom } from './pass/apple-push.ts'
 import { buildChain, schemaSetsOf } from './runtime.ts'
 import { noAdmitHook } from './verify/admit.ts'
 import type { AdmitHook } from './verify/admit.ts'
 
 export interface AppDeps {
+  applePush?: Variables['applePush']
   chain: Variables['chain']
   now?: () => number
   onAdmit?: AdmitHook
@@ -19,6 +21,7 @@ export const requestContext =
   async (c, next) => {
     const db = getDb(c.env)
     const chain = deps?.chain ?? buildChain(c.env)
+    c.set('applePush', deps?.applePush ?? applePushSenderFrom(c.env.APPLE_PUSH_CERT))
     c.set('chain', chain)
     c.set('db', db)
     c.set('now', deps?.now ?? (() => Math.floor(Date.now() / 1000)))

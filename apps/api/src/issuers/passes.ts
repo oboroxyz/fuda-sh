@@ -80,7 +80,7 @@ const PASS_ROWS = `
     END AS status
   FROM members m
   LEFT JOIN cards c ON c.id = m.card_id AND c.issuer_id = m.issuer_id
-  WHERE m.issuer_id = ? AND m.level != 'private'
+  WHERE m.issuer_id = ?
 `
 
 const escapeLike = (value: string): string =>
@@ -131,9 +131,11 @@ export const readIssuerPasses = async (
   const filtered = filteredWhere(filters)
   const baseParams = [now, now, issuerId] as const
   const stampTotals = `
-    SELECT issuer_id, uid, COUNT(*) AS stamps
-    FROM stamp_credits
-    WHERE issuer_id = ?
+    SELECT issuer_id, uid, SUM(stamps) AS stamps FROM (
+      SELECT issuer_id, uid, COUNT(*) AS stamps FROM stamp_credits WHERE issuer_id = ? GROUP BY issuer_id, uid
+      UNION ALL
+      SELECT issuer_id, uid, SUM(delta) AS stamps FROM stamp_adjustments WHERE issuer_id = ? GROUP BY issuer_id, uid
+    )
     GROUP BY issuer_id, uid
   `
   const pageStatement = database
@@ -149,6 +151,7 @@ export const readIssuerPasses = async (
     `)
     .bind(
       ...baseParams,
+      issuerId,
       issuerId,
       issuerId,
       ...filtered.params,
@@ -171,7 +174,7 @@ export const readIssuerPasses = async (
       LEFT JOIN stamp_totals
         ON stamp_totals.issuer_id = ? AND stamp_totals.uid = pass_rows.uid
     `)
-    .bind(...baseParams, issuerId, now - LAST_30_DAYS_SECONDS, issuerId)
+    .bind(...baseParams, issuerId, issuerId, now - LAST_30_DAYS_SECONDS, issuerId)
   const cardStatsStatement = database
     .prepare(`
       WITH pass_rows AS (${PASS_ROWS})

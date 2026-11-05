@@ -25,16 +25,15 @@ export class IssueConfigError extends Error {
   override readonly name = 'IssueConfigError'
 }
 
-export interface EntitlementParams {
+interface EntitlementParams {
   holder: Hex
   level: Level
   body: IssueRequest
 }
 
-// Encode and attest synchronously; the caller decides what to persist. Shared by
-// the two public-holder levels and by +Private, whose holder is a one-time
-// stealth address. `level` is a parameter of the branch, never of the request.
-export const attestEntitlement = async (ctx: IssueContext, p: EntitlementParams): Promise<{ uid: Hex }> => {
+// Encode and attest synchronously; the caller decides what to persist. `level`
+// is a parameter of the branch, never of the request.
+const attestEntitlement = async (ctx: IssueContext, p: EntitlementParams): Promise<{ uid: Hex }> => {
   const schema = newest(ctx.sets.entitlement)
   if (schema === null) {
     throw new IssueConfigError('EAS_SCHEMAS.entitlement is empty')
@@ -60,7 +59,7 @@ export const attestEntitlement = async (ctx: IssueContext, p: EntitlementParams)
   })
 }
 
-export interface MemberRowParams {
+interface MemberRowParams {
   uid: Hex
   holder: Hex | null
   level: Level
@@ -82,7 +81,7 @@ export interface MemberRowParams {
 // tables knows about. The uid is logged because it is the only handle an
 // operator has on that orphan, and the caller is told the chain leg is the
 // problem: 502, not an unhandled 500.
-export const insertMemberRow = async (ctx: IssueContext, row: MemberRowParams): Promise<void> => {
+const insertMemberRow = async (ctx: IssueContext, row: MemberRowParams): Promise<void> => {
   try {
     await ctx.db.insert(members).values({
       attestationUid: row.uid,
@@ -116,8 +115,8 @@ export interface RightParams {
   source: string | null
 }
 
-// The shared write path for the two public-holder levels: attest, then (only
-// after the receipt) insert the member row and hand back the pass.
+// The shared write path for both levels: attest, then (only after the receipt)
+// insert the member row and hand back the pass.
 export const attestRight = async (ctx: IssueContext, p: RightParams): Promise<IssueResponse> => {
   const { uid } = await attestEntitlement(ctx, { body: p.body, holder: p.holder, level: p.level })
   await insertMemberRow(ctx, {

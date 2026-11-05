@@ -8,7 +8,7 @@ import type { ThemeMode } from '@fuda/ui/theme'
 import type { Context } from 'hono'
 
 import { LOCALE_COOKIE, MEMBER_COOKIE, THEME_COOKIE } from '../cookie-names.ts'
-import { isRedirectRoute, routeFor, safeMemberReturn } from '../route.ts'
+import { isRedirectRoute, routeFor, safeMemberReturn, signInHref } from '../route.ts'
 
 // What every page knows about the request. Pages read it with `useShared()`.
 export interface AppShared {
@@ -38,8 +38,6 @@ const isPageRequest = (c: Context, pathname: string): boolean =>
   !pathname.startsWith('/@vite/') &&
   !/\.[a-z0-9]+$/iu.test(pathname)
 
-const signInFor = (target: string): string => `/signin?return=${encodeURIComponent(safeMemberReturn(target))}`
-
 // One pass over the request: preferences from cookies, the member session
 // checked only where a page needs it, and the redirects the URL calls for.
 export const resolveSession = async (
@@ -50,7 +48,7 @@ export const resolveSession = async (
 ): Promise<SessionOutcome> => {
   const shared: AppShared = {
     apiOrigin: apiBaseUrl.replace(/\/$/u, ''),
-    locale: resolveLocale(readCookie(c, LOCALE_COOKIE)),
+    locale: resolveLocale(readCookie(c, LOCALE_COOKIE), c.req.header('accept-language') ?? null),
     restoreFailed: false,
     signedIn: false,
     theme: resolveThemeMode(readCookie(c, THEME_COOKIE)),
@@ -70,7 +68,7 @@ export const resolveSession = async (
     return { redirect: '/', shared, token }
   }
   shared.signedIn = token !== null && token !== ''
-  const member = route === 'rights' || route === 'settings' || route === 'signed' || route === 'private'
+  const member = route === 'rights' || route === 'settings' || route === 'signed'
   if (route === 'signin' && shared.signedIn) {
     return { redirect: safeMemberReturn(url.searchParams.get('return')), shared, token }
   }
@@ -78,7 +76,7 @@ export const resolveSession = async (
     return { redirect: null, shared, token }
   }
   if (!shared.signedIn || token === null) {
-    return { redirect: signInFor(target), shared, token }
+    return { redirect: signInHref(target), shared, token }
   }
   const me = await apiFetch<MemberSessionResponse>(apiBaseUrl, '/auth/member/me', {
     headers: apiHeaders(c, token),
@@ -89,7 +87,7 @@ export const resolveSession = async (
   if (me.status === 401) {
     clearCookie(c, MEMBER_COOKIE)
     shared.signedIn = false
-    return { redirect: signInFor(target), shared, token: null }
+    return { redirect: signInHref(target), shared, token: null }
   }
   shared.restoreFailed = true
   return { redirect: null, shared, token }

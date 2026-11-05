@@ -1,10 +1,11 @@
 import { Hono } from 'hono'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { signOut, startAdmin, verifyOperator } from './session-routes.ts'
+import { passkeySession, signOut, startAdmin, verifyOperator } from './session-routes.ts'
 
 const app = new Hono()
 app.post('/session/operator', async (c) => await verifyOperator(c, 'https://api.example'))
+app.post('/session/passkey', async (c) => await passkeySession(c, 'https://api.example'))
 app.post('/session/admin', async (c) => await startAdmin(c))
 app.post('/session/sign-out', async (c) => await signOut(c, 'https://api.example'))
 
@@ -29,6 +30,38 @@ describe('session routes', () => {
     const cookie = res.headers.getSetCookie().find((value) => value.startsWith('fuda_operator='))
     expect(cookie).toContain('HttpOnly')
     expect(cookieNames(res)).toContain('fuda_operator=session-1')
+  })
+
+  it('keeps a passkey session in the HttpOnly cookie and returns only the venue', async () => {
+    const api = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json({ accountId: 'a', issuer: null, token: 'session-2' }))
+    vi.stubGlobal('fetch', api)
+    const res = await post('/session/passkey', { flow: 'register', response: { id: 'x' } })
+    await expect(res.json()).resolves.toStrictEqual({ issuer: null })
+    expect(cookieNames(res)).toContain('fuda_operator=session-2')
+    expect(api.mock.calls[0]?.[0]).toBe('https://api.example/v1/auth/operator/register')
+    expect(api.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ id: 'x' }))
+  })
+
+  it('refuses a passkey session from another site before it reaches the api', async () => {
+    const api = vi.fn<typeof fetch>()
+    vi.stubGlobal('fetch', api)
+    const res = await post(
+      '/session/passkey',
+      { flow: 'login', response: {} },
+      { origin: 'https://evil.example' },
+    )
+    expect(res.status).toBe(403)
+    expect(api).not.toHaveBeenCalled()
+  })
+
+  it('refuses a passkey flow it does not know', async () => {
+    const api = vi.fn<typeof fetch>()
+    vi.stubGlobal('fetch', api)
+    const res = await post('/session/passkey', { flow: 'add', response: {} })
+    expect(res.status).toBe(400)
+    expect(api).not.toHaveBeenCalled()
   })
 
   it("passes the api's refusal through without setting a cookie", async () => {

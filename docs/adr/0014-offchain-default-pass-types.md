@@ -1,6 +1,6 @@
 # ADR 0014: Offchain rights by default, with on-chain rights as an option
 
-- **Status**: Accepted 2026-11-04 for the Standard and On-chain types, which are built along with roots, member passkey sign-in and the member list. Recovery from a saved pass and from a backup is built too. Everything else here is still proposed and not built: Identified, Sensitive use, delegated keys, and the removals.
+- **Status**: Accepted 2026-11-04 for the Standard and On-chain types, which are built along with roots, member passkey sign-in and the member list. Recovery from a saved pass and from a backup is built too. The removals of decision 6 are done: +Private issuance and its U2 and U3 templates, `/private` discovery, Activation, the Claim key and the Agent key no longer exist in the code, specs or glossary. Identified passes and Sensitive use are built, including minimized entry logs and their daily purge after 30 days. Operator passkey sign-in, card Attendance controls, installed Apple Wallet updates, and offchain signer rotation are also built. Delegated keys remain proposed.
 - **Scope**: the pass types an Issuer can choose, how each is verified and recovered, which keys sign them, and what leaves the product.
 
 ## Context
@@ -36,27 +36,32 @@ Roots are timestamped in batches. A root records when a batch existed. It is not
 
 Merkle leaves use the double-hashed `StandardMerkleTree` form. Proofs may be handed to holders, but the tree dump contains the raw UIDs and must never be published.
 
+**Open claims need a bot check.** Issuing an offchain Right costs fuda nothing, so a per-IP budget alone leaves a script free to fill a Card's capacity. The public claim route verifies a Cloudflare Turnstile token before it reserves a place. When Turnstile cannot be reached the claim fails closed, because one member trying again costs less than a filled Card. A deployment without the secret skips the check, as the other optional integrations do. Authenticated issuance (MCP, connected apps, admin) does not use it. See [the spec](../specs/pass-types-and-flows.md#claim-bot-check).
+
 Revocation is sent per pass and not batched, because one already revoked UID reverts a whole `multiRevokeOffchain`. D1 records the revocation first, so the gate rejects at once and while the chain cannot be read. A revocation made directly on chain, outside fuda, is not covered while the chain is unreadable.
 
 ### 3. Gate rules
 
-The gate checks, in order: D1 revocation mirror, UID, signature domain, signature, pinned attester, schema, venue, expiry, on-chain revocation, slot.
+The gate checks, in order: the venue the gate names, D1 revocation mirror, UID, signature domain, signature, pinned attester, schema, the venue signed into the pass, expiry, on-chain revocation, slot.
 
 - Verification uses viem, not the EAS SDK verifier, which recovers an EOA only and checks neither expiry nor revocation.
+- The attestation chain is configurable as Base or Base Sepolia. API `CHAIN_ID` and browser `VITE_CHAIN_ID` must agree, and both default to Base Sepolia. Unknown ids fail rather than selecting a different network. Existing targets remain on Base Sepolia.
 - `domain.chainId` is converted to `BigInt` after JSON. As a string, viem recovers a different address.
 - `domain.version` is read per chain: Base mainnet runs EAS 1.0.1, while Base Sepolia and Soneium run 1.4.1-beta.3.
-- The schema and venue are pinned. All venues share one attester in the first phase, so a signature alone would admit another venue's pass. Today the venue is pinned only to the D1 row and at reception: `POST /verify` takes no venue, as with on-chain rights, so a gate does not yet reject another venue's pass.
+- The schema and venue are pinned. All venues share one attester in the first phase, so a signature alone would admit another venue's pass. The signed venue is pinned to the D1 row, reception is scoped by the operator's session, and a gate is scoped by its URL: `POST /verify` takes an optional `venue`, and a pass whose issuer is another venue is rejected `WRONG_VENUE` before anything else is read and before a slot is used. The URL is station configuration for honest staff, not authentication, because the pass is a bearer token and a shop that wants to admit another shop's pass can already do so. A gate with no `venue` checks none, and `POST /verify-signed` does not take one yet.
 - `AlreadyTimestamped` counts as success, because anyone can timestamp a root first.
+
+The API tries the preferred Base Sepolia RPC and then the public endpoint on provider failure. A provider outage alone therefore does not make the chain unreadable. The gate rules above apply when neither provider supplies the required read. Contract reverts do not trigger failover.
 
 ### 4. Identity and addresses
 
 Identified attests the passkey's public key in the pass data and leaves `recipient` as the zero address. The gate checks the challenge, origin, RP ID hash, user-verification flag and signature with no chain read.
 
-Sensitive use attests a key unique to the pass. Those keys derive by HKDF from a random member secret wrapped by each passkey's PRF. A second passkey can be added by wrapping the same secret, so losing one passkey does not change the keys. Smart wallets do not provide this separation: an undeployed wallet's signature contains the owner's public key, so per-venue wallets behind one passkey stay linkable.
+Sensitive use attests a key unique to the pass. Claim, challenge, and presentation requests omit account credentials, including cookies, and the app proxy forwards no session on them. IP addresses, user agents, and timing still permit correlation, including a vault write just after a claim; this is not network anonymity. Those keys derive by HKDF from a random member secret wrapped by each passkey's PRF. A second passkey can be added by wrapping the same secret, so losing one passkey does not change the keys. Recovery writes require a separate HKDF-derived write token whose hash is set with the first copy. A stolen session cannot corrupt existing recovery. Adding a passkey and starting over both require fresh assertions from an existing account passkey, bound to their separate purposes. Starting over deletes recovery, not the passes: another device holding the old keys can still enter until the Issuer revokes them. A member with no account passkey left creates a new account. Smart wallets do not provide this separation: an undeployed wallet's signature contains the owner's public key, so per-venue wallets behind one passkey stay linkable.
 
 **A passkey without PRF.** Support depends on the passkey provider, and browsers report support regardless of it: Safari reported PRF while Bitwarden returned nothing. Enrollment therefore creates the passkey and checks the actual result. Without PRF, Sensitive use stops and tells the member how to save a passkey in a provider that supports it, such as iCloud Keychain or Google Password Manager, because the web cannot choose the provider. Enrollment records only counts of this outcome.
 
-**One passkey per card** is the fallback if this loses too many members, or if an adopting organization cannot use those providers. Each card would get its own discoverable passkey with a random user handle and a neutral name, and the pass would attest its public key. fuda would keep a map from credential ID to pass, not linked to a member account, so a new device restores cards one at a time through the system's passkey chooser. It works with any provider but adds a second recovery path, and the chooser for an unspecified login also lists card passkeys. Several passkeys on one RP ID have not been tested.
+**One passkey per card** is not built. It is the fallback if this loses too many members, or if an adopting organization cannot use those providers. Each card would get its own discoverable passkey with a random user handle and a neutral name, and the pass would attest its public key. fuda would keep a map from credential ID to pass, not linked to a member account, so a new device restores cards one at a time through the system's passkey chooser. It works with any provider but adds a second recovery path, and the chooser for an unspecified login also lists card passkeys. Several passkeys on one RP ID have not been tested.
 
 A member address is not created at issuance. When an integration needs one, it derives from the member secret, per venue by default, so this needs PRF. A stable address is used only when the member chooses it. Stealth addresses stay available as a way to receive value, not as a pass type.
 
@@ -99,17 +104,19 @@ Moving between iOS and Android does not carry a passkey across, so the new phone
 
 ### 8. Attendance and names
 
-Attendance stays in D1 for offchain rights. On-chain types may also record it on chain, on by default for tickets and off for memberships.
+Attendance stays in D1 for offchain rights. On-chain types may also record it on chain, on by default for tickets and off for memberships. It is a setting on each on-chain Card, chosen at creation and editable, and the Card's own flag decides at every scan. An on-chain visit record is public and permanent, so a membership that wrote one would expose a person's visits.
 
 Member ENS names resolve to a holder address, so only on-chain types get them.
 
 ## Relation to earlier decisions
 
-- [ADR 0001](0001-eas-native-target-architecture.md): decision 1's offchain treatment of private rights becomes the default for all rights. Decision 2's "stealth templates stay" and decision 8's claim module are dropped. Decision 6 is adopted, on chain.
-- [ADR 0002](0002-unfiltered-announcement-log.md) and [ADR 0003](0003-graph-push-query-lanes.md): the announcement log loses its product use. Graph queries remain only for on-chain rights, and the Graph fallback design waits for this decision.
+- [ADR 0001](0001-eas-native-target-architecture.md): decision 1's offchain treatment of private rights becomes the default for all rights. Decision 2's "stealth templates stay" and decision 8's claim module are dropped, and the code that stood for them is gone. Decision 6 is adopted, on chain.
+- [ADR 0002](0002-unfiltered-announcement-log.md) and [ADR 0003](0003-graph-push-query-lanes.md): the announcement log lost its product use and ADR 0002 is marked superseded. The rights subgraph no longer has an Announcer data source or an `Announcement` entity, and its start block variable is `GRAPH_START_BLOCK`. The Substreams packages are independent and unchanged. Graph queries remain only for on-chain rights, and the Graph fallback design waits for this decision.
 - [ADR 0004](0004-member-pass-list-from-holder.md): superseded for offchain rights, as above.
-- [ADR 0005](0005-hybrid-ensv2-resolver.md): one-time +Private resolution is no longer needed, and member names shrink to on-chain types.
+- [ADR 0005](0005-hybrid-ensv2-resolver.md): one-time +Private resolution is removed (the `stealth_resolutions` table, the `stealth_meta_address` column and `ENS_GATEWAY_SECRET`). Member names shrink to on-chain types.
 - [ADR 0008](0008-shared-issuer-wallet.md): no conflict. It already keeps automated issuer keys out of wallet ownership.
+
+The shared Account ceremony requires an existing passkey assertion for additional credentials in both audiences. A session alone cannot authorize a credential that could reset Sensitive recovery. Wallet distribution and notification selection exclude Sensitive Rights. Signed entry binds an optional venue into its nonce and signed message, and shows the actual Issuer Handle. A member-controlled phone can mint an unpinned challenge, so staff comparison remains necessary; a station pin is not proof of location or automated door control.
 
 ## Consequences
 
@@ -118,6 +125,8 @@ Member ENS names resolve to a holder address, so only on-chain types get them.
 - The "validity never leaves the chain" rule no longer holds in general: validity is a signature plus an on-chain revocation read. The README, architecture overview, glossary and specs change when this is built.
 - Offchain Rights need a new schema that carries the venue and, for Identified, the key. This is a new cut, not a change to the current Entitlement.
 - fuda pays for roots and revocations, and on-chain types keep paying per issuance.
+
+The supporting dashboard UI explains API errors in the selected language, with an unrecognized code retained in parentheses for support. App and dashboard metadata follow page language selection with Japanese as the fallback; the static gate metadata is Japanese. See [page language and dashboard errors](../specs/pass-types-and-flows.md#page-language-and-dashboard-errors).
 
 ## Measurements
 
@@ -136,7 +145,7 @@ Local anvil forks of Base Sepolia, Base mainnet and Soneium, with Chromium's vir
 ## Conditions before acceptance
 
 - **Real devices.** So far one iPhone (Safari 27) has created and used a synced P-256 passkey in two providers. Apple Passwords returned a stable 32-byte PRF result and wrapped and unwrapped a secret. Bitwarden returned no PRF result in any request form. PRF therefore depends on the passkey provider, and enrollment must detect its absence and decide what to do without it. The Apple Passwords passkey, synced through iCloud Keychain to a Mac and used in Chrome there, returned the same PRF result as on the iPhone, so keys derived from it can be recovered on a synced device. A Google Password Manager passkey created in Chrome on a Mac also returned a stable PRF result. Still open: Android, and server-side verification of a real device's signature. Reports on Apple's developer forums describe PRF failing or returning different values over the cross-device flow, and we have not confirmed this ourselves.
-- **Recovery path for the wrapped secret.** Where the wrapped copies live, and what a member does when moving between iOS and Android.
+- **Recovery path for the wrapped secret.** Settled: the copies live in `member_secret_copies`, a member moving between iOS and Android adds a second passkey through the old one, and otherwise the Issuer reissues ([spec](../specs/pass-types-and-flows.md#sensitive-use)). Not yet tried on those real devices.
 - **Sponsored wallet operations.** A user operation through a public bundler and paymaster on testnet. Only EntryPoint 0.6 support has been read from one public endpoint so far.
 - **Soneium.** The Coinbase Smart Wallet factory has no code at its usual address on Soneium mainnet, though it does on Minato. On-chain self-held and delegated keys need another path there.
 - **Demand.** Shop conversations on whether the default type and its recovery are acceptable, and whether Sensitive use has real customers. It does not cover door control or company identity systems.

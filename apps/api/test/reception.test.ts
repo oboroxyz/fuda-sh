@@ -2,7 +2,7 @@ import { env } from 'cloudflare:test'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { createSession } from '../src/auth/session.ts'
+import { createMemberSession, createOperatorSession } from '../src/auth/session.ts'
 import { getDb } from '../src/db/client.ts'
 import {
   cards,
@@ -100,6 +100,7 @@ const responseStatus = async (pending: Promise<Response>): Promise<number> => {
 describe('venue reception stamps', () => {
   beforeEach(async () => {
     // Delete in dependency order; each fixture owns all rows in this test file.
+    await env.DB.prepare('DELETE FROM stamp_adjustments').run()
     await env.DB.prepare('DELETE FROM stamp_credits').run()
     await env.DB.prepare('DELETE FROM reception_requests').run()
     await env.DB.prepare('DELETE FROM card_stamp_settings').run()
@@ -182,11 +183,10 @@ describe('venue reception stamps', () => {
 
   it('rejects foreign and missing Card settings and does not expose the old venue-wide route', async () => {
     const f = await setup()
-    const otherToken = await createSession(db, {
-      address: HOLDER,
-      audience: 'operator',
+    const otherToken = await createOperatorSession(db, {
       issuerId: 'another-venue',
       now: NOW,
+      principal: { address: HOLDER, kind: 'wallet' },
     })
     const path = `/v1/issuers/me/cards/${f.cardId}/stamps`
     const statuses = await Promise.all([
@@ -371,17 +371,11 @@ describe('venue reception stamps', () => {
 
   it('rejects member sessions and operators without a venue', async () => {
     const f = await setup()
-    const memberToken = await createSession(db, {
-      address: HOLDER,
-      audience: 'member',
-      issuerId: f.venue.id,
-      now: NOW,
-    })
-    const emptyToken = await createSession(db, {
-      address: HOLDER,
-      audience: 'operator',
+    const memberToken = await createMemberSession(db, crypto.randomUUID(), NOW)
+    const emptyToken = await createOperatorSession(db, {
       issuerId: null,
       now: NOW,
+      principal: { address: HOLDER, kind: 'wallet' },
     })
     const request = { qr: `fuda:v1:${f.uid}`, requestId: crypto.randomUUID() }
     const results = await Promise.all([
@@ -392,18 +386,11 @@ describe('venue reception stamps', () => {
     await expect(db.select().from(entryLog)).resolves.toHaveLength(0)
   })
 
-  it('does not expose private or unknown stamp summaries', async () => {
+  it('does not expose a stamp summary for an unknown uid', async () => {
     const f = await setup()
-    await db.update(members).set({ level: 'private' })
-    const results = await Promise.all([
-      getJson(f.app, f.bindings, `/v1/stamps/${f.uid}`),
-      getJson(f.app, f.bindings, `/v1/stamps/0x${'ef'.repeat(32)}`),
-    ])
-    expect(results.map((res) => res.status)).toStrictEqual([404, 404])
-    await expect(Promise.all(results.map(async (res) => await res.json()))).resolves.toStrictEqual([
-      { error: 'not_found' },
-      { error: 'not_found' },
-    ])
+    const res = await getJson(f.app, f.bindings, `/v1/stamps/0x${'ef'.repeat(32)}`)
+    expect(res.status).toBe(404)
+    await expect(res.json()).resolves.toStrictEqual({ error: 'not_found' })
   })
 
   it('does not record an uncertain chain verdict and permits retry after recovery', async () => {
@@ -439,6 +426,7 @@ describe('venue reception stamps', () => {
 
   it('fires the Attendance hook once for a successful replayed reception', async () => {
     const f = await setup()
+    await db.update(cards).set({ attendance: 1 })
     const hookEntries: number[] = []
     const app = appWith({
       chain: f.chain,

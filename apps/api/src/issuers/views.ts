@@ -10,7 +10,7 @@ type CardRow = typeof cards.$inferSelect
 
 export const issuerView = (row: IssuerRow, baseUrl: string): IssuerView => {
   // Annotated (not cast): written only from ADDRESS_RE-validated input.
-  const operatorAddress: Hex = `0x${row.operatorAddress.slice(2)}`
+  const address: Hex = `0x${(row.operatorAddress ?? '').slice(2)}`
   return {
     brandColor: row.brandColor,
     createdAt: row.createdAt,
@@ -19,7 +19,7 @@ export const issuerView = (row: IssuerRow, baseUrl: string): IssuerView => {
     id: row.id,
     logoUrl: logoUrlFor(baseUrl, row.handle, row.logoPrefix),
     name: row.name,
-    operatorAddress,
+    operatorAddress: row.operatorAddress === null ? null : address,
     tagline: row.tagline,
   }
 }
@@ -42,6 +42,7 @@ export const cardView = (row: CardRow, now: number, badges?: readonly BadgeKind[
     claimable: isClaimable(row, now) && (row.capacity === null || row.reserved < row.capacity),
     description: row.description,
     id: row.id,
+    identity: row.identity,
     slug: row.slug,
     title: row.title,
     validFrom: row.validFrom,
@@ -56,6 +57,8 @@ export const cardView = (row: CardRow, now: number, badges?: readonly BadgeKind[
 
 export const operatorCardView = (row: CardRow, now: number): OperatorCardView => ({
   ...cardView(row, now),
+  attendance: row.attendance !== 0,
+  identity: row.identity,
   lockScreen: row.lockScreen !== 0,
   record: row.record,
   venue: row.venueLat === null || row.venueLng === null ? null : { lat: row.venueLat, lng: row.venueLng },

@@ -11,6 +11,9 @@ describe('D1 schema', () => {
     ).all<{ name: string }>()
     expect(rows.results.map((r) => r.name).toSorted()).toStrictEqual([
       'accounts',
+      'apple_pass_devices',
+      'apple_pass_registrations',
+      'apple_pass_updates',
       'badges',
       'card_integrations',
       'card_stamp_settings',
@@ -24,6 +27,9 @@ describe('D1 schema', () => {
       'issuers',
       'logo_uploads',
       'member_passes',
+      'member_secret_copies',
+      'member_secret_outcomes',
+      'member_vaults',
       'members',
       'oauth_codes',
       'oauth_tokens',
@@ -35,9 +41,9 @@ describe('D1 schema', () => {
       'reception_requests',
       'sessions',
       'slots',
+      'stamp_adjustments',
       'stamp_credits',
       'stamp_settings',
-      'stealth_resolutions',
     ])
   })
 

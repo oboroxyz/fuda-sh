@@ -1,5 +1,5 @@
-import { brandTextColor, CARD_DESCRIPTION_MAX_LENGTH } from '@fuda/sdk'
-import type { CardCategory, CardRecord, IssuerView } from '@fuda/sdk'
+import { brandTextColor, CARD_DESCRIPTION_MAX_LENGTH, CARD_IDENTITIES } from '@fuda/sdk'
+import type { CardCategory, CardIdentity, CardRecord, IssuerView } from '@fuda/sdk'
 import { cn } from 'cn'
 import { createComputed, createEffect, createSignal, For, on, onCleanup } from 'solid-js'
 import type { JSX } from 'solid-js'
@@ -33,6 +33,8 @@ import { FieldLabel } from './FieldLabel.tsx'
 import { browserLogoTools, EMPTY_LOGO, generateLogoSet, withLogoResult } from './logo.ts'
 import type { LogoSet, LogoState } from './logo.ts'
 
+const identityOf = (raw: string): CardIdentity => CARD_IDENTITIES.find((row) => row === raw) ?? 'none'
+
 export interface CardDesignerViewProps {
   busy: boolean
   editing?: boolean
@@ -48,7 +50,9 @@ export interface CardDesignerViewProps {
   // are not asked for again.
   mode: DesignerMode
   onCategory: (category: CardCategory) => void
+  onIdentity: (identity: CardIdentity) => void
   onRecord: (record: CardRecord) => void
+  onAttendance: (enabled: boolean) => void
   onEditProfile: () => void
   onField: <K extends keyof DesignerForm>(key: K, value: DesignerForm[K]) => void
   onLockScreen: (on: boolean) => void
@@ -435,6 +439,46 @@ export const CardDesignerView = (props: CardDesignerViewProps): JSX.Element => {
             <p class="text-moderate text-sm">{props.copy.recordHint}</p>
           </div>
 
+          {props.form.record === 'onchain' ? (
+            <div class="flex flex-col gap-1">
+              <label class="flex items-center gap-2" for="attendance">
+                <input
+                  checked={props.form.attendance}
+                  class="toggle"
+                  id="attendance"
+                  onInput={(e) => {
+                    props.onAttendance(e.currentTarget.checked)
+                  }}
+                  type="checkbox"
+                />
+                <span>{props.copy.attendanceLabel}</span>
+              </label>
+              <span class="text-sm opacity-70">{props.copy.attendanceHint}</span>
+            </div>
+          ) : null}
+
+          <div class="flex flex-col gap-1">
+            <label for="identity">{props.copy.identityLabel}</label>
+            <select
+              class="select w-full"
+              disabled={editing() || props.form.record === 'onchain'}
+              id="identity"
+              onInput={(e) => {
+                props.onIdentity(identityOf(e.currentTarget.value))
+              }}
+              value={props.form.identity}
+            >
+              <option value="none">{props.copy.identityNone}</option>
+              <option value="passkey">{props.copy.identityPasskey}</option>
+              <option value="sensitive">{props.copy.identitySensitive}</option>
+            </select>
+            <p class="text-moderate text-sm">
+              {props.form.identity === 'sensitive'
+                ? props.copy.identitySensitiveHint
+                : props.copy.identityHint}
+            </p>
+          </div>
+
           <div class="flex flex-col gap-1">
             <label for="card-description">
               <FieldLabel label={props.copy.cardDescriptionLabel} optional={props.copy.optional} />
@@ -647,8 +691,18 @@ export const CardDesigner = (props: CardDesignerProps): JSX.Element => {
       savedLogoUrl={props.issuer?.logoUrl ?? null}
       mode={mode}
       onField={onField}
+      onAttendance={(attendance) => {
+        setForm((current) => ({ ...current, attendance, attendanceEdited: true }))
+      }}
+      onIdentity={(identity) => {
+        setForm((current) => ({ ...current, identity }))
+      }}
       onRecord={(record) => {
-        setForm((current) => ({ ...current, record }))
+        setForm((current) => ({
+          ...current,
+          identity: record === 'onchain' ? 'none' : current.identity,
+          record,
+        }))
       }}
       onEditProfile={() => {
         props.onEditProfile(form())

@@ -4,23 +4,25 @@ import type { Hex } from 'viem'
 import type { Db } from '../db/client.ts'
 import { sessions } from '../db/schema.ts'
 import { toHex } from '../hex.ts'
+import type { OperatorPrincipal } from './principal.ts'
 
 const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
 
-export type SessionAudience = 'member' | 'operator'
+type SessionAudience = 'member' | 'operator'
 
-export interface Session {
-  accountId: string | null
-  address: Hex
+export interface OperatorSession {
   issuerId: string | null
+  principal: OperatorPrincipal
   tokenHash: string
 }
 
-export type OperatorSession = Session
-export type MemberSession = Session & { accountId: string }
+export interface MemberSession {
+  accountId: string
+  tokenHash: string
+}
 
-export type SessionResolution =
-  | { kind: 'valid'; session: Session }
+export type SessionResolution<S> =
+  | { kind: 'valid'; session: S }
   | { kind: 'wrong-audience' }
   | { kind: 'invalid' }
 
@@ -28,12 +30,13 @@ export const hashToken = async (token: string): Promise<string> =>
   toHex(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token))))
 
 // The token is shown to the operator exactly once; only its hash is stored, so
-// a leaked table cannot be replayed as a bearer credential.
-export const createSession = async (
+// a leaked table cannot be replayed as a bearer credential. `address` stays empty on
+// a session that names an account, because the column is NOT NULL.
+const insertSession = async (
   db: Db,
   p: {
-    accountId?: string
-    address: Hex | ''
+    accountId: string | null
+    address: string
     audience: SessionAudience
     issuerId: string | null
     now: number
@@ -41,23 +44,30 @@ export const createSession = async (
 ): Promise<string> => {
   const token = toHex(crypto.getRandomValues(new Uint8Array(32)))
   await db.insert(sessions).values({
-    accountId: p.accountId ?? null,
-    address: p.address,
-    audience: p.audience,
+    ...p,
     createdAt: p.now,
     expiresAt: p.now + SESSION_TTL_SECONDS,
-    issuerId: p.issuerId,
     tokenHash: await hashToken(token),
   })
   return token
 }
 
-export const resolveSession = async (
+export const createMemberSession = async (db: Db, accountId: string, now: number): Promise<string> =>
+  await insertSession(db, { accountId, address: '', audience: 'member', issuerId: null, now })
+
+export const createOperatorSession = async (
   db: Db,
-  token: string,
-  now: number,
-  audience: SessionAudience,
-): Promise<SessionResolution> => {
+  p: { issuerId: string | null; now: number; principal: OperatorPrincipal },
+): Promise<string> =>
+  await insertSession(db, {
+    accountId: p.principal.kind === 'account' ? p.principal.accountId : null,
+    address: p.principal.kind === 'wallet' ? p.principal.address : '',
+    audience: 'operator',
+    issuerId: p.issuerId,
+    now: p.now,
+  })
+
+const resolveRow = async (db: Db, token: string, now: number, audience: SessionAudience) => {
   const tokenHash = await hashToken(token)
   const row = await db
     .select({
@@ -70,18 +80,54 @@ export const resolveSession = async (
     .from(sessions)
     .where(eq(sessions.tokenHash, tokenHash))
     .get()
-  if (row === undefined) {
-    return { kind: 'invalid' }
+  if (row === undefined || row.expiresAt <= now) {
+    return { kind: 'invalid' as const }
   }
-  if (row.audience !== audience) {
-    return { kind: 'wrong-audience' }
+  return row.audience === audience
+    ? { kind: 'valid' as const, row, tokenHash }
+    : { kind: 'wrong-audience' as const }
+}
+
+const principalOf = (row: { accountId: string | null; address: string }): OperatorPrincipal | null => {
+  if (row.accountId !== null) {
+    return { accountId: row.accountId, kind: 'account' }
   }
-  if (row.expiresAt <= now) {
-    return { kind: 'invalid' }
-  }
-  // Written only from ADDRESS_RE-validated, lower-cased input (sign-in.ts).
+  // Written only from ADDRESS_RE-validated, lower-cased input (handlers/auth.ts).
   const address: Hex = `0x${row.address.slice(2)}`
-  return { kind: 'valid', session: { accountId: row.accountId, address, issuerId: row.issuerId, tokenHash } }
+  return row.address === '' ? null : { address, kind: 'wallet' }
+}
+
+export const resolveOperatorSession = async (
+  db: Db,
+  token: string,
+  now: number,
+): Promise<SessionResolution<OperatorSession>> => {
+  const resolved = await resolveRow(db, token, now, 'operator')
+  if (resolved.kind !== 'valid') {
+    return resolved
+  }
+  const principal = principalOf(resolved.row)
+  return principal === null
+    ? { kind: 'invalid' }
+    : {
+        kind: 'valid',
+        session: { issuerId: resolved.row.issuerId, principal, tokenHash: resolved.tokenHash },
+      }
+}
+
+export const resolveMemberSession = async (
+  db: Db,
+  token: string,
+  now: number,
+): Promise<SessionResolution<MemberSession>> => {
+  const resolved = await resolveRow(db, token, now, 'member')
+  if (resolved.kind !== 'valid') {
+    return resolved
+  }
+  // A session from before accounts names only an address, and signs in again.
+  return resolved.row.accountId === null
+    ? { kind: 'invalid' }
+    : { kind: 'valid', session: { accountId: resolved.row.accountId, tokenHash: resolved.tokenHash } }
 }
 
 // The issuer a session is bound to, read fresh: a create that meant to bind

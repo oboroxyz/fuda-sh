@@ -4,7 +4,6 @@ export const UID_RE = /^0x[0-9a-fA-F]{64}$/u
 export const QR_PREFIX = 'fuda:v1:'
 export const QR_RE = /^fuda:v1:(?<uid>0x[0-9a-fA-F]{64})$/u
 export const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/u
-export const META_ADDRESS_RE = /^0x[0-9a-fA-F]{132}$/u
 export const NONCE_RE = /^0x[0-9a-fA-F]{32}$/u
 export const SIGNATURE_RE = /^0x[0-9a-fA-F]+$/u
 
@@ -28,6 +27,11 @@ export const asHex = (s: string, bytes: number): Hex | null => {
 // An offchain right has no holder address: its recipient is the zero address.
 export const hasNoHolder = (holder: string): boolean => /^0x0{40}$/u.test(holder)
 
+// An Identified or Sensitive pass: signed level with no holder address, so what it answers
+// to is the key attested inside it (docs/specs/attestation-model.md#offchain-rights).
+export const isPasskeyPass = (right: { holder: string; level: number }): boolean =>
+  right.level === 1 && hasNoHolder(right.holder)
+
 export const CHALLENGE_PREFIX = 'fuda-gate:'
 export const CHALLENGE_TTL_SECONDS = 300
 
@@ -36,7 +40,10 @@ export const normalizeNonce = (s: string): Hex | null =>
   NONCE_RE.test(s) ? `0x${s.slice(2).toLowerCase()}` : null
 
 // What the member signs (docs/specs/attestation-model.md#wire-constants): the plaintext challenge string, EIP-191 personal-sign.
-export const challengeMessage = (uid: Hex, nonce: Hex): string => `${CHALLENGE_PREFIX}${uid}:${nonce}`
+export const challengeMessage = (uid: Hex, nonce: Hex, venue?: string): string =>
+  venue === undefined
+    ? `${CHALLENGE_PREFIX}${uid}:${nonce}`
+    : `${CHALLENGE_PREFIX}${uid}:${nonce}:venue=${encodeURIComponent(venue)}`
 
 export const toQr = (uid: Hex): string => `${QR_PREFIX}${uid}`
 
@@ -46,11 +53,8 @@ export const parseQr = (qr: string): Hex | null => {
 }
 
 // level = the verification level a right was issued at (never "mode").
-export type Level = 'bearer' | 'signed' | 'private'
-export const LEVEL_CODE = { bearer: 0, private: 2, signed: 1 } as const satisfies Record<Level, number>
-export type LevelCode = (typeof LEVEL_CODE)[Level]
-const LEVELS: readonly Level[] = ['bearer', 'signed', 'private']
-export const levelFromCode = (code: number): Level | null => LEVELS[code] ?? null
+export type Level = 'bearer' | 'signed'
+export const LEVEL_CODE = { bearer: 0, signed: 1 } as const satisfies Record<Level, number>
 
 // path = how an entry was made (never the right's level).
 export type EntryPath = 'qr' | 'signature'
@@ -76,6 +80,7 @@ export const REASONS = [
   'DELEGATION_CONFIG_MISSING',
   'LEVEL_REQUIRED',
   'ALREADY_USED',
+  'WRONG_VENUE',
   'BAD_CHALLENGE',
   'BAD_SIGNATURE',
 ] as const
@@ -88,7 +93,6 @@ export const ERROR_CODES = [
   'bad_input',
   'bad_uid',
   'bad_qr',
-  'bad_meta_address',
   'client_ip_required',
   'unauthorized',
   'not_found',
@@ -104,7 +108,11 @@ export const ERROR_CODES = [
   'bad_signature',
   'bad_passkey',
   'passkey_limit',
+  'holder_must_claim',
   'last_passkey',
+  'secret_conflict',
+  'vault_conflict',
+  'integrations_not_supported',
   'bad_handle',
   'handle_taken',
   // No longer returned: an account may own several issuers (ADR 0011). Kept

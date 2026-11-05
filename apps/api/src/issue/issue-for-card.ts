@@ -12,6 +12,7 @@ import type { AppEnv } from '../env.ts'
 import { issueBearer, IssueConfigError } from './issue-bearer.ts'
 import { issueContext } from './issue-context.ts'
 import { issueOffchainPass, offchainDomain } from './issue-offchain.ts'
+import type { PassClaimant } from './issue-offchain.ts'
 import { OrphanedRightError } from './orphaned-right-error.ts'
 
 const MEMBER_NUMBER_DRAWS = 3
@@ -49,7 +50,7 @@ const releasePlace = async (db: Db, cardId: string): Promise<void> => {
     .where(eq(cards.id, cardId))
 }
 
-export type CardIssueError = 'card_sold_out' | 'chain_error' | 'internal' | 'no_signer'
+export type CardIssueError = 'card_sold_out' | 'chain_error' | 'holder_must_claim' | 'internal' | 'no_signer'
 
 export type CardIssueOutcome =
   | { ok: true; pass: SelfServeIssueResponse }
@@ -76,6 +77,7 @@ const issueOffchain = async (
   card: typeof cards.$inferSelect,
   issuer: Pick<typeof issuers.$inferSelect, 'handle' | 'id'>,
   source: string | null,
+  claimant: PassClaimant | null,
 ): Promise<CardIssueOutcome> => {
   const chain = c.get('chain')
   if (chain.offchainAttester() === null) {
@@ -100,6 +102,7 @@ const issueOffchain = async (
       body: passBody(card, memberNumber, now),
       cardId: card.id,
       chain,
+      claimant,
       db,
       domain,
       issuerHandle: issuer.handle,
@@ -120,16 +123,21 @@ const issueOffchain = async (
   }
 }
 
-// One Bearer pass under a card (docs/specs/pass-types-and-flows.md#u1-standard-issuance-and-optional-activation).
-// The card fixes tier, usage model and validity. Its caller decides who may ask.
+// One pass under a card (docs/specs/pass-types-and-flows.md#u1-standard-issuance-and-optional-activation).
+// The card fixes tier, usage model and validity. Its caller decides who may ask, except on
+// a card bound to a key, whose pass can only be issued to the key that claimed it.
 export const issueForCard = async (
   c: Context<AppEnv>,
   card: typeof cards.$inferSelect,
   issuer: Pick<typeof issuers.$inferSelect, 'handle' | 'id'>,
   source: string | null,
+  claimant: PassClaimant | null = null,
 ): Promise<CardIssueOutcome> => {
+  if (card.identity !== 'none' && claimant === null) {
+    return { error: 'holder_must_claim', ok: false }
+  }
   if (card.record === 'offchain') {
-    return await issueOffchain(c, card, issuer, source)
+    return await issueOffchain(c, card, issuer, source, claimant)
   }
   if (c.get('chain').signerAddress() === null) {
     return { error: 'no_signer', ok: false }
@@ -150,9 +158,6 @@ export const issueForCard = async (
   try {
     const issued = await issueBearer(ctx, body, { cardId: card.id, issuerId: issuer.id, source })
     minted = true
-    if (issued.level === 'private') {
-      return { error: 'internal', ok: false }
-    }
     // The member's own name under the venue. Best-effort by design: a name that
     // failed to mirror costs a resolution, not a card (apps/api/src/ens/mirror.ts).
     if (c.env.ENS_PARENT_NAME !== undefined) {
@@ -164,7 +169,6 @@ export const issueForCard = async (
         now: ctx.now,
         parentName: c.env.ENS_PARENT_NAME,
         rightUid: issued.uid,
-        stealthMetaAddress: null,
       })
     }
     return { ok: true, pass: { ...issued, level: 'bearer', memberNumber } }

@@ -22,7 +22,6 @@ const form: Form = {
   holder: '',
   level: 'bearer',
   memberId: 'alice',
-  stealthMetaAddress: '',
   tier: 1,
   usageModel: 1,
 }
@@ -65,7 +64,6 @@ describe('localized operation views', () => {
   it.each([
     ['bearer', 'メンバー ID', 'Bearer — アプリ不要のデバイスウォレットパス'],
     ['signed', '保有者アドレス', 'Signed — ゲートでメンバーのウォレットが署名'],
-    ['private', 'ステルスメタアドレス', '+Private — メタアドレスからステルスアドレスを生成'],
   ] as const)('labels every %s control and explains the selected level', (level, identity, description) => {
     const host = view({ form: { ...form, level } })
     const labels = [...host.querySelectorAll('label')]
@@ -78,8 +76,7 @@ describe('localized operation views', () => {
       labelled: controls.every((control) =>
         labels.some((label) => label.htmlFor === control.id && control.id !== ''),
       ),
-      optionalMemberId: labels.map(spacedText).includes('メンバー ID（任意の代表 ID）'),
-    }).toStrictEqual({ described: true, labelled: true, optionalMemberId: level === 'private' })
+    }).toStrictEqual({ described: true, labelled: true })
   })
 
   it('blocks invalid and busy submissions and uses the busy label', () => {
@@ -130,23 +127,34 @@ describe('localized operation views', () => {
     },
   )
 
-  it('announces private discovery and transaction prefix without a public pass', () => {
-    const host = view({
-      result: { body: { announceTx: UID, announced: true, level: 'private', uid: UID }, ok: true },
-    })
-    expect(spacedText(host)).toContain('アナウンスしました')
-    expect(spacedText(host)).toContain('メンバーがアプリで検出します。')
-    expect(spacedText(host)).toContain('トランザクション 0xaaaaaaaa…')
-    expect({
-      links: host.querySelectorAll('a').length,
-      qrs: host.querySelectorAll('div[role="img"]').length,
-    }).toStrictEqual({ links: 0, qrs: 0 })
-    expect(liveStatus(host)?.getAttribute('aria-live')).toBe('polite')
+  it('explains unknown errors in Japanese and retains their support code', () => {
+    const host = view({ result: { error: 'RPC_DENIED [42]', network: false, ok: false, status: 503 } })
+    expect(spacedText(host.querySelector('[role="alert"]'))).toBe(
+      '発行に失敗しました: 処理を完了できませんでした。もう一度お試しください。 (RPC_DENIED [42])',
+    )
   })
 
-  it('retains machine errors verbatim inside localized alert context', () => {
-    const host = view({ result: { error: 'RPC_DENIED [42]', network: false, ok: false, status: 503 } })
-    expect(spacedText(host.querySelector('[role="alert"]'))).toBe('発行に失敗しました: RPC_DENIED [42]')
+  it('retranslates a visible API error when the operator changes language', async () => {
+    const [locale, setLocale] = createSignal<'en' | 'ja'>('en')
+    const onIssue = vi.fn<() => Promise<Result<IssueResponse>>>().mockResolvedValue({
+      error: 'bad_input',
+      network: false,
+      ok: false,
+      status: 400,
+    })
+    const host = mount(() => <IssueForm copy={DASH_COPY[locale()].issue} onIssue={onIssue} />)
+    typeInto(host.querySelector<HTMLInputElement>('#issue-member-id')!, 'alice')
+    submit(host)
+    await vi.waitFor(() => {
+      expect(spacedText(host.querySelector('[role="alert"]'))).toBe(
+        'Issue failed: Check the information you entered.',
+      )
+    })
+    setLocale('ja')
+    await flush()
+    expect(spacedText(host.querySelector('[role="alert"]'))).toBe(
+      '発行に失敗しました: 入力内容を確認してください。',
+    )
   })
 
   it('labels the QR image and retains the entire readable payload', () => {
@@ -166,9 +174,12 @@ describe('localized operation views', () => {
           appearance={<aside>appearance controls</aside>}
           copy={DASH_COPY.ja.auth}
           error="権限がありません: UNAUTHORIZED"
-          onPasskey={(): void => {}}
+          busy={null}
+          onCancel={(): void => {}}
+          onCreate={(): void => {}}
+          onSignIn={(): void => {}}
           onToken={onToken}
-          pending={false}
+          onWallet={(): void => {}}
         />
       ))
       const password = host.querySelector<HTMLInputElement>('input[type="password"]')!
@@ -195,9 +206,12 @@ describe('localized operation views', () => {
         appearance={<aside />}
         copy={DASH_COPY.en.auth}
         error={null}
-        onPasskey={(): void => {}}
+        busy={null}
+        onCancel={(): void => {}}
+        onCreate={(): void => {}}
+        onSignIn={(): void => {}}
         onToken={(): void => {}}
-        pending={false}
+        onWallet={(): void => {}}
       />
     ))
     const logo = host.querySelector('svg[aria-label="fuda."]')!

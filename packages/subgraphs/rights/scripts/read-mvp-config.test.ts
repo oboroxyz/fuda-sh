@@ -28,8 +28,8 @@ const writeTargets = async (config: unknown): Promise<string> => {
 }
 
 const vars = (overrides: Record<string, string> = {}) => ({
-  ANNOUNCER_FROM_BLOCK: '12345',
   EAS_SCHEMAS: JSON.stringify(schemas),
+  GRAPH_START_BLOCK: '12345',
   ...overrides,
 })
 
@@ -43,21 +43,20 @@ describe(readMvpGraphConfig, () => {
         // The api targets file is JSONC.
         "develop": {
           "vars": {
-            "ANNOUNCER_FROM_BLOCK": "7",
+            "GRAPH_START_BLOCK": "7",
             "EAS_SCHEMAS": ${JSON.stringify(JSON.stringify(schemas))},
           },
         },
       }`,
     )
 
-    expect(readMvpGraphConfig(configPath).announcerFromBlock).toBe(7)
+    expect(readMvpGraphConfig(configPath).startBlock).toBe(7)
   })
 
   it('reads every schema family and version from the develop target by default', async () => {
     const configPath = await writeTargets({ develop: { vars: vars() } })
 
     expect(readMvpGraphConfig(configPath)).toStrictEqual({
-      announcerFromBlock: 12_345,
       schemas: {
         attendance: [{ uid: UID_D, version: 3 }],
         entitlement: [
@@ -66,20 +65,21 @@ describe(readMvpGraphConfig, () => {
         ],
         issuerDelegation: [{ uid: UID_C, version: 1 }],
       },
+      startBlock: 12_345,
     })
   })
 
   it('reads an explicitly selected target', async () => {
     const configPath = await writeTargets({
       develop: { vars: vars() },
-      production: { vars: vars({ ANNOUNCER_FROM_BLOCK: '99' }) },
+      production: { vars: vars({ GRAPH_START_BLOCK: '99' }) },
     })
 
-    expect(readMvpGraphConfig(configPath, { target: 'production' }).announcerFromBlock).toBe(99)
+    expect(readMvpGraphConfig(configPath, { target: 'production' }).startBlock).toBe(99)
   })
 
   it.each([
-    ['missing EAS_SCHEMAS', { ANNOUNCER_FROM_BLOCK: '1' }],
+    ['missing EAS_SCHEMAS', { GRAPH_START_BLOCK: '1' }],
     ['empty schema family', vars({ EAS_SCHEMAS: JSON.stringify({ ...schemas, attendance: [] }) })],
     [
       'malformed UID',
@@ -114,8 +114,8 @@ describe(readMvpGraphConfig, () => {
         }),
       }),
     ],
-    ['zero start block', vars({ ANNOUNCER_FROM_BLOCK: '0' })],
-    ['negative start block', vars({ ANNOUNCER_FROM_BLOCK: '-1' })],
+    ['zero start block', vars({ GRAPH_START_BLOCK: '0' })],
+    ['negative start block', vars({ GRAPH_START_BLOCK: '-1' })],
   ])('rejects %s', async (_name, selectedVars) => {
     const configPath = await writeTargets({ develop: { vars: selectedVars } })
 

@@ -1,5 +1,5 @@
-import { apiHeaders, crossOriginWrite, spendWalletSignature } from '@fuda/libs/worker'
-import type { IssuerView, SignInResponse } from '@fuda/sdk'
+import { apiHeaders, crossOriginWrite, spendPasskey, spendWalletSignature } from '@fuda/libs/worker'
+import type { IssuerView, OperatorSignInResponse, SignInResponse } from '@fuda/sdk'
 import { apiFetch } from '@fuda/sdk/http'
 import type { Context } from 'hono'
 import * as v from 'valibot'
@@ -10,6 +10,15 @@ const AdminBody = v.object({ token: v.string() })
 
 export const verifyOperator = async (c: Context, apiBaseUrl: string): Promise<Response> => {
   const result = await spendWalletSignature<SignInResponse>(c, apiBaseUrl, '/auth/verify')
+  if (!result.ok) {
+    return result.response
+  }
+  startOperatorSession(c, result.body.token)
+  return c.json({ issuer: result.body.issuer } satisfies { issuer: IssuerView | null })
+}
+
+export const passkeySession = async (c: Context, apiBaseUrl: string): Promise<Response> => {
+  const result = await spendPasskey<OperatorSignInResponse>(c, apiBaseUrl, 'operator')
   if (!result.ok) {
     return result.response
   }

@@ -407,6 +407,23 @@ describe('mcp', () => {
     expect(rows.map((row) => row.slug)).toContain(SECOND_CARD.slug)
   })
 
+  it('sets Attendance on an on-chain card and refuses it on an off-chain one', async () => {
+    const { token } = await approveAndExchange({ resource: RESOURCE })
+    const Attendance = v.object({ card: v.object({ attendance: v.boolean() }) })
+    const ticket = await rpc(token, 'tools/call', { arguments: SECOND_CARD, name: 'create_card' })
+    expect(toolValue(Attendance, ticket).card.attendance).toBe(true)
+    const membership = await rpc(token, 'tools/call', {
+      arguments: { ...SECOND_CARD, attendance: true, category: 'membership', slug: 'club' },
+      name: 'create_card',
+    })
+    expect(toolValue(Attendance, membership).card.attendance).toBe(true)
+    const offchain = await rpc(token, 'tools/call', {
+      arguments: { ...SECOND_CARD, attendance: true, record: 'offchain', slug: 'plain' },
+      name: 'create_card',
+    })
+    expect(toolValue(ToolError, offchain)).toStrictEqual({ error: 'bad_input' })
+  })
+
   it('reports a card rule as a tool error', async () => {
     const { token } = await approveAndExchange({ resource: RESOURCE })
     await rpc(token, 'tools/call', { arguments: SECOND_CARD, name: 'create_card' })
@@ -470,6 +487,20 @@ describe('mcp', () => {
       )
       expect(rows.find((row) => row.id === cardId)).toStrictEqual({ claimable: false, id: cardId, issued: 1 })
     })
+
+    it.each(['passkey', 'sensitive'] as const)(
+      'leaves a %s card for its holder to claim',
+      async (identity) => {
+        const { token } = await approveAndExchange({ resource: RESOURCE, scope: ALL_SCOPES })
+        const created = await rpc(token, 'tools/call', {
+          arguments: { ...SECOND_CARD, identity, record: 'offchain' },
+          name: 'create_card',
+        })
+        const { id: cardId } = toolValue(Limited, created).card
+        const issued = await rpc(token, 'tools/call', { arguments: { cardId }, name: 'issue_pass' })
+        expect(toolValue(ToolError, issued)).toStrictEqual({ error: 'holder_must_claim' })
+      },
+    )
 
     it('takes every place exactly once when claims arrive together', async () => {
       const { cardId, token } = await limitedCard(3)

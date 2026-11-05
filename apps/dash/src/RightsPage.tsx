@@ -200,7 +200,7 @@ export const RightsPage = (props: RightsPageProps): JSX.Element => {
               value={filters().level}
               onInput={(event) => {
                 const value = fieldValue(event.currentTarget)
-                if (value === 'all' || value === 'bearer' || value === 'signed' || value === 'private') {
+                if (value === 'all' || value === 'bearer' || value === 'signed') {
                   setFilters({ ...filters(), level: value })
                 }
               }}
@@ -208,7 +208,6 @@ export const RightsPage = (props: RightsPageProps): JSX.Element => {
               <option value="all">{props.copy.rights.all}</option>
               <option value="bearer">{props.copy.rights.bearer}</option>
               <option value="signed">{props.copy.rights.signed}</option>
-              <option value="private">{props.copy.rights.private}</option>
             </select>
           </label>
           {hasRightsFilters(filters()) ? (
@@ -219,7 +218,7 @@ export const RightsPage = (props: RightsPageProps): JSX.Element => {
         </div>
         {props.members.kind === 'error' ? (
           <p role="alert" class="alert alert-error">
-            {`${props.copy.rights.errorPrefix}: ${props.members.message}`}
+            {`${props.copy.rights.errorPrefix}: ${props.copy.rights.errorMessage(props.members.message)}`}
           </p>
         ) : null}
         {props.members.kind === 'loading' || props.members.kind === 'idle' ? (

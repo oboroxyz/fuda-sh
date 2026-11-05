@@ -5,14 +5,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveSession } from './session.ts'
 import type { SessionOutcome } from './session.ts'
 
-const resolve = async (path: string, cookie = ''): Promise<{ outcome: SessionOutcome; res: Response }> => {
+const resolve = async (
+  path: string,
+  cookie = '',
+  acceptLanguage = '',
+): Promise<{ outcome: SessionOutcome; res: Response }> => {
   let outcome: SessionOutcome | undefined
   const app = new Hono()
   app.all('*', async (c) => {
     outcome = await resolveSession(c, 'https://api.example')
     return c.text('ok')
   })
-  const res = await app.request(path, { headers: { cookie } })
+  const res = await app.request(path, { headers: { 'accept-language': acceptLanguage, cookie } })
   if (outcome === undefined) {
     throw new Error('the handler did not run')
   }
@@ -31,11 +35,22 @@ describe(resolveSession, () => {
     expect(outcome.redirect).toBeNull()
   })
 
-  it('reads the language and theme preferences, defaulting both', async () => {
-    const { outcome } = await resolve('/signin', 'fuda_locale=ja; fuda_theme=dark')
-    expect(outcome.shared).toMatchObject({ locale: 'ja', surface: null, theme: 'dark' })
-    const defaults = await resolve('/signin', 'fuda_locale=xx')
-    expect(defaults.outcome.shared).toMatchObject({ locale: 'en', theme: 'system' })
+  it('reads the theme preference, defaulting to system', async () => {
+    const { outcome } = await resolve('/signin', 'fuda_theme=dark')
+    expect(outcome.shared).toMatchObject({ surface: null, theme: 'dark' })
+    const defaults = await resolve('/signin')
+    expect(defaults.outcome.shared).toMatchObject({ theme: 'system' })
+  })
+
+  it('picks the language from the cookie, then Accept-Language, then Japanese', async () => {
+    const saved = await resolve('/signin', 'fuda_locale=en', 'ja-JP,ja;q=0.9')
+    expect(saved.outcome.shared.locale).toBe('en')
+    const browser = await resolve('/signin', 'fuda_locale=xx', 'en-US,en;q=0.9,ja;q=0.8')
+    expect(browser.outcome.shared.locale).toBe('en')
+    const neither = await resolve('/signin', '', 'fr-FR')
+    expect(neither.outcome.shared.locale).toBe('ja')
+    const nothing = await resolve('/signin')
+    expect(nothing.outcome.shared.locale).toBe('ja')
   })
 
   it("loads an operator session's venue and routes it to its home", async () => {

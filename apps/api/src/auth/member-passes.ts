@@ -7,7 +7,7 @@ import { memberPasses, members } from '../db/schema.ts'
 
 // docs/specs/pass-types-and-flows.md#member-sign-in. Only Bearer passes link: having the
 // uid is what using one means, so a link grants nothing new. A uid that names nothing,
-// or a Signed or +Private right, is skipped without saying which.
+// or a Signed right, is skipped without saying which.
 export const linkPasses = async (db: Db, accountId: string, uids: readonly Hex[], now: number) => {
   if (uids.length === 0) {
     return 0

@@ -11,10 +11,10 @@
     "test": "vp test"
   },
   "dependencies": {
+    "@fuda/chains": "workspace:*",
     "@fuda/i18n": "workspace:*",
     "@fuda/libs": "workspace:*",
     "@fuda/sdk": "workspace:*",
-    "@fuda/stealth-address": "workspace:*",
     "@fuda/styles": "workspace:*",
     "@fuda/ui": "workspace:*",
     "@simplewebauthn/browser": "^14.0.0",

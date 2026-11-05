@@ -3,7 +3,7 @@ import { env } from 'cloudflare:test'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { createSession } from '../src/auth/session.ts'
+import { createMemberSession } from '../src/auth/session.ts'
 import { saveBadge } from '../src/badges/store.ts'
 import { getDb } from '../src/db/client.ts'
 import {
@@ -18,6 +18,7 @@ import {
   receptionRequests,
   sessions,
   slots,
+  stampAdjustments,
   stampCredits,
 } from '../src/db/schema.ts'
 import { appWith, fakeChain, testEnv } from './env.ts'
@@ -45,6 +46,7 @@ const clearManagementTables = async (): Promise<void> => {
   const database = db()
   await database.delete(badges)
   await database.delete(receptionRequests)
+  await database.delete(stampAdjustments)
   await database.delete(stampCredits)
   await database.delete(entryLog)
   await database.delete(slots)
@@ -91,7 +93,7 @@ interface SeedPass {
   createdAt: number
   holder?: string | null
   issuerId: string
-  level?: 'bearer' | 'signed' | 'private'
+  level?: 'bearer' | 'signed'
   memberNumber: string
   status?: 'active' | 'revoked'
   uidNumber: number
@@ -141,12 +143,14 @@ describe('operator Card management', () => {
     expect(response.headers.get('cache-control')).toBe('no-store')
     await expect(response.json<{ card: OperatorCardView }>()).resolves.toStrictEqual({
       card: {
+        attendance: false,
         category: 'membership',
         claimFrom: 10,
         claimUntil: 2000,
         claimable: true,
         description: CARD_INPUT.card.description,
         id: card.id,
+        identity: 'none',
         lockScreen: true,
         record: 'offchain',
         slug: CARD_INPUT.card.slug,
@@ -242,12 +246,7 @@ describe('operator Card management', () => {
   it('requires an operator session and hides missing or foreign Cards', async () => {
     const { app, card } = await createOwnedCard()
     const { token: foreignToken } = await signIn(app, bindings(), other)
-    const memberToken = await createSession(db(), {
-      address: operator.address,
-      audience: 'member',
-      issuerId: null,
-      now: NOW,
-    })
+    const memberToken = await createMemberSession(db(), crypto.randomUUID(), NOW)
 
     const unauthorized = await Promise.all(
       [undefined, memberToken].map(
@@ -471,12 +470,7 @@ describe('GET /issuers/me/passes', () => {
 
   it('requires an operator session', async () => {
     const app = appWith({ chain: fakeChain(), now: () => NOW })
-    const memberToken = await createSession(db(), {
-      address: operator.address,
-      audience: 'member',
-      issuerId: null,
-      now: NOW,
-    })
+    const memberToken = await createMemberSession(db(), crypto.randomUUID(), NOW)
     const responses = await Promise.all(
       [undefined, memberToken].map(
         async (token) => await getJson(app, bindings(), '/v1/issuers/me/passes', token),
@@ -512,7 +506,7 @@ describe('GET /issuers/me/passes', () => {
   })
 
   /* oxlint-disable vitest/max-expects -- one rich SQL fixture checks row, aggregate, filter and privacy invariants without repeated setup */
-  it('uses immutable issuance metadata and excludes private and foreign rows from every count', async () => {
+  it('uses immutable issuance metadata and excludes foreign rows from every count', async () => {
     const { app, card, token } = await createOwnedCard()
     const secondCardId = 'second-card'
     const foreignIssuerId = 'foreign-issuer'
@@ -620,17 +614,6 @@ describe('GET /issuers/me/passes', () => {
       validUntil: NOW,
     })
     await seedPass({
-      cardId: card.id,
-      createdAt: 983,
-      issuerId: card.issuerId,
-      level: 'private',
-      memberNumber: 'private-secret',
-      uidNumber: 8,
-      usageModel: 1,
-      validFrom: 0,
-      validUntil: 0,
-    })
-    await seedPass({
       cardId: foreignCardId,
       createdAt: 982,
       issuerId: foreignIssuerId,
@@ -708,7 +691,6 @@ describe('GET /issuers/me/passes', () => {
       validUntil: 0,
     })
     expect(body.passes[5]).toMatchObject({ holder: null, status: 'unknown' })
-    expect(JSON.stringify(body)).not.toContain('private-secret')
     expect(JSON.stringify(body)).not.toContain('foreign-secret')
 
     const filtered = await getJson(app, bindings(), '/v1/issuers/me/passes?status=active', token)

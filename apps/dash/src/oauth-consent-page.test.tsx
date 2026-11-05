@@ -46,6 +46,7 @@ const ioWith = (overrides: Partial<ConsentIo> = {}): ConsentIo => ({
   assign: vi.fn<ConsentIo['assign']>(),
   preview: vi.fn<ConsentIo['preview']>().mockResolvedValue({ body: PREVIEW, ok: true }),
   signIn: vi.fn<ConsentIo['signIn']>().mockResolvedValue({ ok: true }),
+  signInWithWallet: vi.fn<ConsentIo['signInWithWallet']>().mockResolvedValue({ ok: true }),
   ...overrides,
 })
 

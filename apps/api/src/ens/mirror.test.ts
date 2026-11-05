@@ -9,7 +9,6 @@ import { ensNames } from './schema.ts'
 
 const HOLDER: Hex = `0x${'22'.repeat(20)}`
 const OWNER: Hex = `0x${'33'.repeat(20)}`
-const META_ADDRESS: Hex = `0x${'44'.repeat(66)}`
 const UID: Hex = `0x${'ab'.repeat(32)}`
 const MEMBER = 'qj2yxphepdrka'
 const PARENT = 'fuda.eth'
@@ -31,29 +30,11 @@ describe(mirrorMemberName, () => {
       now: 10,
       parentName: PARENT,
       rightUid: UID,
-      stealthMetaAddress: null,
     })
 
     const row = await rowFor(`${MEMBER}.bakery.${PARENT}`)
     expect(row).toMatchObject({ kind: 'member', level: 'bearer', status: 'offchain', targetAddress: HOLDER })
     expect(row?.rightUid).toBe(UID)
-  })
-
-  it('stores a private right by meta-address and leaves the target empty', async () => {
-    await mirrorMemberName(db(), {
-      holder: null,
-      issuerHandle: 'club',
-      level: 'private',
-      memberNumber: MEMBER,
-      now: 10,
-      parentName: PARENT,
-      rightUid: UID,
-      stealthMetaAddress: META_ADDRESS,
-    })
-
-    const row = await rowFor(`${MEMBER}.club.${PARENT}`)
-    expect(row?.stealthMetaAddress).toBe(META_ADDRESS)
-    expect(row?.targetAddress).toBeNull()
   })
 
   it('refuses a member id that is not a member number', async () => {
@@ -65,7 +46,6 @@ describe(mirrorMemberName, () => {
       now: 10,
       parentName: PARENT,
       rightUid: UID,
-      stealthMetaAddress: null,
     })
 
     await expect(rowFor(`gold-tier-7.bakery.${PARENT}`)).resolves.toBeUndefined()
@@ -81,7 +61,6 @@ describe(mirrorMemberName, () => {
         now: 10,
         parentName: PARENT,
         rightUid: UID,
-        stealthMetaAddress: null,
       })
     }
 
@@ -153,7 +132,6 @@ describe(darkenMemberName, () => {
       now: 10,
       parentName: PARENT,
       rightUid: UID,
-      stealthMetaAddress: null,
     })
 
     await darkenMemberName(db(), { now: 30, rightUid: UID })

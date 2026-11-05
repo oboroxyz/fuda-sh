@@ -111,6 +111,18 @@ export const CARD_CATEGORIES: readonly CardCategory[] = ['membership', 'ticket']
 // right cannot move between the two without a new uid.
 export type CardRecord = 'offchain' | 'onchain'
 export const CARD_RECORDS: readonly CardRecord[] = ['offchain', 'onchain']
+
+// Who can use a card's passes: whoever shows one, only the passkey that claimed it, or
+// only a key unique to the pass (Sensitive use). Fixed when the card is created, and both
+// bound kinds need an offchain record, because the pass attests the key rather than naming
+// a holder address.
+export type CardIdentity = 'none' | 'passkey' | 'sensitive'
+export const CARD_IDENTITIES: readonly CardIdentity[] = ['none', 'passkey', 'sensitive']
+export const isIdentityAllowed = (card: { identity: CardIdentity; record: CardRecord }): boolean =>
+  card.identity === 'none' || card.record === 'offchain'
+export const defaultAttendance = (category: CardCategory, record: CardRecord): boolean =>
+  record === 'onchain' && category === 'ticket'
+
 export const isCardCategory = (raw: string): raw is CardCategory =>
   CARD_CATEGORIES.some((category) => category === raw)
 
@@ -147,6 +159,8 @@ export interface CardView extends ClaimWindow, CardValidity {
   // computed by the api against its own clock, because a member's device clock
   // is not authoritative for whether a card is being handed out
   claimable: boolean
+  // Absent from an older API, which a client treats as 'none'.
+  identity?: CardIdentity
   // The Badge kinds a member may attach to a Right issued under this card: the
   // ones the issuer turned on in the card's integrations that this deployment
   // can also verify. Present on the public venue payload; absent elsewhere and
@@ -158,6 +172,8 @@ export interface CardView extends ClaimWindow, CardValidity {
 // Operator-only card hydration includes the stored fields that are intentionally
 // absent from public CardView responses.
 export interface OperatorCardView extends CardView {
+  attendance: boolean
+  identity: CardIdentity
   lockScreen: boolean
   record: CardRecord
   venue: { lat: number; lng: number } | null
@@ -196,7 +212,8 @@ export interface IssuerView {
   name: string
   tagline: string
   brandColor: string
-  operatorAddress: Hex
+  // The wallet that owns this issuer; null when an account owns it.
+  operatorAddress: Hex | null
   createdAt: number
   // Optional while clients may still talk to an older API deployment.
   defaultCardSlug?: string | null

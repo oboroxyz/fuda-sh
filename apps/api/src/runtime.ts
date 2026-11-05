@@ -1,3 +1,5 @@
+import { parseChainConfig } from '@fuda/chains'
+
 import type { ChainClient } from './chain/client.ts'
 import { DEV_DELEGATION_UID, FakeChain } from './chain/fake-chain.ts'
 import { createViemChain } from './chain/viem-chain.ts'
@@ -7,13 +9,19 @@ import type { Bindings } from './env.ts'
 
 export type DevBindings = Bindings & { USE_FAKE_CHAIN?: string }
 
-type FakeChainSignal = Pick<DevBindings, 'BASE_RPC_URL' | 'SIGNER_PRIVATE_KEY' | 'USE_FAKE_CHAIN'>
+type FakeChainSignal = Pick<
+  DevBindings,
+  'BASE_RPC_URL' | 'CHAIN_ID' | 'SIGNER_PRIVATE_KEY' | 'USE_FAKE_CHAIN'
+>
 
 // Explicit local-dev opt-in only: never silently fake in production. A signer
 // or RPC binding always wins over USE_FAKE_CHAIN, so a half-configured
 // deployment fails closed onto the real chain rather than a fake one.
 export const isFakeChainEnabled = (env: FakeChainSignal): boolean =>
-  env.USE_FAKE_CHAIN === '1' && env.SIGNER_PRIVATE_KEY === undefined && env.BASE_RPC_URL === undefined
+  parseChainConfig(env.CHAIN_ID).id === parseChainConfig().id &&
+  env.USE_FAKE_CHAIN === '1' &&
+  env.SIGNER_PRIVATE_KEY === undefined &&
+  env.BASE_RPC_URL === undefined
 
 // One FakeChain per isolate so local dev keeps issued rights across requests.
 let devChain: FakeChain | null = null

@@ -53,16 +53,3 @@ type Attendance @entity(immutable: true) {
   timestamp: BigInt!
   transactionHash: Bytes!
 }
-
-type Announcement @entity(immutable: true) {
-  id: Bytes!
-  schemeId: BigInt!
-  stealthAddress: Bytes!
-  caller: Bytes!
-  ephemeralPubKey: Bytes!
-  metadata: Bytes!
-  transactionHash: Bytes!
-  logIndex: BigInt!
-  blockNumber: BigInt!
-  timestamp: BigInt!
-}

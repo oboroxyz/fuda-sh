@@ -10,6 +10,7 @@ const TargetSchema = v.object({
   d1_databases: v.array(
     v.object({ binding: v.string(), database_id: v.string(), database_name: v.string() }),
   ),
+  mtls_certificates: v.optional(v.array(v.object({ binding: v.string(), certificate_id: v.string() }))),
   name: v.string(),
   // Void republishes triggers once a target has crons, and refuses to guess this and workers_dev.
   preview_urls: v.boolean(),

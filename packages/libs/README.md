@@ -50,6 +50,8 @@ Use query keys for every input that changes the identity of returned data. Do no
 
 `authenticateWallet(io, signal?)` runs account selection, server challenge, personal signature and verification, returning the caller's verified session or a wallet/network/rejected/unavailable failure. Product-specific reads and navigation stay with the caller. Aborting stops subsequent prompts and requests after the current step settles; controllers still invalidate their UI immediately and discard stale work. It does not cancel an already submitted wallet operation or HTTP request.
 
+`passkeyClient(audience, transport)` runs the WebAuthn ceremonies for `member` or `operator`: sign in, create an account, and list, add and remove passkeys. `transport` is how that frontend reaches the api and its own session route. `cancelPasskeyCeremony()` dismisses a running prompt.
+
 Session tokens never reach the browser: each frontend's Worker keeps them in an HttpOnly cookie (`@fuda/libs/worker`).
 
 ## `@fuda/libs/worker`

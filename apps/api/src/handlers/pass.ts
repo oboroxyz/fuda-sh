@@ -9,6 +9,7 @@ import { defineHandler } from 'void'
 import type { AppEnv } from '../env.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { readLogoObject } from '../media/store.ts'
+import { applePassToken, appleWebServiceFrom } from '../pass/apple-web-service.ts'
 import { passBackup } from '../pass/pass-backup.ts'
 import { loadPassRow } from '../pass/pass-row.ts'
 import { passView } from '../pass/pass-view.ts'
@@ -83,7 +84,7 @@ export const getPassUid = defineHandler(async (c) => {
 })
 
 // The venue's look behind a pass, as JSON, for a client that lists passes in
-// that look (the member app). Same lookup and same 400 → 404 → 404-for-+Private
+// that look (the member app). Same lookup and same 400 → 404
 // contract as the page. An admin-issued right answers `card: null`: it has no
 // venue card and keeps the plain fuda look.
 export const getPassUidCard = defineHandler(async (c) => {
@@ -150,37 +151,58 @@ export const getPassUidGoogle = defineHandler(async (c) => {
   }
 })
 
-export const getPassUidApplePkpass = defineHandler(async (c) => {
-  const found = await loadPassRow(c, c.req.param().uid)
-  if (!found.ok) {
-    return found.res
-  }
-  // Dynamic: @fuda/pass/apple pulls in pkijs and asn1js, and only this one
-  // route needs them. Importing it lazily keeps them out of the Worker's
-  // startup path, which every other request pays for.
+// Null when the deployment cannot sign a pass, which every Apple route answers as 501.
+// The same snapshot as the Google save link, plus what only a pass Wallet can refresh has:
+// the web service, and that the Right was revoked.
+export const buildApplePass = async (
+  c: Context<AppEnv>,
+  row: PassRow,
+): Promise<Uint8Array<ArrayBuffer> | null> => {
+  // Dynamic: @fuda/pass/apple pulls in pkijs and asn1js, and only the routes that build a
+  // pass need them. Importing it lazily keeps them out of the Worker's startup path, which
+  // every other request pays for.
   const { appleConfigFrom, buildPkpass } = await import('@fuda/pass/apple')
   const cfg = appleConfigFrom(c.env)
   if (cfg === null) {
-    return errorResponse(c, 'apple_not_configured', 501)
+    return null
   }
-  // The same snapshot as the Google save link, and the only way an iPhone shows
-  // a badge at all: there is no push channel for an installed pass, so a member
-  // who badges then adds (or re-adds) the pass gets it from the download.
-  const input = await walletPassInput(c, found.row)
+  const service = appleWebServiceFrom(c.env)
+  const input = {
+    ...(await walletPassInput(c, row)),
+    revoked: row.revoked,
+    webService:
+      service === null
+        ? null
+        : {
+            authenticationToken: await applePassToken(service.secret, row.uid),
+            url: `${c.env.API_BASE_URL}/apple`,
+          },
+  }
   try {
-    const pkpass = await buildPkpass(cfg, input, c.get('now')(), await appleLogo(c, found.row.logoPrefix))
-    return new Response(pkpass, {
-      headers: {
-        'cache-control': 'no-store',
-        'content-disposition': `attachment; filename="fuda-${found.row.uid.slice(0, 10)}.pkpass"`,
-        'content-type': 'application/vnd.apple.pkpass',
-      },
-    })
+    return await buildPkpass(cfg, input, c.get('now')(), await appleLogo(c, row.logoPrefix))
   } catch (error) {
     // An unparsable certificate or key is a misconfigured deployment, not an
     // internal defect: the endpoint reads as unconfigured and says why in the log.
     // oxlint-disable-next-line no-console -- a misconfigured deploy must be visible in wrangler tail
     console.error('[fuda-api] the APPLE_* certificate or key could not be used to sign a pass', error)
+    return null
+  }
+}
+
+export const getPassUidApplePkpass = defineHandler(async (c) => {
+  const found = await loadPassRow(c, c.req.param().uid)
+  if (!found.ok) {
+    return found.res
+  }
+  const pkpass = await buildApplePass(c, found.row)
+  if (pkpass === null) {
     return errorResponse(c, 'apple_not_configured', 501)
   }
+  return new Response(pkpass, {
+    headers: {
+      'cache-control': 'no-store',
+      'content-disposition': `attachment; filename="fuda-${found.row.uid.slice(0, 10)}.pkpass"`,
+      'content-type': 'application/vnd.apple.pkpass',
+    },
+  })
 })

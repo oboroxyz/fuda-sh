@@ -9,7 +9,7 @@ export interface MvpGraphConfig {
     issuerDelegation: SchemaVersion[]
     attendance: SchemaVersion[]
   }
-  announcerFromBlock: number
+  startBlock: number
 }
 
 export function readMvpGraphConfig(path: string, options?: { target?: string }): MvpGraphConfig

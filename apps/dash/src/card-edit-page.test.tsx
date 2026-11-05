@@ -30,12 +30,14 @@ const issuer: IssuerView = {
   tagline: '',
 }
 const card: OperatorCardView = {
+  attendance: false,
   category: 'membership',
   claimFrom: 1_780_000_013,
   claimUntil: null,
   claimable: true,
   description: 'Welcome',
   id: 'card-1',
+  identity: 'none',
   lockScreen: true,
   record: 'offchain',
   slug: 'membership',
@@ -213,6 +215,24 @@ describe(CardEditPage, () => {
     expect([...root.querySelectorAll('details')].map((node) => node.dataset.testid)).toStrictEqual([
       'card-integrations',
     ])
+    expect(p.settings.load).not.toHaveBeenCalled()
+  })
+
+  it('offers neither Stamps nor integrations on a Sensitive card', async () => {
+    const p = props()
+    const sensitive: OperatorCardView = { ...card, identity: 'sensitive' }
+    render(
+      () => (
+        <CardEditPage
+          {...p}
+          card={sensitive}
+          load={async () => await Promise.resolve({ body: { card: sensitive }, ok: true })}
+        />
+      ),
+      root,
+    )
+    await waitForm()
+    expect(root.querySelectorAll('details')).toHaveLength(0)
     expect(p.settings.load).not.toHaveBeenCalled()
   })
 

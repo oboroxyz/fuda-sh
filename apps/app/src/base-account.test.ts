@@ -1,5 +1,5 @@
 import type * as BaseAccount from '@base-org/account'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { Eip1193Provider } from './wallet.ts'
 
@@ -19,6 +19,19 @@ vi.mock(
 const { baseAccountProvider } = await import('./base-account.ts')
 
 describe(baseAccountProvider, () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.resetModules()
+  })
+
+  it('uses Base mainnet when selected by the build var', async () => {
+    vi.stubEnv('VITE_CHAIN_ID', '8453')
+    vi.resetModules()
+    const configured = await import('./base-account.ts')
+    await configured.baseAccountProvider()
+    expect(createBaseAccountSDK).toHaveBeenLastCalledWith({ appChainIds: [8453], appName: 'fuda' })
+  })
+
   it('builds the SDK for Base Sepolia and forwards request to its provider', async () => {
     const provider = await baseAccountProvider()
     expect(createBaseAccountSDK).toHaveBeenCalledWith({ appChainIds: [84_532], appName: 'fuda' })

@@ -1,3 +1,4 @@
+import { parseChainConfig } from '@fuda/chains'
 import { encodeAbiParameters, getAddress, keccak256, verifyMessage as recoverAndCompare } from 'viem'
 import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
@@ -5,14 +6,7 @@ import { privateKeyToAccount } from 'viem/accounts'
 import { encodeDelegationV1 } from '../eas/codecs.ts'
 import type { OffchainTypedData } from '../eas/offchain.ts'
 import { ChainError, NoSignerError, ZERO_ADDRESS, ZERO_UID } from './client.ts'
-import type {
-  AnnounceParams,
-  AnnouncementLog,
-  AttestParams,
-  ChainClient,
-  RawAttestation,
-  VerifyMessageParams,
-} from './client.ts'
+import type { AttestParams, ChainClient, RawAttestation, VerifyMessageParams } from './client.ts'
 
 const DEFAULT_SIGNER: Hex = `0x${'f0'.repeat(20)}`
 
@@ -45,40 +39,35 @@ export class FakeChain implements ChainClient {
   readonly txs: Hex[] = []
   failReads = false
   failWrites = false
-  failAnnounce = false
-  readonly announcements: AnnouncementLog[] = []
   readonly offchainRevocations = new Map<string, bigint>()
   readonly rootTimestamps = new Map<string, bigint>()
-  // A small in-memory chain height so the sync has a head to walk towards.
-  // Monotonic across dev restarts so a persisted sync cursor from a previous
-  // run never outruns the chain.
-  private head = Math.floor(Date.now() / 1000)
   // oxlint-disable-next-line class-methods-use-this -- injectable clock; tests replace this field wholesale
   now: () => bigint = () => BigInt(Math.floor(Date.now() / 1000))
   private readonly signer: Hex | null
+  private readonly offchainAccount: ReturnType<typeof privateKeyToAccount>
   private readonly verifyOnChain: ChainClient['verifyMessage'] | undefined
   // Local dev keeps its D1 file across restarts while every isolate
   // starts a fresh FakeChain, so a counter from zero re-mints uids that are
   // already `members.attestation_uid` primary keys. A random per-instance start
   // keeps uids deterministic within one instance and distinct across restarts.
   private counter = crypto.getRandomValues(new Uint32Array(1))[0] ?? 0
-  // Same restart problem as `counter`, but for tx hashes: the local D1
-  // `announcements` table (PK `(tx_hash, log_index)`) persists across
-  // local dev restarts while `this.txs` resets, so a tx counter from
-  // zero re-mints hashes `syncAnnouncements`'s `INSERT OR IGNORE` has already
-  // seen and silently drops. A random per-instance start keeps tx hashes
-  // deterministic within one instance and distinct across restarts.
+  // Same restart problem as `counter`, but for tx hashes: a counter from zero
+  // would re-mint hashes an earlier run already used. A random per-instance start
+  // keeps tx hashes deterministic within one instance and distinct across restarts.
   private txCounter = crypto.getRandomValues(new Uint32Array(1))[0] ?? 0
 
   constructor(
-    opts: { signer?: Hex | null; head?: number; verifyMessage?: ChainClient['verifyMessage'] } = {},
+    opts: {
+      signer?: Hex | null
+      offchainKey?: Hex
+      verifyMessage?: ChainClient['verifyMessage']
+    } = {},
   ) {
     const signer = opts.signer === undefined ? DEFAULT_SIGNER : opts.signer
     this.signer = signer === null ? null : checksum(signer)
+    this.offchainAccount =
+      opts.offchainKey === undefined ? OFFCHAIN_KEY : privateKeyToAccount(opts.offchainKey)
     this.verifyOnChain = opts.verifyMessage
-    if (opts.head !== undefined) {
-      this.head = opts.head
-    }
   }
 
   signerAddress(): Hex | null {
@@ -87,18 +76,18 @@ export class FakeChain implements ChainClient {
 
   // oxlint-disable-next-line class-methods-use-this -- part of the ChainClient port
   chainId(): number {
-    return 84_532
+    return parseChainConfig().id
   }
 
   offchainAttester(): Hex | null {
-    return this.signer === null ? null : OFFCHAIN_KEY.address
+    return this.signer === null ? null : this.offchainAccount.address
   }
 
   async signOffchain(typed: OffchainTypedData): Promise<Hex> {
     if (this.signer === null) {
       throw new NoSignerError('no signer configured')
     }
-    return await OFFCHAIN_KEY.signTypedData(typed)
+    return await this.offchainAccount.signTypedData(typed)
   }
 
   async offchainRevokedAt(revoker: Hex, uid: Hex): Promise<bigint> {
@@ -132,7 +121,7 @@ export class FakeChain implements ChainClient {
     if (this.signer === null) {
       throw new NoSignerError('no signer configured')
     }
-    const key = `${OFFCHAIN_KEY.address.toLowerCase()}:${lowerHex(uid)}`
+    const key = `${this.offchainAccount.address.toLowerCase()}:${lowerHex(uid)}`
     if (this.failWrites || this.offchainRevocations.has(key)) {
       throw new ChainError('revokeOffchain reverted')
     }
@@ -256,48 +245,6 @@ export class FakeChain implements ChainClient {
       return true
     }
     return (await this.verifyOnChain?.(p)) ?? false
-  }
-
-  // viem decodes `bytes` event args as lower-case hex (and checksums addresses),
-  // so the fake stores the same casing a real log read would return: a client
-  // comparing announcement bytes byte-for-byte behaves identically on both.
-  // oxlint-disable-next-line eslint/require-await -- ChainClient's interface is async; this fake resolves synchronously
-  async announce(p: AnnounceParams): Promise<{ txHash: Hex }> {
-    if (this.signer === null) {
-      throw new NoSignerError('SIGNER_PRIVATE_KEY unset')
-    }
-    if (this.failAnnounce) {
-      throw new ChainError('announce reverted')
-    }
-    this.head += 1
-    const txHash = this.nextTx()
-    this.announcements.push({
-      blockNumber: this.head,
-      caller: this.signer,
-      ephemeralPubKey: lowerHex(p.ephemeralPubKey),
-      logIndex: 0,
-      metadata: lowerHex(p.metadata),
-      schemeId: 1,
-      stealthAddress: checksum(p.stealthAddress),
-      txHash,
-    })
-    return { txHash }
-  }
-
-  // oxlint-disable-next-line eslint/require-await -- ChainClient's interface is async; this fake resolves synchronously
-  async getAnnouncementLogs(fromBlock: number, toBlock: number): Promise<AnnouncementLog[]> {
-    if (this.failReads) {
-      throw new ChainError('rpc down')
-    }
-    return this.announcements.filter((l) => l.blockNumber >= fromBlock && l.blockNumber <= toBlock)
-  }
-
-  // oxlint-disable-next-line eslint/require-await -- ChainClient's interface is async; this fake resolves synchronously
-  async blockNumber(): Promise<number> {
-    if (this.failReads) {
-      throw new ChainError('rpc down')
-    }
-    return this.head
   }
 
   private nextUid(): Hex {

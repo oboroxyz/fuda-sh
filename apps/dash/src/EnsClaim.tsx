@@ -10,7 +10,8 @@ export interface EnsClaimProps {
   // The name the venue would claim, from its handle. Shown before the claim so
   // the operator sees what they are getting.
   name: string
-  ownerAddress: string
+  // The wallet that would hold the name; null on a venue an account owns.
+  ownerAddress: string | null
   onClaim: () => void
   state: ClaimState
 }
@@ -41,7 +42,7 @@ export const EnsClaim = (props: EnsClaimProps): JSX.Element => {
         {claimed() ? (
           <a
             class="link link-hover text-sm wrap-anywhere"
-            href={`${EXPLORER}${props.ownerAddress}`}
+            href={`${EXPLORER}${props.ownerAddress ?? ''}`}
             rel="noopener noreferrer"
             target="_blank"
             title={props.copy.explorer}
@@ -70,7 +71,8 @@ export const EnsClaim = (props: EnsClaimProps): JSX.Element => {
               stroke-width="2"
             />
           </svg>
-        ) : (
+        ) : null}
+        {!claimed() && props.ownerAddress !== null ? (
           <button
             class="btn btn-primary btn-xs"
             disabled={claimIsBusy(props.state)}
@@ -81,8 +83,13 @@ export const EnsClaim = (props: EnsClaimProps): JSX.Element => {
           >
             {props.state.kind === 'failed' ? props.copy.retry : props.copy.claim}
           </button>
-        )}
+        ) : null}
       </div>
+      {props.ownerAddress === null && !claimed() ? (
+        <p class="text-sm opacity-70" role="status">
+          {props.copy.walletRequired}
+        </p>
+      ) : null}
       {failure() === null ? null : (
         <p class="text-error text-sm" role="alert">
           {failure()}

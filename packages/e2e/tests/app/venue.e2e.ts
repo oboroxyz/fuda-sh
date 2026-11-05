@@ -13,6 +13,19 @@ test('the top page offers passkey sign-in', async ({ app, screen }) => {
   await expect(screen.getByRole('link', 'Sign in with Passkey')).toBeVisible()
 })
 
+// The WebAuthn library's certificate code throws when a built Worker evaluates it too
+// eagerly, which only this harness runs: dev servers and the api's tests do not bundle.
+test('the routes that reach the passkey verifier load in the built Worker', async () => {
+  const Options = v.object({ challenge: v.string() })
+  const signIn = await apiRequest('/auth/member/login/options', Options, { body: '{}', method: 'POST' })
+  const gate = await apiRequest('/challenge', Options, {
+    body: JSON.stringify({ uid: `0x${'ab'.repeat(32)}` }),
+    method: 'POST',
+  })
+  expect(signIn.challenge).not.toBe('')
+  expect(gate.challenge).toContain('fuda-gate:')
+})
+
 test('a member claims a card from the venue page and keeps it on reload', async ({
   app,
   browser,

@@ -57,6 +57,9 @@ export interface PassBackup {
   memberNumber: string
   // Opens the pass on any device, with no account.
   restoreUrl: string | null
+  // True for an Identified pass: this file brings back the record, but using the pass
+  // still takes its passkey.
+  passkey: boolean
   // The signed attestation, for an offchain right; null for an on-chain one, whose
   // record is on the chain.
   attestation: OffchainAttestationJson | null
@@ -68,9 +71,13 @@ export interface PassCardResponse {
   card: PassCardView | null
 }
 
-export type IssueResponse =
-  | { uid: Hex; level: 'bearer' | 'signed'; holder: Hex; qr: string; passUrls: PassUrls }
-  | { uid: Hex; level: 'private'; announced: true; announceTx: Hex }
+export interface IssueResponse {
+  uid: Hex
+  level: 'bearer' | 'signed'
+  holder: Hex
+  qr: string
+  passUrls: PassUrls
+}
 
 export interface EntitlementView {
   holder: Hex
@@ -112,6 +119,17 @@ export interface VerifyResponse {
 export interface ChallengeResponse {
   challenge: string
   nonce: Hex
+  // For an Identified pass: the request for the browser's passkey prompt. Its challenge
+  // is the base64url of `challenge`, and it names only the attested credential.
+  webauthn?: PasskeyRequestOptions
+}
+
+export interface PasskeyRequestOptions {
+  allowCredentials?: { id: string; type: 'public-key' }[]
+  challenge: string
+  rpId?: string
+  timeout?: number
+  userVerification?: 'discouraged' | 'preferred' | 'required'
 }
 
 // Every /verify-signed verdict is 200 in this one shape (docs/specs/pass-types-and-flows.md#gate-protocol): no entitlement
@@ -121,6 +139,7 @@ export interface VerifySignedResponse {
   decision: 'ADMIT' | 'REJECT'
   reason: Reason
   path: 'signature'
+  venue?: string
   holder?: Hex
   stage?: 'entitlement' | 'challenge'
 }
@@ -133,6 +152,8 @@ export interface MemberRow {
   tier: number
   status: 'active' | 'revoked'
   createdAt: number
+  // A Sensitive pass, which has no page, QR or Wallet pass to hand out. Absent otherwise.
+  sensitive?: true
   // The Badges this Right carries, for an operator surface that shows the fact
   // of a Badge beside the Right. An array rather than a `human` flag, for the
   // same reason `VerifyResponse.badges` is one: a second kind must not be a
@@ -158,20 +179,48 @@ export interface SignInResponse {
   token: string
   issuer: IssuerView | null
 }
+export interface OperatorSignInResponse extends SignInResponse {
+  accountId: string
+}
+// A session names an account or the wallet that signed in, never both.
+export type OperatorMeResponse = { accountId: string; address: null } | { accountId: null; address: Hex }
 export interface MemberSessionResponse {
   accountId: string
 }
 export interface MemberSignInResponse extends MemberSessionResponse {
   token: string
 }
-export interface MemberPasskeyView {
+export interface PasskeyView {
   id: string
   backedUp: boolean
   createdAt: number
+  // Whether this passkey holds a copy of the member secret, so it can open Sensitive passes.
+  holdsSecret: boolean
   lastUsedAt: number | null
 }
-export interface MemberPasskeysResponse {
-  passkeys: MemberPasskeyView[]
+export interface PasskeysResponse {
+  passkeys: PasskeyView[]
+}
+// docs/specs/pass-types-and-flows.md#sensitive-use
+export interface MemberSecretCopyView {
+  ciphertext: string
+  credentialId: string
+  iv: string
+}
+export interface MemberSecretResponse {
+  // Only passkeys with a copy, once there is one, so the prompt offers no passkey that
+  // cannot open it.
+  allowCredentials: { id: string; transports: string[] }[]
+  copies: MemberSecretCopyView[]
+  rpId: string
+}
+export interface MemberVaultView {
+  ciphertext: string
+  iv: string
+  version: number
+}
+export interface MemberVaultResponse {
+  vault: MemberVaultView | null
 }
 export interface MemberPassView {
   uid: Hex
@@ -274,7 +323,7 @@ export interface CardCheckResponse {
 
 export interface SelfServeIssueResponse {
   uid: Hex
-  level: 'bearer'
+  level: 'bearer' | 'signed'
   holder: Hex
   qr: string
   passUrls: PassUrls

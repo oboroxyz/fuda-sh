@@ -129,84 +129,13 @@ describe(FakeChain, () => {
   })
 })
 
-describe('FakeChain announcements', () => {
-  const p = {
-    ephemeralPubKey: `0x02${'11'.repeat(32)}`,
-    metadata: `0x1f${'ab'.repeat(32)}`,
-    stealthAddress: `0x${'22'.repeat(20)}`,
-  } as const
-
-  it('records an announcement with an increasing block number and the signer as caller', async () => {
-    const chain = new FakeChain({ head: 100 })
-    const a = await chain.announce(p)
-    const b = await chain.announce({ ...p, metadata: `0x20${'ab'.repeat(32)}` })
-    expect(a.txHash).not.toBe(b.txHash)
-    expect(chain.announcements.map((l) => l.blockNumber)).toStrictEqual([101, 102])
-    expect(chain.announcements[0]).toMatchObject({
-      caller: chain.signerAddress(),
-      logIndex: 0,
-      schemeId: 1,
-    })
-  })
-
-  it('serves logs by inclusive block range and reports the head', async () => {
-    const chain = new FakeChain({ head: 100 })
-    await chain.announce(p)
-    await chain.announce(p)
-    await chain.announce(p)
-    const inRange = await chain.getAnnouncementLogs(102, 103)
-    const beyondHead = await chain.getAnnouncementLogs(104, 200)
-    await expect(chain.blockNumber()).resolves.toBe(103)
-    expect(inRange.map((l) => l.blockNumber)).toStrictEqual([102, 103])
-    expect(beyondHead).toStrictEqual([])
-  })
-
-  it('starts the head at the current unix time so a stale persisted cursor can never outrun it', async () => {
-    const nowSeconds = Math.floor(Date.now() / 1000)
-    const chain = new FakeChain()
-    const startHead = await chain.blockNumber()
-    expect(startHead).toBeGreaterThanOrEqual(nowSeconds)
-    const a = await chain.announce(p)
-    const b = await chain.announce({ ...p, metadata: `0x20${'ab'.repeat(32)}` })
-    expect(a.txHash).not.toBe(b.txHash)
-    const [first, second] = chain.announcements.map((l) => l.blockNumber)
-    expect(second).toBe((first ?? 0) + 1)
-  })
-
-  it('stores the announced bytes lower-cased and the stealth address checksummed, as viem decodes them', async () => {
-    const chain = new FakeChain({ head: 100 })
-    await chain.announce({
-      ephemeralPubKey: `0x02${'AB'.repeat(32)}`,
-      metadata: `0x1F${'CD'.repeat(32)}`,
-      stealthAddress: `0x${'22'.repeat(20)}`,
-    })
-    expect(chain.announcements[0]?.ephemeralPubKey).toBe(`0x02${'ab'.repeat(32)}`)
-    expect(chain.announcements[0]?.metadata).toBe(`0x1f${'cd'.repeat(32)}`)
-    expect(chain.announcements[0]?.stealthAddress).toBe(getAddress(`0x${'22'.repeat(20)}`))
-  })
-
-  it('fails announce independently of attest', async () => {
-    const chain = new FakeChain()
-    chain.failAnnounce = true
-    await expect(chain.announce(p)).rejects.toBeInstanceOf(ChainError)
-    chain.failAnnounce = false
-    chain.failWrites = true
-    await expect(chain.announce(p)).resolves.toHaveProperty('txHash')
-    chain.failReads = true
-    await expect(chain.getAnnouncementLogs(0, 10)).rejects.toBeInstanceOf(ChainError)
-    await expect(chain.blockNumber()).rejects.toBeInstanceOf(ChainError)
-  })
-
-  it('needs a signer to announce', async () => {
-    await expect(new FakeChain({ signer: null }).announce(p)).rejects.toBeInstanceOf(NoSignerError)
-  })
-
-  // Local D1's `announcements` table (PK `tx_hash, log_index`) outlives the isolate
-  // that wrote it, so two FakeChains (one per local dev restart) must not hand
-  // out the same tx hash or `syncAnnouncements`'s INSERT OR IGNORE silently drops it.
+describe('FakeChain tx hashes', () => {
+  // A local dev restart builds a fresh FakeChain over a D1 file that survives it,
+  // so two instances must not hand out the same tx hash.
   it('mints tx hashes that differ between instances', async () => {
-    const first = await new FakeChain({ head: 100 }).announce(p)
-    const second = await new FakeChain({ head: 100 }).announce(p)
+    const root = `0x${'11'.repeat(32)}` as const
+    const first = await new FakeChain().timestamp(root)
+    const second = await new FakeChain().timestamp(root)
     expect(first.txHash).not.toBe(second.txHash)
   })
 })

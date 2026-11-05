@@ -9,8 +9,7 @@
 //
 // Pick ladders with `--ladder bearer,signed` (or `all`), or with SMOKE_LADDERS;
 // the default runs all three. Every returned issue UID is revoked in finally, even
-// after an unexpected verdict. Private discovery is exercised by the Graph
-// demo and member app; this script rejects that ladder before any issuance.
+// after an unexpected verdict.
 import type {
   CardCreateResponse,
   ChallengeResponse,

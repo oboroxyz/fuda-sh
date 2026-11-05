@@ -8,6 +8,7 @@ import {
   fetchVenue,
   googleSaveUrl,
   issueCard,
+  issueSensitiveCard,
   verifySigned,
   verifyUid,
 } from './api.ts'
@@ -32,6 +33,7 @@ describe(challenge, () => {
     expect(result).toStrictEqual({ body, ok: true })
     expect(spy).toHaveBeenCalledWith('/api/v1/challenge', {
       body: JSON.stringify({ uid: UID }),
+      credentials: 'omit',
       headers: { 'content-type': 'application/json' },
       method: 'POST',
     })
@@ -54,6 +56,7 @@ describe(verifySigned, () => {
     expect(result).toStrictEqual({ body: verdict, ok: true })
     expect(spy).toHaveBeenCalledWith('/api/v1/verify-signed', {
       body: JSON.stringify(body),
+      credentials: 'omit',
       headers: { 'content-type': 'application/json' },
       method: 'POST',
     })
@@ -143,10 +146,25 @@ describe(issueCard, () => {
     expect(spy.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ source: 'spring-flyer' }))
   })
 
+  it('sends the Turnstile token with the claim, alone or beside the label', async () => {
+    const spy = stubFetch(() => json({ uid: UID }, 200))
+    await issueCard('wassie-coffee', 'regular', null, 'token-1')
+    await issueCard('wassie-coffee', 'regular', 'spring-flyer', 'token-2')
+    expect(spy.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ turnstileToken: 'token-1' }))
+    expect(spy.mock.calls[1]?.[1]?.body).toBe(
+      JSON.stringify({ source: 'spring-flyer', turnstileToken: 'token-2' }),
+    )
+  })
+
   it('keeps only a claim link label the api would accept', () => {
     expect(claimSourceFrom('?source=spring-flyer')).toBe('spring-flyer')
     expect(claimSourceFrom('?source=Not%20Valid')).toBeNull()
     expect(claimSourceFrom('')).toBeNull()
+  })
+
+  it('tells a failed bot check from any other 403', () => {
+    expect(cardFailureOf({ error: 'bot_check_failed', status: 403 })).toBe('bot_check_failed')
+    expect(cardFailureOf({ error: 'forbidden', status: 403 })).toBe('passkey_refused')
   })
 
   it('tells a card with no places left from a closed one', () => {
@@ -185,5 +203,27 @@ describe(googleSaveUrl, () => {
 
     stubFetch(() => json({ error: 'google_not_configured' }, 501))
     await expect(googleSaveUrl('http://localhost:8787/pass/x/google')).resolves.toBeNull()
+  })
+})
+
+describe('Sensitive request privacy', () => {
+  it('omits cookies and credentials on Sensitive claims and presentation requests', async () => {
+    const captured: RequestInit[] = []
+    stubFetch((_url, init) => {
+      captured.push(init)
+      return json({}, 200)
+    })
+    await issueSensitiveCard('venue-one', 'staff', null, `0x${'11'.repeat(20)}`, 'sensitive-token')
+    await issueSensitiveCard('venue-two', 'staff', null, `0x${'22'.repeat(20)}`)
+    await challenge(UID)
+    await verifySigned({ nonce: NONCE, signature: SIGNATURE, uid: UID })
+    expect(captured).toHaveLength(4)
+    expect(JSON.parse(await new Response(captured[0]?.body).text())).toMatchObject({
+      turnstileToken: 'sensitive-token',
+    })
+    for (const request of captured) {
+      expect(request.credentials).toBe('omit')
+      expect([...new Headers(request.headers).keys()]).toStrictEqual(['content-type'])
+    }
   })
 })

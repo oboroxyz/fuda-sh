@@ -26,6 +26,13 @@ describe(buildChain, () => {
     expect(buildChain(realEnv)).not.toBeInstanceOf(FakeChain)
   })
 
+  it('never uses the Sepolia fake for mainnet and rejects unknown config even with fake opt-in', () => {
+    expect(buildChain({ ...testEnv({ CHAIN_ID: '8453' }), USE_FAKE_CHAIN: '1' }).chainId()).toBe(8453)
+    expect(() => buildChain({ ...testEnv({ CHAIN_ID: '1' }), USE_FAKE_CHAIN: '1' })).toThrow(
+      'Unsupported CHAIN_ID',
+    )
+  })
+
   it('seeds the dev root delegation at the fixed uid targets.jsonc pins, not a random one', async () => {
     // Pinned literally (not read from targets.jsonc) so a change to either side
     // of this pairing is a deliberate, visible edit rather than a tautology.

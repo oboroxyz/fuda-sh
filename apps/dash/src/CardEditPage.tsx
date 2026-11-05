@@ -120,7 +120,9 @@ const LoadedCardEditor = (props: EditorProps): JSX.Element => {
           {props.copy.management.saved}
         </p>
       ) : null}
-      {savedCard().category === 'membership' && draft().category === 'membership' ? (
+      {savedCard().identity !== 'sensitive' &&
+      savedCard().category === 'membership' &&
+      draft().category === 'membership' ? (
         <details
           class="rounded-box border border-[var(--fuda-border)]"
           open={stampsOpen()}
@@ -137,22 +139,30 @@ const LoadedCardEditor = (props: EditorProps): JSX.Element => {
           ) : null}
         </details>
       ) : null}
-      <details
-        class="rounded-box border border-[var(--fuda-border)]"
-        data-testid="card-integrations"
-        open={integrationsOpen()}
-        onToggle={(event) => {
-          setIntegrationsOpen(event.currentTarget.open)
-        }}
-      >
-        <summary class="cursor-pointer p-4 font-semibold">{props.copy.management.integrationsOption}</summary>
-        {integrationsOpen() ? (
-          <fieldset class="min-w-0 p-4 pt-0" disabled={busy()}>
-            <p class="mb-3 text-sm text-[var(--fuda-muted)]">{props.copy.management.integrationsHint}</p>
-            <IntegrationSettings cardId={initial.id} copy={props.copy.integrations} io={props.integrations} />
-          </fieldset>
-        ) : null}
-      </details>
+      {savedCard().identity === 'sensitive' ? null : (
+        <details
+          class="rounded-box border border-[var(--fuda-border)]"
+          data-testid="card-integrations"
+          open={integrationsOpen()}
+          onToggle={(event) => {
+            setIntegrationsOpen(event.currentTarget.open)
+          }}
+        >
+          <summary class="cursor-pointer p-4 font-semibold">
+            {props.copy.management.integrationsOption}
+          </summary>
+          {integrationsOpen() ? (
+            <fieldset class="min-w-0 p-4 pt-0" disabled={busy()}>
+              <p class="mb-3 text-sm text-[var(--fuda-muted)]">{props.copy.management.integrationsHint}</p>
+              <IntegrationSettings
+                cardId={initial.id}
+                copy={props.copy.integrations}
+                io={props.integrations}
+              />
+            </fieldset>
+          ) : null}
+        </details>
+      )}
     </>
   )
 }

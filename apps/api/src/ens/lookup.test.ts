@@ -3,13 +3,12 @@ import { getAddress } from 'viem'
 import { describe, expect, it } from 'vitest'
 
 import { getDb } from '../db/client.ts'
-import { issuers } from '../db/schema.ts'
+import { accounts, issuers } from '../db/schema.ts'
 import { lookupEnsName } from './lookup.ts'
 import { ensNames } from './schema.ts'
 
 const OWNER = `0x${'11'.repeat(20)}`
 const TARGET = `0x${'22'.repeat(20)}`
-const META_ADDRESS = `0x${'44'.repeat(66)}`
 
 // A registered venue, as `POST /issuers` stores it: the operator address
 // lower-cased, and unique to the venue.
@@ -54,43 +53,7 @@ describe('ENS lookup', () => {
         now: 10,
         parentName: 'fuda.eth',
       }),
-    ).resolves.toStrictEqual({ address: TARGET, expiresAt: null, type: 'address' })
-  })
-
-  it('returns a derivation instruction without allocating a +Private address', async () => {
-    const db = getDb({ DB: env.DB })
-    const inserted = await db
-      .insert(ensNames)
-      .values({
-        createdAt: 1,
-        issuerHandle: 'coffee',
-        kind: 'member',
-        level: 'private',
-        name: '23456789acded.coffee.fuda.eth',
-        ownerAddress: OWNER,
-        rightUid: `0x${'33'.repeat(32)}`,
-        status: 'offchain',
-        stealthMetaAddress: META_ADDRESS,
-        updatedAt: 1,
-      })
-      .returning({ id: ensNames.id })
-
-    await expect(
-      lookupEnsName(db, {
-        name: '23456789acded.coffee.fuda.eth',
-        now: 10,
-        parentName: 'fuda.eth',
-      }),
-    ).resolves.toStrictEqual({
-      ensNameId: inserted[0]?.id,
-      expiresAt: null,
-      stealthMetaAddress: META_ADDRESS,
-      type: 'stealth',
-    })
-    const rows = await env.DB.prepare('SELECT COUNT(*) AS count FROM stealth_resolutions').first<{
-      count: number
-    }>()
-    expect(rows?.count).toBe(0)
+    ).resolves.toStrictEqual({ address: TARGET, expiresAt: null })
   })
 
   it.each([
@@ -112,7 +75,7 @@ describe('ENS lookup', () => {
 
     await expect(
       lookupEnsName(getDb({ DB: env.DB }), { name: 'noodles.fuda.eth', now: 10, parentName: 'fuda.eth' }),
-    ).resolves.toStrictEqual({ address: getAddress(operator), expiresAt: null, type: 'address' })
+    ).resolves.toStrictEqual({ address: getAddress(operator), expiresAt: null })
   })
 
   it.each(['voucher_issued', 'failed'] as const)(
@@ -124,7 +87,7 @@ describe('ENS lookup', () => {
 
       await expect(
         lookupEnsName(getDb({ DB: env.DB }), { name: `${handle}.fuda.eth`, now: 10, parentName: 'fuda.eth' }),
-      ).resolves.toStrictEqual({ address: getAddress(operator), expiresAt: null, type: 'address' })
+      ).resolves.toStrictEqual({ address: getAddress(operator), expiresAt: null })
     },
   )
 
@@ -144,6 +107,24 @@ describe('ENS lookup', () => {
     },
   )
 
+  it('resolves nothing for a venue an account owns, since it has no wallet', async () => {
+    const database = getDb({ DB: env.DB })
+    const accountId = crypto.randomUUID()
+    await database.insert(accounts).values({ createdAt: 1, id: accountId, userHandle: accountId })
+    await database.insert(issuers).values({
+      brandColor: '#000000',
+      createdAt: 1,
+      handle: 'passkey-only',
+      id: crypto.randomUUID(),
+      name: 'Passkey only',
+      ownerAccountId: accountId,
+    })
+
+    await expect(
+      lookupEnsName(database, { name: 'passkey-only.fuda.eth', now: 10, parentName: 'fuda.eth' }),
+    ).resolves.toBeNull()
+  })
+
   it('hides an expired name but includes its exact expiry instant', async () => {
     await insertIssuerName('expired', { expiry: 9 })
     await insertIssuerName('boundary', { expiry: 10 })
@@ -154,7 +135,7 @@ describe('ENS lookup', () => {
     ).resolves.toBeNull()
     await expect(
       lookupEnsName(db, { name: 'boundary.fuda.eth', now: 10, parentName: 'fuda.eth' }),
-    ).resolves.toStrictEqual({ address: TARGET, expiresAt: 10, type: 'address' })
+    ).resolves.toStrictEqual({ address: TARGET, expiresAt: 10 })
   })
 
   it.each(['unknown.fuda.eth', 'bakery.other.eth', 'too.deep.bakery.fuda.eth'])(
@@ -187,7 +168,7 @@ describe('ENS lookup', () => {
         now: 10,
         parentName: 'fuda.eth',
       }),
-    ).resolves.toStrictEqual({ address: TARGET, expiresAt: null, type: 'address' })
+    ).resolves.toStrictEqual({ address: TARGET, expiresAt: null })
   })
 
   it('does not expose a malformed persisted address', async () => {

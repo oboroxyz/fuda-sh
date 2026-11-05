@@ -1,8 +1,8 @@
 import type { Hex, IssuerView } from '@fuda/sdk'
 import { describe, expect, it, vi } from 'vitest'
 
-import { signInWithPasskey } from './operator-sign-in.ts'
-import type { SignInIo } from './operator-sign-in.ts'
+import { signInWithWallet } from './operator-sign-in.ts'
+import type { WalletSignInIo } from './operator-sign-in.ts'
 import type { Eip1193Provider } from './wallet.ts'
 
 const ADDRESS: Hex = `0x${'ab'.repeat(20)}`
@@ -20,18 +20,18 @@ const ISSUER: IssuerView = {
   tagline: '',
 }
 
-const io = (overrides: Partial<SignInIo> = {}): SignInIo => ({
-  challenge: vi.fn<SignInIo['challenge']>(
+const io = (overrides: Partial<WalletSignInIo> = {}): WalletSignInIo => ({
+  challenge: vi.fn<WalletSignInIo['challenge']>(
     async () =>
       await Promise.resolve({
         body: { message: 'fuda.sh dashboard sign-in', nonce: NONCE },
         ok: true as const,
       }),
   ),
-  personalSign: vi.fn<SignInIo['personalSign']>(async () => await Promise.resolve(SIGNATURE)),
-  provider: vi.fn<SignInIo['provider']>(async () => await Promise.resolve(PROVIDER)),
-  requestAccount: vi.fn<SignInIo['requestAccount']>(async () => await Promise.resolve(ADDRESS)),
-  verify: vi.fn<SignInIo['verify']>(
+  personalSign: vi.fn<WalletSignInIo['personalSign']>(async () => await Promise.resolve(SIGNATURE)),
+  provider: vi.fn<WalletSignInIo['provider']>(async () => await Promise.resolve(PROVIDER)),
+  requestAccount: vi.fn<WalletSignInIo['requestAccount']>(async () => await Promise.resolve(ADDRESS)),
+  verify: vi.fn<WalletSignInIo['verify']>(
     async () => await Promise.resolve({ body: { issuer: null }, ok: true as const }),
   ),
   ...overrides,
@@ -44,10 +44,10 @@ const failed = (status: number, network = false) => ({
   status,
 })
 
-describe(signInWithPasskey, () => {
+describe(signInWithWallet, () => {
   it('signs the minted message and reports that the operator has no venue yet', async () => {
     const deps = io()
-    const outcome = await signInWithPasskey(deps)
+    const outcome = await signInWithWallet(deps)
     expect(outcome).toStrictEqual({ hasIssuer: false, ok: true })
     expect(deps.personalSign).toHaveBeenCalledExactlyOnceWith(PROVIDER, ADDRESS, 'fuda.sh dashboard sign-in')
     expect(deps.verify).toHaveBeenCalledExactlyOnceWith({
@@ -59,9 +59,9 @@ describe(signInWithPasskey, () => {
 
   it('reports a cancelled wallet step without calling the api', async () => {
     const challenge = vi.fn<() => void>()
-    const outcome = await signInWithPasskey(
+    const outcome = await signInWithWallet(
       io({
-        challenge: challenge as unknown as SignInIo['challenge'],
+        challenge: challenge as unknown as WalletSignInIo['challenge'],
         requestAccount: async () => {
           await Promise.resolve()
           throw new Error('user cancelled')
@@ -74,13 +74,13 @@ describe(signInWithPasskey, () => {
 
   it('reports a cancelled signature after the nonce was minted', async () => {
     const verify = vi.fn<() => void>()
-    const outcome = await signInWithPasskey(
+    const outcome = await signInWithWallet(
       io({
         personalSign: async () => {
           await Promise.resolve()
           throw new Error('user cancelled')
         },
-        verify: verify as unknown as SignInIo['verify'],
+        verify: verify as unknown as WalletSignInIo['verify'],
       }),
     )
     expect(outcome).toStrictEqual({ failure: 'wallet', ok: false })
@@ -88,18 +88,18 @@ describe(signInWithPasskey, () => {
   })
 
   it('separates a refused signature from an unreachable or broken api', async () => {
-    const rejected = await signInWithPasskey(io({ verify: async () => await Promise.resolve(failed(401)) }))
-    const offline = await signInWithPasskey(
+    const rejected = await signInWithWallet(io({ verify: async () => await Promise.resolve(failed(401)) }))
+    const offline = await signInWithWallet(
       io({ challenge: async () => await Promise.resolve(failed(0, true)) }),
     )
-    const broken = await signInWithPasskey(io({ verify: async () => await Promise.resolve(failed(502)) }))
+    const broken = await signInWithWallet(io({ verify: async () => await Promise.resolve(failed(502)) }))
     expect(rejected).toStrictEqual({ failure: 'rejected', ok: false })
     expect(offline).toStrictEqual({ failure: 'network', ok: false })
     expect(broken).toStrictEqual({ failure: 'unavailable', ok: false })
   })
 
   it('reports a registered venue, which decides where the operator lands', async () => {
-    const outcome = await signInWithPasskey(
+    const outcome = await signInWithWallet(
       io({ verify: async () => await Promise.resolve({ body: { issuer: ISSUER }, ok: true as const }) }),
     )
     expect(outcome).toStrictEqual({ hasIssuer: true, ok: true })

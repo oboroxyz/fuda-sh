@@ -1,5 +1,7 @@
-import { asc, eq } from 'drizzle-orm'
+import { asc, eq, sql } from 'drizzle-orm'
 
+import { ACCOUNT_KEY_PREFIX } from '../auth/principal.ts'
+import type { OperatorPrincipal } from '../auth/principal.ts'
 import type { Db } from '../db/client.ts'
 import { cards, issuers } from '../db/schema.ts'
 
@@ -27,12 +29,38 @@ export const ownedVenue = async (db: Db, issuerId: string | null): Promise<Venue
   return issuer === undefined ? null : await cardsOf(db, issuer)
 }
 
-// Every issuer an account owns, oldest first: the dashboard's profile switcher
+// The columns that name an issuer's owner, for the row that creates it.
+export const ownerColumns = (
+  principal: OperatorPrincipal,
+): { operatorAddress: string | null; ownerAccountId: string | null } =>
+  principal.kind === 'account'
+    ? { operatorAddress: null, ownerAccountId: principal.accountId }
+    : { operatorAddress: principal.address, ownerAccountId: null }
+
+// An issuer's owner as principalKey writes it, for comparing with the owner column of
+// connected-app rows.
+export const ownerKeyOf = (issuer: {
+  operatorAddress: string | null
+  ownerAccountId: string | null
+}): string | null =>
+  issuer.ownerAccountId === null ? issuer.operatorAddress : `${ACCOUNT_KEY_PREFIX}${issuer.ownerAccountId}`
+
+// The same in SQL. The concatenation is NULL when the issuer has no account.
+export const issuerOwnerKey = sql<string>`COALESCE(${ACCOUNT_KEY_PREFIX} || ${issuers.ownerAccountId}, ${issuers.operatorAddress})`
+
+// Every issuer a principal owns, oldest first: the dashboard's profile switcher
 // and the connected-app consent screen both choose from this list
-// (docs/adr/0011-several-issuers-per-account.md).
-export const issuersOwnedBy = async (db: Db, address: string): Promise<(typeof issuers.$inferSelect)[]> =>
+// (docs/adr/0011-several-issuers-per-account.md). The one place ownership is decided.
+export const issuersOwnedBy = async (
+  db: Db,
+  principal: OperatorPrincipal,
+): Promise<(typeof issuers.$inferSelect)[]> =>
   await db
     .select()
     .from(issuers)
-    .where(eq(issuers.operatorAddress, address))
+    .where(
+      principal.kind === 'account'
+        ? eq(issuers.ownerAccountId, principal.accountId)
+        : eq(issuers.operatorAddress, principal.address),
+    )
     .orderBy(asc(issuers.createdAt), asc(issuers.id))

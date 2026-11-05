@@ -1,3 +1,5 @@
 import { baseAccountProvider as createProvider } from '@fuda/libs/wallet'
 
-export const baseAccountProvider = async () => await createProvider({ appChainIds: [84_532] })
+import { CHAIN } from './config.ts'
+
+export const baseAccountProvider = async () => await createProvider({ appChainIds: [CHAIN.id] })

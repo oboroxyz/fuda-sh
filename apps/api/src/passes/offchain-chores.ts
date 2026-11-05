@@ -27,6 +27,8 @@ const toUid = (stored: string): Hex => {
 // Reads first so a retry never reverts on an already revoked uid. When the chain
 // already shows the revocation there is no transaction of ours to name, so the zero
 // hash marks it done. Throws ChainError / NoSignerError when it could not be sent.
+// EAS records the current sender, including for retired-key passes. D1 remains
+// authoritative because the new key cannot write the original signer's record.
 export const sendOffchainRevocation = async (db: Db, chain: ChainClient, attester: Hex, uid: Hex) => {
   const revokedAt = await chain.offchainRevokedAt(attester, uid)
   const sent = revokedAt === 0n ? await chain.revokeOffchain(uid) : { txHash: ZERO_UID }

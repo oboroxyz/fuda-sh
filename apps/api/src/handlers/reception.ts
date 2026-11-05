@@ -3,11 +3,12 @@ import { and, eq } from 'drizzle-orm'
 import * as v from 'valibot'
 import { defineHandler } from 'void'
 
+import { principalKey } from '../auth/principal.ts'
 import { members } from '../db/schema.ts'
 import { ownedCard } from '../issuers/owned-card.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { operatorAuth } from '../middleware/operator-auth.ts'
-import { scheduleStampPassUpdate } from '../pass/stamp-update.ts'
+import { notifyPassChanged, notifyPassesChanged } from '../pass/notify.ts'
 import { readReception, recordReception } from '../stamps/reception-store.ts'
 import { readStampSettings, readStampSummary } from '../stamps/store.ts'
 import { notifyAdmission } from '../verify/admit.ts'
@@ -29,7 +30,8 @@ export const putV1IssuersMeCardsCardIdStamps = defineHandler(operatorAuth(), asy
   if (card === undefined) {
     return errorResponse(c, 'not_found', 404)
   }
-  if (card.category !== 'membership') {
+  // A card's identity never changes, so unlike its category this needs no predicate in the write.
+  if (card.category !== 'membership' || card.identity === 'sensitive') {
     return errorResponse(c, 'stamps_not_supported', 409)
   }
   const body: unknown = await c.req.json().catch(() => null)
@@ -56,6 +58,7 @@ export const putV1IssuersMeCardsCardIdStamps = defineHandler(operatorAuth(), asy
   if (saved === null) {
     return errorResponse(c, 'stamps_not_supported', 409)
   }
+  notifyPassesChanged(c, { cardId: saved.cardId })
   return jsonResponse(c, parsed.output)
 })
 
@@ -101,7 +104,7 @@ export const postV1IssuersMeReception = defineHandler(operatorAuth(), async (c) 
       return errorResponse(c, 'bad_input', 409)
     }
     if (previous.response.decision === 'ADMIT') {
-      scheduleStampPassUpdate(c, uid)
+      notifyPassChanged(c, uid)
     }
     return jsonResponse(c, previous.response)
   }
@@ -115,7 +118,7 @@ export const postV1IssuersMeReception = defineHandler(operatorAuth(), async (c) 
     id,
     issuerId,
     now,
-    operatorAddress: operator.address,
+    operatorKey: principalKey(operator.principal),
     singleUse: out.decision === 'ADMIT' && out.canonical.usageModel === USAGE_MODEL.SINGLE_USE,
     uid,
     verdict: verdictBody(out),
@@ -125,7 +128,7 @@ export const postV1IssuersMeReception = defineHandler(operatorAuth(), async (c) 
   }
   if (receipt.response.decision === 'ADMIT') {
     if (inserted && out.decision === 'ADMIT') {
-      notifyAdmission(
+      await notifyAdmission(
         {
           canonical: out.canonical,
           db,
@@ -138,7 +141,7 @@ export const postV1IssuersMeReception = defineHandler(operatorAuth(), async (c) 
         receipt.entryLogId,
       )
     }
-    scheduleStampPassUpdate(c, uid)
+    notifyPassChanged(c, uid)
   }
   return jsonResponse(c, receipt.response)
 })

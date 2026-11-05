@@ -17,11 +17,13 @@ export const testEnv = (overrides: Partial<Bindings> = {}): Bindings => {
     APPLE_CERT_PEM: undefined,
     APPLE_KEY_PEM: undefined,
     APPLE_PASS_TYPE_ID: undefined,
+    APPLE_PUSH_CERT: undefined,
     APPLE_TEAM_ID: undefined,
+    APPLE_WEB_SERVICE_SECRET: undefined,
     APPLE_WWDR_PEM: undefined,
     BASE_RPC_URL: undefined,
+    CHAIN_ID: undefined,
     ENS_GAS_POLICY_ID: undefined,
-    ENS_GATEWAY_SECRET: undefined,
     ENS_GATEWAY_SIGNER_KEY: undefined,
     ENS_PARENT_NAME: undefined,
     ENS_PAYMASTER_UPSTREAM: undefined,
@@ -34,6 +36,7 @@ export const testEnv = (overrides: Partial<Bindings> = {}): Bindings => {
     GOOGLE_SA_EMAIL: undefined,
     GOOGLE_SA_KEY_PEM: undefined,
     SIGNER_PRIVATE_KEY: undefined,
+    TURNSTILE_SECRET_KEY: undefined,
     USE_FAKE_CHAIN: undefined,
     WORLD_ACTION: undefined,
     WORLD_APP_ID: undefined,
@@ -43,10 +46,6 @@ export const testEnv = (overrides: Partial<Bindings> = {}): Bindings => {
   return { ...base, ...overrides }
 }
 
-// Announcement tests assert exact block numbers and chunk ranges, so the fake
-// starts at a fixed head here rather than FakeChain's real-time default;
-// pass `head` explicitly to override it.
-export const fakeChain = (opts: { signer?: Hex | null; head?: number } = {}): FakeChain =>
-  new FakeChain({ head: 100, ...opts })
+export const fakeChain = (opts: { signer?: Hex | null } = {}): FakeChain => new FakeChain(opts)
 
 export const appWith = (deps: AppDeps) => createApp(deps)

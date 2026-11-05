@@ -37,12 +37,8 @@ describe(routeFor, () => {
     expect(routeFor(APEX, '/signed/', APP)).toStrictEqual({ redirect: 'https://app.fuda.sh/signed' })
   })
 
-  // +Private is Signed with the privacy extension on, so /private lives on the
-  // same origin and follows the same redirect rule.
-  it('renders +Private on the app origin and redirects it from the apex', () => {
-    expect(routeFor(APP, '/private', APP)).toBe('private')
-    expect(routeFor(APP, '/private/', APP)).toBe('private')
-    expect(routeFor(APEX, '/private', APP)).toStrictEqual({ redirect: 'https://app.fuda.sh/private' })
+  it('treats the removed /private path like any unknown path', () => {
+    expect(routeFor(APP, '/private', APP)).toBe('top')
   })
 
   it('renders the rights list only on the app origin', () => {
@@ -153,13 +149,18 @@ describe(safeMemberReturn, () => {
   it('retains only protected member paths and their query strings', () => {
     expect(safeMemberReturn('/rights?uid=0x123')).toBe('/rights?uid=0x123')
     expect(safeMemberReturn('/signed')).toBe('/signed')
-    expect(safeMemberReturn('/private')).toBe('/private')
     expect(safeMemberReturn('/settings')).toBe('/settings')
+  })
+
+  it('returns to the card that asked for an account, with its source label', () => {
+    expect(safeMemberReturn('/@wassie-coffee/stamp?source=flyer')).toBe('/@wassie-coffee/stamp?source=flyer')
+    expect(safeMemberReturn('/@Not_A_Handle/stamp')).toBe('/rights')
   })
 
   it('falls back to passes for public, external, and malformed targets', () => {
     expect(safeMemberReturn('//outside.example/rights')).toBe('/rights')
-    expect(safeMemberReturn('https://outside.example/private')).toBe('/rights')
+    expect(safeMemberReturn('https://outside.example/rights')).toBe('/rights')
+    expect(safeMemberReturn('/private')).toBe('/rights')
     expect(safeMemberReturn('/signin')).toBe('/rights')
     expect(safeMemberReturn('/signup')).toBe('/rights')
   })

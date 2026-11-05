@@ -16,7 +16,6 @@ import { privateKeyToAccount } from 'viem/accounts'
 import type { Db } from '../db/client.ts'
 import { lookupEnsName } from './lookup.ts'
 import { issuerEnsName, memberEnsName, parseFudaEnsName } from './names.ts'
-import { allocateStealthResolution, assertGatewaySecret } from './resolution.ts'
 
 const RESOLVER_SERVICE_ABI = parseAbi([
   'function resolve(bytes name, bytes data) view returns (bytes result, uint64 expires, bytes signature)',
@@ -42,7 +41,6 @@ export class EnsGatewayError extends Error {
 
 interface ResolveGatewayInput {
   data: Hex
-  gatewaySecret: string
   now: number
   parentName: string
   resolverAddress: Address
@@ -198,11 +196,6 @@ export const gatewaySignatureHash = (input: {
 
 export const resolveGatewayRequest = async (db: Db, input: ResolveGatewayInput): Promise<Hex | null> => {
   const account = signerAccount(input.signerPrivateKey)
-  try {
-    assertGatewaySecret(input.gatewaySecret)
-  } catch {
-    throw new EnsGatewayError('invalid ENS gateway allocation secret', 'config')
-  }
   const request = parseRequest(input.data, input.parentName)
   if (request === null) {
     return null
@@ -216,21 +209,8 @@ export const resolveGatewayRequest = async (db: Db, input: ResolveGatewayInput):
     return null
   }
   const expires = responseExpiry(input, lookup.expiresAt)
-  let address: Hex | undefined
-  if (lookup.type === 'address') {
-    const { address: stableAddress } = lookup
-    address = stableAddress
-  } else {
-    const allocation = await allocateStealthResolution(db, {
-      ensNameId: lookup.ensNameId,
-      expiresAt: expires,
-      gatewaySecret: input.gatewaySecret,
-      name: request.canonicalName,
-      now: input.now,
-    })
-    address = allocation?.stealthAddress
-  }
-  if (address === undefined || !isAddress(address, { strict: true })) {
+  const { address } = lookup
+  if (!isAddress(address, { strict: true })) {
     return null
   }
   const result = encodeRecordResult(request.recordKind, address)

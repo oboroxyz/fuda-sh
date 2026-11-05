@@ -10,12 +10,11 @@ import {
   connectMemberRail,
   googlePassHref,
   loadMemberPassList,
-  PrivatePassRecoveryError,
   rememberQueryPass,
   withConnectedAddress,
 } from './member-pass-list.ts'
 import type { MemberPassListIo, MemberPassRow } from './member-pass-list.ts'
-import { QueryRecoveryNotice, RightsList, RightsListView } from './member/RightsList.tsx'
+import { RightsList, RightsListView } from './member/RightsList.tsx'
 import { requestAccount } from './wallet.ts'
 
 const RIGHT = `0x${'aa'.repeat(32)}` as const
@@ -33,7 +32,8 @@ const mount = (view: () => JSX.Element): HTMLElement => {
   })
   return host
 }
-const showView = (props: RightsListViewProps): HTMLElement => mount(() => <RightsListView {...props} />)
+const showView = (props: RightsListViewProps): HTMLElement =>
+  mount(() => <RightsListView locale="en" {...props} />)
 const viewText = (host: HTMLElement): string => host.textContent ?? ''
 const hrefsOf = (host: HTMLElement): string[] =>
   [...host.querySelectorAll('[href]')].map((node) => node.getAttribute('href') ?? '')
@@ -102,7 +102,7 @@ const admittedAtLevel = (holder: Hex, level: number): Result<VerifyResponse> => 
   ok: true,
 })
 
-const privateAdmitted = (holder: Hex): Result<VerifyResponse> => admittedAtLevel(holder, 2)
+const retiredLevelAdmitted = (holder: Hex): Result<VerifyResponse> => admittedAtLevel(holder, 2)
 
 const memberIo = (fetchRights: MemberPassListIo['fetchRights']): MemberPassListIo => ({
   appleAvailable: async () => await Promise.resolve(false),
@@ -238,9 +238,9 @@ describe(loadMemberPassList, () => {
     expect(result.rows.map(({ uid }) => uid)).toStrictEqual([UID_C])
   })
 
-  it('excludes a +Private Graph row before it verifies status or probes pass links', async () => {
+  it('excludes a Graph row of a level no longer issued before it verifies status or probes pass links', async () => {
     const verify = vi.fn<MemberPassListIo['verify']>(
-      async () => await Promise.resolve(privateAdmitted(HOLDER_A)),
+      async () => await Promise.resolve(retiredLevelAdmitted(HOLDER_A)),
     )
     const googleHref = vi.fn<MemberPassListIo['googleHref']>(async () => await Promise.resolve(null))
     const appleAvailable = vi.fn<MemberPassListIo['appleAvailable']>(async () => await Promise.resolve(false))
@@ -263,7 +263,7 @@ describe(loadMemberPassList, () => {
     expect(appleAvailable).not.toHaveBeenCalled()
   })
 
-  it('does not query public Graph discovery with a legacy remembered stealth holder', async () => {
+  it('does not query Graph discovery for a remembered pass of a level no longer issued', async () => {
     const fetchRights = vi.fn<MemberPassListIo['fetchRights']>(async () => await Promise.resolve([]))
 
     const result = await loadMemberPassList(
@@ -274,7 +274,7 @@ describe(loadMemberPassList, () => {
         fetchRights,
         googleHref: async () => await Promise.resolve(null),
         stampSummary: async () => await Promise.resolve(null),
-        verify: async () => await Promise.resolve(privateAdmitted(HOLDER_A)),
+        verify: async () => await Promise.resolve(retiredLevelAdmitted(HOLDER_A)),
       },
     )
 
@@ -434,7 +434,7 @@ describe('pass link availability', () => {
 describe('member pass screen', () => {
   it('keeps public-address tools out of the main pass list', () => {
     const view = mount(() => (
-      <RightsList injected={{ request: async () => await Promise.resolve([HOLDER_A]) }} />
+      <RightsList locale="en" injected={{ request: async () => await Promise.resolve([HOLDER_A]) }} />
     ))
     const text = viewText(view)
 
@@ -489,18 +489,18 @@ describe('member rails and query memory', () => {
     expect(remembered).toStrictEqual([{ holder: HOLDER_A, uid: RIGHT }])
   })
 
-  it('does not remember a +Private pass recovered from a /rights uid query', async () => {
+  it('does not remember a level-2 pass recovered from a /rights uid query', async () => {
     const remembered: { holder: Hex; uid: Hex }[] = []
 
     await expect(
       rememberQueryPass(
         RIGHT,
-        async () => await Promise.resolve(privateAdmitted(HOLDER_A)),
+        async () => await Promise.resolve(retiredLevelAdmitted(HOLDER_A)),
         (pass) => {
           remembered.push(pass)
         },
       ),
-    ).rejects.toBeInstanceOf(PrivatePassRecoveryError)
+    ).rejects.toThrow('no longer issued')
 
     expect(remembered).toStrictEqual([])
   })
@@ -516,16 +516,9 @@ describe('member rails and query memory', () => {
           remembered.push(pass)
         },
       ),
-    ).rejects.toBeInstanceOf(PrivatePassRecoveryError)
+    ).rejects.toThrow('no longer issued')
 
     expect(remembered).toStrictEqual([])
-  })
-
-  it('shows private-recovery guidance with the +Private route', () => {
-    const view = mount(() => <QueryRecoveryNotice />)
-
-    expect(viewText(view)).toContain('This is a +Private pass. Open Private rights to recover it.')
-    expect(hrefsOf(view)).toContain('/private')
   })
 
   it('reports an unsuccessful query preview instead of forgetting it', async () => {
@@ -622,6 +615,35 @@ describe(RightsListView, () => {
     expect(hrefs).toContain(row.passes.web)
     expect(hrefs).not.toContain(row.appleHref)
     expect(hrefs).not.toContain(row.googleHref)
+  })
+
+  it('offers entry for a pass bound to a passkey, and says why there is no pass to show', () => {
+    const row = memberRow({
+      memory: { addedAt: 1, holder: `0x${'00'.repeat(20)}`, uid: RIGHT },
+      preview: {
+        decision: 'ADMIT',
+        entitlement: {
+          holder: `0x${'00'.repeat(20)}`,
+          issuer: `0x${'22'.repeat(20)}`,
+          level: 1,
+          schemaVersion: 1,
+          tier: 0,
+          usageModel: 1,
+          validFrom: 0,
+          validUntil: 0,
+        },
+        reason: 'OK',
+      },
+    })
+    const host = mount(() => (
+      <RightsListView
+        locale="en"
+        state={{ kind: 'ready', result: { indexUnavailable: false, rows: [row] } }}
+      />
+    ))
+    expect(host.querySelector(`a[href="/signed?uid=${RIGHT}"]`)).not.toBeNull()
+    expect(host.textContent).not.toContain('View pass')
+    expect(host.textContent).toContain('opens only with your passkey')
   })
 
   it('does not render pass links for an unclassified memory-only row', () => {

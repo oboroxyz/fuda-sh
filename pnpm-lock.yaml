@@ -43,6 +43,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@fuda/chains':
+        specifier: workspace:*
+        version: link:../../packages/chains
       '@fuda/ens-contracts':
         specifier: workspace:*
         version: link:../../packages/ens-contracts
@@ -52,9 +55,6 @@ importers:
       '@fuda/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
-      '@fuda/stealth-address':
-        specifier: workspace:*
-        version: link:../../packages/stealth-address
       '@fuda/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -107,6 +107,9 @@ importers:
 
   apps/app:
     dependencies:
+      '@fuda/chains':
+        specifier: workspace:*
+        version: link:../../packages/chains
       '@fuda/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
@@ -116,9 +119,6 @@ importers:
       '@fuda/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
-      '@fuda/stealth-address':
-        specifier: workspace:*
-        version: link:../../packages/stealth-address
       '@fuda/styles':
         specifier: workspace:*
         version: link:../../packages/styles
@@ -174,6 +174,9 @@ importers:
 
   apps/dash:
     dependencies:
+      '@fuda/chains':
+        specifier: workspace:*
+        version: link:../../packages/chains
       '@fuda/ens-contracts':
         specifier: workspace:*
         version: link:../../packages/ens-contracts
@@ -276,6 +279,16 @@ importers:
         specifier: 1.6.1
         version: 1.6.1(@types/node@24.13.3)(esbuild@0.28.2)(kysely@0.29.7)(solid-js@1.9.17)(tsx@4.23.13)(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261101.1)(zod@4.6.7)
 
+  packages/chains:
+    dependencies:
+      viem:
+        specifier: ^2.56.3
+        version: 2.56.3(typescript@7.0.2)(zod@4.6.7)
+    devDependencies:
+      vitest:
+        specifier: 4.1.11
+        version: 4.1.11(@types/node@24.13.3)(@vitest/browser-preview@4.1.11)(esbuild@0.28.2)(happy-dom@20.14.0)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1)
+
   packages/e2e:
     devDependencies:
       '@e2e-dev/web':
@@ -324,6 +337,9 @@ importers:
       '@fuda/sdk':
         specifier: workspace:*
         version: link:../sdk
+      '@simplewebauthn/browser':
+        specifier: ^14.0.0
+        version: 14.0.0
       '@tanstack/query-core':
         specifier: 5.102.8
         version: 5.102.8
@@ -376,22 +392,6 @@ importers:
         specifier: 4.1.11
         version: 4.1.11(@types/node@24.13.3)(@vitest/browser-preview@4.1.11)(esbuild@0.28.2)(happy-dom@20.14.0)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1)
 
-  packages/stealth-address:
-    dependencies:
-      '@noble/curves':
-        specifier: 1.9.1
-        version: 1.9.1
-      '@noble/hashes':
-        specifier: 1.8.0
-        version: 1.8.0
-      viem:
-        specifier: ^2.56.3
-        version: 2.56.3(typescript@7.0.2)(zod@4.6.7)
-    devDependencies:
-      vitest:
-        specifier: 4.1.11
-        version: 4.1.11(@types/node@24.13.3)(@vitest/browser-preview@4.1.11)(esbuild@0.28.2)(happy-dom@20.14.0)(jiti@2.7.0)(tsx@4.23.13)(typescript@7.0.2)(yaml@2.9.1)
-
   packages/styles: {}
 
   packages/ui:
@@ -405,6 +405,9 @@ importers:
       hono:
         specifier: ^4.13.16
         version: 4.13.16
+      jsqr:
+        specifier: 1.4.0
+        version: 1.4.0
       solid-js:
         specifier: 1.9.17
         version: 1.9.17
@@ -4798,6 +4801,9 @@ packages:
 
   jsonc-parser@3.3.1:
     resolution: {integrity: sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==}
+
+  jsqr@1.4.0:
+    resolution: {integrity: sha512-dxLob7q65Xg2DvstYkRpkYtmKm2sPJ9oFhrhmudT1dZvNFFTlroai3AWSpLey/w5vMcLBXRgOJsbXpdN9HzU/A==}
 
   kind-of@6.0.3:
     resolution: {integrity: sha512-dcS1ul+9tmeD95T+x28/ehLgd9mENa3LsvDTtzm3vyBEO7RPptvAD+t44WVXaUjTBRcrpFeFlC8WCruUR456hw==}
@@ -9484,6 +9490,8 @@ snapshots:
   json5@2.2.3: {}
 
   jsonc-parser@3.3.1: {}
+
+  jsqr@1.4.0: {}
 
   kind-of@6.0.3: {}
 

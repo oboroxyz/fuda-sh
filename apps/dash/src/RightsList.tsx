@@ -21,9 +21,6 @@ const qrPanelId = (layout: RightsLayout, uid: string): string => `right-${layout
 const shortenedUid = (uid: string): string => `${uid.slice(0, 10)}…`
 
 const levelLabel = (copy: DashCopy['rights'], row: MemberRowView): string => {
-  if (row.level === 'private') {
-    return copy.private
-  }
   if (row.level === 'signed') {
     return copy.signed
   }
@@ -55,11 +52,8 @@ const humanBadge = (copy: DashCopy['rights'], row: MemberRowView): JSX.Element =
     <span class="opacity-50">—</span>
   )
 
-const passLinks = (copy: DashCopy['rights'], row: MemberRowView): JSX.Element => {
-  if (row.passUrls === null) {
-    return <span class="opacity-50">—</span>
-  }
-  return (
+const passLinks = (copy: DashCopy['rights'], row: MemberRowView): JSX.Element =>
+  row.passUrls === null ? null : (
     <span class="dash-actions text-xs">
       <a class="link" href={row.passUrls.web} target="_blank" rel="noreferrer">
         {copy.web}
@@ -72,7 +66,6 @@ const passLinks = (copy: DashCopy['rights'], row: MemberRowView): JSX.Element =>
       </a>
     </span>
   )
-}
 
 const uidDisplay = (row: MemberRowView): JSX.Element => (
   <code class="text-xs" title={row.uid}>
@@ -87,7 +80,7 @@ const qrDisclosure = (
   openQr: string | null,
   row: MemberRowView,
 ): JSX.Element | null =>
-  openQr === row.uid ? (
+  openQr === row.uid && row.qr !== null ? (
     <div id={qrPanelId(layout, row.uid)} class="pt-3">
       <QrBlock label={copy.qrLabel} qr={row.qr} />
     </div>
@@ -97,17 +90,19 @@ const actions = (props: RightsListProps, layout: RightsLayout, row: MemberRowVie
   const qrOpen = (): boolean => props.openQr === row.uid
   return (
     <div class="dash-actions">
-      <button
-        type="button"
-        class="btn btn-xs"
-        aria-controls={qrPanelId(layout, row.uid)}
-        aria-expanded={qrOpen()}
-        onClick={() => {
-          props.onToggleQr(row.uid)
-        }}
-      >
-        {qrOpen() ? props.copy.hideQr : props.copy.qr}
-      </button>
+      {row.qr === null ? null : (
+        <button
+          type="button"
+          class="btn btn-xs"
+          aria-controls={qrPanelId(layout, row.uid)}
+          aria-expanded={qrOpen()}
+          onClick={() => {
+            props.onToggleQr(row.uid)
+          }}
+        >
+          {qrOpen() ? props.copy.hideQr : props.copy.qr}
+        </button>
+      )}
       <button
         type="button"
         class="btn btn-xs btn-error"

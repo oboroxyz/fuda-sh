@@ -1,8 +1,6 @@
 // Shared Solid components and the renderer-independent helpers the apps use.
 // `wallet-button.ts` is also exported on its own path for apps/api, which
 // renders it on the server with `hono/html`.
-export { createQrDetector } from './barcode.ts'
-export type { BarcodeDetectorLike, DetectedBarcode } from './barcode.ts'
 export { short } from './short.ts'
 export {
   applyThemeMode,
@@ -27,6 +25,8 @@ export type {
   ThemeToggleProps,
 } from './controls.tsx'
 export { FingerprintSimple } from './FingerprintSimple.tsx'
+export { PasskeySection } from './PasskeySection.tsx'
+export type { PasskeySectionCopy } from './PasskeySection.tsx'
 export { FudaMark } from './FudaMark.tsx'
 export { IconButton } from './IconButton.tsx'
 export type { IconButtonProps } from './IconButton.tsx'

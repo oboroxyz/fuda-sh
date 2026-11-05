@@ -28,6 +28,8 @@ const EN = {
       failed: 'The service could not be reached. Try again.',
       invalid: 'This is not a backup of a pass.',
       restored: 'The pass is back. You will find it under Your passes.',
+      restoredPasskey:
+        'The pass is back in your list, but entering still takes the passkey that claimed it. If that passkey is gone, ask the shop for a new pass.',
     },
     title: 'Restore a pass',
   },
@@ -45,7 +47,6 @@ const EN = {
   },
   nav: {
     label: 'Member navigation',
-    private: '+Private',
     rights: 'Your passes',
     settings: 'Settings',
     signed: 'Enter',
@@ -55,6 +56,7 @@ const EN = {
     address: 'Holder address',
     browserWallet: 'Use browser wallet',
     connectionFailed: 'Could not connect wallet.',
+    enter: 'Enter',
     // the member number's label on a venue card, by card type
     holder: { membership: 'MEMBER', ticket: 'TICKET' },
     idle: 'Enter a holder address to read its on-chain rights.',
@@ -68,9 +70,9 @@ const EN = {
     noPasses: 'No passes found yet.',
     noRights: 'No rights found for this holder.',
     pass: 'Pass',
+    passkeyPass:
+      'This pass opens only with your passkey, so it has no code to show and cannot go in a Wallet app. A backup keeps its record but cannot be used to enter. If you lose the passkey, ask the shop for a new pass.',
     placeholder: '0x… holder address',
-    privateNotice: 'This is a +Private pass. Open Private rights to recover it.',
-    privateRights: 'Private rights',
     recoveryFailed: 'Could not recover this pass:',
     revoked: 'REVOKED',
     saveBackup: 'Save a backup',
@@ -87,26 +89,53 @@ const EN = {
   },
   passkeys: {
     add: 'Add a passkey',
+    addKeepsSecret:
+      'Your device will ask you to open your sensitive passes, confirm adding a passkey with an existing one, and save the new passkey. One more confirmation may be needed to let the new passkey open them too.',
+    addedWithoutCopy:
+      'The new passkey was added and you can sign in with it. It cannot open sensitive passes, because the app that saved it does not support that.',
     adding: 'Adding…',
     cancel: 'Keep it',
+    cannotOpenSensitive: 'Cannot open sensitive passes',
     created: 'Added {date}',
     failures: {
       cancelled: 'No passkey was added. You can try again.',
       limit: 'This account already has the most passkeys it can hold. Remove one first.',
       network: 'The service could not be reached. Try again.',
       rejected: 'That passkey was not accepted. Try again.',
-      remove: 'That passkey could not be removed. An account must keep at least one.',
+      remove:
+        'That passkey could not be removed. An account must keep at least one, and at least one that opens sensitive passes.',
       unavailable: 'This is not available right now. Try again later.',
     },
     hint: 'On a new phone, sign in with your current passkey, then add one here. Moving between iPhone and Android needs this, because passkeys do not sync across them. A passkey in a second place, such as another password manager or a security key, keeps you signed in if you lose your Apple or Google account.',
     loadFailed: 'Could not load your passkeys.',
     name: 'Passkey {number}',
+    opensSensitive: 'Opens sensitive passes',
     remove: 'Remove',
     removeTitle: 'Remove this passkey?',
     removeWarning:
       'You will no longer be able to sign in with it. Remove it if the device is lost or no longer yours.',
     synced: 'synced',
     title: 'Passkeys',
+  },
+  sensitive: {
+    empty: 'No sensitive passes yet.',
+    enter: 'Enter',
+    failed: 'The list could not be opened. Try again.',
+    hint: 'These passes are not listed on your account where anyone else can read them. Your passkey opens the list, on this device only. If you lose every passkey that opens them, ask the shop or organization for a new pass.',
+    keepThem: 'Keep them',
+    notOpened: 'The list was not opened. Use a passkey that opens sensitive passes, on a device that has it.',
+    open: 'Show with your passkey',
+    opening: 'Opening…',
+    startOver: 'Start over',
+    startOverDone:
+      'Done. Ask each shop or organization for a new pass, then get it again from its card page.',
+    startOverFailed: 'That did not work. Try again.',
+    startOverHint:
+      'Cannot open them? Confirm with a passkey on this account to start over. If you have no account passkey left, create a new account.',
+    startOverTitle: 'Start over?',
+    startOverWarning:
+      'This removes the saved recovery data and keys on this device. It does not cancel old passes. A device that still has their keys can use them. To cancel a pass, ask the shop or organization. You must confirm with a passkey on this account.',
+    title: 'Sensitive passes',
   },
   settings: {
     appearance: 'Appearance',
@@ -150,6 +179,8 @@ export const MEMBER_COPY = {
         failed: 'サービスに接続できませんでした。もう一度お試しください。',
         invalid: 'パスの控えではありません。',
         restored: 'パスを戻しました。パス一覧に表示されます。',
+        restoredPasskey:
+          'パスを一覧に戻しました。入場には受け取ったときのパスキーが必要です。パスキーがなくなった場合は、お店で新しいパスを発行してもらってください。',
       },
       title: 'パスを戻す',
     },
@@ -167,7 +198,6 @@ export const MEMBER_COPY = {
     },
     nav: {
       label: 'メンバーメニュー',
-      private: '+Private',
       rights: 'あなたのパス',
       settings: '設定',
       signed: '入場',
@@ -177,6 +207,7 @@ export const MEMBER_COPY = {
       address: '保有者のアドレス',
       browserWallet: 'ブラウザのウォレットを使う',
       connectionFailed: 'ウォレットに接続できませんでした。',
+      enter: '入場する',
       holder: { membership: '会員', ticket: 'チケット' },
       idle: '保有者のアドレスを入力すると、オンチェーンの権利を確認できます。',
       indexUnavailable: '一覧を取得できないため、この端末に保存したパスを表示しています。',
@@ -189,9 +220,9 @@ export const MEMBER_COPY = {
       noPasses: 'パスはまだありません。',
       noRights: 'このアドレスの権利は見つかりませんでした。',
       pass: 'パス',
+      passkeyPass:
+        'このパスはパスキーでのみ使えます。提示するコードはなく、Wallet アプリにも追加できません。控えには記録が残りますが、控えだけでは入場できません。パスキーをなくした場合は、お店で新しいパスを発行してもらってください。',
       placeholder: '0x… 保有者のアドレス',
-      privateNotice: 'これは +Private のパスです。+Private を開いて復元してください。',
-      privateRights: '+Private を開く',
       recoveryFailed: 'パスを復元できませんでした：',
       revoked: '失効',
       saveBackup: '控えを保存',
@@ -208,26 +239,53 @@ export const MEMBER_COPY = {
     },
     passkeys: {
       add: 'パスキーを追加',
+      addKeepsSecret:
+        '機密パスを開き、登録済みのパスキーで追加を確認した後、新しいパスキーを保存します。新しいパスキーで機密パスを開けるようにするため、さらに確認が必要な場合があります。',
+      addedWithoutCopy:
+        '新しいパスキーを追加しました。サインインには使えますが、保存先のアプリが対応していないため、機密パスは開けません。',
       adding: '追加中…',
       cancel: '残す',
+      cannotOpenSensitive: '機密パスは開けません',
       created: '{date} に追加',
       failures: {
         cancelled: 'パスキーは追加されませんでした。もう一度お試しください。',
         limit: 'このアカウントのパスキーは上限に達しています。先に1つ削除してください。',
         network: 'サービスに接続できませんでした。もう一度お試しください。',
         rejected: 'このパスキーは受け付けられませんでした。もう一度お試しください。',
-        remove: 'このパスキーは削除できませんでした。アカウントには最低1つ必要です。',
+        remove:
+          'このパスキーは削除できませんでした。アカウントには最低1つ、機密パスを開けるものも最低1つ必要です。',
         unavailable: '現在ご利用いただけません。しばらくしてからお試しください。',
       },
       hint: '新しいスマホでは、今のパスキーでサインインしてから、ここで追加します。iPhone と Android の間ではパスキーが同期されないので、この操作が必要です。別のパスワード管理アプリやセキュリティキーにも追加しておくと、Apple や Google のアカウントを失ってもサインインできます。',
       loadFailed: 'パスキーを読み込めませんでした。',
       name: 'パスキー {number}',
+      opensSensitive: '機密パスを開けます',
       remove: '削除',
       removeTitle: 'このパスキーを削除しますか？',
       removeWarning:
         '削除すると、このパスキーではサインインできなくなります。端末をなくしたときや手放すときに削除してください。',
       synced: '同期あり',
       title: 'パスキー',
+    },
+    sensitive: {
+      empty: '機密パスはまだありません。',
+      enter: '入場する',
+      failed: '一覧を開けませんでした。もう一度お試しください。',
+      hint: 'これらのパスは、他の人が読める形ではアカウントに保存されていません。一覧はパスキーを使って、この端末の中でだけ開きます。開けるパスキーをすべてなくした場合は、お店や組織で新しいパスを発行してもらってください。',
+      keepThem: '残す',
+      notOpened: '一覧を開けませんでした。機密パスを開けるパスキーを、それがある端末で使ってください。',
+      open: 'パスキーで表示',
+      opening: '開いています…',
+      startOver: 'やり直す',
+      startOverDone:
+        '完了しました。お店や組織に新しいパスの発行を依頼し、カードのページから受け取り直してください。',
+      startOverFailed: 'できませんでした。もう一度お試しください。',
+      startOverHint:
+        '開けない場合は、このアカウントのパスキーで確認してやり直せます。アカウントのパスキーも残っていない場合は、新しいアカウントを作成してください。',
+      startOverTitle: 'やり直しますか？',
+      startOverWarning:
+        '保存済みの復元データと、この端末の鍵を削除します。以前のパスは無効にはなりません。鍵が残っている端末では引き続き使えます。パスの無効化はお店や組織に依頼してください。このアカウントのパスキーで確認する必要があります。',
+      title: '機密パス',
     },
     settings: {
       appearance: '表示',
@@ -261,4 +319,5 @@ export const PASS_REASON_JA = {
   REVOKED: '失効',
   UNKNOWN_USAGE_MODEL: '対応していない利用形式です',
   WRONG_SCHEMA: '対応していない形式です',
+  WRONG_VENUE: 'この発行元のパスではありません',
 } satisfies Record<Reason, string>

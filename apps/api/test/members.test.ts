@@ -47,7 +47,7 @@ describe('GET /members', () => {
           attestationUid: `0x${'02'.repeat(32)}`,
           createdAt: NOW,
           holder: null,
-          level: 'private',
+          level: 'bearer',
           memberId: '',
           status: 'active',
           tier: 2,
@@ -74,7 +74,7 @@ describe('GET /members', () => {
     expect(body.members[0]).toStrictEqual({
       createdAt: NOW,
       holder: null,
-      level: 'private',
+      level: 'bearer',
       memberId: '',
       status: 'active',
       tier: 2,

@@ -180,7 +180,7 @@ describe('venue registration and details', () => {
               copy={input.copy.ens}
               name="coffee.fuda.eth"
               onClaim={onClaim}
-              ownerAddress={input.issuer!.operatorAddress}
+              ownerAddress={input.issuer?.operatorAddress ?? null}
               state={
                 claimed
                   ? { claimTxHash: null, kind: 'claimed', name: 'coffee.fuda.eth' }

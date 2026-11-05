@@ -4,6 +4,7 @@ import type { MemberSession, OperatorSession } from './auth/session.ts'
 import type { ChainClient } from './chain/client.ts'
 import type { AccessGrant } from './connected-apps/store.ts'
 import type { Db } from './db/client.ts'
+import type { ApplePushSender } from './pass/apple-push.ts'
 import type { AdmitHook } from './verify/admit.ts'
 
 export interface Bindings {
@@ -13,19 +14,20 @@ export interface Bindings {
   MEDIA_BUCKET?: R2Bucket
   ADMIN_TOKEN?: string
   SIGNER_PRIVATE_KEY?: string
+  OFFCHAIN_RETIRED_SIGNERS?: string
   BASE_RPC_URL?: string
+  CHAIN_ID?: string
   EAS_ADDRESS: string
   // The contract's own version() on this chain; offchain signatures commit to it.
   EAS_VERSION: string
   SCHEMA_REGISTRY_ADDRESS: string
-  ANNOUNCER_ADDRESS: string
   FACTORY_ADDRESS: string
   EAS_SCHEMAS: string
   ISSUER_ADDRESS: string
   DELEGATION_UID: string
   API_BASE_URL: string
   // The passkey relying party: the domain passkeys belong to, and the comma-separated
-  // origins allowed to use them. Changing the domain orphans every member passkey.
+  // origins allowed to use them. Changing the domain orphans every passkey.
   WEBAUTHN_RP_ID: string
   WEBAUTHN_ORIGINS: string
   // The member-facing origin a published card links to: `https://fuda.sh` in
@@ -44,6 +46,13 @@ export interface Bindings {
   APPLE_CERT_PEM?: string
   APPLE_KEY_PEM?: string
   APPLE_WWDR_PEM?: string
+  // Unset, installed passes stay snapshots. Set, pass.json names the Wallet web service
+  // (docs/specs/pass-types-and-flows.md#apple-wallet-updates).
+  APPLE_WEB_SERVICE_SECRET?: string
+  // The mTLS binding that holds the Pass Type ID certificate, which is what APNs
+  // authenticates a pass update by. Absent, nothing is pushed and the web service still
+  // answers, so a member can pull to refresh.
+  APPLE_PUSH_CERT?: Pick<Fetcher, 'fetch'>
   // ENS transport is disabled unless all four names are configured. The two
   // keys are Worker secrets; parent and resolver allowlist are plain bindings.
   ENS_GATEWAY_SECRET?: string
@@ -67,12 +76,17 @@ export interface Bindings {
   WORLD_RP_ID?: string
   WORLD_ACTION?: string
   WORLD_RP_SIGNING_KEY?: string
+  // Cloudflare Turnstile secret for the public claim route. Unset, the bot check
+  // is skipped (docs/specs/pass-types-and-flows.md#claim-bot-check).
+  TURNSTILE_SECRET_KEY?: string
 }
 
 export interface Variables {
   // The venue a request is acting for, or null for fuda's own admin token.
   // Set by operatorOrAdmin() on the routes that serve both.
   actingIssuer: string | null
+  // null without the APPLE_PUSH_CERT binding: nothing is pushed
+  applePush: ApplePushSender | null
   chain: ChainClient
   // set by connectedAppAuth(): the approval behind a connected app's access
   // token, bound to one issuer (docs/specs/connected-apps.md)

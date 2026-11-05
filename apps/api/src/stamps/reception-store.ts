@@ -13,7 +13,7 @@ interface ReceptionInput {
   issuerId: string
   uid: Hex
   now: number
-  operatorAddress: string
+  operatorKey: string
   singleUse: boolean
   verdict: VerifyResponse
 }
@@ -23,7 +23,7 @@ interface ReceptionInput {
 // reception_id also protects simultaneous retries. Each statement binds <100
 // values regardless of the configured daily limit.
 export const recordReception = async (binding: D1Database, db: Db, input: ReceptionInput) => {
-  const { id, issuerId, uid, now, operatorAddress, singleUse, verdict } = input
+  const { id, issuerId, uid, now, operatorKey, singleUse, verdict } = input
   const day = japanDay(now)
   const results = await binding.batch([
     binding
@@ -59,11 +59,12 @@ export const recordReception = async (binding: D1Database, db: Db, input: Recept
       WHERE e.reception_id = ?2 AND e.decision = 'ADMIT'
         AND NOT EXISTS (SELECT 1 FROM reception_requests WHERE id = ?2)
         AND COALESCE(s.enabled, 0) = 1
+        AND c.identity != 'sensitive'
         AND (SELECT COUNT(*) FROM stamp_credits WHERE issuer_id = ?1 AND uid = e.uid AND day = ?3)
           < COALESCE(s.daily_limit, 1)
       ON CONFLICT (entry_log_id) DO NOTHING
     `)
-      .bind(issuerId, id, day, now, operatorAddress),
+      .bind(issuerId, id, day, now, operatorKey),
     binding
       .prepare(`
       INSERT INTO reception_requests (id, issuer_id, uid, entry_log_id, response)
@@ -75,13 +76,14 @@ export const recordReception = async (binding: D1Database, db: Db, input: Recept
               WHEN EXISTS (SELECT 1 FROM stamp_credits WHERE entry_log_id = e.id) THEN 'awarded'
               WHEN COALESCE(s.enabled, 0) = 0 THEN 'disabled'
               ELSE 'daily_limit' END,
-            'summary', CASE WHEN ?5 = 1 THEN NULL ELSE json_object(
+            'summary', json_object(
               'enabled', json(CASE WHEN COALESCE(s.enabled, 0) = 1 THEN 'true' ELSE 'false' END),
               'dailyLimit', COALESCE(s.daily_limit, 1),
               'goal', COALESCE(s.goal, 10),
-              'total', (SELECT COUNT(*) FROM stamp_credits WHERE issuer_id = ?2 AND uid = e.uid),
+              'total', (SELECT COUNT(*) FROM stamp_credits WHERE issuer_id = ?2 AND uid = e.uid)
+                + (SELECT COALESCE(SUM(delta), 0) FROM stamp_adjustments WHERE issuer_id = ?2 AND uid = e.uid),
               'today', (SELECT COUNT(*) FROM stamp_credits WHERE issuer_id = ?2 AND uid = e.uid AND day = ?4)
-            ) END))
+            )))
       FROM entry_log e
       LEFT JOIN members m ON m.attestation_uid = e.uid AND m.issuer_id = ?2
       LEFT JOIN cards c ON c.id = m.card_id AND c.issuer_id = ?2
@@ -89,7 +91,16 @@ export const recordReception = async (binding: D1Database, db: Db, input: Recept
       WHERE e.reception_id = ?1
       ON CONFLICT (id) DO NOTHING
     `)
-      .bind(id, issuerId, JSON.stringify(verdict), day, verdict.entitlement?.level === 2 ? 1 : 0),
+      .bind(id, issuerId, JSON.stringify(verdict), day),
+    binding
+      .prepare(`
+      UPDATE entry_log SET decision = NULL, reason = NULL, path = NULL, reception_id = NULL
+      WHERE reception_id = ?1 AND uid IN (
+        SELECT m.attestation_uid FROM members m JOIN cards c ON c.id = m.card_id
+        WHERE c.identity = 'sensitive'
+      )
+    `)
+      .bind(id),
   ])
   const receipt = await readReception(db, id)
   if (receipt === undefined) {

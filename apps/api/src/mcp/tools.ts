@@ -2,6 +2,7 @@ import {
   CARD_CAPACITY_MAX,
   CardBody,
   CARD_CATEGORIES,
+  CARD_IDENTITIES,
   CARD_RECORDS,
   ClaimSource,
   isOrderedWindow,
@@ -55,6 +56,7 @@ export const issuerOf = async (db: Db, issuerId: string): Promise<typeof issuers
 
 const toolCard = ({ c, issuer }: ToolContext, row: typeof cards.$inferSelect) => ({
   ...cardView(row, c.get('now')()),
+  attendance: row.attendance !== 0,
   capacity: row.capacity,
   claimUrl: `${publicUrlFor(c.env.PUBLIC_BASE_URL, issuer.handle)}/${row.slug}`,
   issued: row.reserved,
@@ -135,6 +137,11 @@ export const MCP_TOOLS: readonly McpTool[] = [
     inputSchema: {
       type: 'object',
       properties: {
+        attendance: {
+          type: 'boolean',
+          description:
+            "Whether each scan writes a public Attendance record on chain, which is permanent. Only for record 'onchain', where a ticket defaults to true and a membership to false; setting it on an off-chain card is refused.",
+        },
         category: { type: 'string', enum: CARD_CATEGORIES },
         capacity: capacitySchema,
         title: { type: 'string', minLength: 1, maxLength: 60 },
@@ -149,6 +156,12 @@ export const MCP_TOOLS: readonly McpTool[] = [
           enum: CARD_RECORDS,
           description:
             "Where this card's passes are recorded, fixed once created. 'offchain' (the default) issues at once with no public record per pass; 'onchain' publishes each pass.",
+        },
+        identity: {
+          type: 'string',
+          enum: CARD_IDENTITIES,
+          description:
+            "Who can use this card's passes, fixed once created. 'none' (the default) means whoever shows one. 'passkey' binds each pass to the passkey of the person who claimed it, so a copied QR does not admit. 'sensitive' goes further for employee badges and privacy-sensitive memberships: each pass has its own key, so a person is not linkable across venues, with no Wallet pass, QR, backup file, Stamps or integrations, and it rejects while the chain cannot be read. Members need a passkey provider that supports PRF, such as iCloud Keychain or Google Password Manager. Both need record 'offchain', and issue_pass cannot issue either, because the holder must claim it themselves at the card's claimUrl.",
         },
         claimFrom: unixOrNull,
         claimUntil: unixOrNull,
@@ -258,7 +271,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: 'issue_pass',
     title: 'Issue pass',
     description:
-      "Issue one pass under a card, for a person you are arranging it for, and return a passUrl to give them. It works even while the card's claim window is closed. Each call issues a new pass and costs on-chain gas, so do not retry after an unclear failure without checking list_passes. For flyers or posts, share the card's claimUrl instead.",
+      "Issue one pass under a card, for a person you are arranging it for, and return a passUrl to give them. It works even while the card's claim window is closed. Each call issues a new pass and costs on-chain gas, so do not retry after an unclear failure without checking list_passes. For flyers or posts, share the card's claimUrl instead. A card with identity 'passkey' or 'sensitive' answers holder_must_claim: its holder has to claim the pass themselves at the claimUrl.",
     inputSchema: {
       type: 'object',
       properties: {

@@ -1,3 +1,4 @@
+import { PAGE_COPY, pick } from '@fuda/i18n'
 import { apiOriginFor } from '@fuda/libs/worker'
 import { themeScript } from '@fuda/ui/theme'
 import { defineMiddleware } from 'void'
@@ -44,9 +45,17 @@ export default defineMiddleware(async (c, next) => {
   c.set('requestUrl', url)
   c.set('token', outcome.token)
   c.set('shared', outcome.shared)
+  const page = pick(PAGE_COPY, outcome.shared.locale)
   c.set('headDefaults', {
     htmlAttrs: { lang: outcome.shared.locale },
+    meta: [
+      { content: page.description, name: 'description' },
+      { content: page.appTitle, property: 'og:title' },
+      { content: page.description, property: 'og:description' },
+      { content: page.ogLocale, property: 'og:locale' },
+    ],
     script: [{ innerHTML: themeScript(outcome.shared.theme) }],
+    title: page.appTitle,
   })
   await next()
 })

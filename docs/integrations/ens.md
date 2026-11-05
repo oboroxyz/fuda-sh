@@ -1,10 +1,10 @@
 # ENS in fuda
 
-**What fuda does.** A membership, a ticket or an event badge becomes a revocable on-chain record: a venue issues a right, a standard pass goes to Apple Wallet, Google Wallet or a browser, and the hosted scanner asks the fuda API to check EAS and enforce admission state in D1. +Private uses the member app's discovery and signature flow instead.
+**What fuda does.** A membership, a ticket or an event badge becomes a revocable on-chain record: a venue issues a right, a standard pass goes to Apple Wallet, Google Wallet or a browser, and the hosted scanner asks the fuda API to check EAS and enforce admission state in D1.
 
 **Where ENS sits.** It names the two parties of that relationship — the venue that issues a right and the member number printed on the pass — and nothing else. **ENS names the relationship; EAS proves the right.** No admission path calls ENS. A name is a display and destination layer, never an authority.
 
-**Why two kinds of name.** A venue's name is an entry it **owns onchain** in fuda's own ENSv2 User Registry, claimed with its own transaction. A member's name is written **offchain and free** as a best-effort side effect of standard issuance, so people who will never hold an ENS key still get an addressable credential. Private issuance is not yet connected to this name-writing flow.
+**Why two kinds of name.** A venue's name is an entry it **owns onchain** in fuda's own ENSv2 User Registry, claimed with its own transaction. A member's name is written **offchain and free** as a best-effort side effect of standard issuance, so people who will never hold an ENS key still get an addressable credential.
 
 Built on the **ETHOnline 2026 ENSv2 beta deployment on Ethereum Sepolia**, not production ENS.
 
@@ -22,7 +22,7 @@ flowchart LR
 
     subgraph api["api.fuda.sh"]
         GW["POST /ens/gateway<br/>EIP-3668, signed answers"]
-        D1[("D1 · ens_names<br/>stealth_resolutions")]
+        D1[("D1 · ens_names")]
     end
 
     CLIENT --> UR --> RES
@@ -51,8 +51,6 @@ Deeper background: [naming spec](../specs/ens-naming.md) · [why one shared hybr
 | Transferable | no (role bitmap `0`) | n/a |
 
 A venue's public handle **is** its ENS label: the same `isIssuerHandle` grammar validates both. A member number is 12 random characters from a 28-character confusable-free alphabet plus a Luhn mod 28 check character, so it reveals no issue order and no member count.
-
-**+Private.** The gateway can allocate a **fresh stealth address per query** from a stored stealth meta-address and a per-name counter, signed with a short expiry, `no-store`, without publishing an ERC-5564 Announcement. This rotates the returned address; it does not conceal the queried name from the gateway. Today private rights are issued through the admin API without a member-name mirror write, so the live evidence in [Live +Private name resolution](#live-private-name-resolution) uses a manually provisioned mirror row for an existing right. Automated private name creation remains unconnected.
 
 ## What was built
 
@@ -115,7 +113,7 @@ The nonce is consumed before the registry call, so a revert rolls everything bac
 
 [`apps/api/src/ens/`](../../apps/api/src/ens)
 
-`POST /ens/gateway` is the EIP-3668 endpoint: it decodes the request, checks the `addr` selector and node, looks the name up in the `ens_names` mirror (a never-claimed venue name in `issuers`, answering with the operator's wallet), and signs the answer over `0x1900 ‖ resolver ‖ expires ‖ keccak(request) ‖ keccak(result)`. [`mirror.ts`](../../apps/api/src/ens/mirror.ts) writes member names after standard issuance, venue names on the claim path, and darkening on revoke. Member-name writes and darkening are best-effort: they never fail the underlying issuance or revocation, and the mirror may remain missing or stale. [`resolution.ts`](../../apps/api/src/ens/resolution.ts) advances private resolution counters and records allocations in `stealth_resolutions`.
+`POST /ens/gateway` is the EIP-3668 endpoint: it decodes the request, checks the `addr` selector and node, looks the name up in the `ens_names` mirror (a never-claimed venue name in `issuers`, answering with the operator's wallet), and signs the answer over `0x1900 ‖ resolver ‖ expires ‖ keccak(request) ‖ keccak(result)`. [`mirror.ts`](../../apps/api/src/ens/mirror.ts) writes member names after standard issuance, venue names on the claim path, and darkening on revoke. Member-name writes and darkening are best-effort: they never fail the underlying issuance or revocation, and the mirror may remain missing or stale.
 
 ## On the product's path
 
@@ -125,7 +123,7 @@ The nonce is consumed before the registry call, so a revert rolls everything bac
 | Standard card issuance | Writes the member's name into the mirror, best-effort |
 | Revoke | Takes that member name dark |
 | Dashboard | Shows the venue's name and runs the one-press claim |
-| **Gate** | **Never calls ENS.** Names are never shown at the gate, never logged in Entry, never included in announcements |
+| **Gate** | **Never calls ENS.** Names are never shown at the gate, never logged in Entry, never included in any public record |
 
 No fuda surface resolves a name through ENS; the dashboard prints the string the API returns. Every resolution below was done from a third-party client.
 
@@ -171,23 +169,6 @@ The voucher signer, the gateway signer and the EAS issuer key are three separate
 | Resolved by viem | `getEnsAddress({ name: 'c8hnrypq5ngpa.ethonline2026.fuda.eth' })` → `0x8cF3e1Ea8b84A1F20da47C98e02B7D9F3FE8c833`, the right's holder, via `OffchainLookup` → gateway → `resolveWithProof` |
 | Registered anywhere | No. Nobody owns this name and nobody paid for it |
 
-### Live +Private name resolution
-
-A plain viem 2.56.3 client resolved the same private member name twice through the hackathon Universal Resolver and the deployed gateway. Both answers were valid, nonzero and different.
-
-| Item | Captured value |
-| --- | --- |
-| Name | `qfkcx9h7dgnte.ethonline2026.fuda.eth` |
-| Query 1 / Query 2 | `0x3e4151d574070C956AB08a89E50FBC54AF8E7aB2` / `0x84692a5507BAc9EB3DBFB2969FAfBe6dB1585630` |
-| Sepolia block | `11695771` for both |
-| Gateway | `POST https://api.fuda.sh/ens/gateway`, HTTP 200 on both |
-| Underlying right | [`0xf9e9c1bf…fb025c`](https://base-sepolia.easscan.org/attestation/view/0xf9e9c1bf7df42097c29048b4497a857c4c8a966ef4d870c2ead1b6fbc3fb025c) on Base Sepolia, still `ADMIT` afterwards |
-| Provisioning | One manually added `ens_names` row (`level = private`) with a generated member number, the right UID and its recipient's stealth meta-address |
-| Post-check | Resolution counter `2`; allocation nonces `0` and `1` match the two addresses |
-| Implementation commit | [`9755bd9`](https://github.com/oboroxyz/fuda-sh/commit/9755bd9505077b7dc1298bff4624b75fec51c684) |
-
-**What this proves:** the deployed Universal Resolver → `FudaResolver` → gateway → `resolveWithProof` path returns rotating private addresses to an ordinary client. The two addresses are destinations allocated per query; they are not the right's EAS holder, which is unchanged. The answer is authenticated by the resolver; its content still relies on the authorized gateway signer. **What remains unconnected:** automatic creation of this name through private issuance. Repeating the two queries yields new addresses and advances the counter; it does not consume or revoke the right.
-
 ### Verify it independently
 
 Open the hackathon ENS Explorer, <https://hackathon-deployment-portal-app.ens-cf.workers.dev/>, and enter `ethonline2026.fuda.eth`: owner, resolver, role bitmap and expiry come straight from the registry. Or resolve any of the names above from your own client, below.
@@ -203,7 +184,7 @@ pnpm install --frozen-lockfile
 # TypeScript suite covering the pinned manifest, preflight and vouchers
 pnpm --filter @fuda/ens-contracts test
 
-# the gateway, the mirror, the lookup and the +Private allocation,
+# the gateway, the mirror and the lookup,
 # including hex vectors shared with the Solidity suite
 pnpm --filter api test
 ```
@@ -242,14 +223,9 @@ await client.getEnsAddress({ name: 'ethonline2026.fuda.eth' })
 
 await client.getEnsAddress({ name: 'c8hnrypq5ngpa.ethonline2026.fuda.eth' })
 // → 0x8cF3e1Ea8b84A1F20da47C98e02B7D9F3FE8c833, answered offchain
-
-const name = 'qfkcx9h7dgnte.ethonline2026.fuda.eth'
-const first = await client.getEnsAddress({ name })
-const second = await client.getEnsAddress({ name })
-// first !== second: a fresh stealth address per query
 ```
 
-Rerun the calls to establish current state; the private name will answer new addresses each time.
+Rerun the calls to establish current state.
 
 ## Source map
 
@@ -281,7 +257,6 @@ Rerun the calls to establish current state; the private name will answer new add
 | [`gateway.ts`](../../apps/api/src/ens/gateway.ts) | decode `resolve(bytes,bytes)`, check selector and node, lookup, sign |
 | [`lookup.ts`](../../apps/api/src/ens/lookup.ts) | answers only `offchain` and `claimed` rows, expiry-aware |
 | [`mirror.ts`](../../apps/api/src/ens/mirror.ts) | member names at issuance, venue names on claim, darkening on revoke |
-| [`resolution.ts`](../../apps/api/src/ens/resolution.ts) | the +Private path: counter reservation, HMAC-derived ephemeral key, ERC-5564 stealth address |
 | [`handlers/ens-claim.ts`](../../apps/api/src/handlers/ens-claim.ts) | voucher signing, receipt-confirmed recording, paymaster sponsorship |
 | [`conformance.test.ts`](../../apps/api/src/ens/conformance.test.ts) | hex vectors shared with the Solidity suite |
 

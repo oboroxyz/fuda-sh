@@ -30,7 +30,7 @@ const proofOf = async (db: Db, uid: Hex, root: string): Promise<PassBackup['proo
 export const passBackup = async (c: Context<AppEnv>, uid: Hex, holder: Hex | null): Promise<PassBackup> => {
   const db = c.get('db')
   const member = await db
-    .select({ handle: issuers.handle, memberId: members.memberId, slug: cards.slug })
+    .select({ handle: issuers.handle, level: members.level, memberId: members.memberId, slug: cards.slug })
     .from(members)
     .leftJoin(cards, eq(cards.id, members.cardId))
     .leftJoin(issuers, eq(issuers.id, cards.issuerId))
@@ -44,6 +44,7 @@ export const passBackup = async (c: Context<AppEnv>, uid: Hex, holder: Hex | nul
     handle,
     holder: holder ?? ZERO_ADDRESS,
     memberNumber: member?.memberId ?? '',
+    passkey: member?.level === 'signed' && holder === null,
     proof: offchain?.root === null || offchain === undefined ? null : await proofOf(db, uid, offchain.root),
     qr: toQr(uid),
     restoreUrl: handle === null ? null : restoreUrl(c.env.PUBLIC_BASE_URL, handle, slug ?? '', uid),

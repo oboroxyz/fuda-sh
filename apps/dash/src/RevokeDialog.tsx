@@ -83,7 +83,10 @@ export const RevokeDialog = (props: RevokeDialogProps): JSX.Element => {
           </div>
         )}
         {props.error === null ? null : (
-          <p role="alert" class="alert alert-error mt-4">{`${props.copy.errorPrefix}: ${props.error}`}</p>
+          <p
+            role="alert"
+            class="alert alert-error mt-4"
+          >{`${props.copy.errorPrefix}: ${props.copy.errorMessage(props.error)}`}</p>
         )}
         <p role="status" aria-live="polite" class="sr-only">
           {props.busy ? props.copy.revoking : ''}

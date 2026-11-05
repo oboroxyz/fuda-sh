@@ -1,9 +1,11 @@
 import { AUTH_COPY } from '@fuda/i18n'
 import type { Copy } from '@fuda/i18n'
+import type { PasskeySectionCopy } from '@fuda/ui'
 
 import { APPS_COPY } from './apps-copy.ts'
 import type { AppsCopy } from './apps-copy.ts'
 import type { BrandColorName } from './brand-colors.ts'
+import { dashMessage } from './error-copy.ts'
 import { MANAGEMENT_COPY } from './management-copy.ts'
 import type { ManagementCopy } from './management-copy.ts'
 
@@ -42,6 +44,12 @@ export interface DashCopy {
     unauthorized: string
     passkey: string
     passkeyHint: string
+    createPasskey: string
+    creating: string
+    cancel: string
+    wallet: string
+    walletHint: string
+    signingInWallet: string
     adminSection: string
     signingIn: string
     restoring: string
@@ -51,8 +59,9 @@ export interface DashCopy {
     signOutTitle: string
     signOutDescription: string
     cancelSignOut: string
-    failures: { network: string; rejected: string; unavailable: string; wallet: string }
+    failures: { cancelled: string; network: string; rejected: string; unavailable: string; wallet: string }
   }
+  passkeys: PasskeySectionCopy
   logo: {
     label: string
     change: string
@@ -122,6 +131,37 @@ export interface DashCopy {
     retry: string
     failures: { network: string; rejected: string; notFound: string; badQr: string; badInput: string }
     stamp: { awarded: string; daily_limit: string; disabled: string; not_admitted: string }
+    card: {
+      balance: string
+      full: string
+      giveReward: string
+      confirmReward: string
+      confirmRewardHint: (goal: number) => string
+      cancel: string
+      adjust: string
+      adjustHint: string
+      amountLabel: string
+      amountPlaceholder: string
+      reasonLabel: string
+      reasonPlaceholder: string
+      save: string
+      working: string
+      retry: string
+      historyTitle: string
+      historyEmpty: string
+      historyReward: string
+      historyAdjust: string
+      done: { reward: string; adjust: string }
+      failures: {
+        network: string
+        notFull: string
+        belowZero: string
+        revoked: string
+        disabled: string
+        badAmount: string
+        generic: string
+      }
+    }
   }
   designer: {
     title: string
@@ -150,6 +190,14 @@ export interface DashCopy {
     recordOffchain: string
     recordOnchain: string
     recordHint: string
+    identityLabel: string
+    identityNone: string
+    identityPasskey: string
+    identityHint: string
+    identitySensitive: string
+    identitySensitiveHint: string
+    attendanceLabel: string
+    attendanceHint: string
     cardDescriptionLabel: string
     cardDescriptionPlaceholder: string
     cardDescriptionHint: string
@@ -208,6 +256,7 @@ export interface DashCopy {
     title: string
     description: string
     claim: string
+    walletRequired: string
     retry: string
     signing: string
     submitting: string
@@ -271,6 +320,7 @@ export interface DashCopy {
     unavailable: string
     configured: string
     notConfigured: string
+    errorMessage: (code: string) => string
     errorPrefix: string
     refreshing: string
     stale: string
@@ -287,7 +337,6 @@ export interface DashCopy {
     revoked: string
     bearer: string
     signed: string
-    private: string
     member: string
     holder: string
     level: string
@@ -305,6 +354,7 @@ export interface DashCopy {
     empty: string
     noMatches: string
     clearFilters: string
+    errorMessage: (code: string) => string
     errorPrefix: string
     refreshing: string
     stale: string
@@ -317,6 +367,7 @@ export interface DashCopy {
     cancel: string
     confirm: string
     revoking: string
+    errorMessage: (code: string) => string
     errorPrefix: string
   }
   issue: {
@@ -325,20 +376,15 @@ export interface DashCopy {
     levelLabel: string
     bearerDescription: string
     signedDescription: string
-    privateDescription: string
     memberId: string
-    memberIdOptional: string
     holder: string
-    stealthMetaAddress: string
     tier: string
     usageModel: string
     submit: string
     submitting: string
+    errorMessage: (code: string) => string
     errorPrefix: string
     issued: string
-    announced: string
-    memberDiscovers: string
-    transaction: string
     openPass: string
     qrLabel: string
   }
@@ -403,7 +449,14 @@ export const DASH_COPY = {
       continue: 'Continue',
       unauthorized: 'Unauthorized. Check the admin token.',
       passkey: AUTH_COPY.en.signInWithPasskey,
-      passkeyHint: 'Sign in with a passkey. Coinbase may ask for an email to recover your account.',
+      passkeyHint: 'Use the passkey on this device, or create one. You do not need an email or a wallet.',
+      createPasskey: 'Create a passkey',
+      creating: 'Creating…',
+      cancel: 'Cancel',
+      wallet: 'Sign in with a wallet',
+      walletHint:
+        'For a profile made with a wallet, and to claim an ENS name. Coinbase may ask for an email to recover your account.',
+      signingInWallet: 'Waiting for your wallet…',
       adminSection: 'Sign in with an admin token instead',
       signingIn: 'Waiting for your passkey…',
       restoring: 'Restoring your session…',
@@ -414,11 +467,35 @@ export const DASH_COPY = {
       signOutDescription: 'You will need to sign in again to use the dashboard.',
       cancelSignOut: 'Cancel',
       failures: {
+        cancelled: 'No passkey was used. You can try again, or create one if you have none.',
         network: 'Could not reach fuda. Check your connection and try again.',
-        rejected: 'That signature was not accepted. Please try again.',
+        rejected: 'That sign-in was not accepted. Please try again.',
         unavailable: 'Sign-in is unavailable right now. Please try again later.',
-        wallet: 'The passkey step was cancelled.',
+        wallet: 'The wallet step was cancelled.',
       },
+    },
+    passkeys: {
+      add: 'Add a passkey',
+      adding: 'Adding…',
+      cancel: 'Keep it',
+      created: 'Added {date}',
+      failures: {
+        cancelled: 'No passkey was added. You can try again.',
+        limit: 'This account already has the most passkeys it can hold. Remove one first.',
+        network: 'The service could not be reached. Try again.',
+        rejected: 'That passkey was not accepted. Try again.',
+        remove: 'That passkey could not be removed. An account must keep at least one.',
+        unavailable: 'This is not available right now. Try again later.',
+      },
+      hint: 'Confirm with an existing passkey, then save the new one. A passkey in a second place, such as another password manager or a security key, keeps you able to sign in if you lose this device. The same passkeys sign you in to your passes in fuda.',
+      loadFailed: 'Could not load your passkeys.',
+      name: 'Passkey {number}',
+      remove: 'Remove',
+      removeTitle: 'Remove this passkey?',
+      removeWarning:
+        'You will no longer be able to sign in with it. Remove it if the device is lost or no longer yours.',
+      synced: 'synced',
+      title: 'Passkeys',
     },
     logo: {
       label: 'Logo',
@@ -509,6 +586,37 @@ export const DASH_COPY = {
         disabled: 'Admitted · stamps are disabled',
         not_admitted: 'No stamp · admission was declined',
       },
+      card: {
+        balance: 'Stamps on this card',
+        full: 'The card is full',
+        giveReward: 'Give the reward',
+        confirmReward: 'Yes, give the reward',
+        confirmRewardHint: (goal) => `The reward is handed over and ${goal} stamps come off this card.`,
+        cancel: 'Cancel',
+        adjust: 'Adjust',
+        adjustHint: 'Fix a mistake. Use a minus number to take stamps off.',
+        amountLabel: 'Change',
+        amountPlaceholder: 'For example 2 or -1',
+        reasonLabel: 'Reason',
+        reasonPlaceholder: 'For example forgot to stamp yesterday',
+        save: 'Save change',
+        working: 'Saving…',
+        retry: 'Try again',
+        historyTitle: 'Recent changes',
+        historyEmpty: 'No rewards or changes yet.',
+        historyReward: 'Reward given',
+        historyAdjust: 'Count changed',
+        done: { reward: 'Reward recorded. Hand it over.', adjust: 'Change saved.' },
+        failures: {
+          network: 'fuda could not be reached, so this may not have been saved. Try again safely.',
+          notFull: 'The card is not full yet.',
+          belowZero: 'That would take the count below zero.',
+          revoked: 'This pass has been revoked.',
+          disabled: 'Stamps are turned off for this card.',
+          badAmount: 'Enter a whole number other than 0, up to 50, and a reason.',
+          generic: 'This could not be saved. Scan the card again and retry.',
+        },
+      },
     },
     designer: {
       title: 'Design the card',
@@ -551,6 +659,17 @@ export const DASH_COPY = {
       recordOnchain: 'Public on the blockchain',
       recordHint:
         'Private passes are issued at once and leave no public record of each pass. Public passes can be checked by anyone, take a little longer to issue, and cannot be erased. This cannot be changed later.',
+      identitySensitive: 'Sensitive use: employee badges and private memberships',
+      identitySensitiveHint:
+        'Each pass gets its own key on the member’s device, so fuda’s records do not connect one person’s passes at different places. You still see how many passes you issued and when they were used, but not who holds them. Members need a fuda account and a passkey saved in iCloud Keychain, Google Password Manager or another app with this feature; anyone else is told how to save one. There are no stamps, Wallet passes, codes, backup files, member names or integrations, and entry is refused while the chain cannot be read. If a member loses every passkey, you revoke the pass and they get a new one. This cannot be changed later.',
+      identityLabel: 'Who can use a pass',
+      identityNone: 'Anyone showing its code (recommended)',
+      identityPasskey: 'Only the person who got it, with their passkey',
+      identityHint:
+        'With a passkey, a photo of the pass does not get anyone in. People need a fuda account to get one, they enter by confirming on their own phone instead of showing a code, and it does not go in a Wallet app or earn stamps at reception. Private passes only. This cannot be changed later.',
+      attendanceLabel: 'Record each visit',
+      attendanceHint:
+        'Writes a public record on the blockchain every time this card is scanned. Anyone can see it and it cannot be erased. Tickets start with this on, memberships with it off.',
       cardDescriptionLabel: 'Description',
       cardDescriptionPlaceholder: 'Tell people what this card is for and how to use it.',
       cardDescriptionHint: 'Shown on the card’s welcome page.',
@@ -611,6 +730,8 @@ export const DASH_COPY = {
       description:
         'Claim {name} and the name is yours onchain. fuda covers the transaction fee — you never need a second wallet or any ETH.',
       claim: 'Claim this name',
+      walletRequired:
+        'An ENS name is held by a wallet, and this profile was made with a passkey, so it has none. To claim a name, sign in with a wallet and make the profile there.',
       retry: 'Try again',
       signing: 'Preparing the claim…',
       submitting: 'Confirm in your wallet…',
@@ -674,6 +795,7 @@ export const DASH_COPY = {
       unavailable: 'Unavailable',
       configured: 'Configured',
       notConfigured: 'Not configured',
+      errorMessage: (code: string) => dashMessage(code, 'en'),
       errorPrefix: 'Could not load rights',
       refreshing: 'Refreshing rights',
       stale: 'Showing last loaded values',
@@ -690,7 +812,6 @@ export const DASH_COPY = {
       revoked: 'Revoked',
       bearer: 'Bearer',
       signed: 'Signed',
-      private: '+Private',
       member: 'Member',
       holder: 'Holder',
       level: 'Level',
@@ -710,6 +831,7 @@ export const DASH_COPY = {
       empty: 'No rights have been issued.',
       noMatches: 'No rights match these filters.',
       clearFilters: 'Clear filters',
+      errorMessage: (code: string) => dashMessage(code, 'en'),
       errorPrefix: 'Could not load rights',
       refreshing: 'Refreshing rights',
       stale: 'Showing last loaded rights; their status may be out of date.',
@@ -722,28 +844,24 @@ export const DASH_COPY = {
       cancel: 'Cancel',
       confirm: 'Revoke right',
       revoking: 'Revoking',
+      errorMessage: (code: string) => dashMessage(code, 'en'),
       errorPrefix: 'Revoke failed',
     },
     issue: {
       title: 'Issue a right',
-      description: 'Create a Bearer, Signed, or +Private right.',
+      description: 'Create a Bearer or Signed right.',
       levelLabel: 'Right level',
       bearerDescription: 'Bearer — device wallet pass, no app',
       signedDescription: "Signed — the member's wallet signs at the gate",
-      privateDescription: '+Private — stealth address from a meta-address',
       memberId: 'Member ID',
-      memberIdOptional: 'Member ID (optional representative ID)',
       holder: 'Holder address',
-      stealthMetaAddress: 'Stealth meta-address',
       tier: 'Tier',
       usageModel: 'Usage model',
       submit: 'Issue right',
       submitting: 'Issuing',
+      errorMessage: (code: string) => dashMessage(code, 'en'),
       errorPrefix: 'Issue failed',
       issued: 'Issued',
-      announced: 'Announced',
-      memberDiscovers: 'The member discovers it in their app.',
-      transaction: 'Transaction',
       openPass: 'Open browser pass',
       qrLabel: 'Issued right QR',
     },
@@ -806,7 +924,14 @@ export const DASH_COPY = {
       unauthorized: '認証できませんでした。管理トークンを確認してください。',
       passkey: AUTH_COPY.ja.signInWithPasskey,
       passkeyHint:
-        'パスキーでサインインします。アカウント復旧のため、Coinbaseからメールアドレスを求められることがあります。',
+        'この端末のパスキーを使うか、新しく作成してください。メールアドレスもウォレットも要りません。',
+      createPasskey: 'パスキーを作成',
+      creating: '作成中…',
+      cancel: 'キャンセル',
+      wallet: 'ウォレットでサインイン',
+      walletHint:
+        'ウォレットで作成したプロフィールと、ENS名の取得に使います。アカウント復旧のため、Coinbaseからメールアドレスを求められることがあります。',
+      signingInWallet: 'ウォレットの操作を待っています…',
       adminSection: '管理トークンでサインインする',
       signingIn: 'パスキーの操作を待っています…',
       restoring: 'ログイン状態を確認しています…',
@@ -817,11 +942,37 @@ export const DASH_COPY = {
       signOutDescription: 'ダッシュボードを使うには、もう一度サインインしてください。',
       cancelSignOut: 'キャンセル',
       failures: {
+        cancelled:
+          'パスキーは使われませんでした。もう一度お試しいただくか、お持ちでなければ作成してください。',
         network: 'fuda に接続できませんでした。通信環境を確認して、もう一度お試しください。',
-        rejected: '署名が受け付けられませんでした。もう一度お試しください。',
+        rejected: 'サインインが受け付けられませんでした。もう一度お試しください。',
         unavailable: '現在サインインできません。しばらくしてからお試しください。',
-        wallet: 'パスキーの操作が取り消されました。',
+        wallet: 'ウォレットの操作が取り消されました。',
       },
+    },
+    passkeys: {
+      add: 'パスキーを追加',
+      adding: '追加中…',
+      cancel: '残す',
+      created: '{date} に追加',
+      failures: {
+        cancelled: 'パスキーは追加されませんでした。もう一度お試しください。',
+        limit: 'このアカウントのパスキーは上限に達しています。先に1つ削除してください。',
+        network: 'サービスに接続できませんでした。もう一度お試しください。',
+        rejected: 'このパスキーは受け付けられませんでした。もう一度お試しください。',
+        remove:
+          'このパスキーは削除できませんでした。パスキーと Sensitive の復元データは、それぞれ最低1つ必要です。',
+        unavailable: '現在ご利用いただけません。しばらくしてからお試しください。',
+      },
+      hint: '現在のパスキーで確認してから、新しいパスキーを保存します。別のパスワード管理アプリやセキュリティキーにも追加しておくと、この端末をなくしてもサインインできます。同じパスキーで fuda のパスにもサインインできます。',
+      loadFailed: 'パスキーを読み込めませんでした。',
+      name: 'パスキー {number}',
+      remove: '削除',
+      removeTitle: 'このパスキーを削除しますか？',
+      removeWarning:
+        '削除すると、このパスキーではサインインできなくなります。端末をなくしたときや手放すときに削除してください。',
+      synced: '同期あり',
+      title: 'パスキー',
     },
     logo: {
       label: 'ロゴ',
@@ -912,6 +1063,37 @@ export const DASH_COPY = {
         disabled: '入場可・スタンプは無効です',
         not_admitted: 'スタンプなし・入場できません',
       },
+      card: {
+        balance: 'このカードのスタンプ',
+        full: 'カードがいっぱいです',
+        giveReward: '特典を渡す',
+        confirmReward: '特典を渡す',
+        confirmRewardHint: (goal) => `特典をお渡ししたあと、カードから ${goal} 個のスタンプを引きます。`,
+        cancel: 'やめる',
+        adjust: '数を直す',
+        adjustHint: '押し間違いなどを直します。減らすときはマイナスの数を入れます。',
+        amountLabel: '増減',
+        amountPlaceholder: '例 2 または -1',
+        reasonLabel: '理由',
+        reasonPlaceholder: '例 昨日の押し忘れ',
+        save: '保存する',
+        working: '保存中…',
+        retry: 'もう一度',
+        historyTitle: '最近の変更',
+        historyEmpty: '特典や変更はまだありません。',
+        historyReward: '特典を渡した',
+        historyAdjust: '数を直した',
+        done: { reward: '特典を記録しました。お渡しください。', adjust: '保存しました。' },
+        failures: {
+          network: 'fuda に接続できず、保存できていない可能性があります。そのままもう一度お試しください。',
+          notFull: 'カードはまだいっぱいではありません。',
+          belowZero: '0 より少なくなるため直せません。',
+          revoked: 'このパスは取り消されています。',
+          disabled: 'このカードではスタンプが無効です。',
+          badAmount: '0 以外の整数（50 まで）と理由を入れてください。',
+          generic: '保存できませんでした。カードを読み取り直してもう一度お試しください。',
+        },
+      },
     },
     designer: {
       title: 'カードをデザイン',
@@ -954,6 +1136,17 @@ export const DASH_COPY = {
       recordOnchain: 'ブロックチェーンで公開',
       recordHint:
         '非公開のパスはすぐに発行でき、1枚ごとの公開記録が残りません。公開のパスは誰でも確認できますが、発行に少し時間がかかり、記録は消せません。あとから変更できません。',
+      identitySensitive: '機密利用: 社員証やプライバシーを守りたい会員証',
+      identitySensitiveHint:
+        'パスごとに会員の端末内で専用の鍵を作るため、同じ人の別の場所のパスが fuda の記録上で結び付きません。発行数と利用日時は確認できますが、誰が持っているかはわかりません。会員には fuda のアカウントと、iCloud キーチェーン、Google パスワード マネージャーなど、この機能に対応したアプリに保存したパスキーが必要です。対応していない場合は保存方法を案内します。スタンプ、Wallet パス、コード、控えのファイル、メンバー名、連携機能はなく、チェーンを読めない間は入場できません。パスキーをすべてなくした場合は、パスを取り消して新しいものを受け取ってもらいます。あとから変更できません。',
+      identityLabel: 'パスを使える人',
+      identityNone: 'コードを見せた人(おすすめ)',
+      identityPasskey: '受け取った本人のみ(パスキーで確認)',
+      identityHint:
+        'パスキーを使うと、パスの写真では入場できません。受け取るには fuda のアカウントが必要です。入場時はコードを見せる代わりに本人のスマートフォンで確認します。Wallet アプリには追加できず、受付でのスタンプも付きません。非公開のパスでのみ選べます。あとから変更できません。',
+      attendanceLabel: '来場を記録する',
+      attendanceHint:
+        'このカードを読み取るたびに、ブロックチェーンへ公開の記録を書き込みます。誰でも見られ、消せません。チケットは初期設定でオン、会員カードはオフです。',
       cardDescriptionLabel: '説明',
       cardDescriptionPlaceholder: 'カードの内容や利用方法を入力してください。',
       cardDescriptionHint: 'カードの受け取りページに表示されます。',
@@ -1014,6 +1207,8 @@ export const DASH_COPY = {
       description:
         '{name} を取得すると、この名前がオンチェーンであなたのものになります。手数料は fuda が負担するので、別のウォレットも ETH も要りません。',
       claim: 'この名前を取得する',
+      walletRequired:
+        'ENS名はウォレットで保持します。このプロフィールはパスキーで作成したのでウォレットがありません。名前を取得するには、ウォレットでサインインしてプロフィールを作成してください。',
       retry: 'もう一度試す',
       signing: '取得の準備をしています…',
       submitting: 'ウォレットで承認してください…',
@@ -1077,6 +1272,7 @@ export const DASH_COPY = {
       unavailable: '利用不可',
       configured: '設定済み',
       notConfigured: '未設定',
+      errorMessage: (code: string) => dashMessage(code, 'ja'),
       errorPrefix: '権利を読み込めませんでした',
       refreshing: '権利を更新中',
       stale: '最後に読み込んだ値を表示中',
@@ -1093,7 +1289,6 @@ export const DASH_COPY = {
       revoked: '取り消し済み',
       bearer: 'Bearer',
       signed: 'Signed',
-      private: '+Private',
       member: 'メンバー',
       holder: '保有者',
       level: 'レベル',
@@ -1113,6 +1308,7 @@ export const DASH_COPY = {
       empty: '発行済みの権利はありません。',
       noMatches: '条件に一致する権利はありません。',
       clearFilters: '絞り込みを解除',
+      errorMessage: (code: string) => dashMessage(code, 'ja'),
       errorPrefix: '権利を読み込めませんでした',
       refreshing: '権利を更新中',
       stale: '最後に読み込んだ権利を表示中です。ステータスは最新でない可能性があります。',
@@ -1125,28 +1321,24 @@ export const DASH_COPY = {
       cancel: 'キャンセル',
       confirm: '権利を取り消す',
       revoking: '取り消し中',
+      errorMessage: (code: string) => dashMessage(code, 'ja'),
       errorPrefix: '取り消しに失敗しました',
     },
     issue: {
       title: '権利を発行',
-      description: 'Bearer、Signed、または +Private の権利を作成します。',
+      description: 'BearerまたはSignedの権利を作成します。',
       levelLabel: '権利レベル',
       bearerDescription: 'Bearer — アプリ不要のデバイスウォレットパス',
       signedDescription: 'Signed — ゲートでメンバーのウォレットが署名',
-      privateDescription: '+Private — メタアドレスからステルスアドレスを生成',
       memberId: 'メンバー ID',
-      memberIdOptional: 'メンバー ID（任意の代表 ID）',
       holder: '保有者アドレス',
-      stealthMetaAddress: 'ステルスメタアドレス',
       tier: 'ティア',
       usageModel: '利用モデル',
       submit: '権利を発行',
       submitting: '発行中',
+      errorMessage: (code: string) => dashMessage(code, 'ja'),
       errorPrefix: '発行に失敗しました',
       issued: '発行しました',
-      announced: 'アナウンスしました',
-      memberDiscovers: 'メンバーがアプリで検出します。',
-      transaction: 'トランザクション',
       openPass: 'ブラウザパスを開く',
       qrLabel: '発行した権利の QR',
     },

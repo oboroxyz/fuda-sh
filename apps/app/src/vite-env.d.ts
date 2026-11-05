@@ -7,8 +7,10 @@ interface ViteTypeOptions {
 }
 
 interface ImportMetaEnv {
+  readonly VITE_CHAIN_ID?: string
   readonly VITE_APP_ORIGIN?: string
   readonly VITE_GRAPH_RIGHTS_ENDPOINT?: string
   readonly VITE_RP_ID?: string
   readonly VITE_STORE_PREVIEW?: string
+  readonly VITE_TURNSTILE_SITE_KEY?: string
 }

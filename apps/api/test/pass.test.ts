@@ -126,24 +126,6 @@ describe('GET /pass/:uid', () => {
     expect(junk.status).toBe(400)
   })
 
-  it('answers 404 for a private row: a +Private right has no pass', async () => {
-    const chain = fakeChain()
-    const del = seedRoot(chain)
-    const uid: Hex = `0x${'77'.repeat(32)}`
-    await db().insert(members).values({
-      attestationUid: uid,
-      createdAt: NOW,
-      holder: null,
-      level: 'private',
-      memberId: '',
-      status: 'active',
-      tier: 0,
-    })
-    const res = await appWith({ chain, now: () => NOW }).request(`/pass/${uid}`, {}, configuredEnv(del))
-    expect(res.status).toBe(404)
-    await expect(res.json()).resolves.toStrictEqual({ error: 'not_found' })
-  })
-
   it('answers 501 for the wallet platforms until they are configured', async () => {
     const chain = fakeChain()
     const del = seedRoot(chain)
@@ -334,7 +316,7 @@ describe('GET /pass/:uid/google', () => {
     // subject key, no verification time.
     const serialised = JSON.stringify(obj)
     expect(serialised).not.toContain('world')
-    expect(serialised).not.toContain('dead')
+    expect(serialised).not.toContain(`0x${'0'.repeat(60)}dead`)
   })
 
   it('is 501 when a required GOOGLE_* secret is missing', async () => {
@@ -370,30 +352,6 @@ describe('GET /pass/:uid/google', () => {
     expect([junk.status, missing.status]).toStrictEqual([400, 404])
     await expect(junk.json()).resolves.toStrictEqual({ error: 'bad_uid' })
     await expect(missing.json()).resolves.toStrictEqual({ error: 'not_found' })
-  })
-
-  // 404 precedes the platform check: a private row must never reveal whether a
-  // wallet platform is configured.
-  it('is 404 for a private row even with all four secrets set', async () => {
-    const chain = fakeChain()
-    const del = seedRoot(chain)
-    const uid: Hex = `0x${'78'.repeat(32)}`
-    await db().insert(members).values({
-      attestationUid: uid,
-      createdAt: NOW,
-      holder: null,
-      level: 'private',
-      memberId: '',
-      status: 'active',
-      tier: 0,
-    })
-    const app = appWith({ chain, now: () => NOW })
-    const env_ = await googleEnv(del)
-    const google = await app.request(`/pass/${uid}/google`, {}, env_)
-    const apple = await app.request(`/pass/${uid}/apple.pkpass`, {}, env_)
-    expect([google.status, apple.status]).toStrictEqual([404, 404])
-    await expect(google.json()).resolves.toStrictEqual({ error: 'not_found' })
-    await expect(apple.json()).resolves.toStrictEqual({ error: 'not_found' })
   })
 })
 
@@ -459,22 +417,11 @@ describe('GET /pass/:uid/card', () => {
     await expect(res.json()).resolves.toStrictEqual({ card: null })
   })
 
-  it('answers 404 for a private row and for a uid fuda never issued', async () => {
+  it('answers 404 for a uid fuda never issued', async () => {
     const chain = fakeChain()
     const del = seedRoot(chain)
-    const uid: Hex = `0x${'77'.repeat(32)}`
-    await db().insert(members).values({
-      attestationUid: uid,
-      createdAt: NOW,
-      holder: null,
-      level: 'private',
-      memberId: '',
-      status: 'active',
-      tier: 0,
-    })
     const app = appWith({ chain, now: () => NOW })
-    const hidden = await app.request(`/pass/${uid}/card`, {}, configuredEnv(del))
     const missing = await app.request(`/pass/0x${'cd'.repeat(32)}/card`, {}, configuredEnv(del))
-    expect([hidden.status, missing.status]).toStrictEqual([404, 404])
+    expect(missing.status).toBe(404)
   })
 })

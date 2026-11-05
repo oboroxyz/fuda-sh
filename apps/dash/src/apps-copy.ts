@@ -1,7 +1,10 @@
 import type { Copy } from '@fuda/i18n'
 import type { ConnectedAppScope } from '@fuda/sdk'
 
+import { dashMessage } from './error-copy.ts'
+
 export interface AppsCopy {
+  errorMessage: (code: string) => string
   title: string
   description: string
   registerTitle: string
@@ -39,6 +42,7 @@ export interface AppsCopy {
 /* oxlint-disable eslint/sort-keys -- translation objects follow the page's reading order */
 export const APPS_COPY = {
   en: {
+    errorMessage: (code: string) => dashMessage(code, 'en'),
     title: 'Apps',
     description:
       'Apps you build, for example in Figma Make, can create cards for your profile once you approve them. Only this account can approve its own apps.',
@@ -91,6 +95,7 @@ export const APPS_COPY = {
     actionFailed: 'That did not go through. Try again.',
   },
   ja: {
+    errorMessage: (code: string) => dashMessage(code, 'ja'),
     title: 'アプリ連携',
     description:
       'Figma Make などで作ったアプリは、承認するとこのプロフィールのカードを作れるようになります。承認できるのは、アプリを登録したこのアカウントだけです。',

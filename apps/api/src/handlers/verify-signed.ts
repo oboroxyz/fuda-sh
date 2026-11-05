@@ -1,21 +1,44 @@
-import { challengeMessage, isUid, normalizeNonce, normalizeUid, VerifySignedBody } from '@fuda/sdk'
-import type { VerifySignedResponse } from '@fuda/sdk'
+import {
+  LEVEL_CODE,
+  challengeMessage,
+  isUid,
+  normalizeNonce,
+  normalizeUid,
+  VerifySignedBody,
+} from '@fuda/sdk'
+import type { VerifySignedRequest, VerifySignedResponse } from '@fuda/sdk'
+import type { Context } from 'hono'
 import * as v from 'valibot'
+import { isAddressEqual, recoverMessageAddress } from 'viem'
 import type { Hex } from 'viem'
 import { defineHandler } from 'void'
 
+import { relyingParty, verifyGateAssertion } from '../auth/passkey.ts'
 import { ChainError } from '../chain/client.ts'
+import type { AttestedPasskey } from '../eas/offchain.ts'
+import type { AppEnv } from '../env.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { admitAndHook, logEntry } from '../verify/admit.ts'
 import { consumeChallenge } from '../verify/challenge.ts'
-import { resolveVerdict, waitUntilOf } from './verify.ts'
+import { resolveVerdict, venueOf, waitUntilOf } from './verify.ts'
 
 // Which of the two 4xx codes a malformed body earns: a uid that is absent or not
 // a uid at all is `bad_uid`; a well-formed uid with anything else wrong (nonce,
 // signature) is `bad_input`.
 const UidOnly = v.object({ uid: v.string() })
 
-// Challenge-response admission (docs/specs/pass-types-and-flows.md#gate-protocol). Order is the contract: chain
+// A Sensitive pass's key is a plain secp256k1 key, so this needs no chain read.
+const signedBy = async (address: Hex, message: string, signature: Hex): Promise<boolean> => {
+  try {
+    return isAddressEqual(await recoverMessageAddress({ message, signature }), address)
+  } catch {
+    return false
+  }
+}
+
+// Challenge-response admission (docs/specs/pass-types-and-flows.md#gate-protocol). An
+// Identified pass answers with its attested passkey, a Sensitive pass with its attested key,
+// and any other right with its holder's signature; any proof on another kind of right is a wrong signature. Order is the contract: chain
 // verification → consume the challenge → verify the signature → SINGLE_USE slot →
 // log → onAdmit. Consuming the challenge before checking the signature is the
 // replay protection: a wrong signature burns its nonce. Every verdict is 200 in
@@ -23,6 +46,29 @@ const UidOnly = v.object({ uid: v.string() })
 // errors are not logged. A chain failure during the signature check answers 502
 // after the challenge was consumed — the member simply fetches a new one (they
 // are 300 s, free, and cost nothing to mint).
+const proofHolds = async (
+  c: Context<AppEnv>,
+  proof: VerifySignedRequest,
+  right: { holder: Hex; holderAddress: Hex | null; message: string; passkey: AttestedPasskey | null },
+): Promise<boolean> => {
+  const { holder, holderAddress, message, passkey } = right
+  if ('webauthn' in proof) {
+    return (
+      passkey !== null && (await verifyGateAssertion(relyingParty(c.env), passkey, message, proof.webauthn))
+    )
+  }
+  if (passkey !== null) {
+    return false
+  }
+  // Annotated (not cast): SIGNATURE_RE guarantees the 0x prefix, so the template
+  // literal narrows to Hex. Case is preserved — a signature is opaque bytes.
+  const signature: Hex = `0x${proof.signature.slice(2)}`
+  if (holderAddress !== null) {
+    return await signedBy(holderAddress, message, signature)
+  }
+  return await c.get('chain').verifyMessage({ address: holder, message, signature })
+}
+
 export const postV1VerifySigned = defineHandler(async (c) => {
   const body: unknown = await c.req.json().catch(() => null)
   const parsed = v.safeParse(VerifySignedBody, body)
@@ -36,12 +82,20 @@ export const postV1VerifySigned = defineHandler(async (c) => {
   if (uid === null || nonce === null) {
     return errorResponse(c, uid === null ? 'bad_uid' : 'bad_input', 400)
   }
-  // Annotated (not cast): SIGNATURE_RE guarantees the 0x prefix, so the template
-  // literal narrows to Hex. Case is preserved — a signature is opaque bytes.
-  const signature: Hex = `0x${parsed.output.signature.slice(2)}`
   // One clock reading decides the TTL window and stamps every row this request writes.
   const now = c.get('now')()
   const db = c.get('db')
+  const { venue } = parsed.output
+  const actualVenue = await venueOf(db, uid)
+  // Only a holder's proof earns the venue's name: knowing a uid must not reveal
+  // which shop a Sensitive pass belongs to.
+  let proven = false
+  const withVenue = (verdict: VerifySignedResponse): Response => {
+    if (proven && actualVenue !== null) {
+      verdict.venue = actualVenue
+    }
+    return jsonResponse(c, verdict)
+  }
   c.header('cache-control', 'no-store')
 
   const answer = async (verdict: VerifySignedResponse): Promise<Response> => {
@@ -52,9 +106,17 @@ export const postV1VerifySigned = defineHandler(async (c) => {
       reason: verdict.reason,
       uid,
     })
-    return jsonResponse(c, verdict)
+    return withVenue(verdict)
   }
 
+  if (venue !== undefined && actualVenue !== venue) {
+    return await answer({
+      decision: 'REJECT',
+      path: 'signature',
+      reason: 'WRONG_VENUE',
+      stage: 'entitlement',
+    })
+  }
   const resolved = await resolveVerdict(c, uid, now)
   if (!resolved.ok) {
     return resolved.res
@@ -76,7 +138,18 @@ export const postV1VerifySigned = defineHandler(async (c) => {
     return await answer(verdict)
   }
   const { holder } = out.canonical
-  if (!(await consumeChallenge(db, { nonce, now, uid }))) {
+  // A right on chain at a level fuda no longer issues (level 2, once +Private) is
+  // read like any other and then refused, before its challenge is spent.
+  if (out.canonical.level > LEVEL_CODE.signed) {
+    return await answer({
+      decision: 'REJECT',
+      holder,
+      path: 'signature',
+      reason: 'LEVEL_REQUIRED',
+      stage: 'entitlement',
+    })
+  }
+  if (!(await consumeChallenge(db, { nonce, now, uid, venue }))) {
     return await answer({
       decision: 'REJECT',
       holder,
@@ -87,9 +160,12 @@ export const postV1VerifySigned = defineHandler(async (c) => {
   }
   let valid: boolean
   try {
-    valid = await c
-      .get('chain')
-      .verifyMessage({ address: holder, message: challengeMessage(uid, nonce), signature })
+    valid = await proofHolds(c, parsed.output, {
+      holder,
+      holderAddress: out.holderAddress ?? null,
+      message: challengeMessage(uid, nonce, venue),
+      passkey: out.passkey ?? null,
+    })
   } catch (error) {
     if (error instanceof ChainError) {
       // The challenge is already consumed and stays consumed: this is not a
@@ -101,6 +177,7 @@ export const postV1VerifySigned = defineHandler(async (c) => {
   if (!valid) {
     return await answer({ decision: 'REJECT', holder, path: 'signature', reason: 'BAD_SIGNATURE' })
   }
+  proven = true
   const outcome = await admitAndHook({
     canonical: out.canonical,
     db,
@@ -113,10 +190,11 @@ export const postV1VerifySigned = defineHandler(async (c) => {
   if (!outcome.admitted) {
     return await answer({ decision: 'REJECT', holder, path: 'signature', reason: outcome.reason })
   }
-  return jsonResponse(c, {
+  const admitted: VerifySignedResponse = {
     decision: 'ADMIT',
     holder,
     path: 'signature',
     reason: 'OK',
-  } satisfies VerifySignedResponse)
+  }
+  return withVenue(admitted)
 })

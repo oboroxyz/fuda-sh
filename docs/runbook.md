@@ -1,6 +1,6 @@
 # Deploy runbook
 
-Operator instructions for standing up fuda on Cloudflare and Base Sepolia, in order. The checked-in `develop` target of the api (`apps/api/targets.jsonc`) already contains the Sepolia schema UIDs, root delegation, database id, and Announcer start block. The bootstrap steps below are for a new deployment; verify and reuse the existing resources when operating this checkout.
+Operator instructions for standing up fuda on Cloudflare and Base Sepolia, in order. The checked-in `develop` target of the api (`apps/api/targets.jsonc`) already contains the Sepolia schema UIDs, root delegation, database id, and subgraph start block. The bootstrap steps below are for a new deployment; verify and reuse the existing resources when operating this checkout.
 
 For local setup, start at [Local development](#12-local-development). API paths in prose omit `/v1` except for the unversioned pass, asset, ENS gateway, and health routes; see [API versioning](./specs/attestation-model.md#api-versioning).
 
@@ -42,7 +42,7 @@ Run these in order; each fills a placeholder the next step or the deploy depends
 
    `PUBLIC_BASE_URL` (`develop` `vars`) is the member-facing origin the dashboard's published card links to, `https://fuda.sh`; the `local` value is the app dev port. It never needs regenerating.
 
-4. Look up the `Announcer` contract's deployment block on the Base Sepolia explorer and set the `develop` target's `vars.ANNOUNCER_FROM_BLOCK` to it. The checked-in Sepolia value is `"7552655"`; a fresh deployment must verify its own value. This value is the start block used when generating both data sources in the rights-subgraph manifest; it is not an API binding or a D1 cache floor. `pnpm graph:prepare` rejects zero, missing, and malformed values.
+4. Set the `develop` target's `vars.GRAPH_START_BLOCK` to a block at or before the first fuda attestation on Base Sepolia, for example the block of the schema registrations in step 1. The checked-in Sepolia value is `"7552655"`; a fresh deployment must verify its own value. This value is the start block of the EAS data source in the rights-subgraph manifest; it is not an API binding or a D1 cache floor. `pnpm graph:prepare` rejects zero, missing, and malformed values.
 5. Create the D1 database and paste its id into both `database_id` entries in `apps/api/targets.jsonc` (the `develop` and `local` targets):
 
    ```bash
@@ -55,11 +55,11 @@ Run these in order; each fills a placeholder the next step or the deploy depends
    pnpm --filter api migrate:remote
    ```
 
-Apply migration `0009_session_audience.sql` before deploying the member-login API. It adds the member/operator audience to existing session storage, preserving old operator sessions. Member login uses the same API and signature-verification chain configuration as dashboard login; no new Worker, domain or member database is needed. The app's Base Account sign-in is separate from its dedicated +Private PRF passkey.
+Apply migration `0009_session_audience.sql` before deploying the member-login API. It adds the member/operator audience to existing session storage, preserving old operator sessions. Member login uses the same API and signature-verification chain configuration as dashboard login; no new Worker, domain or member database is needed.
 
 ### ENSv2 parent and hybrid resolver topology
 
-The D1 migrations create the `ens_names` mirror and `stealth_resolutions` ledger. The API exposes `POST /ens/gateway`, and `packages/ens-contracts` contains the matching hybrid ENSIP-10 resolver, issuer registrar, pinned ETHOnline 2026 Sepolia address family, and noninteractive deployment tools. The gateway route fails closed with 503 unless all four API-side ENS bindings are present, so the ordinary deployment above does not need placeholder ENS values.
+The D1 migrations create the `ens_names` mirror. The API exposes `POST /ens/gateway`, and `packages/ens-contracts` contains the matching hybrid ENSIP-10 resolver, issuer registrar, pinned ETHOnline 2026 Sepolia address family, and noninteractive deployment tools. The gateway route fails closed with 503 unless all three API-side ENS bindings are present, so the ordinary deployment above does not need placeholder ENS values.
 
 Use only the dedicated deployment on Ethereum Sepolia (`11155111`). Every client must use its Universal Resolver override `0xd26f2040d083af1cd2962ba303f4bea0c4faf142`; do not substitute normal Sepolia ENS addresses. Keep the parent, voucher, gateway, allocation, and EAS issuer keys separate, and never paste real keys into a checked-in file.
 
@@ -114,19 +114,48 @@ Set secrets from `apps/api/targets/develop` with `void secret put <NAME>` (use `
 
 - `SIGNER_PRIVATE_KEY` — the issuer's EOA private key.
 - `ADMIN_TOKEN` — **required whenever a chain binding is set.** With `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL` configured and no `ADMIN_TOKEN`, the api locks every admin route (`401 unauthorized`) and every response carries `x-auth-mode: locked`. This is deliberate fail-closed behavior, not a misconfiguration to work around.
-- `BASE_RPC_URL` — Base Sepolia RPC endpoint.
+- `BASE_RPC_URL` is the preferred RPC endpoint for `CHAIN_ID`. The API tries that chain's public RPC after a provider failure, even while this secret is set. Leave it unset or set it to the selected public URL to use one transport.
 - `ENS_GATEWAY_SIGNER_KEY` — dedicated 32-byte ECDSA private key that signs gateway responses. Do not reuse `SIGNER_PRIVATE_KEY` or the ENS parent key.
-- `ENS_GATEWAY_SECRET` — separate 32-byte HMAC key used to derive deterministic one-time +Private destinations.
 - `ENS_VOUCHER_KEY` — dedicated 32-byte ECDSA private key that signs claim and renew vouchers. It is the key the deployed registrar checks against, so it must be the same one `ens:topology:deploy` was given, and it must not be the gateway signer, the parent key, or `SIGNER_PRIVATE_KEY`.
 - `ENS_SEPOLIA_RPC_URL` — Ethereum Sepolia RPC. A secret rather than a var, because an Alchemy endpoint carries its API key in the path.
 - `ENS_PAYMASTER_UPSTREAM` — the vendor's ERC-7677 paymaster endpoint. With Alchemy this is the same URL as above; the bindings stay separate so the paymaster vendor can change without touching the chain reads.
 - `WORLD_APP_ID`, `WORLD_RP_ID`, `WORLD_ACTION`, `WORLD_RP_SIGNING_KEY` — World ID badge verification. All four or nothing: while any one is unset, `POST /badges/:kind` answers `501 badges_not_configured` and no verdict carries a badge. Only the signing key is sensitive — it is the relying party's 32-byte secp256k1 key as hex (`0x` optional), whose public half is registered in the Developer Portal — but all four are pushed as secrets rather than split between here and `targets.jsonc` vars, so there is one place to look. Do not also add these names to `vars`: a name defined twice silently resolves to the secret.
+- `TURNSTILE_SECRET_KEY` — the secret of the Cloudflare Turnstile widget that guards the public claim `POST /v1/issuers/:handle/:slug/issue`. **Optional by design:** with it unset or empty the api skips the bot check, which is how local development and the tests run, so a deployment that forgets it is open to scripted claims and says nothing. Set it together with the app's `VITE_TURNSTILE_SITE_KEY` (§6). With the secret set and no site key in the build, every claim answers `403 bot_check_failed`. If Siteverify is unreachable the claim fails closed with `503 bot_check_unavailable` and the member sees a try-again message. To create the widget, see "Turnstile widget" below.
 - `GOOGLE_ISSUER_ID`, `GOOGLE_CLASS_ID`, `GOOGLE_SA_EMAIL`, `GOOGLE_SA_KEY_PEM` — see §4.
-- `APPLE_PASS_TYPE_ID`, `APPLE_TEAM_ID`, `APPLE_CERT_PEM`, `APPLE_KEY_PEM`, `APPLE_WWDR_PEM` — see §5.
+- `APPLE_PASS_TYPE_ID`, `APPLE_TEAM_ID`, `APPLE_CERT_PEM`, `APPLE_KEY_PEM`, `APPLE_WWDR_PEM`, `APPLE_WEB_SERVICE_SECRET` — see §5.
 
 PEM secrets (`GOOGLE_SA_KEY_PEM`, `APPLE_CERT_PEM`, `APPLE_KEY_PEM`, `APPLE_WWDR_PEM`): paste the PEM block as-is. A PEM copied straight out of a service-account JSON keeps its literal `\n` escapes; the api normalizes either form, so there is no need to reformat it first.
 
+### Turnstile widget
+
+One Turnstile widget serves the claim, in the Cloudflare dashboard under Turnstile, Add widget:
+
+1. Name it `fuda claim`. Add the hostnames the card page is served on: `app.fuda.sh`, plus the develop deployment's hostname. Never add `localhost` or `127.0.0.1`: the api does not check the hostname Siteverify returns, so the widget's domain list is the only boundary, and a token solved on someone's own `localhost` page would be accepted. Every listed host must be one you control. Run locally with Cloudflare's test keys instead (below).
+2. Widget mode: Managed. The app renders it with `interaction-only` appearance, so members see it only when Cloudflare asks for a tap. Leave pre-clearance off.
+3. Copy the **site key** into the app build (`VITE_TURNSTILE_SITE_KEY`, §6) and the **secret key** into the api with `void secret put TURNSTILE_SECRET_KEY` from the matching `apps/api/targets/<name>` directory. One widget may list the hostnames of several deployments, or each deployment may have its own.
+4. Redeploy the api and then the app. Claim a card on a phone and watch for a challenge, or for none: an invisible pass is the normal outcome. The app and the api must be switched on together.
+
+Cloudflare's documented test keys (site key `1x00000000000000000000AA`, secret `1x0000000000000000000000000000000AA`) always pass and are for local runs only. Never set them on a deployed api.
+
 See `apps/api/src/env.ts` for the full binding list and `apps/api/README.md` for what each secret gates at the route level.
+
+### Base Sepolia provider outages
+
+The preferred endpoint stays first on every request. Each endpoint has a 1 s timeout with no HTTP or fallback retries. A dead preferred endpoint adds at most one configured second per RPC request before the public endpoint is tried. Both endpoints timing out takes two configured seconds per request. Gate scans make several requests, and transaction receipts are polled separately. The public endpoint can also be rate limited or unavailable.
+
+Contract reverts and rejected transactions stop immediately. Other provider errors try the next endpoint. If both providers fail, the existing gate failure rules still apply. Smart-account signature verification can report `BAD_SIGNATURE`; see [signature verification and RPC outages](specs/attestation-model.md#gate-verification-order-and-reasons).
+
+Writes are signed locally once. Failover sends the same raw transaction, hash, and nonce to the public endpoint. If the first endpoint accepted it but lost the response, the second might report already-known or nonce-too-low. Before repeating an issuance after an uncertain result, reconcile the signer's transactions and EAS events with the member row. A repeated API issuance can sign a new transaction. Offchain revocation and root chores already read chain state before retrying.
+
+Chain errors retain the viem error class name but omit provider messages, URLs, request details, and causes. Do not print `BASE_RPC_URL` in diagnostics or paste it into an issue. It can contain an API key. Admin lock behavior and local fake-chain selection still treat a configured `BASE_RPC_URL` as a chain binding. ENS uses its separate Ethereum Sepolia client.
+
+After deploying, the owner must simulate the paid provider being unavailable on the deployed Worker. Check a gate scan and smart-account signature, restore the provider, and confirm it is preferred again. Also check a normal issuance or revocation, confirm a rejected contract call stays rejected, and inspect Worker logs for credential leaks. Local HTTP tests do not establish deployed-provider behavior.
+
+Before deploying the signed venue flow, apply D1 migration `0033_signed_venue.sql`, which adds the nullable challenge venue. Deploy matching API and member-app builds so scoped challenges sign the same message. No user data migration is required.
+
+Verify additional passkey enrollment from Dash with a real authenticator. It first confirms an existing credential, then creates the new one. Cancel either prompt and confirm no key appears. Attempt deletion of the last Sensitive recovery-copy holder through both audiences and confirm refusal. Wallet-only operators still use the separate account registration flow and retain their wallet-owned Issuers.
+
+For a Sensitive ticket, open `/signed?uid=<uid>&venue=<wrong-handle>` and confirm `WRONG_VENUE` without consuming the ticket. Repeat with the correct Handle and confirm the verdict names the actual `@<handle>`. Staff must check that Handle. The member can omit the pin before minting a new challenge; the phone is not a trusted gate. With Wallet integrations enabled, confirm Sensitive downloads return 404 and revocation and Card or Issuer edits send no Wallet request or push for it. Check a Standard pass still updates.
 
 ## 4. Google Wallet setup
 
@@ -143,6 +172,46 @@ Request the Pass Type ID certificate early — this has real lead time and is of
 
 Set the five `APPLE_*` secrets (§3). If the certificate has not arrived yet, leave all five unset: `GET /pass/:uid/apple.pkpass` answers `501 apple_not_configured` and the browser pass (`GET /pass/:uid`) is the floor — the demo does not depend on Apple Wallet being ready.
 
+### Pass updates
+
+Without these steps an installed pass stays a snapshot and still works. [The spec](specs/pass-types-and-flows.md#apple-wallet-updates) says what each step turns on. Do them for `develop` first, then repeat for `production`.
+
+1. Save the same certificate and key as `APPLE_CERT_PEM` and `APPLE_KEY_PEM` to two local files outside the repository, unescaped PEM. Apple requires the certificate that signs the pass to authenticate its push.
+2. Upload them. This is account-wide and has no `void` command, and it needs the SSL and Certificates Edit permission, which `wrangler login` grants:
+   ```sh
+   npx wrangler mtls-certificate upload --cert pass-cert.pem --key pass-key.pem --name fuda-apple-pass
+   ```
+3. Copy the certificate id it prints, then delete both files.
+4. Add the binding to that target's block in `apps/api/targets.jsonc`. No target lists it until now, because an id that does not exist fails the deploy. `local` cannot have it:
+   ```jsonc
+   "mtls_certificates": [{ "binding": "APPLE_PUSH_CERT", "certificate_id": "<the id>" }],
+   ```
+5. Create the secret, from `apps/api/targets/develop` (or `targets/production`). Paste the output of `openssl rand -base64 32` when asked:
+   ```sh
+   void secret put APPLE_WEB_SERVICE_SECRET
+   ```
+   **Never change this value afterwards.** Each pass's token derives from it and Apple never lets an update change a token, so a new secret strands every installed pass until its member adds it again.
+6. Deploy. Migration `0028` applies with it.
+
+**Check it on a real iPhone.** APNs delivers pass updates only in production, so nothing short of a phone proves this. Watch the Worker's logs throughout.
+
+1. Add a pass from `/pass/<uid>/apple.pkpass`. A row appears in `apple_pass_registrations`. A pass added before the secret was set has no web service and never will, so delete it and add it again.
+2. Credit a Stamp at reception. The pass updates and a `Stamps: n / m` notification appears.
+3. Revoke the pass. It updates to `No longer valid`, with a notification.
+4. Delete the pass from Wallet. Its row, and the device row if it was the last, disappear.
+
+**Reading the logs after the first Stamp.** This is the one thing no test here can show, because Cloudflare does not document whether an mTLS binding's `fetch` speaks HTTP/2, which APNs requires, and a local run has no mTLS binding at all.
+
+| Log line | Meaning | Next |
+| --- | --- | --- |
+| No `APNs` line, and the phone updates | The route works | Nothing |
+| `APNs refused a pass update` with `403` | APNs was reached and refused the certificate | Check step 1 used the Pass Type ID pair. If it did, an Apple engineer's forum reply gives a rule for token authentication on passes, which needs no binding, though Apple's documentation names only the certificate and fuda has not tried it |
+| `APNs refused a pass update` with `400` and `TopicDisallowed` or `BadTopic` | APNs was reached and refused the topic | Check `APPLE_PASS_TYPE_ID` matches the certificate |
+| `APNs refused a pass update` with any other reason | APNs was reached | The reason names the problem: [Apple's list](https://developer.apple.com/documentation/usernotifications/handling-notification-responses-from-apns) |
+| `APNs push failed`, or a status with an empty reason | The connection itself failed, the likely sign of no HTTP/2 | Token authentication needs HTTP/2 too, so it would not help. The sender is one function, `ApplePushSender`: a small HTTP/2 relay outside Workers, holding the certificate, can replace it. Until then pull to refresh still works |
+
+**Renewing.** A Pass Type ID certificate lasts a year. On renewal update `APPLE_CERT_PEM` and `APPLE_KEY_PEM`, upload the new pair, and put the new id in `targets.jsonc`. Leave `APPLE_WEB_SERVICE_SECRET` alone.
+
 ## 6. Build env for the frontends
 
 Each frontend's Worker calls `https://api.fuda.sh` by default, without requiring a Worker variable. An explicit `API_BASE_URL` in the dev or deploy shell is written as a Worker variable by `void.config.ts` and overrides that default ([ADR 0010](adr/0010-void-pages-and-frontend-workers.md)). The browser calls only its own Worker, so no frontend has a `VITE_API_BASE_URL`.
@@ -154,13 +223,14 @@ VITE_GRAPH_RIGHTS_ENDPOINT=https://gateway.thegraph.com/api/<PUBLIC_KEY>/subgrap
 VITE_ENS_PAYMASTER_URL=https://api.fuda.sh/v1/ens/paymaster  # dash only, and the one VITE_* that carries the version prefix: the wallet fetches this URL as given
 VITE_APP_ORIGIN=https://app.fuda.sh     # app only; this is also its default
 VITE_RP_ID=fuda.sh                      # app only; this is also its default
+VITE_TURNSTILE_SITE_KEY=0x4AAAAAAA…     # app only; the public site key of the claim widget (§3). Empty disables the widget, so set the api's TURNSTILE_SECRET_KEY only together with it
 ```
 
 The Graph endpoint is browser-visible. Use a public gateway key restricted to the deployed subgraph, or a same-origin proxy; never put a Studio deploy key in a `VITE_*` value.
 
 ## 7. Build and deploy the rights subgraph
 
-Install the independent package, then generate and verify the deployable manifest from the Sepolia `EAS_SCHEMAS` and `ANNOUNCER_FROM_BLOCK` values of the `develop` target in `apps/api/targets.jsonc`:
+Install the independent package, then generate and verify the deployable manifest from the Sepolia `EAS_SCHEMAS` and `GRAPH_START_BLOCK` values of the `develop` target in `apps/api/targets.jsonc`:
 
 ```bash
 pnpm --ignore-workspace --dir packages/subgraphs/rights install --frozen-lockfile
@@ -177,6 +247,8 @@ cd packages/subgraphs/rights
 pnpm --ignore-workspace exec graph auth --studio <DEPLOY_KEY>
 pnpm --ignore-workspace exec graph deploy --studio <SUBGRAPH_SLUG>
 ```
+
+Removing the Announcer data source and the `Announcement` entity changes the subgraph, so deploy it as a new version in Studio and wait for it to sync before pointing clients at it. A browser client bakes `VITE_GRAPH_RIGHTS_ENDPOINT` in at build time, so update it to the new version's query URL and redeploy the app and the dashboard.
 
 Use the Studio query URL for the controlled event demo. Before building the browser clients, provision a public gateway endpoint (or same-origin proxy) and use it as `VITE_GRAPH_RIGHTS_ENDPOINT`. Deployment and receipt comparison are live gates; verify them with §9 below and [`integrations/thegraph.md`](./integrations/thegraph.md).
 
@@ -234,11 +306,11 @@ API_URL=https://api.fuda.sh ADMIN_TOKEN=… SMOKE_OPERATOR_KEY=… \
   pnpm --filter api smoke:live --ladder bearer,signed,card
 ```
 
-Runs the supported ladders end to end against the live API. The `card` ladder is the one that covers the venue's own front door — an operator signs in with their wallet, publishes a card, and a member claims it off the public page with no admin token — so it exercises what a phone in the queue does. Set `SMOKE_OPERATOR_KEY` to a dedicated operator key whose venue is already registered; its ENS name need not be claimed. The script checks this prerequisite before running the selected ladders, creates a card with a unique slug, and leaves that card behind in the venue. It does not acquire an ENS name or fund a wallet. Use `--ladder bearer,signed` when testing without an operator venue; the card ladder is not silently skipped. Fresh issuer registration and card creation for an unclaimed venue are also covered by the API test suite. There is no `private` ladder: discovery is a browser-to-Graph query and the script would have nothing to drive. Verify +Private discovery through the rights subgraph and member app, then enter through the ordinary Signed challenge-response flow, as documented in [`integrations/thegraph.md`](./integrations/thegraph.md). The Attendance attestation for the Bearer/Signed ladder's ADMIT verdicts appears on the Base Sepolia explorer within a few blocks.
+Runs the supported ladders end to end against the live API. The `card` ladder is the one that covers the venue's own front door — an operator signs in with their wallet, publishes a card, and a member claims it off the public page with no admin token — so it exercises what a phone in the queue does. Set `SMOKE_OPERATOR_KEY` to a dedicated operator key whose venue is already registered; its ENS name need not be claimed. The script checks this prerequisite before running the selected ladders, creates a card with a unique slug, and leaves that card behind in the venue. It does not acquire an ENS name or fund a wallet. Use `--ladder bearer,signed` when testing without an operator venue; the card ladder is not silently skipped. Fresh issuer registration and card creation for an unclaimed venue are also covered by the API test suite. The Attendance attestation for the Bearer/Signed ladder's ADMIT verdicts appears on the Base Sepolia explorer within a few blocks.
 
 Once ENS is configured, send one known ENSIP-10 request through the deployed resolver or directly to `POST /ens/gateway`. A successful direct response is `{"data":"0x…"}` with `Cache-Control: no-store`; malformed, unknown, and infrastructure failures use `{"message":"…"}` and are also never cached. The gateway is public, so do not send `ADMIN_TOKEN`.
 
-Query the deployed rights subgraph with real right, delegation, and Attendance UIDs, and compare the returned holders, metadata, relations, announcement identity, and revocation timestamps with their transaction receipts. Export the identifiers from real receipts, never from fixture constants:
+Query the deployed rights subgraph with real right, delegation, and Attendance UIDs, and compare the returned holders, metadata, relations, and revocation timestamps with their transaction receipts. Export the identifiers from real receipts, never from fixture constants:
 
 ```bash
 export GRAPH_RIGHTS_ENDPOINT="<STUDIO_OR_PUBLIC_QUERY_URL>"
@@ -261,29 +333,29 @@ jq -n \
       "$GRAPH_RIGHTS_ENDPOINT"
 ```
 
-Every requested entity must be non-null, the holder and relations must agree with the receipts, the raw announcement bytes and transaction/log identity must match, and `right.revokedAt` must be `null` before a revoke and non-null after.
+Every requested entity must be non-null, the holder and relations must agree with the receipts, and `right.revokedAt` must be `null` before a revoke and non-null after.
 
-Use separate live rights for separate flows: a +Private right proves private discovery and Signed entry, a Bearer right with a QR pass proves the green scan and the red scan after revoke. A +Private right is not a scannable Bearer pass — presenting its UID to the QR verification path returns `LEVEL_REQUIRED`.
+Use separate live rights for separate flows: a Signed right proves Signed entry, a Bearer right with a QR pass proves the green scan and the red scan after revoke. A Signed right is not a scannable Bearer pass — presenting its UID to the QR verification path returns `LEVEL_REQUIRED`.
 
 ## 10. Manual checks that no script covers
 
-- **WebAuthn PRF.** On a real phone, open `https://app.fuda.sh/private`, create a passkey, and confirm the derived meta-address renders.
 - **ERC-6492 (undeployed smart wallet).** Issue a Signed right to a Base Account (passkey smart wallet) address, then enter it at `https://app.fuda.sh/signed` _before_ that account is deployed on chain — the api must still answer `ADMIT` through the ERC-6492 counterfactual path. This is the one path the fake chain cannot exercise, so it must be run once against Base Sepolia before the deploy is called done.
 - **Google Wallet.** Open `/pass/<uid>` on an Android phone and tap "Add to Google Wallet".
 - **Apple Wallet.** Open `/pass/<uid>/apple.pkpass` on an iPhone.
+- **Camera scan on WebKit.** Safari has no `BarcodeDetector`, so the gate reads with a JS decoder there, and only a real device shows camera permission, rear-camera choice and focus. Open `https://gate.fuda.sh` in Safari on an iPhone and on an iPad, allow the camera, and scan a pass shown (a) on paper or another phone's screen in normal light, (b) on a phone screen in a dim room, and (c) held about 30 cm away. Each scan should reach a verdict within a second or two and the camera light should go out when the verdict appears. Deny the camera once and confirm the paste box appears with a plain message. Repeat on `https://app.fuda.sh/signed` on the iPhone, which uses the same scanner.
 
 ## 11. Reconciliation
 
 Two writes are deliberately non-atomic across the chain and D1; check both after a deploy and periodically thereafter (see `docs/specs/attestation-model.md` for the full model):
 
-- **Orphan attestations.** A `502 chain_error` on `/issue` after the uid was logged means the right was attested on chain but the announcement or the `members` row write failed. Revoke that uid from the dashboard, or re-issue (a re-run attests a second right, so the orphan becomes the duplicate to revoke).
+- **Orphan attestations.** A `502 chain_error` on `/issue` after the uid was logged means the right was attested on chain but the `members` row write failed. Revoke that uid from the dashboard, or re-issue (a re-run attests a second right, so the orphan becomes the duplicate to revoke).
 - **Missing `attendance_uid` candidates.** Attendance attests best-effort after the verdict; a failed attest leaves the admission standing but the on-chain evidence missing. List them, from `apps/api/targets/develop`:
 
   ```bash
   void db execute --remote "SELECT id, uid, at FROM entry_log WHERE decision = 'ADMIT' AND attendance_uid IS NULL"
   ```
 
-The query also includes +Private admissions, which intentionally have no Attendance. Check the right's level before treating a row as a failure; `members.level` can help when a matching operational row exists. For mainnet, run the same command from `apps/api/targets/production`.
+The query also includes admissions of offchain rights, which intentionally have no Attendance. Check whether the right is offchain before treating a row as a failure. For mainnet, run the same command from `apps/api/targets/production`.
 
 ## 12. Local development
 
@@ -338,7 +410,7 @@ The dashboard suite also covers connected-app registration, full-page PKCE appro
 
 What the suite does not cover:
 
-- operator passkey sign-in in dash (through Base Account) and member passkey sign-in in app (a real authenticator);
+- operator and member passkey sign-in (a real authenticator), and wallet sign-in in dash (through Base Account);
 - the camera scanner;
 - anything that reads the Graph.
 
@@ -370,7 +442,7 @@ Run the read-only MultiOwnable probe from the repository root:
 pnpm --filter api probe:venue-wallet
 ```
 
-It uses the public Base Sepolia RPC by default; an exported `BASE_RPC_URL` can select another Base Sepolia provider. It does not load any local env file or require any private-key setting. The RPC chain ID must be 84532. The probe generates two throwaway EOA owners and an undeployed Coinbase Smart Wallet v1 using fuda's current factory, then checks both owners' dashboard-challenge signatures through the API's actual chain verifier. It also rejects a changed challenge, an unregistered owner's wallet proof, and a raw personal signature. No transaction is submitted, no account is funded, and no D1 state is changed. ERC-6492 verification simulates deployment only inside `eth_call`; the probe checks that the wallet remains undeployed afterward.
+It uses the public Base Sepolia RPC by default; `CHAIN_ID` selects the chain and an exported `BASE_RPC_URL` selects its provider. It does not load any local env file or require any private-key setting. The RPC chain ID must match the selected chain, `84532` by default or `8453` when configured for Base. The probe generates two throwaway EOA owners and an undeployed Coinbase Smart Wallet v1 using fuda's current factory, then checks both owners' dashboard-challenge signatures through the API's actual chain verifier. It also rejects a changed challenge, an unregistered owner's wallet proof, and a raw personal signature. No transaction is submitted, no account is funded, and no D1 state is changed. ERC-6492 verification simulates deployment only inside `eth_call`; the probe checks that the wallet remains undeployed afterward.
 
 Success prints the public wallet/factory/owner addresses and six successful checks, and exits zero. A failed assertion or unavailable RPC exits nonzero. The probe allows only `eth_chainId`, `eth_call`, and `eth_getCode`, and records RPC failures even if the signature verifier would fold one into `false`. Any rejected RPC request, including an EVM revert, makes the run inconclusive and nonzero: these negative fixtures must produce completed validation responses. RPC URLs, keys and signatures are not printed. This verifies initial multiple-owner signing; it does not test adding owners to an existing wallet, Base Account popup discovery, passkey or nested-wallet owners, API sessions, or owner removal. See [ADR 0008](adr/0008-shared-issuer-wallet.md) for the future co-owner login and session-revocation requirements. The dashboard still has no owner-management UI.
 
@@ -396,13 +468,15 @@ This is local display state only. It does not exercise wallet submission, sponso
 
 The gate accepts a keyboard-wedge QR reader on any device, with no configuration: it scans into the page, and the payload is read whether or not a field has focus, so a scan lands while a previous verdict is still displayed. Set the reader's terminator to CR, and set the **host's** hardware-keyboard layout to U.S. — the reader sends US-layout keystrokes, and a JIS layout turns the `:` in `fuda:v1:` into `+`, which the gate then reports as "not a fuda pass". A bare uid (`0x…`) contains no `:` and still resolves, but only as a preview: no slot consumed, no Entry logged.
 
-`gate.fuda.sh/?camera=off` runs the gate as a reader-only station: no camera, no paste box, one waiting line. Use it on a device whose browser has no `BarcodeDetector` — every WebKit browser, so every iPad and iPhone — where the camera can only report failure. The parameter is per-device, so one deployment serves both a laptop that scans with its camera and a tablet that only reads the USB reader. Without the parameter the camera is used when available. The paste box is part of the camera view, so the reader-only station has no manual fallback: keep a plain `gate.fuda.sh` tab for that.
+`gate.fuda.sh/?camera=off` runs the gate as a reader-only station: no camera, no paste box, one waiting line, and no camera permission prompt. Use it on a device that stands at a desk with a USB reader, such as an iPad on a stand. The parameter is per-device, so one deployment serves both a phone or laptop that scans with its camera and a tablet that only reads the USB reader. Without the parameter the camera is used when it can be opened. The paste box is part of the camera view, so the reader-only station has no manual fallback: keep a plain `gate.fuda.sh` tab for that.
+
+`gate.fuda.sh/?venue=<handle>` sets the shop this station checks for, for example `?venue=blue-bottle`, and it combines with the other flag as `?camera=off&venue=blue-bottle`. Every shop shares one signing key, so without it a station admits any shop's pass. With it, the header says `checking for @<handle>` and a pass of another shop is a red `WRONG_VENUE — pass of another shop` that does not use up a ticket. Without it the header warns `no venue set: any shop's pass is admitted`. The value is not a secret and not authentication: it keeps honest staff from using a wrong URL. A mistyped handle rejects every pass, which shows at once. Give each shop its own bookmark or home-screen link with the flag set. Check it by opening the gate with the flag and scanning one pass from that shop (green) and one from another shop (red `WRONG_VENUE`).
 
 ### Venue reception demo
 
 Deploy the api, which applies `0021_connected_app_tracking.sql`, before the dashboard that shows connected-app activity: the Apps page reads `/v1/connected-apps/activity` and reports a load failure without it. Tokens issued before this migration have no recorded code, so replaying their code cannot end them; they age out within 30 days.
 
-Apply migrations through `0016_card_integrations.sql` before deploying the Card integrations API (`/v1/issuers/me/cards/:cardId/integrations`); it adds an empty `card_integrations` table, so every existing Card starts with its integrations off and nothing is backfilled. The public venue lookup `GET /v1/issuers/:handle` reads that table for every venue that publishes a Card, so an API deployed ahead of the migration answers `500 {"error":"internal"}` for those venues while unknown handles still answer 404 and the health check stays green; applying the migration repairs it without a redeploy. After deploying, confirm `pnpm --filter api exec sh -c 'cd targets/develop && void db status'` has nothing left to apply and request a venue that has a Card, not only the health check. Deploy the member app first or together with the API: an older member app reads the venue-level badge list and would offer the badge action on every card, where the new API answers 404. Deploy the dashboard after the API, since its Integrations section reads the new endpoint. Apply migrations through `0011_card_stamp_settings.sql` before running the Card-scoped reception API. Use `pnpm migrate:local` for local development; apply the normal remote migration procedure before deploying the updated API. Migration `0010` adds credit records, request receipts and an optional reception ID on Entry logs. Migration `0011` adds Card Stamp policies and copies each existing venue policy to its existing Cards, preserving enabled state, limits and goals. It preserves all credits and receipts and does not award credits to existing Entries. Newly created Cards default to Stamps disabled. The legacy policy table remains for rollback compatibility but is not read by the new API. Deploy the API and dashboard together: settings now use `/v1/issuers/me/cards/:cardId/stamps`, and the old `/v1/issuers/me/stamps` endpoint is removed.
+Apply migration `0028_stamp_adjustments.sql` before deploying the API that serves `/v1/issuers/me/stamps/*`; it adds an empty ledger table and every card's total is unchanged. The member and Pass-list totals read that table, so an API deployed ahead of the migration answers `500` on `GET /v1/stamps/:uid` until it is applied. Deploy the dashboard after the API. To try it, scan a Right that has reached the goal on `/reception`, give the reward, and confirm the count drops by the goal and a saved Google Wallet pass refreshes. Apply migrations through `0016_card_integrations.sql` before deploying the Card integrations API (`/v1/issuers/me/cards/:cardId/integrations`); it adds an empty `card_integrations` table, so every existing Card starts with its integrations off and nothing is backfilled. The public venue lookup `GET /v1/issuers/:handle` reads that table for every venue that publishes a Card, so an API deployed ahead of the migration answers `500 {"error":"internal"}` for those venues while unknown handles still answer 404 and the health check stays green; applying the migration repairs it without a redeploy. After deploying, confirm `pnpm --filter api exec sh -c 'cd targets/develop && void db status'` has nothing left to apply and request a venue that has a Card, not only the health check. Deploy the member app first or together with the API: an older member app reads the venue-level badge list and would offer the badge action on every card, where the new API answers 404. Deploy the dashboard after the API, since its Integrations section reads the new endpoint. Apply migrations through `0011_card_stamp_settings.sql` before running the Card-scoped reception API. Use `pnpm migrate:local` for local development; apply the normal remote migration procedure before deploying the updated API. Migration `0010` adds credit records, request receipts and an optional reception ID on Entry logs. Migration `0011` adds Card Stamp policies and copies each existing venue policy to its existing Cards, preserving enabled state, limits and goals. It preserves all credits and receipts and does not award credits to existing Entries. Newly created Cards default to Stamps disabled. The legacy policy table remains for rollback compatibility but is not read by the new API. Deploy the API and dashboard together: settings now use `/v1/issuers/me/cards/:cardId/stamps`, and the old `/v1/issuers/me/stamps` endpoint is removed.
 
 1. Sign in to dash as the demo venue operator. On `/cards`, open the membership Card’s settings and enable Stamps, set the daily limit to `1`, and set the goal to `10`.
 2. Prepare an active Bearer Right issued from that membership Card. A ticket with SINGLE_USE is unsuitable for repeated-admission demos.
@@ -411,7 +485,7 @@ Apply migrations through `0016_card_integrations.sql` before deploying the Card 
 5. Open the browser Pass or refresh the member-app Pass list to see progress. Browser Pass summaries refresh every 30 seconds. With Google Wallet configured, reception also attempts to update the saved Google object.
 6. Revoke the Right from dash and scan again: REVOKED, with no Stamp credit.
 
-Changing the daily limit affects subsequent receptions, including the current day; lowering it does not remove credits. Disabling Stamps preserves totals and still permits valid admissions. The demo does not implement redemption, manual adjustment, per-person deduplication across Rights, or a clock override. The read-only summary endpoint and the public gate verification endpoints cannot award Stamps. An authenticated receipt retry returns the original result, not a new admission decision.
+Changing the daily limit affects subsequent receptions, including the current day; lowering it does not remove credits. Disabling Stamps preserves totals and still permits valid admissions. Redemption and manual adjustment are in the ledger described under Redemption and adjustment in the pass specification; the demo does not implement per-person deduplication across Rights or a clock override. The read-only summary endpoint and the public gate verification endpoints cannot award Stamps. An authenticated receipt retry returns the original result, not a new admission decision.
 
 Reception records commit before the asynchronous Attendance and Google Wallet effects. Inspect Worker logs for Google sync failures and verify credentials and the saved object's ID. A receipt retry or later reception can attempt display synchronization again without re-awarding an existing receipt's Stamp. A saved Apple Pass has no push-refresh service in this implementation; a new download contains the current snapshot.
 
@@ -425,7 +499,7 @@ Reception records commit before the asynchronous Attendance and Google Wallet ef
 Each frontend's `dev` script sets what local development needs: `API_BASE_URL=http://localhost:8787` for its Worker, `VOID_INSPECTOR_PORT=false` so it does not collide with the api's dev server on the inspector port, and for the app `VITE_APP_ORIGIN=http://localhost:5173` and `VITE_RP_ID=localhost`. The `VITE_*` names of step 6 are baked in at build time, so changing one means restarting the dev server. A dev server may fail a page's first request with a 500 while Vite re-optimizes a dependency it had not seen; reload. The frequent ones are pre-bundled in each `vite.config.ts`.
 
 - **`API_BASE_URL`** (all three, Worker var) — the dev scripts point it at the local api. Override it in the shell to use another.
-- **`VITE_GRAPH_RIGHTS_ENDPOINT`** (dash, app) — the public Graph endpoint the on-chain status views read; the member app also loads raw announcements from it before matching them locally. There is no local substitute; point it at a deployed rights subgraph.
+- **`VITE_GRAPH_RIGHTS_ENDPOINT`** (dash, app) — the public Graph endpoint the on-chain status views read. There is no local substitute; point it at a deployed rights subgraph.
 - **`VITE_APP_ORIGIN`** (app) — the dev script sets `http://localhost:5173`; otherwise the Worker redirects member and card pages to the production origin (`https://app.fuda.sh`). These routes render only on the configured app origin. The deployed app Worker owns `app.fuda.sh`; apex `/@*` redirects are managed separately at the zone.
 - **`VITE_RP_ID`** (app) — the dev script sets `localhost`; the browser refuses the production default (`fuda.sh`), which is not a registrable suffix of the dev host.
 
@@ -443,19 +517,33 @@ Five routes use the fixed hourly D1 counter and require `CF-Connecting-IP`:
 | `POST /v1/oauth/token`                 | 120                      |
 | `POST /v1/oauth/revoke`                | 120                      |
 
-The counter is keyed by IP and hour, not route: requests across these routes share a count, with each route applying its own threshold. Rejected requests also increment it. Announcement discovery is a browser-to-Graph query and does not pass through the API. The gate routes (`/verify`, `/challenge`, `/verify-signed`) and the admin routes (`/issue`, `/revoke`, `/members`) are never budgeted.
+The counter is keyed by IP and hour, not route: requests across these routes share a count, with each route applying its own threshold. Rejected requests also increment it. The gate routes (`/verify`, `/challenge`, `/verify-signed`) and the admin routes (`/issue`, `/revoke`, `/members`) are never budgeted.
 
-## Member passkeys
+## Passkeys
 
-`WEBAUTHN_RP_ID` and `WEBAUTHN_ORIGINS` in each api target name the domain member passkeys belong to and the origins allowed to use them. **A passkey cannot move to another domain**, so changing `WEBAUTHN_RP_ID` strands every member's passkey. At the mainnet cutover, `develop` moves to `*.dev.fuda.sh`: set its origin to `https://app.dev.fuda.sh` and leave its RP ID as `fuda.sh`, or accept that develop members start again.
+`WEBAUTHN_RP_ID` and `WEBAUTHN_ORIGINS` in each api target name the domain passkeys belong to and the origins allowed to use them, comma-separated. Members and operators share them: `https://app.fuda.sh,https://dash.fuda.sh` when deployed, `http://localhost:5173,http://localhost:5175` locally. A dashboard whose origin is missing from the list answers `401 bad_passkey` to every ceremony. **A passkey cannot move to another domain**, so changing `WEBAUTHN_RP_ID` strands every passkey. At the mainnet cutover, `develop` moves to `*.dev.fuda.sh`: set its origins to `https://app.dev.fuda.sh,https://dash.dev.fuda.sh` and leave its RP ID as `fuda.sh`, or accept that develop members and operators start again.
 
-To drive sign-in locally without a device, use Chromium's virtual authenticator through the DevTools protocol (`WebAuthn.addVirtualAuthenticator`).
+To drive sign-in locally without a device, use Chromium's virtual authenticator through the DevTools protocol (`WebAuthn.addVirtualAuthenticator`). Open the dashboard at `http://localhost:5175`, not `127.0.0.1`, because the local RP ID is `localhost`.
+
+A cold dashboard render can lose its shared context if Vite discovers a dependency and reloads the Worker during that render. Keep dependencies reached through workspace packages in `optimizeDeps.include` using package roots, for example `@fuda/libs > @simplewebauthn/browser`. A subpath such as `@fuda/libs/auth` does not resolve as the parent package here. Include `jsqr` through `@fuda/ui` as well. To check a change, clear the dashboard's `node_modules/.vite` cache, restart, and request `/profile` directly with an operator cookie before navigating there. Check the terminal for unresolved prebundle entries or optimization during that request.
+
+**Sensitive use.** Enrollment outcomes are only counts, in `member_secret_outcomes`. To see how many members a passkey provider without PRF is stopping: `void db execute "SELECT outcome, total FROM member_secret_outcomes"`, with `--remote` from the target's directory. Many `no_prf` is the signal for the fallback in ADR 0014, decision 4. A member who has lost every passkey holding a copy cannot be helped from the database, because it holds only ciphertext. The Issuer revokes the pass and the member claims a new one. Start over requires a fresh assertion from an existing account passkey. It clears recovery data, not old passes; another device with the old keys can still enter until revocation. With no account passkey left, the member creates a new account. Recovery writes require the member-secret-derived write token, whose hash is enrolled with the first copy. Never replace ciphertext or reset recovery on the strength of a session alone. Migration `0026_sensitive_use.sql` includes this hash column and the new challenge purposes, so apply it with the API release before the app. Check both language warnings, credential-free claim/challenge/presentation requests, passkey-confirmed reset, and two failed concurrent vault writes recovering both entries. The existing self-serve IP budget also applies to Sensitive claims. Sensitive claims require the same Turnstile check as Standard and Identified claims when TURNSTILE_SECRET_KEY is set. Set the API secret and frontend site key together. Claims continue to omit account credentials.
+
+Migration `0026_sensitive_use.sql` moves `cards.identity` to a new column to widen its CHECK, and keeps each Card's value.
 
 ## Offchain jobs
 
-Two jobs in `apps/api/crons/` run on every api target: roots hourly, and failed revocations every 15 minutes. Each target links the directory the way it links `routes`. The first deploy that includes them adds a `scheduled` handler and cron triggers to the Worker; confirm both on the Worker's Triggers page in Cloudflare. Crons make Void republish every trigger, so each target must declare `routes`, `workers_dev` and `preview_urls` in `targets.jsonc`, matching what Cloudflare has, or the deploy stops with "dashboard-managed routes or visibility". The migrations run before that check, so a stopped deploy can leave them applied; they only add tables and columns, so the live version keeps working and no restore is needed.
+Three jobs in `apps/api/crons/` run on every api target:
 
-Failures only reach the Worker logs, as `offchain root not anchored` and `offchain revocation retry failed`. Nothing alerts on them, and no pass stops working, so check when you can. The usual cause is the signer running out of ETH, because both jobs and on-chain issuance spend from it:
+| Job                    | Cron, UTC      | Purpose                                                    |
+| ---------------------- | -------------- | ---------------------------------------------------------- |
+| `offchain-roots`       | `0 * * * *`    | Timestamp new offchain roots                               |
+| `offchain-revocations` | `*/15 * * * *` | Retry failed offchain revocations                          |
+| `sensitive-entry-logs` | `0 3 * * *`    | Delete Sensitive scan logs and receipts older than 30 days |
+
+Each target links the directory the way it links `routes`. The first deploy that includes them adds a `scheduled` handler and cron triggers to the Worker; confirm both on the Worker's Triggers page in Cloudflare. Crons make Void republish every trigger, so each target must declare `routes`, `workers_dev` and `preview_urls` in `targets.jsonc`, matching what Cloudflare has, or the deploy stops with "dashboard-managed routes or visibility". The migrations run before that check, so a stopped deploy can leave them applied. The widened verdict columns remain readable by the previous api version.
+
+Root and revocation failures only reach the Worker logs, as `offchain root not anchored` and `offchain revocation retry failed`. Nothing alerts on them, and no pass stops working, so check when you can. The usual cause is the signer running out of ETH, because both jobs and on-chain issuance spend from it:
 
 ```sh
 curl -s "$BASE_RPC_URL" -H 'content-type: application/json' \
@@ -473,7 +561,44 @@ SELECT o.uid FROM offchain_attestations o JOIN members m ON m.attestation_uid = 
 WHERE m.status = 'revoked' AND o.revoke_tx IS NULL;
 ```
 
+Sensitive retention uses the named constant `SENSITIVE_ENTRY_RETENTION_SECONDS` in `apps/api/src/passes/entry-log-retention.ts`. The initial policy is 30 days for all Sensitive Cards, rather than a per-Card setting. Review this period with the adopting organization; an employee badge may need a longer audit period. Change this constant and redeploy to change the policy.
+
+The job deletes receipts before their logs in the same D1 transaction. It leaves Stamp-referenced entries untouched; Sensitive Cards cannot award Stamps. Each batch removes at most 80 logs and 80 stale Sensitive challenges, with two bound parameters per statement. A run starts at most ten batches and stops starting batches after 20 seconds. Remaining rows wait for the next run. Deleting a Sensitive log never deletes its single-use Slot, whose `consumed_at` is zero. Challenges normally expire on the next mint; this job also clears old Sensitive challenges when no later mint occurs.
+
+Migration `0032_sensitive_entry_retention.sql` makes verdict columns nullable without changing entry ids or their foreign keys and adds the UID/time index. Apply it after `0031_remove_stealth.sql` and before deploying the api.
+
+After deploying, confirm the `0 3 * * *` trigger on the Worker's Triggers page and observe a scheduled run. Check the oldest remaining Sensitive entry and the pending row count below. With more than 800 expired rows, expect the backlog to drain over successive runs. Failed runs leave rows for retry. Counts on the dashboard must still show issued Rights, with consumed single-use Rights still consumed. This deployed scheduling check cannot be established by local Worker tests.
+
+```sql
+SELECT COUNT(*) AS expired, MIN(e.at) AS oldest
+FROM entry_log e
+JOIN members m ON m.attestation_uid = e.uid
+JOIN cards c ON c.id = m.card_id
+WHERE c.identity = 'sensitive' AND e.at < unixepoch() - 30 * 86400;
+
+PRAGMA foreign_key_check;
+```
+
 To run a job locally, start the api and use the `curl` command with the `x-void-dev-trigger` token that Void prints, setting `cron` to the job's expression. Local schedules never fire on their own.
+
+## Mainnet configuration supplied by the owner
+
+All checked-in targets currently select Base Sepolia because `CHAIN_ID` is absent, including the target named `production`. A target name does not select its chain. No mainnet resource is created by the code or these instructions.
+
+Before a mainnet deployment, supply and verify all of the following:
+
+- Set API `CHAIN_ID=8453` and app and dashboard build `VITE_CHAIN_ID=8453`. Use `84532` or leave them absent for Sepolia. Set each frontend Worker's `API_BASE_URL` to the same environment. An invalid value, including an empty string, fails instead of defaulting.
+- Supply a new D1 database name and id, bind it as `DB`, and apply every migration. Supply a new R2 bucket name and bind it as `MEDIA_BUCKET`. Keep Sepolia resources separate.
+- Provision the secrets in section 3 for the new Worker. `SIGNER_PRIVATE_KEY` must name the funded mainnet hot issuer, and `ADMIN_TOKEN` must protect admin routes. If supplied, `BASE_RPC_URL` must answer chain id `8453`. Its fallback is `https://mainnet.base.org`; Sepolia uses `https://sepolia.base.org`. Wallet platform credentials are required only for the enabled platforms. Leave ENS secrets unset until its mainnet plan exists.
+- Confirm `EAS_ADDRESS=0x4200000000000000000000000000000000000021` and `SCHEMA_REGISTRY_ADDRESS=0x4200000000000000000000000000000000000020` against [EAS deployments](https://github.com/ethereum-attestation-service/eas-contracts#deployments). Read EAS `version()` and set `EAS_VERSION` to that exact value before signing. These addresses are the same on both supported chains. The current mainnet documentation lists version `1.0.1`; the checked-in Sepolia targets use `1.4.1-beta.3`.
+- Register the current schemas on mainnet using `CHAIN_ID=8453` with `register-schemas`, then supply `EAS_SCHEMAS`. Offchain passes derive their schema UID locally and need no registration for signing.
+- Supply the root Safe address as `ISSUER_ADDRESS` and a live root `IssuerDelegation` UID as `DELEGATION_UID`, attested by that Safe and naming the hot issuer. The `attest-root-delegation` script selects the configured chain but only creates an EOA self-delegation. It does not create or operate the required Safe root.
+- Verify `FACTORY_ADDRESS` on mainnet. Supply a mainnet rights subgraph and build both apps with its `VITE_GRAPH_RIGHTS_ENDPOINT`. The checked-in subgraph manifests, the API ENS client, and `ENS_HACKATHON_CHAIN` still target testnets and require a separate mainnet plan.
+- Supply the Worker names, public origins, custom domains, and passkey origins for the new environment. Keep the intended RP ID and map each frontend to its matching API.
+
+The API does not expose its chain in `/health`, so there is no automatic browser/API mismatch check. A pass backup exported through the existing API includes `attestation.domain.chainId`, which can confirm the signing chain after issuance. Check the deployment vars before issuing the first pass.
+
+The owner must verify RPC chain ids, deployed bytecode and EAS version, Safe authority and hot-issuer funding, schema registration and delegation, wallet sign-in through both Base Account and an injected wallet, offchain issuance and rejection on the other chain, revocation, root timestamping, on-chain issuance and Attendance, and subgraph indexing. These are real mainnet checks and are not covered by the offline suite.
 
 ## Mainnet cutover
 
@@ -493,13 +618,13 @@ EAS and the SchemaRegistry are OP-stack predeploys at the same addresses on both
 
 The `production` target deliberately carries `routes: []`. Adding a custom domain there before the Sepolia deployment has moved off it would take a live hostname away from the running beta, so the order matters:
 
-1. Register the mainnet EAS schemas and attest the root delegation, then fill the `production` target's `EAS_SCHEMAS`, `ISSUER_ADDRESS`, `DELEGATION_UID` and `ANNOUNCER_FROM_BLOCK`. Until then issuance answers `502 chain_error` rather than attesting under the wrong configuration.
+1. Register the mainnet EAS schemas and attest the root delegation, then fill the `production` target's `EAS_SCHEMAS`, `ISSUER_ADDRESS`, `DELEGATION_UID` and `GRAPH_START_BLOCK`. Until then issuance answers `502 chain_error` rather than attesting under the wrong configuration.
 2. `cf d1 create --name fuda` and paste the id; `cf r2 buckets create --name fuda-media`.
 3. Set every secret again for the new Worker (`void secret put <NAME>` from `apps/api/targets/production`). Deploy first if the Worker does not exist yet. The mainnet root must be a Safe with a hot issuer, not the Sepolia EOA.
 4. Apply migrations against the new database (`pnpm --filter api migrate:production`) and deploy with no routes (`pnpm --filter api run deploy:production`); smoke it on its `workers.dev` hostname.
 5. Move the Sepolia deployment to `*.dev.fuda.sh`, then add the apex custom domains to the `production` target and redeploy both.
 6. Redeploy the three frontends with the production `VITE_*` values. Each Worker's `API_BASE_URL` var decides which api it talks to, so a develop deployment must point at the develop api.
-7. Change the passkey wallet's chain id. `apps/app/src/base-account.ts` and `apps/dash/src/wallet.ts` construct the Base Account SDK with Base Sepolia and Ethereum Sepolia; a mainnet build must pass `8453` in place of `84_532` or the operator signs against the wrong network. This is source, not a `VITE_*` value, so a rebuild alone does not fix it. The api has the same problem: `apps/api/src/chain/viem-chain.ts` constructs its clients for Base Sepolia and reports that chain id for offchain signatures, so a mainnet api needs that changed too, before any pass is issued.
+7. Set API `CHAIN_ID=8453` and rebuild both the member app and dashboard with `VITE_CHAIN_ID=8453`. Set each frontend Worker's `API_BASE_URL` to the matching API. Omitting either chain var selects Base Sepolia. Unknown values fail on first use. The browser wallet configuration and API clients need no source edit.
 8. Decide what ENS means on mainnet. The `production` target carries no `ENS_*` values and nothing here changes that: today's names live on a dedicated ENSv2 deployment on Ethereum Sepolia, which has no mainnet counterpart. Until one exists, a mainnet api leaves every ENS binding unset, every claim route answers `503`, and the dashboard hides the section — the same fail-closed behaviour as an unconfigured develop deployment. Moving the tree means registering a new parent and deploying the topology again against whatever the mainnet addresses turn out to be; nothing migrates, exactly as with the attestations.
 
 ## Rolling back
@@ -529,6 +654,10 @@ Apply `0017_connected_apps.sql` before deploying the api and dashboard that carr
 ### Card capacity and source migration
 
 `0020_card_capacity_and_source.sql` adds `capacity` and `reserved` to `cards` and `source` to `members`, and fills `reserved` from the passes each card has issued. Apply it before deploying the api. Self-serve claims are counted by `reserved` from then on, so older api code running after this migration would leave the count behind; deploy straight after migrating.
+
+### Card Attendance migration
+
+Apply `0029_card_attendance.sql` before deploying the api. It adds `cards.attendance` and turns it on for every existing on-chain ticket; every other card, memberships included, starts off. Until the column exists the new api cannot read it, so it logs a warning and writes no Attendance for an on-chain scan; admissions still succeed. Deploy the api right after migrating: older api code keeps writing an Attendance for every on-chain scan and ignores the setting. After deploying, scan an on-chain ticket and an on-chain membership on Base Sepolia. The ticket's entry gets an Attendance attestation within a few blocks (`entry_log.attendance_uid` is set), the membership's does not.
 
 ### Several issuers per account migration
 
@@ -570,3 +699,9 @@ The repository's `Require lockfile` Actions policy is active for `.github/workfl
 Dependabot checks GitHub Actions weekly, with a three-day cooldown and grouped updates. Its pull requests update the matching lockfile entries for `uses:` lines in onboarded workflows. A bump inside `.github/actions/setup/action.yml` may still need `gh actions-lock` rerun before the `lockfile` job passes. npm updates remain manual until [Dependabot supports pnpm 11](https://github.com/dependabot/dependabot-core/issues/14794), including the independent Subgraph. Cargo updates for the Substreams crates are also manual so they can be reviewed against The Graph compatibility requirements. Upgrade Vite+, its core alias, lint/format overrides, Vitest, and Ultracite together following the alignment comments in `pnpm-workspace.yaml`, then verify with `pnpm check` and `pnpm test`. Dependency update PRs remain subject to CI; automatic merging is not configured.
 
 GitHub Secret scanning and push protection are enabled in the repository's **Settings → Code security**. Keep them enabled independently of CI; they protect supported secret patterns and do not replace the `.gitignore` rules for local key material.
+
+### Check dashboard errors and page previews
+
+The dashboard translates known API errors into the current page language. For an unrecognized error, support can read the code in parentheses after the general message. The API response keeps its original code.
+
+After a frontend deployment, check the app and dashboard HTML titles, descriptions and Open Graph locale with Japanese and English `Accept-Language` headers and with a saved language choice. Without either, both use Japanese. The static gate uses Japanese metadata. A venue share link uses the saved venue name and tagline. Share services can cache earlier previews.

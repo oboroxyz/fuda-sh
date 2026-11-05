@@ -16,7 +16,7 @@ const row: MemberRowView = {
   human: false,
   level: 'signed',
   memberId: '',
-  passUrls: null,
+  passUrls: { apple: '/apple', google: '/google', web: '/web' },
   qr: `fuda:v1:${UID}`,
   status: 'active',
   tier: 'GENERAL',
@@ -65,7 +65,7 @@ describe('revoke dialog', () => {
       ['true', '0xabababab…'],
     ])
     expect(actionButtons(host).map(spacedText)).toStrictEqual(['Cancel', 'Revoke right'])
-    expect(spacedText(host)).toContain('Revoke failed: RPC unavailable')
+    expect(spacedText(host)).toContain('Revoke failed: Something went wrong. Try again. (RPC unavailable)')
   })
 
   it('opens modally and focuses Cancel, then closes when the target clears', () => {

@@ -59,6 +59,10 @@
     @apply min-h-13 rounded-full;
   }
 
+  .venue-bot-check {
+    @apply flex justify-center empty:hidden;
+  }
+
   .venue-held-card {
     @apply overflow-hidden rounded-[1.25rem] border border-[var(--fuda-border)] bg-[var(--fuda-surface)] shadow-[0_8px_24px_-16px_#0004];
   }

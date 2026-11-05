@@ -2,6 +2,7 @@
 
 - **Status**: Accepted 2026-10-19. Supersedes the "one issuer per wallet" rule of [ADR 0008](0008-shared-issuer-wallet.md); the rest of ADR 0008 stands.
 - **Scope**: how an operator account relates to the issuers it runs, in the api, D1 and the dashboard.
+- **Update 2026-11-05**: "account" below was written when the signed-in address was the only owner. An owner is now a passkey account or an address ([ADR 0008](0008-shared-issuer-wallet.md#operator-accounts)), and the rules here apply to both. The ENS consequence applies only to issuers an address owns.
 
 An operator who runs two shops, or a shop and an event, signs in with one passkey wallet. Requiring a second wallet per shop made the second shop impossible for anyone without a second passkey account, and connected apps ([Connected apps](../specs/connected-apps.md)) need the operator to choose which shop an approval is for. So an account — the signed-in operator address — may own several issuers, and everything that belongs to a shop stays scoped to that issuer.
 

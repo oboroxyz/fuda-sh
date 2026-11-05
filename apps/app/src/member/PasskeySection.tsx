@@ -1,20 +1,19 @@
 import { pick } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
-import type { MemberPasskeysResponse, MemberPasskeyView } from '@fuda/sdk'
+import type { PasskeysResponse, PasskeyView } from '@fuda/sdk'
 import { apiFetch } from '@fuda/sdk/http'
 import { ConfirmAction } from '@fuda/ui'
 import { createResource, createSignal, For, Show } from 'solid-js'
 import type { JSX } from 'solid-js'
 
 import { API_BASE_URL } from '../config.ts'
-import { addPasskey } from './auth.ts'
-import type { AddPasskeyOutcome } from './auth.ts'
 import { MEMBER_COPY } from './copy.ts'
+import type { AddWithSecret } from './sensitive.ts'
 
-type Failure = Extract<AddPasskeyOutcome, { ok: false }>['failure']
+type Failure = Extract<AddWithSecret, { ok: false }>['failure']
 
-const loadPasskeys = async (): Promise<MemberPasskeyView[]> => {
-  const result = await apiFetch<MemberPasskeysResponse>(API_BASE_URL, '/auth/member/passkeys')
+const loadPasskeys = async (): Promise<PasskeyView[]> => {
+  const result = await apiFetch<PasskeysResponse>(API_BASE_URL, '/auth/member/passkeys')
   if (!result.ok) {
     throw new Error(result.error)
   }
@@ -31,16 +30,29 @@ export const PasskeySection = (props: { locale: Locale }): JSX.Element => {
   const [passkeys, { refetch }] = createResource(loadPasskeys)
   const [busy, setBusy] = createSignal(false)
   const [failure, setFailure] = createSignal<Failure | 'remove' | null>(null)
+  const [addedWithoutCopy, setAddedWithoutCopy] = createSignal(false)
+  const holders = (): number => passkeys()?.filter((passkey) => passkey.holdsSecret).length ?? 0
+  const removable = (passkey: PasskeyView): boolean =>
+    (passkeys()?.length ?? 0) > 1 && !(passkey.holdsSecret && holders() === 1)
 
   const add = async (): Promise<void> => {
     setBusy(true)
     setFailure(null)
-    const outcome = await addPasskey()
-    setBusy(false)
-    if (outcome.ok) {
-      await refetch()
-    } else {
-      setFailure(outcome.failure)
+    setAddedWithoutCopy(false)
+    const hadCopies = holders() > 0
+    try {
+      const { addPasskeyKeepingSecret, defaultSensitiveIo } = await import('./sensitive.ts')
+      const outcome = await addPasskeyKeepingSecret(defaultSensitiveIo)
+      if (outcome.ok) {
+        setAddedWithoutCopy(hadCopies && !outcome.holdsSecret)
+        await refetch()
+      } else {
+        setFailure(outcome.failure)
+      }
+    } catch {
+      setFailure('unavailable')
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -76,8 +88,13 @@ export const PasskeySection = (props: { locale: Locale }): JSX.Element => {
                     {copy().created.replace('{date}', dateOf(passkey.createdAt, props.locale))}
                     {passkey.backedUp ? ` · ${copy().synced}` : ''}
                   </span>
+                  <Show when={holders() > 0}>
+                    <span class="text-xs text-[var(--fuda-muted)]">
+                      {passkey.holdsSecret ? copy().opensSensitive : copy().cannotOpenSensitive}
+                    </span>
+                  </Show>
                 </div>
-                <Show when={(passkeys()?.length ?? 0) > 1}>
+                <Show when={removable(passkey)}>
                   <ConfirmAction
                     cancelLabel={copy().cancel}
                     confirmLabel={copy().remove}
@@ -96,6 +113,12 @@ export const PasskeySection = (props: { locale: Locale }): JSX.Element => {
       </Show>
       <Show when={failure()}>
         {(current) => <div class="alert alert-error">{copy().failures[current()]}</div>}
+      </Show>
+      <Show when={addedWithoutCopy()}>
+        <div class="alert alert-warning">{copy().addedWithoutCopy}</div>
+      </Show>
+      <Show when={holders() > 0}>
+        <p class="text-sm text-[var(--fuda-muted)]">{copy().addKeepsSecret}</p>
       </Show>
       <button
         class="btn btn-outline w-full"

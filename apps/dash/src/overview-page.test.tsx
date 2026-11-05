@@ -23,7 +23,7 @@ const rows: readonly MemberRowView[] = [
     human: false,
     level: 'bearer',
     memberId: 'alice',
-    passUrls: null,
+    passUrls: { apple: '/apple', google: '/google', web: '/web' },
     qr: `fuda:v1:${UID}`,
     status: 'active',
     tier: 'GENERAL',
@@ -35,7 +35,7 @@ const rows: readonly MemberRowView[] = [
     human: false,
     level: 'signed',
     memberId: 'bob',
-    passUrls: null,
+    passUrls: { apple: '/apple', google: '/google', web: '/web' },
     qr: `fuda:v1:${UID}`,
     status: 'active',
     tier: 'VIP',
@@ -45,9 +45,9 @@ const rows: readonly MemberRowView[] = [
     holder: null,
     holderShort: null,
     human: false,
-    level: 'private',
+    level: 'signed',
     memberId: 'carol',
-    passUrls: null,
+    passUrls: { apple: '/apple', google: '/google', web: '/web' },
     qr: `fuda:v1:${UID}`,
     status: 'revoked',
     tier: 'GENERAL',
@@ -157,7 +157,9 @@ describe(OverviewPage, () => {
       const refreshed = showError(rows)
 
       for (const host of [initial, refreshed]) {
-        expect(spacedText(host.querySelector('[role="alert"]'))).toBe(`${errorPrefix}: D1_UNAVAILABLE [42]`)
+        expect(spacedText(host.querySelector('[role="alert"]'))).toBe(
+          `${errorPrefix}: ${locale === 'ja' ? '処理を完了できませんでした。もう一度お試しください。' : 'Something went wrong. Try again.'} (D1_UNAVAILABLE [42])`,
+        )
       }
       expect([...initial.querySelectorAll('.stat-value')].map(spacedText)).toStrictEqual(['—', '—', '—'])
       expect(spacedText(initial)).not.toContain(stale)

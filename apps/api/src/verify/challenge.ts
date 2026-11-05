@@ -13,11 +13,11 @@ const randomNonce = (): Hex => `0x${toHex(crypto.getRandomValues(new Uint8Array(
 // again, spent or not, so the row has no further use. Doing it here keeps the
 // table bounded by the mint rate without a cron, and the sweep rides along in
 // the same batch as the insert.
-export const mintNonce = async (db: Db, subject: string, now: number): Promise<Hex> => {
+export const mintNonce = async (db: Db, subject: string, now: number, venue?: string): Promise<Hex> => {
   const nonce = randomNonce()
   await db.batch([
     db.delete(challenges).where(lt(challenges.createdAt, sql`${now} - ${CHALLENGE_TTL_SECONDS}`)),
-    db.insert(challenges).values({ createdAt: now, nonce, uid: subject }),
+    db.insert(challenges).values({ createdAt: now, nonce, uid: subject, venue: venue ?? null }),
   ])
   return nonce
 }
@@ -26,7 +26,7 @@ export const mintNonce = async (db: Db, subject: string, now: number): Promise<H
 // TTL. The write is the lock: consumed iff a row changed.
 export const consumeNonce = async (
   db: Db,
-  p: { nonce: Hex; now: number; subject: string },
+  p: { nonce: Hex; now: number; subject: string; venue?: string },
 ): Promise<boolean> => {
   const res = await db
     .update(challenges)
@@ -35,6 +35,7 @@ export const consumeNonce = async (
       and(
         eq(challenges.nonce, p.nonce),
         eq(challenges.uid, p.subject),
+        p.venue === undefined ? isNull(challenges.venue) : eq(challenges.venue, p.venue),
         isNull(challenges.usedAt),
         gt(challenges.createdAt, sql`${p.now} - ${CHALLENGE_TTL_SECONDS}`),
       ),
@@ -49,10 +50,13 @@ export const mintChallenge = async (
   db: Db,
   uid: Hex,
   now: number,
+  venue?: string,
 ): Promise<{ challenge: string; nonce: Hex }> => {
-  const nonce = await mintNonce(db, uid, now)
-  return { challenge: challengeMessage(uid, nonce), nonce }
+  const nonce = await mintNonce(db, uid, now, venue)
+  return { challenge: challengeMessage(uid, nonce, venue), nonce }
 }
 
-export const consumeChallenge = async (db: Db, p: { uid: Hex; nonce: Hex; now: number }): Promise<boolean> =>
-  await consumeNonce(db, { nonce: p.nonce, now: p.now, subject: p.uid })
+export const consumeChallenge = async (
+  db: Db,
+  p: { uid: Hex; nonce: Hex; now: number; venue?: string },
+): Promise<boolean> => await consumeNonce(db, { nonce: p.nonce, now: p.now, subject: p.uid, venue: p.venue })

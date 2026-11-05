@@ -9,13 +9,15 @@ import type { Db } from '../db/client.ts'
 import { issuers, members, offchainAttestations } from '../db/schema.ts'
 import type { Entitlement } from '../eas/codecs.ts'
 import {
+  decodeHolderKey,
   decodeOffchainPass,
   fromSignedJson,
+  holderAddressOf,
   OFFCHAIN_PASS_SCHEMA_UID,
   offchainUid,
   recoverOffchainSigner,
 } from '../eas/offchain.ts'
-import type { OffchainDomain, OffchainPassData, SignedOffchain } from '../eas/offchain.ts'
+import type { AttestedPasskey, OffchainDomain, OffchainPassData, SignedOffchain } from '../eas/offchain.ts'
 import { checkWindow, toEntitlementView } from './verify-uid.ts'
 import type { VerifyOutcome } from './verify-uid.ts'
 
@@ -49,6 +51,13 @@ const decodeOrNull = (data: Hex): OffchainPassData | null => {
   }
 }
 
+// What a stored pass answers to, or null for one that answers to none.
+export const attestedPasskeyOf = (row: Pick<OffchainRow, 'signed'>): AttestedPasskey | null => {
+  const signed = fromSignedJson(row.signed)
+  const pass = signed === null ? null : decodeOrNull(signed.message.data)
+  return pass === null ? null : decodeHolderKey(pass.holderKey)
+}
+
 const sameHex = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase()
 
 const sameDomain = (a: OffchainDomain, b: OffchainDomain): boolean =>
@@ -74,29 +83,32 @@ export interface OffchainVerifyDeps {
   chain: ChainClient
   domain: OffchainDomain | null
   now: number
+  retiredSigners: readonly Hex[]
 }
 
 // The row is what fuda signed: right uid, right domain, right key.
-const signatureReason = async (
+const signatureReason = (
   deps: OffchainVerifyDeps,
   uid: Hex,
   signed: SignedOffchain,
   attester: Hex | null,
-): Promise<Reason | null> => {
+): Reason | null => {
   if (!sameHex(offchainUid(signed.message), uid) || !sameHex(signed.uid, uid)) {
     return 'BAD_SIGNATURE'
   }
-  if (deps.domain === null || attester === null) {
+  const current = deps.chain.offchainAttester()
+  if (deps.domain === null || current === null) {
     return 'DELEGATION_CONFIG_MISSING'
   }
   if (!sameDomain(signed.domain, deps.domain)) {
     return 'BAD_SIGNATURE'
   }
-  const signer = await recoverOffchainSigner(signed)
-  if (signer === null) {
+  if (attester === null) {
     return 'BAD_SIGNATURE'
   }
-  return sameHex(signer, attester) ? null : 'ISSUER_NOT_DELEGATED'
+  return sameHex(attester, current) || deps.retiredSigners.some((signer) => sameHex(signer, attester))
+    ? null
+    : 'ISSUER_NOT_DELEGATED'
 }
 
 // The signed venue and card must be the ones the uid was looked up under, because
@@ -113,10 +125,24 @@ const validityReason = (signed: SignedOffchain, canonical: Entitlement, now: num
   return expiry !== 0n && BigInt(now) > expiry ? 'EXPIRED' : checkWindow(canonical, now)
 }
 
+// EAS keys revocations by sender. A retry after rotation records under the
+// current key; it cannot write the original signer's record.
+const revokedOnChain = async (chain: ChainClient, attester: Hex, uid: Hex): Promise<boolean> => {
+  const revokedAt = await chain.offchainRevokedAt(attester, uid)
+  if (revokedAt !== 0n) {
+    return true
+  }
+  const current = chain.offchainAttester()
+  if (current === null || sameHex(current, attester)) {
+    return false
+  }
+  return (await chain.offchainRevokedAt(current, uid)) !== 0n
+}
+
 // docs/specs/attestation-model.md#offchain-rights: the order is the contract. D1's
 // revocation record comes first so a revoked pass stays rejected while the chain
-// cannot be read. A ChainError leaves here only for a single-use right, which then
-// answers 502 like an on-chain read.
+// cannot be read. A ChainError leaves here only for a single-use right or a Sensitive pass,
+// which then answer 502 like an on-chain read.
 export const verifyOffchain = async (
   deps: OffchainVerifyDeps,
   uid: Hex,
@@ -127,7 +153,7 @@ export const verifyOffchain = async (
   if (signed === null || pass === null) {
     return { decision: 'REJECT', reason: 'WRONG_SCHEMA' }
   }
-  const attester = deps.chain.offchainAttester()
+  const attester = await recoverOffchainSigner(signed)
   const canonical = toCanonical(pass, attester ?? ZERO_ADDRESS)
   const reject = (reason: Reason): VerifyOutcome => ({
     decision: 'REJECT',
@@ -138,25 +164,27 @@ export const verifyOffchain = async (
     return reject('REVOKED')
   }
   const reason =
-    (await signatureReason(deps, uid, signed, attester)) ??
+    signatureReason(deps, uid, signed, attester) ??
     bindingReason(signed, pass, row) ??
     validityReason(signed, canonical, deps.now)
   if (reason !== null || attester === null) {
     return reject(reason ?? 'DELEGATION_CONFIG_MISSING')
   }
+  const holderAddress = holderAddressOf(pass.holderKey)
   const admit: VerifyOutcome = {
     attester,
     canonical,
     decision: 'ADMIT',
     delegation: { active: true, issuer: attester, name: 'fuda' },
     entitlement: toEntitlementView(canonical),
+    holderAddress,
+    passkey: decodeHolderKey(pass.holderKey),
     reason: 'OK',
   }
   try {
-    const revokedAt = await deps.chain.offchainRevokedAt(attester, uid)
-    return revokedAt === 0n ? admit : reject('REVOKED')
+    return (await revokedOnChain(deps.chain, attester, uid)) ? reject('REVOKED') : admit
   } catch (error) {
-    if (error instanceof ChainError && pass.usageModel !== USAGE_MODEL.SINGLE_USE) {
+    if (error instanceof ChainError && pass.usageModel !== USAGE_MODEL.SINGLE_USE && holderAddress === null) {
       return { ...admit, unconfirmed: true }
     }
     throw error

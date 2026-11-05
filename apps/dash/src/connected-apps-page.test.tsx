@@ -98,7 +98,7 @@ describe(ConnectedAppsPage, () => {
     expect(root.textContent).toContain('Not used yet')
     expect(root.textContent).toContain('Revoked a pass')
     expect(root.textContent).toContain('uid-1')
-    expect(root.textContent).toContain('Failed (card_sold_out)')
+    expect(root.textContent).toContain('Failed This card has reached its issue limit.')
   })
 
   it('revokes an approval, and deletes an app only on the second press', async () => {

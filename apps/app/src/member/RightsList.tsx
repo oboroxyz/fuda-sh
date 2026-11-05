@@ -2,7 +2,7 @@ import { DEFAULT_LOCALE, pick } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
 import type { QueryClient } from '@fuda/libs/query'
 import { createQuery, createQueryScope } from '@fuda/libs/query'
-import { asHex, brandTextColor, fetchRightsByHolder, normalizeUid } from '@fuda/sdk'
+import { asHex, brandTextColor, fetchRightsByHolder, isPasskeyPass, normalizeUid } from '@fuda/sdk'
 import type { GraphRight, Hex, PassCardView } from '@fuda/sdk'
 import { short } from '@fuda/ui'
 import { createEffect, createSignal, For, on, onMount } from 'solid-js'
@@ -15,7 +15,6 @@ import {
   applePassAvailable,
   connectMemberRail,
   googlePassHref,
-  PrivatePassRecoveryError,
   withConnectedAddress,
 } from '../member-pass-list.ts'
 import type { MemberPassListIo, MemberPassListResult, MemberPassRow } from '../member-pass-list.ts'
@@ -28,6 +27,7 @@ import { injectedProvider, requestAccount } from '../wallet.ts'
 import type { Eip1193Provider } from '../wallet.ts'
 import { MEMBER_COPY, PASS_REASON_JA } from './copy.ts'
 import type { MemberCopy } from './copy.ts'
+import { SensitivePasses } from './SensitivePasses.tsx'
 
 export type RightsListState =
   | { kind: 'idle' }
@@ -98,6 +98,11 @@ const memberStatus = (row: MemberPassRow, locale: Locale, copy: MemberCopy['pass
   return locale === 'ja' ? PASS_REASON_JA[row.preview.reason] : row.preview.reason
 }
 
+const answersToPasskey = (row: MemberPassRow): boolean => {
+  const entitlement = row.preview?.entitlement
+  return entitlement !== undefined && isPasskeyPass(entitlement)
+}
+
 const memberPassLinks = (
   row: MemberPassRow,
   publicPass: boolean,
@@ -105,6 +110,18 @@ const memberPassLinks = (
 ): JSX.Element | null => {
   if (!publicPass) {
     return null
+  }
+  if (answersToPasskey(row)) {
+    return (
+      <span class="flex items-center gap-3">
+        <a class="link" download={`fuda-pass-${row.uid.slice(2, 10)}.json`} href={passBackupHref(row.uid)}>
+          {copy.saveBackup}
+        </a>
+        <a class="btn btn-primary btn-sm" href={`/signed?uid=${row.uid}`}>
+          {copy.enter}
+        </a>
+      </span>
+    )
   }
   return (
     <span class="flex items-center gap-3">
@@ -184,6 +201,7 @@ const memberCard = (row: MemberPassRow, locale: Locale, copy: MemberCopy['passes
         {memberPassLinks(row, publicPass, copy)}
       </div>
       {row.graph === null ? <p class="text-xs text-[var(--fuda-muted)]">{copy.saved}</p> : null}
+      {answersToPasskey(row) ? <p class="mt-1 text-xs text-[var(--fuda-muted)]">{copy.passkeyPass}</p> : null}
       {row.stamps?.enabled === true ? (
         <div class="mt-2 text-sm" aria-label={copy.stamps}>
           <div class="font-semibold">{copy.stampCount(row.stamps.total, row.stamps.goal)}</div>
@@ -268,53 +286,14 @@ export const RightsListView = (props: {
   locale?: Locale
 }): JSX.Element => <>{listView(props.state, props.locale ?? DEFAULT_LOCALE, props.search ?? '')}</>
 
-export const QueryRecoveryNotice = (props: {
-  locale?: Locale
-  onNavigate?: (path: string) => void
-}): JSX.Element => {
-  const copy = (): MemberCopy['passes'] => pick(MEMBER_COPY, props.locale ?? DEFAULT_LOCALE).passes
-  return (
-    <div class="alert alert-warning">
-      {copy().privateNotice}{' '}
-      <a
-        class="link"
-        href="/private"
-        onClick={(event) => {
-          const { onNavigate } = props
-          if (
-            onNavigate !== undefined &&
-            event.button === 0 &&
-            !event.altKey &&
-            !event.ctrlKey &&
-            !event.metaKey &&
-            !event.shiftKey
-          ) {
-            event.preventDefault()
-            onNavigate('/private')
-          }
-        }}
-      >
-        {copy().privateRights}
-      </a>
-    </div>
-  )
-}
-
 type MemberProblem = Error | 'connectionFailed' | 'invalidAddress'
 
-const problemNotice = (
-  problem: MemberProblem | null,
-  locale: Locale,
-  onNavigate?: (path: string) => void,
-): JSX.Element | null => {
+const problemNotice = (problem: MemberProblem | null, locale: Locale): JSX.Element | null => {
   if (problem === null) {
     return null
   }
   if (problem === 'invalidAddress' || problem === 'connectionFailed') {
     return <div class="alert alert-error">{pick(MEMBER_COPY, locale).passes[problem]}</div>
-  }
-  if (problem instanceof PrivatePassRecoveryError) {
-    return <QueryRecoveryNotice locale={locale} onNavigate={onNavigate} />
   }
   return <div class="alert alert-error">{problem.message}</div>
 }
@@ -338,7 +317,6 @@ interface RightsListProps {
   memory?: readonly PassMemoryEntry[]
   queryClient?: QueryClient
   queryUid?: Hex | null
-  onNavigate?: (path: string) => void
 }
 
 const queryUidFromLocation = (): Hex | null => {
@@ -375,9 +353,7 @@ export const RightsList = (props: RightsListProps): JSX.Element => {
   const queryProblem = (): MemberProblem | null => {
     const recoveryError = recoveryQuery().error
     const recoveryProblem =
-      recoveryError === null || recoveryError instanceof PrivatePassRecoveryError
-        ? recoveryError
-        : new Error(`${copy().passes.recoveryFailed} ${recoveryError.message}`)
+      recoveryError === null ? null : new Error(`${copy().passes.recoveryFailed} ${recoveryError.message}`)
     return recoveryProblem ?? (listQuery().data === undefined ? null : listQuery().error)
   }
 
@@ -500,8 +476,9 @@ export const RightsList = (props: RightsListProps): JSX.Element => {
           </form>
         </div>
       )}
-      {problemNotice(problem() ?? queryProblem(), locale(), props.onNavigate)}
+      {problemNotice(problem() ?? queryProblem(), locale())}
       <RightsListView locale={locale()} state={visibleState()} search={search()} />
+      {props.syncWithAccount === true ? <SensitivePasses locale={locale()} /> : null}
     </Dynamic>
   )
 }

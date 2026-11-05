@@ -4,7 +4,7 @@
 
 **Your rights in your pocket.**
 
-fuda turns memberships, tickets, and loyalty cards into on-chain Rights that people carry as Passes in Apple Wallet, Google Wallet, or the browser. Start without an app install or member sign-up, and secure your Right with a passkey when you're ready.
+fuda turns memberships, tickets, and loyalty cards into on-chain Rights that people carry as Passes in Apple Wallet, Google Wallet, or the browser. Start without an app install or member sign-up, and sign in with a passkey when you want your passes kept across devices.
 
 ## Our goal
 
@@ -22,7 +22,7 @@ An Operator signs in with a passkey, sets up a Venue, designs a Card, and shares
 - **Membership and loyalty cards** — publish a branded Card from the dashboard, then scan member Passes for entry and award Stamps under the Card's policy.
 - **Open verification** — each Right is an [EAS](https://attest.org) attestation on Base. Anyone can check its on-chain validity without a fuda account or API.
 
-ENS gives issuers and Rights names; The Graph supports discovery and on-chain status views. Passkeys and smart accounts let Members take control of their Rights. See [Pass types and flows](./docs/specs/pass-types-and-flows.md) for onboarding, verification levels, and +Private access.
+ENS gives issuers and Rights names; The Graph supports on-chain status views. Passkeys sign Members in. See [Pass types and flows](./docs/specs/pass-types-and-flows.md) for onboarding and verification levels.
 
 ## How it fits together
 
@@ -37,9 +37,7 @@ flowchart TB
     API -->|build and deliver| PASS[Apple, Google, and browser passes]
     PASS -->|present QR| GATE
     EAS --> INDEX[Rights index]
-    ANN[ERC-5564 Announcer] --> INDEX
-    API -->|announce private rights| ANN
-    APP -->|discover rights| INDEX
+    APP -->|read rights| INDEX
     DASH -->|read on-chain status| INDEX
     ENS[ENS resolver] <-->|name lookup via CCIP Read| API
     APP -. "badge a right you hold" .-> WID[World ID app]
@@ -47,13 +45,13 @@ flowchart TB
     API -. "verify the proof, server-side" .-> WORLD[World ID · developer portal]
 ```
 
-The rights index supports discovery and status views; ENS supplies names and address resolution. Gate admission uses EAS and D1. See the [architecture overview](./docs/architecture.md) for component responsibilities and trust boundaries.
+The rights index supports status views; ENS supplies names and address resolution. Gate admission uses EAS and D1. See the [architecture overview](./docs/architecture.md) for component responsibilities and trust boundaries.
 
 **The dashed path is optional.** A deployment that sets the World ID secrets lets a member who already holds a Right attach a Verified Human badge to it; one that leaves them unset shows no badge control anywhere. Note where the dashes stop. The gate never reaches World — admission still reads EAS and D1 and nothing else — and a Right with no badge answers exactly as it did before the feature existed. See [World ID](./docs/integrations/worldid.md).
 
 ### From issuance to entry
 
-A Bearer pass follows this sequence. Signed and +Private entry add a holder signature; their flows are described in [Pass types and flows](./docs/specs/pass-types-and-flows.md#gate-protocol).
+A Bearer pass follows this sequence. Signed entry adds a holder signature; their flows are described in [Pass types and flows](./docs/specs/pass-types-and-flows.md#gate-protocol).
 
 ```mermaid
 sequenceDiagram
@@ -77,11 +75,11 @@ sequenceDiagram
     API->>D1: Log verdict and consume slot if admitted and single-use
     API-->>Gate: ADMIT or REJECT
     opt ADMIT
-        API->>EAS: Record Attendance asynchronously, best-effort
+        API->>EAS: Record Attendance asynchronously, best-effort, if the card has it on
     end
 ```
 
-The gate app asks the API, which reads the Entitlement and its IssuerDelegation from EAS by `eth_call`. The hosted scanner trusts that API's verdict; an independent verifier can read the same records directly. D1 holds operational state — one-time challenges, single-use consumption, entry logs — and a failed chain read fails closed. Revoking on-chain turns the same QR red on the next scan. Anyone can check on-chain validity against Base without a fuda account; reproducing the hosted admission verdict also requires its operational state, including whether a single-use Right has already been consumed. Admissions are attested on-chain as best-effort Attendance, except for +Private Rights, where publishing a visit history would defeat the point.
+The gate app asks the API, which reads the Entitlement and its IssuerDelegation from EAS by `eth_call`. The hosted scanner trusts that API's verdict; an independent verifier can read the same records directly. D1 holds operational state — one-time challenges, single-use consumption, entry logs — and a failed chain read fails closed. Revoking on-chain turns the same QR red on the next scan. Anyone can check on-chain validity against Base without a fuda account; reproducing the hosted admission verdict also requires its operational state, including whether a single-use Right has already been consumed. Admissions of on-chain Rights are attested on-chain as best-effort Attendance.
 
 The principle behind that split is **decentralized at the core, hosted rails only for UX**. A Right's validity lives on-chain, ownable and verifiable by anyone; Apple, Google, and fuda's own Workers are rails that make it pleasant to use. Strip the rails away and every function still has a self-runnable fallback, with worse UX. See [UX and decentralization](./docs/architecture.md#ux-and-decentralization).
 
@@ -91,27 +89,26 @@ The principle behind that split is **decentralized at the core, hosted rails onl
 .
 ├── apps
 │   ├── api              issuance, gate verification, passes (Workers + D1)
-│   ├── app              member app — /@handle, /signed, /private, /rights
+│   ├── app              member app — /@handle, /signed, /rights
 │   ├── dash             operator dashboard — issue, revoke, members, card designer
 │   └── gate             scanner — camera QR → verdict screen
 ├── packages
 │   ├── sdk              shared types, validators, qrSvg
 │   ├── libs             shared query, wallet, and authentication integrations
-│   ├── stealth-address  ERC-5564 scheme-1 stealth address math
 │   ├── pass             Apple .pkpass and Google Wallet save-link builders
 │   ├── ui               shared web UI components
 │   ├── styles           shared base CSS
 │   ├── i18n             shared message catalogue
 │   ├── ens-contracts    ENS resolver contracts and naming scripts
 │   ├── subgraphs/rights the Base query lane the apps read status from
-│   └── substreams       optional ERC-5564 / EAS push lane
+│   └── substreams       optional EAS push lane
 ├── skills               agent skills to install, such as MCP setup
 └── docs                 architecture, specs, ADRs, runbook
 ```
 
 `packages/subgraphs/*` and `packages/substreams/*` build independently and do not join the pnpm workspace.
 
-Stack: Cloudflare Workers (Hono, Drizzle, D1, R2), viem, valibot, `@noble` crypto, EAS on Base. The protocol surface of the core loop is EAS plus the canonical ERC-5564 announcer. fuda runs one deployment per chain and they never share state — Base Sepolia today, Base mainnet at the cutover; see [Environments](./docs/architecture.md#environments).
+Stack: Cloudflare Workers (Hono, Drizzle, D1, R2), viem, valibot, `@noble` crypto, EAS on Base. The protocol surface of the core loop is EAS. fuda runs one deployment per chain and they never share state — Base Sepolia today, Base mainnet at the cutover; see [Environments](./docs/architecture.md#environments).
 
 ## Quick start
 
@@ -136,7 +133,7 @@ Then ask the agent to connect to fuda. It walks you through registering the app 
   - [Glossary](./docs/CONTEXT.md) — the one-name-per-concept vocabulary the specs, code, and UI share (level vs path, Right vs Pass, Device wallet vs Crypto wallet)
 - **Specifications** ([index](./docs/specs/README.md))
   - [Attestation model](./docs/specs/attestation-model.md) — Entitlement, IssuerDelegation, Attendance, lifecycle, the EAS/D1 authority boundary
-  - [Pass types and flows](./docs/specs/pass-types-and-flows.md) — templates, wallet roles, activation, privacy-first issuance, the gate protocol
+  - [Pass types and flows](./docs/specs/pass-types-and-flows.md) — templates, wallet roles, standard issuance, the gate protocol
   - [MCP server](./docs/specs/mcp.md) — connecting an agent, tokens bound to the server, the tools
   - [ENS naming](./docs/specs/ens-naming.md) — the name hierarchy, the member number, what a name resolves to, name lifecycle
   - [Substreams packages](./docs/specs/substreams.md) — the optional push lane and its compatibility guarantees

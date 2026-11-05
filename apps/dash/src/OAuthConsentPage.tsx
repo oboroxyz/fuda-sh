@@ -17,6 +17,7 @@ export interface ConsentIo {
   assign: (url: string) => void
   preview: typeof authorizePreview
   signIn: () => Promise<{ ok: boolean }>
+  signInWithWallet: () => Promise<{ ok: boolean }>
 }
 
 type View =
@@ -83,10 +84,10 @@ export const OAuthConsentPage = (props: OAuthConsentPageProps): JSX.Element => {
     }),
   )
 
-  const signIn = (): void => {
+  const signIn = (method: ConsentIo['signIn']): void => {
     setView({ failed: false, kind: 'sign-in', pending: true })
     const run = async (): Promise<void> => {
-      const outcome = await props.io.signIn().catch(() => ({ ok: false as const }))
+      const outcome = await method().catch(() => ({ ok: false as const }))
       if (outcome.ok) {
         setSignedIn(true)
       } else {
@@ -131,11 +132,23 @@ export const OAuthConsentPage = (props: OAuthConsentPageProps): JSX.Element => {
           <button
             class="btn btn-primary w-full gap-2"
             disabled={current.pending}
-            onClick={signIn}
+            onClick={() => {
+              signIn(props.io.signIn)
+            }}
             type="button"
           >
             <FingerprintSimple />
             {current.pending ? props.copy.signingIn : props.copy.signIn}
+          </button>
+          <button
+            class="link text-sm"
+            disabled={current.pending}
+            onClick={() => {
+              signIn(props.io.signInWithWallet)
+            }}
+            type="button"
+          >
+            {props.copy.signInWithWallet}
           </button>
         </>
       )

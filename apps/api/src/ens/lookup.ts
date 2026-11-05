@@ -1,15 +1,16 @@
 import { eq } from 'drizzle-orm'
-import { getAddress, isAddress, isHex } from 'viem'
-import type { Address, Hex } from 'viem'
+import { getAddress, isAddress } from 'viem'
+import type { Address } from 'viem'
 
 import type { Db } from '../db/client.ts'
 import { issuers } from '../db/schema.ts'
 import { issuerEnsName, memberEnsName, parseFudaEnsName } from './names.ts'
 import { ensNames } from './schema.ts'
 
-export type EnsLookupResult =
-  | { address: Address; expiresAt: number | null; type: 'address' }
-  | { ensNameId: number; expiresAt: number | null; stealthMetaAddress: Hex; type: 'stealth' }
+export interface EnsLookupResult {
+  address: Address
+  expiresAt: number | null
+}
 
 interface LookupInput {
   name: string
@@ -23,16 +24,19 @@ type ParsedName = NonNullable<ReturnType<typeof parseFudaEnsName>>
 // sends every never-claimed name to the gateway, and the answer is the wallet
 // a claim would make the owner. That wallet is the registered operator's, so
 // it is read from `issuers` rather than mirrored at registration, where a later
-// claim voucher would overwrite the row and take the name dark.
+// claim voucher would overwrite the row and take the name dark. A venue an account
+// owns has no wallet, so its name resolves to nothing until one claims it.
 const unclaimedIssuer = async (db: Db, handle: string): Promise<EnsLookupResult | null> => {
   const issuer = await db
     .select({ operatorAddress: issuers.operatorAddress })
     .from(issuers)
     .where(eq(issuers.handle, handle))
     .get()
-  return issuer === undefined || !isAddress(issuer.operatorAddress, { strict: false })
+  return issuer?.operatorAddress === null ||
+    issuer === undefined ||
+    !isAddress(issuer.operatorAddress, { strict: false })
     ? null
-    : { address: getAddress(issuer.operatorAddress), expiresAt: null, type: 'address' }
+    : { address: getAddress(issuer.operatorAddress), expiresAt: null }
 }
 
 // Statuses that mean nothing reached the chain: the name is still never-claimed.
@@ -65,20 +69,7 @@ export const lookupEnsName = async (db: Db, input: LookupInput): Promise<EnsLook
     return null
   }
 
-  if (row.level === 'private') {
-    return row.stealthMetaAddress !== null &&
-      row.stealthMetaAddress.length === 134 &&
-      isHex(row.stealthMetaAddress)
-      ? {
-          ensNameId: row.id,
-          expiresAt: row.expiry,
-          stealthMetaAddress: row.stealthMetaAddress,
-          type: 'stealth',
-        }
-      : null
-  }
-
   return row.targetAddress !== null && isAddress(row.targetAddress, { strict: true })
-    ? { address: row.targetAddress, expiresAt: row.expiry, type: 'address' }
+    ? { address: row.targetAddress, expiresAt: row.expiry }
     : null
 }

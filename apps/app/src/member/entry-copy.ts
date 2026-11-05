@@ -2,29 +2,12 @@ import { pick } from '@fuda/i18n'
 import type { Copy, Locale } from '@fuda/i18n'
 
 interface EntryCopy {
-  privateUi: {
-    close: string
-    metaDetails: string
-    rightDetails: string
-    rightId: string
-    rights: string
-    signHint: string
-    signVerify: string
-    verified: string
-    verifying: string
-  }
-  privateIntro: string
-  usePasskey: string
-  createPasskey: string
-  metaAddress: string
-  copy: Record<'done' | 'failed' | 'idle', string>
-  discover: string
-  noPasses: string
-  stealthAddress: string
-  enter: string
-  prf: Record<'cancelled' | 'error' | 'unsupported', string>
   signedTitle: string
+  passkeyEntryTitle: string
+  passkeyEntryIntro: string
+  enterWithPasskey: string
   signedIntro: string
+  signedUnreadable: string
   signing: string
   passkeyWallet: (uid: string) => string
   browserWallet: (uid: string) => string
@@ -37,34 +20,11 @@ interface EntryCopy {
 export const ENTRY_COPY = {
   en: {
     browserWallet: (uid: string) => `Use browser wallet for ${uid}`,
-    copy: { done: 'Copied', failed: 'Copy failed', idle: 'Copy' },
-    createPasskey: 'Create passkey',
-    discover: 'Discover my passes',
-    enter: 'Enter',
-    metaAddress: 'Your meta-address',
+    enterWithPasskey: 'Enter with your passkey',
     networkBanner: 'network error — the gate fails closed',
-    noPasses: 'No pass announced to this meta-address yet.',
+    passkeyEntryIntro: 'Confirm with your passkey, then show the result to the staff.',
+    passkeyEntryTitle: 'Enter with your passkey',
     passkeyWallet: (uid: string) => `Passkey wallet: sign for ${uid}`,
-    prf: {
-      cancelled:
-        'The passkey prompt was dismissed. If this device already holds your fuda passkey, choose "Use existing passkey" — creating a second one would give you a second meta-address.',
-      error: 'The passkey ceremony failed.',
-      unsupported:
-        'This passkey or device cannot derive a +Private key (no PRF support). Try a platform passkey on a recent phone or browser.',
-    },
-    privateIntro:
-      'Unlock your private rights with your fuda passkey. This is separate from the Base account you use to sign in.',
-    privateUi: {
-      close: 'Close',
-      metaDetails: 'Meta-address details',
-      rightDetails: 'Right details',
-      rightId: 'Right ID',
-      rights: 'Private rights',
-      signHint: 'Sign & verify to check access.',
-      signVerify: 'Sign & verify',
-      verified: 'Access verified',
-      verifying: 'Signing & verifying…',
-    },
     scanner: {
       cameraUnavailable: 'camera unavailable — paste below',
       check: 'Check',
@@ -72,42 +32,18 @@ export const ENTRY_COPY = {
     },
     signedIntro: 'Scan or paste your pass, then confirm entry with your wallet.',
     signedTitle: 'Enter with your wallet',
+    signedUnreadable: 'This is not a fuda pass code.',
     signing: 'Signing…',
-    stealthAddress: 'stealth address',
     tryAgain: 'tap to try again',
-    usePasskey: 'Use existing passkey',
     verdict: { ADMIT: 'ADMIT', REJECT: 'REJECT' },
   },
   ja: {
     browserWallet: (uid: string) => `ブラウザーのウォレットで署名：${uid}`,
-    copy: { done: 'コピーしました', failed: 'コピーできませんでした', idle: 'コピー' },
-    createPasskey: 'パスキーを作成',
-    discover: '自分の権利を探す',
-    enter: '入場する',
-    metaAddress: 'あなたのメタアドレス',
+    enterWithPasskey: 'パスキーで入場する',
     networkBanner: '通信エラーのため、入場を確認できません',
-    noPasses: 'このメタアドレス宛ての権利はまだありません。',
+    passkeyEntryIntro: 'パスキーで確認して、結果の画面をスタッフに見せてください。',
+    passkeyEntryTitle: 'パスキーで入場',
     passkeyWallet: (uid: string) => `パスキーウォレットで署名：${uid}`,
-    prf: {
-      cancelled:
-        'パスキーの操作をキャンセルしました。この端末にfudaのパスキーがある場合は「既存のパスキーを使う」を選んでください。新しく作ると、別のメタアドレスになります。',
-      error: 'パスキーの操作に失敗しました。',
-      unsupported:
-        'このパスキーまたは端末はPRFに対応していないため、+Privateの鍵を生成できません。新しいスマートフォンやブラウザーで端末のパスキーをお試しください。',
-    },
-    privateIntro:
-      'fudaのパスキーで非公開の権利を確認します。サインインに使うBaseアカウントとは別のパスキーです。',
-    privateUi: {
-      close: '閉じる',
-      metaDetails: 'メタアドレスの詳細',
-      rightDetails: '権利の詳細',
-      rightId: '権利ID',
-      rights: '非公開の権利',
-      signHint: 'ペンのボタンで署名し、利用可否を確認します。',
-      signVerify: '署名して確認',
-      verified: '利用できることを確認しました',
-      verifying: '署名・確認中…',
-    },
     scanner: {
       cameraUnavailable: 'カメラを利用できません。下の欄に貼り付けてください',
       check: '確認',
@@ -115,10 +51,9 @@ export const ENTRY_COPY = {
     },
     signedIntro: 'パスを読み取るか貼り付けて、ウォレットで入場を承認してください。',
     signedTitle: 'ウォレットで入場',
+    signedUnreadable: 'fuda のパスのコードではありません。',
     signing: '署名中…',
-    stealthAddress: 'ステルスアドレス',
     tryAgain: 'タップしてもう一度試す',
-    usePasskey: '既存のパスキーを使う',
     verdict: { ADMIT: '入場できます', REJECT: '入場できません' },
   },
 } satisfies Copy<EntryCopy>
@@ -133,14 +68,21 @@ const MESSAGE_COPY: Copy<Record<string, string>> = {
     DELEGATION_UNAVAILABLE: '発行権限を取得できません。',
     EXPIRED: '有効期限が切れています。',
     ISSUER_NOT_DELEGATED: '発行元に発行権限がありません。',
-    LEVEL_REQUIRED: 'この権利にはウォレットでの署名が必要です。',
+    LEVEL_REQUIRED: 'この権利はコードだけでは入場できません。',
     NOT_FOUND: '権利が見つかりません。',
     NOT_YET_VALID: 'まだ有効期間が始まっていません。',
     NO_DELEGATION: '発行権限を確認できません。',
     REVOKED: 'この権利は取り消されています。',
     'Rights discovery is not configured.': '権利の検索が設定されていません。',
+    'The passkey for this pass was not used. Try again on a device that has it.':
+      'このパスのパスキーが使われませんでした。パスキーのある端末でもう一度お試しください。',
+    'The passkey that opens this pass was not used. Try again on a device that has it.':
+      'このパスを開くパスキーが使われませんでした。パスキーのある端末でもう一度お試しください。',
+    'This pass is not on this account. Sign in with the account that received it.':
+      'このアカウントにはこのパスがありません。受け取ったアカウントでサインインしてください。',
     UNKNOWN_USAGE_MODEL: '対応していない利用方式です。',
     WRONG_SCHEMA: '対応していない権利です。',
+    WRONG_VENUE: 'この発行元のパスではありません。',
     bad_challenge: '入場確認の有効期限が切れているか、内容が無効です。',
     bad_input: '入力内容を確認してください。',
     bad_qr: 'QRコードが無効です。',
@@ -150,15 +92,11 @@ const MESSAGE_COPY: Copy<Record<string, string>> = {
     chain_error: '権利を確認できませんでした。',
     internal: 'サーバーでエラーが発生しました。',
     'network error': '通信エラーが発生しました。',
-    'no credential': 'パスキーが見つかりませんでした。',
     not_found: '権利が見つかりません。',
-    'passkey ceremony failed': 'パスキーの操作に失敗しました。',
     rate_limited: '操作が集中しています。少し待ってからお試しください。',
     rpc_unavailable: '権利の確認先に接続できません。',
     'signing failed': '署名に失敗しました。',
     'something went wrong': '処理に失敗しました。',
-    'this passkey or platform does not support the PRF extension':
-      'このパスキーまたは端末はPRFに対応していません。',
     unauthorized: 'サインインし直してください。',
     'wallet error': 'ウォレットでエラーが発生しました。',
     'wallet returned no account': 'ウォレットのアドレスを取得できませんでした。',

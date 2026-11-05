@@ -1,17 +1,25 @@
 # ADR 0008: One issuer wallet, multiple owner credentials
 
-- **Status**: Accepted 2026-09-09. The signature foundation is verified; co-owner onboarding and owner management are deferred beyond the current MVP. The "one issuer per wallet" rule below is superseded by [ADR 0011](0011-several-issuers-per-account.md): a wallet may own several issuers.
+- **Status**: Accepted 2026-09-09. The signature foundation is verified; co-owner onboarding and owner management are deferred beyond the current MVP. The "one issuer per wallet" rule below is superseded by [ADR 0011](0011-several-issuers-per-account.md): a wallet may own several issuers. Since 2026-11-05 a wallet is no longer how every operator signs in: see [Operator accounts](#operator-accounts). The rest applies to an issuer a wallet owns.
 - **Scope**: shared control of one issuer, without adding a multiple-venue workspace model to the dashboard.
 
 An issuer's wallet is its durable dashboard and ENS identity. The credentials controlling that wallet can change without changing the issuer, handle, cards, or ENS owner. Preserve one issuer per wallet and use Coinbase Smart Wallet's MultiOwnable mechanism for full co-owners. Do not reinterpret each owner credential as a separate issuer or add an offchain owner allowlist as the authority for the wallet.
 
+## Operator accounts
+
+The owner decided on 2026-09-28 that operators sign in with fuda's own WebAuthn passkeys on `fuda.sh`, with connecting a wallet optional, because Base Account sign-up asks for an email and makes a wallet the identity. So an issuer now belongs to an account, or to an address for one made through a wallet sign-in, and `issuers` holds exactly one of the two.
+
+- **Accounts are shared with members.** A person who runs a shop and holds passes is one person with one passkey, so operator and member sessions name the same `accounts` row and only the session audience differs.
+- **There is no linking.** An issuer stays with the owner that made it. Wallet sign-in remains because ENS claims are bound to a wallet and vouchers need an address, and it reaches only what that address owns. An account's issuer therefore cannot claim an ENS name. A way to attach a wallet to an account is a later decision, and the requirements below would apply to it.
+- **Connected-app and stamp rows name the owner in their existing columns.** `connected_apps.owner_address`, `oauth_codes.address`, `oauth_tokens.address`, `connected_app_events.address` and `stamp_credits.operator_address` hold an address, or `account:<id>` for an account. Renaming the columns would break the previous Worker if a deploy were rolled back, and rebuilding them means four more table copies for no change in behavior. The prefix keeps the two kinds of value apart.
+
 ## Authentication and ownership
 
-The dashboard must prove control of the **issuer wallet**, even when a different owner credential signs. The existing API already verifies EOA/ERC-1271/ERC-6492 signatures against the submitted address and looks up the issuer by that same address. Its legacy `issuers.operator_address` and operator-session `address` represent this wallet identity; they are not a reliable identifier of the individual person or owner key. Keep those field names and the current API contract for the MVP.
+The dashboard must prove control of the **issuer wallet**, even when a different owner credential signs. The existing API already verifies EOA/ERC-1271/ERC-6492 signatures against the submitted address and looks up the issuer by that same address. Its legacy `issuers.operator_address` and operator-session `address` represent this wallet identity; they are not a reliable identifier of the individual person or owner key. Keep those field names and the current API contract for the MVP. This section describes wallet sign-in.
 
 An owner's ordinary personal signature against its own address does not authenticate the issuer wallet. A future co-owner flow needs the target issuer wallet, a supported signer, and a correctly encoded wallet proof. In Coinbase Smart Wallet, the proof selects an owner index and contains the signature over the wallet's replay-safe digest. Verifying only that an arbitrary supplied address appears in a local list is insufficient. The Base Account popup's ability to discover and sign for an externally owned wallet remains a separate integration requirement.
 
-ENS vouchers and claim confirmation remain bound to the issuer wallet. Adding a co-owner must not make a subname belong to the co-owner's personal wallet. Reception currently records the authenticated wallet address; it does not distinguish multiple humans using that wallet. A future audit trail must retain verified signer evidence separately from the issuer identity, including support for public-key and contract-wallet owners rather than assuming every credential is an EOA address.
+ENS vouchers and claim confirmation remain bound to the issuer wallet. Adding a co-owner must not make a subname belong to the co-owner's personal wallet. Reception records the authenticated wallet address or account; it does not distinguish multiple humans using either. A future audit trail must retain verified signer evidence separately from the issuer identity, including support for public-key and contract-wallet owners rather than assuming every credential is an EOA address.
 
 ## Full co-owners and restricted operators
 

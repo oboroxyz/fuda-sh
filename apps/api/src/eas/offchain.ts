@@ -1,22 +1,27 @@
 import * as v from 'valibot'
 import {
+  bytesToHex,
   decodeAbiParameters,
   encodeAbiParameters,
   encodePacked,
+  hexToBytes,
   isHex,
   keccak256,
   parseAbiParameters,
   recoverTypedDataAddress,
+  size,
   stringToHex,
   zeroAddress,
 } from 'viem'
 import type { Hex } from 'viem'
 
+import { base64UrlOf, bytesOfBase64Url } from '../base64url.ts'
 import { schemaUid } from './schemas.ts'
 
 // docs/specs/attestation-model.md#offchain-rights. The schema needs no entry in
 // EAS_SCHEMAS: EAS never sees it at signing, and its uid is a pure function of
-// this string. `holderKey` is empty for a Bearer right.
+// this string. `holderKey` is empty for a Bearer right, an encoded AttestedPasskey for an
+// Identified one, and a key's 20-byte address for a Sensitive one.
 const OFFCHAIN_PASS_SCHEMA =
   'string venue,string card,string memberNumber,uint8 usageModel,uint8 tier,uint8 level,uint64 validFrom,uint64 validUntil,bytes holderKey'
 export const OFFCHAIN_PASS_SCHEMA_UID = schemaUid(OFFCHAIN_PASS_SCHEMA)
@@ -53,6 +58,34 @@ export const decodeOffchainPass = (data: Hex): OffchainPassData => {
     decodeAbiParameters(PASS_PARAMS, data)
   return { card, holderKey, level, memberNumber, tier, usageModel, validFrom, validUntil, venue }
 }
+
+// What an Identified pass answers to, in `holderKey`: enough for a gate to check an
+// assertion with nothing else. `credentialId` is base64url, as WebAuthn's JSON has it, and
+// `publicKey` is the COSE key the passkey registered.
+export interface AttestedPasskey {
+  credentialId: string
+  publicKey: Hex
+}
+
+const HOLDER_KEY_PARAMS = parseAbiParameters('bytes credentialId, bytes publicKey')
+
+export const encodeHolderKey = (key: AttestedPasskey): Hex =>
+  encodeAbiParameters(HOLDER_KEY_PARAMS, [bytesToHex(bytesOfBase64Url(key.credentialId)), key.publicKey])
+
+// null for a Bearer pass's empty key, and for one that does not decode, which then
+// matches no assertion.
+export const decodeHolderKey = (holderKey: Hex): AttestedPasskey | null => {
+  try {
+    const [credentialId, publicKey] = decodeAbiParameters(HOLDER_KEY_PARAMS, holderKey)
+    return { credentialId: base64UrlOf(hexToBytes(credentialId)), publicKey }
+  } catch {
+    return null
+  }
+}
+
+// A Sensitive pass's `holderKey`. Its length alone tells it from an encoded passkey, whose
+// two dynamic fields take at least 128 bytes.
+export const holderAddressOf = (holderKey: Hex): Hex | null => (size(holderKey) === 20 ? holderKey : null)
 
 // EAS offchain attestation version 2, the form that carries a salt.
 const ATTEST_VERSION = 2

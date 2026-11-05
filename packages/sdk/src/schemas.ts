@@ -1,14 +1,16 @@
 import * as v from 'valibot'
 
-import { ADDRESS_RE, META_ADDRESS_RE, NONCE_RE, QR_RE, SIGNATURE_RE, UID_RE } from './constants.ts'
+import { ADDRESS_RE, NONCE_RE, QR_RE, SIGNATURE_RE, UID_RE } from './constants.ts'
 import {
   BRAND_COLOR_RE,
   CARD_CATEGORIES,
+  CARD_IDENTITIES,
   CARD_RECORDS,
   CARD_DESCRIPTION_MAX_LENGTH,
   hasSingleValidityRule,
   isCardSlug,
   isCardSlugReference,
+  isIdentityAllowed,
   isIssuerHandle,
   isOrderedWindow,
   normalizeBrandColor,
@@ -18,11 +20,12 @@ const uid = v.pipe(v.string(), v.regex(UID_RE))
 const address = v.pipe(v.string(), v.regex(ADDRESS_RE))
 const unix = v.pipe(v.number(), v.integer(), v.minValue(0))
 
-export const IssueBody = v.object({
+// Strict, so a retired field such as `stealthMetaAddress` is refused instead of
+// being dropped and the request issued as a different kind of right.
+export const IssueBody = v.strictObject({
   holder: v.optional(address),
   memberId: v.optional(v.pipe(v.string(), v.minLength(1))),
   metaURI: v.optional(v.string(), ''),
-  stealthMetaAddress: v.optional(v.pipe(v.string(), v.regex(META_ADDRESS_RE))),
   tier: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(3)), 0),
   usageModel: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(2)), 1),
   validFrom: v.optional(unix, 0),
@@ -30,32 +33,28 @@ export const IssueBody = v.object({
 })
 export type IssueRequest = v.InferOutput<typeof IssueBody>
 
-// Exact rule from docs/specs/attestation-model.md#api-payloads-that-touch-attestations: stealthMetaAddress → private (holder forbidden);
-// else holder → signed (memberId forbidden); else memberId → bearer; else null.
-export const deriveIssueKind = (b: IssueRequest): 'bearer' | 'signed' | 'private' | null => {
-  if (b.stealthMetaAddress !== undefined) {
-    return b.holder === undefined ? 'private' : null
-  }
+// Exact rule from docs/specs/attestation-model.md#api-payloads-that-touch-attestations: holder → signed (memberId forbidden);
+// else memberId → bearer; else null.
+export const deriveIssueKind = (b: IssueRequest): 'bearer' | 'signed' | null => {
   if (b.holder !== undefined) {
     return b.memberId === undefined ? 'signed' : null
   }
   return b.memberId === undefined ? null : 'bearer'
 }
 
-export const VerifyBody = v.object({ qr: v.pipe(v.string(), v.regex(QR_RE)) })
-export const RevokeBody = v.object({ uid })
-export const ChallengeBody = v.object({ uid })
-export const VerifySignedBody = v.object({
-  nonce: v.pipe(v.string(), v.regex(NONCE_RE)),
-  signature: v.pipe(v.string(), v.regex(SIGNATURE_RE)),
-  uid,
+// `venue` is the gate station's configured Handle. It is not checked against the
+// handle rule here: a mistyped one must answer WRONG_VENUE on the screen, not a
+// 400 the staff cannot read.
+export const VerifyBody = v.object({
+  qr: v.pipe(v.string(), v.regex(QR_RE)),
+  venue: v.optional(v.pipe(v.string(), v.maxLength(64))),
 })
+export const RevokeBody = v.object({ uid })
+export const ChallengeBody = v.object({ uid, venue: v.optional(v.pipe(v.string(), v.maxLength(64))) })
 
 export type VerifyRequest = v.InferOutput<typeof VerifyBody>
 export type RevokeRequest = v.InferOutput<typeof RevokeBody>
 export type ChallengeRequest = v.InferOutput<typeof ChallengeBody>
-export type VerifySignedRequest = v.InferOutput<typeof VerifySignedBody>
-
 const Base64Url = v.pipe(v.string(), v.regex(/^[A-Za-z0-9_-]+$/u))
 
 const PasskeyResponseFields = {
@@ -92,6 +91,55 @@ export const PasskeyAuthenticationBody = v.object({
   }),
 })
 
+// The two ways to answer a gate challenge: a wallet's signature, or the passkey an
+// Identified pass attests.
+export const VerifySignedBody = v.union([
+  v.object({
+    nonce: v.pipe(v.string(), v.regex(NONCE_RE)),
+    signature: v.pipe(v.string(), v.regex(SIGNATURE_RE)),
+    uid,
+    venue: v.optional(v.pipe(v.string(), v.maxLength(64))),
+  }),
+  v.object({
+    nonce: v.pipe(v.string(), v.regex(NONCE_RE)),
+    uid,
+    venue: v.optional(v.pipe(v.string(), v.maxLength(64))),
+    webauthn: PasskeyAuthenticationBody,
+  }),
+])
+export type VerifySignedRequest = v.InferOutput<typeof VerifySignedBody>
+
+// What a claim on a passkey card adds to the self-serve issue body.
+export const PasskeyClaimBody = v.object({ webauthn: PasskeyAuthenticationBody })
+
+// What a claim on a Sensitive card adds: the address of a key only the member can derive.
+// It names no account.
+export const SensitiveClaimBody = v.object({ holderAddress: address })
+
+// docs/specs/pass-types-and-flows.md#sensitive-use. Ciphertext only: a wrapped 32-byte
+// secret, and a vault of up to a few thousand short entries.
+const SECRET_COPY_MAX_LENGTH = 128
+const VAULT_MAX_LENGTH = 512_000
+const MemberWriteToken = v.pipe(Base64Url, v.length(43))
+const AES_GCM_IV = v.pipe(Base64Url, v.length(16))
+
+export const MemberSecretCopyBody = v.object({
+  ciphertext: v.pipe(Base64Url, v.maxLength(SECRET_COPY_MAX_LENGTH)),
+  credentialId: Base64Url,
+  first: v.boolean(),
+  iv: AES_GCM_IV,
+  writeToken: MemberWriteToken,
+})
+
+export const MemberVaultBody = v.object({
+  ciphertext: v.pipe(Base64Url, v.maxLength(VAULT_MAX_LENGTH)),
+  expectedVersion: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  iv: AES_GCM_IV,
+  writeToken: MemberWriteToken,
+})
+
+export const MemberSecretOutcomeBody = v.object({ outcome: v.picklist(['prf', 'no_prf']) })
+
 export const MAX_LINKED_UIDS_PER_REQUEST = 50
 
 export const LinkPassesBody = v.object({
@@ -117,6 +165,7 @@ const unixOrNull = v.optional(v.nullable(v.pipe(v.number(), v.integer(), v.minVa
 export const CARD_CAPACITY_MAX = 1_000_000
 
 const CardFields = v.object({
+  attendance: v.optional(v.boolean()),
   capacity: v.optional(
     v.nullable(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(CARD_CAPACITY_MAX))),
     null,
@@ -125,6 +174,7 @@ const CardFields = v.object({
   claimFrom: unixOrNull,
   claimUntil: unixOrNull,
   description: shortText(CARD_DESCRIPTION_MAX_LENGTH),
+  identity: v.optional(v.picklist(CARD_IDENTITIES), 'none'),
   lockScreen: v.optional(v.boolean(), false),
   record: v.optional(v.picklist(CARD_RECORDS), 'offchain'),
   slug: v.pipe(v.string(), v.check(isCardSlug)),
@@ -146,6 +196,10 @@ export const ClaimSource = v.pipe(v.string(), v.regex(/^[a-z0-9_-]{1,40}$/u))
 export const CardBody = v.pipe(
   CardFields,
   v.check(
+    (card: CardFieldsOutput) => card.attendance === undefined || card.record === 'onchain',
+    'attendance applies only to an on-chain card',
+  ),
+  v.check(
     (card: CardFieldsOutput) => hasSingleValidityRule(card),
     'a card expires either after N days or between two dates, not both',
   ),
@@ -157,12 +211,17 @@ export const CardBody = v.pipe(
     (card: CardFieldsOutput) => isOrderedWindow(card.validFrom, card.validUntil),
     'the validity window cannot end before it starts',
   ),
+  v.check(
+    (card: CardFieldsOutput) => isIdentityAllowed(card),
+    'a pass bound to a key must be recorded offchain',
+  ),
 )
 
 // Editing replaces the complete mutable Card state while preserving its id,
 // issuer, slug and creation time. Strictness makes those immutable fields (and
 // any future unknown field) a bad request instead of silently ignoring them.
 const CardUpdateFields = v.strictObject({
+  attendance: v.optional(v.boolean()),
   category: CardFields.entries.category,
   claimFrom: v.nullable(unix),
   claimUntil: v.nullable(unix),

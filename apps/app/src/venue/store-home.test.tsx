@@ -55,7 +55,7 @@ describe('store entry and display', () => {
 
   it('shows a branded default-card QR and switches manually without issuing or navigating', async () => {
     const host = document.createElement('div')
-    render(() => <StoreHome venue={venue} origin="https://app.fuda.sh" />, host)
+    render(() => <StoreHome locale="en" venue={venue} origin="https://app.fuda.sh" />, host)
     expect(host.querySelector('main')?.style.backgroundColor).toBe('#6F4320')
     expect({
       description: host.textContent?.includes('Private description'),
@@ -121,6 +121,7 @@ describe('store entry and display', () => {
         <StoreHome
           venue={{ ...venue, cards: [membership], defaultCardSlug: 'missing' }}
           origin="https://app.fuda.sh"
+          locale="en"
         />
       ),
       host,
@@ -143,7 +144,7 @@ describe('store entry and display', () => {
   it('supports roving focus and arrow, Home and End navigation in the Card tabs', async () => {
     const host = document.createElement('div')
     document.body.replaceChildren(host)
-    render(() => <StoreHome venue={venue} origin="https://app.fuda.sh" />, host)
+    render(() => <StoreHome locale="en" venue={venue} origin="https://app.fuda.sh" />, host)
     const [first, second] = host.querySelectorAll<HTMLButtonElement>('[role="tab"]')
     first.focus()
     first.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowRight' }))
@@ -175,6 +176,7 @@ describe('store entry and display', () => {
           handle="coffee"
           mode="entry"
           search="?cards=all"
+          locale="en"
           fetchVenue={async () => await Promise.resolve({ body: venue, ok: true })}
           replace={replace}
         />

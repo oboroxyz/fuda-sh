@@ -5,12 +5,13 @@ import { verifyMessage } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { describe, expect, it, vi } from 'vitest'
 
-import { displayOf, enterSigned } from './signed-gate.ts'
-import type { SignedGateIo } from './signed-gate.ts'
+import { displayOf, enterSigned, enterWithPasskey } from './signed-gate.ts'
+import type { PasskeyGateIo, SignedGateIo } from './signed-gate.ts'
 
 const account = privateKeyToAccount(`0x${'5a'.repeat(32)}`)
 const UID: Hex = `0x${'ab'.repeat(32)}`
 const NONCE: Hex = `0x${'cd'.repeat(16)}`
+const SIGNATURE: Hex = `0x${'11'.repeat(65)}`
 
 const minted: Result<ChallengeResponse> = {
   body: { challenge: challengeMessage(UID, NONCE), nonce: NONCE },
@@ -176,5 +177,95 @@ describe(displayOf, () => {
       tone: 'red',
     })
     expect(displayOf({ error: 'x', kind: 'error', network: false })).not.toHaveProperty('banner')
+  })
+})
+
+describe(enterWithPasskey, () => {
+  const webauthn = { challenge: 'Zm9v', rpId: 'fuda.sh', userVerification: 'required' } as const
+  const assertion = {
+    clientExtensionResults: {},
+    id: 'abc',
+    rawId: 'abc',
+    response: { authenticatorData: 'YQ', clientDataJSON: 'YQ', signature: 'YQ' },
+    type: 'public-key',
+  } as const
+  const passkeyIo = (over: Partial<PasskeyGateIo> = {}): PasskeyGateIo => ({
+    assert: async () => await Promise.resolve(assertion),
+    challenge: async () =>
+      await Promise.resolve({ body: { challenge: 'x', nonce: NONCE, webauthn }, ok: true }),
+    signForPass: async () => await Promise.resolve(SIGNATURE),
+    verify: async () =>
+      await Promise.resolve({
+        body: { decision: 'ADMIT', holder: `0x${'00'.repeat(20)}`, path: 'signature', reason: 'OK' },
+        ok: true,
+      }),
+    ...over,
+  })
+
+  it('answers a Sensitive pass, which names no passkey, with the key of that pass', async () => {
+    const assert = vi.fn<PasskeyGateIo['assert']>()
+    const signForPass = vi.fn<PasskeyGateIo['signForPass']>(async () => await Promise.resolve(SIGNATURE))
+    const verify = vi.fn<PasskeyGateIo['verify']>(
+      async () =>
+        await Promise.resolve({
+          body: { decision: 'ADMIT', holder: `0x${'00'.repeat(20)}`, path: 'signature', reason: 'OK' },
+          ok: true,
+        }),
+    )
+    const outcome = await enterWithPasskey(
+      passkeyIo({
+        assert,
+        challenge: async () => await Promise.resolve({ body: { challenge: 'x', nonce: NONCE }, ok: true }),
+        signForPass,
+        verify,
+      }),
+      UID,
+    )
+    expect(outcome.kind).toBe('verdict')
+    expect(assert).not.toHaveBeenCalled()
+    expect(signForPass).toHaveBeenCalledWith(UID, 'x')
+    expect(verify).toHaveBeenCalledWith({ nonce: NONCE, signature: SIGNATURE, uid: UID })
+  })
+
+  it('answers the request the api minted and sends back that nonce', async () => {
+    const assert = vi.fn<PasskeyGateIo['assert']>(async () => await Promise.resolve(assertion))
+    const verify = vi.fn<PasskeyGateIo['verify']>(passkeyIo().verify)
+    const outcome = await enterWithPasskey(passkeyIo({ assert, verify }), UID)
+
+    expect(assert).toHaveBeenCalledWith(webauthn)
+    expect(verify).toHaveBeenCalledWith({ nonce: NONCE, uid: UID, webauthn: assertion })
+    expect(displayOf(outcome)).toStrictEqual({ detail: '', title: 'ADMIT', tone: 'green' })
+  })
+
+  it('reads a dismissed prompt as a refusal, not an outage', async () => {
+    const outcome = await enterWithPasskey(
+      passkeyIo({
+        assert: async () => await Promise.reject(new DOMException('dismissed', 'NotAllowedError')),
+      }),
+      UID,
+    )
+    expect(outcome).toStrictEqual({ error: 'dismissed', kind: 'error', network: false })
+  })
+})
+
+describe('venue context on signed entry', () => {
+  it('carries the requested venue through challenge and verification', async () => {
+    const challenge = vi.fn<SignedGateIo['challenge']>(async () => await Promise.resolve(minted))
+    const verify = vi.fn<SignedGateIo['verify']>(
+      async () =>
+        await Promise.resolve({
+          body: { decision: 'ADMIT', path: 'signature', reason: 'OK', venue: 'coffee' },
+          ok: true,
+        }),
+    )
+    await enterSigned({ ...io(verify), challenge }, UID, undefined, 'coffee')
+    expect(challenge).toHaveBeenCalledWith(UID, 'coffee')
+    expect(verify).toHaveBeenCalledWith(expect.objectContaining({ uid: UID, venue: 'coffee' }))
+    expect(
+      displayOf({
+        body: { decision: 'ADMIT', path: 'signature', reason: 'OK', venue: 'coffee' },
+        kind: 'verdict',
+      }),
+    ).toMatchObject({ title: 'ADMIT', venue: 'coffee' })
   })
 })

@@ -10,7 +10,7 @@ export const members = sqliteTable(
     createdAt: integer('created_at').notNull(),
     holder: text('holder'),
     issuerId: text('issuer_id'),
-    level: text('level', { enum: ['bearer', 'signed', 'private'] }).notNull(),
+    level: text('level', { enum: ['bearer', 'signed'] }).notNull(),
     memberId: text('member_id').notNull().default(''),
     source: text('source'),
     status: text('status', { enum: ['active', 'revoked'] })
@@ -33,8 +33,18 @@ export const members = sqliteTable(
   ],
 )
 
-// One account (operator address) may own several issuers; each keeps its own
-// handle, cards and data (docs/adr/0011-several-issuers-per-account.md).
+// An account: its passkeys are its only identity, for the person holding passes and
+// for the operator alike (docs/specs/pass-types-and-flows.md#passkey-ceremonies).
+export const accounts = sqliteTable('accounts', {
+  createdAt: integer('created_at').notNull(),
+  id: text('id').primaryKey(),
+  secretWriteHash: text('secret_write_hash'),
+  userHandle: text('user_handle').notNull().unique(),
+})
+
+// One owner may hold several issuers; each keeps its own handle, cards and data
+// (docs/adr/0011-several-issuers-per-account.md). The owner is an account or an
+// address, exactly one of them, which the table's CHECK holds.
 export const issuers = sqliteTable(
   'issuers',
   {
@@ -45,15 +55,22 @@ export const issuers = sqliteTable(
     id: text('id').primaryKey(),
     logoPrefix: text('logo_prefix'),
     name: text('name').notNull(),
-    operatorAddress: text('operator_address').notNull(),
+    operatorAddress: text('operator_address'),
+    ownerAccountId: text('owner_account_id').references(() => accounts.id),
     tagline: text('tagline').notNull().default(''),
   },
-  (t) => [index('issuers_operator_address').on(t.operatorAddress, t.createdAt)],
+  (t) => [
+    index('issuers_operator_address').on(t.operatorAddress, t.createdAt),
+    index('issuers_owner_account').on(t.ownerAccountId, t.createdAt),
+  ],
 )
 
 export const cards = sqliteTable(
   'cards',
   {
+    // docs/specs/attestation-model.md#entitlement-lifecycle: 1 when a scan writes a public
+    // Attendance. Only an on-chain card can have it on.
+    attendance: integer('attendance').notNull().default(0),
     capacity: integer('capacity'),
     category: text('category', { enum: ['membership', 'ticket'] }).notNull(),
     claimFrom: integer('claim_from'),
@@ -61,6 +78,9 @@ export const cards = sqliteTable(
     createdAt: integer('created_at').notNull(),
     description: text('description').notNull().default(''),
     id: text('id').primaryKey(),
+    identity: text('identity', { enum: ['none', 'passkey', 'sensitive'] })
+      .notNull()
+      .default('none'),
     issuerId: text('issuer_id')
       .notNull()
       .references(() => issuers.id),
@@ -100,11 +120,6 @@ export const offchainRoots = sqliteTable('offchain_roots', {
 })
 
 // A member account: its passkeys are its only identity (docs/specs/pass-types-and-flows.md#member-sign-in).
-export const accounts = sqliteTable('accounts', {
-  createdAt: integer('created_at').notNull(),
-  id: text('id').primaryKey(),
-  userHandle: text('user_handle').notNull().unique(),
-})
 
 export const passkeys = sqliteTable(
   'passkeys',
@@ -127,8 +142,42 @@ export const passkeyChallenges = sqliteTable('passkey_challenges', {
   accountId: text('account_id'),
   challenge: text('challenge').primaryKey(),
   createdAt: integer('created_at').notNull(),
-  purpose: text('purpose', { enum: ['register', 'login', 'add'] }).notNull(),
+  purpose: text('purpose', {
+    enum: ['register', 'login', 'add', 'claim', 'reset', 'authorize-add'],
+  }).notNull(),
   userHandle: text('user_handle'),
+})
+
+// docs/specs/pass-types-and-flows.md#sensitive-use
+export const memberSecretCopies = sqliteTable(
+  'member_secret_copies',
+  {
+    accountId: text('account_id')
+      .notNull()
+      .references(() => accounts.id),
+    ciphertext: text('ciphertext').notNull(),
+    createdAt: integer('created_at').notNull(),
+    credentialId: text('credential_id')
+      .notNull()
+      .references(() => passkeys.credentialId, { onDelete: 'cascade' }),
+    iv: text('iv').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.accountId, t.credentialId] })],
+)
+
+export const memberVaults = sqliteTable('member_vaults', {
+  accountId: text('account_id')
+    .primaryKey()
+    .references(() => accounts.id),
+  ciphertext: text('ciphertext').notNull(),
+  iv: text('iv').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+  version: integer('version').notNull(),
+})
+
+export const memberSecretOutcomes = sqliteTable('member_secret_outcomes', {
+  outcome: text('outcome', { enum: ['prf', 'no_prf'] }).primaryKey(),
+  total: integer('total').notNull(),
 })
 
 export const memberPasses = sqliteTable(
@@ -170,6 +219,7 @@ export const challenges = sqliteTable('challenges', {
   nonce: text('nonce').primaryKey(),
   uid: text('uid').notNull(),
   usedAt: integer('used_at'),
+  venue: text('venue'),
 })
 
 export const slots = sqliteTable(
@@ -182,16 +232,20 @@ export const slots = sqliteTable(
   (t) => [primaryKey({ columns: [t.uid, t.slot] })],
 )
 
-export const entryLog = sqliteTable('entry_log', {
-  at: integer('at').notNull(),
-  attendanceUid: text('attendance_uid'),
-  decision: text('decision', { enum: ['ADMIT', 'REJECT'] }).notNull(),
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  path: text('path', { enum: ['qr', 'signature'] }).notNull(),
-  reason: text('reason').notNull(),
-  receptionId: text('reception_id').unique(),
-  uid: text('uid').notNull(),
-})
+export const entryLog = sqliteTable(
+  'entry_log',
+  {
+    at: integer('at').notNull(),
+    attendanceUid: text('attendance_uid'),
+    decision: text('decision', { enum: ['ADMIT', 'REJECT'] }),
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    path: text('path', { enum: ['qr', 'signature'] }),
+    reason: text('reason'),
+    receptionId: text('reception_id').unique(),
+    uid: text('uid').notNull(),
+  },
+  (t) => [index('entry_log_uid_at').on(t.uid, t.at)],
+)
 
 export const stampSettings = sqliteTable('stamp_settings', {
   dailyLimit: integer('daily_limit').notNull().default(1),
@@ -233,11 +287,30 @@ export const stampCredits = sqliteTable(
     issuerId: text('issuer_id')
       .notNull()
       .references(() => issuers.id),
+    // principalKey of the operator who scanned, not always an address
     operatorAddress: text('operator_address').notNull(),
     ordinal: integer('ordinal').notNull(),
     uid: text('uid').notNull(),
   },
   (t) => [primaryKey({ columns: [t.issuerId, t.uid, t.day, t.ordinal] })],
+)
+
+export const stampAdjustments = sqliteTable(
+  'stamp_adjustments',
+  {
+    at: integer('at').notNull(),
+    delta: integer('delta').notNull(),
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    issuerId: text('issuer_id')
+      .notNull()
+      .references(() => issuers.id),
+    kind: text('kind', { enum: ['adjust', 'redeem'] }).notNull(),
+    note: text('note').notNull(),
+    operatorAddress: text('operator_address').notNull(),
+    requestId: text('request_id').notNull().unique(),
+    uid: text('uid').notNull(),
+  },
+  (t) => [index('stamp_adjustments_pass').on(t.issuerId, t.uid, t.id)],
 )
 
 export const receptionRequests = sqliteTable('reception_requests', {
@@ -288,8 +361,10 @@ export const badges = sqliteTable(
   ],
 )
 
-// docs/specs/connected-apps.md — a browser-only app registered by an operator
-// address. Only that address may approve it (no third-party consent yet).
+// docs/specs/connected-apps.md — a browser-only app registered by an operator. Only
+// that operator may approve it (no third-party consent yet). `ownerAddress` here, and
+// `address` on the approval tables below, hold principalKey: an address, or
+// `account:<id>` for an operator signed in with a passkey.
 export const connectedApps = sqliteTable(
   'connected_apps',
   {
@@ -381,4 +456,29 @@ export const connectedAppEvents = sqliteTable(
     tokenId: text('token_id').notNull(),
   },
   (t) => [index('connected_app_events_address').on(t.address, t.createdAt)],
+)
+
+// docs/specs/pass-types-and-flows.md#apple-wallet-updates
+export const applePassDevices = sqliteTable('apple_pass_devices', {
+  deviceId: text('device_id').primaryKey(),
+  pushToken: text('push_token').notNull(),
+})
+
+export const applePassUpdates = sqliteTable('apple_pass_updates', {
+  tag: integer('tag').primaryKey({ autoIncrement: true }),
+  uid: text('uid').notNull().unique(),
+  updatedAt: integer('updated_at').notNull(),
+})
+
+export const applePassRegistrations = sqliteTable(
+  'apple_pass_registrations',
+  {
+    deviceId: text('device_id')
+      .notNull()
+      .references(() => applePassDevices.deviceId),
+    serial: text('serial').notNull(),
+    uid: text('uid').notNull(),
+    updatedTag: integer('updated_tag').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.deviceId, t.uid] }), index('apple_pass_registrations_uid').on(t.uid)],
 )

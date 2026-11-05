@@ -50,6 +50,7 @@ test(
     await screen.getByLabel('Card title', { exact: true }).fill('Unsent Coffee draft')
     // Leaving for Profile is the supported way to retain a draft within a session.
     await screen.getByRole('link', 'Profile', { exact: true }).first().tap()
+    await expect(screen.getByRole('heading', 'Profile', { exact: true })).toBeVisible()
     await switchProfile(screen, first.issuer.name, second.issuer.handle)
     await expect(screen.getByRole('button', second.issuer.name, { exact: true })).toBeVisible()
     const secondRow = screen.getByRole('row').filter({ hasText: second.card.title })
@@ -73,6 +74,11 @@ test(
   async ({ browser, screen }) => {
     const { first, second } = await operatorWithTwoProfiles()
     await signInOperator(browser, first.token)
+    const rendered = await fetch(`${SURFACES.dash.origin}/profile`, {
+      headers: { cookie: `fuda_operator=${first.token}; fuda_locale=en` },
+    })
+    expect(rendered.status).toBe(200)
+    expect(await rendered.text()).toContain(first.issuer.name)
     await browser.goto(`${SURFACES.dash.origin}/profile`, { waitUntil: 'networkidle' })
     await expect(screen.getByLabel('Name', { exact: true })).toHaveValue(first.issuer.name)
     await screen.getByLabel('Name', { exact: true }).fill('Old tab must not overwrite Tea')

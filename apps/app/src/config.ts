@@ -1,3 +1,7 @@
+import { parseChainConfig } from '@fuda/chains'
+
+export const CHAIN = parseChainConfig(import.meta.env.VITE_CHAIN_ID)
+
 // The browser reaches the api only through its own Worker, which forwards
 // `/api/*` with the member session cookie's credential
 // (docs/adr/0010-void-pages-and-frontend-workers.md).
@@ -16,3 +20,8 @@ export const APP_ORIGIN: string = import.meta.env.VITE_APP_ORIGIN ?? 'https://ap
 // Browsers reject an rp.id that is not a registrable suffix of the page's host,
 // so direct fixed-port development must set VITE_RP_ID=localhost.
 export const RP_ID: string = import.meta.env.VITE_RP_ID ?? 'fuda.sh'
+
+// The Turnstile site key (public) of the widget for the card page's claim. Empty
+// disables the widget; the api then has to run without a secret too, or every
+// claim answers `bot_check_failed` (docs/runbook.md section 6).
+export const TURNSTILE_SITE_KEY: string = import.meta.env.VITE_TURNSTILE_SITE_KEY ?? ''

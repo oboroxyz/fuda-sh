@@ -5,11 +5,12 @@ import type { Context } from 'hono'
 import type { Hex } from 'viem'
 
 import type { Db } from '../db/client.ts'
-import { cards, issuers, members } from '../db/schema.ts'
+import { cards, issuers } from '../db/schema.ts'
 import type { AppEnv } from '../env.ts'
 import { errorResponse } from '../json.ts'
 import { logoUrlFor } from '../media/logo.ts'
 import type { PassRow } from './pass-view.ts'
+import { loadWalletMember } from './wallet-members.ts'
 
 export type PassRowResult = { ok: true; row: PassRow } | { ok: false; res: Response }
 
@@ -88,10 +89,8 @@ const cardBrandingOf = async (
 }
 
 // The one lookup the three /pass routes share. Order matters and is part of
-// the contract: 400 (bad uid) → 404 (no row) → 404 (+Private: there is no pass
-// for a one-time stealth holder) → only then the platform check the caller
-// makes. A private row therefore never reveals whether a wallet platform is
-// configured.
+// the contract: 400 (bad uid) → 404 (no row) → only then the platform check the
+// caller makes.
 export const loadPassRow = async (c: Context<AppEnv>, rawUid: string): Promise<PassRowResult> => {
   // Every pass response carries the live status (or names a live secret), so
   // none of them may be cached — including the 404s and 501s.
@@ -100,14 +99,8 @@ export const loadPassRow = async (c: Context<AppEnv>, rawUid: string): Promise<P
   if (uid === null) {
     return { ok: false, res: errorResponse(c, 'bad_uid', 400) }
   }
-  const row = await c.get('db').select().from(members).where(eq(members.attestationUid, uid)).get()
+  const row = await loadWalletMember(c.get('db'), uid)
   if (row === undefined) {
-    return { ok: false, res: errorResponse(c, 'not_found', 404) }
-  }
-  // A +Private right has no pass (docs/specs/pass-types-and-flows.md#passes: the private /issue response carries
-  // no passUrls); its holder is a one-time stealth address only the member can
-  // recover. None of the three endpoints exists for it.
-  if (row.level === 'private') {
     return { ok: false, res: errorResponse(c, 'not_found', 404) }
   }
   const { branding, logoPrefix } = await cardBrandingOf(
@@ -128,6 +121,7 @@ export const loadPassRow = async (c: Context<AppEnv>, rawUid: string): Promise<P
       holder: row.holder === null ? null : asHex(row.holder, 20),
       level: row.level,
       logoPrefix,
+      revoked: row.status === 'revoked',
       tier: row.tier,
       uid,
     },

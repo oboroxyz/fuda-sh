@@ -16,9 +16,9 @@ const row: MemberRowView = {
   holder: null,
   holderShort: null,
   human: false,
-  level: 'private',
+  level: 'signed',
   memberId: 'alice',
-  passUrls: null,
+  passUrls: { apple: '/apple', google: '/google', web: '/web' },
   qr: `fuda:v1:${UID}`,
   status: 'active',
   tier: 'GENERAL',
@@ -144,7 +144,7 @@ describe('rights page', () => {
       const initial = show({ ...failure, previousRows: null }, undefined, locale).host
       const refreshed = show({ ...failure, previousRows: [row] }, undefined, locale).host
 
-      const alert = `${errorPrefix}: D1_UNAVAILABLE [42]`
+      const alert = `${errorPrefix}: ${locale === 'ja' ? '処理を完了できませんでした。もう一度お試しください。' : 'Something went wrong. Try again.'} (D1_UNAVAILABLE [42])`
       expect({
         alerts: [initial, refreshed].map((host) => spacedText(host.querySelector('[role="alert"]'))),
         initial: {
@@ -197,7 +197,7 @@ describe('rights page', () => {
     })
   })
 
-  it('keeps raw non-401 errors in the dialog, clears busy, and allows a successful retry', async () => {
+  it('explains unknown non-401 errors in the dialog, clears busy, and allows a successful retry', async () => {
     const onRevoke = vi
       .fn<Revoke>()
       .mockResolvedValueOnce({ error: 'RPC says: denied [42]', network: false, ok: false, status: 503 })
@@ -207,7 +207,9 @@ describe('rights page', () => {
     tableRevoke(host).click()
     confirmButton(host).click()
     await vi.waitFor(() => {
-      expect(spacedText(dialog(host))).toContain('Revoke failed: RPC says: denied [42]')
+      expect(spacedText(dialog(host))).toContain(
+        'Revoke failed: Something went wrong. Try again. (RPC says: denied [42])',
+      )
     })
     expect(dialog(host).open).toBe(true)
     expect(confirmButton(host).disabled).toBe(false)

@@ -1,23 +1,49 @@
+import { parseChainConfig } from '@fuda/chains'
 import {
+  BaseError,
   createPublicClient,
   createWalletClient,
+  ExecutionRevertedError,
+  fallback,
   http,
   HttpRequestError,
   isHex,
   parseEventLogs,
   RpcRequestError,
+  shouldThrow,
   TimeoutError,
 } from 'viem'
-import type { Hex, Transport } from 'viem'
+import type { Hex, HttpTransportConfig, Transport } from 'viem'
 import { nonceManager, privateKeyToAccount } from 'viem/accounts'
-import { baseSepolia } from 'viem/chains'
 
-import { ANNOUNCER_ABI, EAS_ABI, FACTORY_ABI } from '../eas/abi.ts'
+import { EAS_ABI, FACTORY_ABI } from '../eas/abi.ts'
 import type { Bindings } from '../env.ts'
 import { ChainError, NoSignerError } from './client.ts'
 import type { AttestParams, ChainClient } from './client.ts'
 
-export const DEFAULT_RPC = 'https://sepolia.base.org'
+const DEFAULT_RPC = parseChainConfig().publicRpc
+const RPC_TIMEOUT_MS = 1000
+
+export const createChainTransport = (primary = DEFAULT_RPC, secondary = DEFAULT_RPC): Transport => {
+  const options = {
+    // viem's timeout ends at response headers. Keep a deadline through body reads.
+    onFetchRequest: (request, init) => ({
+      ...init,
+      signal: AbortSignal.any([request.signal, AbortSignal.timeout(RPC_TIMEOUT_MS)]),
+    }),
+    retryCount: 0,
+    timeout: RPC_TIMEOUT_MS,
+  } satisfies HttpTransportConfig
+  const first = http(primary, options)
+  return primary === secondary
+    ? first
+    : fallback([first, http(secondary, options)], {
+        rank: false,
+        retryCount: 0,
+        shouldThrow: (error) =>
+          ('code' in error && error.code === ExecutionRevertedError.code) || shouldThrow(error),
+      })
+}
 
 const toHexAddress = (s: string): Hex => {
   if (!isHex(s)) {
@@ -30,7 +56,11 @@ const wrap = async <T>(fn: () => Promise<T>): Promise<T> => {
   try {
     return await fn()
   } catch (error) {
-    throw new ChainError(error instanceof Error ? error.message : String(error))
+    if (error instanceof ChainError) {
+      throw error
+    }
+    // viem messages and causes contain the RPC URL, including provider API keys.
+    throw new ChainError(error instanceof BaseError ? error.name : 'Chain request failed')
   }
 }
 
@@ -38,45 +68,24 @@ const wrap = async <T>(fn: () => Promise<T>): Promise<T> => {
 // Worker bindings beyond the addresses and credentials consumed here.
 type ChainBindings = Pick<
   Bindings,
-  'ANNOUNCER_ADDRESS' | 'BASE_RPC_URL' | 'EAS_ADDRESS' | 'FACTORY_ADDRESS' | 'SIGNER_PRIVATE_KEY'
+  'BASE_RPC_URL' | 'CHAIN_ID' | 'EAS_ADDRESS' | 'FACTORY_ADDRESS' | 'SIGNER_PRIVATE_KEY'
 >
 
-export const createViemChain = (
-  env: ChainBindings,
-  transport: Transport = http(env.BASE_RPC_URL ?? DEFAULT_RPC),
-): ChainClient => {
-  const publicClient = createPublicClient({ chain: baseSepolia, transport })
+export const createViemChain = (env: ChainBindings, transportOverride?: Transport): ChainClient => {
+  const config = parseChainConfig(env.CHAIN_ID)
+  const chain = config.viemChain
+  const transport =
+    transportOverride ?? createChainTransport(env.BASE_RPC_URL ?? config.publicRpc, config.publicRpc)
+  const publicClient = createPublicClient({ chain, transport })
   const eas = toHexAddress(env.EAS_ADDRESS)
   const factory = toHexAddress(env.FACTORY_ADDRESS)
-  const announcer = toHexAddress(env.ANNOUNCER_ADDRESS)
   const key = env.SIGNER_PRIVATE_KEY
-  // One account with viem's nonce manager: /issue attests, announces and the
+  // One account with viem's nonce manager: /issue attests and the
   // waitUntil Attendance attest all share this signer concurrently.
   const account = key !== undefined && isHex(key) ? privateKeyToAccount(key, { nonceManager }) : null
-  const wallet = account === null ? null : createWalletClient({ account, chain: baseSepolia, transport })
+  const wallet = account === null ? null : createWalletClient({ account, chain, transport })
 
   return {
-    announce: async (p) => {
-      if (wallet === null || account === null) {
-        throw new NoSignerError('SIGNER_PRIVATE_KEY unset')
-      }
-      return await wrap(async () => {
-        const txHash = await wallet.writeContract({
-          abi: ANNOUNCER_ABI,
-          account,
-          address: announcer,
-          args: [1n, p.stealthAddress, p.ephemeralPubKey, p.metadata],
-          chain: baseSepolia,
-          functionName: 'announce',
-        })
-        const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash })
-        if (receipt.status !== 'success') {
-          throw new ChainError('announce reverted')
-        }
-        return { txHash }
-      })
-    },
-
     attest: async (p: AttestParams) => {
       if (wallet === null || account === null) {
         throw new NoSignerError('SIGNER_PRIVATE_KEY unset')
@@ -99,7 +108,7 @@ export const createViemChain = (
               schema: p.schema,
             },
           ],
-          chain: baseSepolia,
+          chain,
           functionName: 'attest',
         })
         const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash })
@@ -114,9 +123,7 @@ export const createViemChain = (
       })
     },
 
-    blockNumber: async () => await wrap(async () => Number(await publicClient.getBlockNumber())),
-
-    chainId: () => baseSepolia.id,
+    chainId: () => config.id,
 
     getAddressFromFactory: async (owners, nonce) =>
       await wrap(
@@ -128,31 +135,6 @@ export const createViemChain = (
             functionName: 'getAddress',
           }),
       ),
-
-    getAnnouncementLogs: async (fromBlock, toBlock) =>
-      await wrap(async () => {
-        // `strict` makes viem drop any log it cannot fully decode, so every arg below is
-        // present rather than `| undefined`.
-        const logs = await publicClient.getContractEvents({
-          abi: ANNOUNCER_ABI,
-          address: announcer,
-          args: { schemeId: 1n },
-          eventName: 'Announcement',
-          fromBlock: BigInt(fromBlock),
-          strict: true,
-          toBlock: BigInt(toBlock),
-        })
-        return logs.map((log) => ({
-          blockNumber: Number(log.blockNumber),
-          caller: log.args.caller,
-          ephemeralPubKey: log.args.ephemeralPubKey,
-          logIndex: log.logIndex,
-          metadata: log.args.metadata,
-          schemeId: Number(log.args.schemeId),
-          stealthAddress: log.args.stealthAddress,
-          txHash: log.transactionHash,
-        }))
-      }),
 
     offchainAttester: () => account?.address ?? null,
 
@@ -199,7 +181,7 @@ export const createViemChain = (
           account,
           address: eas,
           args: [{ data: { uid, value: 0n }, schema }],
-          chain: baseSepolia,
+          chain,
           functionName: 'revoke',
         })
         const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash })
@@ -220,7 +202,7 @@ export const createViemChain = (
           account,
           address: eas,
           args: [uid],
-          chain: baseSepolia,
+          chain,
           functionName: 'revokeOffchain',
         })
         const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash })
@@ -261,7 +243,7 @@ export const createViemChain = (
           account,
           address: eas,
           args: [root],
-          chain: baseSepolia,
+          chain,
           functionName: 'timestamp',
         })
         const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash })
@@ -284,7 +266,7 @@ export const createViemChain = (
         // wraps an RPC error from the ERC-6492 deployless call into CallExecutionError,
         // catches it, retries a pure ECDSA recover and returns that (true for a valid
         // EOA signature, otherwise false). So in production an outage currently reads
-        // as BAD_SIGNATURE, not 502. This branch is for clients that do throw —
+        // as BAD_SIGNATURE if both providers fail. This branch is for clients that throw:
         // FakeChain.failReads, or a future viem version or verification mode that stops
         // swallowing — and when it fires it is the fail-closed 502 path. Anything else
         // is a signature that does not verify (malformed bytes, wrong length).
@@ -293,7 +275,7 @@ export const createViemChain = (
           error instanceof TimeoutError ||
           error instanceof RpcRequestError
         ) {
-          throw new ChainError(error.message)
+          throw new ChainError(error.name)
         }
         return false
       }
