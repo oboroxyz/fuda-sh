@@ -1,9 +1,9 @@
 import type { Locale } from '@fuda/i18n'
 // @vitest-environment happy-dom
 import type { PassBackup, PublicVenue } from '@fuda/sdk'
-import { createSignal } from 'solid-js'
-import type { JSX } from 'solid-js'
-import { render as solidRender } from 'solid-js/web'
+import { mount as mountView } from '@fuda/ui-preact/test'
+import type { ComponentChild, JSX } from 'preact'
+import { useState } from 'preact/hooks'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { readCard, rememberCard } from '../card-memory.ts'
@@ -13,13 +13,11 @@ import type { CardScreenIo, CardSensitiveIo } from './CardScreen.tsx'
 import { VenueLayout } from './VenueLayout.tsx'
 
 const disposers: (() => void)[] = []
-// Solid delegates events to the document, so a host must be attached to
-// receive clicks.
-const render = (view: () => JSX.Element, host: HTMLElement): void => {
+const render = (View: () => ComponentChild, host: HTMLElement): void => {
   if (!host.isConnected) {
     document.body.append(host)
   }
-  disposers.push(solidRender(view, host))
+  disposers.push(mountView(<View />, host).dispose)
 }
 const unmountAll = (): void => {
   for (const dispose of disposers.splice(0)) {
@@ -598,7 +596,7 @@ describe('venue controller', () => {
     }
     const host = document.createElement('div')
     const LocaleHost = (): JSX.Element => {
-      const [locale, setLocale] = createSignal<Locale>('en')
+      const [locale, setLocale] = useState<Locale>('en')
       return (
         <>
           <button
@@ -610,7 +608,7 @@ describe('venue controller', () => {
           >
             Japanese
           </button>
-          <CardScreen handle={venue.handle} slug={null} io={deps} locale={locale()} />
+          <CardScreen handle={venue.handle} slug={null} io={deps} locale={locale} />
         </>
       )
     }
@@ -649,19 +647,19 @@ describe('venue controller', () => {
     }
     const host = document.createElement('div')
     const LocaleHost = (): JSX.Element => {
-      const [locale, setLocale] = createSignal<Locale>('en')
+      const [locale, setLocale] = useState<Locale>('en')
       return (
         <>
           <button
             data-locale
             type="button"
             onClick={() => {
-              setLocale(locale() === 'en' ? 'ja' : 'en')
+              setLocale(locale === 'en' ? 'ja' : 'en')
             }}
           >
             Change language
           </button>
-          <CardScreen handle={venue.handle} slug={null} io={deps} locale={locale()} />
+          <CardScreen handle={venue.handle} slug={null} io={deps} locale={locale} />
         </>
       )
     }
@@ -696,7 +694,7 @@ describe('venue controller', () => {
       const deps = { ...io(), issueCard: async () => await pending.promise }
       const host = document.createElement('div')
       const RouteHost = (): JSX.Element => {
-        const [slug, setSlug] = createSignal<string | null>(null)
+        const [slug, setSlug] = useState<string | null>(null)
         return (
           <>
             <button
@@ -708,7 +706,7 @@ describe('venue controller', () => {
             >
               Change route
             </button>
-            <CardScreen handle={venue.handle} slug={slug()} io={deps} locale="en" />
+            <CardScreen handle={venue.handle} slug={slug} io={deps} locale="en" />
           </>
         )
       }

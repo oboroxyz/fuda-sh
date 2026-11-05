@@ -1,13 +1,13 @@
 import { DEFAULT_LOCALE, pick } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
-import type { QueryClient } from '@fuda/libs/query'
-import { createQuery, createQueryScope } from '@fuda/libs/query'
+import type { QueryClient } from '@fuda/libs/query-preact'
+import { useQuery, useQueryScope } from '@fuda/libs/query-preact'
 import { asHex, brandTextColor, fetchRightsByHolder, isPasskeyPass, normalizeUid } from '@fuda/sdk'
 import type { GraphRight, Hex, PassCardView } from '@fuda/sdk'
-import { short } from '@fuda/ui'
-import { createEffect, createSignal, For, on, onMount } from 'solid-js'
-import type { JSX } from 'solid-js'
-import { Dynamic } from 'solid-js/web'
+import { short } from '@fuda/ui/short'
+import { Fragment } from 'preact'
+import type { JSX } from 'preact'
+import { useEffect, useState } from 'preact/hooks'
 
 import { fetchPassCard, fetchStampSummary, verifyUid } from '../api.ts'
 import { API_BASE_URL, GRAPH_RIGHTS_ENDPOINT } from '../config.ts'
@@ -236,7 +236,9 @@ const listView = (state: RightsListState | MemberListState, locale: Locale, sear
     }
     return (
       <ul class="flex flex-col gap-5">
-        <For each={state.rights}>{(right) => graphCard(right, copy)}</For>
+        {state.rights.map((right) => (
+          <Fragment key={right.id}>{graphCard(right, copy)}</Fragment>
+        ))}
       </ul>
     )
   }
@@ -273,7 +275,9 @@ const listView = (state: RightsListState | MemberListState, locale: Locale, sear
         </p>
       ) : (
         <ul class="flex flex-col gap-6">
-          <For each={rows}>{(row) => memberCard(row, locale, copy)}</For>
+          {rows.map((row) => (
+            <Fragment key={row.uid}>{memberCard(row, locale, copy)}</Fragment>
+          ))}
         </ul>
       )}
     </>
@@ -320,67 +324,108 @@ interface RightsListProps {
 }
 
 const queryUidFromLocation = (): Hex | null => {
-  const raw = new URLSearchParams(globalThis.location?.search ?? '').get('uid')
+  if (import.meta.env.SSR) {
+    return null
+  }
+  const raw = new URLSearchParams(location.search).get('uid')
   return raw === null ? null : normalizeUid(raw)
 }
 
-export const RightsList = (props: RightsListProps): JSX.Element => {
-  const variant = (): 'lookup' | 'passes' => props.variant ?? 'passes'
-  const locale = (): Locale => props.locale ?? DEFAULT_LOCALE
-  const copy = (): MemberCopy => pick(MEMBER_COPY, locale())
-  const io = props.io ?? defaultIo
-  const localQueryClient = createQueryScope()
-  const queryClient = props.queryClient ?? localQueryClient
-  const injected = props.injected === undefined ? injectedProvider() : props.injected
-  const [addresses, setAddresses] = createSignal<Hex[]>([])
-  const [memory, setMemory] = createSignal<PassMemoryEntry[]>([...(props.memory ?? readPassMemory())])
-  const [manual, setManual] = createSignal('')
-  const [search, setSearch] = createSignal('')
-  const [problem, setProblem] = createSignal<MemberProblem | null>(null)
-  const uid = props.queryUid === undefined ? queryUidFromLocation() : props.queryUid
-  const listQuery = createQuery(queryClient, () =>
-    memberPassListQueryOptions(
-      {
-        addresses: addresses(),
-        apiEndpoint: API_BASE_URL,
-        graphEndpoint: GRAPH_RIGHTS_ENDPOINT,
-        memory: memory(),
-      },
-      io,
-    ),
-  )
-  const recoveryQuery = createQuery(queryClient, () => memberPassRecoveryQueryOptions(uid, API_BASE_URL, io))
-  const queryProblem = (): MemberProblem | null => {
-    const recoveryError = recoveryQuery().error
-    const recoveryProblem =
-      recoveryError === null ? null : new Error(`${copy().passes.recoveryFailed} ${recoveryError.message}`)
-    return recoveryProblem ?? (listQuery().data === undefined ? null : listQuery().error)
+const memberQueryProblem = (
+  query: {
+    data: MemberPassListResult | undefined
+    error: Error | null
+    recoveryError: Error | null
+  },
+  copy: MemberCopy,
+): MemberProblem | null => {
+  if (query.recoveryError !== null) {
+    return new Error(`${copy.passes.recoveryFailed} ${query.recoveryError.message}`)
   }
+  return query.data === undefined ? null : query.error
+}
 
-  createEffect(
-    on(
-      () => recoveryQuery().data,
-      (recovered) => {
-        if (recovered !== undefined && recovered !== null) {
-          setMemory(rememberPass(recovered))
-        }
-      },
-    ),
+const HolderLookup = (props: {
+  copy: MemberCopy
+  injected: Eip1193Provider | null
+  manual: string
+  onConnect: (open: () => Promise<Eip1193Provider>) => Promise<void>
+  onLookup: () => void
+  onManual: (value: string) => void
+}): JSX.Element => {
+  const { injected } = props
+  return (
+    <div class="flex flex-col gap-4">
+      {injected === null ? null : (
+        <button
+          class="btn"
+          type="button"
+          onClick={() => {
+            void props.onConnect(async () => await Promise.resolve(injected))
+          }}
+        >
+          {props.copy.passes.browserWallet}
+        </button>
+      )}
+      <form
+        class="flex max-w-xl flex-col gap-2 sm:flex-row"
+        onSubmit={(event) => {
+          event.preventDefault()
+          props.onLookup()
+        }}
+      >
+        <input
+          class="input input-bordered grow font-mono"
+          aria-label={props.copy.passes.address}
+          placeholder={props.copy.passes.placeholder}
+          value={props.manual}
+          onInput={(event) => {
+            props.onManual(event.currentTarget.value)
+          }}
+        />
+        <button class="btn" type="submit">
+          {props.copy.passes.lookup}
+        </button>
+      </form>
+    </div>
   )
+}
 
-  onMount(() => {
-    if (props.syncWithAccount !== true) {
+const usePassMemorySync = (
+  recovered: PassMemoryEntry | null | undefined,
+  syncWithAccount: boolean,
+  memory: PassMemoryEntry[],
+  setMemory: (entries: PassMemoryEntry[]) => void,
+): void => {
+  useEffect(() => {
+    if (recovered !== undefined && recovered !== null) {
+      setMemory(rememberPass(recovered))
+    }
+  }, [recovered])
+
+  useEffect(() => {
+    if (!syncWithAccount) {
       return
     }
-    const run = async (): Promise<void> => {
-      const fresh = await syncMemberPasses(memory())
-      for (const pass of fresh) {
-        setMemory(rememberPass(pass))
+    let current = true
+    void (async () => {
+      const fresh = await syncMemberPasses(memory)
+      if (current) {
+        for (const pass of fresh) {
+          setMemory(rememberPass(pass))
+        }
       }
+    })()
+    return () => {
+      current = false
     }
-    void run()
-  })
+  }, [])
+}
 
+const useHolderLookup = () => {
+  const [addresses, setAddresses] = useState<Hex[]>([])
+  const [manual, setManual] = useState('')
+  const [problem, setProblem] = useState<MemberProblem | null>(null)
   const addAddress = (address: Hex): void => {
     setAddresses((stored) => withConnectedAddress(stored, address))
   }
@@ -395,7 +440,7 @@ export const RightsList = (props: RightsListProps): JSX.Element => {
   }
 
   const lookup = (): void => {
-    const holder = asHex(manual().trim(), 20)
+    const holder = asHex(manual.trim(), 20)
     if (holder === null) {
       setProblem('invalidAddress')
       return
@@ -404,81 +449,102 @@ export const RightsList = (props: RightsListProps): JSX.Element => {
     addAddress(holder)
   }
 
-  const visibleState = (): RightsListState | MemberListState =>
-    variant() === 'lookup' && addresses().length === 0
+  return { addresses, connect, lookup, manual, problem, setManual }
+}
+
+const LIST_LAYOUTS = {
+  lookup: { class: 'flex flex-col gap-4', tag: 'section' },
+  passes: { class: 'member-page flex flex-col gap-6', tag: 'main' },
+} satisfies Record<'lookup' | 'passes', { class: string; tag: 'main' | 'section' }>
+
+const initialPassMemory = (memory: readonly PassMemoryEntry[] | undefined): PassMemoryEntry[] => {
+  if (import.meta.env.SSR) {
+    return []
+  }
+  return [...(memory ?? readPassMemory())]
+}
+
+export const RightsList = (props: RightsListProps): JSX.Element => {
+  const { variant = 'passes', locale = DEFAULT_LOCALE, io = defaultIo, injected = injectedProvider() } = props
+  const copy = pick(MEMBER_COPY, locale)
+  const { addresses, connect, lookup, manual, problem, setManual } = useHolderLookup()
+  const localQueryClient = useQueryScope()
+  const queryClient = props.queryClient ?? localQueryClient
+  const [memory, setMemory] = useState(() => initialPassMemory(props.memory))
+  const [search, setSearch] = useState('')
+  const [locationUid] = useState(queryUidFromLocation)
+  const uid = props.queryUid === undefined ? locationUid : props.queryUid
+  const listQuery = useQuery(
+    queryClient,
+    memberPassListQueryOptions(
+      {
+        addresses,
+        apiEndpoint: API_BASE_URL,
+        graphEndpoint: GRAPH_RIGHTS_ENDPOINT,
+        memory,
+      },
+      io,
+    ),
+  )
+  const recoveryQuery = useQuery(queryClient, memberPassRecoveryQueryOptions(uid, API_BASE_URL, io))
+  const queryProblem = memberQueryProblem(
+    { data: listQuery.data, error: listQuery.error, recoveryError: recoveryQuery.error },
+    copy,
+  )
+
+  usePassMemorySync(recoveryQuery.data, props.syncWithAccount === true, memory, setMemory)
+
+  const visibleState: RightsListState | MemberListState =
+    variant === 'lookup' && addresses.length === 0
       ? { kind: 'idle' }
-      : memberListState(listQuery().data, listQuery().error)
-  return (
-    <Dynamic
-      component={variant() === 'lookup' ? 'section' : 'main'}
-      class={variant() === 'lookup' ? 'flex flex-col gap-4' : 'member-page flex flex-col gap-6'}
-    >
-      {variant() === 'passes' ? (
-        <>
-          <h1 class="member-heading">{copy().nav.rights}</h1>
-          <div class="relative">
-            <svg
-              aria-hidden="true"
-              class="pointer-events-none absolute top-1/2 left-4 z-10 size-4 -translate-y-1/2 text-[var(--fuda-muted)]"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.75"
-              stroke-linecap="round"
-            >
-              <circle cx="10.5" cy="10.5" r="6.5" />
-              <path d="m16 16 4 4" />
-            </svg>
-            <input
-              class="member-pass-search input input-bordered w-full rounded-full!"
-              type="search"
-              aria-label={copy().passes.search}
-              placeholder={copy().passes.search}
-              value={search()}
-              onInput={(event) => {
-                setSearch(event.currentTarget.value)
-              }}
-            />
-          </div>
-        </>
-      ) : (
-        <div class="flex flex-col gap-4">
-          {injected === null ? null : (
-            <button
-              class="btn"
-              type="button"
-              onClick={() => {
-                void connect(async () => await Promise.resolve(injected))
-              }}
-            >
-              {copy().passes.browserWallet}
-            </button>
-          )}
-          <form
-            class="flex max-w-xl flex-col gap-2 sm:flex-row"
-            onSubmit={(event) => {
-              event.preventDefault()
-              lookup()
-            }}
+      : memberListState(listQuery.data, listQuery.error)
+  const controls =
+    variant === 'passes' ? (
+      <>
+        <h1 class="member-heading">{copy.nav.rights}</h1>
+        <div class="relative">
+          <svg
+            aria-hidden="true"
+            class="pointer-events-none absolute top-1/2 left-4 z-10 size-4 -translate-y-1/2 text-[var(--fuda-muted)]"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.75"
+            stroke-linecap="round"
           >
-            <input
-              class="input input-bordered grow font-mono"
-              aria-label={copy().passes.address}
-              placeholder={copy().passes.placeholder}
-              value={manual()}
-              onInput={(event) => {
-                setManual(event.currentTarget.value)
-              }}
-            />
-            <button class="btn" type="submit">
-              {copy().passes.lookup}
-            </button>
-          </form>
+            <circle cx="10.5" cy="10.5" r="6.5" />
+            <path d="m16 16 4 4" />
+          </svg>
+          <input
+            class="member-pass-search input input-bordered w-full rounded-full!"
+            type="search"
+            aria-label={copy.passes.search}
+            placeholder={copy.passes.search}
+            value={search}
+            onInput={(event) => {
+              setSearch(event.currentTarget.value)
+            }}
+          />
         </div>
-      )}
-      {problemNotice(problem() ?? queryProblem(), locale())}
-      <RightsListView locale={locale()} state={visibleState()} search={search()} />
-      {props.syncWithAccount === true ? <SensitivePasses locale={locale()} /> : null}
-    </Dynamic>
+      </>
+    ) : (
+      <HolderLookup
+        copy={copy}
+        injected={injected}
+        manual={manual}
+        onConnect={connect}
+        onLookup={lookup}
+        onManual={setManual}
+      />
+    )
+  const layout = LIST_LAYOUTS[variant]
+  const Container = layout.tag
+  return (
+    <Container class={layout.class}>
+      {controls}
+      {problemNotice(problem ?? queryProblem, locale)}
+      <RightsListView locale={locale} state={visibleState} search={search} />
+      {props.syncWithAccount === true ? <SensitivePasses locale={locale} /> : null}
+    </Container>
   )
 }

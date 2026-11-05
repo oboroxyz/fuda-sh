@@ -1,8 +1,8 @@
 import { DEFAULT_LOCALE } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
 import type { PublicVenue } from '@fuda/sdk'
-import { createEffect, createSignal, on, onCleanup, Show } from 'solid-js'
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
+import { useLayoutEffect, useRef, useState } from 'preact/hooks'
 
 import { cardFailureOf, fetchVenue as fetchPublicVenue } from '../api.ts'
 import { CardScreenView, heldSlugsOf } from './CardScreen.tsx'
@@ -30,52 +30,53 @@ export const VenueScreen = (props: {
   // instead of asking the api again.
   initial?: Awaited<ReturnType<typeof fetchPublicVenue>>
   replace?: (href: string) => void
-}): JSX.Element => {
+}): JSX.Element | null => {
   const locale = (): Locale => props.locale ?? DEFAULT_LOCALE
-  const search = (): string => props.search ?? location.search
-  const [state, setState] = createSignal<VenueLoad>({ kind: 'loading' })
-  const [generation, setGeneration] = createSignal(0)
-  let preloaded = props.initial
-  createEffect(
-    on([() => props.handle, () => props.mode, search, generation], ([handle, mode, query]) => {
-      let current = true
-      const fetchVenue = props.fetchVenue ?? fetchPublicVenue
-      const replace = props.replace ?? replaceLocation
-      setState({ kind: 'loading' })
-      const load = async (): Promise<void> => {
-        const result = preloaded ?? (await fetchVenue(handle))
-        preloaded = undefined
-        if (!current) {
-          return
-        }
-        if (!result.ok) {
-          setState(
-            result.status === 404
-              ? { kind: 'not_found', venue: null }
-              : { card: null, failure: cardFailureOf(result), kind: 'error' },
-          )
-          return
-        }
-        const choice = selectEntry(result.body)
-        if (mode === 'entry' && new URLSearchParams(query).get('cards') !== 'all' && choice.kind === 'card') {
-          replace(`${cardClaimHref(handle, choice.slug)}${query}`)
-          return
-        }
-        setState({ kind: 'venue', venue: result.body })
+  const [locationSearch] = useState(() => (import.meta.env.SSR ? '' : location.search))
+  const search = (): string => props.search ?? locationSearch
+  const [state, setState] = useState<VenueLoad>({ kind: 'loading' })
+  const [generation, setGeneration] = useState(0)
+  const preloaded = useRef(props.initial)
+  const query = search()
+  useLayoutEffect(() => {
+    const { handle, mode } = props
+    let current = true
+    const fetchVenue = props.fetchVenue ?? fetchPublicVenue
+    const replace = props.replace ?? replaceLocation
+    setState({ kind: 'loading' })
+    const load = async (): Promise<void> => {
+      const result = preloaded.current ?? (await fetchVenue(handle))
+      preloaded.current = undefined
+      if (!current) {
+        return
       }
-      void load()
-      onCleanup(() => {
-        current = false
-      })
-    }),
-  )
+      if (!result.ok) {
+        setState(
+          result.status === 404
+            ? { kind: 'not_found', venue: null }
+            : { card: null, failure: cardFailureOf(result), kind: 'error' },
+        )
+        return
+      }
+      const choice = selectEntry(result.body)
+      if (mode === 'entry' && new URLSearchParams(query).get('cards') !== 'all' && choice.kind === 'card') {
+        replace(`${cardClaimHref(handle, choice.slug)}${query}`)
+        return
+      }
+      setState({ kind: 'venue', venue: result.body })
+    }
+    void load()
+    return () => {
+      current = false
+    }
+  }, [props.handle, props.mode, query, generation])
 
   const homeVenue = (): PublicVenue | null => {
-    const current = state()
+    const current = state
     return current.kind === 'venue' && props.mode === 'home' ? current.venue : null
   }
   const view = (): CardScreenState => {
-    const current = state()
+    const current = state
     if (current.kind !== 'venue') {
       return current
     }
@@ -87,32 +88,24 @@ export const VenueScreen = (props: {
       venue: current.venue,
     }
   }
-  return (
-    <Show
-      when={homeVenue()}
-      fallback={
-        <CardScreenView
-          locale={locale()}
-          state={view()}
-          onIssue={noop}
-          onReload={() => {
-            setGeneration((value) => value + 1)
-          }}
-          onVerifyHuman={noop}
-        />
-      }
-    >
-      {(venue) => (
-        // One store display per venue: a different handle starts it fresh.
-        <Show when={props.handle} keyed>
-          <StoreHome
-            venue={venue()}
-            locale={locale()}
-            origin={location.origin}
-            requested={new URLSearchParams(search()).get('card')}
-          />
-        </Show>
-      )}
-    </Show>
+  const venue = homeVenue()
+  return venue === null ? (
+    <CardScreenView
+      locale={locale()}
+      state={view()}
+      onIssue={noop}
+      onReload={() => {
+        setGeneration((value) => value + 1)
+      }}
+      onVerifyHuman={noop}
+    />
+  ) : (
+    <StoreHome
+      key={props.handle}
+      venue={venue}
+      locale={locale()}
+      origin={location.origin}
+      requested={new URLSearchParams(search()).get('card')}
+    />
   )
 }

@@ -1,13 +1,14 @@
-import { createQueryClient } from '@fuda/libs/query'
-import type { QueryClient } from '@fuda/libs/query'
+import { createQueryClient } from '@fuda/libs/query-preact'
+import type { QueryClient } from '@fuda/libs/query-preact'
 
-// The member pages' query client, one per browser tab. It is module state
-// rather than a layout context because @void/solid creates a page before its
-// layout, so a layout's providers never reach the page. The cache lives for
-// the tab's member visit: signing out is a full navigation, which drops it.
+// Public pass data survives member-route navigation. A full sign-out navigation
+// drops the document and this cache; server renders never share a client.
 let client: QueryClient | null = null
 
 export const memberQueryClient = (): QueryClient => {
+  if (import.meta.env.SSR) {
+    return createQueryClient()
+  }
   if (client === null) {
     client = createQueryClient()
     client.mount()

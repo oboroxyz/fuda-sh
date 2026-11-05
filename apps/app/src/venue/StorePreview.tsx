@@ -1,9 +1,9 @@
 // Loaded only by the opt-in Vite development entry. No API or wallet requests.
 import { cardBySlug } from '@fuda/sdk'
 import type { PublicVenue } from '@fuda/sdk'
-import { applyThemeMode } from '@fuda/ui'
-import { createEffect, createSignal, on, onCleanup, onMount } from 'solid-js'
-import type { JSX } from 'solid-js'
+import { applyThemeMode } from '@fuda/ui/theme'
+import type { JSX } from 'preact'
+import { useEffect, useState } from 'preact/hooks'
 
 import { CardScreenView } from './CardScreen.tsx'
 import type { CardScreenState, IssuedCard } from './CardScreen.tsx'
@@ -186,9 +186,64 @@ const labels =
         wallet: 'Wallet handoff preview. No pass has been saved.',
       }
 
+const rewritePreviewLinks = (): void => {
+  // Keep development-only scenario preferences across the real view's links.
+  for (const link of document.querySelectorAll<HTMLAnchorElement>('.venue-page a')) {
+    const url = new URL(link.href)
+    if (
+      url.origin !== location.origin ||
+      !url.pathname.startsWith('/@wassie-coffee') ||
+      url.searchParams.has('scene')
+    ) {
+      continue
+    }
+    if (!url.searchParams.has('cards')) {
+      url.searchParams.set('cards', multiple ? 'multiple' : 'single')
+    }
+    url.searchParams.set('lang', locale)
+    url.searchParams.set('theme', dark ? 'dark' : 'light')
+    const defaultParam = params.get('default')
+    if (defaultParam !== null) {
+      url.searchParams.set('default', defaultParam)
+    }
+    link.href = url.href
+  }
+}
+
+const PreviewNavigation = (): JSX.Element => (
+  <nav
+    class="mx-auto flex max-w-md flex-wrap justify-center gap-x-5 gap-y-1 px-6 py-6 text-xs text-[var(--fuda-muted)]"
+    aria-label="Preview scenarios"
+  >
+    {(['home', 'landing', 'ready', 'choose', 'closed', 'error', 'loading'] as const).map(
+      (scene): JSX.Element => (
+        <a
+          key={scene}
+          class="inline-flex min-h-11 items-center underline underline-offset-4"
+          href={previewHref(scene)}
+        >
+          {labels[scene]}
+        </a>
+      ),
+    )}
+    <a
+      class="inline-flex min-h-11 items-center underline underline-offset-4"
+      href={`${location.pathname}?${new URLSearchParams({ cards: multiple ? 'multiple' : 'single', lang: locale === 'ja' ? 'en' : 'ja', scene: new URLSearchParams(location.search).get('scene') ?? 'landing', theme: dark ? 'dark' : 'light' })}`}
+    >
+      {locale === 'ja' ? 'English' : '日本語'}
+    </a>
+    <a
+      class="inline-flex min-h-11 items-center underline underline-offset-4"
+      href={`${location.pathname}?${new URLSearchParams({ cards: multiple ? 'multiple' : 'single', lang: locale, scene: new URLSearchParams(location.search).get('scene') ?? 'landing', theme: dark ? 'light' : 'dark' })}`}
+    >
+      {dark ? 'Light' : 'Dark'}
+    </a>
+  </nav>
+)
+
 export const StorePreview = (): JSX.Element => {
-  const [state, setState] = createSignal(initialState())
-  onMount(() => {
+  const [state, setState] = useState(() => initialState())
+  useEffect(() => {
     document.documentElement.lang = locale
     applyThemeMode(dark ? 'dark' : 'light')
     if (
@@ -199,51 +254,21 @@ export const StorePreview = (): JSX.Element => {
     ) {
       location.replace(`${cardClaimHref(venue.handle, choice.slug)}${location.search}`)
     }
-  })
-  createEffect(
-    on(
-      () => state().kind,
-      () => {
-        // Keep development-only scenario preferences across the real view's links.
-        for (const link of document.querySelectorAll<HTMLAnchorElement>('.venue-page a')) {
-          const url = new URL(link.href)
-          if (
-            url.origin === location.origin &&
-            url.pathname.startsWith('/@wassie-coffee') &&
-            !url.searchParams.has('scene')
-          ) {
-            if (!url.searchParams.has('cards')) {
-              url.searchParams.set('cards', multiple ? 'multiple' : 'single')
-            }
-            url.searchParams.set('lang', locale)
-            url.searchParams.set('theme', dark ? 'dark' : 'light')
-            const defaultParam = params.get('default')
-            if (defaultParam !== null) {
-              url.searchParams.set('default', defaultParam)
-            }
-            link.href = url.href
-          }
-        }
-      },
-    ),
-  )
-  createEffect(
-    on(
-      () => state().kind,
-      (kind) => {
-        if (kind !== 'issuing') {
-          return
-        }
-        const timer = setTimeout(() => {
-          history.replaceState(null, '', previewHref('ready'))
-          setState(ready())
-        }, 700)
-        onCleanup(() => {
-          clearTimeout(timer)
-        })
-      },
-    ),
-  )
+  }, [])
+  useEffect(rewritePreviewLinks, [state.kind])
+  useEffect(() => {
+    const { kind } = state
+    if (kind !== 'issuing') {
+      return
+    }
+    const timer = setTimeout(() => {
+      history.replaceState(null, '', previewHref('ready'))
+      setState(ready())
+    }, 700)
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [state.kind])
 
   return (
     <div class="[&_.venue-page]:min-h-[calc(100svh-2.75rem)]">
@@ -261,7 +286,7 @@ export const StorePreview = (): JSX.Element => {
         <CardScreenView
           locale={locale}
           onIssue={() => {
-            if (card !== null && state().kind !== 'issuing') {
+            if (card !== null && state.kind !== 'issuing') {
               setState({ card, kind: 'issuing' })
             }
           }}
@@ -271,36 +296,10 @@ export const StorePreview = (): JSX.Element => {
           onVerifyHuman={() => {
             /* UI preview only: no vendor round trip. */
           }}
-          state={state()}
+          state={state}
         />
       )}
-      <nav
-        class="mx-auto flex max-w-md flex-wrap justify-center gap-x-5 gap-y-1 px-6 py-6 text-xs text-[var(--fuda-muted)]"
-        aria-label="Preview scenarios"
-      >
-        {(['home', 'landing', 'ready', 'choose', 'closed', 'error', 'loading'] as const).map(
-          (scene): JSX.Element => (
-            <a
-              class="inline-flex min-h-11 items-center underline underline-offset-4"
-              href={previewHref(scene)}
-            >
-              {labels[scene]}
-            </a>
-          ),
-        )}
-        <a
-          class="inline-flex min-h-11 items-center underline underline-offset-4"
-          href={`${location.pathname}?${new URLSearchParams({ cards: multiple ? 'multiple' : 'single', lang: locale === 'ja' ? 'en' : 'ja', scene: new URLSearchParams(location.search).get('scene') ?? 'landing', theme: dark ? 'dark' : 'light' })}`}
-        >
-          {locale === 'ja' ? 'English' : '日本語'}
-        </a>
-        <a
-          class="inline-flex min-h-11 items-center underline underline-offset-4"
-          href={`${location.pathname}?${new URLSearchParams({ cards: multiple ? 'multiple' : 'single', lang: locale, scene: new URLSearchParams(location.search).get('scene') ?? 'landing', theme: dark ? 'light' : 'dark' })}`}
-        >
-          {dark ? 'Light' : 'Dark'}
-        </a>
-      </nav>
+      <PreviewNavigation />
     </div>
   )
 }

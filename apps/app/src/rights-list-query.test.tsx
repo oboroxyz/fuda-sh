@@ -3,9 +3,9 @@ import { setTimeout } from 'node:timers/promises'
 
 import type { GraphRight, Hex, VerifyResponse } from '@fuda/sdk'
 import type { Result } from '@fuda/sdk/http'
-import { createSignal, Show } from 'solid-js'
-import type { JSX } from 'solid-js'
-import { render as solidRender } from 'solid-js/web'
+import { mount as mountView } from '@fuda/ui-preact/test'
+import type { ComponentChild, JSX } from 'preact'
+import { useState } from 'preact/hooks'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { MemberPassListIo } from './member-pass-list.ts'
@@ -14,13 +14,11 @@ import { RightsList } from './member/RightsList.tsx'
 import { PASS_MEMORY_KEY } from './pass-memory.ts'
 
 const disposers: (() => void)[] = []
-// Solid delegates events to the document, so a host must be attached to
-// receive clicks.
-const render = (view: () => JSX.Element, host: HTMLElement): void => {
+const render = (View: () => ComponentChild, host: HTMLElement): void => {
   if (!host.isConnected) {
     document.body.append(host)
   }
-  disposers.push(solidRender(view, host))
+  disposers.push(mountView(<View />, host).dispose)
 }
 const unmountAll = (): void => {
   for (const dispose of disposers.splice(0)) {
@@ -81,12 +79,12 @@ const fixture = () => ({
 const root = document.createElement('div')
 let removeMounted: (() => void) | undefined
 
-const Mount = (props: { children: JSX.Element }): JSX.Element => {
-  const [mounted, setMounted] = createSignal(true)
+const Mount = (props: { children: JSX.Element }): JSX.Element | null => {
+  const [mounted, setMounted] = useState(true)
   removeMounted = () => {
     setMounted(false)
   }
-  return <Show when={mounted()}>{props.children}</Show>
+  return mounted ? props.children : null
 }
 
 // The child is built inside Mount, so unmounting disposes it and its queries.

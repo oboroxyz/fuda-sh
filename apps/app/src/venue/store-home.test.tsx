@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import type { PublicVenue } from '@fuda/sdk'
-import type { JSX } from 'solid-js'
-import { render as solidRender } from 'solid-js/web'
+import { mount as mountView } from '@fuda/ui-preact/test'
+import type { ComponentChild } from 'preact'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { fetchVenue } from '../api.ts'
@@ -9,13 +9,11 @@ import { StoreHome } from './StoreHome.tsx'
 import { VenueScreen } from './VenueScreen.tsx'
 
 const disposers: (() => void)[] = []
-// Solid delegates events to the document, so a host must be attached to
-// receive clicks.
-const render = (view: () => JSX.Element, host: HTMLElement): void => {
+const render = (View: () => ComponentChild, host: HTMLElement): void => {
   if (!host.isConnected) {
     document.body.append(host)
   }
-  disposers.push(solidRender(view, host))
+  disposers.push(mountView(<View />, host).dispose)
 }
 const unmountAll = (): void => {
   for (const dispose of disposers.splice(0)) {

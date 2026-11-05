@@ -1,5 +1,5 @@
 import '../src/styles.css'
-import type { JSX } from 'solid-js'
+import type { JSX } from 'preact'
 
 import { useApp } from '../src/page-context.tsx'
 import { setPublicApiOrigin } from '../src/pass-links.ts'

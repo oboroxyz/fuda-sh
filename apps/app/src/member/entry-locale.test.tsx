@@ -2,9 +2,9 @@
 import { setTimeout } from 'node:timers/promises'
 
 import type { Locale } from '@fuda/i18n'
-import { createSignal } from 'solid-js'
-import type { Accessor, JSX } from 'solid-js'
-import { render as solidRender } from 'solid-js/web'
+import { mount as mountView } from '@fuda/ui-preact/test'
+import type { ComponentChild, JSX } from 'preact'
+import { useState } from 'preact/hooks'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { SignedGate } from './SignedGate.tsx'
@@ -12,13 +12,11 @@ import type { SignedGateScreenIo } from './SignedGate.tsx'
 import { Verdict } from './Verdict.tsx'
 
 const disposers: (() => void)[] = []
-// Solid delegates events to the document, so a host must be attached to
-// receive clicks.
-const render = (view: () => JSX.Element, host: HTMLElement): void => {
+const render = (View: () => ComponentChild, host: HTMLElement): void => {
   if (!host.isConnected) {
     document.body.append(host)
   }
-  disposers.push(solidRender(view, host))
+  disposers.push(mountView(<View />, host).dispose)
 }
 const unmountAll = (): void => {
   for (const dispose of disposers.splice(0)) {
@@ -30,15 +28,15 @@ const root = document.createElement('div')
 
 // The screen is built once and reads the language as it changes, so a switch
 // translates it in place instead of rebuilding it.
-const Harness = (props: { children: (locale: Accessor<Locale>) => JSX.Element }): JSX.Element => {
-  const [locale, setLocale] = createSignal<Locale>('en')
+const Harness = (props: { children: (locale: Locale) => JSX.Element }): JSX.Element => {
+  const [locale, setLocale] = useState<Locale>('en')
   return (
     <>
       {props.children(locale)}
       <button
         type="button"
         onClick={() => {
-          setLocale(locale() === 'en' ? 'ja' : 'en')
+          setLocale(locale === 'en' ? 'ja' : 'en')
         }}
       >
         Language
@@ -90,7 +88,7 @@ describe('entry locale changes', () => {
     globalThis.history.replaceState(null, '', `/signed?uid=0x${'ab'.repeat(32)}`)
     render(
       () => (
-        <Harness>{(locale): JSX.Element => <SignedGate io={gateIo('passkey')} locale={locale()} />}</Harness>
+        <Harness>{(locale): JSX.Element => <SignedGate io={gateIo('passkey')} locale={locale} />}</Harness>
       ),
       root,
     )
@@ -105,7 +103,7 @@ describe('entry locale changes', () => {
     render(
       () => (
         <Harness>
-          {(locale): JSX.Element => <SignedGate io={gateIo('wallet')} provider={null} locale={locale()} />}
+          {(locale): JSX.Element => <SignedGate io={gateIo('wallet')} provider={null} locale={locale} />}
         </Harness>
       ),
       root,
