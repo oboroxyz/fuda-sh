@@ -37,7 +37,7 @@
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.23.0",
-    "@cloudflare/workers-types": "^4.20250905.0",
+    "@cloudflare/workers-types": "^5.20261103.1",
     "asn1js": "3.0.10",
     "drizzle-kit": "^0.31.11",
     "jsonc-parser": "3.3.1",
