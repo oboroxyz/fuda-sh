@@ -41,7 +41,7 @@
     "asn1js": "3.0.10",
     "drizzle-kit": "^0.31.11",
     "jsonc-parser": "3.3.1",
-    "pkijs": "3.4.0",
+    "pkijs": "4.0.1",
     "vitest": "4.1.11",
     "void": "1.6.2"
   }
