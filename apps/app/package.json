@@ -27,7 +27,7 @@
     "void-preact": "0.1.2"
   },
   "devDependencies": {
-    "@babel/core": "^7.29.0",
+    "@babel/core": "^8.1.0",
     "@base-org/account": "2.6.0",
     "@preact/preset-vite": "2.10.6",
     "@tailwindcss/vite": "4.3.3",
