@@ -77,8 +77,8 @@ importers:
         specifier: ^1.5.0
         version: 1.5.0(typescript@7.0.2)
       viem:
-        specifier: ^2.57.14
-        version: 2.57.14(typescript@7.0.2)(zod@4.6.7)
+        specifier: ^2.57.16
+        version: 2.57.16(typescript@7.0.2)(zod@4.6.7)
     devDependencies:
       '@cloudflare/vitest-pool-workers':
         specifier: ^0.23.0
@@ -144,8 +144,8 @@ importers:
         specifier: ^1.5.0
         version: 1.5.0(typescript@7.0.2)
       viem:
-        specifier: ^2.57.14
-        version: 2.57.14(typescript@7.0.2)(zod@4.6.7)
+        specifier: ^2.57.16
+        version: 2.57.16(typescript@7.0.2)(zod@4.6.7)
       void-preact:
         specifier: 0.1.2
         version: 0.1.2(@babel/core@8.1.0)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.0))(preact-render-to-string@6.8.2)(preact@11.1.1)(supports-color@10.2.2)(void@1.6.2(@types/node@24.19.2)(esbuild@0.28.2)(kysely@0.29.7)(tsx@4.23.15)(typescript@7.0.2)(valibot@1.5.0(typescript@7.0.2))(vitest@4.1.11)(workerd@1.20261101.1)(zod@4.6.7))
@@ -217,8 +217,8 @@ importers:
         specifier: ^1.5.0
         version: 1.5.0(typescript@7.0.2)
       viem:
-        specifier: ^2.57.14
-        version: 2.57.14(typescript@7.0.2)(zod@4.6.7)
+        specifier: ^2.57.16
+        version: 2.57.16(typescript@7.0.2)(zod@4.6.7)
     devDependencies:
       '@babel/core':
         specifier: ^8.1.0
@@ -297,8 +297,8 @@ importers:
   packages/chains:
     dependencies:
       viem:
-        specifier: ^2.57.14
-        version: 2.57.14(typescript@7.0.2)(zod@4.6.7)
+        specifier: ^2.57.16
+        version: 2.57.16(typescript@7.0.2)(zod@4.6.7)
     devDependencies:
       vitest:
         specifier: 4.1.11
@@ -319,14 +319,14 @@ importers:
         specifier: ^1.5.0
         version: 1.5.0(typescript@7.0.2)
       viem:
-        specifier: ^2.57.14
-        version: 2.57.14(typescript@7.0.2)(zod@4.6.7)
+        specifier: ^2.57.16
+        version: 2.57.16(typescript@7.0.2)(zod@4.6.7)
 
   packages/ens-contracts:
     dependencies:
       viem:
-        specifier: ^2.57.14
-        version: 2.57.14(typescript@7.0.2)(zod@4.6.7)
+        specifier: ^2.57.16
+        version: 2.57.16(typescript@7.0.2)(zod@4.6.7)
     devDependencies:
       hardhat:
         specifier: 3.21.2
@@ -353,8 +353,8 @@ importers:
         specifier: ^14.0.0
         version: 14.0.0
       '@tanstack/query-core':
-        specifier: 5.105.2
-        version: 5.105.2
+        specifier: 5.105.3
+        version: 5.105.3
       hono:
         specifier: ^4.13.16
         version: 4.13.16
@@ -365,8 +365,8 @@ importers:
         specifier: ^1.5.0
         version: 1.5.0(typescript@7.0.2)
       viem:
-        specifier: ^2.57.14
-        version: 2.57.14(typescript@7.0.2)(zod@4.6.7)
+        specifier: ^2.57.16
+        version: 2.57.16(typescript@7.0.2)(zod@4.6.7)
     devDependencies:
       vitest:
         specifier: 4.1.11
@@ -3305,8 +3305,8 @@ packages:
     peerDependencies:
       vite: ^5.2.0 || ^6 || ^7 || ^8
 
-  '@tanstack/query-core@5.105.2':
-    resolution: {integrity: sha512-cyZGOtI1ZZ79mm905PJ42ng43Mwbc9CeqB83XuJmj9ADj/C+dzUXcgMQucRQ8yZs7atHykMzqavAXXhjxAw50g==}
+  '@tanstack/query-core@5.105.3':
+    resolution: {integrity: sha512-v1rbNy7MB/4Akth7CQH+CerV13K7Ok9hAusEsfz4sCjDdu3/kOSJPoWfoB+YjdEX1eBFBWKNAGE5nqZCgdlHDw==}
 
   '@testing-library/dom@10.4.1':
     resolution: {integrity: sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg==}
@@ -5589,11 +5589,14 @@ packages:
     resolution: {integrity: sha512-u4J1hr6Y+C/hit34GwL3eIcUf3wngT8TlYUjK7tk0jxydKLAq3sYvifjdTDA6U3KCKRcQCQDGf/srjxfZF3l7g==}
     engines: {node: '>=18.12.0'}
 
-  viem@2.57.14:
-    resolution: {integrity: sha512-ctaSyx3I24va98H2PYz8C30FKXXo8Th/H6Wrn7za7N+RuPQHiL09zFedX6GZDCtz73YFLrf7YeVOgU5CUVByng==}
+  viem@2.57.16:
+    resolution: {integrity: sha512-+4uaUw3NfkqjaqsZp8Zci94K33oc9rv7mIUgvPduJxsY/tI0ASi2YkaXoUVSBGfdIw/QPWuVnIf9LTFf35IoMg==}
     peerDependencies:
+      mppx: '>=0.17.0'
       typescript: '>=5.0.4'
     peerDependenciesMeta:
+      mppx:
+        optional: true
       typescript:
         optional: true
 
@@ -6055,7 +6058,7 @@ snapshots:
       idb-keyval: 6.2.1
       ox: 0.6.9(typescript@7.0.2)(zod@4.6.7)
       preact: 10.24.2
-      viem: 2.57.14(typescript@7.0.2)(zod@4.6.7)
+      viem: 2.57.16(typescript@7.0.2)(zod@4.6.7)
       zustand: 5.0.3
     transitivePeerDependencies:
       - '@types/react'
@@ -6067,6 +6070,7 @@ snapshots:
       - debug
       - fastestsmallesttextencoderdecoder
       - immer
+      - mppx
       - react
       - supports-color
       - typescript
@@ -6328,12 +6332,13 @@ snapshots:
       jose: 6.2.15
       md5: 2.3.0
       uncrypto: 0.1.3
-      viem: 2.57.14(typescript@7.0.2)(zod@3.25.76)
+      viem: 2.57.16(typescript@7.0.2)(zod@3.25.76)
       zod: 3.25.76
     transitivePeerDependencies:
       - bufferutil
       - debug
       - fastestsmallesttextencoderdecoder
+      - mppx
       - supports-color
       - typescript
       - utf-8-validate
@@ -8110,7 +8115,7 @@ snapshots:
       tailwindcss: 4.3.4
       vite: '@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.0)'
 
-  '@tanstack/query-core@5.105.2': {}
+  '@tanstack/query-core@5.105.3': {}
 
   '@testing-library/dom@10.4.1':
     dependencies:
@@ -10165,7 +10170,7 @@ snapshots:
 
   verkit@0.5.0: {}
 
-  viem@2.57.14(typescript@7.0.2)(zod@3.25.76):
+  viem@2.57.16(typescript@7.0.2)(zod@3.25.76):
     dependencies:
       '@noble/curves': 1.9.1
       '@noble/hashes': 1.8.0
@@ -10182,7 +10187,7 @@ snapshots:
       - utf-8-validate
       - zod
 
-  viem@2.57.14(typescript@7.0.2)(zod@4.6.7):
+  viem@2.57.16(typescript@7.0.2)(zod@4.6.7):
     dependencies:
       '@noble/curves': 1.9.1
       '@noble/hashes': 1.8.0
