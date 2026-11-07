@@ -10,7 +10,7 @@
     "dev": "cd targets/local && vp dev --port 8787",
     "deploy": "cd targets/develop && void deploy --platform cloudflare",
     "deploy:production": "cd targets/production && void deploy --platform cloudflare",
-    "test": "vp test",
+    "test": "vitest run",
     "test:scripts": "vp test --config vite.scripts.config.ts",
     "migrate:local": "cd targets/local && void db migrate",
     "migrate:remote": "cd targets/develop && void connect --platform cloudflare && void db migrate --remote",
@@ -42,7 +42,7 @@
     "drizzle-kit": "^0.31.11",
     "jsonc-parser": "3.3.1",
     "pkijs": "4.0.1",
-    "vitest": "4.1.11",
+    "vitest": "4.1.12",
     "void": "1.6.2"
   }
 }

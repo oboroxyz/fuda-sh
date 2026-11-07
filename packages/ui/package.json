@@ -31,7 +31,7 @@
     "@preact/preset-vite": "2.10.6",
     "@tailwindcss/vite": "4.3.4",
     "preact-render-to-string": "6.8.2",
-    "vitest": "4.1.11",
+    "vitest": "5.1.0",
     "void": "1.6.2",
     "void-preact": "0.1.2"
   }

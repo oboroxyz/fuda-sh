@@ -43,8 +43,8 @@
     "happy-dom": "21.0.4",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
-    "ultracite": "^7.10.7",
-    "vite-plus": "^0.3.0"
+    "ultracite": "^7.12.4",
+    "vite-plus": "^1.5.0"
   },
   "devEngines": {
     "runtime": {
