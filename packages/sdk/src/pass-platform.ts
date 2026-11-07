@@ -4,7 +4,9 @@ export type PassPlatform = 'apple' | 'google' | 'web'
 // Unknown and desktop UAs use the browser pass, including iPads that omit all
 // mobile markers in desktop mode.
 export const passPlatform = (userAgent: string): PassPlatform => {
-  if (/iPhone|iPad|iPod|Macintosh.*Mobile/iu.test(userAgent)) {
+  const ua = userAgent.toLowerCase()
+  const mac = ua.indexOf('macintosh')
+  if (/iphone|ipad|ipod/u.test(ua) || (mac !== -1 && ua.includes('mobile', mac))) {
     return 'apple'
   }
   if (/Android/iu.test(userAgent)) {

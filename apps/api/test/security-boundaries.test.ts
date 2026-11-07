@@ -85,7 +85,7 @@ const captureFetch = (): Request[] => {
     const request = new Request(input, init)
     requests.push(request)
     return await Promise.resolve(
-      request.url.includes('oauth2.googleapis.com')
+      new URL(request.url).host === 'oauth2.googleapis.com'
         ? Response.json({ access_token: 'access' })
         : Response.json({ textModulesData: [] }),
     )

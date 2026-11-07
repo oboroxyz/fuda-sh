@@ -10,8 +10,17 @@ export interface QrSvgOptions {
 // One <path> of unit squares over a white background; the QR is scanned from
 // the contrast, so nothing here depends on fonts, images or external assets.
 export const qrSvg = (text: string, opts: QrSvgOptions = {}): string => {
+  // Both values are written into the markup. Number.isInteger and
+  // Number.isFinite reject non-numbers, so a caller outside TypeScript cannot
+  // pass markup through them.
   const quiet = opts.quiet ?? 4
   const px = opts.modulePx ?? 240
+  if (!Number.isInteger(quiet) || quiet < 0) {
+    throw new RangeError('quiet must be a non-negative integer')
+  }
+  if (!Number.isFinite(px) || px <= 0) {
+    throw new RangeError('modulePx must be a positive number')
+  }
   const { data, size } = encode(text)
   const side = size + quiet * 2
   const cells: string[] = []

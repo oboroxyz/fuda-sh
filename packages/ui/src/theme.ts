@@ -80,4 +80,4 @@ export const watchThemeMode = (
 // theme is right without a flash; `system` needs the browser's media query,
 // which the server cannot evaluate.
 export const themeScript = (mode: ThemeMode): string =>
-  `(function(m){var d=m==="dark"||(m==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);var r=document.documentElement;r.dataset.themeMode=m;r.dataset.theme=d?"dark":"light";r.classList.toggle("dark",d)})(${JSON.stringify(mode)})`
+  `(function(m){var d=m==="dark"||(m==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);var r=document.documentElement;r.dataset.themeMode=m;r.dataset.theme=d?"dark":"light";r.classList.toggle("dark",d)})(${JSON.stringify(resolveThemeMode(mode))})`
