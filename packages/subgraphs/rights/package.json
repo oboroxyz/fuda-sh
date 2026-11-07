@@ -15,7 +15,7 @@
     "assemblyscript": "0.19.23",
     "matchstick-as": "0.6.0",
     "valibot": "1.4.2",
-    "vitest": "4.1.11"
+    "vitest": "5.1.0"
   },
   "devEngines": {
     "runtime": {
