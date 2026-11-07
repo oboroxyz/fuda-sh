@@ -23,7 +23,7 @@
     "preact": "11.1.1",
     "preact-render-to-string": "6.8.2",
     "valibot": "^1.5.0",
-    "viem": "^2.57.14",
+    "viem": "^2.57.16",
     "void-preact": "0.1.2"
   },
   "devDependencies": {
