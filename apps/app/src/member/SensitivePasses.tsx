@@ -232,7 +232,7 @@ export const SensitivePasses = (props: { locale: Locale }): JSX.Element => {
   return (
     <>
       {startedOver === true ? (
-        <p role="status" class="alert alert-info text-sm">
+        <p role="status" class="alert alert-soft text-sm">
           {copy().startOverDone}
         </p>
       ) : null}

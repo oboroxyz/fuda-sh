@@ -4,22 +4,12 @@
 
 .dash-app,
 .dash-auth {
-  --fuda-bg: oklch(98.6% 0.002 67.8);
-  --fuda-surface: oklch(100% 0 0);
-  --fuda-text: oklch(20.5% 0 0);
-  --fuda-muted: oklch(43.9% 0 0);
-  --fuda-border: oklch(20.5% 0 0 / 20%);
-  --fuda-accent: oklch(20.5% 0 0);
+  --fuda-accent: var(--color-neutral-900);
 }
 
 :root.dark .dash-app,
 :root.dark .dash-auth {
-  --fuda-bg: oklch(14.5% 0 0);
-  --fuda-surface: oklch(20.5% 0 0);
-  --fuda-text: oklch(97% 0 0);
-  --fuda-muted: oklch(87% 0 0);
-  --fuda-border: oklch(55.6% 0 0 / 20%);
-  --fuda-accent: oklch(97% 0 0);
+  --fuda-accent: var(--color-neutral-100);
 }
 
 .dash-page-header {
@@ -83,16 +73,9 @@
   @apply top-[calc(100%+0.5rem)] right-0 bottom-auto left-auto;
 }
 
-/* daisyUI themes are disabled; these controls still need their component tokens. */
 .dash-app :where(.file-input, .toggle) {
-  --color-base-100: var(--fuda-surface);
-  --color-base-200: var(--fuda-bg);
-  --color-base-content: var(--fuda-text);
-  --border: 1px;
   --radius-field: 0.5rem;
   --radius-selector: 1rem;
-  --depth: 0;
-  --noise: 0;
   --fx-noise: none;
 }
 
