@@ -162,9 +162,6 @@ importers:
       '@tailwindcss/vite':
         specifier: 4.3.4
         version: 4.3.4(@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.0))
-      daisyui:
-        specifier: 5.7.50
-        version: 5.7.50
       tailwindcss:
         specifier: 4.3.4
         version: 4.3.4
@@ -229,9 +226,6 @@ importers:
       '@tailwindcss/vite':
         specifier: 4.3.4
         version: 4.3.4(@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.0))
-      daisyui:
-        specifier: 5.7.50
-        version: 5.7.50
       tailwindcss:
         specifier: 4.3.4
         version: 4.3.4
@@ -278,9 +272,6 @@ importers:
       '@tailwindcss/vite':
         specifier: 4.3.4
         version: 4.3.4(@voidzero-dev/vite-plus-core@0.3.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.0))
-      daisyui:
-        specifier: 5.7.50
-        version: 5.7.50
       tailwindcss:
         specifier: 4.3.4
         version: 4.3.4
@@ -401,7 +392,11 @@ importers:
         specifier: 4.1.11
         version: 4.1.11(@types/node@24.19.2)(@vitest/browser-preview@4.1.11)(esbuild@0.28.2)(happy-dom@21.0.4)(jiti@2.7.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
 
-  packages/styles: {}
+  packages/styles:
+    dependencies:
+      daisyui:
+        specifier: 5.7.50
+        version: 5.7.50
 
   packages/ui:
     dependencies:
