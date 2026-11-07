@@ -2,14 +2,13 @@
 // D1 state, then that surface's Vite dev server. The e2e runner starts this as
 // the target's `app.command` and stops it when the run ends.
 //
-// The api is the `local` Void target, built and then run by wrangler from the
-// build output. It reads `stack.env` through `--env-file`: Void builds ignore
-// `.env`, and an explicit env file makes wrangler skip any other, so a
-// developer's local secrets (a signer, an ADMIN_TOKEN) never change what the
-// suite sees.
+// The api is the `e2e` Void target, built with this stack's origins and then
+// run from the build output by `vp preview`, in the same workerd runtime as a
+// deploy. That target has its own directory, so a developer's local secrets
+// in targets/local (a signer, an ADMIN_TOKEN) never change what the suite sees.
 import { spawn, spawnSync } from 'node:child_process'
 import type { ChildProcess } from 'node:child_process'
-import { rmSync, symlinkSync } from 'node:fs'
+import { rmSync } from 'node:fs'
 import path from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 
@@ -20,13 +19,11 @@ if (surface === undefined || !isSurface(surface)) {
   throw new Error(`usage: stack.ts <${Object.keys(SURFACES).join('|')}>`)
 }
 const { port } = SURFACES[surface]
-const apiDir = path.join(repoRoot, 'apps/api/targets/local')
-const apiConfig = 'dist/ssr/wrangler.json'
+const apiDir = path.join(repoRoot, 'apps/api/targets/e2e')
 const surfaceDir = path.join(repoRoot, 'apps', surface)
-const wrangler = path.join(repoRoot, 'packages/e2e/node_modules/.bin/wrangler')
 const vp = path.join(repoRoot, 'node_modules/.bin/vp')
+const voidCli = path.join(repoRoot, 'apps/api/node_modules/.bin/void')
 const state = path.join(repoRoot, 'packages/e2e/.e2e/state', surface)
-const envFile = path.join(repoRoot, 'packages/e2e/stack.env')
 
 const children: ChildProcess[] = []
 const stop = (): void => {
@@ -38,7 +35,13 @@ process.on('SIGINT', stop)
 process.on('SIGTERM', stop)
 process.on('exit', stop)
 
-const childEnv = { ...process.env, WRANGLER_SEND_METRICS: 'false' }
+// The api target's config reads these when it builds; see its void.config.ts.
+const childEnv = {
+  ...process.env,
+  E2E_API_ORIGIN: API_ORIGIN,
+  E2E_APP_ORIGIN: SURFACES.app.origin,
+  E2E_STATE_DIR: state,
+}
 
 const run = (command: string, args: string[], cwd: string): void => {
   const result = spawnSync(command, args, { cwd, env: childEnv, stdio: 'inherit' })
@@ -83,38 +86,10 @@ const waitFor = async (url: string, deadline: number): Promise<void> => {
 
 rmSync(state, { force: true, recursive: true })
 run(vp, ['build'], apiDir)
-// The built config keeps the target's `./db/migrations`, which wrangler resolves
-// from the config's own directory.
-symlinkSync('../../db', path.join(apiDir, 'dist/ssr/db'))
-run(
-  wrangler,
-  ['d1', 'migrations', 'apply', 'fuda-beta', '--local', '-c', apiConfig, '--persist-to', state],
-  apiDir,
-)
-start(
-  wrangler,
-  [
-    'dev',
-    '-c',
-    apiConfig,
-    '--env-file',
-    envFile,
-    '--persist-to',
-    state,
-    '--ip',
-    '127.0.0.1',
-    '--port',
-    String(API_PORT),
-    '--inspector-port',
-    String(INSPECTOR_PORT),
-    '--show-interactive-dev-session=false',
-    '--var',
-    `API_BASE_URL:${API_ORIGIN}`,
-    '--var',
-    `PUBLIC_BASE_URL:${SURFACES.app.origin}`,
-  ],
-  apiDir,
-)
+run(voidCli, ['db', 'migrate'], apiDir)
+start(vp, ['preview', '--host', '127.0.0.1', '--port', String(API_PORT), '--strictPort'], apiDir, {
+  VOID_INSPECTOR_PORT: String(INSPECTOR_PORT),
+})
 await waitFor(`${API_ORIGIN}/health`, Date.now() + 60_000)
 
 // The surface starts only once the api answers, so the runner's readiness probe
