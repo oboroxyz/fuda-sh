@@ -129,4 +129,36 @@ describe('appearance controls', () => {
     })
     expect(menu.open).toBe(false)
   })
+
+  it('renders options with an href as links that still report the choice', async () => {
+    const changes: string[] = []
+    const host = open(
+      <LanguageSwitcher
+        current="en"
+        label="Language"
+        onChange={(value) => {
+          changes.push(value)
+        }}
+        options={[
+          { href: '/', label: 'English', value: 'en' },
+          { href: '/ja', label: '日本語', value: 'ja' },
+        ]}
+      />,
+    )
+    const links = [...host.querySelectorAll('a')]
+    expect(links.map((link) => [link.getAttribute('href'), link.hreflang])).toStrictEqual([
+      ['/', 'en'],
+      ['/ja', 'ja'],
+    ])
+    expect(links[0]?.getAttribute('aria-current')).toBe('true')
+    expect(host.querySelector('.fuda-language-menu-panel button')).toBeNull()
+
+    links[1]?.addEventListener('click', (event) => {
+      event.preventDefault()
+    })
+    await settle(() => {
+      links[1]?.click()
+    })
+    expect(changes).toStrictEqual(['ja'])
+  })
 })

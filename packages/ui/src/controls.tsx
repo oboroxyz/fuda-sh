@@ -23,6 +23,9 @@ export interface ThemeToggleProps {
 export interface LanguageOption {
   label: string
   value: string
+  // A page per language (a static site) gives each option its URL, so the menu is plain links
+  // that work without JavaScript. Without it the option is a button and onChange does the rest.
+  href?: string
 }
 
 export interface LanguageSwitcherProps {
@@ -109,23 +112,28 @@ export const LanguageSwitcher = (props: LanguageSwitcherProps): JSX.Element => {
         <LanguageIcon />
       </summary>
       <div class="fuda-language-menu-panel">
-        {props.options.map((option) => (
-          <button
-            key={option.value}
-            aria-current={option.value === props.current ? 'true' : undefined}
-            class="fuda-language-option"
-            lang={option.value}
-            onClick={() => {
+        {props.options.map((option) => {
+          const shared = {
+            'aria-current': option.value === props.current ? ('true' as const) : undefined,
+            class: 'fuda-language-option',
+            lang: option.value,
+            onClick: () => {
               if (menu.current !== null) {
                 menu.current.open = false
               }
               props.onChange(option.value)
-            }}
-            type="button"
-          >
-            {option.label}
-          </button>
-        ))}
+            },
+          }
+          return option.href === undefined ? (
+            <button key={option.value} {...shared} type="button">
+              {option.label}
+            </button>
+          ) : (
+            <a key={option.value} {...shared} href={option.href} hreflang={option.value}>
+              {option.label}
+            </a>
+          )
+        })}
       </div>
     </details>
   )
