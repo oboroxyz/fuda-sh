@@ -135,6 +135,16 @@ describe('venue logo upload', () => {
   })
 })
 
+const branded = async (): Promise<{ app: App; bindings: Bindings }> => {
+  const app = appWith({ chain: fakeChain(), now: () => NOW })
+  const bindings = mediaEnv()
+  const { token } = await signIn(app, bindings)
+  const stagedRes = await upload(app, bindings, token, logoForm())
+  const staged = await stagedRes.json<{ logoUploadId: string }>()
+  await postJson(app, bindings, '/v1/issuers', { ...CARD_INPUT, logoUploadId: staged.logoUploadId }, token)
+  return { app, bindings }
+}
+
 describe('serving a venue logo', () => {
   beforeEach(async () => {
     const db = getDb({ DB: env.DB })
@@ -144,16 +154,6 @@ describe('serving a venue logo', () => {
     await db.delete(cards)
     await db.delete(issuers)
   })
-
-  const branded = async (): Promise<{ app: App; bindings: Bindings }> => {
-    const app = appWith({ chain: fakeChain(), now: () => NOW })
-    const bindings = mediaEnv()
-    const { token } = await signIn(app, bindings)
-    const stagedRes = await upload(app, bindings, token, logoForm())
-    const staged = await stagedRes.json<{ logoUploadId: string }>()
-    await postJson(app, bindings, '/v1/issuers', { ...CARD_INPUT, logoUploadId: staged.logoUploadId }, token)
-    return { app, bindings }
-  }
 
   it('serves the master with an ETag and a short life for an unversioned link', async () => {
     const { app, bindings } = await branded()
@@ -190,6 +190,27 @@ describe('serving a venue logo', () => {
   })
 })
 
+const claimed = async (): Promise<{ app: App; bindings: Bindings; uid: string }> => {
+  const chain = fakeChain({ signer: ROOT })
+  const del = seedRoot(chain)
+  const app = appWith({ chain, now: () => NOW })
+  const bindings = configuredEnv(del, {
+    API_BASE_URL: 'https://api.test',
+    PUBLIC_BASE_URL: 'https://fuda.test',
+  })
+  const { token } = await signIn(app, bindings)
+  const stagedRes = await upload(app, bindings, token, logoForm())
+  const staged = await stagedRes.json<{ logoUploadId: string }>()
+  await registerVenueWithCard(app, bindings, { ...CARD_INPUT, logoUploadId: staged.logoUploadId }, token)
+  const issued = await app.request(
+    '/v1/issuers/wassie-coffee/stamp/issue',
+    { headers: { 'CF-Connecting-IP': '203.0.113.70' }, method: 'POST' },
+    bindings,
+  )
+  const body = await issued.json<{ uid: string }>()
+  return { app, bindings, uid: body.uid }
+}
+
 describe('a branded pass', () => {
   beforeEach(async () => {
     const db = getDb({ DB: env.DB })
@@ -200,27 +221,6 @@ describe('a branded pass', () => {
     await db.delete(cards)
     await db.delete(issuers)
   })
-
-  const claimed = async (): Promise<{ app: App; bindings: Bindings; uid: string }> => {
-    const chain = fakeChain({ signer: ROOT })
-    const del = seedRoot(chain)
-    const app = appWith({ chain, now: () => NOW })
-    const bindings = configuredEnv(del, {
-      API_BASE_URL: 'https://api.test',
-      PUBLIC_BASE_URL: 'https://fuda.test',
-    })
-    const { token } = await signIn(app, bindings)
-    const stagedRes = await upload(app, bindings, token, logoForm())
-    const staged = await stagedRes.json<{ logoUploadId: string }>()
-    await registerVenueWithCard(app, bindings, { ...CARD_INPUT, logoUploadId: staged.logoUploadId }, token)
-    const issued = await app.request(
-      '/v1/issuers/wassie-coffee/stamp/issue',
-      { headers: { 'CF-Connecting-IP': '203.0.113.70' }, method: 'POST' },
-      bindings,
-    )
-    const body = await issued.json<{ uid: string }>()
-    return { app, bindings, uid: body.uid }
-  }
 
   it('points the web pass at the venue mark', async () => {
     const { app, bindings, uid } = await claimed()

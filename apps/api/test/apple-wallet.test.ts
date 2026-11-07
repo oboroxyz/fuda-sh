@@ -200,6 +200,8 @@ const log = (body: string): RequestInit => ({
   method: 'POST',
 })
 
+const passPath = (uid: Hex): string => `/apple/v1/passes/${PASS_TYPE}/${uid}`
+
 describe('the Wallet web service', () => {
   beforeEach(wipe)
 
@@ -362,8 +364,6 @@ describe('the Wallet web service', () => {
   })
 
   describe('getting the latest pass', () => {
-    const passPath = (uid: Hex): string => `/apple/v1/passes/${PASS_TYPE}/${uid}`
-
     it('refuses a wrong token', async () => {
       const { issueSeeded, request } = await world()
       const uid = await issueSeeded('m1')

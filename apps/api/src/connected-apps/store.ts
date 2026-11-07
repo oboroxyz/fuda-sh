@@ -193,7 +193,7 @@ const base64Url = (bytes: ArrayBuffer): string =>
   btoa(String.fromCodePoint(...new Uint8Array(bytes)))
     .replaceAll('+', '-')
     .replaceAll('/', '_')
-    .replace(/=+$/u, '')
+    .replace(/[=]+$/u, '')
 
 // RFC 7636 §4.6, S256: BASE64URL(SHA256(verifier)) must equal the challenge.
 export const pkceChallenge = async (verifier: string): Promise<string> =>

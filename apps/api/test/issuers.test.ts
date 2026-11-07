@@ -296,6 +296,14 @@ describe('branded passes for a self-serve right', () => {
   })
 })
 
+const venueWithoutCard = async () => {
+  const app = appWith({ chain: fakeChain(), now: () => NOW })
+  const { token } = await signIn(app, publicEnv())
+  const { card: firstCard, ...venueInput } = CARD_INPUT
+  await postJson(app, publicEnv(), '/v1/issuers', venueInput, token)
+  return { app, firstCard, token, venueInput }
+}
+
 describe('a venue with several cards', () => {
   beforeEach(async () => {
     const db = getDb({ DB: env.DB })
@@ -306,14 +314,6 @@ describe('a venue with several cards', () => {
     await db.delete(cards)
     await db.delete(issuers)
   })
-
-  const venueWithoutCard = async () => {
-    const app = appWith({ chain: fakeChain(), now: () => NOW })
-    const { token } = await signIn(app, publicEnv())
-    const { card: firstCard, ...venueInput } = CARD_INPUT
-    await postJson(app, publicEnv(), '/v1/issuers', venueInput, token)
-    return { app, firstCard, token, venueInput }
-  }
 
   it('creates a card for an unclaimed venue when ENS is not configured', async () => {
     const { app, firstCard, token } = await venueWithoutCard()

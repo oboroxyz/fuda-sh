@@ -10,7 +10,7 @@ const toBinary = (bytes: Uint8Array): string => {
 }
 
 export const base64urlBytes = (bytes: Uint8Array): string =>
-  btoa(toBinary(bytes)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/u, '')
+  btoa(toBinary(bytes)).replaceAll('+', '-').replaceAll('/', '_').replace(/[=]+$/u, '')
 
 export const base64urlText = (text: string): string => base64urlBytes(new TextEncoder().encode(text))
 

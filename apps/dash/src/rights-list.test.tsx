@@ -83,6 +83,19 @@ const colspans = (scope: Element): string[] =>
   [...scope.querySelectorAll('td[colspan]')].map((node) => node.getAttribute('colspan') ?? '')
 const isQrButton = (node: HTMLButtonElement): boolean => ['Show QR', 'Hide QR'].includes(spacedText(node))
 
+// The affirmative is the neutral chip the gate already uses for this claim;
+// the status chip is badge-success / badge-error, so it cannot be mistaken for it.
+const chips = (scope: ParentNode, uid: string): string[] =>
+  records(scope, uid)
+    .flatMap((record) => [...record.querySelectorAll('span')])
+    .filter((node) => node.className === 'badge badge-neutral')
+    .map(spacedText)
+
+const fallbacks = (scope: ParentNode, uid: string): number =>
+  records(scope, uid)
+    .flatMap((record) => [...record.querySelectorAll('span')])
+    .filter((node) => node.className === 'opacity-50' && spacedText(node) === '—').length
+
 describe(RightsList, () => {
   afterEach(cleanup)
 
@@ -131,18 +144,6 @@ describe(RightsList, () => {
     const japanese = show({ ...overrides, copy: DASH_COPY.ja.rights })
     const table = layout(host, 'rights-table')
     const cards = layout(host, 'rights-cards')
-    // The affirmative is the neutral chip the gate already uses for this claim;
-    // the status chip is badge-success / badge-error, so it cannot be mistaken for it.
-    const chips = (scope: ParentNode, uid: string): string[] =>
-      records(scope, uid)
-        .flatMap((record) => [...record.querySelectorAll('span')])
-        .filter((node) => node.className === 'badge badge-neutral')
-        .map(spacedText)
-    const fallbacks = (scope: ParentNode, uid: string): number =>
-      records(scope, uid)
-        .flatMap((record) => [...record.querySelectorAll('span')])
-        .filter((node) => node.className === 'opacity-50' && spacedText(node) === '—').length
-
     expect({
       cards: { badged: chips(cards, badged.uid), plainFallbacks: fallbacks(cards, plain.uid) },
       headers: headers(table),

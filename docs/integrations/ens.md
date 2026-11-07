@@ -213,8 +213,8 @@ ENS_REGISTRAR_ADDRESS=0x58AF04ff5e6DAB45ECD17bD38fC4f4BBa45778B9 \
 viem ships production ENS addresses, so the Universal Resolver must be overridden once in the chain definition. `ENS_HACKATHON_CHAIN` does that:
 
 ```ts
-import { createPublicClient, http } from 'viem'
 import { ENS_HACKATHON_CHAIN } from '@fuda/ens-contracts'
+import { createPublicClient, http } from 'viem'
 
 const client = createPublicClient({ chain: ENS_HACKATHON_CHAIN, transport: http() })
 

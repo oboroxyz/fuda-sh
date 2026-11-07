@@ -36,7 +36,7 @@ export const createApp = (deps: AppDeps): Hono<AppEnv> => {
         app.on(method, path, async (c) => {
           const response = await handler(c)
           if (!(response instanceof Response)) {
-            throw new Error('API handlers must return a Response')
+            throw new TypeError('API handlers must return a Response')
           }
           return response
         })

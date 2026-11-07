@@ -340,6 +340,9 @@ describe(signForPass, () => {
   })
 })
 
+const askPrfForNewPasskey: SensitiveIo['askPrf'] = async ({ allow }) =>
+  await Promise.resolve(allow.some((row) => row.id === 'new') ? { kind: 'none' } : answerFrom('one'))
+
 describe(addPasskeyKeepingSecret, () => {
   it('adds a plain passkey, with one prompt, while the account holds no secret', async () => {
     const server = fakeServer()
@@ -369,9 +372,9 @@ describe(addPasskeyKeepingSecret, () => {
   it('leaves a new passkey with no PRF for sign-in only', async () => {
     const server = fakeServer()
     await openMemberSecret(server.io)
-    const askPrf: SensitiveIo['askPrf'] = async ({ allow }) =>
-      await Promise.resolve(allow.some((row) => row.id === 'new') ? { kind: 'none' } : answerFrom('one'))
-    await expect(addPasskeyKeepingSecret({ ...server.io, askPrf })).resolves.toStrictEqual({
+    await expect(
+      addPasskeyKeepingSecret({ ...server.io, askPrf: askPrfForNewPasskey }),
+    ).resolves.toStrictEqual({
       holdsSecret: false,
       ok: true,
     })

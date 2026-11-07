@@ -77,13 +77,14 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
     if (local !== 'checking') {
       return
     }
-    const timer = setTimeout(() => {
-      const run = async (): Promise<void> => {
-        const next = await props.onCheckHandle(form.handle)
-        if (checkRevision.current === revision) {
-          setStatus(next)
-        }
+    const run = async (): Promise<void> => {
+      const next = await props.onCheckHandle(form.handle)
+      if (checkRevision.current === revision) {
+        setStatus(next)
       }
+    }
+
+    const timer = setTimeout(() => {
       void run()
     }, 300)
     return () => {

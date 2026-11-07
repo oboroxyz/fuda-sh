@@ -155,6 +155,42 @@ const withVenue = async (bindings: Bindings, chain: FakeChain = delegate(signing
 const rowFor = async (name: string) =>
   await getDb({ DB: env.DB }).select().from(ensNames).where(eq(ensNames.name, name)).get()
 
+const sponsoredBody = (target: string) => ({
+  id: 1,
+  jsonrpc: '2.0',
+  method: 'pm_getPaymasterStubData',
+  params: [
+    {
+      callData: encodeFunctionData({
+        abi: SMART_WALLET_ABI,
+        args: [
+          target as Hex,
+          0n,
+          encodeFunctionData({
+            abi: FUDA_REGISTRAR_ABI,
+            args: [HANDLE, operator.address, 2000n, 0n, 1500n, '0x1234'],
+            functionName: 'claim',
+          }),
+        ],
+        functionName: 'execute',
+      }),
+    },
+    `0x${'5f'.repeat(20)}`,
+    '0xaa36a7',
+  ] as const,
+})
+
+const send = async (bindings: Bindings, body: unknown) =>
+  await app().request(
+    '/v1/ens/paymaster',
+    {
+      body: JSON.stringify(body),
+      headers: { 'CF-Connecting-IP': IP, 'content-type': 'application/json' },
+      method: 'POST',
+    },
+    bindings,
+  )
+
 describe('issuer ENS claim', () => {
   beforeEach(async () => {
     await env.DB.exec('DROP TRIGGER IF EXISTS fail_issuer_ens')
@@ -399,42 +435,6 @@ describe('issuer ENS claim', () => {
   })
 
   describe('POST /ens/paymaster', () => {
-    const sponsoredBody = (target: string) => ({
-      id: 1,
-      jsonrpc: '2.0',
-      method: 'pm_getPaymasterStubData',
-      params: [
-        {
-          callData: encodeFunctionData({
-            abi: SMART_WALLET_ABI,
-            args: [
-              target as Hex,
-              0n,
-              encodeFunctionData({
-                abi: FUDA_REGISTRAR_ABI,
-                args: [HANDLE, operator.address, 2000n, 0n, 1500n, '0x1234'],
-                functionName: 'claim',
-              }),
-            ],
-            functionName: 'execute',
-          }),
-        },
-        `0x${'5f'.repeat(20)}`,
-        '0xaa36a7',
-      ] as const,
-    })
-
-    const send = async (bindings: Bindings, body: unknown) =>
-      await app().request(
-        '/v1/ens/paymaster',
-        {
-          body: JSON.stringify(body),
-          headers: { 'CF-Connecting-IP': IP, 'content-type': 'application/json' },
-          method: 'POST',
-        },
-        bindings,
-      )
-
     it('forwards a claim on fuda’s registrar and injects the gas policy', async () => {
       const calls = stubChain()
 

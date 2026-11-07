@@ -169,34 +169,35 @@ const stampProgress = (view: PassView): HtmlEscapedString | Promise<HtmlEscapedS
 export const PassPage = (
   view: PassView,
   platform: PassPlatform = 'web',
-): HtmlEscapedString | Promise<HtmlEscapedString> => html`<!doctype html>
-  <html lang="en">
-    <head>
-      <meta charset="utf-8" />
-      <meta name="viewport" content="width=device-width,initial-scale=1" />
-      <meta name="apple-mobile-web-app-capable" content="yes" />
-      <title>${pageTitle(view)}</title>
-      <style>
-        ${raw(STYLE)}
-      </style>
-    </head>
-    <body class="${view.branding === null ? '' : 'brand'}" style="${brandStyle(view)}">
-      <main>
-        <div class="card">
-          ${heading(view)}
-          <div class="qr" data-qr="${view.qr}">${raw(qrSvg(view.qr))}</div>
-          <div id="status" class="status" data-ok="${okAttr(view.status)}">${view.status}</div>
-          ${stampProgress(view)}
-          <div class="meta">${memberLine(view)}<br />Level ${view.level}<br /><code>${view.uid}</code></div>
-          ${walletButton(platform)}
-          <div class="hint">
-            Add this page to your home screen to keep the pass handy. The status re-checks the chain every 30
-            s.
+): HtmlEscapedString | Promise<HtmlEscapedString> =>
+  html`<!doctype html>
+    <html lang="en">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <title>${pageTitle(view)}</title>
+        <style>
+          ${raw(STYLE)}
+        </style>
+      </head>
+      <body class="${view.branding === null ? '' : 'brand'}" style="${brandStyle(view)}">
+        <main>
+          <div class="card">
+            ${heading(view)}
+            <div class="qr" data-qr="${view.qr}">${raw(qrSvg(view.qr))}</div>
+            <div id="status" class="status" data-ok="${okAttr(view.status)}">${view.status}</div>
+            ${stampProgress(view)}
+            <div class="meta">${memberLine(view)}<br />Level ${view.level}<br /><code>${view.uid}</code></div>
+            ${walletButton(platform)}
+            <div class="hint">
+              Add this page to your home screen to keep the pass handy. The status re-checks the chain every
+              30 s.
+            </div>
           </div>
-        </div>
-      </main>
-      <script>
-        ${raw(refreshScript(view.uid, platform))}
-      </script>
-    </body>
-  </html>`
+        </main>
+        <script>
+          ${raw(refreshScript(view.uid, platform))}
+        </script>
+      </body>
+    </html>`

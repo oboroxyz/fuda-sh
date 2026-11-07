@@ -5,7 +5,7 @@ const b64url = (bytes: Uint8Array): string =>
   btoa(String.fromCodePoint(...bytes))
     .replaceAll('+', '-')
     .replaceAll('/', '_')
-    .replace(/=+$/u, '')
+    .replace(/[=]+$/u, '')
 
 const utf8 = (text: string): Uint8Array<ArrayBuffer> => new TextEncoder().encode(text)
 
