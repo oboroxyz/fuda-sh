@@ -10,7 +10,7 @@ The first Void migration retained the existing Hono app behind a catch-all middl
 ## Decision
 
 - Void discovers `routes/` files and their named HTTP method exports. Files re-export `defineHandler` values from `src/handlers/`, where related handlers share their domain helpers. No production code manually mounts Hono sub-apps or forwards every request to another Worker entry.
-- The three target projects link their `routes` directory to the same authored route tree. Package imports (`#api/*`) resolve shared handlers from either the canonical tree or a target link. Adding an endpoint changes one route file, not three target registries.
+- The target projects link their `routes` directory to the same authored route tree. Package imports (`#api/*`) resolve shared handlers from either the canonical tree or a target link. Adding an endpoint changes one route file, not one registry per target.
 - Ordered Void middleware supplies request-scoped chain, database, clock and admission dependencies, then CORS, auth-mode headers and cache policy. An outer error middleware preserves the API's internal-error envelope and the ENS gateway's separate EIP-3668 error envelope.
 - URL paths, HTTP methods, validation, authentication, response bodies and caching contracts remain unchanged. Programmatic routes stay under `/v1`; pass, asset, ENS gateway and health routes remain unversioned.
 - Workerd tests register the same route-file exports in a test-only Hono adapter so chain, time and admission dependencies remain injectable. Static paths precede parameter paths. Production route discovery is verified by the Void build and browser E2E against its built Worker.

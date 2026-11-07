@@ -165,7 +165,7 @@ Attested with `recipient = holder` and `refUID = rightUID`.
 
 Issuance always writes the newest version in the set; verification accepts every listed version and decodes through a per-version codec (`decodeEntitlementV1 → toCanonical`, the identity for v1). A future v2 is added by appending a set entry and a codec, with no change to gate logic. Deprecation policies, `refUID` supersession chains, and touch-time migration are deliberately not in the MVP.
 
-`USE_FAKE_CHAIN=1` is a local-development opt-in only (`apps/api/targets/local/.env`): it swaps in an in-memory chain and is ignored whenever a signer or an RPC binding is present. It is disabled when `CHAIN_ID` selects Base mainnet, and an unknown id still fails. It is never set in a deployed environment. Each target block in `apps/api/targets.jsonc` is complete, and the `local` block carries deterministic fake-chain values.
+`USE_FAKE_CHAIN=1` is a local opt-in only, set in `apps/api/targets/local/.env` or by the e2e api target (`apps/api/targets/e2e`): it swaps in an in-memory chain and is ignored whenever a signer or an RPC binding is present. It is disabled when `CHAIN_ID` selects Base mainnet, and an unknown id still fails. It is never set in a deployed environment. Each target block in `apps/api/targets.jsonc` is complete, and the `local` block carries deterministic fake-chain values.
 
 Migrations under `apps/api/migrations/` are hand-written SQL; there is no drizzle-kit snapshot. Before any future `drizzle-kit generate`, bootstrap the baseline snapshot first, or the generator re-emits every table as a new migration.
 
