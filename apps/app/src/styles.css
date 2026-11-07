@@ -3,13 +3,9 @@
 @import './venue.css';
 @import './member.css';
 
-/* The shared theme intentionally omits daisyUI themes and button sizing.
-   Give the member app's components the same surfaces and readable controls. */
+/* The shared base maps daisyUI's surface colors to the --fuda-* tokens but leaves out button sizing
+   and the status colors; the member app adds both. */
 @theme inline {
-  --color-base-100: var(--fuda-surface);
-  --color-base-200: var(--fuda-bg);
-  --color-base-300: var(--fuda-border);
-  --color-base-content: var(--fuda-text);
   --color-primary: var(--fuda-accent);
   --color-primary-content: #ffffff;
   --color-success: #26704b;

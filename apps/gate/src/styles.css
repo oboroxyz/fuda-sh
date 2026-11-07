@@ -3,12 +3,8 @@
 
 @source '../../../packages/ui/src';
 
-/* The shared base disables daisyUI themes; verdict colors must exist at the station. */
+/* The shared base has no status colors; verdict colors must exist at the station. */
 @theme inline {
-  --color-base-100: var(--fuda-surface);
-  --color-base-200: var(--fuda-bg);
-  --color-base-300: var(--fuda-border);
-  --color-base-content: var(--fuda-text);
   --color-primary: var(--fuda-accent);
   --color-primary-content: var(--fuda-bg);
   --color-neutral: var(--fuda-border);
