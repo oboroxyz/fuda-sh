@@ -5,5 +5,8 @@
   "type": "module",
   "exports": {
     "./base.css": "./base.css"
+  },
+  "dependencies": {
+    "daisyui": "5.7.50"
   }
 }
