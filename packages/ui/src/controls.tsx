@@ -1,6 +1,6 @@
 import { cn } from 'cn'
 import type { JSX } from 'preact'
-import { useRef } from 'preact/hooks'
+import { useEffect, useRef } from 'preact/hooks'
 
 import { IconButton } from './IconButton.tsx'
 import { nextThemeMode } from './theme.ts'
@@ -78,6 +78,31 @@ export const ThemeToggle = (props: ThemeToggleProps): JSX.Element => (
 
 export const LanguageSwitcher = (props: LanguageSwitcherProps): JSX.Element => {
   const menu = useRef<HTMLDetailsElement>(null)
+  useEffect(() => {
+    const close = (event: Event): void => {
+      const element = menu.current
+      if (element === null || !element.open) {
+        return
+      }
+      if (event instanceof KeyboardEvent) {
+        if (event.key !== 'Escape') {
+          return
+        }
+        if (element.contains(document.activeElement)) {
+          element.querySelector('summary')?.focus()
+        }
+      } else if (event.target instanceof Node && element.contains(event.target)) {
+        return
+      }
+      element.open = false
+    }
+    document.addEventListener('keydown', close)
+    document.addEventListener('pointerdown', close)
+    return () => {
+      document.removeEventListener('keydown', close)
+      document.removeEventListener('pointerdown', close)
+    }
+  }, [])
   return (
     <details class="fuda-language-menu" ref={menu}>
       <summary aria-label={props.label} class={cn('fuda-icon-button', props.class)} title={props.label}>

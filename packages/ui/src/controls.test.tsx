@@ -103,4 +103,30 @@ describe('appearance controls', () => {
     expect(changes).toStrictEqual(['ja'])
     expect(menu.open).toBe(false)
   })
+
+  it('closes an open language menu on Escape or a click outside it', async () => {
+    const host = open(
+      <LanguageSwitcher current="en" label="Language" onChange={() => {}} options={OPTIONS} />,
+    )
+    const menu = host.querySelector('details')!
+
+    menu.open = true
+    host.querySelectorAll('button')[1].focus()
+    await settle(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Escape' }))
+    })
+    expect(menu.open).toBe(false)
+    expect(document.activeElement).toBe(menu.querySelector('summary'))
+
+    menu.open = true
+    await settle(() => {
+      menu.querySelector('summary')!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }))
+    })
+    expect(menu.open).toBe(true)
+
+    await settle(() => {
+      document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }))
+    })
+    expect(menu.open).toBe(false)
+  })
 })
