@@ -1,0 +1,39 @@
+name: Dependabot auto-merge
+
+# pull_request_target gives Dependabot's token write access. The job never
+# checks out or runs pull request code: it reads Dependabot's metadata and asks
+# GitHub to merge after the required CI check passes.
+on: # zizmor: ignore[dangerous-triggers] -- no pull request code is checked out or run
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+permissions: {}
+
+jobs:
+  auto-merge:
+    name: Enable auto-merge for development updates
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'oboroxyz/fuda-sh'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Read Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v3.1.0
+      - name: Enable auto-merge when every update is a direct development minor or patch
+        env:
+          DEPENDENCIES: ${{ steps.metadata.outputs.updated-dependencies-json }}
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          if jq -e 'length > 0 and all(.[];
+              .packageEcosystem == "npm_and_yarn"
+              and .dependencyType == "direct:development"
+              and (.updateType == "version-update:semver-minor" or .updateType == "version-update:semver-patch"))' \
+              <<< "$DEPENDENCIES" > /dev/null; then
+            gh pr merge --auto --merge "$PR_URL"
+          else
+            echo 'Left for manual review.'
+          fi
