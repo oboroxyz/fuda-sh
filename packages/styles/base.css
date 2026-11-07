@@ -6,6 +6,14 @@
   exclude: button;
 }
 
+/* daisyUI's themes are off, so its component variables come from the --fuda-* tokens. */
+@theme inline {
+  --color-base-100: var(--fuda-surface);
+  --color-base-200: var(--fuda-bg);
+  --color-base-300: var(--fuda-border);
+  --color-base-content: var(--fuda-text);
+}
+
 @theme {
   --font-display: 'Quicksand', var(--font-sans);
 
@@ -76,23 +84,26 @@
   --fuda-space-2: 0.5rem;
   --fuda-space-3: 0.75rem;
   --fuda-space-4: 1rem;
-  --fuda-bg: #f6f5f2;
-  --fuda-surface: #ffffff;
-  --fuda-text: #20211f;
-  --fuda-muted: #666963;
-  --fuda-border: #d9dbd5;
+  --fuda-bg: var(--color-taupe-50);
+  --fuda-surface: var(--color-white);
+  --fuda-text: var(--color-neutral-900);
+  --fuda-muted: var(--color-neutral-600);
+  --fuda-border: color-mix(in oklab, var(--color-neutral-900) 20%, transparent);
   --fuda-accent: #5c7065;
-  --fuda-danger: #956265;
+  --fuda-danger: #8c5a5d;
   --fuda-focus: #61718a;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
 }
 
 :root.dark {
   color-scheme: dark;
-  --fuda-bg: #171916;
-  --fuda-surface: #222520;
-  --fuda-text: #f2f3ee;
-  --fuda-muted: #b6bab1;
-  --fuda-border: #3c4039;
+  --fuda-bg: var(--color-neutral-950);
+  --fuda-surface: var(--color-neutral-900);
+  --fuda-text: var(--color-neutral-100);
+  --fuda-muted: var(--color-neutral-300);
+  --fuda-border: color-mix(in oklab, var(--color-neutral-500) 30%, transparent);
   --fuda-accent: #a3b5aa;
   --fuda-danger: #cba3a5;
   --fuda-focus: #a5b2c6;
@@ -100,6 +111,7 @@
 
 @layer base {
   body {
+    @apply antialiased;
     background: var(--fuda-bg);
     color: var(--fuda-text);
   }
@@ -156,7 +168,7 @@
   }
 
   .text-moderate {
-    @apply text-neutral-500 dark:text-neutral-400;
+    @apply text-[var(--fuda-muted)];
   }
 
   .text-danger {
