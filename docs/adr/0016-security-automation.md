@@ -13,4 +13,4 @@ Deterministic checks and dependency bumps based on public advisories run in `obo
 
 ## Consequences
 
-The AI audit starts on demand. Add a monthly schedule after measuring the first run's cost. Dependabot PRs exclude the independent Subgraph, Substreams crates, and the Vite+ package group, which require coordinated manual updates.
+The AI audit starts on demand. Add a monthly schedule after measuring the first run's cost. Dependabot PRs exclude the independent Subgraph, Substreams crates, and the Vite+ package group, which require coordinated manual updates. Only direct development dependencies at minor or patch versions merge automatically after CI passes, because a runtime minor update can still change behavior: the `viem` update in #63 brought in an `ox` release that imports a Node built-in in the frontend builds.
