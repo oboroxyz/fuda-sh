@@ -10,7 +10,7 @@
     "dev": "cd targets/local && vp dev --port 8787",
     "deploy": "cd targets/develop && void deploy --platform cloudflare",
     "deploy:production": "cd targets/production && void deploy --platform cloudflare",
-    "test": "vitest run",
+    "test": "vp test",
     "test:scripts": "vp test --config vite.scripts.config.ts",
     "migrate:local": "cd targets/local && void db migrate",
     "migrate:remote": "cd targets/develop && void connect --platform cloudflare && void db migrate --remote",
@@ -36,13 +36,13 @@
     "viem": "^2.57.16"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.23.0",
+    "@cloudflare/vitest-plugin": "1.6.0",
     "@cloudflare/workers-types": "^5.20261104.1",
     "asn1js": "4.0.0",
     "drizzle-kit": "^0.31.11",
     "jsonc-parser": "3.3.1",
     "pkijs": "4.0.1",
-    "vitest": "4.1.12",
+    "vitest": "5.1.0",
     "void": "1.6.2"
   }
 }

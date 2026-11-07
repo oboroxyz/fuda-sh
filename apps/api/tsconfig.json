@@ -3,7 +3,7 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "jsxImportSource": "hono/jsx",
-    "types": ["@cloudflare/workers-types", "@cloudflare/vitest-pool-workers/types", "vite-plus/client"]
+    "types": ["@cloudflare/workers-types", "@cloudflare/vitest-plugin/types", "vite-plus/client"]
   },
   "include": [
     "routes",

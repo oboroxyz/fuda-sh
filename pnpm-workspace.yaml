@@ -26,10 +26,6 @@ overrides:
   oxlint: '=1.91.0'
   oxfmt: '=0.76.0'
   vite@*: npm:@voidzero-dev/vite-plus-core@1.5.0
-  # @cloudflare/vitest-pool-workers 0.23.0 pins an older miniflare whose undici
-  # and sharp carry published advisories; lift them to the patched releases.
-  undici@<7.30.1: ^7.30.1
-  sharp@<0.35.5: ^0.35.5
 minimumReleaseAge: 4320
 minimumReleaseAgeExclude:
   - cn@0.2.6
@@ -59,3 +55,8 @@ minimumReleaseAgeExclude:
   - '@cloudflare/workers-types@5.20261102.1'
   - '@cloudflare/workers-utils@0.50.2'
   - hono@4.13.16
+  # @cloudflare/vitest-plugin (the renamed vitest-pool-workers) 1.6.0, the first with
+  # Vitest 5 support we adopt, and the fresh releases it pins exactly.
+  - '@cloudflare/vitest-plugin@1.6.0'
+  - miniflare@5.20261104.0-beta
+  - wrangler@4.158.0

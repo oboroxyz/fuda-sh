@@ -1,15 +1,13 @@
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { cloudflareTest, readD1Migrations } from '@cloudflare/vitest-pool-workers'
+import { cloudflareTest, readD1Migrations } from '@cloudflare/vitest-plugin'
 import { defineConfig } from 'vitest/config'
 
 import { COMPATIBILITY_DATE, COMPATIBILITY_FLAGS, TARGETS } from './targets.ts'
 
-// Tests run inside workerd via @cloudflare/vitest-pool-workers. The pool does not
-// support Vitest 5 yet (cloudflare/workers-sdk#15618), so this package runs its
-// own Vitest 4 through `vitest run` instead of the Vitest 5 that Vite+ bundles.
-// Since its 0.2x line the pool is a Vite plugin — `cloudflareTest(...)` — rather than the old
+// Tests run inside workerd via @cloudflare/vitest-plugin (formerly
+// @cloudflare/vitest-pool-workers). The pool is a Vite plugin — `cloudflareTest(...)` — rather than the old
 // `defineWorkersConfig` + `test.poolOptions.workers` shape. The bindings are the
 // develop target's (targets.jsonc), with D1 and R2 simulated in memory.
 export default defineConfig({
