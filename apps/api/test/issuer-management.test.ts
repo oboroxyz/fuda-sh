@@ -230,12 +230,12 @@ describe('operator Card management', () => {
         claimFrom: null,
         claimUntil: null,
         description: '',
+        [field]: 'forbidden',
         lockScreen: false,
         title: 'Card',
         validFrom: null,
         validUntil: null,
         validityDays: null,
-        [field]: 'forbidden',
       },
       token,
     )

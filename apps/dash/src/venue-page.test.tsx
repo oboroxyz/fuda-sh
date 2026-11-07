@@ -392,9 +392,9 @@ describe('venue logo preview', () => {
   })
 })
 
-describe('venue handle check', () => {
-  const registering = (): VenuePageProps => ({ ...props(), issuer: null })
+const registering = (): VenuePageProps => ({ ...props(), issuer: null })
 
+describe('venue handle check', () => {
   beforeEach(() => {
     root = document.createElement('div')
     document.body.append(root)

@@ -76,6 +76,18 @@ const claimOn = async (host: HTMLElement): Promise<void> => {
   host.querySelector<HTMLButtonElement>('.venue-primary button')?.click()
 }
 
+const openBotCheck = async (deps: CardScreenIo, locale: Locale = 'en'): Promise<HTMLDivElement> => {
+  const host = document.createElement('div')
+  render(
+    () => <CardScreen handle={venue.handle} slug={null} io={deps} locale={locale} storage={localStorage} />,
+    host,
+  )
+  await vi.waitFor(() => {
+    expect(host.querySelector('button')).not.toBeNull()
+  })
+  return host
+}
+
 describe('venue controller', () => {
   describe('a Sensitive card', () => {
     const UID = `0x${'ab'.repeat(32)}` as const
@@ -470,19 +482,6 @@ describe('venue controller', () => {
   })
 
   describe('the bot check on claim', () => {
-    const open = async (deps: CardScreenIo, locale: Locale = 'en'): Promise<HTMLDivElement> => {
-      const host = document.createElement('div')
-      render(
-        () => (
-          <CardScreen handle={venue.handle} slug={null} io={deps} locale={locale} storage={localStorage} />
-        ),
-        host,
-      )
-      await vi.waitFor(() => {
-        expect(host.querySelector('button')).not.toBeNull()
-      })
-      return host
-    }
     const claimed = {
       body: {
         holder: `0x${'11'.repeat(20)}` as const,
@@ -507,7 +506,7 @@ describe('venue controller', () => {
         ),
         issueCard: vi.fn<CardScreenIo['issueCard']>(async () => await Promise.resolve(claimed)),
       }
-      const host = await open(deps)
+      const host = await openBotCheck(deps)
       expect(deps.claimToken).not.toHaveBeenCalled()
       host.querySelector('button')!.click()
       await vi.waitFor(() => {
@@ -529,7 +528,7 @@ describe('venue controller', () => {
           .mockResolvedValueOnce({ error: 'bot_check_failed', network: false, ok: false, status: 403 })
           .mockResolvedValueOnce(claimed),
       }
-      const host = await open(deps)
+      const host = await openBotCheck(deps)
       host.querySelector('button')!.click()
       await vi.waitFor(() => {
         expect(host.textContent).toContain('We could not confirm that you are a person. Please try again.')
@@ -546,7 +545,7 @@ describe('venue controller', () => {
         ...io(),
         claimToken: vi.fn<CardScreenIo['claimToken']>(async () => await Promise.resolve({ ok: false })),
       }
-      const host = await open(deps, 'ja')
+      const host = await openBotCheck(deps, 'ja')
       host.querySelector('button')!.click()
       await vi.waitFor(() => {
         expect(host.textContent).toContain(
@@ -567,7 +566,7 @@ describe('venue controller', () => {
           async () => await Promise.resolve({ error: 'api 503', network: true, ok: false, status: 503 }),
         ),
       }
-      const host = await open(deps)
+      const host = await openBotCheck(deps)
       host.querySelector('button')!.click()
       await vi.waitFor(() => {
         expect(host.textContent).toContain(

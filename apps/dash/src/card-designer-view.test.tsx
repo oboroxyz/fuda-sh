@@ -78,6 +78,30 @@ const issuer: IssuerView = {
   tagline: 'Omotesando · Coffee shop',
 }
 
+const label = (slug: CardDesignerViewProps['status']['slug']): string =>
+  spacedText(showDesigner(designer({ status: { handle: 'available', slug } })))
+
+const showLive = (onDraftChange: (form: DesignerForm) => void, initialDraft = filled) => {
+  const root = document.createElement('div')
+  const dispose = render(
+    <CardDesigner
+      busy={false}
+      copy={DASH_COPY.en.designer}
+      failure={null}
+      initialDraft={initialDraft}
+      issuer={issuer}
+      logoCopy={DASH_COPY.en.logo}
+      onCheckHandle={async () => await Promise.resolve('available')}
+      onCheckSlug={async () => await Promise.resolve('available')}
+      onDraftChange={onDraftChange}
+      onEditProfile={vi.fn<() => void>()}
+      onSubmit={vi.fn<() => void>()}
+    />,
+    root,
+  )
+  return { dispose, root }
+}
+
 describe(CardDesignerView, () => {
   afterEach(cleanup)
 
@@ -124,27 +148,6 @@ describe(CardDesignerView, () => {
   })
 
   describe('draft publication', () => {
-    const showLive = (onDraftChange: (form: DesignerForm) => void, initialDraft = filled) => {
-      const root = document.createElement('div')
-      const dispose = render(
-        <CardDesigner
-          busy={false}
-          copy={DASH_COPY.en.designer}
-          failure={null}
-          initialDraft={initialDraft}
-          issuer={issuer}
-          logoCopy={DASH_COPY.en.logo}
-          onCheckHandle={async () => await Promise.resolve('available')}
-          onCheckSlug={async () => await Promise.resolve('available')}
-          onDraftChange={onDraftChange}
-          onEditProfile={vi.fn<() => void>()}
-          onSubmit={vi.fn<() => void>()}
-        />,
-        root,
-      )
-      return { dispose, root }
-    }
-
     it('publishes the opening draft when the screen mounts', () => {
       const onDraftChange = vi.fn<(form: DesignerForm) => void>()
       showLive(onDraftChange, { ...filled, title: 'Opening' })
@@ -285,8 +288,6 @@ describe(CardDesignerView, () => {
   })
 
   it('labels every verdict the card link can reach', () => {
-    const label = (slug: CardDesignerViewProps['status']['slug']): string =>
-      spacedText(showDesigner(designer({ status: { handle: 'available', slug } })))
     expect(label('available')).toContain('Available')
     expect(label('taken')).toContain('Already used')
     expect(label('format')).toContain('Use lowercase letters, digits and hyphens.')

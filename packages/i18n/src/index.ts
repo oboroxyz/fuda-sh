@@ -3,8 +3,9 @@ export type Locale = (typeof LOCALES)[number]
 export const DEFAULT_LOCALE: Locale = 'ja'
 export type Copy<T> = Record<Locale, T>
 
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- this predicate validates persisted browser input
-export const isLocale = (value: unknown): value is Locale => value === 'en' || value === 'ja'
+// Narrows persisted browser input, a request header part or a form value.
+export const isLocale = (value: string | null | undefined): value is Locale =>
+  value === 'en' || value === 'ja'
 
 interface Ranked {
   locale: Locale

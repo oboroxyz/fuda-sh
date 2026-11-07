@@ -579,13 +579,14 @@ const scheduleCheck = (
     return
   }
   let stale = false
-  const timer = setTimeout((): void => {
-    const run = async (): Promise<void> => {
-      const result = await check(value)
-      if (!stale) {
-        setStatus((current) => (current === 'checking' ? result : current))
-      }
+  const run = async (): Promise<void> => {
+    const result = await check(value)
+    if (!stale) {
+      setStatus((current) => (current === 'checking' ? result : current))
     }
+  }
+
+  const timer = setTimeout((): void => {
     void run()
   }, CHECK_DELAY_MS)
   return () => {

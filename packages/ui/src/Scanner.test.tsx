@@ -105,15 +105,15 @@ const fakeCamera = () => {
   Object.defineProperty(stream, 'getTracks', { value: () => [{ stop }] })
   const getUserMedia = vi.fn<MediaDevices['getUserMedia']>().mockResolvedValue(stream)
   vi.stubGlobal('navigator', { mediaDevices: { getUserMedia } })
-  const play = vi
-    .spyOn(HTMLMediaElement.prototype, 'play')
-    .mockImplementation(async function playVideo(this: HTMLVideoElement) {
-      Object.defineProperties(this, {
-        videoHeight: { configurable: true, value: 480 },
-        videoWidth: { configurable: true, value: 640 },
-      })
-      await Promise.resolve()
+  const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(async function playVideo(
+    this: HTMLVideoElement,
+  ) {
+    Object.defineProperties(this, {
+      videoHeight: { configurable: true, value: 480 },
+      videoWidth: { configurable: true, value: 640 },
     })
+    await Promise.resolve()
+  })
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
     drawImage: vi.fn<CanvasRenderingContext2D['drawImage']>(),
     getImageData: () => new ImageData(new Uint8ClampedArray(4), 1, 1),

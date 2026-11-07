@@ -36,13 +36,13 @@
     "viem": "^2.57.16"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.23.0",
+    "@cloudflare/vitest-plugin": "1.6.0",
     "@cloudflare/workers-types": "^5.20261104.1",
     "asn1js": "4.0.0",
     "drizzle-kit": "^0.31.11",
     "jsonc-parser": "3.3.1",
     "pkijs": "4.0.1",
-    "vitest": "4.1.11",
+    "vitest": "5.1.0",
     "void": "1.6.2"
   }
 }

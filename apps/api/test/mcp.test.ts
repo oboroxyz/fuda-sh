@@ -175,6 +175,18 @@ const approveAndExchange = async (
   return { clientId: registered.clientId, token: issued.access_token }
 }
 
+const issue = async (token: string, cardId: string): Promise<RpcAnswer> =>
+  await rpc(token, 'tools/call', { arguments: { cardId }, name: 'issue_pass' })
+
+const claim = async (slug: string, body?: string): Promise<number> => {
+  const res = await app.request(
+    `/v1/issuers/${CARD_INPUT.handle}/${slug}/issue`,
+    { body, headers: { 'CF-Connecting-IP': '203.0.113.9' }, method: 'POST' },
+    bindings(),
+  )
+  return res.status
+}
+
 describe('mcp', () => {
   beforeEach(clearTables)
 
@@ -443,15 +455,6 @@ describe('mcp', () => {
     })
     const Total = v.object({ page: v.object({ total: v.number() }) })
 
-    const claim = async (slug: string, body?: string): Promise<number> => {
-      const res = await app.request(
-        `/v1/issuers/${CARD_INPUT.handle}/${slug}/issue`,
-        { body, headers: { 'CF-Connecting-IP': '203.0.113.9' }, method: 'POST' },
-        bindings(),
-      )
-      return res.status
-    }
-
     const limitedCard = async (capacity: number): Promise<{ cardId: string; token: string }> => {
       const { token } = await approveAndExchange({ resource: RESOURCE, scope: ALL_SCOPES })
       const created = await rpc(token, 'tools/call', {
@@ -578,9 +581,6 @@ describe('mcp', () => {
       const listed = await rpc(token, 'tools/call', { name: 'list_cards' })
       return { cardId: toolValue(CardId, listed).cards[0]?.id ?? '', token }
     }
-
-    const issue = async (token: string, cardId: string): Promise<RpcAnswer> =>
-      await rpc(token, 'tools/call', { arguments: { cardId }, name: 'issue_pass' })
 
     it('issues a pass, lists it and revokes it', async () => {
       const { cardId, token } = await agentWithCard()

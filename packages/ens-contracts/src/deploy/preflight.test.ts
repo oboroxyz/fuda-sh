@@ -374,7 +374,7 @@ describe('read-only ENS namespace preflight', () => {
     await expect(
       runPreflight(
         fakeClient().client,
-        readPublicConfig({ [key]: value, ENS_RPC_URL: 'https://rpc.example' }),
+        readPublicConfig({ ENS_RPC_URL: 'https://rpc.example', [key]: value }),
       ),
     ).rejects.toThrow('ENS_PARENT_ADDRESS')
   })

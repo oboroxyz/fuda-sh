@@ -126,6 +126,71 @@ const resetTables = async (): Promise<void> => {
   }
 }
 
+const appFor = async (h: Harness, token: string): Promise<string> => {
+  const created = await jsonOf<ConnectedAppResponse>(
+    h.request('/v1/connected-apps', {
+      body: { name: 'Shop app', redirectUris: [REDIRECT_URI] },
+      token,
+    }),
+  )
+  return created.app.clientId
+}
+
+const approve = async (
+  h: Harness,
+  p: { clientId: string; issuerId: string; token: string },
+): Promise<Response> =>
+  await h.request('/v1/oauth/authorize', {
+    body: {
+      clientId: p.clientId,
+      codeChallenge: await pkceChallenge(VERIFIER),
+      codeChallengeMethod: 'S256',
+      issuerId: p.issuerId,
+      redirectUri: REDIRECT_URI,
+      state: 'state',
+    },
+    token: p.token,
+  })
+
+const exchange = async (h: Harness, clientId: string, code: string): Promise<Response> =>
+  await h.app.request(
+    '/v1/oauth/token',
+    {
+      body: new URLSearchParams({
+        client_id: clientId,
+        code,
+        code_verifier: VERIFIER,
+        grant_type: 'authorization_code',
+        redirect_uri: REDIRECT_URI,
+      }).toString(),
+      headers: {
+        'CF-Connecting-IP': '203.0.113.91',
+        Origin: new URL(REDIRECT_URI).origin,
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+      method: 'POST',
+    },
+    h.bindings,
+  )
+
+const connectStatus = async (h: Harness, accessToken: string): Promise<number> =>
+  await statusOf(
+    h.request('/v1/connect/issuer', { origin: new URL(REDIRECT_URI).origin, token: accessToken }),
+  )
+
+const approved = async (h: Harness) => {
+  const owner = await signedUp(h)
+  const clientId = await appFor(h, owner.token)
+  const res = await approve(h, { clientId, issuerId: owner.issuerId, token: owner.token })
+  expect(res.status).toBe(200)
+  const { redirectTo } = await res.json<{ redirectTo: string }>()
+  const code = new URL(redirectTo).searchParams.get('code') ?? ''
+  const issued = await exchange(h, clientId, code)
+  expect(issued.status).toBe(200)
+  const { access_token: accessToken } = await issued.json<TokenResponse>()
+  return { ...owner, accessToken, clientId }
+}
+
 describe('operator accounts', () => {
   beforeEach(resetTables)
 
@@ -363,71 +428,6 @@ describe('operator accounts', () => {
   })
 
   describe('connected apps', () => {
-    const appFor = async (h: Harness, token: string): Promise<string> => {
-      const created = await jsonOf<ConnectedAppResponse>(
-        h.request('/v1/connected-apps', {
-          body: { name: 'Shop app', redirectUris: [REDIRECT_URI] },
-          token,
-        }),
-      )
-      return created.app.clientId
-    }
-
-    const approve = async (
-      h: Harness,
-      p: { clientId: string; issuerId: string; token: string },
-    ): Promise<Response> =>
-      await h.request('/v1/oauth/authorize', {
-        body: {
-          clientId: p.clientId,
-          codeChallenge: await pkceChallenge(VERIFIER),
-          codeChallengeMethod: 'S256',
-          issuerId: p.issuerId,
-          redirectUri: REDIRECT_URI,
-          state: 'state',
-        },
-        token: p.token,
-      })
-
-    const exchange = async (h: Harness, clientId: string, code: string): Promise<Response> =>
-      await h.app.request(
-        '/v1/oauth/token',
-        {
-          body: new URLSearchParams({
-            client_id: clientId,
-            code,
-            code_verifier: VERIFIER,
-            grant_type: 'authorization_code',
-            redirect_uri: REDIRECT_URI,
-          }).toString(),
-          headers: {
-            'CF-Connecting-IP': '203.0.113.91',
-            Origin: new URL(REDIRECT_URI).origin,
-            'content-type': 'application/x-www-form-urlencoded',
-          },
-          method: 'POST',
-        },
-        h.bindings,
-      )
-
-    const approved = async (h: Harness) => {
-      const owner = await signedUp(h)
-      const clientId = await appFor(h, owner.token)
-      const res = await approve(h, { clientId, issuerId: owner.issuerId, token: owner.token })
-      expect(res.status).toBe(200)
-      const { redirectTo } = await res.json<{ redirectTo: string }>()
-      const code = new URL(redirectTo).searchParams.get('code') ?? ''
-      const issued = await exchange(h, clientId, code)
-      expect(issued.status).toBe(200)
-      const { access_token: accessToken } = await issued.json<TokenResponse>()
-      return { ...owner, accessToken, clientId }
-    }
-
-    const connectStatus = async (h: Harness, accessToken: string): Promise<number> =>
-      await statusOf(
-        h.request('/v1/connect/issuer', { origin: new URL(REDIRECT_URI).origin, token: accessToken }),
-      )
-
     it('registers, approves and exchanges for a venue the account owns', async () => {
       const h = setup()
       const { accessToken, token } = await approved(h)

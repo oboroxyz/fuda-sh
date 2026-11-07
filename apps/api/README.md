@@ -66,7 +66,7 @@ The `apps/gate`, `apps/dash` and `apps/app` frontends call the api from their ow
 ./node_modules/.bin/vp -C apps/api test
 ```
 
-Tests run inside workerd via `@cloudflare/vitest-pool-workers`, with a real D1 binding (migrations applied from `migrations/` by `test/setup.ts`) and the in-memory `FakeChain` — no network calls.
+Tests run inside workerd via `@cloudflare/vitest-plugin`, with a real D1 binding (migrations applied from `migrations/` by `test/setup.ts`) and the in-memory `FakeChain` — no network calls.
 
 Type checking: `pnpm typecheck` (types only, run from the repo root) or `vp check` from the repo root (format + lint + type-aware type check).
 

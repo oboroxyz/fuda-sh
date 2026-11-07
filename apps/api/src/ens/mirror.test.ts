@@ -20,6 +20,18 @@ const rowFor = async (name: string) => await db().select().from(ensNames).where(
 const TX_HASH: Hex = `0x${'cd'.repeat(32)}`
 const UNKNOWN_UID: Hex = `0x${'ee'.repeat(32)}`
 
+const write = async () => {
+  await mirrorMemberName(db(), {
+    holder: HOLDER,
+    issuerHandle: 'bakery',
+    level: 'bearer',
+    memberNumber: MEMBER,
+    now: 10,
+    parentName: PARENT,
+    rightUid: UID,
+  })
+}
+
 describe(mirrorMemberName, () => {
   it('writes an offchain member name under the issuer handle', async () => {
     await mirrorMemberName(db(), {
@@ -52,18 +64,6 @@ describe(mirrorMemberName, () => {
   })
 
   it('never lets a mirror failure escape to the caller', async () => {
-    const write = async () => {
-      await mirrorMemberName(db(), {
-        holder: HOLDER,
-        issuerHandle: 'bakery',
-        level: 'bearer',
-        memberNumber: MEMBER,
-        now: 10,
-        parentName: PARENT,
-        rightUid: UID,
-      })
-    }
-
     await write()
     await expect(write()).resolves.toBeUndefined()
   })

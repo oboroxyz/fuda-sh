@@ -61,6 +61,130 @@ const bodyOf = async <T>(pending: Promise<Response>): Promise<T> => {
   return await res.json<T>()
 }
 
+interface Owner {
+  clientId: string
+  issuerId: string
+  session: string
+}
+
+// An operator with a venue (no ENS claim) and one registered app.
+const ownerWithApp = async (): Promise<Owner> => {
+  const { token: session } = await signIn(app, bindings())
+  await registerVenueWithCard(app, bindings(), CARD_INPUT, session)
+  const created = await postJson(
+    app,
+    bindings(),
+    '/v1/connected-apps',
+    { name: 'Shop app', redirectUris: [REDIRECT_URI, 'http://localhost:5173/'] },
+    session,
+  )
+  expect(created.status).toBe(201)
+  const { app: registered } = await created.json<ConnectedAppResponse>()
+  const me = await getJson(app, bindings(), '/v1/issuers/me', session)
+  const { issuer } = await me.json<{ issuer: { id: string } }>()
+  return { clientId: registered.clientId, issuerId: issuer.id, session }
+}
+
+const send = async (
+  path: string,
+  init: { body?: string; headers?: HeadersInit; method?: string },
+): Promise<Response> => await app.request(path, init, bindings())
+
+const preflight = async (path: string, origin: string): Promise<string | null> => {
+  const res = await send(path, {
+    headers: { 'Access-Control-Request-Method': 'POST', Origin: origin },
+    method: 'OPTIONS',
+  })
+  return res.headers.get('access-control-allow-origin')
+}
+
+const withToken = async (
+  path: string,
+  token: string,
+  init: { body?: unknown; method?: string; origin?: string } = {},
+): Promise<Response> => {
+  const headers = new Headers({ Origin: init.origin ?? ORIGIN, authorization: `Bearer ${token}` })
+  if (init.body !== undefined) {
+    headers.set('content-type', 'application/json')
+  }
+  return await send(path, {
+    body: init.body === undefined ? undefined : JSON.stringify(init.body),
+    headers,
+    method: init.method ?? 'GET',
+  })
+}
+
+// The token request exactly as a browser app sends it: a form body, its own
+// Origin, and the client IP Cloudflare adds.
+const exchange = async (
+  params: Record<string, string>,
+  origin: string | null = ORIGIN,
+): Promise<Response> => {
+  const headers = new Headers({
+    'CF-Connecting-IP': '203.0.113.7',
+    'content-type': 'application/x-www-form-urlencoded',
+  })
+  if (origin !== null) {
+    headers.set('Origin', origin)
+  }
+  return await send('/v1/oauth/token', {
+    body: new URLSearchParams(params).toString(),
+    headers,
+    method: 'POST',
+  })
+}
+
+const deleteWith = async (path: string, token: string): Promise<Response> =>
+  await send(path, { headers: { authorization: `Bearer ${token}` }, method: 'DELETE' })
+
+const issuerStatus = async (token: string): Promise<number> => {
+  const res = await withToken('/v1/connect/issuer', token)
+  return res.status
+}
+
+const tokenRequest = (owner: Owner, code: string) => ({
+  client_id: owner.clientId,
+  code,
+  code_verifier: VERIFIER,
+  grant_type: 'authorization_code',
+  redirect_uri: REDIRECT_URI,
+})
+
+const approve = async (
+  owner: Owner,
+  overrides: Record<string, string> = {},
+  session = owner.session,
+): Promise<Response> =>
+  await postJson(
+    app,
+    bindings(),
+    '/v1/oauth/authorize',
+    {
+      clientId: owner.clientId,
+      codeChallenge: await pkceChallenge(VERIFIER),
+      codeChallengeMethod: 'S256',
+      issuerId: owner.issuerId,
+      redirectUri: REDIRECT_URI,
+      state: STATE,
+      ...overrides,
+    },
+    session,
+  )
+
+const codeFor = async (owner: Owner, overrides: Record<string, string> = {}): Promise<string> => {
+  const res = await approve(owner, overrides)
+  expect(res.status).toBe(200)
+  const { redirectTo } = await res.json<{ redirectTo: string }>()
+  return new URL(redirectTo).searchParams.get('code') ?? ''
+}
+
+const accessTokenFor = async (owner: Owner, overrides: Record<string, string> = {}): Promise<string> => {
+  const res = await exchange(tokenRequest(owner, await codeFor(owner, overrides)))
+  expect(res.status).toBe(200)
+  const issued = await res.json<TokenResponse>()
+  return issued.access_token
+}
+
 describe('connected apps', () => {
   beforeEach(async () => {
     clock = 1000
@@ -68,123 +192,7 @@ describe('connected apps', () => {
   })
   afterEach(clearTables)
 
-  const send = async (
-    path: string,
-    init: { body?: string; headers?: HeadersInit; method?: string },
-  ): Promise<Response> => await app.request(path, init, bindings())
-
-  const deleteWith = async (path: string, token: string): Promise<Response> =>
-    await send(path, { headers: { authorization: `Bearer ${token}` }, method: 'DELETE' })
-
-  // The token request exactly as a browser app sends it: a form body, its own
-  // Origin, and the client IP Cloudflare adds.
-  const exchange = async (
-    params: Record<string, string>,
-    origin: string | null = ORIGIN,
-  ): Promise<Response> => {
-    const headers = new Headers({
-      'CF-Connecting-IP': '203.0.113.7',
-      'content-type': 'application/x-www-form-urlencoded',
-    })
-    if (origin !== null) {
-      headers.set('Origin', origin)
-    }
-    return await send('/v1/oauth/token', {
-      body: new URLSearchParams(params).toString(),
-      headers,
-      method: 'POST',
-    })
-  }
-
-  const withToken = async (
-    path: string,
-    token: string,
-    init: { body?: unknown; method?: string; origin?: string } = {},
-  ): Promise<Response> => {
-    const headers = new Headers({ Origin: init.origin ?? ORIGIN, authorization: `Bearer ${token}` })
-    if (init.body !== undefined) {
-      headers.set('content-type', 'application/json')
-    }
-    return await send(path, {
-      body: init.body === undefined ? undefined : JSON.stringify(init.body),
-      headers,
-      method: init.method ?? 'GET',
-    })
-  }
-
-  interface Owner {
-    clientId: string
-    issuerId: string
-    session: string
-  }
-
-  // An operator with a venue (no ENS claim) and one registered app.
-  const ownerWithApp = async (): Promise<Owner> => {
-    const { token: session } = await signIn(app, bindings())
-    await registerVenueWithCard(app, bindings(), CARD_INPUT, session)
-    const created = await postJson(
-      app,
-      bindings(),
-      '/v1/connected-apps',
-      { name: 'Shop app', redirectUris: [REDIRECT_URI, 'http://localhost:5173/'] },
-      session,
-    )
-    expect(created.status).toBe(201)
-    const { app: registered } = await created.json<ConnectedAppResponse>()
-    const me = await getJson(app, bindings(), '/v1/issuers/me', session)
-    const { issuer } = await me.json<{ issuer: { id: string } }>()
-    return { clientId: registered.clientId, issuerId: issuer.id, session }
-  }
-
-  const approve = async (
-    owner: Owner,
-    overrides: Record<string, string> = {},
-    session = owner.session,
-  ): Promise<Response> =>
-    await postJson(
-      app,
-      bindings(),
-      '/v1/oauth/authorize',
-      {
-        clientId: owner.clientId,
-        codeChallenge: await pkceChallenge(VERIFIER),
-        codeChallengeMethod: 'S256',
-        issuerId: owner.issuerId,
-        redirectUri: REDIRECT_URI,
-        state: STATE,
-        ...overrides,
-      },
-      session,
-    )
-
-  const codeFor = async (owner: Owner, overrides: Record<string, string> = {}): Promise<string> => {
-    const res = await approve(owner, overrides)
-    expect(res.status).toBe(200)
-    const { redirectTo } = await res.json<{ redirectTo: string }>()
-    return new URL(redirectTo).searchParams.get('code') ?? ''
-  }
-
-  const tokenRequest = (owner: Owner, code: string) => ({
-    client_id: owner.clientId,
-    code,
-    code_verifier: VERIFIER,
-    grant_type: 'authorization_code',
-    redirect_uri: REDIRECT_URI,
-  })
-
-  const accessTokenFor = async (owner: Owner, overrides: Record<string, string> = {}): Promise<string> => {
-    const res = await exchange(tokenRequest(owner, await codeFor(owner, overrides)))
-    expect(res.status).toBe(200)
-    const issued = await res.json<TokenResponse>()
-    return issued.access_token
-  }
-
   describe('token lifecycle', () => {
-    const issuerStatus = async (token: string): Promise<number> => {
-      const res = await withToken('/v1/connect/issuer', token)
-      return res.status
-    }
-
     it('ends the token a code issued when that code is presented again', async () => {
       const owner = await ownerWithApp()
       const code = await codeFor(owner)
@@ -579,14 +587,6 @@ describe('connected apps', () => {
   })
 
   describe('cors for connected apps', () => {
-    const preflight = async (path: string, origin: string): Promise<string | null> => {
-      const res = await send(path, {
-        headers: { 'Access-Control-Request-Method': 'POST', Origin: origin },
-        method: 'OPTIONS',
-      })
-      return res.headers.get('access-control-allow-origin')
-    }
-
     it('allows Figma Make sites and registered origins on the app routes only', async () => {
       await ownerWithApp()
       const allowed = await Promise.all([

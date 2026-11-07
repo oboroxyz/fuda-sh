@@ -8,6 +8,16 @@ import { FakeChain } from './fake-chain.ts'
 const schema = `0x${'aa'.repeat(32)}` as const
 const holder = `0x${'11'.repeat(20)}` as const
 
+const attest = async (chain: FakeChain) =>
+  await chain.attest({
+    data: '0x',
+    expirationTime: 0n,
+    recipient: holder,
+    refUID: ZERO_UID,
+    revocable: true,
+    schema,
+  })
+
 describe(FakeChain, () => {
   it('attests, reads back, and reports unknown uids as zero', async () => {
     const chain = new FakeChain()
@@ -107,15 +117,6 @@ describe(FakeChain, () => {
   // Local D1 outlives the isolate that seeded it, so two FakeChains must not
   // hand out the same attestation uid and collide on members.attestation_uid.
   it('mints uids that differ between instances', async () => {
-    const attest = async (chain: FakeChain) =>
-      await chain.attest({
-        data: '0x',
-        expirationTime: 0n,
-        recipient: holder,
-        refUID: ZERO_UID,
-        revocable: true,
-        schema,
-      })
     const first = await attest(new FakeChain())
     const second = await attest(new FakeChain())
     expect(first.uid).not.toBe(second.uid)

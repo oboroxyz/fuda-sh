@@ -23,6 +23,6 @@
     "viem": "^2.57.16"
   },
   "devDependencies": {
-    "vitest": "4.1.11"
+    "vitest": "5.1.0"
   }
 }
