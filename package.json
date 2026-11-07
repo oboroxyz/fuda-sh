@@ -39,7 +39,7 @@
   "devDependencies": {
     "@types/node": "^24.19.2",
     "esbuild": "^0.28.2",
-    "fallow": "^3.38.1",
+    "fallow": "^3.39.0",
     "happy-dom": "21.0.4",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
