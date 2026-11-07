@@ -29,4 +29,8 @@ describe(passPlatform, () => {
   ])('selects the pass destination for %s', (userAgent, expected) => {
     expect(passPlatform(userAgent)).toBe(expected)
   })
+
+  it('treats Mobile before Macintosh as desktop', () => {
+    expect(passPlatform('Mobile (Macintosh; Intel Mac OS X 10_15)')).toBe('web')
+  })
 })

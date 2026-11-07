@@ -100,9 +100,10 @@ export const slugFromTitle = (title: string): string =>
   title
     .toLowerCase()
     .replaceAll(/[^a-z0-9]+/gu, '-')
-    .replaceAll(/^-+|-+$/gu, '')
+    .replace(/^-/u, '')
+    .replace(/-$/u, '')
     .slice(0, CARD_SLUG_MAX_LENGTH)
-    .replaceAll(/-+$/gu, '')
+    .replace(/-$/u, '')
 
 export type CardCategory = 'membership' | 'ticket'
 export const CARD_CATEGORIES: readonly CardCategory[] = ['membership', 'ticket']

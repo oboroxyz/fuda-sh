@@ -81,7 +81,7 @@ describe('notifying Google Wallet of a changed pass', () => {
     vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = new Request(input, init)
       requests.push(request)
-      if (request.url.includes('oauth2.googleapis.com')) {
+      if (new URL(request.url).host === 'oauth2.googleapis.com') {
         return Response.json({ access_token: 'access' })
       }
       if (request.method === 'GET') {
@@ -114,7 +114,7 @@ describe('notifying Google Wallet of a changed pass', () => {
     const bodies: string[] = []
     vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = new Request(input, init)
-      if (request.url.includes('oauth2.googleapis.com')) {
+      if (new URL(request.url).host === 'oauth2.googleapis.com') {
         return Response.json({ access_token: 'access' })
       }
       if (request.method === 'PATCH') {

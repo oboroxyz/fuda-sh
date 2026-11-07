@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  CARD_SLUG_MAX_LENGTH,
   cardBySlug,
   cardSlugProblem,
   entitlementWindow,
@@ -106,6 +107,10 @@ describe('card slugs', () => {
     expect(slugFromTitle('Membership Card')).toBe('membership-card')
     expect(slugFromTitle('  Summer Festival 2026!  ')).toBe('summer-festival-2026')
     expect(slugFromTitle('会員カード')).toBe('')
+    expect(slugFromTitle('--A -- B--')).toBe('a-b')
+    expect(slugFromTitle(`${'a'.repeat(CARD_SLUG_MAX_LENGTH - 1)} b`)).toBe(
+      'a'.repeat(CARD_SLUG_MAX_LENGTH - 1),
+    )
   })
 })
 

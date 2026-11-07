@@ -49,4 +49,13 @@ describe(qrSvg, () => {
     const large = qrSvg('x', { modulePx: 300 })
     expect(viewBoxOf(small)).toBe(viewBoxOf(large))
   })
+
+  it.each([
+    [{ modulePx: 0 }, 'modulePx'],
+    [{ modulePx: Number.NaN }, 'modulePx'],
+    [{ quiet: -1 }, 'quiet'],
+    [{ quiet: 1.5 }, 'quiet'],
+  ])('rejects option %o', (opts, name) => {
+    expect(() => qrSvg('x', opts)).toThrow(name)
+  })
 })

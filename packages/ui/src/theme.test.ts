@@ -6,6 +6,7 @@ import {
   readThemeMode,
   resolveThemeMode,
   saveThemeMode,
+  themeScript,
   watchThemeMode,
 } from './theme.ts'
 import type { ThemeEnvironment } from './theme.ts'
@@ -65,5 +66,18 @@ describe('theme preference', () => {
       throw new Error('blocked')
     }
     expect(readThemeMode(env)).toBe('system')
+  })
+})
+
+describe(themeScript, () => {
+  it('passes the mode to the inline script as a JSON string', () => {
+    expect(themeScript('dark')).toMatch(/\("dark"\)$/u)
+  })
+
+  it('falls back to system for a value outside the known modes', () => {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- simulates an unvalidated runtime value
+    const script = themeScript('</script><script>alert(1)</script>' as 'dark')
+    expect(script).not.toContain('</script>')
+    expect(script).toMatch(/\("system"\)$/u)
   })
 })
