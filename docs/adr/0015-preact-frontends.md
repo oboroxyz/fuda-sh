@@ -35,7 +35,7 @@ The renderer change does not amend the product or protocol contracts in the cano
 
 ### 4. Pin the supported combination
 
-Use exact pins for `void-preact@0.1.2`, `void@1.6.2`, `preact@11.1.1`, and `preact-render-to-string@6.8.2`. Use the published adapter package, with no workspace link.
+Use exact pins for `void-preact@0.1.3`, `void@1.7.0`, `preact@11.1.1`, and `preact-render-to-string@6.8.2`. Use the published adapter package, with no workspace link.
 
 A Void upgrade now waits for an adapter release that supports the new exact version. Recheck the adapter's private Suspense contract when changing the Preact pair. Keep the existing three-day release-age policy, with exact package-version exemptions when adopting a release inside that window. The tested Vite+ 0.3.0 toolchain stays unchanged by this decision.
 

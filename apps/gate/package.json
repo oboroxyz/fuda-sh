@@ -15,7 +15,7 @@
     "@fuda/sdk": "workspace:*",
     "@fuda/styles": "workspace:*",
     "@fuda/ui": "workspace:*",
-    "hono": "^4.13.16",
+    "hono": "^4.13.17",
     "preact": "11.1.1"
   },
   "devDependencies": {
@@ -25,6 +25,6 @@
     "tailwindcss": "4.3.4",
     "vite": "^8.2.2",
     "vitest": "5.1.0",
-    "void": "1.6.2"
+    "void": "1.7.0"
   }
 }
