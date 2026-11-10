@@ -1,5 +1,4 @@
-import { asHex, CardIntegrationsBody, CardUpdateBody } from '@fuda/sdk'
-import type { IssuerPassStatus } from '@fuda/sdk'
+import { asHex, CardIntegrationsBody, CardUpdateBody, ISSUER_PASS_STATUSES } from '@fuda/sdk'
 import { and, eq, inArray } from 'drizzle-orm'
 import * as v from 'valibot'
 import { defineHandler } from 'void'
@@ -13,15 +12,6 @@ import { operatorCardView } from '../issuers/views.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { operatorAuth } from '../middleware/operator-auth.ts'
 import { notifyPassesChanged } from '../pass/notify.ts'
-
-const PASS_STATUSES: readonly IssuerPassStatus[] = [
-  'active',
-  'revoked',
-  'expired',
-  'not_yet_valid',
-  'consumed',
-  'unknown',
-]
 
 const positiveInteger = (raw: string | undefined, fallback: number): number | null => {
   if (raw === undefined || raw === '') {
@@ -147,7 +137,7 @@ export const getV1IssuersMePasses = defineHandler(operatorAuth(), async (c) => {
   const q = (c.req.query('q') ?? '').trim()
   const rawCardId = c.req.query('cardId') ?? ''
   const rawStatus = c.req.query('status') ?? ''
-  const status = PASS_STATUSES.find((candidate) => candidate === rawStatus) ?? null
+  const status = ISSUER_PASS_STATUSES.find((candidate) => candidate === rawStatus) ?? null
   if (
     page === null ||
     pageSize === null ||

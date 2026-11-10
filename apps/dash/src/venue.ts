@@ -18,15 +18,12 @@ export const EMPTY_VENUE_FORM: VenueForm = {
   tagline: '',
 }
 
-export const venueBodyFrom = (
-  form: VenueForm,
-  logoUploadId: string | null = null,
-): IssuerCreateRequest | null => {
+export const venueBodyFrom = (form: VenueForm): IssuerCreateRequest | null => {
   const brandColor = normalizeBrandColor(form.brandColor)
   if (brandColor === null) {
     return null
   }
-  const parsed = v.safeParse(IssuerCreateBody, { ...form, brandColor, logoUploadId })
+  const parsed = v.safeParse(IssuerCreateBody, { ...form, brandColor })
   return parsed.success ? parsed.output : null
 }
 

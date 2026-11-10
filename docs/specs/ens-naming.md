@@ -133,6 +133,14 @@ For legacy `addr(bytes32)`, an empty local answer encodes `address(0)`. For mult
 
 The active boundary is exclusive: the User Registry masks the owner when `block.timestamp >= expiry`. A registry read failure propagates and never falls back to D1. Malformed DNS names and address record/namehash mismatches fail before a registry read or gateway request.
 
+**Why one shared resolver.** Claimed ownership and expiry must be enforced by ENSv2 state while member records stay offchain. ENS selects the deepest configured resolver, so a conventional resolver on a claimed issuer would stop its descendants from reaching the parent gateway.
+
+Rejected:
+
+- **Stock Permissioned Resolver.** It has no signed gateway, and as the deepest resolver it would cut off member descendants.
+- **One resolver per issuer.** It creates a deployment, configuration and rotation lifecycle for every claim.
+- **Parent-only offchain resolution.** The claimed address and expiry would stay in D1, making the on-chain claim cosmetic.
+
 ### Append-only claim marker
 
 The resolver stores an append-only mapping from each full claimed issuer namehash to its User Registry label hash. Only the configured registrar may mark a label. The marker deliberately survives expiry and unregister.
@@ -233,7 +241,17 @@ The registrar receives only root `REGISTRAR | RENEW`. It holds no `UNREGISTER` r
 | `UPGRADE` | held directly, and its admin bit | the registry proxy's upgrade role |
 | `REGISTRAR`, `RENEW`, `UNREGISTER` | admin bit only | `grantRootRoles` may assign them to any address |
 
-The parent owner therefore does not itself unregister an issuer entry. It can give itself that power: `grantRootRoles` assigns `UNREGISTER` to any account, its own included. What the repository verifies stops there — the pinned minimal ABI surface has no unregister call, and the matching `ensdomains/contracts-v2` source is unpublished, so the steps after the grant are the deployment's, not this repository's. The guarantee is the separation of roles, not an absence of custody. fuda holds the root of its own issuer namespace, and [ADR 0007](../adr/0007-root-custody-of-the-issuer-registry.md) records why.
+The parent owner therefore does not itself unregister an issuer entry. It can give itself that power: `grantRootRoles` assigns `UNREGISTER` to any account, its own included. What the repository verifies stops there — the pinned minimal ABI surface has no unregister call, and the matching `ensdomains/contracts-v2` source is unpublished, so the steps after the grant are the deployment's, not this repository's. The guarantee is the separation of roles, not an absence of custody. fuda holds the root of its own issuer namespace.
+
+**Why the root is kept.** A claim writes the issuer's child role bitmap as exactly `0`, so an issuer cannot transfer its own entry or redirect its resolver, and every recovery path has to come from the root. `FudaSubnameRegistrar` is deliberately narrow and cannot repair a mis-signed claim, respond to an abusive label or upgrade a preview-stage registry.
+
+Rejected:
+
+- **Renounce the root roles.** The honest end state for a naming layer, but it makes an upgrade impossible and leaves no recovery path. Rejected for the current deployment, not on principle; it belongs with a mainnet deployment and a real venue population, and it is one-way.
+- **Grant the registrar `UNREGISTER`.** A voucher-signer compromise would become a namespace-wide takedown.
+- **A multisig or timelock.** Right for production, disproportionate to a single-operator Sepolia deployment, and a timelock would block the recovery cases that motivate custody.
+
+Every surface therefore treats a name as a destination and the delegation check as the authority, because a resolving name reflects fuda's continued cooperation as well as the issuer's on-chain claim.
 
 The exact root bitmap is asserted at deployment and re-checked by the standalone verifier, so a drift in root custody fails topology verification rather than passing silently.
 

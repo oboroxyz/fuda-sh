@@ -3,7 +3,7 @@ import { defineConfig } from 'void/config'
 // A Void SPA with one API route: the scanner renders in the browser from
 // index.html, as soon as its script runs, and verifies through the Worker's
 // same-origin /api, which calls the api at API_BASE_URL
-// (docs/adr/0010-void-pages-and-frontend-workers.md). It has no session and no
+// (../../docs/architecture.md#frontend-workers). It has no session and no
 // page worth rendering on the server, so it does not use pages. `pnpm dev`
 // points API_BASE_URL at the local api through the environment. `void deploy`
 // records the generated config in `void.lock.json`, which is committed

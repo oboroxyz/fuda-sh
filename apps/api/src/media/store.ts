@@ -1,4 +1,4 @@
-import { and, eq, lt } from 'drizzle-orm'
+import { and, eq, gt, lt } from 'drizzle-orm'
 
 import type { Db } from '../db/client.ts'
 import { logoUploads } from '../db/schema.ts'
@@ -75,6 +75,7 @@ export const claimLogoUpload = async (
         eq(logoUploads.id, p.id),
         eq(logoUploads.sessionTokenHash, p.sessionTokenHash),
         eq(logoUploads.status, 'pending'),
+        gt(logoUploads.expiresAt, p.now),
       ),
     )
     .get()
@@ -84,7 +85,7 @@ export const claimLogoUpload = async (
   const claimed = await db
     .update(logoUploads)
     .set({ status: 'committed' })
-    .where(and(eq(logoUploads.id, p.id), eq(logoUploads.status, 'pending')))
+    .where(and(eq(logoUploads.id, p.id), eq(logoUploads.status, 'pending'), gt(logoUploads.expiresAt, p.now)))
     .run()
   return claimed.meta.changes > 0 ? row.assetPrefix : null
 }

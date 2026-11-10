@@ -27,7 +27,7 @@ export interface VenuePageProps {
   onCheckHandle: (handle: string) => Promise<'available' | 'taken' | 'unknown'>
   hasCardDraft?: boolean
   onCommitLogo: (logo: LogoSet) => Promise<boolean>
-  onCreate: (form: VenueForm, logo: LogoSet | null) => void
+  onCreate: (form: VenueForm) => void
   onNavigate: (route: DashRoute) => void
   onUpdate: (body: IssuerUpdateRequest) => Promise<boolean>
 }
@@ -222,7 +222,7 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
         onSubmit={(event) => {
           event.preventDefault()
           if (!props.busy && status !== 'taken' && venueBodyFrom(form) !== null) {
-            props.onCreate(form, null)
+            props.onCreate(form)
           }
         }}
       >

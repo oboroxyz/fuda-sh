@@ -60,3 +60,12 @@ An Issuer's budget is 100 `issue_pass` and 20 `revoke_pass` calls an hour, beyon
 ## Approving passes
 
 The server's challenge asks for every scope. The consent page lists them and leaves `passes:revoke` out of the approval unless the Operator ticks a separate box, so a token can only revoke when they chose that.
+
+## Design choices
+
+- **MCP clients are connected apps.** The Operator registers the client in the dashboard, and only the registering account may approve it. Clients that register themselves wait until that rule, the consent page and audit needs are decided together.
+- **Tokens are bound by `resource`.** A token for the MCP server does not answer on `/v1/connect/*`, and the reverse. An agent's token cannot be replayed from a browser page.
+- **Loopback redirects match on any port, and responses name the issuer.** Codex and OpenCode listen on a new port each login (RFC 8252), and Codex refuses a split consent page and token endpoint without `iss` (RFC 9207).
+- **A hand-written, stateless JSON-RPC endpoint.** Each POST stands alone, which suits a Worker, and the official SDK brings Express, Ajv and Zod for a handful of methods. It speaks revision `2025-11-25`.
+
+A client with no manual client ID option cannot connect yet. There is no refresh token, so an agent is re-approved every 30 days.

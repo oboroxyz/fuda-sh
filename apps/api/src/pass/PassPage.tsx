@@ -9,7 +9,7 @@ import type { HtmlEscapedString } from 'hono/utils/html'
 import type { PassView } from './pass-view.ts'
 
 // Self-contained: inline CSS, inline SVG, one inline script that re-reads the
-// live status from GET /verify/:uid. No external assets (docs/specs/pass-types-and-flows.md#passes).
+// live status from GET /v1/verify/:uid. No external assets (docs/specs/pass-types-and-flows.md#passes).
 const STYLE = `
   :root{color-scheme:light}body{margin:0;font-family:system-ui,sans-serif;background:#141414;color:#fff;display:flex;justify-content:center}
   main{max-width:420px;width:100%;padding:24px;box-sizing:border-box}
@@ -98,7 +98,7 @@ const walletButton = (platform: PassPlatform): HtmlEscapedString | Promise<HtmlE
 const refreshScript = (uid: string, platform: PassPlatform): string => `
   const el=document.getElementById('status');
   const paint=(s,ok)=>{el.textContent=s;el.dataset.ok=ok};
-  const tick=async()=>{try{const r=await fetch('/verify/${uid}');if(!r.ok){paint('UNKNOWN','unknown');return}
+  const tick=async()=>{try{const r=await fetch('/v1/verify/${uid}');if(!r.ok){paint('UNKNOWN','unknown');return}
     const j=await r.json();paint(j.decision==='ADMIT'?'VALID':j.reason,j.decision==='ADMIT'?'true':'false')}catch{paint('UNKNOWN','unknown')}};
   tick();setInterval(tick,30000);
   const stamps=document.getElementById('stamps');

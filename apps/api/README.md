@@ -1,12 +1,12 @@
 # fuda-api
 
-Cloudflare Worker (Hono) implementing the fuda endpoints: `GET /health`, `POST /issue`, `GET /verify/:uid`, `POST /verify`, `POST /revoke`, `GET /members`, `POST /challenge`, `POST /verify-signed`, `POST /ens/gateway`, and the passes (`GET /pass/:uid` plus the Google Wallet and Apple Wallet endpoints).
+Cloudflare Worker built with Void, whose handlers are Hono handlers. Programmatic endpoints live under `/v1` (issuance, verification, issuer and member accounts, connected apps); the passes (`GET /pass/:uid` plus the Google Wallet and Apple Wallet endpoints), assets, `POST /ens/gateway`, `/mcp` and `GET /health` are unversioned. `routes/` is the complete list.
 
 ## Server routing
 
-Void discovers HTTP method exports in `routes/`. Each file re-exports its `defineHandler` from `src/handlers/`; shared business logic stays outside the route tree. `targets/{local,develop,production}/routes` link to that same directory, and ordered target middleware loads `src/middleware.ts` for request dependencies, CORS, auth-mode headers, cache policy and error responses. There is no separate production Hono router or Worker entry.
+Void discovers HTTP method exports in `routes/`. Each file re-exports its `defineHandler` from `src/handlers/`; shared business logic stays outside the route tree. `targets/{local,develop,production,e2e}/routes` link to that same directory, and ordered target middleware loads `src/middleware.ts` for request dependencies, CORS, auth-mode headers, cache policy and error responses. There is no separate production Hono router or Worker entry.
 
-Keep programmatic endpoints under `routes/v1/`. Pass, asset, ENS gateway and health URLs stay unversioned because deployed wallets and contracts retain them. Workerd tests discover those same files through `test/app.ts`, with injectable chain, time and admission hooks; browser E2E exercises Void's built Worker. See [ADR 0012](../../docs/adr/0012-void-api-routing.md).
+Keep programmatic endpoints under `routes/v1/`. Pass, asset, ENS gateway and health URLs stay unversioned because deployed wallets and contracts retain them. Workerd tests discover those same files through `test/app.ts`, with injectable chain, time and admission hooks; browser E2E exercises Void's built Worker. See [API routing](../../docs/architecture.md#api-routing).
 
 ## Run locally
 
@@ -16,11 +16,11 @@ pnpm --filter api migrate:local
 pnpm --filter api dev
 ```
 
-With `USE_FAKE_CHAIN=1` set in `targets/local/.env` (the default in the example file) and no `SIGNER_PRIVATE_KEY` / `BASE_RPC_URL`, the api runs against an in-memory `FakeChain` instead of Base Sepolia for chain state and writes — no signer or funds needed. EOA signatures verify offline. Local smart-wallet signatures (including Base Account passkeys) use read-only verification against the default Base Sepolia RPC; they still require network access and a valid signature. Tests that construct `FakeChain` without a verifier remain offline. `src/runtime.ts` seeds a root `IssuerDelegation` on first request and logs the `ISSUER_ADDRESS` / `DELEGATION_UID` it used; the `local` block of `targets.jsonc` already carries the matching (deterministic) values, and `pnpm --filter api dev` runs the `local` Void target, so the quick start above works as written. `migrate:local` applies migrations to the same local database (`targets/local/.void/`) that `pnpm --filter api dev` then serves, and `pnpm --filter api d1:local "…"` runs SQL against it after a `migrate:local`. Setting either `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL` always wins over `USE_FAKE_CHAIN` — the fake chain is never constructed in production, only under this explicit local opt-in. Either binding also arms the admin lock: set `ADMIN_TOKEN` in `targets/local/.env` alongside it, or `/issue`, `/revoke` and `/members` answer `401` with `x-auth-mode: locked`.
+With `USE_FAKE_CHAIN=1` set in `targets/local/.env` (the default in the example file) and no `SIGNER_PRIVATE_KEY` / `BASE_RPC_URL`, the api runs against an in-memory `FakeChain` instead of Base Sepolia for chain state and writes — no signer or funds needed. EOA signatures verify offline. Local smart-wallet signatures (including Base Account passkeys) use read-only verification against the default Base Sepolia RPC; they still require network access and a valid signature. Tests that construct `FakeChain` without a verifier remain offline. `src/runtime.ts` seeds a root `IssuerDelegation` on first request and logs the `ISSUER_ADDRESS` / `DELEGATION_UID` it used; the `local` block of `targets.jsonc` already carries the matching (deterministic) values, and `pnpm --filter api dev` runs the `local` Void target, so the quick start above works as written. `migrate:local` applies migrations to the same local database (`targets/local/.void/`) that `pnpm --filter api dev` then serves, and `pnpm --filter api d1:local "…"` runs SQL against it after a `migrate:local`. Setting either `SIGNER_PRIVATE_KEY` or `BASE_RPC_URL` always wins over `USE_FAKE_CHAIN` — the fake chain is never constructed in production, only under this explicit local opt-in. Either binding also arms the admin lock: set `ADMIN_TOKEN` in `targets/local/.env` alongside it, or `/v1/issue`, `/v1/revoke` and `/v1/members` answer `401` with `x-auth-mode: locked`.
 
 ## Targets
 
-The api deploys with Void, which has no named environments, so each target is its own Void project under `targets/`: `local` (never deployed), `develop` (the live Base Sepolia Worker `fuda-api` on `api.fuda.sh`) and `production` (Base mainnet, deployed at the cutover). [`targets.jsonc`](targets.jsonc) holds each target's Worker name, routes, D1 and R2 bindings and `vars`; [`targets.ts`](targets.ts) turns one block into that project's `void.config.ts`. Each project's `routes` link shares the API route tree, and its ordered middleware files re-export [`src/middleware.ts`](src/middleware.ts). The tests run on the `develop` vars with D1 and R2 simulated (`vite.config.ts`).
+The api deploys with Void, which has no named environments, so each target is its own Void project under `targets/`: `local` (never deployed), `develop` (the live Base Sepolia Worker `fuda-api` on `api.fuda.sh`), `production` (Base mainnet, deployed at the cutover) and `e2e` (never deployed; `packages/e2e` builds it for the browser tests). [`targets.jsonc`](targets.jsonc) holds each target's Worker name, routes, D1 and R2 bindings and `vars`; [`targets.ts`](targets.ts) turns one block into that project's `void.config.ts`. Each project's `routes` link shares the API route tree, and its ordered middleware files re-export [`src/middleware.ts`](src/middleware.ts). The tests run on the `develop` vars with D1 and R2 simulated (`vite.config.ts`).
 
 | Script                                    | Target       |
 | ----------------------------------------- | ------------ |
@@ -32,15 +32,15 @@ The `migrate:*` scripts use `void db migrate`, with `--remote` for deployed D1. 
 
 ## Attendance
 
-Every `ADMIT` verdict from `POST /verify` and `POST /verify-signed` schedules an on-chain `Attendance` attestation via `waitUntil` — both paths run it from the shared admission spine (`src/verify/admit.ts`), and it is always on, not opt-in. The attest needs a signer (real or `FakeChain`) and an `attendance` entry in `EAS_SCHEMAS`; if either is missing the hook is a no-op. A failed attest is caught and logged (`console.warn`) but never fails the admission that triggered it — attendance is best-effort evidence, not a gate. On success the attestation UID is written back to `entry_log.attendance_uid` for the admitting `entry_log` row.
+An `ADMIT` verdict for an on-chain right from `POST /v1/verify` and `POST /v1/verify-signed` schedules an on-chain `Attendance` attestation via `waitUntil` — both paths run it from the shared admission spine (`src/verify/admit.ts`). A Card can switch Attendance off; a right with no Card always records one. The attest needs a signer (real or `FakeChain`) and an `attendance` entry in `EAS_SCHEMAS`; if either is missing the hook is a no-op. A failed attest is caught and logged (`console.warn`) but never fails the admission that triggered it — attendance is best-effort evidence, not a gate. On success the attestation UID is written back to `entry_log.attendance_uid` for the admitting `entry_log` row.
 
 ## Signed level: challenge/response
 
-`POST /issue` with a `holder` address (and no `memberId`) issues a Signed right: `member_id` is set to the same address, EIP-55-checksummed, and the response's `level` is `'signed'`.
+`POST /v1/issue` with a `holder` address (and no `memberId`) issues a Signed right: `member_id` is set to the same address, EIP-55-checksummed, and the response's `level` is `'signed'`.
 
 Entry at the Signed level is two calls, never a QR scan:
 
-1. `POST /challenge` — body `{ uid }`. Open endpoint, no chain lookup (a challenge for a nonexistent or revoked uid is minted anyway; `/verify-signed` rejects it at step 1). A malformed or missing `uid` answers `400 bad_uid`. Mints a 16-random-byte nonce, stores it in `challenges` and answers:
+1. `POST /v1/challenge` — body `{ uid }`. Open endpoint, no chain lookup (a challenge for a nonexistent or revoked uid is minted anyway; `/v1/verify-signed` rejects it at step 1). A malformed or missing `uid` answers `400 bad_uid`. Mints a 16-random-byte nonce, stores it in `challenges` and answers:
 
    ```json
    { "challenge": "fuda-gate:<uid>:<nonce>", "nonce": "<nonce>" }
@@ -48,22 +48,22 @@ Entry at the Signed level is two calls, never a QR scan:
 
    The member signs `challenge` verbatim (EIP-191 `personal_sign`) with the holder key. The nonce is single-use and expires 300 s after minting.
 
-2. `POST /verify-signed` — body `{ uid, nonce, signature }`. Entitlement → challenge → signature → slot, in that order, every verdict `200` in one shape. The step order, the response fields and the error codes are the [gate protocol](../../docs/specs/pass-types-and-flows.md#gate-protocol).
+2. `POST /v1/verify-signed` — body `{ uid, nonce, signature }`. Entitlement → challenge → signature → slot, in that order, every verdict `200` in one shape. The step order, the response fields and the error codes are the [gate protocol](../../docs/specs/pass-types-and-flows.md#gate-protocol).
 
    App-local: the signature check goes through the `ChainClient.verifyMessage` wrapper in `src/chain/viem-chain.ts`, whose comment accounts for which failures surface as `502 chain_error` and which viem's own ERC-6492 deployless-call path swallows into a plain `BAD_SIGNATURE`.
 
-Every REJECT and ADMIT on this path is logged with `path: 'signature'` (never `'qr'`); a bare QR scan against a Signed-only right still answers `LEVEL_REQUIRED` on `/verify`, unconsumed.
+Every REJECT and ADMIT on this path is logged with `path: 'signature'` (never `'qr'`); a bare QR scan against a Signed-only right still answers `LEVEL_REQUIRED` on `/v1/verify`, unconsumed.
 
 ## Browser-based pass
 
-`GET /pass/:uid` renders a self-contained HTML page (inline SVG QR, tier, holder, live status) for any uid a `members` row exists for; a uid fuda never issued answers `404 not_found`. `GET /pass/:uid/google` answers `{ saveUrl }` (a signed Google Wallet save link) when the four `GOOGLE_*` secrets are set and `501 google_not_configured` otherwise; `GET /pass/:uid/apple.pkpass` streams a `.pkpass` when the five `APPLE_*` secrets are set and `501 apple_not_configured` otherwise. Both answer `404 not_found` for an unknown uid and for a +Private row before any platform check. The pass page carries an "Add to Google Wallet" button that stays hidden unless the Google endpoint answers `200`. Open the downloaded `.pkpass` on an iPhone, or run `openssl smime -verify -in signature -inform DER -content manifest.json -noverify` after unzipping.
+`GET /pass/:uid` renders a self-contained HTML page (inline SVG QR, tier, holder, live status) for any uid a `members` row exists for; a uid fuda never issued answers `404 not_found`. `GET /pass/:uid/google` answers `{ saveUrl }` (a signed Google Wallet save link) when the four `GOOGLE_*` secrets are set and `501 google_not_configured` otherwise; `GET /pass/:uid/apple.pkpass` streams a `.pkpass` when the five `APPLE_*` secrets are set and `501 apple_not_configured` otherwise. Both answer `404 not_found` for an unknown uid before any platform check. The pass page carries an "Add to Google Wallet" button that stays hidden unless the Google endpoint answers `200`. Open the downloaded `.pkpass` on an iPhone, or run `openssl smime -verify -in signature -inform DER -content manifest.json -noverify` after unzipping.
 
-The `apps/gate`, `apps/dash` and `apps/app` frontends call the api from their own Workers at `API_BASE_URL` (`http://localhost:8787` in their dev scripts), never from the browser ([ADR 0010](../../docs/adr/0010-void-pages-and-frontend-workers.md)). Each Worker sends the visitor's address in `x-real-ip`, which Cloudflare turns into `CF-Connecting-IP` on a same-zone subrequest, so the rate limits still count visitors. `corsPolicy()` in `src/middleware/cors.ts` answers no CORS for those hosts, only for the connected-app routes and the wallet's paymaster requests.
+The `apps/gate`, `apps/dash` and `apps/app` frontends call the api from their own Workers at `API_BASE_URL` (`http://localhost:8787` in their dev scripts), never from the browser ([Frontend Workers](../../docs/architecture.md#frontend-workers)). Each Worker sends the visitor's address in `x-real-ip`, which Cloudflare turns into `CF-Connecting-IP` on a same-zone subrequest, so the rate limits still count visitors. `corsPolicy()` in `src/middleware/cors.ts` answers no CORS for those hosts, only for the connected-app routes and the wallet's paymaster requests.
 
 ## Tests
 
 ```bash
-./node_modules/.bin/vp -C apps/api test
+pnpm --filter api test
 ```
 
 Tests run inside workerd via `@cloudflare/vitest-plugin`, with a real D1 binding (migrations applied from `migrations/` by `test/setup.ts`) and the in-memory `FakeChain` — no network calls.
@@ -91,30 +91,32 @@ API_URL=https://api.fuda.sh ADMIN_TOKEN=… pnpm --filter api smoke:live --ladde
 pnpm --filter api smoke:live
 ```
 
-`--ladder` (or `SMOKE_LADDERS`) takes a comma-separated list of `bearer`, `signed`, or `all`; the default runs both supported ladders. `API_URL` defaults to `http://localhost:8787`, so the script also works against a locally running `pnpm --filter api dev` (with or without `USE_FAKE_CHAIN=1`, as long as a signer is available to `/issue`/`/revoke`).
+`--ladder` (or `SMOKE_LADDERS`) takes a comma-separated list of `bearer`, `signed`, or `all`; the default runs both supported ladders. `API_URL` defaults to `http://localhost:8787`, so the script also works against a locally running `pnpm --filter api dev` (with or without `USE_FAKE_CHAIN=1`, as long as a signer is available to `/v1/issue` and `/v1/revoke`).
 
-Every returned issue UID is revoked in `finally`, including when an assertion or later request fails. Signed holder keys are generated afresh per run. If the revoke request fails, the script exits non-zero; use the logged issue UID to retry `/revoke`. An interrupted process or an issue response lost after on-chain issuance still requires operational reconciliation.
+Every returned issue UID is revoked in `finally`, including when an assertion or later request fails. Signed holder keys are generated afresh per run. If the revoke request fails, the script exits non-zero; use the logged issue UID to retry `/v1/revoke`. An interrupted process or an issue response lost after on-chain issuance still requires operational reconciliation.
 
 Use the rights-subgraph smoke query after Graph deployment; see [The Graph in fuda](../../docs/integrations/thegraph.md).
 
 ## Endpoints
 
+The core issuance, gate and pass routes. Account, card, reception, connected-app and OAuth routes are in `routes/v1/`, with their behavior in the [specifications](../../docs/specs/README.md).
+
 | Method | Path | Auth | Notes |
 | --- | --- | --- | --- |
 | GET | `/` | none | plain text: `fuda. api` and `health: ok` on separate lines |
 | GET | `/health` | none | liveness |
-| POST | `/issue` | Bearer (`ADMIN_TOKEN`) | `holder` → Signed; `memberId` → Bearer; any other field, such as the removed `stealthMetaAddress`, is `400 bad_input` |
-| GET | `/verify/:uid` | none | read-only preview, no slot consumption |
-| POST | `/verify` | none | QR scan; consumes a slot per `usageModel`; a Signed-only right answers `LEVEL_REQUIRED` here; an optional `venue` (a Handle) rejects another venue's pass as `WRONG_VENUE` before any slot is used |
-| POST | `/challenge` | none | mints a one-time nonce for the Signed gate; no chain lookup; sweeps expired nonces |
-| POST | `/verify-signed` | none | challenge-response admission at levels 0 and 1 (a level 2 right on chain is `REJECT LEVEL_REQUIRED`); consumes a slot per `usageModel`, path `signature` |
-| POST | `/revoke` | Bearer (`ADMIN_TOKEN`) | revokes the entitlement attestation |
-| GET | `/members` | Bearer (`ADMIN_TOKEN`) | lists issued entitlements |
+| POST | `/v1/issue` | Bearer (`ADMIN_TOKEN`) | `holder` → Signed; `memberId` → Bearer; an unknown field is `400 bad_input` |
+| GET | `/v1/verify/:uid` | none | read-only preview, no slot consumption |
+| POST | `/v1/verify` | none | QR scan; consumes a slot per `usageModel`; a Signed-only right answers `LEVEL_REQUIRED` here; an optional `venue` (a Handle) rejects another venue's pass as `WRONG_VENUE` before any slot is used |
+| POST | `/v1/challenge` | none | mints a one-time nonce for the Signed gate; no chain lookup; sweeps expired nonces |
+| POST | `/v1/verify-signed` | none | challenge-response admission at levels 0 and 1 (a right on chain at a higher level is `REJECT LEVEL_REQUIRED`); consumes a slot per `usageModel`, path `signature` |
+| POST | `/v1/revoke` | operator session or Bearer (`ADMIN_TOKEN`) | revokes the entitlement attestation |
+| GET | `/v1/members` | operator session or Bearer (`ADMIN_TOKEN`) | lists issued entitlements, the newest 200 |
 | GET | `/pass/:uid` | none | browser-based pass page; `404 not_found` if fuda never issued that uid |
 | GET | `/pass/:uid/card` | none | `{ card }`: the venue card behind the pass (`issuerName`, `cardTitle`, `category`, `brandColor`, `logoUrl`, `memberNumber`) for a client drawing it in the venue's look, or `card: null` for an admin-issued right; `404 not_found` for an unknown uid |
 | GET | `/pass/:uid/google` | none | `{ saveUrl }`, a signed Google Wallet save link; `501 google_not_configured` unless all four `GOOGLE_*` secrets are set; `404 not_found` first for an unknown uid |
 | GET | `/pass/:uid/apple.pkpass` | none | the `.pkpass` bundle; `501 apple_not_configured` unless all five `APPLE_*` secrets are set; `404 not_found` first for an unknown uid |
-| POST | `/ens/gateway` | none, per-IP budget (120/h) | EIP-3668 `{ sender, data }`; disabled with 503 until all four `ENS_*` bindings are configured; success `{ data }`, errors `{ message }`, always `Cache-Control: no-store` |
+| POST | `/ens/gateway` | none, per-IP budget (120/h) | EIP-3668 `{ sender, data }`; disabled with 503 until `ENS_PARENT_NAME`, `ENS_RESOLVER_ADDRESSES` and `ENS_GATEWAY_SIGNER_KEY` are configured; success `{ data }`, errors `{ message }`, always `Cache-Control: no-store` |
 
 ## Error codes
 

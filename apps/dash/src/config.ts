@@ -4,7 +4,7 @@ export const CHAIN = parseChainConfig(import.meta.env.VITE_CHAIN_ID)
 
 // The browser reaches the api only through its own Worker, which forwards
 // `/api/*` with the session cookie's credential
-// (docs/adr/0010-void-pages-and-frontend-workers.md).
+// (../../../docs/architecture.md#frontend-workers).
 export const API_BASE_URL = '/api'
 export const GRAPH_RIGHTS_ENDPOINT: string = import.meta.env.VITE_GRAPH_RIGHTS_ENDPOINT ?? ''
 

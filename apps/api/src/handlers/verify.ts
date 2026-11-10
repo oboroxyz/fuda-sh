@@ -140,7 +140,7 @@ export const getV1VerifyUid = defineHandler(async (c) => {
 
 // The Handle of the venue that issued the uid, whichever way the right is
 // recorded. null when no member row or no issuer stands behind it.
-export const venueOf = async (db: Db, uid: Hex): Promise<string | null> => {
+export const venueHandleOf = async (db: Db, uid: Hex): Promise<string | null> => {
   const row = await db
     .select({ handle: issuers.handle })
     .from(members)
@@ -167,7 +167,7 @@ export const postV1Verify = defineHandler(async (c) => {
   // else is read, so it burns no slot and reports nothing about the pass. A uid
   // with no issuer behind it cannot be shown to belong to that venue either.
   const venue = parsed.success ? parsed.output.venue : undefined
-  if (venue !== undefined && (await venueOf(c.get('db'), uid)) !== venue) {
+  if (venue !== undefined && (await venueHandleOf(c.get('db'), uid)) !== venue) {
     await logEntry(c.get('db'), { at: now, decision: 'REJECT', path: 'qr', reason: 'WRONG_VENUE', uid })
     return jsonResponse(c, verdictBody({ decision: 'REJECT', reason: 'WRONG_VENUE' }))
   }

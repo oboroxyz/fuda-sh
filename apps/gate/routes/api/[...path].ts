@@ -7,9 +7,8 @@ declare global {
   }
 }
 
-// The scanner's same-origin access to the api (docs/adr/0010-void-pages-and-
-// frontend-workers.md). The gate has no session, so nothing but the
-// visitor's IP is added.
+// The scanner's same-origin access to the api (../../../../docs/architecture.md#frontend-workers).
+// The gate has no session, so nothing but the visitor's IP is added.
 const forward = defineHandler(
   async (c) =>
     await forwardToApi(c, {

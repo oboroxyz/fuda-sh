@@ -25,8 +25,7 @@ class SelectionTests(unittest.TestCase):
             self.write(path + '/package.json', json.dumps({'name': name, 'dependencies': deps}))
             self.write(path + '/src/code.ts', 'export const value = 1\n')
         self.write('packages/subgraphs/rights/package.json', '{"name":"graph"}')
-        self.write('packages/substreams/erc5564/Cargo.toml', '[package]')
-        self.write('packages/substreams/erc5564-eas-pipeline/Cargo.toml', '[package]')
+        self.write('archive/substreams/erc5564/Cargo.toml', '[package]')
         self.write('README.md', '# fixture\n')
         self.git('add', '.')
         self.git('commit', '-qm', 'base')
@@ -63,7 +62,6 @@ class SelectionTests(unittest.TestCase):
         plan = self.plan()
         self.assertEqual(plan['packages'], [])
         self.assertFalse(plan['subgraph'])
-        self.assertEqual(plan['rust'], [])
 
     def test_deleted_package_still_checks_previous_consumers(self):
         self.git('rm', '-r', 'packages/sdk')
@@ -80,14 +78,13 @@ class SelectionTests(unittest.TestCase):
         self.assertTrue(plan['full'])
         self.assertEqual(len(plan['packages']), 5)
         self.assertTrue(plan['subgraph'])
-        self.assertEqual(plan['rust'], ['packages/substreams/erc5564',
-                                        'packages/substreams/erc5564-eas-pipeline'])
 
-    def test_shared_proto_change_checks_pipeline(self):
-        self.write('packages/substreams/erc5564/proto/erc5564.proto')
+    def test_archived_code_selects_no_lane(self):
+        self.write('archive/substreams/erc5564/Cargo.toml')
         plan = self.plan()
+        self.assertFalse(plan['full'])
         self.assertEqual(plan['packages'], [])
-        self.assertEqual(len(plan['rust']), 2)
+        self.assertFalse(plan['subgraph'])
 
     def test_api_configuration_checks_subgraph_generation(self):
         self.write('apps/api/targets.jsonc')

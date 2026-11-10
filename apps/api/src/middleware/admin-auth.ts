@@ -1,6 +1,7 @@
 import type { MiddlewareHandler } from 'hono'
 
 import type { AppEnv, Bindings } from '../env.ts'
+import { bearerToken } from './bearer-token.ts'
 
 // workerd implements crypto.subtle.timingSafeEqual (constant-time buffer compare),
 // but @cloudflare/workers-types does not declare it yet. Narrow augmentation
@@ -58,8 +59,7 @@ export const adminAuth = (): MiddlewareHandler<AppEnv> => async (c, next) => {
     c.res.headers.set('x-auth-mode', 'open')
     return
   }
-  const header = c.req.header('Authorization') ?? ''
-  const presented = header.startsWith('Bearer ') ? header.slice('Bearer '.length) : ''
+  const presented = bearerToken(c)
   if (presented === '' || !(await tokenMatches(presented, expected))) {
     return c.json({ error: 'unauthorized' }, 401)
   }

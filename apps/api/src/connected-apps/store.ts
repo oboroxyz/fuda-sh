@@ -9,6 +9,7 @@ import type {
 import { and, asc, count, desc, eq, gt, inArray, isNull, lt } from 'drizzle-orm'
 
 import { hashToken } from '../auth/session.ts'
+import { base64UrlOf } from '../base64url.ts'
 import type { Db } from '../db/client.ts'
 import {
   connectedAppEvents,
@@ -189,15 +190,9 @@ export const mintCode = async (
   return code
 }
 
-const base64Url = (bytes: ArrayBuffer): string =>
-  btoa(String.fromCodePoint(...new Uint8Array(bytes)))
-    .replaceAll('+', '-')
-    .replaceAll('/', '_')
-    .replace(/[=]+$/u, '')
-
 // RFC 7636 §4.6, S256: BASE64URL(SHA256(verifier)) must equal the challenge.
 export const pkceChallenge = async (verifier: string): Promise<string> =>
-  base64Url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)))
+  base64UrlOf(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))))
 
 export interface IssuedToken {
   accessToken: string

@@ -104,67 +104,36 @@ describe('rights page', () => {
     })
   })
 
-  it('preserves rights during refresh and errors while keeping chain lookup separate', () => {
-    const stale = show({ kind: 'error', message: 'D1 offline', previousRows: [row] }).host
+  it('reports a load failure without a list while keeping chain lookup separate', () => {
+    const failed = show({ kind: 'error', message: 'D1 offline' }).host
     // The chain lookup is its own section, outside the D1 list.
-    const chain = stale.querySelector(`section[aria-label="${copy.chain.title}"]`)
+    const chain = failed.querySelector(`section[aria-label="${copy.chain.title}"]`)
 
     expect({
       chain: {
         lookup: chain?.querySelector('#chain-holder') !== null,
         separate: chain?.querySelector('[data-testid="rights-table"]') === null,
       },
-      error: page({ kind: 'error', message: 'D1 unavailable', previousRows: null }, 'D1 unavailable'),
-      initial: page({ kind: 'loading', previousRows: null }, 'Refreshing rights'),
-      initialEmpty: page({ kind: 'loading', previousRows: null }, 'No rights have been issued.').says,
-      refreshing: page({ kind: 'loading', previousRows: [row] }, 'Refreshing rights'),
-      stale: page({ kind: 'error', message: 'D1 offline', previousRows: [row] }, 'D1 offline'),
+      error: page({ kind: 'error', message: 'D1 unavailable' }, 'D1 unavailable'),
+      errorEmpty: page({ kind: 'error', message: 'D1 unavailable' }, 'No rights have been issued.').says,
     }).toStrictEqual({
       chain: { lookup: true, separate: true },
       error: { listed: false, says: true },
-      initial: { listed: false, says: true },
-      initialEmpty: false,
-      refreshing: { listed: true, says: true },
-      stale: { listed: true, says: true },
+      errorEmpty: false,
     })
   })
 
   it.each([
-    ['en', 'Could not load rights', 'Showing last loaded rights; their status may be out of date.'],
-    [
-      'ja',
-      '権利を読み込めませんでした',
-      '最後に読み込んだ権利を表示中です。ステータスは最新でない可能性があります。',
-    ],
-  ] as const)(
-    'explains initial and refresh load failures beside the retained rights in %s',
-    (locale, errorPrefix, stale) => {
-      const failure = { kind: 'error', message: 'D1_UNAVAILABLE [42]' } as const
-      const initial = show({ ...failure, previousRows: null }, undefined, locale).host
-      const refreshed = show({ ...failure, previousRows: [row] }, undefined, locale).host
+    ['en', 'Could not load rights'],
+    ['ja', '権利を読み込めませんでした'],
+  ] as const)('explains a load failure in %s', (locale, errorPrefix) => {
+    const { host } = show({ kind: 'error', message: 'D1_UNAVAILABLE [42]' }, undefined, locale)
 
-      const alert = `${errorPrefix}: ${locale === 'ja' ? '処理を完了できませんでした。もう一度お試しください。' : 'Something went wrong. Try again.'} (D1_UNAVAILABLE [42])`
-      expect({
-        alerts: [initial, refreshed].map((host) => spacedText(host.querySelector('[role="alert"]'))),
-        initial: {
-          listed: initial.querySelector('[data-testid="rights-table"]') !== null,
-          stale: spacedText(initial).includes(stale),
-        },
-        ready: spacedText(show(ready, undefined, locale).host).includes(stale),
-        refreshed: {
-          listed: refreshed.querySelector(`[data-right-uid="${UID}"]`) !== null,
-          stale: spacedText(refreshed.querySelector('section[aria-labelledby="rights-title"]')).includes(
-            stale,
-          ),
-        },
-      }).toStrictEqual({
-        alerts: [alert, alert],
-        initial: { listed: false, stale: false },
-        ready: false,
-        refreshed: { listed: true, stale: true },
-      })
-    },
-  )
+    expect(spacedText(host.querySelector('[role="alert"]'))).toBe(
+      `${errorPrefix}: ${locale === 'ja' ? '処理を完了できませんでした。もう一度お試しください。' : 'Something went wrong. Try again.'} (D1_UNAVAILABLE [42])`,
+    )
+    expect(host.querySelector('[data-testid="rights-table"]')).toBeNull()
+  })
 
   it('connects confirmation to the UID, suppresses immediate duplicates, and closes on success', async () => {
     const pending = Promise.withResolvers<Result<RevokeResponse>>()

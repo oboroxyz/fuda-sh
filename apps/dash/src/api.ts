@@ -36,7 +36,7 @@ export type { Result } from '@fuda/sdk/http'
 
 // Every call goes to the dashboard Worker's same-origin `/api`, which adds the
 // session's credential from its HttpOnly cookie
-// (docs/adr/0010-void-pages-and-frontend-workers.md). The browser holds no token.
+// (../../../docs/architecture.md#frontend-workers). The browser holds no token.
 export const listMembers = async (): Promise<Result<MembersResponse>> =>
   await apiFetch<MembersResponse>(API_BASE_URL, '/members')
 

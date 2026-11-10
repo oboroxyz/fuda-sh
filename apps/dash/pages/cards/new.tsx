@@ -7,7 +7,7 @@ import { cardDraft, setCardDraft } from '../../src/card-draft.ts'
 import { CardDesigner } from '../../src/CardDesigner.tsx'
 import { DEFAULT_DESIGN_IO, submitCard } from '../../src/design-actions.ts'
 import { useCopy, useNavigate, useOperator, useSessionExpired } from '../../src/page-context.tsx'
-import { handleCheck, slugCheck } from '../../src/venue-actions.ts'
+import { slugCheck } from '../../src/venue-actions.ts'
 
 export default function NewCard(): JSX.Element {
   const copy = useCopy()
@@ -24,8 +24,6 @@ export default function NewCard(): JSX.Element {
       failure={failure}
       initialDraft={cardDraft()}
       issuer={issuer}
-      logoCopy={copy.logo}
-      onCheckHandle={handleCheck(expired)}
       onCheckSlug={slugCheck(expired)}
       onDraftChange={(form) => {
         setCardDraft(form)
@@ -34,7 +32,7 @@ export default function NewCard(): JSX.Element {
         setCardDraft(form)
         navigate('/profile')
       }}
-      onSubmit={(_mode, form) => {
+      onSubmit={(form) => {
         setFailure(null)
         setBusy(true)
         const run = async (): Promise<void> => {

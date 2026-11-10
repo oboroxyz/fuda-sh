@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { readMvpGraphConfig } from './read-mvp-config.mjs'
+import { readMvpGraphConfig } from './read-mvp-config.ts'
 
 const UID_A = `0x${'A'.repeat(64)}`
 const UID_B = `0x${'b'.repeat(64)}`

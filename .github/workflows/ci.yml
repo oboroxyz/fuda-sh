@@ -22,7 +22,6 @@ jobs:
       json: ${{ steps.plan.outputs.json }}
       packages: ${{ steps.plan.outputs.packages }}
       subgraph: ${{ steps.plan.outputs.subgraph }}
-      rust: ${{ steps.plan.outputs.rust }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -161,43 +160,10 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libpq5
       - run: pnpm graph:test --version 0.6.0
 
-  substreams:
-    name: Test ${{ matrix.package }}
-    needs: plan
-    if: needs.plan.outputs.rust != '[]'
-    runs-on: ubuntu-22.04
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        package: ${{ fromJSON(needs.plan.outputs.rust) }}
-    steps:
-      - uses: actions/checkout@v7.0.1
-        with:
-          persist-credentials: false
-      - name: Install protobuf compiler and Rust
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y protobuf-compiler
-          rustup toolchain install 1.96.1 --profile minimal --target wasm32-unknown-unknown
-      - uses: actions/cache@v6.1.0
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ matrix.package }}/target
-          key: rust-${{ runner.os }}-1.96.1-${{ matrix.package }}-${{ hashFiles('packages/substreams/**/Cargo.lock') }}
-      - name: Test and build WASM
-        env:
-          PACKAGE_PATH: ${{ matrix.package }}
-        run: |
-          cargo +1.96.1 test --locked --manifest-path "$PACKAGE_PATH/Cargo.toml"
-          cargo +1.96.1 build --locked --release --target wasm32-unknown-unknown --manifest-path "$PACKAGE_PATH/Cargo.toml"
-
   ci:
     name: CI
     if: always()
-    needs: [plan, lockfile, zizmor, dependency-review, checks, fallow, packages, subgraph, substreams]
+    needs: [plan, lockfile, zizmor, dependency-review, checks, fallow, packages, subgraph]
     runs-on: ubuntu-22.04
     timeout-minutes: 2
     steps:

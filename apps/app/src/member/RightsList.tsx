@@ -3,7 +3,7 @@ import type { Locale } from '@fuda/i18n'
 import type { QueryClient } from '@fuda/libs/query'
 import { useQuery, useQueryScope } from '@fuda/libs/query'
 import { asHex, brandTextColor, fetchRightsByHolder, isPasskeyPass, normalizeUid } from '@fuda/sdk'
-import type { GraphRight, Hex, PassCardView } from '@fuda/sdk'
+import type { Hex, PassCardView } from '@fuda/sdk'
 import { short } from '@fuda/ui/short'
 import { Fragment } from 'preact'
 import type { JSX } from 'preact'
@@ -29,13 +29,8 @@ import { MEMBER_COPY, PASS_REASON_JA } from './copy.ts'
 import type { MemberCopy } from './copy.ts'
 import { SensitivePasses } from './SensitivePasses.tsx'
 
-export type RightsListState =
-  | { kind: 'idle' }
-  | { kind: 'loading' }
-  | { kind: 'error'; message: string }
-  | { kind: 'ready'; rights: GraphRight[] }
-
 type MemberListState =
+  | { kind: 'idle' }
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
   | { kind: 'ready'; result: MemberPassListResult }
@@ -49,44 +44,6 @@ const memberListState = (data: MemberPassListResult | undefined, error: Error | 
   }
   return { kind: 'loading' }
 }
-
-const SAFE_META_PROTOCOLS = new Set(['http:', 'https:', 'ipfs:'])
-
-const safeMetaHref = (value: string): string | null => {
-  if (!URL.canParse(value)) {
-    return null
-  }
-  return SAFE_META_PROTOCOLS.has(new URL(value).protocol) ? value : null
-}
-
-const metaUri = (value: string): JSX.Element | null => {
-  if (value === '') {
-    return null
-  }
-  const href = safeMetaHref(value)
-  return href === null ? <span>{value}</span> : <a href={href}>{value}</a>
-}
-
-const graphCard = (right: GraphRight, copy: MemberCopy['passes']): JSX.Element => (
-  <li class="card member-pass">
-    <div class="card-body gap-2">
-      <div class={right.revokedAt === null ? 'badge badge-success' : 'badge badge-error'}>
-        {right.revokedAt === null ? copy.active : copy.revoked}
-      </div>
-      <div class="font-mono text-xs break-all">{right.id}</div>
-      <div class="text-sm">
-        {copy.issuer} {short(right.issuer)}
-      </div>
-      <div class="text-sm">
-        {copy.tier} {right.tier}
-      </div>
-      <div class="text-sm">
-        {copy.usage} {right.usageModel}
-      </div>
-      {metaUri(right.metaURI)}
-    </div>
-  </li>
-)
 
 const memberStatus = (row: MemberPassRow, locale: Locale, copy: MemberCopy['passes']): string => {
   if (row.preview === null) {
@@ -214,7 +171,7 @@ const memberCard = (row: MemberPassRow, locale: Locale, copy: MemberCopy['passes
   )
 }
 
-const listView = (state: RightsListState | MemberListState, locale: Locale, search: string): JSX.Element => {
+const listView = (state: MemberListState, locale: Locale, search: string): JSX.Element => {
   const copy = pick(MEMBER_COPY, locale).passes
   if (state.kind === 'idle') {
     return <p class="text-sm opacity-70">{copy.idle}</p>
@@ -229,18 +186,6 @@ const listView = (state: RightsListState | MemberListState, locale: Locale, sear
   }
   if (state.kind === 'error') {
     return <div class="alert alert-error">{state.message}</div>
-  }
-  if ('rights' in state) {
-    if (state.rights.length === 0) {
-      return <p class="member-empty">{copy.noRights}</p>
-    }
-    return (
-      <ul class="flex flex-col gap-5">
-        {state.rights.map((right) => (
-          <Fragment key={right.id}>{graphCard(right, copy)}</Fragment>
-        ))}
-      </ul>
-    )
   }
   if (state.result.rows.length === 0) {
     return (
@@ -286,7 +231,7 @@ const listView = (state: RightsListState | MemberListState, locale: Locale, sear
 
 export const RightsListView = (props: {
   search?: string
-  state: RightsListState | MemberListState
+  state: MemberListState
   locale?: Locale
 }): JSX.Element => <>{listView(props.state, props.locale ?? DEFAULT_LOCALE, props.search ?? '')}</>
 
@@ -494,7 +439,7 @@ export const RightsList = (props: RightsListProps): JSX.Element => {
 
   usePassMemorySync(recoveryQuery.data, props.syncWithAccount === true, memory, setMemory)
 
-  const visibleState: RightsListState | MemberListState =
+  const visibleState: MemberListState =
     variant === 'lookup' && addresses.length === 0
       ? { kind: 'idle' }
       : memberListState(listQuery.data, listQuery.error)

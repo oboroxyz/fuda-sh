@@ -4,7 +4,7 @@ import type { Address } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { describe, expect, it } from 'vitest'
 
-import { claimConfigFrom, confirmedClaim, signClaimVoucher } from './claim.ts'
+import { claimConfigFrom, claimedEvent, signClaimVoucher } from './claim.ts'
 
 const VOUCHER_KEY = `0x${'11'.repeat(32)}` as const
 const REGISTRAR: Address = '0x58AF04ff5e6DAB45ECD17bD38fC4f4BBa45778B9'
@@ -83,31 +83,29 @@ describe(signClaimVoucher, () => {
   })
 })
 
-describe(confirmedClaim, () => {
+describe(claimedEvent, () => {
   it('accepts the registrar’s own event for the expected label and issuer', () => {
-    expect(confirmedClaim([claimedLog()], { handle: 'bakery', issuer: ISSUER, registrar: REGISTRAR })).toBe(
-      true,
-    )
+    expect(
+      claimedEvent([claimedLog()], { handle: 'bakery', issuer: ISSUER, registrar: REGISTRAR }),
+    ).not.toBeNull()
   })
 
   it('rejects another contract, another label, and another issuer', () => {
     const check = (log: ReturnType<typeof claimedLog>) =>
-      confirmedClaim([log], { handle: 'bakery', issuer: ISSUER, registrar: REGISTRAR })
+      claimedEvent([log], { handle: 'bakery', issuer: ISSUER, registrar: REGISTRAR })
 
-    expect(check(claimedLog({ address: OTHER }))).toBe(false)
-    expect(check(claimedLog({ label: 'cafe' }))).toBe(false)
-    expect(check(claimedLog({ issuer: OTHER }))).toBe(false)
+    expect(check(claimedLog({ address: OTHER }))).toBeNull()
+    expect(check(claimedLog({ label: 'cafe' }))).toBeNull()
+    expect(check(claimedLog({ issuer: OTHER }))).toBeNull()
   })
 
   it('rejects a receipt with no claim in it', () => {
-    expect(confirmedClaim([], { handle: 'bakery', issuer: ISSUER, registrar: REGISTRAR })).toBe(false)
+    expect(claimedEvent([], { handle: 'bakery', issuer: ISSUER, registrar: REGISTRAR })).toBeNull()
   })
 
   it('ignores a log it cannot decode rather than throwing', () => {
     const undecodable = { address: REGISTRAR, data: '0x', topics: [`0x${'77'.repeat(32)}`] as string[] }
 
-    expect(confirmedClaim([undecodable], { handle: 'bakery', issuer: ISSUER, registrar: REGISTRAR })).toBe(
-      false,
-    )
+    expect(claimedEvent([undecodable], { handle: 'bakery', issuer: ISSUER, registrar: REGISTRAR })).toBeNull()
   })
 })

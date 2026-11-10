@@ -14,8 +14,8 @@ export interface DashCopy {
   management: ManagementCopy
   chrome: {
     brand: string
-    switchProfile: string
     addProfile: string
+    switchFailed: string
     navigation: string
     openMenu: string
     closeMenu: string
@@ -30,7 +30,6 @@ export interface DashCopy {
     issue: string
     venue: string
     reception: string
-    newCard: string
     card: string
     passes: string
     apps: string
@@ -52,7 +51,6 @@ export interface DashCopy {
     signingInWallet: string
     adminSection: string
     signingIn: string
-    restoring: string
     restoreFailed: string
     retry: string
     signOut: string
@@ -64,12 +62,10 @@ export interface DashCopy {
   passkeys: PasskeySectionCopy
   logo: {
     label: string
-    change: string
     choose: string
     hint: string
     remove: string
     previewAlt: string
-    upload: string
     updating: string
     updateFailed: string
     rejections: {
@@ -98,7 +94,6 @@ export interface DashCopy {
     saveFailed: string
   }
   stamps: {
-    back: string
     cardNotFound: string
     title: string
     description: string
@@ -244,7 +239,6 @@ export interface DashCopy {
     failures: {
       input: string
       issuerLimit: string
-      logo: string
       network: string
       session: string
       slugInvalid: string
@@ -254,7 +248,6 @@ export interface DashCopy {
   }
   ens: {
     title: string
-    description: string
     claim: string
     walletRequired: string
     retry: string
@@ -273,11 +266,9 @@ export interface DashCopy {
     }
   }
   published: {
-    settings: string
     createFirst: string
     title: string
     description: string
-    venueLabel: string
     addCard: string
     qrLabel: string
     print: string
@@ -291,7 +282,6 @@ export interface DashCopy {
     defaultSaving: string
     defaultSaved: string
     defaultSaveFailed: string
-    hint: string
     claimStates: {
       closed: string
       closedSince: string
@@ -315,15 +305,12 @@ export interface DashCopy {
     revoked: string
     api: string
     graph: string
-    checking: string
     connected: string
     unavailable: string
     configured: string
     notConfigured: string
     errorMessage: (code: string) => string
     errorPrefix: string
-    refreshing: string
-    stale: string
   }
   rights: {
     title: string
@@ -356,8 +343,6 @@ export interface DashCopy {
     clearFilters: string
     errorMessage: (code: string) => string
     errorPrefix: string
-    refreshing: string
-    stale: string
     qrLabel: string
   }
   revoke: {
@@ -419,8 +404,8 @@ export const DASH_COPY = {
     management: MANAGEMENT_COPY.en,
     chrome: {
       brand: 'fuda.',
-      switchProfile: 'Switch profile',
       addProfile: 'Add a profile',
+      switchFailed: 'Could not switch profiles. Please try again.',
       navigation: 'Dashboard navigation',
       openMenu: 'Open menu',
       closeMenu: 'Close menu',
@@ -435,7 +420,6 @@ export const DASH_COPY = {
       issue: 'Issue',
       venue: 'Profile',
       reception: 'Reception',
-      newCard: 'New card',
       card: 'Your cards',
       passes: 'Passes',
       apps: 'Apps',
@@ -459,7 +443,6 @@ export const DASH_COPY = {
       signingInWallet: 'Waiting for your wallet…',
       adminSection: 'Sign in with an admin token instead',
       signingIn: 'Waiting for your passkey…',
-      restoring: 'Restoring your session…',
       restoreFailed: 'Could not restore your session. Please try again.',
       retry: 'Try again',
       signOut: 'Sign out',
@@ -499,12 +482,10 @@ export const DASH_COPY = {
     },
     logo: {
       label: 'Logo',
-      change: 'Change logo',
       choose: 'Choose image',
       hint: 'PNG, JPEG or WebP, at least 660×660. A square image works best.',
       remove: 'Remove',
       previewAlt: 'Logo preview',
-      upload: 'Upload logo',
       updating: 'Updating…',
       updateFailed: 'Could not update the logo. Try again.',
       rejections: {
@@ -533,7 +514,6 @@ export const DASH_COPY = {
       saveFailed: 'Could not save your changes. Try again.',
     },
     stamps: {
-      back: 'Back to cards',
       cardNotFound: 'Card not found',
       title: 'Stamp settings',
       description:
@@ -717,7 +697,6 @@ export const DASH_COPY = {
       failures: {
         input: 'Some fields need a change before this card can be created.',
         issuerLimit: 'This account already has the most profiles it can create.',
-        logo: 'Could not upload the logo. Your card is still here — try again.',
         network: 'Could not reach fuda. Check your connection and try again.',
         session: 'Your sign-in expired. Please sign in again.',
         slugInvalid: 'That card link cannot be used. Pick another one.',
@@ -727,8 +706,6 @@ export const DASH_COPY = {
     },
     ens: {
       title: 'ENS name',
-      description:
-        'Claim {name} and the name is yours onchain. fuda covers the transaction fee — you never need a second wallet or any ETH.',
       claim: 'Claim this name',
       walletRequired:
         'An ENS name is held by a wallet, and this profile was made with a passkey, so it has none. To claim a name, sign in with a wallet and make the profile there.',
@@ -748,11 +725,9 @@ export const DASH_COPY = {
       },
     },
     published: {
-      settings: 'Card settings',
       createFirst: 'Create your first card',
       title: 'Your Cards',
       description: 'Manage your cards, track issuance, and share their links.',
-      venueLabel: 'Public page',
       addCard: '+ Add card',
       qrLabel: 'QR code for your card link',
       print: 'Print QR poster',
@@ -766,7 +741,6 @@ export const DASH_COPY = {
       defaultSaving: 'Saving…',
       defaultSaved: 'Default card updated.',
       defaultSaveFailed: 'Could not update the default card. Try again.',
-      hint: 'Anyone who scans gets a card — no app on their side either.',
       claimStates: {
         closed: 'Closed',
         closedSince: 'Closed since {until}',
@@ -790,15 +764,12 @@ export const DASH_COPY = {
       revoked: 'Revoked rights',
       api: 'API',
       graph: 'Graph index',
-      checking: 'Checking',
       connected: 'Connected',
       unavailable: 'Unavailable',
       configured: 'Configured',
       notConfigured: 'Not configured',
       errorMessage: (code: string) => dashMessage(code, 'en'),
       errorPrefix: 'Could not load rights',
-      refreshing: 'Refreshing rights',
-      stale: 'Showing last loaded values',
     },
     rights: {
       title: 'Rights',
@@ -833,8 +804,6 @@ export const DASH_COPY = {
       clearFilters: 'Clear filters',
       errorMessage: (code: string) => dashMessage(code, 'en'),
       errorPrefix: 'Could not load rights',
-      refreshing: 'Refreshing rights',
-      stale: 'Showing last loaded rights; their status may be out of date.',
       qrLabel: 'Right identifier QR',
     },
     revoke: {
@@ -893,8 +862,8 @@ export const DASH_COPY = {
     management: MANAGEMENT_COPY.ja,
     chrome: {
       brand: 'fuda.',
-      switchProfile: 'プロフィールを切り替え',
       addProfile: 'プロフィールを追加',
+      switchFailed: 'プロフィールを切り替えられませんでした。もう一度お試しください。',
       navigation: 'ダッシュボードナビゲーション',
       openMenu: 'メニューを開く',
       closeMenu: 'メニューを閉じる',
@@ -909,7 +878,6 @@ export const DASH_COPY = {
       issue: '発行',
       venue: 'プロフィール',
       reception: '受付',
-      newCard: 'カードを作る',
       card: 'カード',
       passes: 'パス一覧',
       apps: 'アプリ連携',
@@ -934,7 +902,6 @@ export const DASH_COPY = {
       signingInWallet: 'ウォレットの操作を待っています…',
       adminSection: '管理トークンでサインインする',
       signingIn: 'パスキーの操作を待っています…',
-      restoring: 'ログイン状態を確認しています…',
       restoreFailed: 'ログイン状態を確認できませんでした。もう一度お試しください。',
       retry: '再試行',
       signOut: 'サインアウト',
@@ -976,12 +943,10 @@ export const DASH_COPY = {
     },
     logo: {
       label: 'ロゴ',
-      change: 'ロゴを変更',
       choose: '画像を選ぶ',
       hint: 'PNG・JPEG・WebP に対応しています。660px 以上の正方形に近い画像がきれいに表示されます。',
       remove: '削除',
       previewAlt: 'ロゴのプレビュー',
-      upload: 'ロゴをアップロード',
       updating: '更新中…',
       updateFailed: 'ロゴを更新できませんでした。もう一度お試しください。',
       rejections: {
@@ -1010,7 +975,6 @@ export const DASH_COPY = {
       saveFailed: '保存できませんでした。もう一度お試しください。',
     },
     stamps: {
-      back: 'カード一覧に戻る',
       cardNotFound: 'カードが見つかりません',
       title: 'スタンプ設定',
       description:
@@ -1194,7 +1158,6 @@ export const DASH_COPY = {
       failures: {
         input: '入力内容を確認してください。このままではカードを作成できません。',
         issuerLimit: 'このアカウントで作成できるプロフィールの上限に達しています。',
-        logo: 'ロゴをアップロードできませんでした。入力内容はそのままです。もう一度お試しください。',
         network: 'fuda に接続できませんでした。通信環境を確認して、もう一度お試しください。',
         session: 'サインインの有効期限が切れました。もう一度サインインしてください。',
         slugInvalid: 'このカードのリンクは使えません。別の名前を選んでください。',
@@ -1204,8 +1167,6 @@ export const DASH_COPY = {
     },
     ens: {
       title: 'ENS名',
-      description:
-        '{name} を取得すると、この名前がオンチェーンであなたのものになります。手数料は fuda が負担するので、別のウォレットも ETH も要りません。',
       claim: 'この名前を取得する',
       walletRequired:
         'ENS名はウォレットで保持します。このプロフィールはパスキーで作成したのでウォレットがありません。名前を取得するには、ウォレットでサインインしてプロフィールを作成してください。',
@@ -1225,11 +1186,9 @@ export const DASH_COPY = {
       },
     },
     published: {
-      settings: 'カード設定',
       createFirst: '最初のカードを作成',
       title: 'カード一覧',
       description: 'カードの設定や発行状況を確認し、公開リンクを共有できます。',
-      venueLabel: '公開ページ',
       addCard: '+ カードを追加',
       qrLabel: 'カードのリンクの QR コード',
       print: 'QR ポスターを印刷',
@@ -1243,7 +1202,6 @@ export const DASH_COPY = {
       defaultSaving: '保存中…',
       defaultSaved: 'デフォルトカードを更新しました。',
       defaultSaveFailed: 'デフォルトカードを更新できませんでした。もう一度お試しください。',
-      hint: 'スキャンした人は誰でもカードを受け取れます。相手にもアプリは要りません。',
       claimStates: {
         closed: '受付終了',
         closedSince: '{until} に受付終了',
@@ -1267,15 +1225,12 @@ export const DASH_COPY = {
       revoked: '取り消した権利',
       api: 'API',
       graph: 'Graph インデックス',
-      checking: '確認中',
       connected: '接続済み',
       unavailable: '利用不可',
       configured: '設定済み',
       notConfigured: '未設定',
       errorMessage: (code: string) => dashMessage(code, 'ja'),
       errorPrefix: '権利を読み込めませんでした',
-      refreshing: '権利を更新中',
-      stale: '最後に読み込んだ値を表示中',
     },
     rights: {
       title: '権利',
@@ -1310,8 +1265,6 @@ export const DASH_COPY = {
       clearFilters: '絞り込みを解除',
       errorMessage: (code: string) => dashMessage(code, 'ja'),
       errorPrefix: '権利を読み込めませんでした',
-      refreshing: '権利を更新中',
-      stale: '最後に読み込んだ権利を表示中です。ステータスは最新でない可能性があります。',
       qrLabel: '権利識別子の QR',
     },
     revoke: {

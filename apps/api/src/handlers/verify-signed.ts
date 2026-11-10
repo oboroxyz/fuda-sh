@@ -20,7 +20,7 @@ import type { AppEnv } from '../env.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { admitAndHook, logEntry } from '../verify/admit.ts'
 import { consumeChallenge } from '../verify/challenge.ts'
-import { resolveVerdict, venueOf, waitUntilOf } from './verify.ts'
+import { resolveVerdict, venueHandleOf, waitUntilOf } from './verify.ts'
 
 // Which of the two 4xx codes a malformed body earns: a uid that is absent or not
 // a uid at all is `bad_uid`; a well-formed uid with anything else wrong (nonce,
@@ -86,7 +86,7 @@ export const postV1VerifySigned = defineHandler(async (c) => {
   const now = c.get('now')()
   const db = c.get('db')
   const { venue } = parsed.output
-  const actualVenue = await venueOf(db, uid)
+  const actualVenue = await venueHandleOf(db, uid)
   // Only a holder's proof earns the venue's name: knowing a uid must not reveal
   // which shop a Sensitive pass belongs to.
   let proven = false

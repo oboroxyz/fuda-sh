@@ -160,7 +160,7 @@ export const PublishedCard = (props: PublishedCardProps): JSX.Element => {
     setSearch('')
     setCategory('all')
   }
-  const storeUrl = (): string => `${props.publicUrl.replace(/\/$/u, '')}/home`
+  const storeUrl = `${props.publicUrl.replace(/\/$/u, '')}/home`
   const saveDefault = (slug: string | null): void => {
     if (defaultSavePending.current) {
       return
@@ -272,7 +272,7 @@ export const PublishedCard = (props: PublishedCardProps): JSX.Element => {
   }
   return (
     <section class="dash-page flex min-w-0 flex-col gap-6">
-      <PublishedHeader copy={props.copy} onAddCard={props.onAddCard} storeUrl={storeUrl()} />
+      <PublishedHeader copy={props.copy} onAddCard={props.onAddCard} storeUrl={storeUrl} />
       <ManagementSummary state={state} copy={labels} />
       <PassNotices copy={labels} onRetry={refresh} ready={ready} state={state} />
       {props.cards.length > 0 ? (

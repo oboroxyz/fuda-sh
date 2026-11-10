@@ -306,7 +306,7 @@ export const worldVerifier: BadgeVerifier = {
     if (responses.length > 1) {
       const keys = new Set(responses.map((response) => canonicalNullifier(response.nullifier)))
       if (keys.size !== 1 || keys.has(null)) {
-        return { error: 'bad_proof' }
+        return refuse('bad_proof', 'credential nullifiers differ')
       }
     }
     // The signal binding, and the one place this adapter is deliberately looser

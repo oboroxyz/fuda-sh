@@ -492,6 +492,20 @@ describe('issuer ENS claim', () => {
       await expect(response.json()).resolves.toStrictEqual(refusal)
     })
 
+    it('answers a vendor outage page with a JSON-RPC error', async () => {
+      const error = vi.spyOn(console, 'error').mockReturnValue()
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => await Promise.resolve(new Response('<html>Bad Gateway</html>', { status: 502 }))),
+      )
+
+      const response = await send(configured(), sponsoredBody(REGISTRAR))
+      error.mockRestore()
+
+      expect(response.status).toBe(502)
+      await expect(response.json()).resolves.toMatchObject({ error: { message: 'paymaster unavailable' } })
+    })
+
     it('answers a refused call with the JSON-RPC error the wallet expects', async () => {
       const warn = vi.spyOn(console, 'warn').mockReturnValue()
       stubChain()

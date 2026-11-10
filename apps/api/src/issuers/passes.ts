@@ -1,4 +1,4 @@
-import { CARD_CATEGORIES } from '@fuda/sdk'
+import { CARD_CATEGORIES, ISSUER_PASS_STATUSES } from '@fuda/sdk'
 import type { IssuerPassesResponse, IssuerPassStatus, IssuerPassView } from '@fuda/sdk'
 import * as v from 'valibot'
 
@@ -12,15 +12,6 @@ export interface IssuerPassFilters {
   source: string | null
   status: IssuerPassStatus | null
 }
-
-const ISSUER_PASS_STATUSES = [
-  'active',
-  'revoked',
-  'expired',
-  'not_yet_valid',
-  'consumed',
-  'unknown',
-] as const satisfies readonly IssuerPassStatus[]
 
 const PassResultRow = v.object({
   cardCategory: v.nullable(v.picklist(CARD_CATEGORIES)),

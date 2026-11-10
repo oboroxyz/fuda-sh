@@ -61,7 +61,7 @@ trap restore_graph_inputs EXIT INT TERM
 node --input-type=module -e '
   import { writeFile } from "node:fs/promises";
   import path from "node:path";
-  import { prepareRightsSubgraph } from "./packages/subgraphs/rights/scripts/prepare.mjs";
+  import { prepareRightsSubgraph } from "./packages/subgraphs/rights/scripts/prepare.ts";
   const schemas = {
     entitlement: [{
       uid: "0x42ffdba952267e373cb33ecf9fdc190fb27b30140d0695dabb8383bbed86d616",

@@ -49,7 +49,6 @@ export default function Profile(): JSX.Element {
     )
   }, [ens])
 
-  const claiming = useRef(false)
   const onClaim = (): void => {
     const id = issuer?.id
     const claimOnce = async (): Promise<void> => {
@@ -83,8 +82,6 @@ export default function Profile(): JSX.Element {
         await claimOnce()
       } catch {
         // A rejected claim leaves the last emitted state on screen.
-      } finally {
-        claiming.current = false
       }
     }
     void run()

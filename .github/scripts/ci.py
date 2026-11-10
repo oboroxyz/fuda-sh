@@ -8,7 +8,6 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
 GRAPH = 'packages/subgraphs/rights'
-RUST = ['packages/substreams/erc5564', 'packages/substreams/erc5564-eas-pipeline']
 
 
 def git(root, *args):
@@ -33,7 +32,8 @@ def manifests(root, base=None):
 
 
 def documentation(path):
-    return path.endswith('.md') or path.startswith(('docs/', '.agents/', '.claude/'))
+    # `archive/` holds retired code that no lane builds or tests.
+    return path.endswith('.md') or path.startswith(('docs/', '.agents/', '.claude/', 'archive/'))
 
 
 def make_plan(root, base=None):
@@ -46,7 +46,7 @@ def make_plan(root, base=None):
     touched = {owner for owner in owners if any(path.startswith(owner + '/') for path in changed)}
     if any(path.startswith(GRAPH + '/tests/fixtures/') for path in changed):
         touched.add('apps/api')  # EAS codec tests consume shared wire payloads.
-    known = (*owners, GRAPH, *RUST)
+    known = (*owners, GRAPH)
     full = base is None or any(not any(path.startswith(owner + '/') for owner in known) for path in changed)
     # Both graphs matter when a package or dependency is removed in the PR.
     affected_names = {name for graph in [current, previous] for path, (name, _) in graph.items() if path in touched}
@@ -57,13 +57,9 @@ def make_plan(root, base=None):
             break
         affected_names = expanded
     packages = sorted(path for path, (name, _) in current.items() if full or name in affected_names)
-    rust = [path for path in RUST if full or any(file.startswith(path + '/') for file in changed)]
-    if RUST[0] in rust and RUST[1] not in rust:
-        rust.append(RUST[1])  # The pipeline compiles erc5564/proto/erc5564.proto.
     return {
         'full': full,
         'packages': packages,
-        'rust': rust,
         'subgraph': full or any(path.startswith(GRAPH + '/') or path == 'apps/api/targets.jsonc' for path in changed),
     }
 

@@ -63,10 +63,6 @@ export const localFromUnix = (seconds: number | null, includeSeconds = false): s
 // One instant as the published screen prints it: the same wall clock, no `T`.
 export const formatInstant = (seconds: number): string => localFromUnix(seconds).replace('T', ' ')
 
-// The designer collects the venue and its first card together, or one more
-// card for a venue that already exists. Only the submitted body differs.
-export type DesignerMode = 'card'
-
 export interface DesignerForm {
   // Whether a scan writes a public Attendance; sent for an on-chain card only.
   attendance: boolean
@@ -209,11 +205,6 @@ export const withSlug = (form: DesignerForm, slug: string): DesignerForm => ({
 // What the operator's typing means for a name, before the api is asked.
 export type FieldStatus = 'available' | 'checking' | 'format' | 'idle' | 'reserved' | 'taken' | 'unknown'
 
-export interface DesignerStatus {
-  handle: FieldStatus
-  slug: FieldStatus
-}
-
 const statusOf = (problem: 'empty' | 'format' | 'reserved' | null): FieldStatus => {
   if (problem === 'empty') {
     return 'idle'
@@ -321,20 +312,17 @@ export const formFromCard = (card: OperatorCardView): DesignerForm => ({
   windowEdited: true,
 })
 
-// The venue-and-first-card body. The api validates the same schema, so a
-// disabled submit and a 400 agree. `logoUploadId` is the upload staged moments
-// earlier by the submit; a venue is created already wearing its mark.
+// The api validates the same schema, so a disabled submit and a 400 agree.
 const blocks = (status: FieldStatus): boolean =>
   status === 'format' || status === 'reserved' || status === 'taken'
 
 export const canSubmit = (
-  mode: DesignerMode,
   form: DesignerForm,
-  status: DesignerStatus,
+  slugStatus: FieldStatus,
   busy: boolean,
   editing = false,
 ): boolean => {
-  if (busy || (!editing && blocks(status.slug))) {
+  if (busy || (!editing && blocks(slugStatus))) {
     return false
   }
   if (windowProblemOf(form) !== null) {
@@ -347,7 +335,6 @@ export const canSubmit = (
 export type CreateFailure =
   | 'input'
   | 'issuerLimit'
-  | 'logo'
   | 'network'
   | 'session'
   | 'slugInvalid'

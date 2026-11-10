@@ -6,7 +6,7 @@ import * as v from 'valibot'
 
 // The server half every fuda frontend shares: each frontend Worker is the
 // browser's only backend, holds the session in an HttpOnly cookie and calls
-// the api on the browser's behalf (docs/adr/0010-void-pages-and-frontend-workers.md).
+// the api on the browser's behalf (../../../../docs/architecture.md#frontend-workers).
 
 // Static-assets-only Workers cannot receive variables before their first
 // code deployment. Keep the hosted api usable without a binding; local dev

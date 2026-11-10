@@ -181,8 +181,10 @@ export const SensitivePasses = (props: { locale: Locale }): JSX.Element => {
     }
     busyRef.current = true
     setBusy(true)
-    const { startSecretOver } = await import('./sensitive.ts')
-    const cleared = await startSecretOver()
+    // A chunk that fails to load must not leave the section busy for good.
+    const cleared = await import('./sensitive.ts')
+      .then(async ({ startSecretOver }) => await startSecretOver())
+      .catch(() => false)
     if (!mounted.current) {
       return
     }

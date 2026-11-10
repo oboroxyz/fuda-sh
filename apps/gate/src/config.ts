@@ -1,5 +1,5 @@
 // The scanner reaches the api only through its own Worker, which forwards
-// `/api/*` (docs/adr/0010-void-pages-and-frontend-workers.md).
+// `/api/*` (../../../docs/architecture.md#frontend-workers).
 export const API_BASE_URL = '/api'
 
 // `?camera=off` runs the gate as a reader-only station: no camera, no paste box,

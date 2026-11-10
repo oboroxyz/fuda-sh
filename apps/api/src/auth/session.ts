@@ -149,7 +149,7 @@ export const deleteSession = async (db: Db, tokenHash: string): Promise<void> =>
 // with the issuer and card inserts instead of paying a second round trip. Only
 // a session with no issuer yet is bound: a token never changes the issuer it
 // acts for, so another tab holding it can never write to a different one
-// (docs/adr/0011-several-issuers-per-account.md).
+// (../../../../docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route).
 export const attachIssuer = (db: Db, tokenHash: string, issuerId: string) =>
   db
     .update(sessions)

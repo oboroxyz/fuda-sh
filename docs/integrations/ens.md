@@ -37,7 +37,7 @@ flowchart LR
 
 **A claimed venue's address comes from the registry, a member's from the signed gateway, and the gate is on neither path.**
 
-Deeper background: [naming spec](../specs/ens-naming.md) · [why one shared hybrid resolver (ADR 0005)](../adr/0005-hybrid-ensv2-resolver.md) · [why fuda keeps the registry root (ADR 0007)](../adr/0007-root-custody-of-the-issuer-registry.md)
+Deeper background: [naming spec](../specs/ens-naming.md) · [why one shared hybrid resolver](../specs/ens-naming.md#hybrid-resolution) · [why fuda keeps the registry root](../specs/ens-naming.md#root-role-custody)
 
 ## The two halves of the tree
 
@@ -106,7 +106,7 @@ The nonce is consumed before the registry call, so a revert rolls everything bac
 
 - The registrar holds only **`REGISTRAR | RENEW`** on the User Registry: claim power carries **no** revocation power.
 - Claimed entries get child role bitmap **`0`**: the venue cannot transfer the name or repoint its resolver.
-- **No principal holds `UNREGISTER`.** But said plainly: **a venue name is not censorship-resistant against fuda.** The parent-owner key holds the admin bit and could grant `UNREGISTER` to itself. The root is kept, not renounced, and [ADR 0007](../adr/0007-root-custody-of-the-issuer-registry.md) records why.
+- **No principal holds `UNREGISTER`.** But said plainly: **a venue name is not censorship-resistant against fuda.** The parent-owner key holds the admin bit and could grant `UNREGISTER` to itself. The root is kept, not renounced, and [ENS root custody](../specs/ens-naming.md#root-role-custody) records why.
 - A member name goes dark on revoke; a claimed venue name does not. Tying an onchain unregister to revocation would hand revocation power to a live principal, which is what the role split prevents.
 
 ### 3. The gateway and the mirror

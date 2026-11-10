@@ -18,7 +18,7 @@ export interface LogoFieldProps {
 }
 
 export const LogoField = (props: LogoFieldProps): JSX.Element => {
-  const previewUrl = (): string | null | undefined => props.state.pick?.previewUrl ?? props.savedUrl
+  const previewUrl: string | null | undefined = props.state.pick?.previewUrl ?? props.savedUrl
   return (
     <div class="flex min-w-0 flex-col gap-2">
       <label for={props.id}>{props.label}</label>
@@ -44,12 +44,12 @@ export const LogoField = (props: LogoFieldProps): JSX.Element => {
           {props.copy.rejections[props.state.rejection]}
         </p>
       )}
-      {previewUrl() === null || previewUrl() === undefined ? null : (
+      {previewUrl === null || previewUrl === undefined ? null : (
         <div class="mt-2 flex flex-col items-start gap-2">
           <img
             alt={props.copy.previewAlt}
             class="dash-logo-preview"
-            src={assetUrlForDisplay(previewUrl() ?? '')}
+            src={assetUrlForDisplay(previewUrl ?? '')}
           />
           {props.onClear === null || props.state.pick === null ? null : (
             <button

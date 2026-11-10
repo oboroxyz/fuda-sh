@@ -1,6 +1,8 @@
 # Substreams packages
 
-fuda ships two Substreams packages under `packages/substreams`. They expose raw chain events for reuse and live push consumption. They are not part of the product read path: the member app reads on-chain status through the independently deployed rights subgraph, and stopping Substreams does not change issuance, on-chain status views, or gate verification. fuda no longer issues ERC-5564 announcements, so the announcement module has no producer in the product; the packages are kept as independent, reusable packages.
+> **Archived 2026-11-10.** Nothing in the product consumes these packages and CI no longer builds them. This page records their interfaces as they were shipped.
+
+fuda built two Substreams packages, now under `archive/substreams`. They expose raw chain events for reuse and live push consumption. They are not part of the product read path: the member app reads on-chain status through the independently deployed rights subgraph, and stopping Substreams does not change issuance, on-chain status views, or gate verification. fuda no longer issues ERC-5564 announcements, so the announcement module has no producer in the product; the packages are kept as independent, reusable packages.
 
 ## Package roles
 

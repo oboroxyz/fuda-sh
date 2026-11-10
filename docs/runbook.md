@@ -8,7 +8,7 @@ For local setup, start at [Local development](#12-local-development). API paths 
 
 - A Cloudflare account with the `fuda.sh` zone already added.
 - A funded Base Sepolia EOA — this becomes the signer. Fund it with a small amount of Base Sepolia ETH before step 2.
-- A Graph Studio account for the rights subgraph. A Graph Market token and two compatible Firehose endpoints are additionally required only for the Substreams verification in [`integrations/thegraph.md`](./integrations/thegraph.md).
+- A Graph Studio account for the rights subgraph.
 - `pnpm install --frozen-lockfile` from the repo root.
 
 ## 2. One-time chain setup
@@ -214,7 +214,7 @@ Without these steps an installed pass stays a snapshot and still works. [The spe
 
 ## 6. Build env for the frontends
 
-Each frontend's Worker calls `https://api.fuda.sh` by default, without requiring a Worker variable. An explicit `API_BASE_URL` in the dev or deploy shell is written as a Worker variable by `void.config.ts` and overrides that default ([ADR 0010](adr/0010-void-pages-and-frontend-workers.md)). The browser calls only its own Worker, so no frontend has a `VITE_API_BASE_URL`.
+Each frontend's Worker calls `https://api.fuda.sh` by default, without requiring a Worker variable. An explicit `API_BASE_URL` in the dev or deploy shell is written as a Worker variable by `void.config.ts` and overrides that default ([Frontend Workers](architecture.md#frontend-workers)). The browser calls only its own Worker, so no frontend has a `VITE_API_BASE_URL`.
 
 The remaining `VITE_*` values are baked into the bundle at build time, so they must be set in the shell of the deploy, which builds. Void refuses to build next to a `.env.production` or `.env.example`, and it ignores `.env` in builds, so there is no file to keep them in. A deploy without them bakes empty values in (the app then reports "rights discovery is not configured"). Values for the current hosted Sepolia deployment are:
 
@@ -267,9 +267,9 @@ VITE_GRAPH_RIGHTS_ENDPOINT=<PUBLIC_GRAPH_ENDPOINT> \
   pnpm --filter app run deploy
 ```
 
-Everything deploys with Void ([ADR 0009](adr/0009-void-and-solid.md)). No package depends on Wrangler directly. `vp preview` runs a built Worker locally in workerd. Resource creation examples use the separately installed Cloudflare `cf` CLI.
+Everything deploys with Void ([Void deployment](architecture.md#void-deployment)). No package depends on Wrangler directly. `vp preview` runs a built Worker locally in workerd. Resource creation examples use the separately installed Cloudflare `cf` CLI.
 
-The API uses Void server routing: add method exports under `apps/api/routes/`, backed by `src/handlers/`. All four target projects (`local`, `e2e`, `develop`, `production`) share that tree through `routes` links; keep their ordered middleware re-exports aligned. API request initialization and error handling live in `apps/api/src/middleware.ts`; `src/runtime.ts` supplies chain configuration. See [ADR 0012](adr/0012-void-api-routing.md).
+The API uses Void server routing: add method exports under `apps/api/routes/`, backed by `src/handlers/`. All four target projects (`local`, `e2e`, `develop`, `production`) share that tree through `routes` links; keep their ordered middleware re-exports aligned. API request initialization and error handling live in `apps/api/src/middleware.ts`; `src/runtime.ts` supplies chain configuration. See [API routing](architecture.md#api-routing).
 
 The api's `deploy` script runs `void deploy --platform cloudflare` in `apps/api/targets/develop`, the Void project for the live Sepolia Worker `fuda-api`. Its config comes from the `develop` block of `apps/api/targets.jsonc`, which declares `api.fuda.sh` as a custom domain. The shared target config explicitly sets `inference.build` to `vp build`, because these nested Void projects have no package manifest of their own from which to infer the workspace build command. The zone must already be on the account. The `fuda.sh/@*` redirect is a zone-level Single Redirect and is not managed by Void. `void deploy` also applies pending D1 migrations before it uploads the Worker, and saves a D1 restore point first, because each target's `db/migrations` link makes them visible to Void. `pnpm --filter api migrate:remote` applies them without a deploy. Either way, run it from an up-to-date checkout: "up to date" only means nothing in this checkout is pending.
 
@@ -279,11 +279,11 @@ The `migrate:*` scripts use `void db migrate` (with `--remote` for Cloudflare), 
 
 To check the generated Worker config without shipping, run `pnpm --filter api exec sh -c 'cd targets/develop && vp build'` and read `targets/develop/dist/ssr/wrangler.json`.
 
-The three frontends' `deploy` scripts run `void deploy --platform cloudflare`; their configs explicitly set `inference.build` to `vp build` so deployment uses the workspace toolchain. Void builds with `vp build` and deploys a Worker with the static assets ([ADR 0010](adr/0010-void-pages-and-frontend-workers.md)). Every Worker forwards the browser's `/api/*` calls to the api with the visitor's IP in `x-real-ip`, which the api's rate limits read as `CF-Connecting-IP` on a same-zone subrequest. The dashboard and the member app render their pages in it and keep their sessions in HttpOnly cookies; the gate stays a single-page app with only the forward. Each app's `void.config.ts` holds its Worker name (`fuda-gate`, `fuda-dash`, `fuda-app`) and its custom-domain route (`gate.fuda.sh`, `dash.fuda.sh`, `app.fuda.sh`). The build environment above is read by `vp build` inside `void deploy`.
+The three frontends' `deploy` scripts run `void deploy --platform cloudflare`; their configs explicitly set `inference.build` to `vp build` so deployment uses the workspace toolchain. Void builds with `vp build` and deploys a Worker with the static assets ([Frontend Workers](architecture.md#frontend-workers)). Every Worker forwards the browser's `/api/*` calls to the api with the visitor's IP in `x-real-ip`, which the api's rate limits read as `CF-Connecting-IP` on a same-zone subrequest. The dashboard and the member app render their pages in it and keep their sessions in HttpOnly cookies; the gate stays a single-page app with only the forward. Each app's `void.config.ts` holds its Worker name (`fuda-gate`, `fuda-dash`, `fuda-app`) and its custom-domain route (`gate.fuda.sh`, `dash.fuda.sh`, `app.fuda.sh`). The build environment above is read by `vp build` inside `void deploy`.
 
 `pnpm --filter <app> exec void info` checks a config offline. To run a frontend's built Worker before deploying it, build it (`pnpm --filter <app> build`), then from the app directory run `VOID_INSPECTOR_PORT=false vp preview --port <port>` against a local api. Set `API_BASE_URL=http://localhost:8787` in the build shell, because the Worker variable is written at build time. The preview keeps the request's own localhost host, so no custom-domain rewrite applies.
 
-The three frontends use Preact with the exact dependency combination in [ADR 0015](adr/0015-preact-frontends.md). After the migration deploy, check real camera permission and teardown, hardware-reader input, passkey cancellation and PRF recovery across real devices, wallet sign-in and Wallet saves, Turnstile, and live-chain entry and ENS claims. Local Chromium fixtures do not verify Safari/WebKit, Firefox, platform authenticators or external services.
+The three frontends use Preact with the exact dependency combination in [Preact frontends](architecture.md#preact-frontends). After the migration deploy, check real camera permission and teardown, hardware-reader input, passkey cancellation and PRF recovery across real devices, wallet sign-in and Wallet saves, Turnstile, and live-chain entry and ENS claims. Local Chromium fixtures do not verify Safari/WebKit, Firefox, platform authenticators or external services.
 
 Every deploy script passes `--platform cloudflare`. Void otherwise reads the destination from the Git-ignored `.void/project.json`, and a checkout without that file offers to link the existing Worker. That handoff flow is only for adopting a Worker Void does not manage yet. All live Workers are already on Void, so decline it if it appears. A new Worker needs its first deploy to run interactively, from one machine. Void signs in to Cloudflare and writes the project's `void.lock.json` (`apps/api/targets/<target>/void.lock.json` for the api); commit that file before deploying from any other machine. The formatter excludes `apps/*/void.lock.json` and `apps/api/targets/develop/void.lock.json` so Void's generated JSON layout can be committed unchanged after deploys. `.void/`, `.cloudflare/`, `.void-wrangler.jsonc` and `dist/` are local state and are Git-ignored. Things to watch for:
 
@@ -382,10 +382,10 @@ pnpm test       # workspace tests and API script tests; independent packages are
 After the initial setup above, start dashboard development from the repository root:
 
 ```sh
-pnpm dev:dash-api
+pnpm dev:dash+api
 ```
 
-Run `pnpm migrate:local` after pulling new database migrations. `dev:dash-api` starts the dashboard at http://localhost:5175 and its local API at http://localhost:8787 together. The example simulates chain state and writes. EOA sign-in works offline; Base Account passkey sign-in uses read-only Base Sepolia RPC verification and requires network access. FakeChain does not simulate the ENS claim, and nothing else in the dashboard needs it. Real acquisition requires the claim bindings documented above; for UI-only work on the claimed state, use the [local fixture](#ui-walkthrough-with-fakechain).
+Run `pnpm migrate:local` after pulling new database migrations. `dev:dash+api` starts the dashboard at http://localhost:5175 and its local API at http://localhost:8787 together. The example simulates chain state and writes. EOA sign-in works offline; Base Account passkey sign-in uses read-only Base Sepolia RPC verification and requires network access. FakeChain does not simulate the ENS claim, and nothing else in the dashboard needs it. Real acquisition requires the claim bindings documented above; for UI-only work on the claimed state, use the [local fixture](#ui-walkthrough-with-fakechain).
 
 `pnpm dev` starts the whole local stack on the fixed ports below. A single surface starts with `pnpm dev:api`, `pnpm dev:app`, `pnpm dev:gate`, or `pnpm dev:dash`. Every frontend calls the api for its live data, so `pnpm dev:app+api`, `pnpm dev:gate+api`, and `pnpm dev:dash+api` start one frontend together with the api from a single terminal; a bare `dev:app`, `dev:gate`, or `dev:dash` needs `pnpm dev:api` running elsewhere.
 
@@ -446,7 +446,7 @@ pnpm --filter api probe:venue-wallet
 
 It uses the public Base Sepolia RPC by default; `CHAIN_ID` selects the chain and an exported `BASE_RPC_URL` selects its provider. It does not load any local env file or require any private-key setting. The RPC chain ID must match the selected chain, `84532` by default or `8453` when configured for Base. The probe generates two throwaway EOA owners and an undeployed Coinbase Smart Wallet v1 using fuda's current factory, then checks both owners' dashboard-challenge signatures through the API's actual chain verifier. It also rejects a changed challenge, an unregistered owner's wallet proof, and a raw personal signature. No transaction is submitted, no account is funded, and no D1 state is changed. ERC-6492 verification simulates deployment only inside `eth_call`; the probe checks that the wallet remains undeployed afterward.
 
-Success prints the public wallet/factory/owner addresses and six successful checks, and exits zero. A failed assertion or unavailable RPC exits nonzero. The probe allows only `eth_chainId`, `eth_call`, and `eth_getCode`, and records RPC failures even if the signature verifier would fold one into `false`. Any rejected RPC request, including an EVM revert, makes the run inconclusive and nonzero: these negative fixtures must produce completed validation responses. RPC URLs, keys and signatures are not printed. This verifies initial multiple-owner signing; it does not test adding owners to an existing wallet, Base Account popup discovery, passkey or nested-wallet owners, API sessions, or owner removal. See [ADR 0008](adr/0008-shared-issuer-wallet.md) for the future co-owner login and session-revocation requirements. The dashboard still has no owner-management UI.
+Success prints the public wallet/factory/owner addresses and six successful checks, and exits zero. A failed assertion or unavailable RPC exits nonzero. The probe allows only `eth_chainId`, `eth_call`, and `eth_getCode`, and records RPC failures even if the signature verifier would fold one into `false`. Any rejected RPC request, including an EVM revert, makes the run inconclusive and nonzero: these negative fixtures must produce completed validation responses. RPC URLs, keys and signatures are not printed. This verifies initial multiple-owner signing; it does not test adding owners to an existing wallet, Base Account popup discovery, passkey or nested-wallet owners, API sessions, or owner removal. See [Shared issuer wallet](specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route) for the future co-owner login and session-revocation requirements. The dashboard still has no owner-management UI.
 
 ### UI walkthrough with FakeChain
 
@@ -455,13 +455,13 @@ For Card creation, issuance and reception UI work, keep `USE_FAKE_CHAIN=1` with 
 Only the claimed look of `/profile` needs a fixture. With `ENS_PARENT_NAME=fuda.eth` in `apps/api/targets/local/.env`, mark a registered local venue (`fuda-coffee` here) as claimed in the local D1 mirror, then reload Dash. `d1:local` needs a prior `pnpm migrate:local`, which builds the config it reads. The insert never overwrites an existing row:
 
 ```sh
-pnpm --filter api d1:local --command "INSERT INTO ens_names (issuer_handle, name, kind, owner_address, target_address, status, created_at, updated_at) SELECT handle, handle || '.fuda.eth', 'issuer', operator_address, operator_address, 'claimed', unixepoch(), unixepoch() FROM issuers WHERE handle = 'fuda-coffee' ON CONFLICT(name) DO NOTHING"
+pnpm --filter api d1:local "INSERT INTO ens_names (issuer_handle, name, kind, owner_address, target_address, status, created_at, updated_at) SELECT handle, handle || '.fuda.eth', 'issuer', operator_address, operator_address, 'claimed', unixepoch(), unixepoch() FROM issuers WHERE handle = 'fuda-coffee' ON CONFLICT(name) DO NOTHING"
 ```
 
 To undo it, delete only that synthetic row:
 
 ```sh
-pnpm --filter api d1:local --command "DELETE FROM ens_names WHERE name = 'fuda-coffee.fuda.eth' AND kind = 'issuer' AND claim_tx_hash IS NULL AND voucher_issued_at IS NULL AND expiry IS NULL"
+pnpm --filter api d1:local "DELETE FROM ens_names WHERE name = 'fuda-coffee.fuda.eth' AND kind = 'issuer' AND claim_tx_hash IS NULL AND voucher_issued_at IS NULL AND expiry IS NULL"
 ```
 
 This is local display state only. It does not exercise wallet submission, sponsorship, ENS ownership or receipt verification; use the real testnets for those.
@@ -521,7 +521,7 @@ Five routes use the fixed hourly D1 counter and require `CF-Connecting-IP`:
 
 The counter is keyed by IP and hour, not route: requests across these routes share a count, with each route applying its own threshold. Rejected requests also increment it. The gate routes (`/verify`, `/challenge`, `/verify-signed`) and the admin routes (`/issue`, `/revoke`, `/members`) are never budgeted.
 
-## Passkeys
+## 14. Passkeys
 
 `WEBAUTHN_RP_ID` and `WEBAUTHN_ORIGINS` in each api target name the domain passkeys belong to and the origins allowed to use them, comma-separated. Members and operators share them: `https://app.fuda.sh,https://dash.fuda.sh` when deployed, `http://localhost:5173,http://localhost:5175` locally. A dashboard whose origin is missing from the list answers `401 bad_passkey` to every ceremony. **A passkey cannot move to another domain**, so changing `WEBAUTHN_RP_ID` strands every passkey. At the mainnet cutover, `develop` moves to `*.dev.fuda.sh`: set its origins to `https://app.dev.fuda.sh,https://dash.dev.fuda.sh` and leave its RP ID as `fuda.sh`, or accept that develop members and operators start again.
 
@@ -529,11 +529,11 @@ To drive sign-in locally without a device, use Chromium's virtual authenticator 
 
 A cold dashboard render can lose its shared context if Vite discovers a dependency and reloads the Worker during that render. Keep dependencies reached through workspace packages in `optimizeDeps.include` using package roots, for example `@fuda/libs > @simplewebauthn/browser`. A subpath such as `@fuda/libs/auth` does not resolve as the parent package here. Include `jsqr` through `@fuda/ui` as well. To check a change, clear the dashboard's `node_modules/.vite` cache, restart, and request `/profile` directly with an operator cookie before navigating there. Check the terminal for unresolved prebundle entries or optimization during that request.
 
-**Sensitive use.** Enrollment outcomes are only counts, in `member_secret_outcomes`. To see how many members a passkey provider without PRF is stopping: `void db execute "SELECT outcome, total FROM member_secret_outcomes"`, with `--remote` from the target's directory. Many `no_prf` is the signal for the fallback in ADR 0014, decision 4. A member who has lost every passkey holding a copy cannot be helped from the database, because it holds only ciphertext. The Issuer revokes the pass and the member claims a new one. Start over requires a fresh assertion from an existing account passkey. It clears recovery data, not old passes; another device with the old keys can still enter until revocation. With no account passkey left, the member creates a new account. Recovery writes require the member-secret-derived write token, whose hash is enrolled with the first copy. Never replace ciphertext or reset recovery on the strength of a session alone. Migration `0026_sensitive_use.sql` includes this hash column and the new challenge purposes, so apply it with the API release before the app. Check both language warnings, credential-free claim/challenge/presentation requests, passkey-confirmed reset, and two failed concurrent vault writes recovering both entries. The existing self-serve IP budget also applies to Sensitive claims. Sensitive claims require the same Turnstile check as Standard and Identified claims when TURNSTILE_SECRET_KEY is set. Set the API secret and frontend site key together. Claims continue to omit account credentials.
+**Sensitive use.** Enrollment outcomes are only counts, in `member_secret_outcomes`. To see how many members a passkey provider without PRF is stopping: `void db execute "SELECT outcome, total FROM member_secret_outcomes"`, with `--remote` from the target's directory. Many `no_prf` is the signal for the fallback in [Identity and addresses](specs/pass-types-and-flows.md#sensitive-use). A member who has lost every passkey holding a copy cannot be helped from the database, because it holds only ciphertext. The Issuer revokes the pass and the member claims a new one. Start over requires a fresh assertion from an existing account passkey. It clears recovery data, not old passes; another device with the old keys can still enter until revocation. With no account passkey left, the member creates a new account. Recovery writes require the member-secret-derived write token, whose hash is enrolled with the first copy. Never replace ciphertext or reset recovery on the strength of a session alone. Migration `0026_sensitive_use.sql` includes this hash column and the new challenge purposes, so apply it with the API release before the app. Check both language warnings, credential-free claim/challenge/presentation requests, passkey-confirmed reset, and two failed concurrent vault writes recovering both entries. The existing self-serve IP budget also applies to Sensitive claims. Sensitive claims require the same Turnstile check as Standard and Identified claims when TURNSTILE_SECRET_KEY is set. Set the API secret and frontend site key together. Claims continue to omit account credentials.
 
 Migration `0026_sensitive_use.sql` moves `cards.identity` to a new column to widen its CHECK, and keeps each Card's value.
 
-## Offchain jobs
+## 15. Offchain jobs
 
 Three jobs in `apps/api/crons/` run on every api target:
 
@@ -583,7 +583,7 @@ PRAGMA foreign_key_check;
 
 To run a job locally, start the api and use the `curl` command with the `x-void-dev-trigger` token that Void prints, setting `cron` to the job's expression. Local schedules never fire on their own.
 
-## Mainnet configuration supplied by the owner
+## 16. Mainnet configuration supplied by the owner
 
 All checked-in targets currently select Base Sepolia because `CHAIN_ID` is absent, including the target named `production`. A target name does not select its chain. No mainnet resource is created by the code or these instructions.
 
@@ -592,7 +592,7 @@ Before a mainnet deployment, supply and verify all of the following:
 - Set API `CHAIN_ID=8453` and app and dashboard build `VITE_CHAIN_ID=8453`. Use `84532` or leave them absent for Sepolia. Set each frontend Worker's `API_BASE_URL` to the same environment. An invalid value, including an empty string, fails instead of defaulting.
 - Supply a new D1 database name and id, bind it as `DB`, and apply every migration. Supply a new R2 bucket name and bind it as `MEDIA_BUCKET`. Keep Sepolia resources separate.
 - Provision the secrets in section 3 for the new Worker. `SIGNER_PRIVATE_KEY` must name the funded mainnet hot issuer, and `ADMIN_TOKEN` must protect admin routes. If supplied, `BASE_RPC_URL` must answer chain id `8453`. Its fallback is `https://mainnet.base.org`; Sepolia uses `https://sepolia.base.org`. Wallet platform credentials are required only for the enabled platforms. Leave ENS secrets unset until its mainnet plan exists.
-- Confirm `EAS_ADDRESS=0x4200000000000000000000000000000000000021` and `SCHEMA_REGISTRY_ADDRESS=0x4200000000000000000000000000000000000020` against [EAS deployments](https://github.com/ethereum-attestation-service/eas-contracts#deployments). Read EAS `version()` and set `EAS_VERSION` to that exact value before signing. These addresses are the same on both supported chains. The current mainnet documentation lists version `1.0.1`; the checked-in Sepolia targets use `1.4.1-beta.3`.
+- Confirm `EAS_ADDRESS=0x4200000000000000000000000000000000000021` against [EAS deployments](https://github.com/ethereum-attestation-service/eas-contracts#deployments); the SchemaRegistry address `0x4200000000000000000000000000000000000020` comes from `@fuda/chains`, not from a `var`. Read EAS `version()` and set `EAS_VERSION` to that exact value before signing. These addresses are the same on both supported chains. The current mainnet documentation lists version `1.0.1`; the checked-in Sepolia targets use `1.4.1-beta.3`.
 - Register the current schemas on mainnet using `CHAIN_ID=8453` with `register-schemas`, then supply `EAS_SCHEMAS`. Offchain passes derive their schema UID locally and need no registration for signing.
 - Supply the root Safe address as `ISSUER_ADDRESS` and a live root `IssuerDelegation` UID as `DELEGATION_UID`, attested by that Safe and naming the hot issuer. The `attest-root-delegation` script selects the configured chain but only creates an EOA self-delegation. It does not create or operate the required Safe root.
 - Verify `FACTORY_ADDRESS` on mainnet. Supply a mainnet rights subgraph and build both apps with its `VITE_GRAPH_RIGHTS_ENDPOINT`. The checked-in subgraph manifests, the API ENS client, and `ENS_HACKATHON_CHAIN` still target testnets and require a separate mainnet plan.
@@ -602,7 +602,7 @@ The API does not expose its chain in `/health`, so there is no automatic browser
 
 The owner must verify RPC chain ids, deployed bytecode and EAS version, Safe authority and hot-issuer funding, schema registration and delegation, wallet sign-in through both Base Account and an injected wallet, offchain issuance and rejection on the other chain, revocation, root timestamping, on-chain issuance and Attendance, and subgraph indexing. These are real mainnet checks and are not covered by the offline suite.
 
-## Mainnet cutover
+## 17. Mainnet cutover
 
 Today's `develop` target in `apps/api/targets.jsonc` is the Base Sepolia deployment that owns `api.fuda.sh` and its sibling hostnames. At release it keeps the Sepolia chain and becomes the internal **develop** environment (branch `develop`), while the `production` target takes mainnet and the apex hostnames.
 
@@ -616,7 +616,7 @@ Nothing is migrated. A Sepolia Entitlement is meaningless on mainnet, so product
 | Hostnames | `*.dev.fuda.sh` after the cutover | `*.fuda.sh` |
 | Chain id | `84532` | `8453` |
 
-EAS and the SchemaRegistry are OP-stack predeploys at the same addresses on both networks, so those two `vars` do not change. Their versions differ, though: `EAS_VERSION` is `1.4.1-beta.3` on Base Sepolia and `1.0.1` on Base mainnet, and offchain signatures commit to it. Read `version()` on the contract before deploying. The ERC-5564 Announcer is a separate deployment: confirm the mainnet address before reusing the Sepolia one rather than assuming the singleton is at the same place.
+EAS and the SchemaRegistry are OP-stack predeploys at the same addresses on both networks, so `EAS_ADDRESS` does not change. Their versions differ, though: `EAS_VERSION` is `1.4.1-beta.3` on Base Sepolia and `1.0.1` on Base mainnet, and offchain signatures commit to it. Read `version()` on the contract before deploying. The ERC-5564 Announcer is a separate deployment: confirm the mainnet address before reusing the Sepolia one rather than assuming the singleton is at the same place.
 
 The `production` target deliberately carries `routes: []`. Adding a custom domain there before the Sepolia deployment has moved off it would take a live hostname away from the running beta, so the order matters:
 
@@ -629,7 +629,7 @@ The `production` target deliberately carries `routes: []`. Adding a custom domai
 7. Set API `CHAIN_ID=8453` and rebuild both the member app and dashboard with `VITE_CHAIN_ID=8453`. Set each frontend Worker's `API_BASE_URL` to the matching API. Omitting either chain var selects Base Sepolia. Unknown values fail on first use. The browser wallet configuration and API clients need no source edit.
 8. Decide what ENS means on mainnet. The `production` target carries no `ENS_*` values and nothing here changes that: today's names live on a dedicated ENSv2 deployment on Ethereum Sepolia, which has no mainnet counterpart. Until one exists, a mainnet api leaves every ENS binding unset, every claim route answers `503`, and the dashboard hides the section — the same fail-closed behaviour as an unconfigured develop deployment. Moving the tree means registering a new parent and deploying the topology again against whatever the mainnet addresses turn out to be; nothing migrates, exactly as with the attestations.
 
-## Rolling back
+## 18. Rolling back
 
 Each surface is its own Worker, so a bad deploy is undone per surface with `void project rollback --platform cloudflare` from that frontend's directory (or `apps/api/targets/develop` for the api); it restores the previous deployment of that Worker and touches nothing else. Roll the api back first when a release changed both the api and a frontend, because a frontend bundle is built against an api contract and the older bundle is the one that matches the older api.
 
@@ -640,6 +640,10 @@ Three kinds of state do not roll back with the code, and each needs its own trea
 **Chain state is append-only.** Schemas and attestations cannot be deleted. A root delegation attested by mistake is revoked, not removed, and revocation is what the gate reads: an Entitlement under a revoked delegation stops admitting without anything being rewritten. Because `EAS_SCHEMAS` accepts a set of versions, a schema registered in error is retired by removing it from that set rather than by touching the chain.
 
 **R2 objects are immutable under their prefix.** Rolling the api back does not un-write a logo, and it does not need to: the issuer row names the prefix, so restoring the previous row restores the previous mark, and the version in the public URL keeps caches honest either way.
+
+## 19. Migration notes
+
+Each note records the deploy order one migration needed against a database that already held data. A database created from scratch applies every migration in order and needs none of them.
 
 ### Card description migration
 
@@ -663,7 +667,7 @@ Apply `0029_card_attendance.sql` before deploying the api. It adds `cards.attend
 
 ### Several issuers per account migration
 
-Apply `0018_issuers_per_account.sql` before deploying the api and dashboard that let one account own several issuers ([ADR 0011](./adr/0011-several-issuers-per-account.md)). It rebuilds `issuers` without the unique `operator_address`, copying every row and column through a side table inside the migration's transaction; card, stamp, reception, code and token rows keep their issuer ids. Take a D1 backup first (`cf d1 time-travel get-bookmark <database-id>` records the restore point), and confirm afterwards that `SELECT count(*) FROM issuers` is unchanged and `PRAGMA foreign_key_check` returns nothing. Older api code still runs against the rebuilt table, but it answers `issuer_exists` instead of creating a second issuer and its sign-in picks an arbitrary one of an address's issuers, so deploy the api right after the migration.
+Apply `0018_issuers_per_account.sql` before deploying the api and dashboard that let one account own several issuers ([Several issuers per account](./specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route)). It rebuilds `issuers` without the unique `operator_address`, copying every row and column through a side table inside the migration's transaction; card, stamp, reception, code and token rows keep their issuer ids. Take a D1 backup first (`cf d1 time-travel get-bookmark <database-id>` records the restore point), and confirm afterwards that `SELECT count(*) FROM issuers` is unchanged and `PRAGMA foreign_key_check` returns nothing. Older api code still runs against the rebuilt table, but it answers `issuer_exists` instead of creating a second issuer and its sign-in picks an arbitrary one of an address's issuers, so deploy the api right after the migration.
 
 ### Issuer Pass management migration
 
@@ -673,15 +677,15 @@ The migration adds nullable issuance-time `valid_from`, `valid_until`, and `usag
 
 The migration is additive. Older API code can still run, but any issuance it writes lacks these snapshots and will appear unconfirmed after upgrading again. Card edits preserve existing issuance snapshots. Smoke-check an owner Card GET/PUT, a foreign Card 404, the paginated Pass list, Membership Stamp saving, and Ticket Stamp rejection after deployment.
 
-## 14. Pull request checks and repository maintenance
+## 20. Pull request checks and repository maintenance
 
 `.github/workflows/ci.yml` runs on every pull request and supports manual full runs with `workflow_dispatch`. It never deploys or uses chain-write credentials. The fixed `CI` job reports the overall result, including when individual lanes have no affected packages. Requiring PRs and `CI` on `main` is deferred until after the hackathon; this workflow does not impose a Ruleset. A dependency-free `plan` job selects the lanes, then checks and tests run in parallel without waiting for each other.
 
 Formatting runs across the repository. Lint and type checking receive the affected workspace directories; type analysis may also read their imports. Tests run for changed packages and their transitive consumers, using dependency declarations from both the base and proposed trees so removals do not hide affected consumers. API checks include operational script tests, frontend checks include builds, and ENS contract checks include Solidity tests.
 
-Changes to root dependencies, lockfiles, common configuration, CI implementation, or unrecognized build inputs trigger all lanes. Markdown and files under documentation/agent-instruction directories do not select runtime tests. Subgraph changes and `apps/api/targets.jsonc` select manifest generation, codegen, build, and Matchstick tests. Shared Subgraph payload fixtures also select the API wire-compatibility tests. The two independent Substreams crates run Rust tests and WASM builds; changes to the ERC-5564 crate also select the pipeline that consumes its protobuf definition. Full checks also install the independent Subgraph dependencies, which its script type configuration requires. The Subgraph installation explicitly uses the same three-day release-age policy as the root workspace.
+Changes to root dependencies, lockfiles, common configuration, CI implementation, or unrecognized build inputs trigger all lanes. Markdown and files under documentation, agent-instruction and `archive/` directories do not select runtime tests. Subgraph changes and `apps/api/targets.jsonc` select manifest generation, codegen, build, and Matchstick tests. Shared Subgraph payload fixtures also select the API wire-compatibility tests. Full checks also install the independent Subgraph dependencies, which its script type configuration requires. The Subgraph installation explicitly uses the same three-day release-age policy as the root workspace.
 
-On pull requests, the `fallow` job runs `fallow audit` against the base commit and fails only on findings the pull request introduces, so existing findings do not block it. `.fallowrc.json` lists Void's file-routed entry points, which Fallow does not detect, and leaves out the independently built Subgraph and Substreams projects. Run `pnpm fallow:audit` to reproduce the job against `origin/main`, or `pnpm fallow` to see every existing finding.
+On pull requests, the `fallow` job runs `fallow audit` against the base commit and fails only on findings the pull request introduces, so existing findings do not block it. `.fallowrc.json` lists Void's file-routed entry points, which Fallow does not detect, and leaves out the independently built Subgraph project. Run `pnpm fallow:audit` to reproduce the job against `origin/main`, or `pnpm fallow` to see every existing finding.
 
 Reproduce selection and checks from the repository root. For a full or Subgraph check, first install its dependencies with `pnpm --ignore-workspace --dir packages/subgraphs/rights install --frozen-lockfile --config.minimumReleaseAge=4320`:
 
@@ -698,7 +702,7 @@ Action dependencies are locked in `.github/workflows/actions.lock`, which pins e
 
 The repository's `Require lockfile` Actions policy is active for `.github/workflows/*`, so a workflow without a lockfile entry does not run, including on a branch that predates the lockfile until it takes in `main`. The path condition leaves Dependabot's dynamic workflow out of the target. Manage the policy under **Settings → Actions → Policies**. The REST API can read it, but rejected `require_lockfile` when creating a policy. Set the enforcement status to **Disabled** to lift it during an incident.
 
-Dependabot checks GitHub Actions weekly, with a three-day cooldown and grouped updates. Its pull requests update the matching lockfile entries for `uses:` lines in onboarded workflows. A bump inside `.github/actions/setup/action.yml` may still need `gh actions-lock` rerun before the `lockfile` job passes. Dependabot also checks the root pnpm workspace weekly with two npm groups for minor and patch updates, one for development and one for production dependencies, separate pull requests for major updates, and the same three-day cooldown, matching `minimumReleaseAge: 4320`. [pnpm 11 support was announced on 2026-10-20](https://github.blog/changelog/2026-10-20-dependabot-now-supports-npm-12-pnpm-11-and-12-and-bun-1-4/). The independent Subgraph remains manual. The npm group excludes `vite-plus`, `@voidzero-dev/*`, `oxlint`, `oxfmt`, `vitest`, and `ultracite`, and `@types/node` major updates wait for a Node major upgrade. Cargo updates for the Substreams crates are also manual so they can be reviewed against The Graph compatibility requirements. Upgrade Vite+, its core alias, lint/format overrides, Vitest, and Ultracite together following the alignment comments in `pnpm-workspace.yaml`, then verify with `pnpm check` and `pnpm test`. Dependency update PRs remain subject to CI. The `Dependabot auto-merge` workflow enables auto-merge only when every update in a PR is a direct development dependency at a minor or patch version. GitHub then merges with a merge commit after the required `CI` check passes. Production dependencies, major updates and GitHub Actions updates wait for a person. A merge made by the workflow token does not start the `push` run of CI on `main`, so the PR's own CI run is the only check on that change. Dispatch CI on `main` when you need a fresh result. The `main` ruleset requires the `CI` check and allows only merge commits, and **Allow auto-merge** is on under **Settings → General**. Turn auto-merge off there to stop every pending automatic merge.
+Dependabot checks GitHub Actions weekly, with a three-day cooldown and grouped updates. Its pull requests update the matching lockfile entries for `uses:` lines in onboarded workflows. A bump inside `.github/actions/setup/action.yml` may still need `gh actions-lock` rerun before the `lockfile` job passes. Dependabot also checks the root pnpm workspace weekly with two npm groups for minor and patch updates, one for development and one for production dependencies, separate pull requests for major updates, and the same three-day cooldown, matching `minimumReleaseAge: 4320`. [pnpm 11 support was announced on 2026-10-20](https://github.blog/changelog/2026-10-20-dependabot-now-supports-npm-12-pnpm-11-and-12-and-bun-1-4/). The independent Subgraph remains manual. The npm group excludes `vite-plus`, `@voidzero-dev/*`, `oxlint`, `oxfmt`, `vitest`, and `ultracite`, and `@types/node` major updates wait for a Node major upgrade. Upgrade Vite+, its core alias, lint/format overrides, Vitest, and Ultracite together following the alignment comments in `pnpm-workspace.yaml`, then verify with `pnpm check` and `pnpm test`. Dependency update PRs remain subject to CI. The `Dependabot auto-merge` workflow enables auto-merge only when every update in a PR is a direct development dependency at a minor or patch version, because a runtime minor update can still change behavior. GitHub then merges with a merge commit after the required `CI` check passes. Production dependencies, major updates and GitHub Actions updates wait for a person. A merge made by the workflow token does not start the `push` run of CI on `main`, so the PR's own CI run is the only check on that change. Dispatch CI on `main` when you need a fresh result. The `main` ruleset requires the `CI` check and allows only merge commits, and **Allow auto-merge** is on under **Settings → General**. Turn auto-merge off there to stop every pending automatic merge.
 
 The `zizmor` job checks Actions configuration on every CI event. `.github/zizmor.yml` scopes exceptions to the setup action, whose dependencies `actions.lock` pins, and the intentional three-day Dependabot cooldown. Reproduce it with `uvx zizmor --offline --no-progress .github`.
 
@@ -706,7 +710,7 @@ The `dependency-review` job runs only on pull requests and blocks high or critic
 
 Enable **CodeQL default setup** and **Private vulnerability reporting** under **Settings → Code security**. CodeQL default setup manages its own analysis without a custom workflow. [SECURITY.md](../SECURITY.md) directs reporters to GitHub's private advisory form instead of public issues.
 
-No AI security audit runs from CI. When you run one by hand, keep its findings, logs, and artifacts out of this public repository. A person decides when to publish fixes. See [ADR 0016](adr/0016-security-automation.md).
+No AI security audit runs from CI. When you run one by hand, keep its findings, logs, and artifacts out of this public repository. A person decides when to publish fixes. Actions logs and artifacts in a public repository are readable by anyone, so audits run from the private staff repository and unfixed findings stay there.
 
 GitHub Secret scanning and push protection are enabled in the repository's **Settings → Code security**. Keep them enabled independently of CI; they protect supported secret patterns and do not replace the `.gitignore` rules for local key material.
 

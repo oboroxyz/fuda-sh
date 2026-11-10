@@ -4,6 +4,7 @@ import type { Hex } from 'viem'
 
 import { ChainError, NoSignerError, ZERO_UID } from '../chain/client.ts'
 import type { ChainClient } from '../chain/client.ts'
+import { bindChunks } from '../db/bind-chunks.ts'
 import type { Db } from '../db/client.ts'
 import { members, offchainAttestations, offchainRoots } from '../db/schema.ts'
 import { merkleRoot } from '../eas/merkle.ts'
@@ -93,9 +94,6 @@ const anchorRoot = async (db: Db, chain: ChainClient, root: Hex): Promise<void> 
     .where(eq(offchainRoots.root, root))
 }
 
-const chunks = <T>(items: readonly T[], size: number): T[][] =>
-  Array.from({ length: Math.ceil(items.length / size) }, (_, i) => items.slice(i * size, (i + 1) * size))
-
 // Written and tied to its passes in one batch before anything is sent, so a failed
 // send retries this same root rather than a different set of passes.
 const createRoot = async (db: Db, now: number): Promise<Hex | null> => {
@@ -110,7 +108,7 @@ const createRoot = async (db: Db, now: number): Promise<Hex | null> => {
     return null
   }
   const root = merkleRoot(uids)
-  const [firstChunk, ...restChunks] = chunks(uids, UIDS_PER_UPDATE).map((part) =>
+  const [firstChunk, ...restChunks] = bindChunks(uids, UIDS_PER_UPDATE).map((part) =>
     db
       .update(offchainAttestations)
       .set({ root })

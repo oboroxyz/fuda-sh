@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { prepareRightsSubgraph } from './prepare.mjs'
+import { prepareRightsSubgraph } from './prepare.ts'
 
 const ENTITLEMENT_V1 = `0x${'11'.repeat(32)}`
 const ENTITLEMENT_V2 = `0x${'22'.repeat(32)}`

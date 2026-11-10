@@ -77,7 +77,7 @@ const cardBrandingOf = async (
       // The public link, so a wallet pass leads back to the member page for this
       // card — where badging lives. A legacy Card with no slug keeps the bare
       // handle, which opens its sole claimable Card
-      // (docs/specs/pass-types-and-flows.md#member).
+      // (docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route).
       // It carries the uid so a new device opens this pass rather than offering a second
       // one. The uid is already in the pass's barcode, so this shows it to nobody new.
       manageUrl: restoreUrl(publicBaseUrl, found.handle, found.slug, uid),

@@ -20,8 +20,6 @@ import {
 import type {
   CreateFailure,
   DesignerForm,
-  DesignerMode,
-  DesignerStatus,
   ExpiryChoice,
   FieldStatus,
   ValidityMode,
@@ -30,8 +28,6 @@ import type {
 import { assetUrlForDisplay } from './config.ts'
 import type { DashCopy } from './copy.ts'
 import { FieldLabel } from './FieldLabel.tsx'
-import { browserLogoTools, EMPTY_LOGO, generateLogoSet, withLogoResult } from './logo.ts'
-import type { LogoSet, LogoState } from './logo.ts'
 import { isPlainClick } from './plain-click.ts'
 
 const identityOf = (raw: string): CardIdentity => CARD_IDENTITIES.find((row) => row === raw) ?? 'none'
@@ -44,12 +40,7 @@ export interface CardDesignerViewProps {
   failure: CreateFailure | null
   form: DesignerForm
   locationDenied: boolean
-  logo: LogoState
-  logoCopy: DashCopy['logo']
   savedLogoUrl: string | null
-  // 'card' adds one more card to a venue that already exists, so its fields
-  // are not asked for again.
-  mode: DesignerMode
   onCategory: (category: CardCategory) => void
   onIdentity: (identity: CardIdentity) => void
   onRecord: (record: CardRecord) => void
@@ -57,15 +48,14 @@ export interface CardDesignerViewProps {
   onEditProfile: () => void
   onField: <K extends keyof DesignerForm>(key: K, value: DesignerForm[K]) => void
   onLockScreen: (on: boolean) => void
-  onLogoClear: () => void
-  onLogoPick: (file: File) => void
   onSlug: (slug: string) => void
   onSubmit: () => void
   onTitle: (title: string) => void
   onValidityDays: (days: ExpiryChoice) => void
   onValidityMode: (mode: ValidityMode) => void
   onWindow: (field: WindowField, value: string) => void
-  status: DesignerStatus
+  // The card link's verdict; the venue's handle is settled before a card exists.
+  slugStatus: FieldStatus
 }
 
 const expiryLabel = (copy: DashCopy['designer'], days: number): string =>
@@ -100,13 +90,13 @@ const labelled = (id: string, label: string, control: JSX.Element): JSX.Element 
 // `Date`, so an empty field means the end is unbounded.
 const datetimeField = (
   id: string,
-  label: () => string,
-  value: () => string,
+  label: string,
+  value: string,
   onValue: (next: string) => void,
 ): JSX.Element =>
   labelled(
     id,
-    label(),
+    label,
     <input
       class="input w-full"
       id={id}
@@ -115,19 +105,19 @@ const datetimeField = (
       }}
       type="datetime-local"
       step="1"
-      value={value()}
+      value={value}
     />,
   )
 
 // The same two rules the schema checks, said in the operator's words; the
 // submit stays disabled while one of them holds.
 const windowAlert = (props: CardDesignerViewProps): JSX.Element => {
-  const problem = (): ReturnType<typeof windowProblemOf> => windowProblemOf(props.form)
+  const problem = windowProblemOf(props.form)
   return (
     <>
-      {problem() === null ? null : (
+      {problem === null ? null : (
         <p class="text-error text-sm" role="alert">
-          {props.copy.windowProblems[problem() ?? 'claimOrder']}
+          {props.copy.windowProblems[problem]}
         </p>
       )}
     </>
@@ -138,32 +128,21 @@ const claimSection = (props: CardDesignerViewProps): JSX.Element => (
   <fieldset class="fieldset border-base-300 rounded-box border p-4">
     <legend class="fieldset-legend px-1 font-semibold">{props.copy.claimLabel}</legend>
     <div class="grid gap-3 sm:grid-cols-2">
-      {datetimeField(
-        'claim-from',
-        () => props.copy.claimFromLabel,
-        () => props.form.claimFrom,
-        (next) => {
-          props.onWindow('claimFrom', next)
-        },
-      )}
-      {datetimeField(
-        'claim-until',
-        () => props.copy.claimUntilLabel,
-        () => props.form.claimUntil,
-        (next) => {
-          props.onWindow('claimUntil', next)
-        },
-      )}
+      {datetimeField('claim-from', props.copy.claimFromLabel, props.form.claimFrom, (next) => {
+        props.onWindow('claimFrom', next)
+      })}
+      {datetimeField('claim-until', props.copy.claimUntilLabel, props.form.claimUntil, (next) => {
+        props.onWindow('claimUntil', next)
+      })}
     </div>
     <p class="mt-2 text-sm opacity-70">{props.copy.claimHint}</p>
   </fieldset>
 )
 
 const validityDaysField = (props: CardDesignerViewProps): JSX.Element => {
-  const offList = (): number | null => {
-    const days = props.form.validityDays
-    return days !== null && !EXPIRY_DAY_CHOICES.some((choice) => choice === days) ? days : null
-  }
+  const current = props.form.validityDays
+  const offList =
+    current !== null && !EXPIRY_DAY_CHOICES.some((choice) => choice === current) ? current : null
   return (
     <div class="flex flex-col gap-1">
       <label for="validity-days">{props.copy.validityDaysLabel}</label>
@@ -175,8 +154,8 @@ const validityDaysField = (props: CardDesignerViewProps): JSX.Element => {
         }}
         value={props.form.validityDays === null ? '' : String(props.form.validityDays)}
       >
-        {offList() === null ? null : (
-          <option value={String(offList())}>{expiryLabel(props.copy, offList() ?? 0)}</option>
+        {offList === null ? null : (
+          <option value={String(offList)}>{expiryLabel(props.copy, offList)}</option>
         )}
         {EXPIRY_DAY_CHOICES.map((days) => (
           <option key={days} value={String(days)}>
@@ -213,29 +192,19 @@ const validitySection = (props: CardDesignerViewProps): JSX.Element => (
     {props.form.validityMode === 'days' ? validityDaysField(props) : null}
     {props.form.validityMode === 'fixed' ? (
       <div class="mt-3 grid gap-3 sm:grid-cols-2">
-        {datetimeField(
-          'valid-from',
-          () => props.copy.validFromLabel,
-          () => props.form.validFrom,
-          (next) => {
-            props.onWindow('validFrom', next)
-          },
-        )}
-        {datetimeField(
-          'valid-until',
-          () => props.copy.validUntilLabel,
-          () => props.form.validUntil,
-          (next) => {
-            props.onWindow('validUntil', next)
-          },
-        )}
+        {datetimeField('valid-from', props.copy.validFromLabel, props.form.validFrom, (next) => {
+          props.onWindow('validFrom', next)
+        })}
+        {datetimeField('valid-until', props.copy.validUntilLabel, props.form.validUntil, (next) => {
+          props.onWindow('validUntil', next)
+        })}
       </div>
     ) : null}
     <p class="mt-2 text-sm opacity-70">{props.copy.validityHint}</p>
   </fieldset>
 )
 
-const statusLabel = (labels: DashCopy['designer']['handleStatus'], status: FieldStatus): string | null =>
+const statusLabel = (labels: DashCopy['designer']['slugStatus'], status: FieldStatus): string | null =>
   status === 'idle' ? null : labels[status]
 
 // A crossed-out illustration with no encoded payload.
@@ -282,70 +251,70 @@ const preview = (props: CardDesignerViewProps): JSX.Element => (
 
 const textField = (
   id: string,
-  label: () => string,
-  value: () => string,
-  placeholder: () => string,
+  label: string,
+  value: string,
+  placeholder: string,
   onValue: (next: string) => void,
 ): JSX.Element =>
   labelled(
     id,
-    label(),
+    label,
     <input
       class="input w-full"
       id={id}
       onInput={(e) => {
         onValue(e.currentTarget.value)
       }}
-      placeholder={placeholder()}
+      placeholder={placeholder}
       type="text"
-      value={value()}
+      value={value}
     />,
   )
 
 // A name typed under a fixed prefix, with the rule's verdict under it.
 const prefixedField = (field: {
   id: string
-  label: () => string
-  prefix: () => string
-  value: () => string
-  placeholder: () => string
-  hint: () => { status: FieldStatus; text: string | null }
+  label: string
+  prefix: string
+  value: string
+  placeholder: string
+  hint: { status: FieldStatus; text: string | null }
   onValue: (next: string) => void
-  readOnly: () => boolean
+  readOnly: boolean
 }): JSX.Element => (
   <div class="flex flex-col gap-1">
-    <label for={field.id}>{field.label()}</label>
+    <label for={field.id}>{field.label}</label>
     <div class="flex items-center gap-2">
-      <span>{field.prefix()}</span>
+      <span>{field.prefix}</span>
       <input
         class="input min-w-0 flex-1"
         id={field.id}
         onInput={(e) => {
           field.onValue(e.currentTarget.value)
         }}
-        placeholder={field.placeholder()}
+        placeholder={field.placeholder}
         type="text"
-        readOnly={field.readOnly()}
-        value={field.value()}
+        readOnly={field.readOnly}
+        value={field.value}
       />
     </div>
-    {field.hint().text === null ? null : (
+    {field.hint.text === null ? null : (
       <span
         class={cn(
           'text-sm',
-          field.hint().status === 'available' || field.hint().status === 'checking'
+          field.hint.status === 'available' || field.hint.status === 'checking'
             ? 'text-moderate'
             : 'text-danger',
         )}
       >
-        {field.hint().text}
+        {field.hint.text}
       </span>
     )}
   </div>
 )
 
 export const CardDesignerView = (props: CardDesignerViewProps): JSX.Element => {
-  const editing = (): boolean => props.editing ?? false
+  const editing = props.editing ?? false
   return (
     <section class="flex max-w-2xl flex-col gap-6">
       <header class="dash-page-header">
@@ -388,31 +357,25 @@ export const CardDesignerView = (props: CardDesignerViewProps): JSX.Element => {
         }}
       >
         <fieldset disabled={props.busy} class="flex min-w-0 flex-col gap-4">
-          {textField(
-            'card-title',
-            () => props.copy.titleLabel,
-            () => props.form.title,
-            () => '',
-            (next) => {
-              props.onTitle(next)
-            },
-          )}
+          {textField('card-title', props.copy.titleLabel, props.form.title, '', (next) => {
+            props.onTitle(next)
+          })}
           {prefixedField({
-            hint: () => ({
-              status: props.status.slug,
-              text: editing() ? null : statusLabel(props.copy.slugStatus, props.status.slug),
-            }),
+            hint: {
+              status: props.slugStatus,
+              text: editing ? null : statusLabel(props.copy.slugStatus, props.slugStatus),
+            },
             id: 'card-slug',
-            label: () => props.copy.slugLabel,
+            label: props.copy.slugLabel,
             onValue: (next) => {
               props.onSlug(next)
             },
-            placeholder: () => props.copy.slugPlaceholder,
-            prefix: () => `${props.copy.handlePrefix}${props.form.handle}/`,
+            placeholder: props.copy.slugPlaceholder,
+            prefix: `${props.copy.handlePrefix}${props.form.handle}/`,
             readOnly: editing,
-            value: () => props.form.slug,
+            value: props.form.slug,
           })}
-          {editing() && props.readonlySlugHint !== undefined ? (
+          {editing && props.readonlySlugHint !== undefined ? (
             <p class="text-moderate text-sm">{props.readonlySlugHint}</p>
           ) : null}
 
@@ -435,7 +398,7 @@ export const CardDesignerView = (props: CardDesignerViewProps): JSX.Element => {
             <label for="record">{props.copy.recordLabel}</label>
             <select
               class="select w-full"
-              disabled={editing()}
+              disabled={editing}
               id="record"
               onInput={(e) => {
                 props.onRecord(e.currentTarget.value === 'onchain' ? 'onchain' : 'offchain')
@@ -470,7 +433,7 @@ export const CardDesignerView = (props: CardDesignerViewProps): JSX.Element => {
             <label for="identity">{props.copy.identityLabel}</label>
             <select
               class="select w-full"
-              disabled={editing() || props.form.record === 'onchain'}
+              disabled={editing || props.form.record === 'onchain'}
               id="identity"
               onInput={(e) => {
                 props.onIdentity(identityOf(e.currentTarget.value))
@@ -530,7 +493,7 @@ export const CardDesignerView = (props: CardDesignerViewProps): JSX.Element => {
 
           <button
             class="btn btn-primary self-start"
-            disabled={!canSubmit(props.mode, props.form, props.status, props.busy, editing())}
+            disabled={!canSubmit(props.form, props.slugStatus, props.busy, editing)}
             type="submit"
           >
             {props.busy ? props.copy.submitting : props.copy.submit}
@@ -550,14 +513,12 @@ export interface CardDesignerProps {
   copy: DashCopy['designer']
   failure: CreateFailure | null
   initialDraft?: DesignerForm | null
-  logoCopy: DashCopy['logo']
   // The venue this operator already runs, when there is one.
   issuer: IssuerView | null
-  onCheckHandle: NameCheck
   onCheckSlug: NameCheck
   onDraftChange?: (form: DesignerForm) => void
   onEditProfile: (form: DesignerForm) => void
-  onSubmit: (mode: DesignerMode, form: DesignerForm, logo: LogoSet | null) => void
+  onSubmit: (form: DesignerForm) => void
 }
 
 const GEOLOCATION_OPTIONS = { enableHighAccuracy: false, timeout: 8000 }
@@ -646,50 +607,11 @@ const useDesignerDraft = (
 }
 
 export const CardDesigner = (props: CardDesignerProps): JSX.Element => {
-  const mode: DesignerMode = 'card'
   const editing = props.editing ?? false
   const { draft, latestDraft, setForm } = useDesignerDraft(props.initialDraft, props.onDraftChange)
   const form = withIssuer(draft, props.issuer)
-  // The designer adds a card to an existing venue, whose handle is settled.
-  const handleStatus: FieldStatus = 'available'
   const [slugStatus, setSlugStatus] = useState<FieldStatus>('idle')
   const [locationDenied, setLocationDenied] = useState(false)
-  // The picked logo waits here until submit: uploading on pick would stage an
-  // upload that expires, or is never spent, every time the operator changes
-  // their mind.
-  const [logo, setLogo] = useState<LogoState>(EMPTY_LOGO)
-  const logoRevision = useRef(0)
-
-  // The preview is an object URL, so each one is released when it is replaced
-  // and when the designer goes away; a decode that finishes after either is
-  // dropped before it can create a URL nothing would release.
-  const previewUrl = logo.pick?.previewUrl ?? null
-  useEffect(
-    () => () => {
-      if (previewUrl !== null) {
-        URL.revokeObjectURL(previewUrl)
-      }
-    },
-    [previewUrl],
-  )
-  useEffect(
-    () => () => {
-      logoRevision.current += 1
-    },
-    [],
-  )
-
-  const onLogoPick = (file: File): void => {
-    logoRevision.current += 1
-    const revision = logoRevision.current
-    const run = async (): Promise<void> => {
-      const result = await generateLogoSet(file, browserLogoTools)
-      if (revision === logoRevision.current) {
-        setLogo(withLogoResult(result, (blob) => URL.createObjectURL(blob)))
-      }
-    }
-    void run()
-  }
 
   const onField = <K extends keyof DesignerForm>(key: K, value: DesignerForm[K]): void => {
     setForm((current) => ({ ...current, [key]: value }))
@@ -741,10 +663,7 @@ export const CardDesigner = (props: CardDesignerProps): JSX.Element => {
       failure={props.failure}
       form={form}
       locationDenied={locationDenied}
-      logo={logo}
-      logoCopy={props.logoCopy}
       savedLogoUrl={props.issuer?.logoUrl ?? null}
-      mode={mode}
       onField={onField}
       onAttendance={(attendance) => {
         setForm((current) => ({ ...current, attendance, attendanceEdited: true }))
@@ -767,16 +686,11 @@ export const CardDesigner = (props: CardDesignerProps): JSX.Element => {
         setForm((current) => withCategory(current, next))
       }}
       onLockScreen={onLockScreen}
-      onLogoClear={() => {
-        logoRevision.current += 1
-        setLogo(EMPTY_LOGO)
-      }}
-      onLogoPick={onLogoPick}
       onSlug={(next) => {
         setForm((current) => withSlug(current, next))
       }}
       onSubmit={() => {
-        props.onSubmit(mode, withIssuer(latestDraft.current, props.issuer), logo.pick?.variants ?? null)
+        props.onSubmit(withIssuer(latestDraft.current, props.issuer))
       }}
       onTitle={(next) => {
         setForm((current) => withTitle(current, next))
@@ -790,7 +704,7 @@ export const CardDesigner = (props: CardDesignerProps): JSX.Element => {
       onWindow={(field, next) => {
         setForm((current) => withWindow(current, field, next))
       }}
-      status={{ handle: handleStatus, slug: slugStatus }}
+      slugStatus={slugStatus}
     />
   )
 }

@@ -135,10 +135,12 @@ describe('venue registration and details', () => {
       expect(button('Create profile').disabled).toBe(false)
     })
     submitForm('Create profile')
-    expect(input.onCreate).toHaveBeenCalledExactlyOnceWith(
-      { brandColor: '#0073EB', handle: 'new-coffee', name: 'New Coffee', tagline: '' },
-      null,
-    )
+    expect(input.onCreate).toHaveBeenCalledExactlyOnceWith({
+      brandColor: '#0073EB',
+      handle: 'new-coffee',
+      name: 'New Coffee',
+      tagline: '',
+    })
   })
 
   it('shows the saved venue name and public link before editable name and tagline', () => {

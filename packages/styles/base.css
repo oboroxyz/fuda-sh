@@ -17,33 +17,9 @@
 @theme {
   --font-display: 'Quicksand', var(--font-sans);
 
-  --animate-wobble: wobble 1s both;
-
-  @keyframes wobble {
-    from,
-    to {
-      transform: translate3d(0, 0, 0);
-    }
-    15% {
-      transform: translate3d(-10%, 0, 0) rotate3d(0, 0, 1, -5deg);
-    }
-    30% {
-      transform: translate3d(7.5%, 0, 0) rotate3d(0, 0, 1, 3deg);
-    }
-    45% {
-      transform: translate3d(-5%, 0, 0) rotate3d(0, 0, 1, -3deg);
-    }
-    60% {
-      transform: translate3d(2.5%, 0, 0) rotate3d(0, 0, 1, 2deg);
-    }
-    75% {
-      transform: translate3d(-1.75%, 0, 0) rotate3d(0, 0, 1, -1deg);
-    }
-  }
-
   --animate-swing: swing 1s both;
 
-  /* Pendulum variant of wobble for the hanging tag mark: rotation only, pivoting at the
+  /* A pendulum for the hanging tag mark: rotation only, pivoting at the
      cord top (y=28 in the 260 viewBox ≈ 11%). transform-origin rides in every keyframe so
      the animation is self-contained — set on the element instead, it would interpolate
      from the default center origin on frames that omit it. */
@@ -80,10 +56,6 @@
   color-scheme: light;
   font-family: ui-sans-serif, system-ui, sans-serif;
   --fuda-font-mono: ui-monospace, monospace;
-  --fuda-space-1: 0.25rem;
-  --fuda-space-2: 0.5rem;
-  --fuda-space-3: 0.75rem;
-  --fuda-space-4: 1rem;
   --fuda-bg: var(--color-taupe-50);
   --fuda-surface: var(--color-white);
   --fuda-text: var(--color-neutral-900);
@@ -173,10 +145,6 @@
 
   .text-danger {
     @apply text-[var(--fuda-danger)];
-  }
-
-  .border-outline {
-    @apply border-neutral-900/50 dark:border-neutral-500/50;
   }
 
   .fuda-icon-button {

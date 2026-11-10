@@ -86,7 +86,7 @@ interface ClaimContext {
 }
 
 // What both claim routes need before they touch the chain. An ENS name is held by a
-// wallet (docs/adr/0008-shared-issuer-wallet.md), so a session that names an account
+// wallet (../../../../docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route), so a session that names an account
 // has nothing to claim with.
 const claimContext = async (c: Context<AppEnv>): Promise<ClaimContext | Response> => {
   const config = claimConfigFrom(c.env)
@@ -269,7 +269,12 @@ export const postV1EnsPaymaster = defineHandler(rateLimit({ budget: PAYMASTER_BU
   if (upstream === null) {
     return c.json(rpcError(id, -32_603, 'paymaster unavailable'), 502)
   }
-  const answer = v.parse(v.unknown(), await upstream.json())
+  // A vendor outage answers with an HTML error page; the wallet still needs JSON-RPC.
+  const answer: unknown = await upstream.json().catch(() => null)
+  if (answer === null) {
+    console.error('ens paymaster: upstream answered without JSON', { method, status: upstream.status })
+    return c.json(rpcError(id, -32_603, 'paymaster unavailable'), 502)
+  }
   // A JSON-RPC refusal rides on HTTP 200, so the body is checked as well as the
   // status. The vendor's reason is the only diagnostic there is: the wallet just
   // falls back to charging the user, so surface it where `wrangler tail` can see it.

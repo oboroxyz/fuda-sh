@@ -34,7 +34,7 @@ export const members = sqliteTable(
 )
 
 // An account: its passkeys are its only identity, for the person holding passes and
-// for the operator alike (docs/specs/pass-types-and-flows.md#passkey-ceremonies).
+// for the operator alike (docs/specs/pass-types-and-flows.md#member-sign-in).
 export const accounts = sqliteTable('accounts', {
   createdAt: integer('created_at').notNull(),
   id: text('id').primaryKey(),
@@ -43,7 +43,7 @@ export const accounts = sqliteTable('accounts', {
 })
 
 // One owner may hold several issuers; each keeps its own handle, cards and data
-// (docs/adr/0011-several-issuers-per-account.md). The owner is an account or an
+// (../../../../docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route). The owner is an account or an
 // address, exactly one of them, which the table's CHECK holds.
 export const issuers = sqliteTable(
   'issuers',

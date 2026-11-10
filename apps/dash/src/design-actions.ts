@@ -24,20 +24,6 @@ export interface LogoFailure {
   session: boolean
 }
 
-type StagedLogo = { ok: true; logoUploadId: string | null } | LogoFailure
-
-// A staged upload is spendable once and expires after 15 minutes, so the picked
-// blobs are uploaded on each attempt rather than an id being kept across them.
-const stageLogo = async (io: DesignIo, logo: LogoSet | null): Promise<StagedLogo> => {
-  if (logo === null) {
-    return { logoUploadId: null, ok: true }
-  }
-  const result = await io.uploadLogo(logo)
-  return result.ok
-    ? { logoUploadId: result.body.logoUploadId, ok: true }
-    : { ok: false, session: result.status === 401 }
-}
-
 // A venue that already exists binds a new mark with the commit route; the
 // create body carries the id only when the venue is being created.
 // The commit answers the updated issuer, whose `logoUrl` carries the new
@@ -68,21 +54,8 @@ const outcomeOf = <T>(result: Result<T>): { ok: true; body: T } | { ok: false; f
     ? { body: result.body, ok: true }
     : { failure: createFailureOf(result.status, result.network, result.error), ok: false }
 
-// The designer's submit. A picked logo is uploaded first, so a new venue is
-// created already wearing its mark and an existing one commits the upload
-// alongside the new card. A failed upload returns a failure and writes nothing,
-// which leaves the operator's form exactly as they left it.
-export const submitVenue = async (
-  io: DesignIo,
-  form: VenueForm,
-  logo: LogoSet | null,
-): Promise<VenueCreateOutcome> => {
-  const staged = await stageLogo(io, logo)
-  if (!staged.ok) {
-    return { failure: staged.session ? 'session' : 'logo', ok: false }
-  }
-  const { logoUploadId } = staged
-  const body = venueBodyFrom(form, logoUploadId)
+export const submitVenue = async (io: DesignIo, form: VenueForm): Promise<VenueCreateOutcome> => {
+  const body = venueBodyFrom(form)
   return body === null ? { failure: 'input', ok: false } : outcomeOf(await io.createIssuer(body))
 }
 

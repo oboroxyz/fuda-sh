@@ -5,7 +5,6 @@ import type { ThemeMode } from '@fuda/ui/theme'
 import type { JSX } from 'preact'
 import { useState } from 'preact/hooks'
 
-import type { MemberPassListIo } from '../member-pass-list.ts'
 import { MEMBER_COPY } from './copy.ts'
 import { PassBackupSection } from './PassBackupSection.tsx'
 import { PasskeySection } from './PasskeySection.tsx'
@@ -41,7 +40,6 @@ export const Settings = (props: {
   onLocaleChange: (locale: Locale) => void
   onThemeChange: (theme: ThemeMode) => void
   onSignOut: () => void
-  passIo?: MemberPassListIo
 }): JSX.Element => {
   const copy = (): (typeof MEMBER_COPY)[Locale] => pick(MEMBER_COPY, props.locale)
   const [lookupOpen, setLookupOpen] = useState(false)
@@ -119,13 +117,7 @@ export const Settings = (props: {
             <p class="mb-4 text-sm leading-relaxed text-[var(--fuda-muted)]">
               {copy().settings.lookupDescription}
             </p>
-            <RightsList
-              variant="lookup"
-              locale={props.locale}
-              io={props.passIo}
-              memory={[]}
-              queryUid={null}
-            />
+            <RightsList variant="lookup" locale={props.locale} memory={[]} queryUid={null} />
           </div>
         ) : null}
         <ConfirmAction

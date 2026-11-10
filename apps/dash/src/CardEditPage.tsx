@@ -152,16 +152,12 @@ const LoadedCardEditor = (props: EditorProps): JSX.Element => {
         failure={null}
         initialDraft={draft}
         issuer={props.issuer}
-        logoCopy={props.copy.logo}
-        onCheckHandle={available}
         onCheckSlug={available}
         onDraftChange={changed}
         onEditProfile={() => {
           props.onNavigate('/profile')
         }}
-        onSubmit={(_mode, form) => {
-          submit(form)
-        }}
+        onSubmit={submit}
       />
       {failed ? (
         <p role="alert" class="text-error">
