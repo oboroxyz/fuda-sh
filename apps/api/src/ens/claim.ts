@@ -203,6 +203,3 @@ export const claimedEvent = (
   }
   return null
 }
-
-export const confirmedClaim = (logs: readonly ReceiptLog[], expected: ClaimExpectation): boolean =>
-  claimedEvent(logs, expected) !== null

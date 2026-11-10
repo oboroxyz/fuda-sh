@@ -70,6 +70,23 @@ describe(passView, () => {
 })
 
 describe(PassPage, () => {
+  it('refreshes its status from the versioned verify route', async () => {
+    const view = passView(
+      {
+        branding: null,
+        holder: `0x${'11'.repeat(20)}`,
+        level: 'bearer',
+        logoPrefix: null,
+        revoked: false,
+        tier: 1,
+        uid: UID,
+      },
+      { decision: 'ADMIT', reason: 'OK' },
+    )
+    const page = String(await PassPage(view))
+    expect(page).toContain(`fetch('/v1/verify/${UID}')`)
+  })
+
   it('renders enabled stamp progress and refreshes it from the public summary endpoint', async () => {
     const view = passView(
       {

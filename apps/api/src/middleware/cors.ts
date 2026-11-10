@@ -5,7 +5,7 @@ import { isRegisteredOrigin } from '../connected-apps/store.ts'
 import type { AppEnv } from '../env.ts'
 
 // fuda's own frontends call the api from their Workers, never from a browser
-// (docs/adr/0010-void-pages-and-frontend-workers.md), so no route answers CORS
+// (../../../../docs/architecture.md#frontend-workers), so no route answers CORS
 // for them. Only the two kinds of caller below come from another site's page.
 
 // An ERC-7677 paymaster endpoint is fetched by the wallet — for Base Account that

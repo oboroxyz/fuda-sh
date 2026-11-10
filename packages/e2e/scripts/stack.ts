@@ -94,7 +94,7 @@ await waitFor(`${API_ORIGIN}/health`, Date.now() + 60_000)
 
 // The surface starts only once the api answers, so the runner's readiness probe
 // on the surface URL means the whole stack is up. Each surface's Worker reads
-// API_BASE_URL (docs/adr/0010-void-pages-and-frontend-workers.md); a second
+// API_BASE_URL (../../../docs/architecture.md#frontend-workers); a second
 // Void dev server would collide with the api's inspector port, so it has none.
 start(vp, ['dev', '--host', '127.0.0.1', '--port', String(port), '--strictPort'], surfaceDir, {
   API_BASE_URL: API_ORIGIN,

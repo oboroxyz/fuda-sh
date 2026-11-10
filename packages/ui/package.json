@@ -11,8 +11,6 @@
     "./vite-pages": "./vite-pages.ts",
     "./wallet-button": "./src/wallet-button.ts",
     "./wallet-view": "./src/WalletButton.tsx",
-    "./camera": "./src/camera.ts",
-    "./scanner": "./src/scanner.ts",
     "./short": "./src/short.ts",
     "./theme": "./src/theme.ts"
   },

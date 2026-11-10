@@ -69,11 +69,10 @@ export const IssueFormView = (props: IssueFormViewProps): JSX.Element => {
         props.onChange(patch(v))
       }
     }
-  const description = (): string =>
-    ({
-      bearer: props.copy.bearerDescription,
-      signed: props.copy.signedDescription,
-    })[props.form.level]
+  const description: string = {
+    bearer: props.copy.bearerDescription,
+    signed: props.copy.signedDescription,
+  }[props.form.level]
   return (
     <form
       class="card bg-base-200 flex max-w-xl flex-col gap-3 p-6"
@@ -100,7 +99,7 @@ export const IssueFormView = (props: IssueFormViewProps): JSX.Element => {
         <option value="signed">Signed</option>
       </select>
       <p id="issue-level-description" class="text-sm opacity-70">
-        {description()}
+        {description}
       </p>
       {props.form.level === 'bearer' ? (
         <>

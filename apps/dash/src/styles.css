@@ -178,10 +178,6 @@
   @apply text-[var(--fuda-text)] tabular-nums;
 }
 
-.dash-skeleton {
-  @apply inline-block h-10 w-16 rounded-md bg-[var(--fuda-border)] text-transparent;
-}
-
 .rights-table {
   @apply hidden rounded-[0.875rem] border border-[var(--fuda-border)] bg-[var(--fuda-surface)] lg:block;
 }

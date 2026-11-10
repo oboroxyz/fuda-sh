@@ -41,17 +41,12 @@ const designer = (overrides: Partial<CardDesignerViewProps> = {}): CardDesignerV
   failure: null,
   form: filled,
   locationDenied: false,
-  logo: EMPTY_LOGO,
-  logoCopy: DASH_COPY.en.logo,
-  mode: 'card',
   onAttendance: vi.fn<CardDesignerViewProps['onAttendance']>(),
   onCategory: vi.fn<CardDesignerViewProps['onCategory']>(),
   onEditProfile: vi.fn<CardDesignerViewProps['onEditProfile']>(),
   onField: vi.fn<CardDesignerViewProps['onField']>(),
   onIdentity: vi.fn<CardDesignerViewProps['onIdentity']>(),
   onLockScreen: vi.fn<CardDesignerViewProps['onLockScreen']>(),
-  onLogoClear: vi.fn<CardDesignerViewProps['onLogoClear']>(),
-  onLogoPick: vi.fn<CardDesignerViewProps['onLogoPick']>(),
   onRecord: vi.fn<CardDesignerViewProps['onRecord']>(),
   onSlug: vi.fn<CardDesignerViewProps['onSlug']>(),
   onSubmit: vi.fn<CardDesignerViewProps['onSubmit']>(),
@@ -60,7 +55,7 @@ const designer = (overrides: Partial<CardDesignerViewProps> = {}): CardDesignerV
   onValidityMode: vi.fn<CardDesignerViewProps['onValidityMode']>(),
   onWindow: vi.fn<CardDesignerViewProps['onWindow']>(),
   savedLogoUrl: null,
-  status: { handle: 'available', slug: 'available' },
+  slugStatus: 'available',
   ...overrides,
 })
 
@@ -78,8 +73,8 @@ const issuer: IssuerView = {
   tagline: 'Omotesando · Coffee shop',
 }
 
-const label = (slug: CardDesignerViewProps['status']['slug']): string =>
-  spacedText(showDesigner(designer({ status: { handle: 'available', slug } })))
+const label = (slugStatus: CardDesignerViewProps['slugStatus']): string =>
+  spacedText(showDesigner(designer({ slugStatus })))
 
 const showLive = (onDraftChange: (form: DesignerForm) => void, initialDraft = filled) => {
   const root = document.createElement('div')
@@ -90,8 +85,6 @@ const showLive = (onDraftChange: (form: DesignerForm) => void, initialDraft = fi
       failure={null}
       initialDraft={initialDraft}
       issuer={issuer}
-      logoCopy={DASH_COPY.en.logo}
-      onCheckHandle={async () => await Promise.resolve('available')}
       onCheckSlug={async () => await Promise.resolve('available')}
       onDraftChange={onDraftChange}
       onEditProfile={vi.fn<() => void>()}
@@ -124,8 +117,6 @@ describe(CardDesignerView, () => {
           failure={null}
           initialDraft={{ ...filled, title: 'Previous session draft' }}
           issuer={issuer}
-          logoCopy={DASH_COPY.en.logo}
-          onCheckHandle={async () => await Promise.resolve('available')}
           onCheckSlug={async () => await Promise.resolve('available')}
           onDraftChange={onDraftChange}
           onEditProfile={vi.fn<() => void>()}
@@ -196,8 +187,6 @@ describe(CardDesignerView, () => {
           copy={DASH_COPY.en.designer}
           failure={null}
           issuer={{ ...issuer, logoUrl }}
-          logoCopy={DASH_COPY.en.logo}
-          onCheckHandle={async () => await Promise.resolve('available')}
           onCheckSlug={async () => await Promise.resolve('available')}
           onEditProfile={vi.fn<() => void>()}
           onSubmit={vi.fn<() => void>()}
@@ -272,14 +261,6 @@ describe(CardDesignerView, () => {
     expect(host.querySelectorAll('[aria-pressed]')).toHaveLength(0)
   })
 
-  it('keeps handle status out of the card form', () => {
-    const reserved = showDesigner(designer({ status: { handle: 'reserved', slug: 'available' } }))
-    const idle = showDesigner(designer({ form: EMPTY_FORM, status: { handle: 'idle', slug: 'idle' } }))
-    expect(spacedText(reserved)).not.toContain('This name is reserved.')
-    expect(spacedText(idle)).not.toContain('This name is reserved.')
-    expect(spacedText(idle)).not.toContain('Available')
-  })
-
   it('shows the card link under the venue handle', () => {
     const host = showDesigner(designer({ form: { ...filled, slug: 'summer' } }))
     expect(spacedText(host)).toContain('Card link')
@@ -295,10 +276,7 @@ describe(CardDesignerView, () => {
   })
 
   it('never asks for venue fields', () => {
-    const venue = designer()
-    const card = designer({ mode: 'card' })
-    expect(inputWithId(venue, 'handle')).toBe(false)
-    expect(inputWithId(venue, 'venue-name')).toBe(false)
+    const card = designer()
     expect(inputWithId(card, 'handle')).toBe(false)
     expect(inputWithId(card, 'venue-name')).toBe(false)
     expect(inputWithId(card, 'card-slug')).toBe(true)
@@ -307,13 +285,12 @@ describe(CardDesignerView, () => {
   it('disables the submit until the form is complete and its names are free', () => {
     expect(submitOf(designer())).toBe(false)
     expect(submitOf(designer({ form: EMPTY_FORM }))).toBe(false)
-    expect(submitOf(designer({ status: { handle: 'taken', slug: 'available' } }))).toBe(false)
-    expect(submitOf(designer({ status: { handle: 'available', slug: 'taken' } }))).toBe(true)
+    expect(submitOf(designer({ slugStatus: 'taken' }))).toBe(true)
     expect(submitOf(designer({ busy: true }))).toBe(true)
   })
 
   it('adds a card to an existing venue without a handle of its own', () => {
-    const card = designer({ form: { ...EMPTY_FORM, handle: '' }, mode: 'card' })
+    const card = designer({ form: { ...EMPTY_FORM, handle: '' } })
     expect(submitOf(card)).toBe(false)
     expect(submitOf(designer({ ...card, form: { ...EMPTY_FORM, handle: '', slug: '' } }))).toBe(true)
   })
@@ -395,9 +372,5 @@ describe('the logo field', () => {
     expect(
       spacedText(showLogo(logoField({ onClear: null, state: { pick, rejection: null } }))),
     ).not.toContain('Remove')
-  })
-
-  it('says a failed upload left the card alone', () => {
-    expect(spacedText(showDesigner(designer({ failure: 'logo' })))).toContain('Could not upload the logo')
   })
 })

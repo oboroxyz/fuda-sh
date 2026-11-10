@@ -123,7 +123,7 @@ const issueOffchain = async (
   }
 }
 
-// One pass under a card (docs/specs/pass-types-and-flows.md#u1-standard-issuance-and-optional-activation).
+// One pass under a card (docs/specs/pass-types-and-flows.md#standard-issuance).
 // The card fixes tier, usage model and validity. Its caller decides who may ask, except on
 // a card bound to a key, whose pass can only be issued to the key that claimed it.
 export const issueForCard = async (

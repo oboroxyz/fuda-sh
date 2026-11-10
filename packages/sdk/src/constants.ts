@@ -115,7 +115,8 @@ export const ERROR_CODES = [
   'integrations_not_supported',
   'bad_handle',
   'handle_taken',
-  // No longer returned: an account may own several issuers (ADR 0011). Kept
+  // No longer returned: an account may own several issuers
+  // (../../../docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route). Kept
   // so a client built against an older api still knows the code.
   'issuer_exists',
   'issuer_limit',
@@ -149,3 +150,15 @@ export const ERROR_CODES = [
   'app_limit',
 ] as const
 export type ErrorCode = (typeof ERROR_CODES)[number]
+
+// Every status an Issuer's pass list can show or be filtered by. Each is derived
+// from the Issuer's local immutable issuance snapshot, revocation marker and
+// default slot. This is not a fresh chain verdict.
+export const ISSUER_PASS_STATUSES = [
+  'active',
+  'revoked',
+  'expired',
+  'not_yet_valid',
+  'consumed',
+  'unknown',
+] as const

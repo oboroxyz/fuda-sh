@@ -96,7 +96,7 @@ export const readBadgesByUid = async (db: Db, uids: readonly Hex[]): Promise<Map
 
 // A repeat verification is the normal case — a member taps the button twice —
 // so an existing row with the same subject answers success rather than an error.
-export const saveBadge = async (db: Db, input: SaveBadgeInput): Promise<SaveBadgeResult> => {
+export const saveBadge = async (db: Db, input: SaveBadgeInput, raced = false): Promise<SaveBadgeResult> => {
   const existing = await db
     .select()
     .from(badges)
@@ -144,11 +144,15 @@ export const saveBadge = async (db: Db, input: SaveBadgeInput): Promise<SaveBadg
     verifier: input.verifier,
   }
   // Two simultaneous requests both pass the reads above; the unique index is
-  // the authority and the loser re-resolves rather than throwing.
+  // the authority and the loser re-resolves rather than throwing. It does so
+  // once: an insert that still fails after the re-read is not that race.
   try {
     await db.insert(badges).values(row)
-  } catch {
-    return await saveBadge(db, input)
+  } catch (error) {
+    if (raced) {
+      throw error
+    }
+    return await saveBadge(db, input, true)
   }
   return { badge: buildBadgeView(row), ok: true }
 }

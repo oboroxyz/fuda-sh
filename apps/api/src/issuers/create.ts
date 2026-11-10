@@ -53,7 +53,7 @@ export const insertCard = async (
 
 // `bindSession` is true only for a session with no issuer yet: a session that
 // already acts for an issuer keeps it, and the caller mints a new session for
-// the new one (docs/adr/0011-several-issuers-per-account.md).
+// the new one (../../../../docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route).
 export const insertIssuer = async (
   db: Db,
   operator: OperatorSession,

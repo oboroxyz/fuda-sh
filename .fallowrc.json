@@ -15,8 +15,8 @@
     "packages/e2e/scripts/*.ts",
     "packages/e2e/tests/**/*.e2e.ts"
   ],
-  "ignorePatterns": ["packages/subgraphs/**", "packages/substreams/**"],
-  "ignoreDependencies": ["@fuda/styles", "daisyui", "esbuild"],
+  "ignorePatterns": ["packages/subgraphs/**"],
+  "ignoreDependencies": ["@fuda/styles", "esbuild"],
   "workspaces": {
     "patterns": ["apps/*", "packages/*"]
   }

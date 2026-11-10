@@ -36,31 +36,27 @@ export const VenueDetailsForm = (props: VenueDetailsFormProps): JSX.Element => {
     [],
   )
 
-  const saved = (): IssuerUpdateRequest => ({
+  const saved: IssuerUpdateRequest = {
     brandColor: props.issuer.brandColor,
     name: props.issuer.name,
     tagline: props.issuer.tagline,
-  })
-  const form = (): IssuerUpdateRequest => draft ?? saved()
-  const body = venueUpdateBodyFrom(form())
-  const changed = (): boolean => {
-    const current = body
-    return (
-      current !== null &&
-      (props.logo.pending ||
-        current.name !== props.issuer.name ||
-        current.tagline !== props.issuer.tagline ||
-        current.brandColor !== props.issuer.brandColor)
-    )
   }
+  const form: IssuerUpdateRequest = draft ?? saved
+  const body = venueUpdateBodyFrom(form)
+  const changed =
+    body !== null &&
+    (props.logo.pending ||
+      body.name !== props.issuer.name ||
+      body.tagline !== props.issuer.tagline ||
+      body.brandColor !== props.issuer.brandColor)
   const update = (key: keyof IssuerUpdateRequest, value: string): void => {
-    setDraft((current) => ({ ...(current ?? saved()), [key]: value }))
+    setDraft((current) => ({ ...(current ?? saved), [key]: value }))
     setState('idle')
   }
 
   const submit = (): void => {
     const current = body
-    if (current === null || !changed() || props.logo.busy || saving.current) {
+    if (current === null || !changed || props.logo.busy || saving.current) {
       return
     }
     saving.current = true
@@ -83,7 +79,7 @@ export const VenueDetailsForm = (props: VenueDetailsFormProps): JSX.Element => {
   return (
     <form
       class="card flex flex-col gap-5 px-6 py-8"
-      style={{ '--dash-logo-preview-background': form().brandColor }}
+      style={{ '--dash-logo-preview-background': form.brandColor }}
       onSubmit={(event) => {
         event.preventDefault()
         submit()
@@ -115,7 +111,7 @@ export const VenueDetailsForm = (props: VenueDetailsFormProps): JSX.Element => {
             }
           }}
           registering={false}
-          value={{ ...form(), handle: props.issuer.handle }}
+          value={{ ...form, handle: props.issuer.handle }}
         />
         <fieldset class="fieldset">
           <legend class="text-base font-normal">{props.copy.designer.colorLabel}</legend>
@@ -124,8 +120,8 @@ export const VenueDetailsForm = (props: VenueDetailsFormProps): JSX.Element => {
               <button
                 key={name}
                 aria-label={`${props.copy.designer.colorNames[name]} ${color}`}
-                aria-pressed={form().brandColor.toUpperCase() === color ? 'true' : 'false'}
-                class={cn('dash-swatch', form().brandColor.toUpperCase() === color && 'dash-swatch-selected')}
+                aria-pressed={form.brandColor.toUpperCase() === color ? 'true' : 'false'}
+                class={cn('dash-swatch', form.brandColor.toUpperCase() === color && 'dash-swatch-selected')}
                 style={{ background: color, color: brandTextColor(color) }}
                 type="button"
                 onClick={() => {
@@ -142,7 +138,7 @@ export const VenueDetailsForm = (props: VenueDetailsFormProps): JSX.Element => {
               aria-label={props.copy.designer.customColorLabel}
               class="h-11 w-16 cursor-pointer rounded-lg border border-[var(--fuda-border)] bg-white p-1"
               type="color"
-              value={form().brandColor}
+              value={form.brandColor}
               onInput={(event) => {
                 update('brandColor', event.currentTarget.value)
               }}
@@ -163,7 +159,7 @@ export const VenueDetailsForm = (props: VenueDetailsFormProps): JSX.Element => {
       ) : null}
       <button
         class="btn btn-primary sm:self-start"
-        disabled={!changed() || props.logo.busy || state === 'saving'}
+        disabled={!changed || props.logo.busy || state === 'saving'}
         type="submit"
       >
         {state === 'saving' ? props.copy.venue.saving : props.copy.venue.save}

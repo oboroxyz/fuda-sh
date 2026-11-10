@@ -8,6 +8,7 @@ import type { AccessGrant } from '../connected-apps/store.ts'
 import type { AppEnv } from '../env.ts'
 import { authorizationIssuer, mcpResource } from '../mcp/resource.ts'
 import { issuerOf, MCP_TOOLS } from '../mcp/tools.ts'
+import { bearerToken } from '../middleware/bearer-token.ts'
 
 // docs/specs/mcp.md — a stateless JSON-RPC endpoint on the 2025-11-25 revision.
 // Each POST stands alone, so no session or stream is kept. A client that probes
@@ -100,8 +101,7 @@ export const postMcp = defineHandler(async (c) => {
   if (c.req.header('Origin') !== undefined) {
     return rpcError(c, null, -32_600, 'Origin not allowed', 403)
   }
-  const header = c.req.header('Authorization') ?? ''
-  const token = header.startsWith('Bearer ') ? header.slice('Bearer '.length) : ''
+  const token = bearerToken(c)
   const grant = token === '' ? null : await resolveAccessToken(c.get('db'), token, c.get('now')())
   if (grant === null || grant.resource !== mcpResource(c.env.API_BASE_URL)) {
     return refuseToken(c, token)

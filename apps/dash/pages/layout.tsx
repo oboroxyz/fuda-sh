@@ -132,11 +132,11 @@ const LayoutShell = (props: {
       hasIssuer={issuer !== null}
       venue={issuer === null ? null : { name: issuer.name, publicUrl: shared.operator?.publicUrl ?? null }}
       onNavigate={navigate}
-      onSignOut={shared.surface === 'operator' ? signOut : null}
+      onSignOut={signOut}
       route={route}
       surface={shared.surface ?? 'admin'}
     >
-      {props.switchFailed ? <p role="alert">{copy.auth.restoreFailed}</p> : null}
+      {props.switchFailed ? <p role="alert">{copy.chrome.switchFailed}</p> : null}
       {props.children}
     </DashboardShell>
   )

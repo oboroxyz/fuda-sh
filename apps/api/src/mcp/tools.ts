@@ -6,9 +6,10 @@ import {
   CARD_RECORDS,
   ClaimSource,
   isOrderedWindow,
+  ISSUER_PASS_STATUSES,
   normalizeUid,
 } from '@fuda/sdk'
-import type { ConnectedAppScope, IssuerPassStatus } from '@fuda/sdk'
+import type { ConnectedAppScope } from '@fuda/sdk'
 import { and, eq } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
@@ -64,21 +65,12 @@ const toolCard = ({ c, issuer }: ToolContext, row: typeof cards.$inferSelect) =>
 
 const unixOrNull = { minimum: 0, type: ['integer', 'null'] }
 
-const PASS_STATUSES = [
-  'active',
-  'revoked',
-  'expired',
-  'not_yet_valid',
-  'consumed',
-  'unknown',
-] as const satisfies readonly IssuerPassStatus[]
-
 const ListPassesArgs = v.strictObject({
   cardId: v.optional(v.string()),
   page: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1)), 1),
   pageSize: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(100)), 25),
   source: v.optional(ClaimSource),
-  status: v.optional(v.picklist(PASS_STATUSES)),
+  status: v.optional(v.picklist(ISSUER_PASS_STATUSES)),
 })
 const IssuePassArgs = v.strictObject({ cardId: v.string(), source: v.optional(ClaimSource) })
 const CardLimitsArgs = v.strictObject({
@@ -240,7 +232,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
       properties: {
         cardId: { type: 'string' },
         source: sourceSchema,
-        status: { type: 'string', enum: PASS_STATUSES },
+        status: { type: 'string', enum: ISSUER_PASS_STATUSES },
         page: { type: 'integer', minimum: 1 },
         pageSize: { type: 'integer', minimum: 1, maximum: 100 },
       },

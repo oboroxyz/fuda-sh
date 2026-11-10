@@ -39,6 +39,6 @@ export const loadMembers = async (
     apiBaseUrl,
     members: result.ok
       ? { kind: 'ready', rows: result.body.members.map((row) => memberRowView(row, apiBaseUrl)) }
-      : { kind: 'error', message: result.error, previousRows: null },
+      : { kind: 'error', message: result.error },
   }
 }

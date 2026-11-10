@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 
 import type { Result } from './api.ts'
 import type { DashCopy } from './copy.ts'
-import { memberSnapshot } from './members-state.ts'
 import type { MembersState } from './members-state.ts'
 import type { MemberRowView } from './members-view.ts'
 import { OnChainStatus } from './OnChainStatus.tsx'
@@ -107,8 +106,8 @@ export const RightsPage = (props: RightsPageProps): JSX.Element => {
   const invoker = useRef<HTMLButtonElement | null>(null)
   const heading = useRef<HTMLHeadingElement>(null)
   const { mounted } = useLifetime()
-  const snapshot = memberSnapshot(props.members)
-  const rows = snapshot === null ? [] : filterRights(snapshot.rows, filters)
+  const loaded = props.members.kind === 'ready' ? props.members.rows : null
+  const rows = loaded === null ? [] : filterRights(loaded, filters)
 
   useEffect(() => {
     if (revokeTarget === null && invoker.current !== null) {
@@ -171,11 +170,10 @@ export const RightsPage = (props: RightsPageProps): JSX.Element => {
   }
 
   const collection = (): ComponentChild => {
-    const current = snapshot
-    if (current === null) {
+    if (loaded === null) {
       return null
     }
-    if (current.rows.length === 0) {
+    if (loaded.length === 0) {
       return <p class="rounded-box bg-base-200 p-6 text-sm">{props.copy.rights.empty}</p>
     }
     if (rows.length === 0) {
@@ -215,16 +213,6 @@ export const RightsPage = (props: RightsPageProps): JSX.Element => {
         {props.members.kind === 'error' ? (
           <p role="alert" class="alert alert-error">
             {`${props.copy.rights.errorPrefix}: ${props.copy.rights.errorMessage(props.members.message)}`}
-          </p>
-        ) : null}
-        {props.members.kind === 'loading' || props.members.kind === 'idle' ? (
-          <p role="status" class="text-sm opacity-70">
-            {props.copy.rights.refreshing}
-          </p>
-        ) : null}
-        {snapshot?.stale === true ? (
-          <p role="status" class="text-sm opacity-70">
-            {props.copy.rights.stale}
           </p>
         ) : null}
         {collection()}

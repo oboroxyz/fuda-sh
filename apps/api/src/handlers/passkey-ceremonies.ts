@@ -20,7 +20,7 @@ import type { AppEnv } from '../env.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { rateLimit } from '../middleware/rate-limit.ts'
 
-// docs/specs/pass-types-and-flows.md#passkey-ceremonies. Ceremonies per hour per IP.
+// docs/specs/pass-types-and-flows.md#member-sign-in. Ceremonies per hour per IP.
 // Each takes two requests, and someone who cancels the system prompt starts another.
 const CEREMONY_BUDGET = 60
 

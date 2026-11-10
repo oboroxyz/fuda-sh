@@ -3,11 +3,7 @@ import type { Context } from 'hono'
 import { resolveMemberSession, resolveOperatorSession } from '../auth/session.ts'
 import type { MemberSession, OperatorSession, SessionResolution } from '../auth/session.ts'
 import type { AppEnv } from '../env.ts'
-
-const bearerToken = (c: Context<AppEnv>): string => {
-  const header = c.req.header('Authorization') ?? ''
-  return header.startsWith('Bearer ') ? header.slice('Bearer '.length) : ''
-}
+import { bearerToken } from './bearer-token.ts'
 
 // The session behind the request's bearer token. A missing token reads the same
 // as an unknown one, so each caller decides only what those mean on its route.

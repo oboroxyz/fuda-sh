@@ -90,7 +90,8 @@ const factsOf = (body: VerifyResponse): VerdictFacts => {
     holder: hasNoHolder(e.holder) ? null : short(e.holder),
     tier: TIER_LABEL[e.tier] ?? `TIER ${e.tier}`,
     usage: USAGE_LABEL[e.usageModel] ?? `usage ${e.usageModel}`,
-    // An unset end means "does not expire" (docs/specs/pass-types-and-flows.md#validity-windows), never 1970.
+    // An unset end means "does not expire", never 1970 (the validity window in
+    // docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route).
     validUntil: e.validUntil === 0 ? null : localDate(e.validUntil),
   }
 }

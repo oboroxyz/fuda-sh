@@ -20,7 +20,6 @@ export interface Bindings {
   EAS_ADDRESS: string
   // The contract's own version() on this chain; offchain signatures commit to it.
   EAS_VERSION: string
-  SCHEMA_REGISTRY_ADDRESS: string
   FACTORY_ADDRESS: string
   EAS_SCHEMAS: string
   ISSUER_ADDRESS: string
@@ -53,9 +52,8 @@ export interface Bindings {
   // authenticates a pass update by. Absent, nothing is pushed and the web service still
   // answers, so a member can pull to refresh.
   APPLE_PUSH_CERT?: Pick<Fetcher, 'fetch'>
-  // ENS transport is disabled unless all four names are configured. The two
-  // keys are Worker secrets; parent and resolver allowlist are plain bindings.
-  ENS_GATEWAY_SECRET?: string
+  // ENS transport is disabled unless all three names are configured. The key
+  // is a Worker secret; parent and resolver allowlist are plain bindings.
   ENS_GATEWAY_SIGNER_KEY?: string
   ENS_PARENT_NAME?: string
   ENS_RESOLVER_ADDRESSES?: string

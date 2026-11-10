@@ -1,10 +1,7 @@
 export const THEME_MODES = ['light', 'dark', 'system'] as const
 export type ThemeMode = (typeof THEME_MODES)[number]
-export const THEME_STORAGE_KEY = 'fuda:theme'
 
 export interface ThemeEnvironment {
-  readStored: () => string | null
-  writeStored: (mode: ThemeMode) => void
   prefersDark: () => boolean
   applyRoot: (mode: ThemeMode, dark: boolean) => void
   subscribeSystem: (listener: () => void) => () => void
@@ -24,7 +21,6 @@ const browserThemeEnvironment: ThemeEnvironment = {
     document.documentElement.classList.toggle('dark', dark)
   },
   prefersDark: () => window.matchMedia('(prefers-color-scheme: dark)').matches,
-  readStored: () => window.localStorage.getItem(THEME_STORAGE_KEY),
   subscribeSystem: (listener) => {
     const query = window.matchMedia('(prefers-color-scheme: dark)')
     query.addEventListener('change', listener)
@@ -32,17 +28,6 @@ const browserThemeEnvironment: ThemeEnvironment = {
       query.removeEventListener('change', listener)
     }
   },
-  writeStored: (mode) => {
-    window.localStorage.setItem(THEME_STORAGE_KEY, mode)
-  },
-}
-
-export const readThemeMode = (environment: ThemeEnvironment = browserThemeEnvironment): ThemeMode => {
-  try {
-    return resolveThemeMode(environment.readStored())
-  } catch {
-    return 'system'
-  }
 }
 
 export const applyThemeMode = (
@@ -50,18 +35,6 @@ export const applyThemeMode = (
   environment: ThemeEnvironment = browserThemeEnvironment,
 ): void => {
   environment.applyRoot(mode, mode === 'dark' || (mode === 'system' && environment.prefersDark()))
-}
-
-export const saveThemeMode = (
-  mode: ThemeMode,
-  environment: ThemeEnvironment = browserThemeEnvironment,
-): void => {
-  try {
-    environment.writeStored(mode)
-  } catch {
-    // Apply the unsaved choice for this page.
-  }
-  applyThemeMode(mode, environment)
 }
 
 export const watchThemeMode = (

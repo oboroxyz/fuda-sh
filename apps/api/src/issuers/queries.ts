@@ -50,7 +50,7 @@ export const issuerOwnerKey = sql<string>`COALESCE(${ACCOUNT_KEY_PREFIX} || ${is
 
 // Every issuer a principal owns, oldest first: the dashboard's profile switcher
 // and the connected-app consent screen both choose from this list
-// (docs/adr/0011-several-issuers-per-account.md). The one place ownership is decided.
+// (../../../../docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route). The one place ownership is decided.
 export const issuersOwnedBy = async (
   db: Db,
   principal: OperatorPrincipal,

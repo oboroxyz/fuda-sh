@@ -47,7 +47,7 @@ export const cancelPasskeyCeremony = (): void => {
   WebAuthnAbortService.cancelCeremony()
 }
 
-// docs/specs/pass-types-and-flows.md#passkey-ceremonies. `S` is what the frontend's
+// docs/specs/pass-types-and-flows.md#member-sign-in. `S` is what the frontend's
 // session route answers: the Worker spends the response and keeps the session in an
 // HttpOnly cookie, so the browser never holds the token.
 export const passkeyClient = <S>(audience: 'member' | 'operator', transport: PasskeyTransport) => {

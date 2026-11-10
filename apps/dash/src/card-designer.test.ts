@@ -22,7 +22,7 @@ import {
   withValidityMode,
   withWindow,
 } from './card-designer.ts'
-import type { DesignerForm, DesignerStatus } from './card-designer.ts'
+import type { DesignerForm } from './card-designer.ts'
 
 const filled: DesignerForm = {
   ...EMPTY_FORM,
@@ -31,8 +31,6 @@ const filled: DesignerForm = {
   name: 'Wassie Coffee',
   tagline: 'Omotesando · Coffee shop',
 }
-
-const free: DesignerStatus = { handle: 'available', slug: 'available' }
 
 describe(handleStatusOf, () => {
   it('answers locally before the api is asked', () => {
@@ -123,10 +121,9 @@ describe(cardBodyFrom, () => {
 
 describe(canSubmit, () => {
   it('ignores the handle when the venue already exists and only a card is added', () => {
-    expect(canSubmit('card', { ...EMPTY_FORM, handle: '' }, free, false)).toBe(true)
-    expect(canSubmit('card', { ...EMPTY_FORM, handle: '' }, { ...free, handle: 'taken' }, false)).toBe(true)
-    expect(canSubmit('card', { ...EMPTY_FORM, slug: '' }, free, false)).toBe(false)
-    expect(canSubmit('card', EMPTY_FORM, { ...free, slug: 'taken' }, false)).toBe(false)
+    expect(canSubmit({ ...EMPTY_FORM, handle: '' }, 'available', false)).toBe(true)
+    expect(canSubmit({ ...EMPTY_FORM, slug: '' }, 'available', false)).toBe(false)
+    expect(canSubmit(EMPTY_FORM, 'taken', false)).toBe(false)
   })
 })
 
@@ -268,8 +265,8 @@ describe('card body windows', () => {
     expect(cardBodyFrom({ ...filled, claimFrom: CURTAIN, claimUntil: DOORS })).toBeNull()
     expect(cardBodyFrom({ ...filled, validFrom: CURTAIN, validUntil: DOORS })).toBeNull()
     expect(cardBodyFrom({ ...filled, validUntil: CURTAIN, validityDays: 30 })).toBeNull()
-    expect(canSubmit('card', { ...filled, claimFrom: CURTAIN, claimUntil: DOORS }, free, false)).toBe(false)
-    expect(canSubmit('card', { ...filled, validUntil: CURTAIN, validityDays: 30 }, free, false)).toBe(false)
+    expect(canSubmit({ ...filled, claimFrom: CURTAIN, claimUntil: DOORS }, 'available', false)).toBe(false)
+    expect(canSubmit({ ...filled, validUntil: CURTAIN, validityDays: 30 }, 'available', false)).toBe(false)
   })
 })
 

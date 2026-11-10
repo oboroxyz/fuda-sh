@@ -4,7 +4,7 @@ export const CHAIN = parseChainConfig(import.meta.env.VITE_CHAIN_ID)
 
 // The browser reaches the api only through its own Worker, which forwards
 // `/api/*` with the member session cookie's credential
-// (docs/adr/0010-void-pages-and-frontend-workers.md).
+// (../../../docs/architecture.md#frontend-workers).
 export const API_BASE_URL = '/api'
 
 // Public Graph gateway or a same-origin proxy URL. Never put a Studio deploy key in a VITE_* binding.

@@ -26,11 +26,11 @@ export default function Start(): JSX.Element {
       issuer={null}
       onCheckHandle={handleCheck(expired)}
       onCommitLogo={async () => await Promise.resolve(false)}
-      onCreate={(form, logo) => {
+      onCreate={(form) => {
         setFailure(null)
         setBusy(true)
         const run = async (): Promise<void> => {
-          const outcome = await submitVenue(DEFAULT_DESIGN_IO, form, logo).catch(() => ({
+          const outcome = await submitVenue(DEFAULT_DESIGN_IO, form).catch(() => ({
             failure: 'network' as const,
             ok: false as const,
           }))

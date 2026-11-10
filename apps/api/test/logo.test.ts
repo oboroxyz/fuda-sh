@@ -121,6 +121,19 @@ describe('venue logo upload', () => {
     await expect(replay.json()).resolves.toStrictEqual({ error: 'upload_not_found' })
   })
 
+  it('refuses a staged upload once it has expired', async () => {
+    let now = NOW
+    const app = appWith({ chain: fakeChain(), now: () => now })
+    const { token } = await signIn(app, mediaEnv())
+    await postJson(app, mediaEnv(), '/v1/issuers', CARD_INPUT, token)
+    const stagedRes = await upload(app, mediaEnv(), token, logoForm())
+    const staged = await stagedRes.json<{ logoUploadId: string }>()
+    now = NOW + 15 * 60
+    const late = await postJson(app, mediaEnv(), '/v1/issuers/logo/commit', staged, token)
+    expect(late.status).toBe(400)
+    await expect(late.json()).resolves.toStrictEqual({ error: 'upload_not_found' })
+  })
+
   it('replaces the logo of an existing venue with a fresh prefix', async () => {
     const app = appWith({ chain: fakeChain(), now: () => NOW })
     const { token } = await signIn(app, mediaEnv())

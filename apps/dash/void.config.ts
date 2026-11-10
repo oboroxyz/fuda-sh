@@ -2,7 +2,7 @@ import { DEFAULT_LOCALE, PAGE_COPY, pick } from '@fuda/i18n'
 import { defineConfig } from 'void/config'
 
 // Void pages behind the dashboard's own Worker
-// (docs/adr/0010-void-pages-and-frontend-workers.md). The Worker holds the
+// (../../docs/architecture.md#frontend-workers). The Worker holds the
 // session in HttpOnly cookies and calls the api with it; API_BASE_URL is where.
 // `pnpm dev` points it at the local api through the environment.
 // `void deploy` records the generated config in `void.lock.json`, which is

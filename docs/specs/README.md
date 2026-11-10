@@ -7,4 +7,3 @@ The canonical description of what fuda does now: externally observable behavior,
 - [Connected apps](./connected-apps.md) — browser-only apps (Figma Make) approved by an Operator for one Issuer: PKCE approval, access tokens, the card routes they reach, CORS
 - [MCP server](./mcp.md) — the remote MCP endpoint agents use for one Issuer: connecting Claude Code, discovery metadata, tokens bound to the server, the tools
 - [ENS naming](./ens-naming.md) — ENS hierarchy, the member number, what a name resolves to, name lifecycle
-- [Substreams packages](./substreams.md) — the optional push lane: reusable ERC-5564 extraction, raw EAS event composition, protobuf interfaces, and compatibility guarantees; product queries use the independent rights subgraph

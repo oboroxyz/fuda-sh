@@ -35,8 +35,6 @@ const props = (): CardDesignerProps => ({
     windowEdited: true,
   },
   issuer,
-  logoCopy: DASH_COPY.en.logo,
-  onCheckHandle: vi.fn<CardDesignerProps['onCheckHandle']>().mockResolvedValue('available'),
   onCheckSlug: vi.fn<CardDesignerProps['onCheckSlug']>().mockResolvedValue('taken'),
   onEditProfile: vi.fn<CardDesignerProps['onEditProfile']>(),
   onSubmit: vi.fn<CardDesignerProps['onSubmit']>(),
@@ -67,9 +65,7 @@ describe('shared card edit form', () => {
       .querySelector('form')!
       .dispatchEvent(new CustomEvent('submit', { bubbles: true, cancelable: true, detail: {} }))
     expect(input.onSubmit).toHaveBeenCalledWith(
-      'card',
       expect.objectContaining({ slug: 'membership', title: 'Renamed card', validityDays: 45 }),
-      null,
     )
     expect(input.onCheckSlug).not.toHaveBeenCalled()
   })
@@ -83,6 +79,6 @@ describe('shared card edit form', () => {
     root
       .querySelector('form')!
       .dispatchEvent(new CustomEvent('submit', { bubbles: true, cancelable: true, detail: {} }))
-    expect(input.onSubmit).toHaveBeenCalledWith('card', expect.objectContaining({ slug: 'new' }), null)
+    expect(input.onSubmit).toHaveBeenCalledWith(expect.objectContaining({ slug: 'new' }))
   })
 })

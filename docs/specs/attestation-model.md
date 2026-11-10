@@ -39,7 +39,7 @@ flowchart LR
 1. **Delegate.** The configured root attests an IssuerDelegation for an issuer. This creates the trust path the gate will later validate.
 2. **Issue.** An authorized issuer attests an Entitlement whose recipient is its holder and whose `refUID` points to the governing IssuerDelegation. The public MVP waits for confirmed chain state before returning the issued UID.
 3. **Verify.** The gate reads the Entitlement and delegation from EAS. It checks accepted schemas, delegation authority, revocation, validity bounds, and the usage model. Signed policies additionally verify a fresh challenge against the holder.
-4. **Admit.** Admission consumes any required operational slot and creates an entry log. For an on-chain right whose Card has Attendance enabled, the API then attempts to attest Attendance without delaying the gate verdict. Tickets default to enabled and memberships to disabled. An admin-issued right without a Card records Attendance, while a Card that cannot be read records nothing; an Attendance write failure may leave the successful entry represented only in operational logs. An offchain right has no holder to name, so its entries live only in the entry log.
+4. **Admit.** Admission consumes any required operational slot and creates an entry log. For an on-chain right whose Card has Attendance enabled, the API then attempts to attest Attendance without delaying the gate verdict. Tickets default to enabled and memberships to disabled, because an on-chain visit record is public and permanent and would expose a person's visits. An admin-issued right without a Card records Attendance, while a Card that cannot be read records nothing; an Attendance write failure may leave the successful entry represented only in operational logs. An offchain right has no holder to name, so its entries live only in the entry log.
 5. **Revoke.** The issuer revokes the Entitlement on EAS. A later gate read rejects the same pass because the on-chain right is no longer valid.
 
 ## Identity and reference invariants
@@ -247,6 +247,34 @@ The tree matches `StandardMerkleTree.of(uids, ['bytes32'])` from `@openzeppelin/
 
 **Signer rotation.** New issuance signs only with `SIGNER_PRIVATE_KEY`. Verification accepts that key's address and the addresses in `OFFCHAIN_RETIRED_SIGNERS`, retaining only addresses for retired keys in the Worker. Existing signed data, UIDs, saved Wallet links and backups remain usable when their signer is listed. Restoring a backup reads its UID and reloads the stored pass; it does not re-sign the attestation. Removing a retired address rejects every pass it signed. A compromised key must be removed and its legitimate passes reissued, because listing it also trusts forged signatures. There are no per-pass cut-off dates, automatic reissue, or root-based exceptions. On-chain Entitlements and IssuerDelegation keep their separate verification rules.
 
+**Why it is built this way.**
+
+- **The QR carries only the UID.** D1 stores the signed data, so a 40 mm code stays readable: 39 modules against 91 for the full attestation. The 32-byte salt makes the UID unguessable, and in Standard the UID is the bearer secret.
+- **Revocation is sent per pass.** One already revoked UID reverts a whole `multiRevokeOffchain`. D1 records the revocation first, so the gate rejects at once and while the chain cannot be read. A revocation made directly on chain, outside fuda, is not covered while the chain is unreadable.
+- **Verification uses viem, not the EAS SDK verifier**, which recovers an EOA only and checks neither expiry nor revocation.
+- **The chain is configured, never guessed.** API `CHAIN_ID` and browser `VITE_CHAIN_ID` must agree, and an unknown id fails. `domain.version` is read per chain, because Base mainnet runs EAS 1.0.1 and Base Sepolia runs 1.4.1-beta.3. `domain.chainId` is converted to `BigInt` after JSON; as a string, viem recovers a different address.
+- **A provider outage alone does not make the chain unreadable.** The API tries the preferred RPC and then the public endpoint. Contract reverts do not trigger failover.
+
+**Delegated keys (proposed, not built).** Today the common signer key signs every pass. A shop's passkey wallet attests a delegation on chain to a hot EOA, which signs passes without a human present. Issuing from a passkey alone cannot work for self-serve claims, because each signature needs the owner's touch.
+
+- **The delegation is on chain.** ERC-1271 checks current owners, so a delegation signed offchain fails once the shop replaces that passkey, and every dependent pass fails with it.
+- **The hot key is not a wallet owner.** Removing an owner invalidates what it signed.
+- **The gate reads revocation under both addresses.** A shop revoking its hot key's pass records under the shop's address.
+- **After a delegation is revoked,** a pass stays valid only if a root timestamped before the revocation contains it. `time` is chosen by the signer, so a stolen key can backdate.
+- **Delegated keys expose each shop's revocation count and timing on chain,** which can reveal staff turnover. Sensitive use therefore stays able to use a shared key.
+
+**Measured cost.** Gas measured on local forks of Base Sepolia, Base mainnet and Soneium, excluding the L1 data fee:
+
+| Operation                                            | Gas     |
+| ---------------------------------------------------- | ------- |
+| On-chain attestation (estimate)                      | 354,422 |
+| Root timestamp                                       | 50,834  |
+| Offchain revocation                                  | 51,391  |
+| Passkey wallet deployment, one owner                 | 213,853 |
+| Revocation from a passkey wallet, through EntryPoint | 174,780 |
+| Adding a passkey owner                               | 227,175 |
+| On-chain delegation from a wallet with an EOA owner  | 393,061 |
+
 ### Error codes
 
 Errors are `{ "error": "<code>" }` with these statuses. Every gate _decision_ is `200` and decision-shaped; input, auth, configuration and infrastructure failures use these codes instead. A read the gate cannot complete is not a decision: it fails closed as `502 chain_error` and is never written to `entry_log`.
@@ -265,7 +293,7 @@ Errors are `{ "error": "<code>" }` with these statuses. Every gate _decision_ is
 | `bad_handle` | 400 | `POST /issuers` handle fails the Handle rule or is reserved |
 | `handle_taken` | 409 | `POST /issuers` handle already belongs to an issuer |
 | `issuer_limit` | 409 | `POST /issuers` from an account that already owns ten issuers |
-| `issuer_exists` | 409 | no longer returned (an account may own several issuers, [ADR 0009](../adr/0011-several-issuers-per-account.md)); kept in the sdk's code list for older clients |
+| `issuer_exists` | 409 | no longer returned (an account may own several issuers, [Several issuers per account](pass-types-and-flows.md#issuer-onboarding-and-the-handle-route)); kept in the sdk's code list for older clients |
 | `bad_passkey` | 401, 403 | a member passkey ceremony refused. A claim on a passkey Card answers `403`, because the session is fine and the member app's Worker ends a session on any `401` it forwards |
 | `holder_must_claim` | 409 | MCP `issue_pass` on a passkey Card: its holder has to claim the pass themselves |
 | `bad_slug` | 400 | `POST /issuers/cards` slug fails the card-slug rule or is reserved |
@@ -436,7 +464,7 @@ CREATE TABLE entry_log (
 
 SINGLE_USE consumption is a D1 batch that writes the `slots` row and the `ADMIT` `entry_log` row together: on public QR and signature admission the slot insert is a plain `INSERT`, so a second scan violates the `(uid, slot)` primary key and the whole batch rolls back — the slot is the lock, and no `ADMIT` is ever logged against a slot already burned. Sensitive single-use Slots store `consumed_at = 0`, retaining consumption without its time. Purging their entry logs never removes Slots. No Durable Objects are used in the MVP.
 
-Authenticated venue reception shares the same `slots` table but evaluates slot availability and writes its Entry inside the receipt transaction. It adds `stamp_settings`, `stamp_credits`, and `reception_requests` (migration `0010_reception_stamps.sql`). Settings belong to an issuer. A credit belongs to an issuer, Right UID, Japan date and daily ordinal, with a unique Entry reference and the granting operator address. A receipt stores the original response and Entry reference under a venue-scoped request UUID. The entire batch commits or rolls back together, including SINGLE_USE consumption. Credits are operational loyalty state, independent of on-chain Attendance; the public admission endpoints do not create them. See [venue reception and Stamps](./pass-types-and-flows.md#venue-reception-and-stamps) for authorization, daily limits and replay semantics.
+Authenticated venue reception shares the same `slots` table but evaluates slot availability and writes its Entry inside the receipt transaction. It adds `stamp_credits` and `reception_requests` (migration `0010_reception_stamps.sql`). Stamp settings belong to a Card, in `card_stamp_settings` (migration `0011_card_stamp_settings.sql`); the issuer-level `stamp_settings` table that `0010` created is no longer read. A credit belongs to an issuer, Right UID, Japan date and daily ordinal, with a unique Entry reference and the granting operator address. A receipt stores the original response and Entry reference under a venue-scoped request UUID. The entire batch commits or rolls back together, including SINGLE_USE consumption. Credits are operational loyalty state, independent of on-chain Attendance; the public admission endpoints do not create them. See [venue reception and Stamps](./pass-types-and-flows.md#venue-reception-and-stamps) for authorization, daily limits and replay semantics.
 
 `challenges` rows also carry nullable `venue`, added by `0033_signed_venue.sql`. A signed-entry nonce is bound to that venue, including its absence. `challenges` rows are one-time and short-lived: `POST /verify-signed` consumes a nonce with a conditional `UPDATE … WHERE used_at IS NULL AND created_at > now − 300`, and `POST /challenge` opportunistically deletes rows older than the 300 s TTL on every mint, so the table holds only live nonces. `rate_limits` is the generic per-IP fixed hourly-window primitive. Its route thresholds and shared counter semantics are documented in the [runbook](../runbook.md#13-rate-limit-state).
 

@@ -1,8 +1,8 @@
 import type { AuthorizeApprovalRequest, ConnectedAppScope } from '@fuda/sdk'
 
 // docs/specs/connected-apps.md#approval — the query a connected app sends the
-// browser to `/oauth/authorize` with. Read straight from location.search: the
-// dashboard router drops query strings, and these must reach the api intact.
+// browser to `/oauth/authorize` with. The page passes the router's query string
+// through whole, because these must reach the api intact.
 export interface AuthorizeRequest {
   clientId: string
   codeChallenge: string

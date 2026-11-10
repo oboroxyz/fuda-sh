@@ -5,7 +5,7 @@ import { ADMIN_COOKIE, OPERATOR_COOKIE } from '../cookie-names.ts'
 import type { LOCALE_COOKIE, THEME_COOKIE } from '../cookie-names.ts'
 
 // The dashboard's session lives in HttpOnly cookies on its own host, never in
-// browser storage (docs/adr/0010-void-pages-and-frontend-workers.md). The
+// browser storage (../../../../docs/architecture.md#frontend-workers). The
 // Worker forwards the value to the api as `Authorization: Bearer`.
 export const SESSION_COOKIES = [OPERATOR_COOKIE, ADMIN_COOKIE] as const
 

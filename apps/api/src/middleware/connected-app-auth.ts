@@ -4,6 +4,7 @@ import type { Context, MiddlewareHandler } from 'hono'
 import { appHasOrigin, resolveAccessToken } from '../connected-apps/store.ts'
 import type { AppEnv } from '../env.ts'
 import { errorResponse } from '../json.ts'
+import { bearerToken } from './bearer-token.ts'
 
 // RFC 6750 §3: a resource server says why in WWW-Authenticate as well as the body.
 const refuse = (c: Context<AppEnv>, header: string, status: 401 | 403): Response => {
@@ -20,8 +21,7 @@ export const connectedAppAuth =
   (scope: ConnectedAppScope | null): MiddlewareHandler<AppEnv> =>
   async (c, next) => {
     c.header('cache-control', 'no-store')
-    const header = c.req.header('Authorization') ?? ''
-    const token = header.startsWith('Bearer ') ? header.slice('Bearer '.length) : ''
+    const token = bearerToken(c)
     const grant = token === '' ? null : await resolveAccessToken(c.get('db'), token, c.get('now')())
     if (grant === null || grant.resource !== null) {
       return refuse(c, 'Bearer error="invalid_token"', 401)

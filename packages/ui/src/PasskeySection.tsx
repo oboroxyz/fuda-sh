@@ -37,7 +37,7 @@ export interface PasskeySectionProps {
   }
 }
 
-// docs/specs/pass-types-and-flows.md#passkey-ceremonies. The list a member keeps in
+// docs/specs/pass-types-and-flows.md#member-sign-in. The list a member keeps in
 // Settings and an operator on their profile: a second passkey is how either moves to
 // a device their current passkey does not sync to.
 export const PasskeySection = (props: PasskeySectionProps): JSX.Element => {

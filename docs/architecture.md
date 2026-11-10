@@ -15,7 +15,6 @@ flowchart LR
     EAS --> Q[Rights subgraph]
     A -->|query rights| Q
     D -->|query on-chain status| Q
-    EAS -. raw events .-> S[Optional Substreams push lane]
     API -->|read right + delegation| EAS
     G -->|challenge / consume / log| API
     API -->|record Attendance| EAS
@@ -25,21 +24,20 @@ flowchart LR
 
 | Component | Path | Responsibility |
 | --- | --- | --- |
-| API | `apps/api` | Coordinates issuance, revocation, gate operational state, and pass generation. Void discovers its server routes and runs shared request middleware ([ADR 0012](./adr/0012-void-api-routing.md)) |
-| Operator dashboard | `apps/dash` | Gives authorized issuers routed Overview, Rights, and Issue views; derives operational summaries from D1 member rows, issues and revokes through the API, and queries chain status separately through the rights subgraph. Its Void Worker renders the pages, holds the session in HttpOnly cookies and forwards the browser's api calls ([ADR 0010](./adr/0010-void-pages-and-frontend-workers.md)) |
+| API | `apps/api` | Coordinates issuance, revocation, gate operational state, and pass generation. Void discovers its server routes and runs shared request middleware ([API routing](#api-routing)) |
+| Operator dashboard | `apps/dash` | Gives authorized issuers routed Overview, Rights, and Issue views; derives operational summaries from D1 member rows, issues and revokes through the API, and queries chain status separately through the rights subgraph. Its Void Worker renders the pages, holds the session in HttpOnly cookies and forwards the browser's api calls ([Frontend Workers](#frontend-workers)) |
 | Member app | `apps/app` | Holds member signing rails, answers Signed challenges, lists public member passes from holder addresses and device memory |
 | Gate | `apps/gate` | A directly mounted Preact SPA that reads presented rights and renders an ADMIT or REJECT verdict through its Worker |
 | EAS on Base | External; `apps/api` | Records Entitlements, issuer delegation, revocation, and Attendance evidence |
 | D1 (SQLite) | `apps/api/migrations` | Stores operational state such as challenges, SINGLE_USE consumption, entry logs, and member indexes |
 | Passes | `packages/pass` | Builds the Google Wallet save link and the Apple `.pkpass`; the api renders the browser-based pass. Passes present a right and are never its source of truth |
 | Rights subgraph | `packages/subgraphs/rights` | Indexes EAS directly for right cards and dashboard on-chain-status queries |
-| Substreams | `packages/substreams` | Provides optional raw event push packages for reuse and live demonstration; fuda has no resident sink or product-read dependency |
 
 ## Browser query state
 
 `@fuda/libs` exposes shared library integrations through separate subpaths, with no root barrel. Browser and backend integrations may coexist, provided that runtime-specific dependencies stay behind their own entry points.
 
-Gate mounts from `index.html` without a pages router. Its hardware-reader listener is installed before paint. All three frontends render with Preact and share `@fuda/ui`. Dash and app use the pinned `void-preact` pages adapter. Both Scanner consumers use the same renderer-independent camera lifetime and labels. The renderer decision is recorded in [ADR 0015](./adr/0015-preact-frontends.md).
+Gate mounts from `index.html` without a pages router. Its hardware-reader listener is installed before paint. All three frontends render with Preact and share `@fuda/ui`. Dash and app use the pinned `void-preact` pages adapter. Both Scanner consumers use the same renderer-independent camera lifetime and labels. The renderer decision is recorded in [Preact frontends](#preact-frontends).
 
 Dash keeps three lifetimes outside its components. The card draft is module state behind a subscription hook (`useSyncExternalStore`), so it survives a route change inside the browser and is dropped by a full navigation; a server render never reads or writes it. The layout compares the cookie session it first rendered with against the shared session on every refresh, and on a difference renders nothing and reloads instead of letting an old form write under the new session. Ceremonies, requests and timers that outlive a render keep their generation and in-flight guard in refs and are dropped on unmount.
 
@@ -54,10 +52,10 @@ This cache supports presentation, not authorization or admission decisions. It i
 - **Right validity is on-chain.** The API reads the Entitlement and its IssuerDelegation from EAS on the scanner’s behalf. The hosted scanner trusts the API verdict; an independent verifier can read those records directly.
 - **Admission also has operational state.** D1 tracks one-time challenges, SINGLE_USE consumption, and entry logs. Failure to read required chain or delegation state fails closed.
 - **Passes are presentation surfaces.** Revoking an Entitlement changes the next gate verdict without replacing its Apple, Google, web, or QR pass.
-- **Push and query lanes are independent.** The rights subgraph reads EAS directly. Stopping the optional Substreams push lane does not stop right cards, dashboard on-chain status, issuance, or gate checks.
+- **The rights subgraph reads EAS directly.** It is the only indexer on a product read path; the Substreams packages are archived. Browser queries fail explicitly when no public endpoint is configured, and do not fall back to the API or D1. The subgraph is not advertised as a Graph composition source, because its `Right` and `Delegation` entities change when revocations arrive.
 - **Admin routes fail closed.** Issue, revoke and member listing require `ADMIN_TOKEN` wherever a signer or `BASE_RPC_URL` is configured; a deployment with either binding and no token locks them rather than opening them.
 - **A connected app reaches one Issuer.** Its access token names the Issuer chosen at approval and the routes it reaches read only that Issuer; it cannot create an Issuer or act as the Operator. Only the account that registered the app can approve it.
-- **The public verify endpoints are unauthenticated by design.** `GET /verify/:uid` and `POST /verify` take a uid that is public on chain, so anyone who learns one can preview it. `GET /verify/:uid` is a read-only preview and never consumes a slot; a bare `POST /verify` is an admission, so it burns a SINGLE_USE right's slot. What that buys an attacker, and why Signed is the answer for rights that must resist it, is in the attestation model's [threat model of the public verify endpoints](./specs/attestation-model.md#api-payloads-that-touch-attestations).
+- **The public verify endpoints are unauthenticated by design.** `GET /v1/verify/:uid` and `POST /v1/verify` take a uid that is public on chain, so anyone who learns one can preview it. `GET /v1/verify/:uid` is a read-only preview and never consumes a slot; a bare `POST /verify` is an admission, so it burns a SINGLE_USE right's slot. What that buys an attacker, and why Signed is the answer for rights that must resist it, is in the attestation model's [threat model of the public verify endpoints](./specs/attestation-model.md#api-payloads-that-touch-attestations).
 
 ## UX and decentralization
 
@@ -91,7 +89,7 @@ fuda runs one deployment per chain, and they never share state. Each owns its ow
 | develop | Base Sepolia | `fuda-beta` | `fuda-media-dev` | `*.fuda.sh` today, `*.dev.fuda.sh` after the mainnet cutover | `develop` |
 | production | Base mainnet | `fuda` | `fuda-media` | `*.fuda.sh` from the cutover | `main` |
 
-The Sepolia deployment is live on the apex hostnames today and keeps them until the cutover; the `production` target therefore carries no `routes`, so deploying it early cannot take a hostname from the running one. The local environment is named `local`, not `dev`, so it is never confused with the deployed develop one. Each environment is a target of the api in `apps/api/targets.jsonc`, deployed as its own Void project ([ADR 0009](./adr/0009-void-and-solid.md)). Nothing is migrated at the cutover — see [ADR 0006](./adr/0006-per-chain-environments.md) — so production begins with an empty database and bucket.
+The Sepolia deployment is live on the apex hostnames today and keeps them until the cutover; the `production` target therefore carries no `routes`, so deploying it early cannot take a hostname from the running one. The local environment is named `local`, not `dev`, so it is never confused with the deployed develop one. Each environment is a target of the api in `apps/api/targets.jsonc`, deployed as its own Void project ([Void deployment](#void-deployment)). Nothing is migrated at the cutover, so production begins with an empty database and bucket and every member re-claims their card: carried-over rows would point at attestations the mainnet gate cannot read. Separate storage also means a wrong-target deploy cannot touch a production venue. D1 databases and R2 buckets cannot be renamed, so their names were chosen once.
 
 Because each frontend's Worker uses `https://api.fuda.sh` unless its optional `API_BASE_URL` var overrides it, a deployment belongs to exactly one environment: a develop deployment must point at the develop api. The deploy order and the one-time chain setup per environment are in the [runbook](./runbook.md).
 
@@ -99,7 +97,7 @@ Because each frontend's Worker uses `https://api.fuda.sh` unless its optional `A
 
 The deployment's configured values, and what fails when one is missing, are tabulated once in the attestation model's [chain fixtures](./specs/attestation-model.md#chain-fixtures) and [configured values](./specs/attestation-model.md#configured-values). In outline:
 
-- **`apps/api/targets.jsonc` `vars`**, one set per target — the chain addresses and the api's own base: `EAS_ADDRESS`, `SCHEMA_REGISTRY_ADDRESS`, `EAS_SCHEMAS`, `ISSUER_ADDRESS`, `DELEGATION_UID`, `GRAPH_START_BLOCK` (the rights-subgraph manifest's generated start block; it is not read by the API), `FACTORY_ADDRESS` (the smart-wallet factory the Bearer holder address is derived from), and `API_BASE_URL` (the absolute base of the `passUrls` in an `/issue` response, and the api entry in the Google Wallet `origins` claim).
+- **`apps/api/targets.jsonc` `vars`**, one set per target — the chain addresses and the api's own base: `EAS_ADDRESS`, `EAS_SCHEMAS`, `ISSUER_ADDRESS`, `DELEGATION_UID`, `GRAPH_START_BLOCK` (the rights-subgraph manifest's generated start block; it is not read by the API), `FACTORY_ADDRESS` (the smart-wallet factory the Bearer holder address is derived from), and `API_BASE_URL` (the absolute base of the `passUrls` in an `/issue` response, and the api entry in the Google Wallet `origins` claim).
 - **Worker secrets** — `SIGNER_PRIVATE_KEY`, `ADMIN_TOKEN`, `BASE_RPC_URL`, the four `GOOGLE_*` names and the five `APPLE_*` names. A wallet platform is all-or-nothing: a missing name answers `501`, never a broken pass.
 - **`USE_FAKE_CHAIN`** — local development only (`apps/api/targets/local/.env`); it swaps in an in-memory chain and is never set in a deployed environment.
 - **Frontend environment** — each Worker's optional `API_BASE_URL` var, emitted by `void.config.ts` only when explicitly set in the shell (otherwise the Worker defaults to `https://api.fuda.sh`); `VITE_GRAPH_RIGHTS_ENDPOINT` in the member app and dashboard; `VITE_ENS_PAYMASTER_URL` in the dashboard; `VITE_APP_ORIGIN` and `VITE_RP_ID` in the member app. Vite bakes the `VITE_*` values in at build time, so changing one means redeploying that app.
@@ -108,20 +106,64 @@ The deployment's configured values, and what fails when one is missing, are tabu
 
 `apps/app` serves two journeys from one Worker and origin. Public `/@handle/*` venue pages own their navigation and issuance flow without a member session. The public member top and `/signin` lead to server-verified passkey login; `/rights`, `/signed`, and `/settings` share a session and Dock. Member and operator credentials have separate server audiences and HttpOnly cookies; neither is authority for the other's endpoints. The shared `@fuda/libs/wallet` and `@fuda/libs/auth` modules own wallet validation, the challenge/signature sequence and passkey ceremonies. Product controllers own restoration, navigation and domain data. `@fuda/ui` shares the native confirmation dialog, appearance controls and preference lifecycle. The opened Sensitive member secret stays in component state until that screen unmounts. Vault and WebAuthn operations begin in user events, and late completions cannot reopen an unmounted screen.
 
-`apps/app` is also the member-owned public pass surface. Its `/rights` list unions public Graph rights for the authenticated Holder or a manually entered public address with pass UIDs remembered by that browser, then treats `GET /verify/:uid` as the live source for each row's status and entitlement metadata. It can display degraded device-only rows when the public index is unavailable, but it never writes a member record to the API.
+`apps/app` is also the member-owned public pass surface. Its `/rights` list unions public Graph rights for the authenticated Holder or a manually entered public address with pass UIDs remembered by that browser, then treats `GET /v1/verify/:uid` as the live source for each row's status and entitlement metadata. It can display degraded device-only rows when the public index is unavailable. A signed-in account also keeps its pass list on the server through `/v1/member/passes` ([Member pass list and recovery](./specs/pass-types-and-flows.md#member-sign-in)).
 
 The strings a client and the api must agree on byte-for-byte — the QR payload, the challenge string, the nonce shape and the passkey `rp.id` — are pinned in the attestation model's [wire constants](./specs/attestation-model.md#wire-constants). Changing any of them is a protocol version bump.
+
+## Platform
+
+### Void deployment
+
+Decided 2026-10-31. Every app builds and deploys with Void.
+
+- **Each API target is its own Void project** under `apps/api/targets/<name>/`, because Void has no named environments. `apps/api/targets.jsonc` holds every target's configuration, in JSONC because the rights subgraph reads it as an independent package.
+- **Migrations stay hand-written SQL**, shared into each target by symlink. Schema inference stays off, so Void generates no migrations.
+- **Secrets stay Worker secrets**, managed with `void secret`.
+- **Void and its adapter upgrade together**, under the three-day `minimumReleaseAge` with exact-version exemptions.
+- **The browser suite is the safety net.** It asserts on roles and visible text only, so a framework change does not touch it.
+
+### Frontend Workers
+
+Decided 2026-10-31. `dash` and `app` are Void pages apps; `gate` is a single-page app with the same Worker.
+
+- **Each frontend Worker is the browser's only backend.** The browser never holds an API token. The Worker keeps the session in an HttpOnly, `SameSite=Lax` cookie and calls the API with `Authorization: Bearer`.
+- **Loaders read and a forwarding route writes.** `/api/*` adds the Bearer header, clears the cookie on an API 401, and refuses a write whose `Origin` is another site. `/session/*` routes set or clear the cookie; they are plain routes because the browser needs their result as data before it navigates.
+- **The API still sees the visitor's IP.** On a same-zone subrequest Cloudflare takes `CF-Connecting-IP` from `x-real-ip`, so each Worker sets it to its own visitor's address.
+- **Sign-in still happens in the browser**, in a page that is not server-rendered, which then posts the signature to the Worker.
+- **The dashboard admin token is typed in and kept in an HttpOnly session cookie.** The Worker never holds `ADMIN_TOKEN` as a secret.
+- **Gate is not a pages app.** A hardware reader types a scan as soon as the page is open, and a pages app mounts only after the router has loaded the page component.
+- **Route guards live in Worker middleware**, and theme and language live in cookies so the first response is right.
+- **The API origin stays server-side**, as `API_BASE_URL`. Browser-visible values stay `VITE_*` build values.
+- **`/@<handle>` is rewritten in middleware**, because a file route cannot start with `@` and a static rewrite would catch Vite's `/@id/` URLs.
+
+Nothing calls the API from a browser except its own pages and the wallet's paymaster requests, so the API answers no CORS for fuda's hosts.
+
+### API routing
+
+Decided 2026-11-01. Void discovers `routes/` files, which re-export `defineHandler` values from `src/handlers/`. No code mounts Hono sub-apps by hand.
+
+- **Target projects link the same route tree**, so adding an endpoint changes one file.
+- **Ordered middleware supplies request dependencies**, then CORS, auth-mode headers and cache policy.
+- **Programmatic routes stay under `/v1`.** Pass, asset, ENS gateway and health routes stay unversioned, because deployed wallets and contracts keep those URLs.
+- **Workerd tests register the same route files** in a test-only adapter, so chain, time and admission stay injectable. Production discovery is verified by the Void build and the browser suite.
+
+Hono remains a direct dependency for middleware, response helpers and server-rendered pages, with its version aligned across the workspace and Void.
+
+### Preact frontends
+
+Decided 2026-11-05. All three frontends use Preact through `void-preact`, with plain hooks and no signals.
+
+The owner chose it to dogfood their own adapter. This is a preference, not a measured advantage. The adapter's README advises against production use, and the owner accepts that risk.
+
+- **Exact pins**: `void-preact@0.1.3`, `void@1.7.0`, `preact@11.1.1`, `preact-render-to-string@6.8.2`. A Void upgrade waits for an adapter release that supports the new version.
+- **Preact reruns component bodies.** Refs hold component lifetimes, request generations and busy guards. Pages get stable callbacks, because a function prop in an effect dependency list reruns the effect whenever the parent hands over a new function.
+- **Gate installs its reader listener with layout-effect timing**, and keeps the camera's late-stream cleanup and the duplicate-scan guard.
+- **`@fuda/ui/wallet-button` stays a Hono HTML helper**, because the API renders it on the server.
+
+Compared with the previous renderer, the member app's client JavaScript is 11,373 gzipped bytes smaller, and the dashboard and gate are within 12 bytes. A real authenticator, wallet sign-in, live ENS claim, camera and hardware reader remain owner checks, and Safari and Firefox are unverified.
 
 ## Related documentation
 
 - [Runbook](./runbook.md) — one-time chain setup, secrets and vars, deploy order, smoke ladders, reconciliation
-- [ADR 0001 — EAS-native target architecture](./adr/0001-eas-native-target-architecture.md)
-- [ADR 0002 — unfiltered announcement log](./adr/0002-unfiltered-announcement-log.md)
-- [ADR 0003 — separate Graph push and query lanes](./adr/0003-graph-push-query-lanes.md)
-- [ADR 0004 — member pass list derived from holder addresses](./adr/0004-member-pass-list-from-holder.md)
-- [ADR 0005 — one hybrid resolver for the claimed and offchain ENS tree](./adr/0005-hybrid-ensv2-resolver.md)
-- [ADR 0006 — one deployment per chain, nothing migrated at the cutover](./adr/0006-per-chain-environments.md)
-- [ADR 0007 — fuda keeps root custody of the issuer registry](./adr/0007-root-custody-of-the-issuer-registry.md)
-- [ADR 0014 — offchain rights by default](./adr/0014-offchain-default-pass-types.md)
 - [api README](../apps/api/README.md) — running the api locally, endpoints, error codes
 - [Glossary](./CONTEXT.md)

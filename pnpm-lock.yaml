@@ -256,9 +256,6 @@ importers:
       '@fuda/ui':
         specifier: workspace:*
         version: link:../../packages/ui
-      hono:
-        specifier: ^4.13.17
-        version: 4.13.17
       preact:
         specifier: 11.1.1
         version: 11.1.1(preact-render-to-string@6.8.2)

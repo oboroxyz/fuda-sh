@@ -8,10 +8,10 @@ Triage read-only. If the task leaves requirements, product behavior, interfaces 
 
 ## Documents
 
-When sources disagree, trust them in this order, and do not silently pick one: tests and implementation, then `docs/specs/`, then `docs/adr/`.
+When sources disagree, trust them in this order, and do not silently pick one: tests and implementation, then `docs/specs/`, then the other documents.
 
 - `docs/specs/` says what the system does now: behavior, rules, interfaces, security constraints. No task breakdowns, edit lists or debugging notes.
-- `docs/adr/` records a decision future maintainers will question, and why. Skip it for routine choices the code explains.
+- A decision future maintainers will question is recorded with its reason in the section it explains: a spec for product and protocol choices, `docs/architecture.md` for platform choices, the runbook for operational ones. Say what holds today and edit it in place; Git history keeps the earlier text. There are no separate decision records. Skip routine choices the code explains.
 - The runbook holds operational procedures and pitfalls.
 
 Keep working notes and plans out of the repository. Update the relevant document in the change that makes it wrong, using as little text as the change needs.
@@ -22,7 +22,7 @@ Every change reaches `main` through a pull request. Merge with a merge commit, n
 
 A feature that spans several pull requests uses one integration branch:
 
-1. Create `feat/<topic>` from `main`. Record any architectural decision in an ADR first.
+1. Create `feat/<topic>` from `main`. Record any architectural decision in the document it belongs to first.
 2. Base every pull request on `feat/<topic>`, not on another pull request's branch. One that needs another's code waits until that code is merged there. Merge `main` in when it moves.
 3. Review and merge each pull request into `feat/<topic>`.
 4. Open one pull request from `feat/<topic>` to `main`. Run the full checks and an independent review of the combined change, then merge. Delete the branch last.

@@ -27,7 +27,7 @@ import { appWith, fakeChain, testEnv } from './env.ts'
 import { other } from './fixtures.ts'
 import { CARD_INPUT, getJson, postJson, SECOND_CARD, signIn } from './operator.ts'
 
-// docs/adr/0011-several-issuers-per-account.md — one account, several issuers,
+// docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route — one account, several issuers,
 // each with its own cards, and a session acting for one at a time.
 
 const bindings = () => testEnv()

@@ -3,7 +3,6 @@ import { pick } from '@fuda/i18n'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { DASH_COPY } from './copy.ts'
-import { completeMembersLoad } from './members-state.ts'
 import type { MembersState } from './members-state.ts'
 import type { MemberRowView } from './members-view.ts'
 import { OverviewPage } from './OverviewPage.tsx'
@@ -59,7 +58,7 @@ describe(OverviewPage, () => {
   afterEach(cleanup)
 
   it('shows populated member counts and configured client status', () => {
-    const ready = completeMembersLoad(rows)
+    const ready: MembersState = { kind: 'ready', rows }
 
     expect(shown({ apiBaseUrl: 'https://api.fuda.sh', copy, graphEndpoint: '', state: ready })).toContain(
       'Total rights 3 Active rights 2 Revoked rights 1',
@@ -70,7 +69,7 @@ describe(OverviewPage, () => {
   })
 
   it('shows zero counts only after a successful empty response', () => {
-    const ready = completeMembersLoad([])
+    const ready: MembersState = { kind: 'ready', rows: [] }
 
     expect(shown({ apiBaseUrl: 'x', copy, graphEndpoint: 'https://graph.example', state: ready })).toContain(
       'Total rights 0 Active rights 0 Revoked rights 0',
@@ -79,7 +78,7 @@ describe(OverviewPage, () => {
 
   it.each([
     { kind: 'ready', rows: [] },
-    { kind: 'error', message: 'D1_OFFLINE', previousRows: null },
+    { kind: 'error', message: 'D1_OFFLINE' },
   ] satisfies MembersState[])(
     'shows the configured Graph URL without claiming connectivity when $kind',
     (state) => {
@@ -98,73 +97,28 @@ describe(OverviewPage, () => {
     },
   )
 
-  it('uses checking status and no numeric counts during the initial load', () => {
-    const loading: MembersState = { kind: 'loading', previousRows: null }
-    const text = shown({ apiBaseUrl: 'x', copy, graphEndpoint: '', state: loading })
+  it('does not invent zero counts after an error', () => {
+    const failed: MembersState = { kind: 'error', message: 'fetch failed' }
+    const text = shown({ apiBaseUrl: 'x', copy, graphEndpoint: 'https://graph.example', state: failed })
 
-    expect(text).toContain('API Checking x Graph index Not configured')
+    expect(text).toContain('API Unavailable x')
     expect(text).not.toContain('Total rights 0')
   })
 
-  it('does not invent zero counts after an initial error', () => {
-    const initialError: MembersState = { kind: 'error', message: 'fetch failed', previousRows: null }
-
-    expect(
-      shown({ apiBaseUrl: 'x', copy, graphEndpoint: 'https://graph.example', state: initialError }),
-    ).not.toContain('Total rights 0')
-  })
-
-  it('labels retained values while refreshing', () => {
-    const refreshing: MembersState = { kind: 'loading', previousRows: rows }
-
-    expect(shown({ apiBaseUrl: 'x', copy, graphEndpoint: '', state: refreshing })).toContain(
-      'Refreshing rights',
-    )
-  })
-
-  it('labels retained values as stale after a failed refresh', () => {
-    const staleError: MembersState = { kind: 'error', message: 'fetch failed', previousRows: rows }
-
-    expect(shown({ apiBaseUrl: 'x', copy, graphEndpoint: '', state: staleError })).toContain(
-      'Showing last loaded values',
-    )
-  })
-
   it.each([
-    [
-      'en',
-      'Could not load rights',
-      'Showing last loaded values',
-      'Total rights 3 Active rights 2 Revoked rights 1',
-    ],
-    [
-      'ja',
-      '権利を読み込めませんでした',
-      '最後に読み込んだ値を表示中',
-      '権利の合計 3 有効な権利 2 取り消した権利 1',
-    ],
-  ] as const)(
-    'explains initial and refresh load failures in %s while preserving the last counts',
-    (locale, errorPrefix, stale, counts) => {
-      const showError = (previousRows: readonly MemberRowView[] | null): HTMLElement =>
-        show({
-          apiBaseUrl: 'x',
-          copy: DASH_COPY[locale].overview,
-          graphEndpoint: '',
-          state: { kind: 'error', message: 'D1_UNAVAILABLE [42]', previousRows },
-        })
-      const initial = showError(null)
-      const refreshed = showError(rows)
+    ['en', 'Could not load rights'],
+    ['ja', '権利を読み込めませんでした'],
+  ] as const)('explains a load failure in %s without counts', (locale, errorPrefix) => {
+    const host = show({
+      apiBaseUrl: 'x',
+      copy: DASH_COPY[locale].overview,
+      graphEndpoint: '',
+      state: { kind: 'error', message: 'D1_UNAVAILABLE [42]' },
+    })
 
-      for (const host of [initial, refreshed]) {
-        expect(spacedText(host.querySelector('[role="alert"]'))).toBe(
-          `${errorPrefix}: ${locale === 'ja' ? '処理を完了できませんでした。もう一度お試しください。' : 'Something went wrong. Try again.'} (D1_UNAVAILABLE [42])`,
-        )
-      }
-      expect([...initial.querySelectorAll('.stat-value')].map(spacedText)).toStrictEqual(['—', '—', '—'])
-      expect(spacedText(initial)).not.toContain(stale)
-      expect(spacedText(refreshed)).toContain(stale)
-      expect(spacedText(refreshed)).toContain(counts)
-    },
-  )
+    expect(spacedText(host.querySelector('[role="alert"]'))).toBe(
+      `${errorPrefix}: ${locale === 'ja' ? '処理を完了できませんでした。もう一度お試しください。' : 'Something went wrong. Try again.'} (D1_UNAVAILABLE [42])`,
+    )
+    expect([...host.querySelectorAll('.stat-value')].map(spacedText)).toStrictEqual(['—', '—', '—'])
+  })
 })

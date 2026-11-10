@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import * as v from 'valibot'
 
-import { readMvpGraphConfig } from './read-mvp-config.mjs'
+import { readMvpGraphConfig } from './read-mvp-config.ts'
 
 interface PrepareOptions {
   rootDir: string

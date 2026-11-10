@@ -99,16 +99,18 @@ The principle behind that split is **decentralized at the core, hosted rails onl
 │   ├── ui               shared Preact components, helpers, and page tooling
 │   ├── styles           shared base CSS
 │   ├── i18n             shared message catalogue
+│   ├── chains           chain ids, RPC defaults and EAS addresses
+│   ├── e2e              browser tests against the built Workers
 │   ├── ens-contracts    ENS resolver contracts and naming scripts
-│   ├── subgraphs/rights the Base query lane the apps read status from
-│   └── substreams       optional EAS push lane
+│   └── subgraphs/rights the Base query lane the apps read status from
+├── archive              retired code kept for reference, such as the Substreams packages
 ├── skills               agent skills to install, such as MCP setup
 └── docs                 architecture, specs, ADRs, runbook
 ```
 
-`packages/subgraphs/*` and `packages/substreams/*` build independently and do not join the pnpm workspace.
+`packages/subgraphs/*` builds independently and does not join the pnpm workspace. `archive/` is not built or tested.
 
-Stack: Cloudflare Workers (Hono, Drizzle, D1, R2), viem, valibot, `@noble` crypto, EAS on Base. The protocol surface of the core loop is EAS. fuda runs one deployment per chain and they never share state — Base Sepolia today, Base mainnet at the cutover; see [Environments](./docs/architecture.md#environments).
+Stack: Cloudflare Workers built with Void (Hono handlers, Drizzle, D1, R2), Preact, viem, valibot, `@noble` crypto, EAS on Base. The protocol surface of the core loop is EAS. fuda runs one deployment per chain and they never share state — Base Sepolia today, Base mainnet at the cutover; see [Environments](./docs/architecture.md#environments).
 
 ## Quick start
 
@@ -136,14 +138,12 @@ Then ask the agent to connect to fuda. It walks you through registering the app 
   - [Pass types and flows](./docs/specs/pass-types-and-flows.md) — templates, wallet roles, standard issuance, the gate protocol
   - [MCP server](./docs/specs/mcp.md) — connecting an agent, tokens bound to the server, the tools
   - [ENS naming](./docs/specs/ens-naming.md) — the name hierarchy, the member number, what a name resolves to, name lifecycle
-  - [Substreams packages](./docs/specs/substreams.md) — the optional push lane and its compatibility guarantees
 - **Integrations**
-  - [The Graph](./docs/integrations/thegraph.md) — rights indexing, Substreams, and verification evidence
+  - [The Graph](./docs/integrations/thegraph.md) — rights indexing, the archived Substreams packages, and verification evidence
   - [ENS](./docs/integrations/ens.md) — venue and member names on the ENSv2 Sepolia deployment, the sponsored claim, and live resolution evidence
   - [World ID](./docs/integrations/worldid.md) — the Verified Human badge: where it sits, what the proof must satisfy, and what the vendor's edge does undocumented
 - **Operations**
   - [Runbook](./docs/runbook.md) — local development, one-time Cloudflare and Base setup, secrets, deploy order
   - [Agent guidance](./AGENTS.md) — repository workflow and verification
 - **Records**
-  - [Decision records](./docs/adr/) — why the architecture is shaped this way
   - [References](./docs/references.md) — the standards, prior art, and platform docs the design drew on

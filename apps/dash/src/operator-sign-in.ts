@@ -50,7 +50,7 @@ export const createPasskeyAccount = async (): Promise<SignInOutcome> =>
   outcomeOf(await operatorPasskeys.create())
 
 // Secondary: an ENS claim and a venue made before passkeys need the wallet itself
-// (docs/adr/0008-shared-issuer-wallet.md).
+// (../../../docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route).
 export const signInWithWallet = async (io: WalletSignInIo = BASE_ACCOUNT): Promise<SignInOutcome> => {
   const verified = await authenticateWallet<SignedIn>(io)
   return verified.ok ? { hasIssuer: verified.session.issuer !== null, ok: true } : verified

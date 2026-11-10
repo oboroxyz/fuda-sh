@@ -234,7 +234,7 @@ export interface IssuerSummary {
 }
 
 // GET /auth/issuers — every issuer the signed-in account owns, oldest first,
-// and the one this session's token is bound to (docs/adr/0011-several-issuers-per-account.md).
+// and the one this session's token is bound to (../../../docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route).
 export interface OwnedIssuersResponse {
   issuers: IssuerSummary[]
   activeIssuerId: string | null

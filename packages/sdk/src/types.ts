@@ -1,4 +1,4 @@
-import type { BadgeKind, ErrorCode, Hex, Level, Reason } from './constants.ts'
+import type { BadgeKind, ErrorCode, Hex, ISSUER_PASS_STATUSES, Level, Reason } from './constants.ts'
 import type { CardCategory, CardView, IssuerView, OperatorCardView } from './handles.ts'
 
 export interface ErrorResponse {
@@ -245,9 +245,7 @@ export interface CardUpdateResponse {
   card: OperatorCardView
 }
 
-// Derived from the Issuer's local immutable issuance snapshot, revocation
-// marker and default slot. This is not a fresh chain verdict.
-export type IssuerPassStatus = 'active' | 'revoked' | 'expired' | 'not_yet_valid' | 'consumed' | 'unknown'
+export type IssuerPassStatus = (typeof ISSUER_PASS_STATUSES)[number]
 
 export interface IssuerPassView {
   uid: string
@@ -285,7 +283,7 @@ export interface IssuerCardsResponse {
 }
 // `token` is present when the account already acted for another issuer: a new
 // session bound to the new issuer, leaving the caller's own session — and any
-// other tab holding it — on the issuer it had (docs/adr/0011-several-issuers-per-account.md).
+// other tab holding it — on the issuer it had (../../../docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route).
 export type IssuerCreateResponse = IssuerCardsResponse & { token?: string }
 export interface IssuerUpdateResponse {
   issuer: IssuerView
@@ -297,7 +295,7 @@ export type IssuerMeResponse = IssuerCardsResponse | { issuer: null; cards: []; 
 
 // POST /auth/switch — a new session bound to the chosen issuer. The session
 // that asked keeps its own issuer: a token never changes which issuer it acts
-// for (docs/adr/0011-several-issuers-per-account.md).
+// for (../../../docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route).
 export interface IssuerSwitchResponse {
   token: string
   operator: IssuerMeResponse

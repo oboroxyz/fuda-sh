@@ -29,17 +29,16 @@ const progressLine = (copy: DashCopy['ens'], state: ClaimState): string | null =
 }
 
 export const EnsClaim = (props: EnsClaimProps): JSX.Element => {
-  const progress = (): string | null => progressLine(props.copy, props.state)
-  const claimed = (): boolean => props.state.kind === 'claimed'
-  const claimedName = (): string | undefined =>
-    props.state.kind === 'claimed' ? props.state.name : undefined
-  const failure = (): string | null =>
+  const progress: string | null = progressLine(props.copy, props.state)
+  const claimed: boolean = props.state.kind === 'claimed'
+  const claimedName: string | undefined = props.state.kind === 'claimed' ? props.state.name : undefined
+  const failure: string | null =
     props.state.kind === 'failed' ? props.copy.failures[props.state.failure] : null
   return (
     <section aria-label={props.copy.title} class="flex flex-col gap-2 pt-2">
       <div class="flex flex-wrap items-center gap-2">
         <VenueLinkIcon kind="link" />
-        {claimed() ? (
+        {claimed ? (
           <a
             class="link link-hover text-sm wrap-anywhere"
             href={`${EXPLORER}${props.ownerAddress ?? ''}`}
@@ -47,12 +46,12 @@ export const EnsClaim = (props: EnsClaimProps): JSX.Element => {
             target="_blank"
             title={props.copy.explorer}
           >
-            {claimedName()}
+            {claimedName}
           </a>
         ) : (
           <span class="text-sm wrap-anywhere">{props.name}</span>
         )}
-        {claimed() ? (
+        {claimed ? (
           <svg
             aria-label={props.copy.claimedLabel}
             class="text-primary size-4 shrink-0"
@@ -72,7 +71,7 @@ export const EnsClaim = (props: EnsClaimProps): JSX.Element => {
             />
           </svg>
         ) : null}
-        {!claimed() && props.ownerAddress !== null ? (
+        {!claimed && props.ownerAddress !== null ? (
           <button
             class="btn btn-primary btn-xs"
             disabled={claimIsBusy(props.state)}
@@ -85,18 +84,18 @@ export const EnsClaim = (props: EnsClaimProps): JSX.Element => {
           </button>
         ) : null}
       </div>
-      {props.ownerAddress === null && !claimed() ? (
+      {props.ownerAddress === null && !claimed ? (
         <p class="text-sm opacity-70" role="status">
           {props.copy.walletRequired}
         </p>
       ) : null}
-      {failure() === null ? null : (
+      {failure === null ? null : (
         <p class="text-error text-sm" role="alert">
-          {failure()}
+          {failure}
         </p>
       )}
 
-      {progress() === null ? null : <p class="text-sm opacity-70">{progress()}</p>}
+      {progress === null ? null : <p class="text-sm opacity-70">{progress}</p>}
     </section>
   )
 }

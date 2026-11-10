@@ -68,41 +68,12 @@ const designIo = (overrides: Partial<DesignIo> = {}): DesignIo => ({
 })
 
 describe('the designer submit', () => {
-  it('carries the id the upload returned into the venue create body', async () => {
+  it('creates the venue from the registration form', async () => {
     const io = designIo()
-    const outcome = await submitVenue(io, venueForm, logo)
+    const outcome = await submitVenue(io, venueForm)
     expect(outcome.ok).toBe(true)
-    expect(io.uploadLogo).toHaveBeenCalledExactlyOnceWith(logo)
-    expect(io.createIssuer).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ logoUploadId: 'up_1' }))
-  })
-
-  it('leaves the create body without a logo id when the operator picked none', async () => {
-    const io = designIo()
-    await submitVenue(io, venueForm, null)
     expect(io.uploadLogo).not.toHaveBeenCalled()
     expect(io.createIssuer).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ logoUploadId: null }))
-  })
-
-  it('keeps the operator form when the upload fails, writing nothing', async () => {
-    const io = designIo({
-      uploadLogo: vi
-        .fn<DesignIo['uploadLogo']>()
-        .mockResolvedValue({ error: 'bad_upload', network: false, ok: false, status: 400 }),
-    })
-    const outcome = await submitVenue(io, venueForm, logo)
-    expect(outcome).toStrictEqual({ failure: 'logo', ok: false })
-    expect(io.createIssuer).not.toHaveBeenCalled()
-  })
-
-  it('ends the session rather than blaming the logo when the upload is unauthorized', async () => {
-    const io = designIo({
-      uploadLogo: vi
-        .fn<DesignIo['uploadLogo']>()
-        .mockResolvedValue({ error: 'unauthorized', network: false, ok: false, status: 401 }),
-    })
-    const outcome = await submitVenue(io, venueForm, logo)
-    expect(outcome).toStrictEqual({ failure: 'session', ok: false })
-    expect(io.createIssuer).not.toHaveBeenCalled()
   })
 
   it('adds a card without changing venue identity or logo', async () => {

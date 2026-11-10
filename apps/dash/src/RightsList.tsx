@@ -87,7 +87,7 @@ const qrDisclosure = (
   ) : null
 
 const actions = (props: RightsListProps, layout: RightsLayout, row: MemberRowView): JSX.Element => {
-  const qrOpen = (): boolean => props.openQr === row.uid
+  const qrOpen: boolean = props.openQr === row.uid
   return (
     <div class="dash-actions">
       {row.qr === null ? null : (
@@ -95,12 +95,12 @@ const actions = (props: RightsListProps, layout: RightsLayout, row: MemberRowVie
           type="button"
           class="btn btn-xs"
           aria-controls={qrPanelId(layout, row.uid)}
-          aria-expanded={qrOpen()}
+          aria-expanded={qrOpen}
           onClick={() => {
             props.onToggleQr(row.uid)
           }}
         >
-          {qrOpen() ? props.copy.hideQr : props.copy.qr}
+          {qrOpen ? props.copy.hideQr : props.copy.qr}
         </button>
       )}
       <button

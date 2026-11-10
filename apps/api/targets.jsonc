@@ -65,7 +65,6 @@
       "EAS_ADDRESS": "0x4200000000000000000000000000000000000021",
       "EAS_VERSION": "1.4.1-beta.3",
       "OFFCHAIN_RETIRED_SIGNERS": "",
-      "SCHEMA_REGISTRY_ADDRESS": "0x4200000000000000000000000000000000000020",
       "GRAPH_START_BLOCK": "7552655",
       "FACTORY_ADDRESS": "0x0BA5ED0c6AA8c49038F819E587E2633c4A9F428a",
       "EAS_SCHEMAS": "{\"attendance\":[{\"uid\":\"0x22a41470aabe3a0edec1f9948975a887f21adddd6cf009e865e267cac6e10241\",\"version\":1}],\"entitlement\":[{\"uid\":\"0x42ffdba952267e373cb33ecf9fdc190fb27b30140d0695dabb8383bbed86d616\",\"version\":1}],\"issuerDelegation\":[{\"uid\":\"0x62c93e6e95f3956ba5937fc8454203ba781af5e455657952e915e71c3895f327\",\"version\":1}]}",
@@ -114,7 +113,6 @@
       "EAS_ADDRESS": "0x4200000000000000000000000000000000000021",
       "EAS_VERSION": "1.0.1",
       "OFFCHAIN_RETIRED_SIGNERS": "",
-      "SCHEMA_REGISTRY_ADDRESS": "0x4200000000000000000000000000000000000020",
       "GRAPH_START_BLOCK": "0",
       "FACTORY_ADDRESS": "0x0BA5ED0c6AA8c49038F819E587E2633c4A9F428a",
       "EAS_SCHEMAS": "{\"attendance\":[],\"entitlement\":[],\"issuerDelegation\":[]}",
@@ -128,7 +126,7 @@
     },
   },
   // Local only, on the in-memory fake chain, with USE_FAKE_CHAIN=1 (see
-  // .dev.vars.example): no signer or RPC needed. Named `local` rather than
+  // .env.example): no signer or RPC needed. Named `local` rather than
   // `dev` so it can never be mistaken for the deployed `develop` target; it
   // carries no routes and must never be deployed.
   //
@@ -156,7 +154,6 @@
       "EAS_ADDRESS": "0x4200000000000000000000000000000000000021",
       "EAS_VERSION": "1.4.1-beta.3",
       "OFFCHAIN_RETIRED_SIGNERS": "",
-      "SCHEMA_REGISTRY_ADDRESS": "0x4200000000000000000000000000000000000020",
       "GRAPH_START_BLOCK": "0",
       "FACTORY_ADDRESS": "0x0BA5ED0c6AA8c49038F819E587E2633c4A9F428a",
       "API_BASE_URL": "http://localhost:8787",

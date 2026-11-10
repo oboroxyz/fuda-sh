@@ -79,7 +79,7 @@ export const getV1IssuersMe = defineHandler(operatorAuth(), async (c) => {
   return jsonResponse(c, await meResponse(c, c.get('operator').issuerId))
 })
 
-// docs/adr/0011-several-issuers-per-account.md — every issuer this account
+// docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route — every issuer this account
 // owns, and the one this session's token is bound to. Under /auth rather than
 // /issuers, where a static segment would shadow the public /issuers/:handle of
 // a venue whose handle happened to match it.

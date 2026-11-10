@@ -1,22 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import {
-  applyThemeMode,
-  nextThemeMode,
-  readThemeMode,
-  resolveThemeMode,
-  saveThemeMode,
-  themeScript,
-  watchThemeMode,
-} from './theme.ts'
+import { applyThemeMode, nextThemeMode, resolveThemeMode, themeScript, watchThemeMode } from './theme.ts'
 import type { ThemeEnvironment } from './theme.ts'
 
-const environment = (stored: string | null, dark = false): ThemeEnvironment => ({
+const environment = (dark = false): ThemeEnvironment => ({
   applyRoot: vi.fn<ThemeEnvironment['applyRoot']>(),
   prefersDark: vi.fn<ThemeEnvironment['prefersDark']>(() => dark),
-  readStored: vi.fn<ThemeEnvironment['readStored']>(() => stored),
   subscribeSystem: vi.fn<ThemeEnvironment['subscribeSystem']>(() => () => {}),
-  writeStored: vi.fn<ThemeEnvironment['writeStored']>(),
 })
 
 describe('theme preference', () => {
@@ -29,22 +19,13 @@ describe('theme preference', () => {
   })
 
   it('applies the selected mode and resolved dark state', () => {
-    const env = environment('system', true)
+    const env = environment(true)
     applyThemeMode('system', env)
     expect(env.applyRoot).toHaveBeenCalledWith('system', true)
   })
 
-  it('applies even when saving is blocked', () => {
-    const env = environment(null)
-    env.writeStored = () => {
-      throw new Error('blocked')
-    }
-    saveThemeMode('dark', env)
-    expect(env.applyRoot).toHaveBeenCalledWith('dark', true)
-  })
-
   it('subscribes only in system mode and reapplies preference changes', () => {
-    const env = environment('system')
+    const env = environment()
     const listener = vi.fn<() => void>()
     const unsubscribe = vi.fn<() => void>()
     vi.spyOn(env, 'subscribeSystem').mockImplementation((next) => {
@@ -58,14 +39,6 @@ describe('theme preference', () => {
     stop()
     expect(unsubscribe).toHaveBeenCalledOnce()
     expect(watchThemeMode('dark', env)).toBeTypeOf('function')
-  })
-
-  it('reads system when storage access throws', () => {
-    const env = environment(null)
-    env.readStored = () => {
-      throw new Error('blocked')
-    }
-    expect(readThemeMode(env)).toBe('system')
   })
 })
 

@@ -19,8 +19,6 @@ const designer = (onEditProfile: (form: typeof EMPTY_FORM) => void) => (
     failure={null}
     initialDraft={{ ...EMPTY_FORM, title: 'Old card' }}
     issuer={null}
-    logoCopy={DASH_COPY.en.logo}
-    onCheckHandle={async () => await Promise.resolve('available')}
     onCheckSlug={async () => await Promise.resolve('available')}
     onDraftChange={setCardDraft}
     onEditProfile={onEditProfile}
