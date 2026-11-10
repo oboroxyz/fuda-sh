@@ -15,7 +15,7 @@
     "@fuda/sdk": "workspace:*",
     "@fuda/styles": "workspace:*",
     "@fuda/ui": "workspace:*",
-    "preact": "11.1.1"
+    "preact": "11.2.0"
   },
   "devDependencies": {
     "@babel/core": "^8.1.0",

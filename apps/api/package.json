@@ -27,7 +27,7 @@
     "@fuda/pass": "workspace:*",
     "@fuda/sdk": "workspace:*",
     "@fuda/ui": "workspace:*",
-    "@simplewebauthn/server": "^14.0.3",
+    "@simplewebauthn/server": "^14.1.0",
     "@worldcoin/idkit-core": "^4.6.0",
     "@worldcoin/idkit-server": "^1.2.0",
     "drizzle-orm": "^0.45.4",
