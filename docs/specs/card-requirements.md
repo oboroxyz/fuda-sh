@@ -2,7 +2,7 @@
 
 A Card may carry **requirements**. A requirement names a record outside fuda that a member must hold, such as an ERC-8432 licence agreement. fuda reads that record itself when the member claims a pass, and again each time the member presents the pass. The first kind is `erc8432-agreement`.
 
-**Status: built, not yet usable on a deployed target.** The model, the API, the member app and the dashboard are built. No registry is deployed and `IP_REGISTRIES` is unset on every deployed target, so no Card can carry a requirement there. Nothing has run against a deployed registry.
+**Status: built, not yet usable on a deployed target.** The model, the API, the member app and the dashboard are built. No registry is deployed and `IP_REGISTRIES` is unset on every deployed target, so no Card can carry a requirement there. Nothing has run against a deployed registry. The [runbook](../runbook.md#erc-8432-registry-for-card-requirements) lists the deployment steps.
 
 API paths below are under `/v1`. Terms such as Card, Right, Holder and Member secret are defined in the [glossary](../CONTEXT.md). How requirements relate to the other ways an outside system works with fuda is in the [architecture overview](../architecture.md#outside-systems).
 
