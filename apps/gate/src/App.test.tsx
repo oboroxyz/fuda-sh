@@ -43,6 +43,7 @@ describe(App, () => {
     for (const dispose of disposers.splice(0)) {
       dispose()
     }
+    vi.useRealTimers()
     vi.restoreAllMocks()
   })
 
@@ -56,7 +57,7 @@ describe(App, () => {
       hasWaitingLine: host.textContent.includes('present your pass'),
     }).toStrictEqual({ fields: null, hasVenue: true, hasWaitingLine: true })
     scan(QR)
-    expect(admit).toHaveBeenCalledExactlyOnceWith(QR, 'alpha')
+    expect(admit).toHaveBeenCalledExactlyOnceWith(QR, 'alpha', expect.any(AbortSignal))
     await settle()
     expect(host.textContent).toContain('NOT_FOUND')
     expect(getUserMedia).not.toHaveBeenCalled()
@@ -77,27 +78,133 @@ describe(App, () => {
     expect(view.host.textContent).toContain('NOT_FOUND')
   })
 
-  it('blocks duplicate reads in the same tick and across rerenders until verification finishes', async () => {
+  it('queues only the latest scan during checking without showing the earlier verdict', async () => {
+    const first = Promise.withResolvers<ApiResult>()
+    const next = Promise.withResolvers<ApiResult>()
+    admit.mockReturnValueOnce(first.promise)
+    preview.mockReturnValueOnce(next.promise)
+    const view = openGate()
+    await settle(() => {
+      scan(QR)
+    })
+    await settle(() => {
+      scan(QR)
+      scan(UID)
+    })
+    expect(view.host.textContent).toContain('only the latest scan')
+    expect(admit).toHaveBeenCalledOnce()
+    first.resolve({ body: { decision: 'ADMIT', reason: 'OK' }, ok: true })
+    await settle()
+    expect({
+      checking: view.host.textContent.includes('checking pass'),
+      previews: preview.mock.calls.length,
+    }).toStrictEqual({ checking: true, previews: 1 })
+    expect(view.host.textContent).not.toContain('ADMIT')
+    next.resolve(rejected())
+    await settle()
+    expect(view.host.textContent).toContain('NOT_FOUND')
+  })
+
+  it('replaces a green verdict with neutral checking on the next scan', async () => {
+    admit.mockResolvedValueOnce({ body: { decision: 'ADMIT', reason: 'OK' }, ok: true })
     const pending = Promise.withResolvers<ApiResult>()
     admit.mockReturnValueOnce(pending.promise)
-    const view = openGate()
-    scan(QR)
-    scan(QR)
-    view.update(<App />)
-    scan(QR)
-    expect(admit).toHaveBeenCalledOnce()
-    pending.resolve(rejected())
-    await settle()
+    const { host } = openGate()
     scan(QR)
     await settle()
-    expect(admit).toHaveBeenCalledTimes(2)
+    expect(host.textContent).toContain('ADMIT')
+    await settle(() => {
+      scan(QR)
+    })
+    expect(host.textContent).toContain('checking pass')
+    expect(host.textContent).not.toContain('ADMIT')
+  })
+
+  it('times out, aborts the request, and ignores a late admit', async () => {
+    vi.useFakeTimers()
+    const pending = Promise.withResolvers<ApiResult>()
+    admit.mockReturnValueOnce(pending.promise)
+    const { host } = openGate()
+    scan(QR)
+    await settle()
+    await settle(() => {
+      vi.advanceTimersByTime(10_000)
+    })
+    expect(admit.mock.calls[0][2]?.aborted).toBe(true)
+    expect(host.textContent).toContain('REJECT')
+    expect(host.textContent).toContain('could not check, scan again')
+    pending.resolve({ body: { decision: 'ADMIT', reason: 'OK' }, ok: true })
+    await settle()
+    expect(host.textContent).not.toContain('ADMIT')
+  })
+
+  it.each(['admit', 'preview'])('fails closed when %s throws', async (kind) => {
+    admit.mockRejectedValueOnce(new Error('failed'))
+    preview.mockRejectedValueOnce(new Error('failed'))
+    const { host } = openGate()
+    scan(kind === 'admit' ? QR : UID)
+    await settle()
+    expect(host.textContent).toContain('REJECT')
+    expect(host.textContent).toContain('could not check, scan again')
+  })
+
+  it.each([
+    ['ADMIT', 5000],
+    ['REJECT', 10_000],
+  ] as const)('auto-dismisses %s after %i ms', async (decision, delay) => {
+    vi.useFakeTimers()
+    if (decision === 'ADMIT') {
+      admit.mockResolvedValueOnce({ body: { decision: 'ADMIT', reason: 'OK' }, ok: true })
+    }
+    const { host } = openGate()
+    scan(QR)
+    await settle()
+    await settle(() => {
+      vi.advanceTimersByTime(delay - 1)
+    })
+    expect(host.textContent).toContain(decision)
+    await settle(() => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(host.textContent).toContain('present your pass')
+  })
+
+  it('clears the old dismissal timer on a new scan and all timers on unmount', async () => {
+    vi.useFakeTimers()
+    const { host, dispose } = openGate()
+    scan(QR)
+    await settle()
+    await settle(() => {
+      vi.advanceTimersByTime(9000)
+    })
+    const pending = Promise.withResolvers<ApiResult>()
+    admit.mockReturnValueOnce(pending.promise)
+    await settle(() => {
+      scan(QR)
+    })
+    await settle(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    expect(host.textContent).toContain('checking pass')
+    dispose()
+    expect(admit.mock.calls[1][2]?.aborted).toBe(true)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('clears the verdict timer on unmount', async () => {
+    vi.useFakeTimers()
+    const { dispose } = openGate()
+    scan(QR)
+    await settle()
+    dispose()
+    expect(vi.getTimerCount()).toBe(0)
   })
 
   it('previews a uid and catches the next scan while the verdict button has focus', async () => {
     const { host } = openGate()
     scan(UID)
     await settle()
-    expect(preview).toHaveBeenCalledExactlyOnceWith(UID)
+    expect(preview).toHaveBeenCalledExactlyOnceWith(UID, expect.any(AbortSignal))
     const verdict = host.querySelector('button')!
     verdict.focus()
     let prevented = false
@@ -113,7 +220,7 @@ describe(App, () => {
     expect(admit).toHaveBeenCalledOnce()
     expect(host.textContent).toContain('NOT_FOUND')
     await settle(() => {
-      verdict.click()
+      host.querySelector('button')!.click()
     })
     expect(host.textContent).toContain('present your pass')
   })
