@@ -915,9 +915,17 @@ describe('address Card controller', () => {
       ],
     })),
   }
-  const open = (licence: NonNullable<Parameters<typeof CardScreen>[0]['licence']>, signedIn = true) => {
+  const open = (
+    licence: NonNullable<Parameters<typeof CardScreen>[0]['licence']>,
+    signedIn = true,
+    claimable = true,
+  ) => {
     const deps = io()
-    deps.fetchVenue = async () => await Promise.resolve({ body: addressVenue, ok: true })
+    deps.fetchVenue = async () =>
+      await Promise.resolve({
+        body: { ...addressVenue, cards: addressVenue.cards.map((card) => ({ ...card, claimable })) },
+        ok: true,
+      })
     const host = document.createElement('div')
     render(
       () => (
@@ -994,7 +1002,22 @@ describe('address Card controller', () => {
     },
   )
 
-  it('reuses PRF guidance and the newly added passkey', async () => {
+  it('offers to receive an existing pass when the Card has no capacity left', async () => {
+    const licence = vi
+      .fn<NonNullable<Parameters<typeof CardScreen>[0]['licence']>>()
+      .mockResolvedValue({ address, detail: 'no-agreement', kind: 'unmet' })
+    const { host } = open(licence, true, false)
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain('Receive pass')
+    })
+    click(host, 'Receive pass')
+    await vi.waitFor(() => {
+      expect(licence).toHaveBeenCalledOnce()
+    })
+    expect(licence.mock.calls[0]?.[0].action).toBe('claim')
+  })
+
+  it('reuses PRF guidance before retrying', async () => {
     const licence = vi
       .fn<NonNullable<Parameters<typeof CardScreen>[0]['licence']>>()
       .mockResolvedValueOnce({ failure: 'no_prf', kind: 'failed' })

@@ -633,7 +633,7 @@ const landingScreen = (
   const busy = state.kind === 'issuing'
   // A card outside its claim window would only earn a 409, so the screen says
   // so instead of offering a button that cannot work.
-  if (!state.card.card.claimable) {
+  if (!state.card.card.claimable && state.card.card.identity !== 'address') {
     return (
       <>
         {landingCard(state.card)}
@@ -649,6 +649,7 @@ const landingScreen = (
   }
   if (state.card.card.identity === 'address') {
     const text = pick(LICENCE_COPY, locale)
+    const action = state.card.card.claimable ? text.apply : text.receive
     return (
       <>
         {landingCard(state.card)}
@@ -657,7 +658,7 @@ const landingScreen = (
         <p class="text-sm text-[var(--fuda-muted)]">{text.publicAddress}</p>
         {signedIn ? (
           <button class="btn btn-primary" type="button" disabled={busy} onClick={onIssue}>
-            {busy ? copy.gettingCard : text.apply}
+            {busy ? copy.gettingCard : action}
           </button>
         ) : (
           <a
@@ -1060,7 +1061,7 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
     const loaded = await import('../member/licence.ts')
     const receive = props.licence ?? loaded.receiveLicence
     return await receive({
-      action: licenceAction.current,
+      action: card.card.claimable ? licenceAction.current : 'claim',
       cardId: card.card.id,
       cardTitle: card.card.title,
       only,
