@@ -169,6 +169,32 @@ describe('badge routes', () => {
       await expect(res.json()).resolves.toStrictEqual({ error: 'bad_input' })
     })
 
+    it('refuses a proof when its Right is revoked during verification', async () => {
+      const chain = fakeChain()
+      const del = seedRoot(chain)
+      const uid = seedRight(chain, del)
+      const bindings = worldEnv(configuredEnv(del))
+      await db().delete(members)
+      await db().insert(members).values({
+        attestationUid: uid,
+        createdAt: NOW,
+        holder: HOLDER,
+        level: 'bearer',
+        memberId: 'racing-badge',
+      })
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => {
+          const revoked = await post('/v1/revoke', { uid }, bindings, chain)
+          expect(revoked.status).toBe(200)
+          return Response.json({ nullifier: '0xdead', success: true })
+        }),
+      )
+      const response = await post('/v1/badges/human', { payload: proofFor(uid), uid }, bindings, chain)
+      expect(response.status).toBe(404)
+      await expect(db().select().from(badges)).resolves.toStrictEqual([])
+    })
+
     it('writes a badge row when the portal accepts the proof', async () => {
       const chain = fakeChain()
       const del = seedRoot(chain)
