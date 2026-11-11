@@ -614,6 +614,7 @@ const readyScreen = (
   copy: VenueCopy,
   locale: Locale,
   onVerifyHuman: () => void,
+  onIssue: () => void,
 ): JSX.Element => (
   <>
     <section class="venue-held-card">
@@ -624,6 +625,14 @@ const readyScreen = (
       <p class="text-center text-sm">{pick(LICENCE_COPY, locale).activePass}</p>
     ) : null}
     {readyActions(state, copy, locale)}
+    {hasRequirements(state.card) ? (
+      <div class="text-center">
+        <p class="text-sm">{pick(LICENCE_COPY, locale).receiveAgainNote}</p>
+        <button class="btn btn-secondary" type="button" onClick={onIssue}>
+          {pick(LICENCE_COPY, locale).receiveAgain}
+        </button>
+      </div>
+    ) : null}
     {humanBadgeControl(state.badge, onVerifyHuman, copy)}
   </>
 )
@@ -800,7 +809,7 @@ const screenOf = (
     return noPrfScreen(state, onAddPasskey, onIssue, copy)
   }
   if (state.kind === 'ready') {
-    return readyScreen(state, copy, locale, onVerifyHuman)
+    return readyScreen(state, copy, locale, onVerifyHuman, onIssue)
   }
   if (state.kind === 'applied') {
     return (
@@ -1202,6 +1211,11 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
 
   const onIssue = (): void => {
     const current = state
+    if (current.kind === 'ready' && hasRequirements(current.card)) {
+      licenceAction.current = 'claim'
+      void issue(current.card)
+      return
+    }
     if (current.kind === 'landing' || current.kind === 'applied') {
       void issue(current.card)
       return

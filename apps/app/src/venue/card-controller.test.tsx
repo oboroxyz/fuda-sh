@@ -980,6 +980,7 @@ describe.each(['address', 'none'] as const)('%s requirement Card controller', (i
           },
           kind: 'received',
         })
+      licence.mockImplementation(async () => ({ kind: 'failed', failure: 'chain_error' }))
       const { deps, host } = open(licence)
       await vi.waitFor(() => {
         expect(host.textContent).toContain('Apply with your passkey')
@@ -1010,6 +1011,16 @@ describe.each(['address', 'none'] as const)('%s requirement Card controller', (i
         activeNotice: identity === 'none',
         rememberedCard: identity === 'none' ? uid : undefined,
         rememberedPasses: identity === 'none' ? [uid] : [],
+      })
+      expect(host.textContent).toContain('after the asset owner grants a new one')
+      click(host, 'Receive pass again')
+      await vi.waitFor(() => {
+        expect(licence.mock.calls.map(([input]) => input.action)).toStrictEqual([
+          'apply',
+          'claim',
+          'claim',
+          'claim',
+        ])
       })
     },
   )
