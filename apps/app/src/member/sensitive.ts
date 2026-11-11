@@ -264,9 +264,15 @@ const keepPending = async (io: SensitiveIo, secret: Bytes, entry: VaultEntry): P
   )
 }
 
+// Best-effort: the vault already holds these entries, and a key left behind is merged
+// again without duplicates on the next read.
 const clearPending = (io: SensitiveIo, pending: readonly PendingEntry[]): void => {
-  for (const { key } of pending) {
-    io.storage()?.removeItem(key)
+  try {
+    for (const { key } of pending) {
+      io.storage()?.removeItem(key)
+    }
+  } catch {
+    // Storage refused the removal; the entries are safe in the vault.
   }
 }
 
