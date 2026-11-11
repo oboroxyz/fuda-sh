@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:test'
 import { eq } from 'drizzle-orm'
 import type { Context } from 'hono'
+import * as v from 'valibot'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getDb } from '../db/client.ts'
@@ -173,7 +174,7 @@ describe('notifying Google Wallet of a changed pass', () => {
         return Response.json({ access_token: 'access' })
       }
       if (request.method === 'PATCH') {
-        const body = (await request.json()) as { state?: string }
+        const body = v.parse(v.object({ state: v.optional(v.string()) }), await request.json())
         if (body.state !== undefined) {
           states.push(body.state)
           if (states.length === 1) {
