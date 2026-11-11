@@ -20,6 +20,7 @@ import { EAS_ABI, FACTORY_ABI } from '../eas/abi.ts'
 import type { Bindings } from '../env.ts'
 import { ChainError, NoSignerError } from './client.ts'
 import type { AttestParams, ChainClient } from './client.ts'
+import { UnknownTransactionOutcomeError } from './unknown-transaction-outcome-error.ts'
 
 const DEFAULT_RPC = parseChainConfig().publicRpc
 const RPC_TIMEOUT_MS = 1000
@@ -111,7 +112,9 @@ export const createViemChain = (env: ChainBindings, transportOverride?: Transpor
           chain,
           functionName: 'attest',
         })
-        const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash })
+        const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash }).catch(() => {
+          throw new UnknownTransactionOutcomeError(txHash)
+        })
         if (receipt.status !== 'success') {
           throw new ChainError('attest reverted')
         }
