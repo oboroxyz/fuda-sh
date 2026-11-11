@@ -1,7 +1,7 @@
-import { and, eq, gt, lt } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 
 import type { Db } from '../db/client.ts'
-import { logoUploads } from '../db/schema.ts'
+import { issuers, logoUploads } from '../db/schema.ts'
 import {
   IMMUTABLE_CACHE_CONTROL,
   isLogoPrefix,
@@ -27,6 +27,8 @@ export const storeLogoSet = async (
   }
   const prefix = `logos/${crypto.randomUUID()}`
   const written: string[] = []
+  const id = crypto.randomUUID()
+  const expiresAt = p.now + LOGO_UPLOAD_TTL_SECONDS
   try {
     for (const object of checked.objects) {
       const key = objectKey(prefix, object.variant)
@@ -36,59 +38,44 @@ export const storeLogoSet = async (
       })
       written.push(key)
     }
-  } catch (error) {
-    await Promise.all(
-      written.map(async (key): Promise<void> => {
-        await bucket.delete(key)
-      }),
-    )
-    throw error
-  }
-  const id = crypto.randomUUID()
-  const expiresAt = p.now + LOGO_UPLOAD_TTL_SECONDS
-  await db.batch([
-    db.delete(logoUploads).where(lt(logoUploads.expiresAt, p.now)),
-    db.insert(logoUploads).values({
+    await db.insert(logoUploads).values({
       assetPrefix: prefix,
       createdAt: p.now,
       expiresAt,
       id,
       sessionTokenHash: p.sessionTokenHash,
       status: 'pending',
-    }),
-  ])
+    })
+  } catch (error) {
+    await bucket.delete(written)
+    throw error
+  }
   return { expiresAt, id, ok: true }
 }
 
-// The staged prefix, or null when the id is unknown, expired, already spent,
-// or belongs to someone else's session. Marking it committed is the same
-// statement, so two requests cannot both claim one upload.
-export const claimLogoUpload = async (
-  db: Db,
-  p: { id: string; sessionTokenHash: string; now: number },
-): Promise<string | null> => {
-  const row = await db
-    .select({ assetPrefix: logoUploads.assetPrefix })
-    .from(logoUploads)
-    .where(
-      and(
-        eq(logoUploads.id, p.id),
-        eq(logoUploads.sessionTokenHash, p.sessionTokenHash),
-        eq(logoUploads.status, 'pending'),
-        gt(logoUploads.expiresAt, p.now),
-      ),
-    )
-    .get()
-  if (row === undefined || !isLogoPrefix(row.assetPrefix)) {
-    return null
-  }
-  const claimed = await db
+// Evaluate inside the issuer write so a concurrent claim or sweep cannot
+// invalidate a prefix read before the batch started.
+export const pendingLogoPrefix = (p: { id: string; sessionTokenHash: string; now: number }) => sql<
+  string | null
+>`(SELECT asset_prefix FROM logo_uploads
+  WHERE id = ${p.id} AND session_token_hash = ${p.sessionTokenHash}
+    AND status = 'pending' AND expires_at > ${p.now})`
+
+// Run after the issuer write in the same batch. Only the upload attached by
+// that write is consumed; a failed write rolls the whole batch back.
+export const consumeIssuerLogo = (db: Db, issuerId: string) =>
+  db
     .update(logoUploads)
     .set({ status: 'committed' })
-    .where(and(eq(logoUploads.id, p.id), eq(logoUploads.status, 'pending'), gt(logoUploads.expiresAt, p.now)))
-    .run()
-  return claimed.meta.changes > 0 ? row.assetPrefix : null
-}
+    .where(
+      and(
+        eq(logoUploads.status, 'pending'),
+        eq(
+          logoUploads.assetPrefix,
+          sql`(SELECT ${issuers.logoPrefix} FROM ${issuers} WHERE ${issuers.id} = ${issuerId})`,
+        ),
+      ),
+    )
 
 export interface LogoObject {
   body: ArrayBuffer

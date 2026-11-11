@@ -78,6 +78,9 @@ export const postV1BadgesKind = defineHandler(rateLimit({ budget: BADGE_BUDGET }
     verifier: verifier.name,
   })
   if (!saved.ok) {
+    if (saved.conflict === 'revoked') {
+      return errorResponse(c, 'not_found', 404)
+    }
     return errorResponse(c, saved.conflict === 'subject' ? 'already_badged' : 'pass_already_badged', 409)
   }
   // Best-effort only, after the badge is durably saved: never on a 409 or any
