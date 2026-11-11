@@ -8,8 +8,11 @@ import type { BrandColorName } from './brand-colors.ts'
 import { dashMessage } from './error-copy.ts'
 import { MANAGEMENT_COPY } from './management-copy.ts'
 import type { ManagementCopy } from './management-copy.ts'
+import { REQUIREMENTS_COPY } from './requirements-copy.ts'
 
 export interface DashCopy {
+  requirements: typeof REQUIREMENTS_COPY.en
+  requirementsError: (code: string) => string
   apps: AppsCopy
   management: ManagementCopy
   chrome: {
@@ -189,6 +192,14 @@ export interface DashCopy {
     identityNone: string
     identityPasskey: string
     identityHint: string
+    identityAddress: string
+    identityAddressHint: string
+    requirementRegistry: string
+    requirementAsset: string
+    requirementTerms: string
+    requirementHexError: string
+    requirementRegistryError: string
+    requirementFixed: string
     identitySensitive: string
     identitySensitiveHint: string
     attendanceLabel: string
@@ -598,6 +609,8 @@ export const DASH_COPY = {
         },
       },
     },
+    requirements: REQUIREMENTS_COPY.en,
+    requirementsError: (code: string) => dashMessage(code, 'en'),
     designer: {
       title: 'Design the card',
       description: 'Your members see this card. You can run the whole programme from one link.',
@@ -639,6 +652,15 @@ export const DASH_COPY = {
       recordOnchain: 'Public on the blockchain',
       recordHint:
         'Private passes are issued at once and leave no public record of each pass. Public passes can be checked by anyone, take a little longer to issue, and cannot be erased. This cannot be changed later.',
+      identityAddress: 'ERC-8432 licence agreement',
+      identityAddressHint:
+        'Members apply with an address. The asset owner grants each address an agreement in the registry, and a pass works only while that agreement is active.',
+      requirementRegistry: 'Registry',
+      requirementAsset: 'Asset id',
+      requirementTerms: 'Terms id (optional)',
+      requirementHexError: 'Enter 0x followed by 64 hexadecimal characters.',
+      requirementRegistryError: 'Choose a registry.',
+      requirementFixed: 'This requirement cannot be changed after the card is created.',
       identitySensitive: 'Sensitive use: employee badges and private memberships',
       identitySensitiveHint:
         'Each pass gets its own key on the member’s device, so fuda’s records do not connect one person’s passes at different places. You still see how many passes you issued and when they were used, but not who holds them. Members need a fuda account and a passkey saved in iCloud Keychain, Google Password Manager or another app with this feature; anyone else is told how to save one. There are no stamps, Wallet passes, codes, backup files, member names or integrations, and entry is refused while the chain cannot be read. If a member loses every passkey, you revoke the pass and they get a new one. This cannot be changed later.',
@@ -1059,6 +1081,8 @@ export const DASH_COPY = {
         },
       },
     },
+    requirements: REQUIREMENTS_COPY.ja,
+    requirementsError: (code: string) => dashMessage(code, 'ja'),
     designer: {
       title: 'カードをデザイン',
       description: 'メンバーにはこのカードが表示されます。リンク 1 本で運用できます。',
@@ -1100,6 +1124,15 @@ export const DASH_COPY = {
       recordOnchain: 'ブロックチェーンで公開',
       recordHint:
         '非公開のパスはすぐに発行でき、1枚ごとの公開記録が残りません。公開のパスは誰でも確認できますが、発行に少し時間がかかり、記録は消せません。あとから変更できません。',
+      identityAddress: 'ERC-8432のライセンス契約',
+      identityAddressHint:
+        'メンバーはアドレスで申し込みます。アセットの所有者がレジストリで各アドレスに契約を付与し、その契約が有効な間だけパスを使えます。',
+      requirementRegistry: 'レジストリ',
+      requirementAsset: 'アセットID',
+      requirementTerms: '利用条件ID（任意）',
+      requirementHexError: '0xに続けて64文字の16進数を入力してください。',
+      requirementRegistryError: 'レジストリを選んでください。',
+      requirementFixed: 'この必要条件はカード作成後に変更できません。',
       identitySensitive: '機密利用: 社員証やプライバシーを守りたい会員証',
       identitySensitiveHint:
         'パスごとに会員の端末内で専用の鍵を作るため、同じ人の別の場所のパスが fuda の記録上で結び付きません。発行数と利用日時は確認できますが、誰が持っているかはわかりません。会員には fuda のアカウントと、iCloud キーチェーン、Google パスワード マネージャーなど、この機能に対応したアプリに保存したパスキーが必要です。対応していない場合は保存方法を案内します。スタンプ、Wallet パス、コード、控えのファイル、メンバー名、連携機能はなく、チェーンを読めない間は入場できません。パスキーをすべてなくした場合は、パスを取り消して新しいものを受け取ってもらいます。あとから変更できません。',

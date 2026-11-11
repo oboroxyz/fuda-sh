@@ -2,7 +2,7 @@
 
 A Card may carry **requirements**. A requirement names a record outside fuda that a member must hold, such as an ERC-8432 licence agreement. fuda reads that record itself when the member claims a pass, and again each time the member presents the pass. The first kind is `erc8432-agreement`.
 
-**Status: API built.** The model, apply, signed claim and presentation checks are built. Member app, dashboard and licence key derivation remain proposed.
+**Status: API and dashboard built.** The dashboard creates Cards with one requirement, shows saved requirements and pages through applicants. Member app and licence key derivation remain proposed.
 
 API paths below are under `/v1`. Terms such as Card, Right, Holder and Member secret are defined in the [glossary](../CONTEXT.md). How requirements relate to the other ways an outside system works with fuda is in the [architecture overview](../architecture.md#outside-systems).
 
@@ -98,12 +98,15 @@ sequenceDiagram
 
 | Route | Purpose |
 | --- | --- |
+| `GET /issuers/me` | Adds `requirementRegistries`, the deployment's allowed registry addresses in lower case, empty when unset. The dashboard offers the address identity only when this list is not empty |
 | `GET /issuers/:handle` | Each card adds `requirements`, so the member app knows which key to derive |
 | `POST /issuers/:handle/:slug/apply` `{ holderAddress, turnstileToken? }` | Adds the address to the Card's applicant list. `{ applied: true }`, also on a repeat. `404 not_found` on a Card with no requirement |
 | `GET /issuers/me/cards/:cardId/applicants` | Operator session. `{ applicants: { address, appliedAt }[], next }`, oldest first, 100 a page. `next` is the `?after=` value of the following page, or null. A malformed `after` answers `400 bad_input` |
 | `POST /issuers/:handle/:slug/issue` `{ holderAddress, signature, agreementId?, source?, turnstileToken? }` | The claim by address, with a signature and the claim check |
 
 Apply and claim omit browser credentials, as Sensitive claims do. They share the self-serve budget and the [claim bot check](./pass-types-and-flows.md#claim-bot-check). The applicant list holds the address and the time, and no account id.
+
+The dashboard validates the registry, asset id and optional terms id before creation. Requirements are read-only afterwards. Applicants appear in their own section, oldest first, with a copy action and a warning that anyone can apply and addresses are not verified.
 
 ### Claiming
 

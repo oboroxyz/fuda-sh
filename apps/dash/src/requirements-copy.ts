@@ -1,0 +1,28 @@
+export const REQUIREMENTS_COPY = {
+  en: {
+    applicants: 'Applicants',
+    applied: 'Applied',
+    copied: 'Copied',
+    copy: 'Copy address',
+    copyFailed: 'The address could not be copied. Try again.',
+    empty: 'No one has applied yet.',
+    loading: 'Loading…',
+    more: 'Load more',
+    retry: 'Try again',
+    title: 'Requirement',
+    warning: 'Anyone can apply. An address in this list is not verified.',
+  },
+  ja: {
+    applicants: '申込者',
+    applied: '申込日時',
+    copied: 'コピーしました',
+    copy: 'アドレスをコピー',
+    copyFailed: 'アドレスをコピーできませんでした。もう一度お試しください。',
+    empty: 'まだ申し込みはありません。',
+    loading: '読み込み中…',
+    more: 'さらに読み込む',
+    retry: '再試行',
+    title: '必要条件',
+    warning: '誰でも申し込めます。この一覧のアドレスは本人確認済みではありません。',
+  },
+}

@@ -6,6 +6,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks'
 
 import {
   canSubmit,
+  requirementErrors,
   EMPTY_FORM,
   EXPIRY_DAY_CHOICES,
   slugStatusOf,
@@ -33,6 +34,7 @@ import { isPlainClick } from './plain-click.ts'
 const identityOf = (raw: string): CardIdentity => CARD_IDENTITIES.find((row) => row === raw) ?? 'none'
 
 export interface CardDesignerViewProps {
+  requirementRegistries?: readonly string[]
   busy: boolean
   editing?: boolean
   readonlySlugHint?: string
@@ -313,6 +315,86 @@ const prefixedField = (field: {
   </div>
 )
 
+const RequirementFields = (
+  props: Pick<CardDesignerViewProps, 'form' | 'copy' | 'requirementRegistries' | 'onField'>,
+): JSX.Element => {
+  const [touched, setTouched] = useState<string[]>([])
+  const invalid = (field: string): boolean =>
+    touched.includes(field) && requirementErrors(props.form).includes(field)
+  return (
+    <fieldset class="fieldset rounded-box border-base-300 border p-4">
+      <legend class="fieldset-legend">{props.copy.identityAddress}</legend>
+      <label for="requirement-registry">{props.copy.requirementRegistry}</label>
+      <select
+        id="requirement-registry"
+        onBlur={() => {
+          setTouched((current) => [...current, 'registry'])
+        }}
+        class="select w-full"
+        value={props.form.requirement.registry}
+        onInput={(event) => {
+          props.onField('requirement', {
+            ...props.form.requirement,
+            registry: event.currentTarget.value,
+          })
+        }}
+      >
+        <option value="">{props.copy.requirementRegistryError}</option>
+        {props.requirementRegistries?.map((registry) => (
+          <option key={registry} value={registry}>
+            {registry}
+          </option>
+        ))}
+      </select>
+      {invalid('registry') ? (
+        <p role="alert" class="text-error">
+          {props.copy.requirementRegistryError}
+        </p>
+      ) : null}
+      {(['assetId', 'termsId'] as const).map((field) => (
+        <div key={field} class="flex flex-col gap-1">
+          <label for={`requirement-${field}`}>
+            {field === 'assetId' ? props.copy.requirementAsset : props.copy.requirementTerms}
+          </label>
+          <input
+            id={`requirement-${field}`}
+            name={field}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellcheck={false}
+            onBlur={() => {
+              setTouched((current) => [...current, field])
+            }}
+            class="input w-full font-mono"
+            value={props.form.requirement[field]}
+            aria-invalid={invalid(field)}
+            aria-describedby={`requirement-${field}-error`}
+            onInput={(event) => {
+              props.onField('requirement', {
+                ...props.form.requirement,
+                [field]: event.currentTarget.value,
+              })
+            }}
+          />
+          {invalid(field) ? (
+            <p id={`requirement-${field}-error`} role="alert" class="text-error">
+              {props.copy.requirementHexError}
+            </p>
+          ) : null}
+        </div>
+      ))}
+      <p>{props.copy.requirementFixed}</p>
+    </fieldset>
+  )
+}
+
+const identityHint = (props: CardDesignerViewProps): string => {
+  if (props.form.identity === 'address') {
+    return props.copy.identityAddressHint
+  }
+  return props.form.identity === 'sensitive' ? props.copy.identitySensitiveHint : props.copy.identityHint
+}
+
 export const CardDesignerView = (props: CardDesignerViewProps): JSX.Element => {
   const editing = props.editing ?? false
   return (
@@ -443,14 +525,15 @@ export const CardDesignerView = (props: CardDesignerViewProps): JSX.Element => {
               <option value="none">{props.copy.identityNone}</option>
               <option value="passkey">{props.copy.identityPasskey}</option>
               <option value="sensitive">{props.copy.identitySensitive}</option>
+              {(props.requirementRegistries?.length ?? 0) > 0 ||
+              (editing && props.form.identity === 'address') ? (
+                <option value="address">{props.copy.identityAddress}</option>
+              ) : null}
             </select>
-            <p class="text-moderate text-sm">
-              {props.form.identity === 'sensitive'
-                ? props.copy.identitySensitiveHint
-                : props.copy.identityHint}
-            </p>
+            <p class="text-moderate text-sm">{identityHint(props)}</p>
           </div>
 
+          {props.form.identity === 'address' && !editing ? <RequirementFields {...props} /> : null}
           <div class="flex flex-col gap-1">
             <label for="card-description">
               <FieldLabel label={props.copy.cardDescriptionLabel} optional={props.copy.optional} />
@@ -507,6 +590,7 @@ export const CardDesignerView = (props: CardDesignerViewProps): JSX.Element => {
 export type NameCheck = (value: string) => Promise<'available' | 'taken' | 'unknown'>
 
 export interface CardDesignerProps {
+  requirementRegistries?: readonly string[]
   busy: boolean
   editing?: boolean
   readonlySlugHint?: string
@@ -656,6 +740,7 @@ export const CardDesigner = (props: CardDesignerProps): JSX.Element => {
 
   return (
     <CardDesignerView
+      requirementRegistries={props.requirementRegistries}
       busy={props.busy}
       editing={editing}
       readonlySlugHint={props.readonlySlugHint}
@@ -669,7 +754,17 @@ export const CardDesigner = (props: CardDesignerProps): JSX.Element => {
         setForm((current) => ({ ...current, attendance, attendanceEdited: true }))
       }}
       onIdentity={(identity) => {
-        setForm((current) => ({ ...current, identity }))
+        setForm((current) => ({
+          ...current,
+          identity,
+          record: identity === 'none' ? current.record : 'offchain',
+          requirement: {
+            ...current.requirement,
+            registry:
+              current.requirement.registry ||
+              (props.requirementRegistries?.length === 1 ? (props.requirementRegistries[0] ?? '') : ''),
+          },
+        }))
       }}
       onRecord={(record) => {
         setForm((current) => ({
