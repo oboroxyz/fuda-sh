@@ -3,6 +3,7 @@ import type { Hex, RequirementDetail } from '@fuda/sdk'
 
 import { applyAddressCard, cardFailureOf, issueAddressCard } from '../api.ts'
 import type { CardFailure } from '../api.ts'
+import type { PasskeyClaim } from './auth.ts'
 import { licenceKeyFrom } from './member-secret.ts'
 import type { LicenceScope } from './member-secret.ts'
 import {
@@ -16,12 +17,13 @@ import type { SensitiveClaim } from './sensitive.ts'
 
 export type LicenceOutcome =
   | { kind: 'applied'; address: Hex }
-  | { kind: 'received'; claim: Extract<SensitiveClaim, { ok: true }> }
+  | { kind: 'received'; claim: Extract<SensitiveClaim | PasskeyClaim, { ok: true }> }
   | { kind: 'unmet'; address: Hex; detail: RequirementDetail }
   | { kind: 'failed'; failure: CardFailure | 'no_prf' }
 
 export const receiveLicence = async (input: {
   action: 'apply' | 'claim'
+  identity: 'none' | 'address'
   cardId: string
   cardTitle: string
   venue: string
@@ -36,9 +38,11 @@ export const receiveLicence = async (input: {
   if (opened.kind !== 'open') {
     return { failure: failureOfOpen(opened), kind: 'failed' }
   }
-  const listed = await readVaultEntries(io, opened.secret)
-  if (!listed.ok) {
-    return { failure: 'secret_unopenable', kind: 'failed' }
+  if (input.identity === 'address') {
+    const listed = await readVaultEntries(io, opened.secret)
+    if (!listed.ok) {
+      return { failure: 'secret_unopenable', kind: 'failed' }
+    }
   }
   const key = await licenceKeyFrom(opened.secret, input.scope)
   if (input.action === 'apply') {
@@ -60,6 +64,9 @@ export const receiveLicence = async (input: {
     return issued.error === 'requirement_unmet' && issued.requirement !== undefined
       ? { address: key.address, detail: issued.requirement.detail, kind: 'unmet' }
       : { failure: cardFailureOf(issued), kind: 'failed' }
+  }
+  if (input.identity === 'none') {
+    return { claim: { body: issued.body, ok: true }, kind: 'received' }
   }
   const claim = await saveClaim(
     io,

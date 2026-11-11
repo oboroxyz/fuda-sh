@@ -69,7 +69,7 @@ A member needs no Crypto wallet. The member app derives one key per IP asset fro
 - **Recovery is the Member secret's.** A passkey that holds a copy restores the same address. A member who starts over gets new addresses, and the asset owner revokes the old agreement and grants a new one.
 - **The label never changes.** A new label would change every address.
 
-The Vault entry is `{ uid, licence: { chainId, registry, assetId }, venue, cardTitle }`, in place of the per-pass random salt. The app derives the scope from the first ERC-8432 requirement and its configured chain. Applying shows the licence address with a copy action. Receiving again with the same Member secret restores the same pass in the Vault.
+For `address`, the Vault entry is `{ uid, licence: { chainId, registry, assetId }, venue, cardTitle }`, in place of the per-pass random salt. The app derives the scope from the first ERC-8432 requirement and its configured chain. Applying shows the licence address with a copy action. Receiving again with the same Member secret restores the same pass in the Vault. For `none`, the app shows the QR and platform Wallet action and remembers the pass on the device, without adding it to the Vault or account pass list. Receiving with the same Member secret restores it on another device.
 
 ## Flow
 

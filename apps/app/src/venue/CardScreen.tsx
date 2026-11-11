@@ -191,6 +191,8 @@ const memberCard = (card: PublicCard, issued: IssuedCard, copy: VenueCopy, local
     </>,
   )
 
+const hasRequirements = (card: PublicCard): boolean => (card.card.requirements?.length ?? 0) > 0
+
 const isSensitiveCard = (card: PublicCard): boolean => card.card.identity === 'sensitive'
 
 // Bound to a key, so a QR or a Wallet pass would admit nobody.
@@ -618,6 +620,9 @@ const readyScreen = (
       {memberCard(state.card, state.issued, copy, locale)}
       {isKeyBoundCard(state.card) ? null : qrBlock(state.card, state.issued, copy)}
     </section>
+    {hasRequirements(state.card) && state.card.card.identity === 'none' ? (
+      <p class="text-center text-sm">{pick(LICENCE_COPY, locale).activePass}</p>
+    ) : null}
     {readyActions(state, copy, locale)}
     {humanBadgeControl(state.badge, onVerifyHuman, copy)}
   </>
@@ -631,7 +636,7 @@ const landingScreen = (
   locale: Locale,
 ): JSX.Element => {
   const busy = state.kind === 'issuing'
-  const restorable = state.card.card.identity === 'address'
+  const restorable = hasRequirements(state.card)
   if (!state.card.card.claimable && !restorable) {
     return (
       <>
@@ -646,7 +651,7 @@ const landingScreen = (
       </>
     )
   }
-  if (state.card.card.identity === 'address') {
+  if (hasRequirements(state.card)) {
     const text = pick(LICENCE_COPY, locale)
     const action = state.card.card.claimable ? text.apply : text.receive
     return (
@@ -1063,6 +1068,7 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
       action: card.card.claimable ? licenceAction.current : 'claim',
       cardId: card.card.id,
       cardTitle: card.card.title,
+      identity: card.card.identity === 'address' ? 'address' : 'none',
       only,
       scope: { assetId: requirement.assetId, chainId: CHAIN.id, registry: requirement.registry },
       slug: card.card.slug,
@@ -1082,7 +1088,7 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
     | SensitiveClaim
     | { ok: true; application: Extract<LicenceOutcome, { kind: 'applied' | 'unmet' }> }
   > => {
-    if (card.card.identity === 'address') {
+    if (hasRequirements(card)) {
       const outcome = await licenceFor(card, source, turnstileToken, only)
       if (outcome.kind === 'applied' || outcome.kind === 'unmet') {
         return { application: outcome, ok: true }

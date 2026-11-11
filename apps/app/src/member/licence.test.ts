@@ -11,6 +11,7 @@ const input = {
   action: 'claim',
   cardId: 'art-card',
   cardTitle: 'Art club',
+  identity: 'address',
   scope: { assetId: `0x${'cd'.repeat(32)}`, chainId: 84_532, registry: `0x${'ab'.repeat(20)}` },
   slug: 'fans',
   source: 'invitation',
@@ -77,6 +78,19 @@ describe('receiving a licence pass', () => {
       },
       issued,
     )
+  })
+
+  it('receives a Standard pass without reading or writing the Vault', async () => {
+    open()
+    const body = { ...issued, level: 'bearer', qr: `fuda:v1:${issued.uid}` } as const
+    vi.spyOn(api, 'issueAddressCard').mockResolvedValue({ body, ok: true })
+    const save = vi.spyOn(sensitive, 'saveClaim')
+    await expect(receiveLicence({ ...input, identity: 'none' })).resolves.toStrictEqual({
+      claim: { body, ok: true },
+      kind: 'received',
+    })
+    expect(sensitive.readVaultEntries).not.toHaveBeenCalled()
+    expect(save).not.toHaveBeenCalled()
   })
 
   it.each(['no-agreement', 'not-granted', 'wrong-terms', 'agreement-inactive'] as const)(
