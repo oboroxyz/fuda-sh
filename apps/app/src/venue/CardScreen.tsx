@@ -767,13 +767,11 @@ const defaultSensitive: CardSensitiveIo = {
     return added.ok ? { credentialId: added.credentialId, ok: true } : { ok: false }
   },
   claim: async (card, only) => {
-    try {
-      const { claimSensitive, defaultSensitiveIo } = await import('../member/sensitive.ts')
-      return await claimSensitive(defaultSensitiveIo, card, only)
-    } catch {
-      // A chunk that failed to load, on a connection that just dropped.
+    const loaded = await import('../member/sensitive.ts').catch(() => null)
+    if (loaded === null) {
       return { failure: 'network', ok: false }
     }
+    return await loaded.claimSensitive(loaded.defaultSensitiveIo, card, only)
   },
 }
 

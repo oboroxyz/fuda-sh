@@ -108,7 +108,7 @@ describe('venue controller', () => {
       ok: true,
       saved: true,
     } as const
-    const open = (sensitive: CardSensitiveIo): HTMLDivElement => {
+    const open = (sensitive?: CardSensitiveIo): HTMLDivElement => {
       globalThis.history.replaceState(null, '', `/@${venue.handle}/regular?source=flyer`)
       const host = document.createElement('div')
       const screenIo: CardScreenIo = {
@@ -131,6 +131,7 @@ describe('venue controller', () => {
       return host
     }
     afterEach(() => {
+      vi.doUnmock('../member/sensitive.ts')
       localStorage.clear()
       globalThis.history.replaceState(null, '', '/')
     })
@@ -154,14 +155,31 @@ describe('venue controller', () => {
     })
 
     it('says so when a pass was issued but is not on the list yet', async () => {
-      const host = open({
-        addPasskey: vi.fn<CardSensitiveIo['addPasskey']>(),
-        claim: async () => await Promise.resolve({ ...issued, saved: false }),
-      })
+      const claim = vi.fn<CardSensitiveIo['claim']>(
+        async () => await Promise.resolve({ ...issued, saved: false }),
+      )
+      const host = open({ addPasskey: vi.fn<CardSensitiveIo['addPasskey']>(), claim })
       await claimOn(host)
       await vi.waitFor(() => {
         expect(host.textContent).toContain('could not be added to your list yet')
       })
+      expect(host.querySelector(`a[href="/signed?uid=${UID}"]`)).not.toBeNull()
+      expect(host.querySelector('.venue-primary button')).toBeNull()
+      expect(host.textContent).not.toContain('Try again')
+      expect(claim).toHaveBeenCalledOnce()
+    })
+
+    it('reports a network error when the Sensitive module cannot load', async () => {
+      vi.doMock(import('../member/sensitive.ts'), () => {
+        throw new Error('chunk unavailable')
+      })
+      const host = open()
+      await claimOn(host)
+      await vi.waitFor(() => {
+        expect(host.textContent).toContain('connection')
+        expect(host.textContent).toContain('Try again')
+      })
+      expect(host.querySelector(`a[href="/signed?uid=${UID}"]`)).toBeNull()
     })
 
     it('stops at the guidance without PRF, naming the providers that work', async () => {
