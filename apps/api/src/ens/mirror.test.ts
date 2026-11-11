@@ -131,7 +131,13 @@ describe(mirrorIssuerName, () => {
       status: 'claimed',
     })
     // A replayed confirmation of the lapsed claim keeps the later registration.
-    await mirrorIssuerName(db(), { ...input, claimTxHash: TX_HASH, expiry: 2000, now: 2004, status: 'claimed' })
+    await mirrorIssuerName(db(), {
+      ...input,
+      claimTxHash: TX_HASH,
+      expiry: 2000,
+      now: 2004,
+      status: 'claimed',
+    })
     await expect(rowFor(name)).resolves.toMatchObject({
       claimTxHash: UID,
       expiry: 4000,
