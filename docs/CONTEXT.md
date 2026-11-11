@@ -16,7 +16,7 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Card record**: Where a Card's Rights are recorded, fixed when the Card is created: `offchain` (the default) signs each Right with no transaction and no holder address, and `onchain` attests each Right publicly. _Avoid_: Mode, storage, chain type
 
-**Card identity**: Who can use a Card's Rights, fixed when the Card is created: `none` (the default) means whoever shows one, `passkey` binds each Right to the passkey that claimed it, and `sensitive` binds each Right to a key of its own. _Avoid_: Identity level, KYC
+**Card identity**: Who can use a Card's Rights, fixed when the Card is created: `none` (the default) means whoever shows one, `passkey` binds each Right to the passkey that claimed it, `sensitive` binds each Right to a key of its own, and `address` binds each Right to an address that a Requirement checks. _Avoid_: Identity level, KYC
 
 **Identified pass**: An offchain Right on a Card with `passkey` identity. It attests the passkey's credential ID and public key at the Signed level with no holder address, needs an Account to claim, and is presented by answering a challenge in the app, so a copied QR does not admit. _Avoid_: Passkey pass, Secure pass
 

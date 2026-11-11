@@ -12,9 +12,17 @@ API paths below are under `/v1`. Terms such as Card, Right, Holder and Member se
 - **Every requirement must be met.** There is no "any of".
 - **fuda checks a requirement twice.** The claim check runs before a pass is issued and records evidence. The presentation check runs on every signed presentation and reads the chain again.
 - **One adapter per kind.** An adapter declares the config schema, the subject it checks, the claim check and the presentation check. Adapters live in `apps/api`. The hosted service loads no third-party adapter.
-- **The subject today is an address.** A requirement that checks an address needs a Card with `identity: sensitive`, so the pass is held by a key and presented with a signature. Any other identity answers `400 bad_input`.
-- **Contracts are allowlisted per chain.** `@fuda/chains` lists the registries each attestation chain accepts. A requirement that names another contract answers `400 bad_input`. fuda reads only the deployment's own chain.
-- **A requirement is never an issuing shortcut.** The MCP `issue_pass` tool and the admin `POST /issue` answer `holder_must_claim` on these Cards, as on any Sensitive Card.
+- **The subject today is an address.** A requirement that checks an address needs a Card with `identity: address`, and a Card with that identity needs such a requirement. Any other combination answers `400 bad_input`.
+- **Contracts are allowlisted per deployment.** The api's `IP_REGISTRIES` value lists the registries it accepts, beside the other chain addresses in `apps/api/targets.jsonc`. A requirement that names another contract answers `400 bad_input`. fuda reads only the deployment's own chain.
+- **A requirement is never an issuing shortcut.** The MCP `issue_pass` tool and the admin `POST /issue` answer `holder_must_claim` on these Cards, as on any Card whose identity is not `none`.
+
+## The `address` identity
+
+`address` is a fourth Card identity, beside `none`, `passkey` and `sensitive`. Each Right is held by an address, and the member presents it by signing a challenge with that address's key. It needs `record: offchain`.
+
+It takes from Sensitive use only how a pass is held and presented: the claim sends an address and reads no session, the pass is Signed, `POST /verify-signed` recovers the address from the signature, and the pass is listed in the member's Vault. An unreadable chain rejects with `502 chain_error`.
+
+It takes none of the Sensitive limits. The entry log keeps the decision and the reason, integrations can be turned on, and the pass routes answer. Like any Signed pass, it has no QR that admits and earns no Stamps at reception.
 
 ## The `erc8432-agreement` kind
 
@@ -93,7 +101,7 @@ sequenceDiagram
 | `GET /issuers/:handle` | Each card adds `requirements`, so the member app knows which key to derive |
 | `POST /issuers/:handle/:slug/apply` `{ holderAddress, turnstileToken? }` | Adds the address to the Card's applicant list. `{ applied: true }`, also on a repeat. `404 not_found` on a Card with no requirement |
 | `GET /issuers/me/cards/:cardId/applicants` | Operator session. `{ applicants: { address, appliedAt }[] }`, oldest first |
-| `POST /issuers/:handle/:slug/issue` `{ holderAddress, signature, agreementId?, source?, turnstileToken? }` | The Sensitive claim, with a signature and the claim check |
+| `POST /issuers/:handle/:slug/issue` `{ holderAddress, signature, agreementId?, source?, turnstileToken? }` | The claim by address, with a signature and the claim check |
 
 Apply and claim omit browser credentials, as Sensitive claims do. They share the self-serve budget and the [claim bot check](./pass-types-and-flows.md#claim-bot-check). The applicant list holds the address and the time, and no account id.
 
@@ -113,7 +121,7 @@ A Card issues one pass per address. A repeated claim by the same address answers
 
 ### Presenting
 
-`POST /verify-signed` runs the presentation check after the signature passes and before a Slot is consumed. A failed check answers `REJECT` with the reason `REQUIREMENT_UNMET` and `requirement: { kind, detail }`. An unreadable chain answers `502 chain_error`, as it does for any Sensitive pass. No result is cached, so a revoked agreement rejects at the next presentation.
+`POST /verify-signed` runs the presentation check after the signature passes and before a Slot is consumed. A failed check answers `REJECT` with the reason `REQUIREMENT_UNMET` and `requirement: { kind, detail }`. An unreadable chain answers `502 chain_error`, as it does for any pass held by an address. No result is cached, so a revoked agreement rejects at the next presentation.
 
 `GET /verify/:uid` does not run the check. A preview of these passes is yellow and admits nobody.
 
@@ -121,13 +129,13 @@ An `ADMIT` verdict and the member's pass list show the agreement with a link to 
 
 ## What reaches the chain
 
-An agreement puts the licence address on a public chain, as an NFT would. Claims, presentations and entries stay off chain. These passes keep every Sensitive limit: no Wallet pass, no QR, no Stamps, no integrations, and an entry log that expires.
+An agreement puts the licence address on a public chain, as an NFT would. Claims, presentations and entries stay off chain.
 
 ## Design choices
 
 - **Requirements are fixed at creation.** A pass keeps the evidence it was issued with. A Card that could change its asset later would hold passes whose evidence names another asset.
 - **Only granted agreements count.** Attached terms are an open offer. `acquireAgreement` lets any caller take an agreement on them, and the reference `canLicense` approves any non-zero caller. The asset owner's `createAgreement` is the only path the owner controls.
-- **These Cards are Sensitive.** A pass held by a key and presented by signature already exists there, with a claim that takes an address and a verdict that reads no session. The cost is the Sensitive limits above. A fan pass that needs Stamps or a Wallet pass needs a new Card identity, which this design leaves open.
+- **A Card identity of its own, not Sensitive use.** Sensitive use joins two things: a pass held by a key, and a policy of keeping as little as possible. A requirement needs the first and works against the second, because the licence address is public on chain and shared by every Card of one asset. The code already separates them. Issuance and verification follow the claimant's kind, `address`, and only the policy checks name `sensitive`. The new identity therefore reuses the first and leaves Sensitive use meaning what it meant.
 - **The key is per asset, not per pass.** The asset owner grants an agreement to one address before any pass exists. A key per pass would need one agreement per Card.
 - **No smart wallet.** A counterfactual wallet's signature carries the passkey's public key, so a member's addresses would link to each other. The Coinbase Smart Wallet factory also has no code on Soneium mainnet.
 - **The claim is signed.** Licence addresses are public on chain. Without a signature, anyone could claim the one pass of another member's address.
