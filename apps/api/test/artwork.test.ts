@@ -1,4 +1,4 @@
-import type { CardUpdateResponse } from '@fuda/sdk'
+import type { CardUpdateResponse, PublicVenue } from '@fuda/sdk'
 import { IMAGE_SETS } from '@fuda/sdk'
 import { env } from 'cloudflare:test'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -54,6 +54,9 @@ describe('Card artwork', () => {
     const uploaded = await app.request(path, { body: form(), headers, method: 'PUT' }, bindings())
     const { card } = await uploaded.json<CardUpdateResponse>()
     expect(card.artworkUrl).toMatch(/^https:\/\/api.test\/assets\/artwork\/[0-9a-f-]{36}\/strip3x$/u)
+    const venue = await app.request(`/v1/issuers/${CARD_INPUT.handle}`, {}, bindings())
+    const publicView = await venue.json<PublicVenue>()
+
     const url = new URL(card.artworkUrl ?? '').pathname
     const image = await app.request(url, {}, bindings())
     expect([
@@ -69,9 +72,16 @@ describe('Card artwork', () => {
     expect(cached.status).toBe(304)
     const removed = await app.request(path, { headers, method: 'DELETE' }, bindings())
     const removal = await removed.json<CardUpdateResponse>()
-    expect(removal.card.artworkUrl).toBeNull()
+
+    const withoutArtwork = await app.request(`/v1/issuers/${CARD_INPUT.handle}`, {}, bindings())
+    const removedView = await withoutArtwork.json<PublicVenue>()
     const gone = await app.request(url, {}, bindings())
-    expect(gone.status).toBe(404)
+    expect([
+      publicView.cards[0]?.artworkUrl,
+      removal.card.artworkUrl,
+      removedView.cards[0]?.artworkUrl,
+      gone.status,
+    ]).toStrictEqual([card.artworkUrl, null, null, 404])
   })
 
   it('requires ownership, a complete set, and a media bucket', async () => {

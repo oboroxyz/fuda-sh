@@ -64,7 +64,7 @@ const toolCard = (
   row: typeof cards.$inferSelect,
   requirements: readonly Requirement[],
 ) => ({
-  ...cardView(row, c.get('now')(), requirements),
+  ...cardView(row, c.get('now')(), requirements, c.env.API_BASE_URL),
   attendance: row.attendance !== 0,
   capacity: row.capacity,
   claimUrl: `${publicUrlFor(c.env.PUBLIC_BASE_URL, issuer.handle)}/${row.slug}`,

@@ -47,9 +47,11 @@ export const cardView = (
   row: CardRow,
   now: number,
   requirements: readonly Requirement[],
+  baseUrl: string,
   badges?: readonly BadgeKind[],
 ): CardView => {
   const view: CardView = {
+    artworkUrl: artworkUrlFor(baseUrl, row.artworkPrefix),
     category: row.category,
     claimFrom: row.claimFrom,
     claimUntil: row.claimUntil,
@@ -76,8 +78,7 @@ export const operatorCardView = (
   requirements: readonly Requirement[],
   baseUrl: string,
 ): OperatorCardView => ({
-  ...cardView(row, now, requirements),
-  artworkUrl: artworkUrlFor(baseUrl, row.artworkPrefix),
+  ...cardView(row, now, requirements, baseUrl),
   attendance: row.attendance !== 0,
   identity: row.identity,
   lockScreen: row.lockScreen !== 0,
@@ -103,6 +104,7 @@ export const publicVenue = (
       card,
       now,
       requirementsByCard.get(card.id) ?? [],
+      baseUrl,
       offerableBadgeKinds(enabledByCard.get(card.id) ?? [], badges),
     ),
   ),

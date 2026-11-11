@@ -78,7 +78,9 @@ const meResponse = async (c: Context<AppEnv>, issuerId: string | null): Promise<
   }
   const requirements = await requirementsByCard(c.get('db'), found.cards)
   return {
-    cards: found.cards.map((card) => cardView(card, c.get('now')(), requirements.get(card.id) ?? [])),
+    cards: found.cards.map((card) =>
+      cardView(card, c.get('now')(), requirements.get(card.id) ?? [], c.env.API_BASE_URL),
+    ),
     ens: await ensView(c, found.issuer.handle),
     issuer: issuerView(found.issuer, c.env.API_BASE_URL),
     publicUrl: publicUrlFor(c.env.PUBLIC_BASE_URL, found.issuer.handle),
@@ -306,7 +308,7 @@ export const postV1IssuersCards = defineHandler(operatorAuth(), async (c) => {
   return jsonResponse(
     c,
     {
-      card: cardView(card, c.get('now')(), parsed.output.requirements),
+      card: cardView(card, c.get('now')(), parsed.output.requirements, c.env.API_BASE_URL),
       issuer: issuerView(issuer, c.env.API_BASE_URL),
       publicUrl: publicUrlFor(c.env.PUBLIC_BASE_URL, issuer.handle),
     },

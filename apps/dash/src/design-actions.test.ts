@@ -39,6 +39,7 @@ const created: Result<IssuerCreateResponse> = {
 const cardCreated: Result<CardCreateResponse> = {
   body: {
     card: {
+      artworkUrl: null,
       category: 'membership',
       claimFrom: null,
       claimUntil: null,

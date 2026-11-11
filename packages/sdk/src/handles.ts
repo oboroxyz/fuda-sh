@@ -153,6 +153,7 @@ export interface CardValidity {
 export const CARD_DESCRIPTION_MAX_LENGTH = 2000
 
 export interface CardView extends ClaimWindow, CardValidity {
+  artworkUrl: string | null
   id: string
   slug: string
   title: string
@@ -177,7 +178,6 @@ export interface CardView extends ClaimWindow, CardValidity {
 // Operator-only card hydration includes the stored fields that are intentionally
 // absent from public CardView responses.
 export interface OperatorCardView extends CardView {
-  artworkUrl: string | null
   attendance: boolean
   identity: CardIdentity
   lockScreen: boolean

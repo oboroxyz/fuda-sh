@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { cardClaimHref, selectEntry } from './entry.ts'
 
 const membership: PublicVenue['cards'][number] = {
+  artworkUrl: null,
   category: 'membership',
   claimFrom: null,
   claimUntil: null,

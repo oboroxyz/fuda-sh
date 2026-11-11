@@ -283,6 +283,7 @@ describe(claimStateOf, () => {
   it('separates a card that is open, closing, closed and not open yet', () => {
     const card = {
       ...openCard,
+      artworkUrl: null,
       category: 'membership',
       description: '',
       id: 'c',
