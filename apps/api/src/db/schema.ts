@@ -138,15 +138,19 @@ export const passkeys = sqliteTable(
   (t) => [index('passkeys_account').on(t.accountId)],
 )
 
-export const passkeyChallenges = sqliteTable('passkey_challenges', {
-  accountId: text('account_id'),
-  challenge: text('challenge').primaryKey(),
-  createdAt: integer('created_at').notNull(),
-  purpose: text('purpose', {
-    enum: ['register', 'login', 'add', 'claim', 'reset', 'authorize-add'],
-  }).notNull(),
-  userHandle: text('user_handle'),
-})
+export const passkeyChallenges = sqliteTable(
+  'passkey_challenges',
+  {
+    accountId: text('account_id'),
+    challenge: text('challenge').primaryKey(),
+    createdAt: integer('created_at').notNull(),
+    purpose: text('purpose', {
+      enum: ['register', 'login', 'add', 'claim', 'reset', 'authorize-add'],
+    }).notNull(),
+    userHandle: text('user_handle'),
+  },
+  (t) => [index('passkey_challenges_created_at').on(t.createdAt)],
+)
 
 // docs/specs/pass-types-and-flows.md#sensitive-use
 export const memberSecretCopies = sqliteTable(
@@ -192,17 +196,21 @@ export const memberPasses = sqliteTable(
   (t) => [primaryKey({ columns: [t.accountId, t.uid] })],
 )
 
-export const sessions = sqliteTable('sessions', {
-  accountId: text('account_id'),
-  address: text('address').notNull(),
-  audience: text('audience', { enum: ['member', 'operator'] })
-    .notNull()
-    .default('operator'),
-  createdAt: integer('created_at').notNull(),
-  expiresAt: integer('expires_at').notNull(),
-  issuerId: text('issuer_id'),
-  tokenHash: text('token_hash').primaryKey(),
-})
+export const sessions = sqliteTable(
+  'sessions',
+  {
+    accountId: text('account_id'),
+    address: text('address').notNull(),
+    audience: text('audience', { enum: ['member', 'operator'] })
+      .notNull()
+      .default('operator'),
+    createdAt: integer('created_at').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+    issuerId: text('issuer_id'),
+    tokenHash: text('token_hash').primaryKey(),
+  },
+  (t) => [index('sessions_expires_at').on(t.expiresAt)],
+)
 
 export const rateLimits = sqliteTable(
   'rate_limits',
@@ -211,7 +219,10 @@ export const rateLimits = sqliteTable(
     ip: text('ip').notNull(),
     windowStart: integer('window_start').notNull(),
   },
-  (t) => [primaryKey({ columns: [t.ip, t.windowStart] })],
+  (t) => [
+    primaryKey({ columns: [t.ip, t.windowStart] }),
+    index('rate_limits_window_start').on(t.windowStart),
+  ],
 )
 
 export const challenges = sqliteTable('challenges', {
@@ -437,6 +448,8 @@ export const oauthTokens = sqliteTable(
     index('oauth_tokens_address').on(t.address),
     index('oauth_tokens_client').on(t.clientId),
     index('oauth_tokens_code_hash').on(t.codeHash),
+    index('oauth_tokens_expires_at').on(t.expiresAt),
+    index('oauth_tokens_revoked_at').on(t.revokedAt),
   ],
 )
 
