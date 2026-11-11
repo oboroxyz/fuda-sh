@@ -76,6 +76,7 @@ export interface GoogleGenericObject {
   cardTitle: LocalizedString
   classId: string
   header: LocalizedString
+  heroImage?: { sourceUri: { uri: string } }
   hexBackgroundColor?: string
   id: string
   linksModuleData?: LinksModule
@@ -186,6 +187,10 @@ export const buildGenericObject = (cfg: GoogleConfig, input: GooglePassInput): G
   // modules read like the app's card page (role label, issue day); tier is a
   // fuda detail the card page never shows. The logo is a URL Google fetches,
   // so it is omitted rather than empty when unset.
+  const artwork: Pick<GoogleGenericObject, 'heroImage'> = {}
+  if (branding.artworkUrl !== null) {
+    artwork.heroImage = { sourceUri: { uri: branding.artworkUrl } }
+  }
   const logo = branding.logoUrl === null ? {} : { logo: { sourceUri: { uri: branding.logoUrl } } }
   // The way back. A saved pass is the surface the member keeps, but badging and
   // every other action live on fuda's own page, which the wallet cannot host.
@@ -205,6 +210,7 @@ export const buildGenericObject = (cfg: GoogleConfig, input: GooglePassInput): G
     cardTitle: localized(branding.issuerName),
     header: localized(branding.cardTitle),
     hexBackgroundColor: branding.brandColor,
+    ...artwork,
     subheader: localized(branding.memberNumber),
     textModulesData: mergeBadgeModules(
       mergeStampModules(

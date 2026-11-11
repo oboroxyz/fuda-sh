@@ -11,7 +11,7 @@ import type {
 import type { Hex } from 'viem'
 
 import type { cards, issuers } from '../db/schema.ts'
-import { logoUrlFor } from '../media/logo.ts'
+import { artworkUrlFor, logoUrlFor } from '../media/logo.ts'
 
 type IssuerRow = typeof issuers.$inferSelect
 type CardRow = typeof cards.$inferSelect
@@ -74,8 +74,10 @@ export const operatorCardView = (
   row: CardRow,
   now: number,
   requirements: readonly Requirement[],
+  baseUrl: string,
 ): OperatorCardView => ({
   ...cardView(row, now, requirements),
+  artworkUrl: artworkUrlFor(baseUrl, row.artworkPrefix),
   attendance: row.attendance !== 0,
   identity: row.identity,
   lockScreen: row.lockScreen !== 0,

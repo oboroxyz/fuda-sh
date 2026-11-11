@@ -29,7 +29,12 @@ export const getV1IssuersMeCardsCardId = defineHandler(operatorAuth(), async (c)
   return card === undefined
     ? errorResponse(c, 'not_found', 404)
     : jsonResponse(c, {
-        card: operatorCardView(card, c.get('now')(), await requirementsOf(c.get('db'), card)),
+        card: operatorCardView(
+          card,
+          c.get('now')(),
+          await requirementsOf(c.get('db'), card),
+          c.env.API_BASE_URL,
+        ),
       })
 })
 
@@ -96,7 +101,12 @@ export const putV1IssuersMeCardsCardId = defineHandler(operatorAuth(), async (c)
   }
   notifyPassesChanged(c, { cardId: updated.id })
   return jsonResponse(c, {
-    card: operatorCardView(updated, c.get('now')(), await requirementsOf(c.get('db'), updated)),
+    card: operatorCardView(
+      updated,
+      c.get('now')(),
+      await requirementsOf(c.get('db'), updated),
+      c.env.API_BASE_URL,
+    ),
   })
 })
 

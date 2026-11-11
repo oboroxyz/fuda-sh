@@ -100,6 +100,7 @@ const branded = () =>
     { certPem: '', keyPem: '', passTypeId: 'pass.sh.fuda', teamId: 'TEAM', wwdrPem: '' },
     {
       branding: {
+        artworkUrl: null,
         brandColor: '#6F4320',
         cardTitle: 'Membership Card',
         category: 'membership',
@@ -149,6 +150,7 @@ describe('branded pass.json', () => {
       { certPem: '', keyPem: '', passTypeId: 'pass.sh.fuda', teamId: 'TEAM', wwdrPem: '' },
       {
         branding: {
+          artworkUrl: null,
           brandColor: '#6F4320',
           cardTitle: 'Membership Card',
           category: 'membership',
@@ -191,6 +193,7 @@ describe('branded pass.json', () => {
       { certPem: '', keyPem: '', passTypeId: 'pass.sh.fuda', teamId: 'TEAM', wwdrPem: '' },
       {
         branding: {
+          artworkUrl: null,
           brandColor: '#6F4320',
           cardTitle: 'Membership Card',
           category: 'membership',
@@ -240,6 +243,7 @@ describe('badge on a generated pass.json', () => {
       ...INPUT,
       badges: [BADGE],
       branding: {
+        artworkUrl: null,
         brandColor: '#6F4320',
         cardTitle: 'Membership Card',
         category: 'membership',
@@ -274,6 +278,7 @@ describe('an updatable or revoked pass', () => {
   const STAMPS = { dailyLimit: 1, enabled: true, goal: 10, today: 0, total: 3 }
   const SERVICE = { authenticationToken: 'token-of-sixteen-chars', url: 'https://api.test/apple' }
   const BRANDED = {
+    artworkUrl: null,
     brandColor: '#112233',
     cardTitle: 'Coffee',
     category: 'membership',

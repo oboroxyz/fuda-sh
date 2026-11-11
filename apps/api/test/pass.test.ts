@@ -397,6 +397,7 @@ describe('GET /pass/:uid/card', () => {
     expect([res.status, res.headers.get('cache-control')]).toStrictEqual([200, 'no-store'])
     await expect(res.json()).resolves.toStrictEqual({
       card: {
+        artworkUrl: null,
         brandColor: '#112233',
         cardTitle: 'Members',
         category: 'membership',

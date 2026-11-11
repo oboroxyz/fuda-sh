@@ -185,6 +185,7 @@ describe(loadMemberPassList, () => {
 
   it('carries the venue card of a public pass into its row', async () => {
     const card = {
+      artworkUrl: null,
       brandColor: '#112233',
       cardTitle: 'Members',
       category: 'membership' as const,
@@ -683,6 +684,7 @@ describe(RightsListView, () => {
           rows: [
             memberRow({
               card: {
+                artworkUrl: null,
                 brandColor: '#112233',
                 cardTitle: 'Members',
                 category: 'membership',

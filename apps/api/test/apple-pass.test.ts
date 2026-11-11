@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { saveBadge } from '../src/badges/store.ts'
 import { getDb } from '../src/db/client.ts'
-import { members } from '../src/db/schema.ts'
+import { cards, issuers, members } from '../src/db/schema.ts'
 import type { Bindings } from '../src/env.ts'
 import { testCert } from './apple-cert.ts'
 import { appWith, fakeChain } from './env.ts'
@@ -44,6 +44,7 @@ interface InstalledPass {
   serialNumber: string
   barcodes: { message: string }[]
   storeCard: {
+    headerFields?: { key: string; value: string }[]
     primaryFields: { value: string }[]
     auxiliaryFields?: { key: string; label?: string; value: string }[]
   }
@@ -235,5 +236,66 @@ describe('GET /pass/:uid/apple.pkpass', () => {
       bindings,
     )
     expect(junk.status).toBe(400)
+  })
+
+  it('embeds card artwork and moves the title only while all strip bytes are available', async () => {
+    const chain = fakeChain()
+    const del = seedRoot(chain)
+    const uid = seedRight(chain, del)
+    const bindings = await appleEnv(del)
+    const prefix = `artwork/${crypto.randomUUID()}`
+    await db().insert(issuers).values({
+      brandColor: '#112233',
+      createdAt: NOW,
+      handle: 'art-cafe',
+      id: 'art-issuer',
+      name: 'Cafe',
+      operatorAddress: HOLDER,
+      tagline: '',
+    })
+    await db().insert(cards).values({
+      artworkPrefix: prefix,
+      category: 'membership',
+      createdAt: NOW,
+      id: 'art-card',
+      issuerId: 'art-issuer',
+      title: 'Coffee',
+    })
+    await db().insert(members).values({
+      attestationUid: uid,
+      cardId: 'art-card',
+      createdAt: NOW,
+      holder: HOLDER,
+      issuerId: 'art-issuer',
+      level: 'bearer',
+      memberId: 'qj2yxphepdrka',
+      tier: 1,
+    })
+    const bucket = bindings.MEDIA_BUCKET
+    if (bucket === undefined) {
+      throw new Error('Media bucket missing')
+    }
+    await Promise.all(
+      ['strip1x', 'strip2x', 'strip3x'].map(
+        async (variant) => await bucket.put(`${prefix}/${variant}.png`, new Uint8Array([1, 2, 3])),
+      ),
+    )
+    const response = await fetchPkpass(bindings, uid)
+    const entries = readZip(new Uint8Array(await response.arrayBuffer()))
+    const json = await new Response(byName(entries, 'pass.json')).json<InstalledPass>()
+    expect(
+      entries.filter((entry) => entry.name.startsWith('strip')).map((entry) => entry.name),
+    ).toStrictEqual(['strip.png', 'strip@2x.png', 'strip@3x.png'])
+    expect(json.storeCard).toMatchObject({
+      headerFields: [{ key: 'title', value: 'Coffee' }],
+      primaryFields: [],
+    })
+    await bucket.delete(`${prefix}/strip2x.png`)
+    const fallbackResponse = await fetchPkpass(bindings, uid)
+    const fallback = readZip(new Uint8Array(await fallbackResponse.arrayBuffer()))
+    const fallbackJson = await new Response(byName(fallback, 'pass.json')).json<InstalledPass>()
+    expect(fallback.filter((entry) => entry.name.startsWith('strip'))).toStrictEqual([])
+    expect(fallbackJson.storeCard.headerFields).toBeUndefined()
+    expect(fallbackJson.storeCard.primaryFields).toStrictEqual([{ key: 'title', value: 'Coffee' }])
   })
 })

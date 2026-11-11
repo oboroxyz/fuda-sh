@@ -22,16 +22,22 @@ export const buildPkpass = async (
   cfg: AppleConfig,
   input: ApplePassInput,
   now: number,
-  logo: AppleLogo | null = null,
+  images: { logo?: AppleLogo | null; strip?: AppleStrip | null } = {},
 ): Promise<Uint8Array<ArrayBuffer>> => {
+  const { logo = null, strip = null } = images
   const files = new Map<string, Uint8Array<ArrayBuffer>>([
-    ['pass.json', utf8(JSON.stringify(passJson(cfg, input)))],
+    ['pass.json', utf8(JSON.stringify(passJson(cfg, { ...input, hasStrip: strip !== null })))],
     ['icon.png', iconPng()],
   ])
   if (logo !== null) {
     files.set('logo.png', logo.logo1x)
     files.set('logo@2x.png', logo.logo2x)
     files.set('logo@3x.png', logo.logo3x)
+  }
+  if (strip !== null) {
+    files.set('strip.png', strip.strip1x)
+    files.set('strip@2x.png', strip.strip2x)
+    files.set('strip@3x.png', strip.strip3x)
   }
   const manifest = utf8(await manifestOf(files))
   const signature = await buildDetachedCms(cfg, manifest, now)
@@ -40,4 +46,10 @@ export const buildPkpass = async (
     { data: manifest, name: 'manifest.json' },
     { data: signature, name: 'signature' },
   ])
+}
+
+export interface AppleStrip {
+  strip1x: Uint8Array<ArrayBuffer>
+  strip2x: Uint8Array<ArrayBuffer>
+  strip3x: Uint8Array<ArrayBuffer>
 }

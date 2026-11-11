@@ -1,10 +1,10 @@
-import { LOGO_SIDE, LOGO_VARIANTS, MAX_LOGO_OBJECT_BYTES, MAX_LOGO_SET_BYTES } from '@fuda/sdk'
-import type { LogoVariant } from '@fuda/sdk'
+import { IMAGE_SETS } from '@fuda/sdk'
+import type { ImageSetSpec, LogoVariant } from '@fuda/sdk'
 
 // The variant set, its sides and its caps are the wire contract the dashboard
 // draws against, so they live in @fuda/sdk; re-exported here because this
 // module is where the api's logo rules otherwise live.
-export { isLogoVariant, LOGO_SIDE, LOGO_VARIANTS, MAX_LOGO_OBJECT_BYTES, MAX_LOGO_SET_BYTES } from '@fuda/sdk'
+export { isLogoVariant, LOGO_SIDE, MAX_LOGO_OBJECT_BYTES } from '@fuda/sdk'
 export type { LogoVariant } from '@fuda/sdk'
 
 export const LOGO_UPLOAD_TTL_SECONDS = 15 * 60
@@ -18,7 +18,7 @@ export const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable'
 const PREFIX = /^logos\/[0-9a-f-]{36}$/u
 export const isLogoPrefix = (raw: string): boolean => PREFIX.test(raw)
 
-export const objectKey = (prefix: string, variant: LogoVariant): string => `${prefix}/${variant}.png`
+export const objectKey = (prefix: string, variant: string): string => `${prefix}/${variant}.png`
 
 // The version a public logo URL carries. The route is keyed by handle so a
 // printed link keeps working, which means the URL alone cannot say which mark
@@ -60,32 +60,37 @@ export const readPngHeader = (bytes: Uint8Array): PngHeader | null => {
 export type LogoRejection = 'missing_variant' | 'not_png' | 'wrong_size' | 'too_large' | 'set_too_large'
 
 export type LogoSetResult =
-  | { ok: true; objects: { variant: LogoVariant; bytes: Uint8Array }[] }
+  | { ok: true; objects: { variant: string; bytes: Uint8Array }[] }
   | { ok: false; reason: LogoRejection }
 
 // Every variant present, every one a square PNG of its exact side, and the set
 // within budget. Anything else is refused before a single object is written.
-export const validateLogoSet = (parts: Map<string, Uint8Array>): LogoSetResult => {
-  const objects: { variant: LogoVariant; bytes: Uint8Array }[] = []
+export const validateImageSet = (parts: Map<string, Uint8Array>, spec: ImageSetSpec): LogoSetResult => {
+  const objects: { variant: string; bytes: Uint8Array }[] = []
   let total = 0
-  for (const variant of LOGO_VARIANTS) {
+  for (const [variant, size] of Object.entries(spec.variants)) {
     const bytes = parts.get(variant)
     if (bytes === undefined) {
       return { ok: false, reason: 'missing_variant' }
     }
-    if (bytes.length > MAX_LOGO_OBJECT_BYTES) {
+    if (bytes.length > spec.maxObjectBytes) {
       return { ok: false, reason: 'too_large' }
     }
     const header = readPngHeader(bytes)
     if (header === null) {
       return { ok: false, reason: 'not_png' }
     }
-    const side = LOGO_SIDE[variant]
-    if (header.width !== side || header.height !== side) {
+    if (header.width !== size.width || header.height !== size.height) {
       return { ok: false, reason: 'wrong_size' }
     }
     total += bytes.length
     objects.push({ bytes, variant })
   }
-  return total > MAX_LOGO_SET_BYTES ? { ok: false, reason: 'set_too_large' } : { objects, ok: true }
+  return total > spec.maxSetBytes ? { ok: false, reason: 'set_too_large' } : { objects, ok: true }
 }
+
+export const validateLogoSet = (parts: Map<string, Uint8Array>): LogoSetResult =>
+  validateImageSet(parts, IMAGE_SETS.logo)
+
+export const artworkUrlFor = (baseUrl: string, prefix: string | null): string | null =>
+  prefix === null ? null : `${baseUrl.replace(/\/$/u, '')}/assets/${prefix}/strip3x`

@@ -1,3 +1,5 @@
+import { IMAGE_SETS } from '@fuda/sdk'
+import type { ImageSetSpec } from '@fuda/sdk'
 import { and, eq, gt, lt } from 'drizzle-orm'
 
 import type { Db } from '../db/client.ts'
@@ -7,25 +9,20 @@ import {
   isLogoPrefix,
   LOGO_UPLOAD_TTL_SECONDS,
   objectKey,
-  validateLogoSet,
+  validateImageSet,
 } from './logo.ts'
-import type { LogoRejection, LogoVariant } from './logo.ts'
+import type { LogoRejection } from './logo.ts'
 
-export type StoredUpload = { ok: true; id: string; expiresAt: number } | { ok: false; reason: LogoRejection }
-
-// Write the whole set, then stage it. A partial write is rolled back so a
-// failed upload leaves no orphans behind; the objects are immutable, so
-// nothing here ever overwrites a live logo.
-export const storeLogoSet = async (
+export const storeImageSet = async (
   bucket: R2Bucket,
-  db: Db,
-  p: { parts: Map<string, Uint8Array>; sessionTokenHash: string; now: number },
-): Promise<StoredUpload> => {
-  const checked = validateLogoSet(p.parts)
+  parts: Map<string, Uint8Array>,
+  spec: ImageSetSpec,
+): Promise<{ ok: true; prefix: string } | { ok: false; reason: LogoRejection }> => {
+  const checked = validateImageSet(parts, spec)
   if (!checked.ok) {
     return checked
   }
-  const prefix = `logos/${crypto.randomUUID()}`
+  const prefix = `${spec.prefix}/${crypto.randomUUID()}`
   const written: string[] = []
   try {
     for (const object of checked.objects) {
@@ -44,6 +41,24 @@ export const storeLogoSet = async (
     )
     throw error
   }
+  return { ok: true, prefix }
+}
+
+export type StoredUpload = { ok: true; id: string; expiresAt: number } | { ok: false; reason: LogoRejection }
+
+// Write the whole set, then stage it. A partial write is rolled back so a
+// failed upload leaves no orphans behind; the objects are immutable, so
+// nothing here ever overwrites a live logo.
+export const storeLogoSet = async (
+  bucket: R2Bucket,
+  db: Db,
+  p: { parts: Map<string, Uint8Array>; sessionTokenHash: string; now: number },
+): Promise<StoredUpload> => {
+  const stored = await storeImageSet(bucket, p.parts, IMAGE_SETS.logo)
+  if (!stored.ok) {
+    return stored
+  }
+  const { prefix } = stored
   const id = crypto.randomUUID()
   const expiresAt = p.now + LOGO_UPLOAD_TTL_SECONDS
   await db.batch([
@@ -95,12 +110,16 @@ export interface LogoObject {
   etag: string
 }
 
-export const readLogoObject = async (
+export const readImageObject = async (
   bucket: R2Bucket,
   prefix: string,
-  variant: LogoVariant,
+  variant: string,
+  spec: ImageSetSpec = IMAGE_SETS.logo,
 ): Promise<LogoObject | null> => {
-  if (!isLogoPrefix(prefix)) {
+  if (
+    !new RegExp(`^${spec.prefix}/[0-9a-f-]{36}$`, 'u').test(prefix) ||
+    !Object.hasOwn(spec.variants, variant)
+  ) {
     return null
   }
   const object = await bucket.get(objectKey(prefix, variant))
@@ -109,3 +128,5 @@ export const readLogoObject = async (
   }
   return { body: await object.arrayBuffer(), etag: object.httpEtag }
 }
+
+export const readLogoObject = readImageObject
