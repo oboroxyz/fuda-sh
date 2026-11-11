@@ -5,6 +5,9 @@ import type { Hex } from 'viem'
 import type { ChainClient } from '../chain/client.ts'
 import type { ClaimResult, RequirementAdapter } from './adapter.ts'
 
+// AgreementCreationMode.GRANT in the reference's IPAssetTypes: the asset owner created it.
+const GRANT = 0
+
 const checkAgreement = async (
   chain: ChainClient,
   config: Requirement,
@@ -18,7 +21,7 @@ const checkAgreement = async (
   ) {
     return { detail: 'agreement-inactive', met: false }
   }
-  if (agreement.creationMode !== 0) {
+  if (agreement.creationMode !== GRANT) {
     return { detail: 'not-granted', met: false }
   }
   if (config.termsId !== undefined && agreement.termsId.toLowerCase() !== config.termsId) {

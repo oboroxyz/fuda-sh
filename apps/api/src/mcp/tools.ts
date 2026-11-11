@@ -120,10 +120,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
         .from(cards)
         .where(eq(cards.issuerId, context.issuer.id))
         .orderBy(cards.createdAt)
-      const requirements = await requirementsByCard(
-        context.c.get('db'),
-        rows.map((row) => row.id),
-      )
+      const requirements = await requirementsByCard(context.c.get('db'), rows)
       return {
         ok: true,
         value: {
@@ -254,7 +251,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
         : {
             ok: true,
             subject: updated.id,
-            value: { card: toolCard(context, updated, await requirementsOf(db, updated.id)) },
+            value: { card: toolCard(context, updated, await requirementsOf(db, updated)) },
           }
     },
   },

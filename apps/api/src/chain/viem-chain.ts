@@ -98,6 +98,7 @@ export const createViemChain = (env: ChainBindings, transportOverride?: Transpor
         })
         return { agreementIds, nextCursor }
       }),
+
     agreementCountOf: async (registry, assetId) =>
       await wrap(
         async () =>
@@ -108,6 +109,7 @@ export const createViemChain = (env: ChainBindings, transportOverride?: Transpor
             functionName: 'agreementCountOf',
           }),
       ),
+
     agreementOf: async (registry, agreementId) =>
       await wrap(async () => {
         const agreement = await publicClient.readContract({
@@ -118,6 +120,7 @@ export const createViemChain = (env: ChainBindings, transportOverride?: Transpor
         })
         return { assetId: agreement[0], creationMode: agreement[6].creationMode, termsId: agreement[1] }
       }),
+
     attest: async (p: AttestParams) => {
       if (wallet === null || account === null) {
         throw new NoSignerError('SIGNER_PRIVATE_KEY unset')
@@ -156,7 +159,9 @@ export const createViemChain = (env: ChainBindings, transportOverride?: Transpor
         return { txHash, uid: log.args.uid }
       })
     },
+
     chainId: () => config.id,
+
     getAddressFromFactory: async (owners, nonce) =>
       await wrap(
         async () =>
@@ -167,6 +172,7 @@ export const createViemChain = (env: ChainBindings, transportOverride?: Transpor
             functionName: 'getAddress',
           }),
       ),
+
     isActiveAgreementHolder: async (registry, agreementId, assetId, holder) =>
       await wrap(
         async () =>
@@ -177,7 +183,9 @@ export const createViemChain = (env: ChainBindings, transportOverride?: Transpor
             functionName: 'isActiveAgreementHolder',
           }),
       ),
+
     offchainAttester: () => account?.address ?? null,
+
     offchainRevokedAt: async (revoker, uid) =>
       await wrap(
         async () =>
@@ -188,6 +196,7 @@ export const createViemChain = (env: ChainBindings, transportOverride?: Transpor
             functionName: 'getRevokeOffchain',
           }),
       ),
+
     readAttestation: async (uid) =>
       await wrap(async () => {
         const a = await publicClient.readContract({
@@ -209,6 +218,7 @@ export const createViemChain = (env: ChainBindings, transportOverride?: Transpor
           uid: a.uid,
         }
       }),
+
     revoke: async (schema, uid) => {
       if (wallet === null || account === null) {
         throw new NoSignerError('SIGNER_PRIVATE_KEY unset')
@@ -229,6 +239,7 @@ export const createViemChain = (env: ChainBindings, transportOverride?: Transpor
         return { txHash }
       })
     },
+
     revokeOffchain: async (uid) => {
       if (wallet === null || account === null) {
         throw new NoSignerError('SIGNER_PRIVATE_KEY unset')
@@ -249,6 +260,7 @@ export const createViemChain = (env: ChainBindings, transportOverride?: Transpor
         return { txHash }
       })
     },
+
     rootTimestamp: async (root) =>
       await wrap(
         async () =>
@@ -259,13 +271,16 @@ export const createViemChain = (env: ChainBindings, transportOverride?: Transpor
             functionName: 'getTimestamp',
           }),
       ),
+
     signOffchain: async (typed) => {
       if (account === null) {
         throw new NoSignerError('SIGNER_PRIVATE_KEY unset')
       }
       return await account.signTypedData(typed)
     },
+
     signerAddress: () => account?.address ?? null,
+
     timestamp: async (root) => {
       if (wallet === null || account === null) {
         throw new NoSignerError('SIGNER_PRIVATE_KEY unset')
@@ -286,6 +301,7 @@ export const createViemChain = (env: ChainBindings, transportOverride?: Transpor
         return { txHash }
       })
     },
+
     verifyMessage: async (p) => {
       try {
         return await publicClient.verifyMessage({

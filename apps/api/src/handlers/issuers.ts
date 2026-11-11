@@ -70,10 +70,7 @@ const meResponse = async (c: Context<AppEnv>, issuerId: string | null): Promise<
   if (found === null) {
     return { cards: [], ens: null, issuer: null, publicUrl: null }
   }
-  const requirements = await requirementsByCard(
-    c.get('db'),
-    found.cards.map((card) => card.id),
-  )
+  const requirements = await requirementsByCard(c.get('db'), found.cards)
   return {
     cards: found.cards.map((card) => cardView(card, c.get('now')(), requirements.get(card.id) ?? [])),
     ens: await ensView(c, found.issuer.handle),
@@ -324,10 +321,7 @@ export const getV1IssuersHandle = defineHandler(async (c) => {
     c.get('db'),
     found.cards.map((card) => card.id),
   )
-  const requirements = await requirementsByCard(
-    c.get('db'),
-    found.cards.map((card) => card.id),
-  )
+  const requirements = await requirementsByCard(c.get('db'), found.cards)
   return jsonResponse(
     c,
     publicVenue(

@@ -6,6 +6,7 @@ import * as v from 'valibot'
 import { bindChunks } from '../db/bind-chunks.ts'
 import type { Db } from '../db/client.ts'
 import { cardRequirements } from '../db/schema.ts'
+import type { cards } from '../db/schema.ts'
 
 const StoredRequirement = v.pipe(v.string(), v.parseJson(), CardRequirement)
 
@@ -22,13 +23,17 @@ export const requirementRows = (
     position,
   }))
 
+type CardKey = Pick<typeof cards.$inferSelect, 'id' | 'identity'>
+
 // The requirements of many Cards in one pass, in batches under the same cap. A Card with
-// none is absent from the map. A row that no longer parses throws rather than being dropped,
-// because a Card that lost a requirement would admit what it was meant to refuse.
+// none is absent from the map. Only an `address` Card can have any, so a list without one,
+// which is nearly every venue, costs no query. A row that no longer parses throws rather than
+// being dropped, because a Card that lost a requirement would admit what it was meant to refuse.
 export const requirementsByCard = async (
   db: Db,
-  cardIds: readonly string[],
+  listed: readonly CardKey[],
 ): Promise<Map<string, Requirement[]>> => {
+  const cardIds = listed.filter((card) => card.identity === 'address').map((card) => card.id)
   const batches = await Promise.all(
     bindChunks(cardIds, 99).map(
       async (batch) =>
@@ -47,7 +52,7 @@ export const requirementsByCard = async (
   return byCard
 }
 
-export const requirementsOf = async (db: Db, cardId: string): Promise<Requirement[]> => {
-  const byCard = await requirementsByCard(db, [cardId])
-  return byCard.get(cardId) ?? []
+export const requirementsOf = async (db: Db, card: CardKey): Promise<Requirement[]> => {
+  const byCard = await requirementsByCard(db, [card])
+  return byCard.get(card.id) ?? []
 }
