@@ -305,6 +305,16 @@ describe('offchain standard passes', () => {
     })
   })
 
+  it('reports chain revocation before signed expiry and expiry when the chain is unreadable', async () => {
+    const { chain, issue, verdict, setNow } = await setup({ validUntil: NOW + 10 })
+    const issued = await issue()
+    setNow(NOW + 11)
+    await chain.revokeOffchain(issued.uid)
+    await expect(verdict(issued.qr)).resolves.toMatchObject({ reason: 'REVOKED' })
+    chain.failReads = true
+    await expect(verdict(issued.qr)).resolves.toMatchObject({ reason: 'EXPIRED' })
+  })
+
   describe('at a gate set to a venue', () => {
     const OTHER = 'other-shop'
 
