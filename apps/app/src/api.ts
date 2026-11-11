@@ -68,8 +68,9 @@ export const claimSourceFrom = (search: string): string | null => {
   return parsed.success ? parsed.output : null
 }
 
-const issuePath = (handle: string, slug: string): string =>
-  `/issuers/${encodeURIComponent(handle)}/${encodeURIComponent(slug)}/issue`
+const cardPath = (handle: string, slug: string): string =>
+  `/issuers/${encodeURIComponent(handle)}/${encodeURIComponent(slug)}`
+const issuePath = (handle: string, slug: string): string => `${cardPath(handle, slug)}/issue`
 
 // Self-serve issuance of one card: no account. The api answers 429
 // `rate_limited`, 409 `card_closed` or `card_sold_out`, 501 `no_signer`, 502
@@ -188,7 +189,7 @@ export const applyAddressCard = async (
   holderAddress: Hex,
   turnstileToken: string | null,
 ): Promise<Result<{ applied: true }>> =>
-  await apiFetch(API_BASE_URL, `${issuePath(handle, slug).slice(0, -5)}apply`, {
+  await apiFetch(API_BASE_URL, `${cardPath(handle, slug)}/apply`, {
     body: JSON.stringify({ holderAddress, turnstileToken: turnstileToken ?? undefined }),
     credentials: 'omit',
     method: 'POST',
