@@ -14,11 +14,11 @@ The Issuer chooses a type per Card, separately from the `membership | ticket` ca
 | --- | --- | --- | --- | --- | --- |
 | **Standard** (default) | Bearer | signed attestation in D1, batched root | none | secret UID in a QR, Device wallet | membership admits as unconfirmed; ticket rejects |
 | **Identified** | Signed | as Standard | none, public key checked directly | challenge answered in the app | as Standard |
-| **Address requirement** (issuance disabled) | Signed | offchain | requirement subject address | proposed | proposed |
+| **Address requirement** | Signed | offchain | requirement subject address | challenge signed by the holder, with fresh requirement checks | rejects |
 | **On-chain** | Bearer | on-chain attestation | fuda-owned counterfactual account | public UID in a QR, Device wallet | rejects |
 | **On-chain self-held** | Signed | on-chain attestation | the member's own, stable | challenge answered in the app | rejects |
 
-Card identity `address` requires `record: offchain` and at least one fixed [requirement](./card-requirements.md). These Cards can be created, but cannot issue passes yet. `none`, `passkey` and `sensitive` keep their existing behavior.
+Card identity `address` requires `record: offchain` and at least one fixed [requirement](./card-requirements.md). Their Signed claims and presentations check each requirement. `none`, `passkey` and `sensitive` keep their existing behavior.
 
 **Sensitive use** is a Card setting on Identified, for employee badges and privacy-sensitive memberships. It adds per-pass keys, rejects when the chain is unreadable, keeps the entry log to a minimum with a set retention period, turns Attendance and Stamps off, and disables member names. It does not hide entry from the Issuer or the gate; that still needs [anonymous membership](#u4-anonymous-membership-v2-design-not-implemented).
 
@@ -435,7 +435,7 @@ The optional `venue` is the same Handle used by QR entry. A mismatch answers `RE
 
 `stage` marks those two early stops: `entitlement` (chain verification failed — `reason` is the gate reason table's entry) and `challenge` (`BAD_CHALLENGE`: the nonce is unknown, expired, already used, or bound to another venue). Later verdicts — `BAD_SIGNATURE`, `ALREADY_USED`, `ADMIT` — carry no `stage`. `holder` is present once the attestation was decoded, including on the `entitlement` rejections; `NOT_FOUND` and `WRONG_SCHEMA` decoded nothing and answer without it.
 
-After the challenge is consumed the signature is verified (`BAD_SIGNATURE` — a wrong signature also burns the nonce), then the SINGLE_USE slot (`ALREADY_USED`), then `ADMIT`. For a SINGLE_USE right the slot insert and the ADMIT log row are one D1 batch; any other usage model just appends the log row. Every verdict carries `no-store`. It is logged with `path: 'signature'`, except that [Sensitive use](#sensitive-use) omits verdict details and expires the log. The one non-decision answer past validation is `502 chain_error`: from the chain read that precedes the challenge, or from the signature check itself — in which case the nonce stays consumed and the member simply mints a fresh one, which is why the burn is cheap. What an RPC outage actually looks like through viem's verification is recorded in the [attestation model](./attestation-model.md#api-payloads-that-touch-attestations).
+After the challenge is consumed the signature is verified (`BAD_SIGNATURE` — a wrong signature also burns the nonce), then each address Card requirement (`REQUIREMENT_UNMET`), then the SINGLE_USE slot (`ALREADY_USED`), then `ADMIT`. For a SINGLE_USE right the slot insert and the ADMIT log row are one D1 batch; any other usage model just appends the log row. Every verdict carries `no-store`. It is logged with `path: 'signature'`, except that [Sensitive use](#sensitive-use) omits verdict details and expires the log. The one non-decision answer past validation is `502 chain_error`: from the chain read that precedes the challenge, or from the signature check itself — in which case the nonce stays consumed and the member simply mints a fresh one, which is why the burn is cheap. What an RPC outage actually looks like through viem's verification is recorded in the [attestation model](./attestation-model.md#api-payloads-that-touch-attestations).
 
 ### Badges
 

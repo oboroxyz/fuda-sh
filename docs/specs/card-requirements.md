@@ -2,7 +2,7 @@
 
 A Card may carry **requirements**. A requirement names a record outside fuda that a member must hold, such as an ERC-8432 licence agreement. fuda reads that record itself when the member claims a pass, and again each time the member presents the pass. The first kind is `erc8432-agreement`.
 
-**Status: model built.** The `address` identity, requirement schemas, Card storage and API views, registry allowlist and ERC-8432 adapter are built. Issuance on these Cards is disabled. Apply, claim, licence keys and presentation checks remain proposed.
+**Status: API built.** The model, apply, signed claim and presentation checks are built. Member app, dashboard and licence key derivation remain proposed.
 
 API paths below are under `/v1`. Terms such as Card, Right, Holder and Member secret are defined in the [glossary](../CONTEXT.md). How requirements relate to the other ways an outside system works with fuda is in the [architecture overview](../architecture.md#outside-systems).
 
@@ -14,7 +14,7 @@ API paths below are under `/v1`. Terms such as Card, Right, Holder and Member se
 - **One adapter per kind.** An adapter declares the config schema, the subject it checks, the claim check and the presentation check. Adapters live in `apps/api`. The hosted service loads no third-party adapter.
 - **The subject today is an address.** A requirement that checks an address needs a Card with `identity: address`, and a Card with that identity needs such a requirement. Any other combination answers `400 bad_input`.
 - **Contracts are allowlisted per deployment.** The api's `IP_REGISTRIES` value lists the registries it accepts, beside the other chain addresses in `apps/api/targets.jsonc`. A requirement that names another contract answers `400 bad_input`. fuda reads only the deployment's own chain.
-- **A requirement is never an issuing shortcut.** The MCP `issue_pass` tool and the admin `POST /issue` answer `holder_must_claim` on these Cards, as on any Card whose identity is not `none`.
+- **A requirement is never an issuing shortcut.** The MCP `issue_pass` tool answers `holder_must_claim` on these Cards, as on any Card whose identity is not `none`. The admin `POST /issue` issues a Right outside any Card and takes no Card id.
 
 ## The `address` identity
 
@@ -100,14 +100,14 @@ sequenceDiagram
 | --- | --- |
 | `GET /issuers/:handle` | Each card adds `requirements`, so the member app knows which key to derive |
 | `POST /issuers/:handle/:slug/apply` `{ holderAddress, turnstileToken? }` | Adds the address to the Card's applicant list. `{ applied: true }`, also on a repeat. `404 not_found` on a Card with no requirement |
-| `GET /issuers/me/cards/:cardId/applicants` | Operator session. `{ applicants: { address, appliedAt }[] }`, oldest first |
+| `GET /issuers/me/cards/:cardId/applicants` | Operator session. `{ applicants: { address, appliedAt }[] }`, oldest first, capped at 1,000 |
 | `POST /issuers/:handle/:slug/issue` `{ holderAddress, signature, agreementId?, source?, turnstileToken? }` | The claim by address, with a signature and the claim check |
 
 Apply and claim omit browser credentials, as Sensitive claims do. They share the self-serve budget and the [claim bot check](./pass-types-and-flows.md#claim-bot-check). The applicant list holds the address and the time, and no account id.
 
 ### Claiming
 
-The claim signs the string `fuda.sh:claim:v1:<cardId>:<holderAddress>` with the licence key, as an EIP-191 personal message. The api checks in this order, after the Card is found and open and after the bot check.
+The holder address is lower case in the claim message. The SDK exports `claimMessage(cardId, holderAddress)`. The claim signs the string `fuda.sh:claim:v1:<cardId>:<holderAddress>` with the licence key, as an EIP-191 personal message. The api checks in this order, after the Card is found and open and after the bot check.
 
 | Failure                                    | Answer                                                        |
 | ------------------------------------------ | ------------------------------------------------------------- |
@@ -117,7 +117,7 @@ The claim signs the string `fuda.sh:claim:v1:<cardId>:<holderAddress>` with the 
 | the chain cannot be read                   | `502 chain_error`                                             |
 | the Card is at capacity                    | `409 card_sold_out`                                           |
 
-A Card issues one pass per address. A repeated claim by the same address answers the pass it already has and reserves no place, so a replayed signature gains nothing.
+A Card issues one pass per address. After the requirements pass, the api reserves capacity with the same mechanism as other passes. D1 commits the unique address mapping, pass and ordered evidence together. A failed batch releases the place; if a concurrent claim won, the api reads and returns that pass. A crash between reserving and writing can strand a place, as with other passes. A repeated claim by the same address answers the pass it already has and reserves no place, so a replayed signature gains nothing.
 
 ### Presenting
 
@@ -125,7 +125,7 @@ A Card issues one pass per address. A repeated claim by the same address answers
 
 `GET /verify/:uid` does not run the check. A preview of these passes is yellow and admits nobody.
 
-An `ADMIT` verdict and the member's pass list show the agreement with a link to the block explorer. The link comes from the evidence URI.
+An `ADMIT` verdict carries `requirements: { kind, evidence }[]` in Card order. Clients can derive agreement links from the evidence URI. A pass with missing evidence rejects with `REQUIREMENT_UNMET`. Neither `GET /verify/:uid` nor `POST /verify` runs a requirement check.
 
 ## What reaches the chain
 
