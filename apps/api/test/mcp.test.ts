@@ -516,7 +516,7 @@ describe('mcp', () => {
       ).toStrictEqual([requirement])
     })
 
-    it.each(['passkey', 'sensitive', 'address'] as const)(
+    it.each(['passkey', 'sensitive', 'address', 'none'] as const)(
       'leaves a %s card for its holder to claim',
       async (identity) => {
         const { token } = await approveAndExchange({ resource: RESOURCE, scope: ALL_SCOPES })
@@ -525,7 +525,7 @@ describe('mcp', () => {
             ...SECOND_CARD,
             identity,
             record: 'offchain',
-            requirements: identity === 'address' ? [requirement] : [],
+            requirements: identity === 'address' || identity === 'none' ? [requirement] : [],
           },
           name: 'create_card',
         })

@@ -217,11 +217,12 @@ export const CardBody = v.pipe(
     (card: CardFieldsOutput) => isIdentityAllowed(card),
     'a pass bound to a key must be recorded offchain',
   ),
-  // Every requirement kind checks an address, so the two travel together
-  // (docs/specs/card-requirements.md#rules).
   v.check(
-    (card: CardFieldsOutput) => (card.identity === 'address') === card.requirements.length > 0,
-    'a requirement needs identity address, and identity address needs a requirement',
+    (card: CardFieldsOutput) =>
+      card.requirements.length === 0
+        ? card.identity !== 'address'
+        : (card.identity === 'none' || card.identity === 'address') && card.record === 'offchain',
+    'requirements need identity none or address and record offchain; address needs a requirement',
   ),
 )
 

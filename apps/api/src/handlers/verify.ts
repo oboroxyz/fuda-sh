@@ -14,7 +14,7 @@ import type { AppEnv } from '../env.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { admitAndHook, logEntry } from '../verify/admit.ts'
 import { offchainVerifyConfig, verifyConfig } from '../verify/config.ts'
-import { qrOutcome } from '../verify/qr-admission.ts'
+import { qrOutcome, qrRequirements } from '../verify/qr-admission.ts'
 import { loadOffchainRow, verifyOffchain } from '../verify/verify-offchain.ts'
 import type { VerifyOutcome } from '../verify/verify-uid.ts'
 import { verifyUid } from '../verify/verify-uid.ts'
@@ -81,6 +81,14 @@ export const waitUntilOf = (c: Context<AppEnv>): ((p: Promise<unknown>) => void)
 // identically, and so neither path can log a non-decision.
 type Resolved = { ok: true; out: VerifyOutcome } | { ok: false; res: Response }
 
+const withRequirementCard = (
+  out: VerifyOutcome,
+  card?: { cardId: string | null; hasRequirements?: boolean | null },
+): VerifyOutcome =>
+  out.decision === 'ADMIT'
+    ? { ...out, requirementCard: { hasRequirements: card?.hasRequirements ?? false, id: card?.cardId ?? '' } }
+    : out
+
 export const resolveVerdict = async (c: Context<AppEnv>, uid: Hex, now: number): Promise<Resolved> => {
   // An offchain right is decided from its D1 row, and needs none of the on-chain
   // configuration below (docs/specs/attestation-model.md#offchain-rights).
@@ -95,7 +103,7 @@ export const resolveVerdict = async (c: Context<AppEnv>, uid: Hex, now: number):
     }
     try {
       const out = await verifyOffchain(deps, uid, offchain)
-      return { ok: true, out }
+      return { ok: true, out: withRequirementCard(out, offchain) }
     } catch (error) {
       if (error instanceof ChainError) {
         return { ok: false, res: errorResponse(c, 'chain_error', 502) }
@@ -112,13 +120,22 @@ export const resolveVerdict = async (c: Context<AppEnv>, uid: Hex, now: number):
     return { ok: false, res: errorResponse(c, 'chain_error', 502) }
   }
   try {
-    return { ok: true, out: await verifyUid(deps, uid) }
+    const out = await verifyUid(deps, uid)
+    return {
+      ok: true,
+      out: withRequirementCard(out),
+    }
   } catch (error) {
     if (error instanceof ChainError) {
       return { ok: false, res: errorResponse(c, 'chain_error', 502) }
     }
     throw error
   }
+}
+
+export const resolveQrVerdict = async (c: Context<AppEnv>, uid: Hex, now: number) => {
+  const resolved = await resolveVerdict(c, uid, now)
+  return resolved.ok ? await qrRequirements(c, uid, qrOutcome(resolved.out)) : resolved
 }
 
 // Read-only preview: answers "is this right valid?", never "may it enter by QR?".
@@ -171,11 +188,11 @@ export const postV1Verify = defineHandler(async (c) => {
     await logEntry(c.get('db'), { at: now, decision: 'REJECT', path: 'qr', reason: 'WRONG_VENUE', uid })
     return jsonResponse(c, verdictBody({ decision: 'REJECT', reason: 'WRONG_VENUE' }))
   }
-  const resolved = await resolveVerdict(c, uid, now)
-  if (!resolved.ok) {
-    return resolved.res
+  const checked = await resolveQrVerdict(c, uid, now)
+  if (!checked.ok) {
+    return checked.res
   }
-  const out = qrOutcome(resolved.out)
+  const { out } = checked
   const db = c.get('db')
   const badges = await badgesFor(c, uid)
   const reject = async (reason: 'LEVEL_REQUIRED' | 'ALREADY_USED'): Promise<Response> => {
@@ -184,7 +201,7 @@ export const postV1Verify = defineHandler(async (c) => {
   }
   if (out.decision === 'REJECT') {
     await logEntry(db, { at: now, decision: 'REJECT', path: 'qr', reason: out.reason, uid })
-    return jsonResponse(c, verdictBody(out, badges))
+    return jsonResponse(c, { ...verdictBody(out, badges), ...checked.fields })
   }
   const outcome = await admitAndHook({
     canonical: out.canonical,
@@ -198,5 +215,5 @@ export const postV1Verify = defineHandler(async (c) => {
   if (!outcome.admitted) {
     return await reject(outcome.reason)
   }
-  return jsonResponse(c, verdictBody(out, badges))
+  return jsonResponse(c, { ...verdictBody(out, badges), ...checked.fields })
 })

@@ -1,10 +1,11 @@
+import { asHex } from '@fuda/sdk'
 import type { RequirementUnmet } from '@fuda/sdk'
 import { asc, eq } from 'drizzle-orm'
 import type { Hex } from 'viem'
 
 import type { ChainClient } from '../chain/client.ts'
 import type { Db } from '../db/client.ts'
-import { cards, members, passEvidence } from '../db/schema.ts'
+import { cardAddressPasses, cards, members, passEvidence } from '../db/schema.ts'
 import type { Bindings } from '../env.ts'
 import { requirementsAllowed } from './allowlist.ts'
 import type { Evidence } from './claim.ts'
@@ -19,21 +20,29 @@ export const presentationRequirements = async (
   db: Db,
   chain: ChainClient,
   uid: Hex,
-  holder: Hex | null,
   env: Pick<Bindings, 'IP_REGISTRIES'>,
+  knownCard?: Pick<typeof cards.$inferSelect, 'id' | 'hasRequirements'>,
 ): Promise<PresentationRequirements> => {
-  if (holder === null) {
+  if (knownCard?.hasRequirements === false) {
     return { evidence: [], met: true }
   }
-  const card = await db
-    .select({ id: cards.id, identity: cards.identity })
-    .from(members)
-    .innerJoin(cards, eq(cards.id, members.cardId))
-    .where(eq(members.attestationUid, uid))
+  const card =
+    knownCard ??
+    (await db
+      .select({ hasRequirements: cards.hasRequirements, id: cards.id })
+      .from(members)
+      .innerJoin(cards, eq(cards.id, members.cardId))
+      .where(eq(members.attestationUid, uid))
+      .get())
+  if (card === undefined || !card.hasRequirements) {
+    return { evidence: [], met: true }
+  }
+  const address = await db
+    .select({ address: cardAddressPasses.address })
+    .from(cardAddressPasses)
+    .where(eq(cardAddressPasses.attestationUid, uid))
     .get()
-  if (card === undefined || card.identity !== 'address') {
-    return { evidence: [], met: true }
-  }
+  const holder = address === undefined ? null : asHex(address.address, 20)
   const requirements = await requirementsOf(db, card)
   const stored = await db
     .select()
@@ -46,7 +55,7 @@ export const presentationRequirements = async (
       return { met: false, requirement: { detail: 'registry-not-allowed', kind: requirement.kind } }
     }
     const row = stored.find((entry) => entry.position === position && entry.kind === requirement.kind)
-    if (row === undefined) {
+    if (row === undefined || holder === null) {
       return { met: false, requirement: { detail: 'agreement-inactive', kind: requirement.kind } }
     }
     // oxlint-disable-next-line no-await-in-loop -- preserve requirement order and stop on the first failure

@@ -23,17 +23,14 @@ export const requirementRows = (
     position,
   }))
 
-type CardKey = Pick<typeof cards.$inferSelect, 'id' | 'identity'>
+type CardKey = Pick<typeof cards.$inferSelect, 'id' | 'hasRequirements'>
 
-// The requirements of many Cards in one pass, in batches under the same cap. A Card with
-// none is absent from the map. Only an `address` Card can have any, so a list without one,
-// which is nearly every venue, costs no query. A row that no longer parses throws rather than
-// being dropped, because a Card that lost a requirement would admit what it was meant to refuse.
+// A Card without requirements costs no query. Invalid stored config fails closed.
 export const requirementsByCard = async (
   db: Db,
   listed: readonly CardKey[],
 ): Promise<Map<string, Requirement[]>> => {
-  const cardIds = listed.filter((card) => card.identity === 'address').map((card) => card.id)
+  const cardIds = listed.filter((card) => card.hasRequirements).map((card) => card.id)
   const batches = await Promise.all(
     bindChunks(cardIds, 99).map(
       async (batch) =>

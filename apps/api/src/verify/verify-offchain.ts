@@ -6,7 +6,7 @@ import type { Hex } from 'viem'
 import { ChainError, ZERO_ADDRESS, ZERO_UID } from '../chain/client.ts'
 import type { ChainClient } from '../chain/client.ts'
 import type { Db } from '../db/client.ts'
-import { issuers, members, offchainAttestations } from '../db/schema.ts'
+import { cards, issuers, members, offchainAttestations } from '../db/schema.ts'
 import type { Entitlement } from '../eas/codecs.ts'
 import {
   decodeHolderKey,
@@ -22,6 +22,7 @@ import { toEntitlementView } from './verify-uid.ts'
 import type { VerifyOutcome } from './verify-uid.ts'
 
 export interface OffchainRow {
+  hasRequirements?: boolean | null
   cardId: string | null
   handle: string | null
   signed: string
@@ -34,11 +35,13 @@ export const loadOffchainRow = async (db: Db, uid: Hex): Promise<OffchainRow | n
     .select({
       cardId: members.cardId,
       handle: issuers.handle,
+      hasRequirements: cards.hasRequirements,
       signed: offchainAttestations.signed,
       status: members.status,
     })
     .from(offchainAttestations)
     .innerJoin(members, eq(members.attestationUid, offchainAttestations.uid))
+    .leftJoin(cards, eq(cards.id, members.cardId))
     .leftJoin(issuers, eq(issuers.id, members.issuerId))
     .where(eq(offchainAttestations.uid, uid))
     .get()) ?? null

@@ -20,6 +20,7 @@ const cardValues = (
   claimUntil: input.claimUntil,
   createdAt: row.createdAt,
   description: input.description,
+  hasRequirements: input.requirements.length > 0,
   id: row.id,
   identity: input.identity,
   issuerId: row.issuerId,

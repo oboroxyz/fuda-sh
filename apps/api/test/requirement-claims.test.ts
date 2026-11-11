@@ -10,6 +10,7 @@ import { getDb } from '../src/db/client.ts'
 import {
   cardAddressPasses,
   cardApplicants,
+  stampCredits,
   cards,
   entryLog,
   memberPasses,
@@ -120,6 +121,8 @@ describe('requirement applications and claims', () => {
   beforeEach(async () => {
     await env.DB.batch(
       [
+        'reception_requests',
+        'stamp_credits',
         'pass_evidence',
         'card_address_passes',
         'card_applicants',
@@ -136,6 +139,122 @@ describe('requirement applications and claims', () => {
         'rate_limits',
       ].map((table) => env.DB.prepare(`DELETE FROM ${table}`)),
     )
+  })
+
+  it('issues a Bearer requirement pass and admits its QR with evidence', async () => {
+    const ctx = await setup({ capacity: 2, identity: 'none' })
+    ctx.grant()
+    const responses = await Promise.all([ctx.claim(), ctx.claim()])
+    const passes = await Promise.all(
+      responses.map(async (response) => await response.json<SelfServeIssueResponse>()),
+    )
+    expect(passes[0]).toStrictEqual(passes[1])
+    const [pass] = passes
+    if (pass === undefined) {
+      throw new Error('Missing pass')
+    }
+    const again = await ctx.claim()
+    await expect(again.json()).resolves.toStrictEqual(pass)
+    const admitted = await ctx.send('/v1/verify', { qr: pass.qr })
+    await expect(admitted.json()).resolves.toMatchObject({
+      decision: 'ADMIT',
+      requirements: [
+        {
+          evidence: `ipagreement:${ctx.chain.chainId()}:${requirement.registry}/${agreementId}`,
+          kind: requirement.kind,
+        },
+      ],
+    })
+    await expect(db().select().from(cards)).resolves.toMatchObject([{ reserved: 1 }])
+    const issued = await db().select().from(members)
+    expect(issued.map(({ level }) => level)).toStrictEqual(['bearer'])
+  })
+
+  it.each([{ revoked: true }, { frozen: true }, { expiry: 1n }, { holder: other.address }])(
+    'checks a Wallet requirement before consuming a Slot or crediting reception %s',
+    async (change) => {
+      const ctx = await setup({ category: 'ticket', identity: 'none' })
+      ctx.grant()
+      const issued = await ctx.claim()
+      const pass = await issued.json<SelfServeIssueResponse>()
+      ctx.grant(change)
+      for (const route of ['/v1/verify', '/v1/issuers/me/reception']) {
+        // oxlint-disable-next-line no-await-in-loop -- inspect both admission routes against the same inactive agreement
+        const response = await ctx.send(route, { qr: pass.qr, requestId: crypto.randomUUID() }, ctx.token)
+        // oxlint-disable-next-line no-await-in-loop -- inspect each route response
+        await expect(response.json()).resolves.toMatchObject({
+          decision: 'REJECT',
+          reason: 'REQUIREMENT_UNMET',
+          requirement: { detail: 'agreement-inactive', kind: requirement.kind },
+        })
+      }
+      await expect(db().select().from(slots)).resolves.toHaveLength(0)
+      ctx.grant()
+      const admitted = await ctx.send('/v1/verify', { qr: pass.qr })
+      await expect(admitted.json()).resolves.toMatchObject({ decision: 'ADMIT' })
+    },
+  )
+
+  it('fails closed on unreadable membership requirements at QR and reception', async () => {
+    const ctx = await setup({ identity: 'none' })
+    ctx.grant()
+    const issued = await ctx.claim()
+    const pass = await issued.json<SelfServeIssueResponse>()
+    ctx.chain.failReads = true
+    const qr = await ctx.send('/v1/verify', { qr: pass.qr })
+    const reception = await ctx.send(
+      '/v1/issuers/me/reception',
+      { qr: pass.qr, requestId: crypto.randomUUID() },
+      ctx.token,
+    )
+    expect([qr.status, reception.status]).toStrictEqual([502, 502])
+    await expect(db().select().from(entryLog)).resolves.toHaveLength(0)
+  })
+
+  it('serves the pass and Wallet routes for a requirement Wallet pass', async () => {
+    const ctx = await setup({ identity: 'none' })
+    ctx.grant()
+    const issued = await ctx.claim()
+    const pass = await issued.json<SelfServeIssueResponse>()
+    const page = await ctx.app.request(`/pass/${pass.uid}`, {}, ctx.bindings)
+    const google = await ctx.app.request(`/pass/${pass.uid}/google`, {}, ctx.bindings)
+    const apple = await ctx.app.request(`/pass/${pass.uid}/apple.pkpass`, {}, ctx.bindings)
+    expect([page.status, google.status, apple.status]).toStrictEqual([200, 501, 501])
+  })
+
+  it('requires an address proof and credits a Stamp only while its agreement holds', async () => {
+    const ctx = await setup({ identity: 'none' })
+    const missing = await ctx.send(`${path}/issue`, {})
+    await expect(missing.json()).resolves.toStrictEqual({ error: 'holder_must_claim' })
+    ctx.grant()
+    const issued = await ctx.claim()
+    const pass = await issued.json<SelfServeIssueResponse>()
+    await ctx.app.request(
+      `/v1/issuers/me/cards/${ctx.card.id}/stamps`,
+      {
+        body: JSON.stringify({ dailyLimit: 1, enabled: true, goal: 10 }),
+        headers: { authorization: `Bearer ${ctx.token}`, 'content-type': 'application/json' },
+        method: 'PUT',
+      },
+      ctx.bindings,
+    )
+    const reception = await ctx.send(
+      '/v1/issuers/me/reception',
+      { qr: pass.qr, requestId: crypto.randomUUID() },
+      ctx.token,
+    )
+    await expect(reception.json()).resolves.toMatchObject({
+      decision: 'ADMIT',
+      requirements: [{ kind: requirement.kind }],
+    })
+    ctx.grant({ revoked: true })
+    const rejected = await ctx.send(
+      '/v1/issuers/me/reception',
+      { qr: pass.qr, requestId: crypto.randomUUID() },
+      ctx.token,
+    )
+    await expect(rejected.json()).resolves.toMatchObject({ reason: 'REQUIREMENT_UNMET' })
+    await expect(db().select().from(stampCredits)).resolves.toHaveLength(1)
   })
 
   it('applies idempotently without an account and lists only for the owner', async () => {
@@ -199,29 +318,32 @@ describe('requirement applications and claims', () => {
     expect(malformed.status).toBe(400)
   })
 
-  it('checks signature, requirements, chain and capacity in order without reserving refused claims', async () => {
-    const ctx = await setup({ capacity: 1 })
-    await db().update(cards).set({ reserved: 1 }).where(eq(cards.id, ctx.card.id))
-    const result4 = await ctx.send(`${path}/issue`, { holderAddress: ctx.key.address })
-    const bad = await ctx.send(`${path}/issue`, { holderAddress: ctx.key.address, signature: '0x00' })
+  it.each(['address', 'none'] as const)(
+    'checks signature, requirements, chain and capacity in order for %s',
+    async (identity) => {
+      const ctx = await setup({ capacity: 1, identity })
+      await db().update(cards).set({ reserved: 1 }).where(eq(cards.id, ctx.card.id))
+      const result4 = await ctx.send(`${path}/issue`, { holderAddress: ctx.key.address })
+      const bad = await ctx.send(`${path}/issue`, { holderAddress: ctx.key.address, signature: '0x00' })
 
-    const unmet = await ctx.claim()
-    await expect(unmet.json()).resolves.toMatchObject({
-      error: 'requirement_unmet',
-      requirement: { detail: 'no-agreement', kind: requirement.kind },
-    })
-    ctx.grant()
-    ctx.chain.failReads = true
-    const result5 = await ctx.claim()
-    ctx.chain.failReads = false
-    const full = await ctx.claim()
-    await expect(full.json()).resolves.toMatchObject({ error: 'card_sold_out' })
-    const current = await db().select().from(cards).get()
-    expect([result4.status, bad.status, result5.status, full.status, current?.reserved]).toStrictEqual([
-      400, 403, 502, 409, 1,
-    ])
-    await expect(db().select().from(members)).resolves.toHaveLength(0)
-  })
+      const unmet = await ctx.claim()
+      await expect(unmet.json()).resolves.toMatchObject({
+        error: 'requirement_unmet',
+        requirement: { detail: 'no-agreement', kind: requirement.kind },
+      })
+      ctx.grant()
+      ctx.chain.failReads = true
+      const result5 = await ctx.claim()
+      ctx.chain.failReads = false
+      const full = await ctx.claim()
+      await expect(full.json()).resolves.toMatchObject({ error: 'card_sold_out' })
+      const current = await db().select().from(cards).get()
+      expect([result4.status, bad.status, result5.status, full.status, current?.reserved]).toStrictEqual([
+        400, 403, 502, 409, 1,
+      ])
+      await expect(db().select().from(members)).resolves.toHaveLength(0)
+    },
+  )
 
   it.each([
     { creationMode: 1, detail: 'not-granted' },
@@ -452,11 +574,11 @@ describe('requirement applications and claims', () => {
     expect(reads).not.toHaveBeenCalled()
   })
 
-  it('does not query requirements for a pass without an address holder', async () => {
+  it('does not query requirements when the Card has none', async () => {
     const database = db()
     const select = vi.spyOn(database, 'select')
     await expect(
-      presentationRequirements(database, fakeChain(), agreementId, null, {}),
+      presentationRequirements(database, fakeChain(), agreementId, {}, { hasRequirements: false, id: '' }),
     ).resolves.toStrictEqual({ evidence: [], met: true })
     expect(select).not.toHaveBeenCalled()
   })

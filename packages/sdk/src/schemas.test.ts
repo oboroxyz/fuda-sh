@@ -49,6 +49,13 @@ describe('Card identity and requirements', () => {
     expect(v.parse(CardBody, card)).toHaveProperty('requirements', [])
   })
 
+  it('accepts a Wallet pass with a requirement recorded offchain', () => {
+    expect(
+      v.safeParse(CardBody, { ...card, identity: 'none', record: 'offchain', requirements: [requirement] })
+        .success,
+    ).toBe(true)
+  })
+
   it('accepts identity address with a requirement, and stores it normalized', () => {
     const out = v.parse(CardBody, {
       ...card,
@@ -60,7 +67,7 @@ describe('Card identity and requirements', () => {
 
   it.each([
     ['identity address without a requirement', { identity: 'address' }],
-    ['a requirement on identity none', { requirements: [requirement] }],
+    ['a requirement recorded on chain', { record: 'onchain', requirements: [requirement] }],
     ['a requirement on identity passkey', { identity: 'passkey', requirements: [requirement] }],
     ['a requirement on identity sensitive', { identity: 'sensitive', requirements: [requirement] }],
     [

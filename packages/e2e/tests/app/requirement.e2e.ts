@@ -84,4 +84,32 @@ test('a licensed address applies, receives one pass and is admitted, and another
   const verdict = v.parse(Verdict, await presented.json())
   expect(verdict.decision).toBe('ADMIT')
   expect(verdict.requirements?.[0]?.evidence).toBe(`ipagreement:84532:${REGISTRY}/${ASSET_ID}`)
+
+  const { card: walletCard } = await apiRequest(
+    '/issuers/cards',
+    v.object({ card: v.object({ id: v.string() }) }),
+    {
+      body: JSON.stringify({
+        category: 'membership',
+        identity: 'none',
+        record: 'offchain',
+        requirements: [{ assetId: ASSET_ID, kind: 'erc8432-agreement', registry: REGISTRY }],
+        slug: 'wallet-club',
+        title: 'Wallet Club',
+      }),
+      method: 'POST',
+      token: venue.operatorToken,
+    },
+  )
+  const issued = await viaApp(`/issuers/${venue.handle}/wallet-club/issue`, {
+    holderAddress: licensed.address,
+    signature: await licensed.signMessage({
+      message: `fuda.sh:claim:v1:${walletCard.id}:${licensed.address.toLowerCase()}`,
+    }),
+  })
+  const walletPass = v.parse(v.object({ level: v.literal('bearer'), qr: v.string() }), await issued.json())
+  const scanned = await viaApp('/verify', { qr: walletPass.qr })
+  const walletVerdict = v.parse(Verdict, await scanned.json())
+  expect(walletVerdict.decision).toBe('ADMIT')
+  expect(walletVerdict.requirements?.[0]?.evidence).toBe(`ipagreement:84532:${REGISTRY}/${ASSET_ID}`)
 })

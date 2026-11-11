@@ -71,10 +71,14 @@ const proofHolds = async (
   return await c.get('chain').verifyMessage({ address: holder, message, signature })
 }
 
-const checkedRequirements = async (c: Context<AppEnv>, uid: Hex, holder: Hex | null) => {
+const checkedRequirements = async (
+  c: Context<AppEnv>,
+  uid: Hex,
+  card: Extract<VerifyOutcome, { decision: 'ADMIT' }>['requirementCard'],
+) => {
   try {
     return {
-      checked: await presentationRequirements(c.get('db'), c.get('chain'), uid, holder, c.env),
+      checked: await presentationRequirements(c.get('db'), c.get('chain'), uid, c.env, card),
       ok: true,
     } as const
   } catch (error) {
@@ -95,7 +99,7 @@ const admitSigned = async (
 ): Promise<Response> => {
   const db = c.get('db')
   const { holder } = out.canonical
-  const requirements = await checkedRequirements(c, uid, out.holderAddress ?? null)
+  const requirements = await checkedRequirements(c, uid, out.requirementCard)
   if (!requirements.ok) {
     return requirements.res
   }

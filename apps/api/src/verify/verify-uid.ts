@@ -26,6 +26,7 @@ export type VerifyOutcome =
       entitlement: EntitlementView
       delegation: DelegationView
       attester: Hex
+      requirementCard?: { id: string; hasRequirements: boolean }
       canonical: Entitlement
       // What an Identified pass answers to, instead of the holder's address.
       passkey?: AttestedPasskey | null

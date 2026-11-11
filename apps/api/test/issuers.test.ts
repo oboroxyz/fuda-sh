@@ -97,7 +97,7 @@ describe('issuer onboarding', () => {
     await expect(claim.json()).resolves.toStrictEqual({ error: 'bad_input' })
     for (const invalid of [
       { ...input, requirements: [], slug: 'bad-one' },
-      { ...input, identity: 'none', slug: 'bad-two' },
+      { ...input, identity: 'none', record: 'onchain', slug: 'bad-two' },
       { ...input, requirements: [{ ...requirement, registry: `0x${'cc'.repeat(20)}` }], slug: 'bad-three' },
     ]) {
       // oxlint-disable-next-line no-await-in-loop -- requests reuse the same operator session

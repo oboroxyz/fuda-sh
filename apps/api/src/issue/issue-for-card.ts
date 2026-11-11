@@ -113,7 +113,7 @@ const issueOffchain = async (
       body: passBody(card, memberNumber, now),
       cardId: card.id,
       chain,
-      claimant,
+      claimant: card.identity === 'none' ? null : claimant,
       db,
       domain,
       extraRows,
@@ -135,7 +135,31 @@ const issueOffchain = async (
   }
 }
 
-const issueAddress = async (
+const restoreRequirementPass = async (
+  c: Context<AppEnv>,
+  card: typeof cards.$inferSelect,
+  address: Hex,
+  existing: SelfServeIssueResponse | null,
+  agreementId?: Hex,
+): Promise<CardIssueOutcome | null> => {
+  if (existing === null || (await addressPassOver(c.get('db'), existing.uid, c.get('now')()))) {
+    return null
+  }
+  const renewed = await renewEvidence(
+    c.get('db'),
+    c.get('chain'),
+    card,
+    address,
+    existing.uid,
+    c.env,
+    agreementId,
+  )
+  return renewed.ok
+    ? { ok: true, pass: existing }
+    : { error: 'requirement_unmet', ok: false, requirement: renewed.requirement }
+}
+
+const issueRequirement = async (
   c: Context<AppEnv>,
   card: typeof cards.$inferSelect,
   issuer: Pick<typeof issuers.$inferSelect, 'handle' | 'id'>,
@@ -148,19 +172,9 @@ const issueAddress = async (
   }
   try {
     const existing = await existingAddressPass(c.get('db'), card.id, claimant.address, c.env.API_BASE_URL)
-    if (existing !== null && !(await addressPassOver(c.get('db'), existing.uid, c.get('now')()))) {
-      const renewed = await renewEvidence(
-        c.get('db'),
-        c.get('chain'),
-        card,
-        claimant.address,
-        existing.uid,
-        c.env,
-        agreementId,
-      )
-      return renewed.ok
-        ? { ok: true, pass: existing }
-        : { error: 'requirement_unmet', ok: false, requirement: renewed.requirement }
+    const restored = await restoreRequirementPass(c, card, claimant.address, existing, agreementId)
+    if (restored !== null) {
+      return restored
     }
     const checked = await claimEvidence(
       c.get('db'),
@@ -257,11 +271,11 @@ export const issueForCard = async (
   claimant: PassClaimant | null = null,
   agreementId?: Hex,
 ): Promise<CardIssueOutcome> => {
-  if (card.identity !== 'none' && claimant === null) {
+  if ((card.identity !== 'none' || card.hasRequirements) && claimant === null) {
     return { error: 'holder_must_claim', ok: false }
   }
-  if (card.identity === 'address') {
-    return await issueAddress(c, card, issuer, source, claimant, agreementId)
+  if (card.hasRequirements) {
+    return await issueRequirement(c, card, issuer, source, claimant, agreementId)
   }
   if (card.record === 'offchain') {
     return await issueOffchain(c, card, issuer, source, claimant)
