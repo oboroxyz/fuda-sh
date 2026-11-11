@@ -25,6 +25,7 @@ import { venueOf } from '../issuers/queries.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { memberBearerSession } from '../middleware/bearer-session.ts'
 import { rateLimit } from '../middleware/rate-limit.ts'
+import { existingAddressPass } from '../requirements/claim.ts'
 import { requirementsOf } from '../requirements/store.ts'
 import { verifyTurnstile } from '../turnstile/siteverify.ts'
 
@@ -166,8 +167,12 @@ const requestedCard = async (c: Context<AppEnv>) => {
   return venue === null || card === undefined ? null : { card, issuer: venue.issuer }
 }
 
-const claimRequest = async (c: Context<AppEnv>, card: Parameters<typeof isClaimable>[0]) => {
-  if (!isClaimable(card, c.get('now')())) {
+const claimRequest = async (
+  c: Context<AppEnv>,
+  card: Parameters<typeof isClaimable>[0],
+  restoring = false,
+) => {
+  if (!restoring && !isClaimable(card, c.get('now')())) {
     return { ok: false, res: errorResponse(c, 'card_closed', 409) } as const
   }
   const raw: unknown = await c.req.json().catch(() => null)
@@ -184,7 +189,7 @@ export const postV1IssuersHandleSlugIssue = defineHandler(
       return errorResponse(c, 'not_found', 404)
     }
     const { card, issuer } = found
-    const request = await claimRequest(c, card)
+    const request = await claimRequest(c, card, card.identity === 'address')
     if (!request.ok) {
       return request.res
     }
@@ -197,6 +202,15 @@ export const postV1IssuersHandleSlugIssue = defineHandler(
     })
     if (claim !== null && !claim.ok) {
       return claim.res
+    }
+    if (card.identity === 'address' && !isClaimable(card, c.get('now')())) {
+      const existing =
+        claim?.claimant.kind === 'address'
+          ? await existingAddressPass(c.get('db'), card.id, claim.claimant.address, c.env.API_BASE_URL)
+          : null
+      if (existing === null) {
+        return errorResponse(c, 'card_closed', 409)
+      }
     }
     const outcome = await issueForCard(
       c,

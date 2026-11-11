@@ -17,6 +17,7 @@ import {
   passEvidence,
   slots,
 } from '../src/db/schema.ts'
+import { presentationRequirements } from '../src/requirements/presentation.ts'
 import { appWith, fakeChain } from './env.ts'
 import { configuredEnv, NOW, ROOT, seedRoot, other } from './fixtures.ts'
 import { CARD_INPUT, registerVenueWithCard, signIn } from './operator.ts'
@@ -423,6 +424,32 @@ describe('requirement applications and claims', () => {
     for (const read of reads) {
       expect(read).not.toHaveBeenCalled()
     }
+  })
+
+  it('restores and renews outside the window, but refuses new claims after signature verification', async () => {
+    const ctx = await setup()
+    ctx.grant()
+    const first = await ctx.claim()
+    const pass = await first.json<SelfServeIssueResponse>()
+    await db()
+      .update(cards)
+      .set({ claimUntil: NOW - 1 })
+      .where(eq(cards.id, ctx.card.id))
+    const restored = await ctx.claim()
+    await expect(restored.json()).resolves.toStrictEqual(pass)
+    ctx.grant({ revoked: true })
+    ctx.grant({ id: `0x${'ef'.repeat(32)}` })
+    const renewed = await ctx.claim()
+    await expect(renewed.json()).resolves.toStrictEqual(pass)
+    const bad = await ctx.send(`${path}/issue`, { holderAddress: ctx.key.address, signature: '0x00' })
+    await expect(bad.json()).resolves.toStrictEqual({ error: 'bad_signature' })
+    const reads = vi.spyOn(ctx.chain, 'agreementCountOf')
+    const fresh = await ctx.send(`${path}/issue`, {
+      holderAddress: other.address,
+      signature: await other.signMessage({ message: claimMessage(ctx.card.id, other.address) }),
+    })
+    await expect(fresh.json()).resolves.toStrictEqual({ error: 'card_closed' })
+    expect(reads).not.toHaveBeenCalled()
   })
 
   it('fails closed without evidence or readable chain', async () => {

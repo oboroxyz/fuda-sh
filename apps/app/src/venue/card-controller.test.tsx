@@ -1021,13 +1021,19 @@ describe('address Card controller', () => {
     expect(licence.mock.calls[0]?.[0].action).toBe('claim')
   })
 
-  it('says the Card is closed once its claim window has ended', async () => {
-    const licence = vi.fn<NonNullable<Parameters<typeof CardScreen>[0]['licence']>>()
+  it('offers restoration once its claim window has ended', async () => {
+    const licence = vi
+      .fn<NonNullable<Parameters<typeof CardScreen>[0]['licence']>>()
+      .mockResolvedValue({ failure: 'card_closed', kind: 'failed' })
     const { host } = open(licence, true, false, 1)
     await vi.waitFor(() => {
-      expect(host.querySelector('[role="status"]')).not.toBeNull()
+      expect(host.textContent).toContain('Receive pass')
     })
-    expect(host.textContent).not.toContain('Receive pass')
+    click(host, 'Receive pass')
+    await vi.waitFor(() => {
+      expect(licence).toHaveBeenCalledOnce()
+    })
+    expect(licence.mock.calls[0]?.[0].action).toBe('claim')
   })
 
   it('reuses PRF guidance before retrying', async () => {
