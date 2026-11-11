@@ -103,12 +103,12 @@ The principle behind that split is **decentralized at the core, hosted rails onl
 │   ├── e2e              browser tests against the built Workers
 │   ├── ens-contracts    ENS resolver contracts and naming scripts
 │   └── subgraphs/rights the Base query lane the apps read status from
-├── archive              retired code kept for reference, such as the Substreams packages
+├── .archive             retired code kept for reference, such as the Substreams packages
 ├── skills               agent skills to install, such as MCP setup
 └── docs                 architecture, specs, ADRs, runbook
 ```
 
-`packages/subgraphs/*` builds independently and does not join the pnpm workspace. `archive/` is not built or tested.
+`packages/subgraphs/*` builds independently and does not join the pnpm workspace. `.archive/` is not built or tested.
 
 Stack: Cloudflare Workers built with Void (Hono handlers, Drizzle, D1, R2), Preact, viem, valibot, `@noble` crypto, EAS on Base. The protocol surface of the core loop is EAS. fuda runs one deployment per chain and they never share state — Base Sepolia today, Base mainnet at the cutover; see [Environments](./docs/architecture.md#environments).
 

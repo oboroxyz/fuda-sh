@@ -39,7 +39,7 @@ What this costs:
 - **+Private issuance and its stealth-address templates.** Against a chain observer, an offchain right reveals less than a stealth attestation, and neither hides anything from the Issuer. Sensitive use replaces it. The `/private` discovery path, the announcement log and its Graph data source went with it.
 - **Activation and the Claim key.** On-chain self-held rights are issued to the member's key from the start. An On-chain pass moves to self-held only by reissue.
 - **The Agent key.** It was to be a fuda-held owner on the Issuer's wallet; a hot key must not be a wallet owner.
-- **The Substreams packages.** Nothing consumed them once announcements stopped. They are kept under [`archive/substreams`](../../archive/substreams), unbuilt.
+- **The Substreams packages.** Nothing consumed them once announcements stopped. They are kept under [`.archive/substreams`](../../.archive/substreams), unbuilt.
 
 ### Open conditions
 

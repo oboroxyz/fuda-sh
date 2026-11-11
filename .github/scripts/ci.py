@@ -32,8 +32,8 @@ def manifests(root, base=None):
 
 
 def documentation(path):
-    # `archive/` holds retired code that no lane builds or tests.
-    return path.endswith('.md') or path.startswith(('docs/', '.agents/', '.claude/', 'archive/'))
+    # `.archive/` holds retired code that no lane builds or tests.
+    return path.endswith('.md') or path.startswith(('docs/', '.agents/', '.claude/', '.archive/'))
 
 
 def make_plan(root, base=None):
