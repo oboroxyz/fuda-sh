@@ -18,6 +18,7 @@ export interface VenueCopy {
   sensitiveEntryNote: string
   sensitiveFindLater: string
   sensitiveNoPrf: {
+    addFailed: string
     addPasskey: string
     apple: string
     body: string
@@ -132,6 +133,7 @@ export const VENUE_COPY = {
     sensitiveFindLater:
       'You will find it under Your passes, where your passkey opens the list. If you lose every passkey that opens it, ask for a new pass.',
     sensitiveNoPrf: {
+      addFailed: 'We could not save your passkey. Please try again.',
       addPasskey: 'Save a new passkey',
       apple: 'iPhone, iPad or Mac: choose iCloud Keychain (Apple Passwords) when asked where to save it.',
       body: 'No pass was issued. The app that saved your passkey does not support the feature this pass needs, and a website cannot pick the app for you. Save a new passkey in one that does.',
@@ -218,6 +220,7 @@ export const VENUE_COPY = {
     sensitiveFindLater:
       'パス一覧からパスキーを使って開けます。開けるパスキーをすべてなくした場合は、新しいパスを発行してもらってください。',
     sensitiveNoPrf: {
+      addFailed: 'パスキーを保存できませんでした。もう一度お試しください。',
       addPasskey: '新しいパスキーを保存',
       apple: 'iPhone、iPad、Mac: 保存先を聞かれたら iCloud キーチェーン（パスワード App）を選んでください。',
       body: 'パスは発行されていません。今のパスキーを保存したアプリは、このパスに必要な機能に対応していません。保存先のアプリはウェブサイトからは選べないため、対応するアプリに新しいパスキーを保存してください。',
