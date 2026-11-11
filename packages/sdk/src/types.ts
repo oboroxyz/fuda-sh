@@ -1,5 +1,6 @@
 import type { BadgeKind, ErrorCode, Hex, ISSUER_PASS_STATUSES, Level, Reason } from './constants.ts'
 import type { CardCategory, CardView, IssuerView, OperatorCardView } from './handles.ts'
+import type { RequirementKind, RequirementUnmet } from './requirements.ts'
 
 export interface ErrorResponse {
   error: ErrorCode
@@ -139,6 +140,8 @@ export interface VerifySignedResponse {
   decision: 'ADMIT' | 'REJECT'
   reason: Reason
   path: 'signature'
+  requirement?: RequirementUnmet
+  requirements?: { kind: RequirementKind; evidence: string }[]
   venue?: string
   holder?: Hex
   stage?: 'entitlement' | 'challenge'
