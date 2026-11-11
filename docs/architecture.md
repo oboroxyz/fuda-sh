@@ -64,7 +64,7 @@ An outside system works with fuda in one of three roles. The role says who decid
 | Role | Who decides | Path | Specification |
 | --- | --- | --- | --- |
 | Acts for an Issuer | the outside system | connected-app routes under `/v1/connect`, the MCP server at `/mcp` | [Connected apps](./specs/connected-apps.md), [MCP server](./specs/mcp.md) |
-| Holds a record that fuda reads | fuda, from that record | Card requirements | [Card requirements](./specs/card-requirements.md), proposed |
+| Holds a record that fuda reads | fuda, from that record | Card requirements | [Card requirements](./specs/card-requirements.md) |
 | Verifies a fact after issuance | nobody: a Badge is advisory | Badges, enabled per Card as an integration | [Badges](./specs/pass-types-and-flows.md#badges) |
 
 Every path ends in the same three functions of the api. `insertCard` creates a Card, `issueForCard` issues a pass under a Card, and `revokePass` revokes one. A path adds its own authentication and chooses which operations it offers. Card and pass rules, such as capacity, identity and requirements, live in those functions, so no path can skip them. The admin `POST /issue` is the one exception: it issues a Right outside any Card.

@@ -24,7 +24,7 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Member secret**: 32 random bytes a member's browser makes for Sensitive use, from which each Right's key derives. The server keeps only ciphertexts of it, one per passkey that supports PRF. _Avoid_: Recovery phrase, master key
 
-**Vault**: One ciphertext per Account, sealed under a key from the Member secret, listing that member's Sensitive Rights and the salts of their keys. Only the member's device can open it. _Avoid_: Wallet, backup
+**Vault**: One ciphertext per Account, sealed under a key from the Member secret, listing that member's Sensitive Rights and their key salts, and passes held by a licence key with their asset scope. Only the member's device can open it. _Avoid_: Wallet, backup
 
 **Pass**: A presentation of a Right — a Device wallet pass (`.pkpass` / Google Wallet object) or the browser-based pass page carrying the Right's QR. A Pass is not the Right, and lives in the Device wallet, never in the Crypto wallet. _Avoid_: Ticket, card, credential
 

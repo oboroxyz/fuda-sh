@@ -658,6 +658,8 @@ The `production` target deliberately carries `routes: []`. Adding a custom domai
 
 Each surface is its own Worker, so a bad deploy is undone per surface with `void project rollback --platform cloudflare` from that frontend's directory (or `apps/api/targets/develop` for the api); it restores the previous deployment of that Worker and touches nothing else. Roll the api back first when a release changed both the api and a frontend, because a frontend bundle is built against an api contract and the older bundle is the one that matches the older api.
 
+A Worker older than Card requirements admits an `address` Card pass without checking its requirement. Do not roll the api back past this version while any such pass exists. Unset `IP_REGISTRIES` instead to stop claims and presentations of these passes.
+
 Three kinds of state do not roll back with the code, and each needs its own treatment.
 
 **D1 migrations are forward-only.** A shipped migration is never edited: the migrations table records it as applied, so an edit changes what a fresh database gets while leaving every existing one untouched, and the two diverge silently. Fix by adding a migration. Keep a migration additive where the release it belongs to might be rolled back — an added column is invisible to the older code, whereas a dropped or renamed one takes the older code down with it.

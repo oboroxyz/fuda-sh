@@ -8,12 +8,12 @@ API paths below are under `/v1`. Terms such as Card, Right, Holder and Member se
 
 ## Rules
 
-- **A requirement belongs to a Card and is fixed when the Card is created**, like `record` and `identity`. The Card body takes an optional `requirements` array of at most four entries. Every route that creates a Card accepts it: the dashboard, `POST /connect/cards` and the MCP `create_card` tool.
+- **A requirement belongs to a Card and is fixed when the Card is created**, like `record` and `identity`. The Card body takes an optional `requirements` array of at most one entry. Every route that creates a Card accepts it: the dashboard, `POST /connect/cards` and the MCP `create_card` tool.
 - **Every requirement must be met.** There is no "any of".
 - **fuda checks a requirement twice.** The claim check runs before a pass is issued and records evidence. The presentation check runs on every signed presentation and reads the chain again.
 - **One adapter per kind.** An adapter declares the config schema, the subject it checks, the claim check and the presentation check. Adapters live in `apps/api`. The hosted service loads no third-party adapter.
 - **The subject today is an address.** A requirement that checks an address needs a Card with `identity: address`, and a Card with that identity needs such a requirement. Any other combination answers `400 bad_input`.
-- **Contracts are allowlisted per deployment.** The api's `IP_REGISTRIES` value lists the registries it accepts, beside the other chain addresses in `apps/api/targets.jsonc`. A requirement that names another contract answers `400 bad_input`. fuda reads only the deployment's own chain.
+- **Contracts are allowlisted per deployment.** The api's `IP_REGISTRIES` value lists the registries it accepts, beside the other chain addresses in `apps/api/targets.jsonc`. A requirement that names another contract answers `400 bad_input`. The allowlist is checked again at claim and presentation. A removed registry is unmet with `registry-not-allowed`, without reading that registry. fuda reads only the deployment's own chain.
 - **A requirement is never an issuing shortcut.** The MCP `issue_pass` tool answers `holder_must_claim` on these Cards, as on any Card whose identity is not `none`. The admin `POST /issue` issues a Right outside any Card and takes no Card id.
 
 ## The `address` identity
@@ -42,16 +42,17 @@ It takes none of the Sensitive limits. The entry log keeps the decision and the 
 | Claim | `activeAgreementsOf(assetId, holder, cursor, limit)`, then `agreementOf(agreementId)` | an active agreement held by the address binds the asset, its `creationMode` is `GRANT`, and its terms match `termsId` when one is set |
 | Presentation | `isActiveAgreementHolder(agreementId, assetId, holder)` | it answers `true` |
 
-The claim check examines at most 1,000 agreement records of the asset. A claim may name `agreementId` to skip the search; the api then reads that one agreement.
+The claim check examines the 1,000 most recent agreement records of the asset. Anyone can add records with `acquireAgreement`, so searching the oldest records could hide every later grant. A claim may name `agreementId` to skip the search; the api then reads that one agreement.
 
 The evidence is one URI, `ipagreement:<chainId>:<registry>/<agreementId>`, stored with the Right in D1. The presentation check reads the agreement that the evidence names.
 
-| Detail               | Meaning                                                                             |
-| -------------------- | ----------------------------------------------------------------------------------- |
-| `no-agreement`       | the address holds no active agreement on the asset, or the search limit was reached |
-| `not-granted`        | the agreement was self-acquired with `acquireAgreement`                             |
-| `wrong-terms`        | the agreement is on terms other than `termsId`                                      |
-| `agreement-inactive` | the agreement expired, was revoked, was frozen or moved to another holder           |
+| Detail | Meaning |
+| --- | --- |
+| `registry-not-allowed` | the deployment no longer accepts the registry |
+| `no-agreement` | the address holds no active agreement on the asset, or the search limit was reached |
+| `not-granted` | the agreement was self-acquired with `acquireAgreement` |
+| `wrong-terms` | the agreement is on terms other than `termsId` |
+| `agreement-inactive` | the agreement expired, was revoked, was frozen or moved to another holder |
 
 ## The licence key
 
@@ -59,7 +60,7 @@ A member needs no Crypto wallet. The member app derives one key per IP asset fro
 
 - **Derivation.** HKDF-SHA-256 from the Member secret, with the label `fuda.sh/member-secret/licence-key/v1`. The salt is the SHA-256 of the UTF-8 string `<chainId>:<registry>:<assetId>`, with both hex values in lower case. The result is a secp256k1 key, and its address is the licence address.
 - **One address per asset.** Every Card that requires the same asset sees the same address for one member. Addresses for different assets do not link to each other.
-- **A plain key.** Signatures are EIP-191. The api recovers the address without reading the chain.
+- **A plain key.** Signatures are EIP-191. Recovering the address needs no chain read. Presentation still reads the chain to check the pass and its agreement.
 - **PRF is required**, with the same guidance as Sensitive use when a passkey returns no PRF result.
 - **Recovery is the Member secret's.** A passkey that holds a copy restores the same address. A member who starts over gets new addresses, and the asset owner revokes the old agreement and grants a new one.
 - **The label never changes.** A new label would change every address.
@@ -110,7 +111,7 @@ The dashboard validates the registry, asset id and optional terms id before crea
 
 ### Claiming
 
-The holder address is lower case in the claim message. The SDK exports `claimMessage(cardId, holderAddress)`. The claim signs the string `fuda.sh:claim:v1:<cardId>:<holderAddress>` with the licence key, as an EIP-191 personal message. The api checks in this order, after the Card is found and open and after the bot check.
+The holder address is lower case in the claim message. The SDK exports `claimMessage(cardId, holderAddress)`. The claim signs the string `fuda.sh:claim:v1:<cardId>:<holderAddress>` with the licence key, as an EIP-191 personal message. The api checks in this order, after the Card is found and after the bot check. An address Card verifies the signature before checking the claim window. An address with an existing pass can restore it or renew its evidence outside the window. A new address receives `409 card_closed` outside the window before requirements or capacity are checked. Apply still requires an open window.
 
 | Failure                                    | Answer                                                        |
 | ------------------------------------------ | ------------------------------------------------------------- |
@@ -120,7 +121,7 @@ The holder address is lower case in the claim message. The SDK exports `claimMes
 | the chain cannot be read                   | `502 chain_error`                                             |
 | the Card is at capacity                    | `409 card_sold_out`                                           |
 
-A Card issues one pass per address. After the requirements pass, the api reserves capacity with the same mechanism as other passes. D1 commits the unique address mapping, pass and ordered evidence together. A failed batch releases the place; if a concurrent claim for the same address won, the api reads and returns that pass. One case differs: when the concurrent claims compete for a Card's last place, the one that fails to reserve it can answer `409 card_sold_out` before the other has written its pass, and a retry then answers the pass. A crash between reserving and writing can strand a place, as with other passes. A repeated claim by the same address reserves no place and issues nothing new, so a replayed signature gains nothing. It runs the presentation check on the pass the address already has. While that check holds, the claim answers the pass. When it fails, the claim check runs again: a newly granted agreement replaces the pass's evidence and the claim answers the same pass, and otherwise the claim answers `403 requirement_unmet`. A member whose agreement was revoked and granted again therefore keeps one pass.
+A Card maps each address to its current pass. If that pass expired or was revoked, a qualifying claim issues a replacement and reserves a new place. A used single-use pass stays the address's pass. After the requirements pass, the api reserves capacity with the same mechanism as other passes. D1 commits the unique address mapping, pass and ordered evidence together. A failed batch releases the place; if a concurrent claim for the same address won, the api reads and returns that pass. One case differs: when the concurrent claims compete for a Card's last place, the one that fails to reserve it can answer `409 card_sold_out` before the other has written its pass, and a retry then answers the pass. A crash between reserving and writing can strand a place, as with other passes. A repeated claim for a pass that has not expired or been revoked reserves no place and issues nothing new. It runs the presentation check on the pass the address already has. While that check holds, the claim answers the pass. When it fails, the claim check runs again: a newly granted agreement replaces the pass's evidence and the claim answers the same pass, and otherwise the claim answers `403 requirement_unmet`. A member whose agreement was revoked and granted again keeps the same pass while that pass has not expired or been revoked. To stop a member claiming again, the asset owner revokes the agreement. Revoking only the fuda pass does not stop a new claim.
 
 ### Presenting
 
@@ -137,7 +138,9 @@ An agreement puts the licence address on a public chain, as an NFT would. Claims
 ## Design choices
 
 - **Requirements are fixed at creation.** A pass's evidence names an agreement on the Card's asset. A Card that could change its asset later would hold passes whose evidence names another asset.
-- **A pass can take new evidence, and an address never gets a second pass.** The asset owner may revoke an agreement and grant another to the same address. Issuing a second pass for it would use another place and leave a dead pass in the member's list. The evidence is a D1 row beside the signed pass, not part of what was signed, so it can change while the pass stays the same.
+- **A usable pass can take new evidence.** The asset owner may revoke an agreement and grant another to the same address. The evidence is a D1 row beside the signed pass, so it can change while the pass stays the same. An expired or revoked pass is replaced on a qualifying claim, using another place.
+- **Moving an agreement can use several places.** Transferable terms or an ERC-721 agreement let each holder in turn claim a pass. Each claim uses a place. fuda does not reclaim those places when the agreement moves.
+- **Freezing an asset does not stop admission.** In the reference implementation it does not deactivate the asset's agreements. fuda keeps admitting until the agreement itself is revoked, frozen or expired.
 - **Only granted agreements count.** Attached terms are an open offer. `acquireAgreement` lets any caller take an agreement on them, and the reference `canLicense` approves any non-zero caller. The asset owner's `createAgreement` is the only path the owner controls.
 - **A Card identity of its own, not Sensitive use.** Sensitive use joins two things: a pass held by a key, and a policy of keeping as little as possible. A requirement needs the first and works against the second, because the licence address is public on chain and shared by every Card of one asset. The code already separates them. Issuance and verification follow the claimant's kind, `address`, and only the policy checks name `sensitive`. The new identity therefore reuses the first and leaves Sensitive use meaning what it meant.
 - **The key is per asset, not per pass.** The asset owner grants an agreement to one address before any pass exists. A key per pass would need one agreement per Card.
