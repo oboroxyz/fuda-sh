@@ -103,6 +103,8 @@ Every write an approved app attempts is recorded: `create_card`, `update_card_li
 | authorization code | 10 minutes, single-use |
 | access token       | 30 days                |
 
+A daily job deletes access tokens after expiry or revocation is at least 24 hours old. The grace period exceeds the ten-minute code lifetime. Live tokens remain available for code replay detection even after their code expires or is deleted. Deleting a dead token cannot make its code redeemable again. Expired code rows are already deleted when a new code is minted.
+
 Codes and access tokens are random 32-byte values; only their SHA-256 hashes are stored. An access token is shown once, in the token response, and starts with `fuda_at_` so it is recognisable in logs and secret scanners.
 
 ## CORS

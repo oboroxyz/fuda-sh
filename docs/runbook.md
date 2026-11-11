@@ -537,13 +537,14 @@ Migration `0026_sensitive_use.sql` moves `cards.identity` to a new column to wid
 
 ## 15. Offchain jobs
 
-Three jobs in `apps/api/crons/` run on every api target:
+Four jobs in `apps/api/crons/` run on every api target:
 
 | Job                    | Cron, UTC      | Purpose                                                    |
 | ---------------------- | -------------- | ---------------------------------------------------------- |
 | `offchain-roots`       | `0 * * * *`    | Timestamp new offchain roots                               |
 | `offchain-revocations` | `*/15 * * * *` | Retry failed offchain revocations                          |
 | `sensitive-entry-logs` | `0 3 * * *`    | Delete Sensitive scan logs and receipts older than 30 days |
+| `expired-auth-rows`    | `0 4 * * *`    | Delete expired auth rows after their retention period      |
 
 Each target links the directory the way it links `routes`. The first deploy that includes them adds a `scheduled` handler and cron triggers to the Worker; confirm both on the Worker's Triggers page in Cloudflare. Crons make Void republish every trigger, so each target must declare `routes`, `workers_dev` and `preview_urls` in `targets.jsonc`, matching what Cloudflare has, or the deploy stops with "dashboard-managed routes or visibility". The migrations run before that check, so a stopped deploy can leave them applied. The widened verdict columns remain readable by the previous api version.
 
@@ -582,6 +583,10 @@ WHERE c.identity = 'sensitive' AND e.at < unixepoch() - 30 * 86400;
 
 PRAGMA foreign_key_check;
 ```
+
+The daily `expired-auth-rows` job removes passkey challenges at 300 seconds, sessions at `expires_at`, and rate-limit windows after 3600 seconds. It removes OAuth tokens only after expiry or revocation is at least 24 hours old. Each statement deletes at most 80 rows and binds two parameters. A run starts at most ten batches and stops starting batches after 20 seconds. Backlogs remain for the next run. OAuth codes already expire on mint. Apple pass updates remain because registered devices have no sync deadline and the rows supply current update tags and Last-Modified times.
+
+Migration `0034_expired_auth_rows.sql` adds indexes for all five retention predicates. Apply it with `void db migrate` before deploying the api. Confirm the `0 4 * * *` trigger and observe a scheduled run after deployment.
 
 To run a job locally, start the api and use the `curl` command with the `x-void-dev-trigger` token that Void prints, setting `cron` to the job's expression. Local schedules never fire on their own.
 
