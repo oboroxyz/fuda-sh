@@ -6,10 +6,13 @@ import type { Hex } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { hashToken } from '../src/auth/session.ts'
 import { ChainError } from '../src/chain/client.ts'
 import { getDb } from '../src/db/client.ts'
 import {
   cardAddressPasses,
+  accounts,
+  sessions,
   cardApplicants,
   cardIntegrations,
   stampCredits,
@@ -222,6 +225,27 @@ describe('requirement applications and claims', () => {
       await expect(admitted.json()).resolves.toMatchObject({ decision: 'ADMIT' })
     },
   )
+
+  it('keeps requirement passes out of the account pass list', async () => {
+    const ctx = await setup({ identity: 'none' })
+    ctx.grant()
+    const issued = await ctx.claim()
+    const pass = await issued.json<SelfServeIssueResponse>()
+    await db().insert(accounts).values({ id: 'member', userHandle: 'member-handle', createdAt: NOW })
+    await db()
+      .insert(sessions)
+      .values({
+        tokenHash: await hashToken('member-token'),
+        address: '',
+        accountId: 'member',
+        audience: 'member',
+        createdAt: NOW,
+        expiresAt: NOW + 300,
+      })
+    const linked = await ctx.send('/v1/member/passes', { uids: [pass.uid] }, 'member-token')
+    await expect(linked.json()).resolves.toStrictEqual({ linked: 0 })
+    await expect(db().select().from(memberPasses)).resolves.toHaveLength(0)
+  })
 
   it('checks address Cards despite a stale requirement flag', async () => {
     const ctx = await setup()
