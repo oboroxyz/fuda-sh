@@ -6,6 +6,7 @@ import type { Hex } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ChainError } from '../src/chain/client.ts'
 import { getDb } from '../src/db/client.ts'
 import {
   cardAddressPasses,
@@ -221,6 +222,18 @@ describe('requirement applications and claims', () => {
       await expect(admitted.json()).resolves.toMatchObject({ decision: 'ADMIT' })
     },
   )
+
+  it('fails closed when only membership revocation is unreadable', async () => {
+    const ctx = await setup({ identity: 'none' })
+    ctx.grant()
+    const issued = await ctx.claim()
+    const pass = await issued.json<SelfServeIssueResponse>()
+    vi.spyOn(ctx.chain, 'offchainRevokedAt').mockRejectedValue(new ChainError('rpc down'))
+    const qr = await ctx.send('/v1/verify', { qr: pass.qr })
+    const reception = await ctx.send('/v1/issuers/me/reception',
+      { qr: pass.qr, requestId: crypto.randomUUID() }, ctx.token)
+    expect([qr.status, reception.status]).toStrictEqual([502, 502])
+  })
 
   it('fails closed on unreadable membership requirements at QR and reception', async () => {
     const ctx = await setup({ identity: 'none' })

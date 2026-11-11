@@ -205,7 +205,7 @@ export const verifyOffchain = async (
     return reject(verdict.reason)
   }
   if (revoked instanceof ChainError) {
-    if (pass.usageModel === USAGE_MODEL.SINGLE_USE || holderAddress !== null) {
+    if (row.hasRequirements || pass.usageModel === USAGE_MODEL.SINGLE_USE || holderAddress !== null) {
       throw revoked
     }
     return { ...admit, unconfirmed: true }
