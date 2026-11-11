@@ -445,7 +445,7 @@ Saving a Badge enforces two different conflict rules:
 - **One Badge per (Right, kind).** A Right can carry at most one Badge of a given kind. A second attempt to badge it, verified as a different person than the one already on file, answers `409 pass_already_badged`. A repeat verification by the same person is not a conflict — it answers success, matching the record already saved.
 - **One verified person, one badged Right, per (verifier, scope).** A person who already holds a Badge on a different, unrevoked Right in that verifier's scope answers `409 already_badged` when trying to badge a second one.
 
-Revocation deletes the Right’s Badges in the same atomic batch as its status change, releasing the scoped subject key so the same person can badge a re-issued Right. A proof verified concurrently with revocation cannot save a Badge on the revoked Right. The unique subject constraint still permits at most one live Badge per person in the verifier’s scope. No proof or raw identity is retained.
+Revocation deletes the Right's Badges in the same atomic batch as its status change, releasing the scoped subject key so the same person can badge a re-issued Right. A proof verified concurrently with revocation cannot save a Badge on the revoked Right. The unique subject constraint still permits at most one live Badge per person in the verifier's scope. No proof or raw identity is retained.
 
 The Badge lookup on `GET /verify/:uid` and `POST /verify` is advisory: a failed or missing lookup omits the `badges` field silently and never changes the ADMIT/REJECT decision or fails a scan. Each entry in `badges` is `{ kind, verifier, at, expiresAt? }`. `apps/gate` renders a "verified human" chip when a `human` Badge is present.
 

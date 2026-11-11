@@ -50,7 +50,7 @@ Each tool acts for the token's one Issuer. `tools/list` shows only the tools the
 | `issue_pass` | `passes:issue` | `{ uid, memberNumber, passUrl }` for one Bearer Pass under a Card, with an optional `source`; `card_sold_out` at capacity; `holder_must_claim` on a Card with `identity: passkey` or `sensitive`, whose holder has to claim the pass at its `claimUrl` |
 | `revoke_pass` | `passes:revoke` | `{ revoked: true, uid }`; revokes one Pass on chain, and cannot be undone |
 
-A Card here also has `claimUrl`, the public page where a person gets a pass, `capacity`, and `issued`, the passes it has issued. See [capacity and source](./pass-types-and-flows.md#capacity-and-source). There are two ways to hand out passes:
+A Card here also has `claimUrl`, the public page where a person gets a pass, `capacity`, and `issued`, the places its passes hold: a revoked pass frees its place. See [capacity and source](./pass-types-and-flows.md#capacity-and-source). There are two ways to hand out passes:
 
 - **Share `claimUrl`**, with `?source=<label>` added, for a flyer, a post or a newsletter. A pass is issued only when someone opens it and asks for one, inside the Card's claim window.
 - **Call `issue_pass`** for a person being arranged for, and give them `passUrl`. It ignores the claim window, so a Card whose window is closed takes invited guests only. The result leaves out the QR and the wallet links.
