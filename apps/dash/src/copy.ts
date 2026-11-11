@@ -63,6 +63,7 @@ export interface DashCopy {
     failures: { cancelled: string; network: string; rejected: string; unavailable: string; wallet: string }
   }
   passkeys: PasskeySectionCopy
+  artwork: { label: string; hint: string; tooSmall: string; tooHeavy: string }
   logo: {
     label: string
     choose: string
@@ -495,6 +496,12 @@ export const DASH_COPY = {
         'You will no longer be able to sign in with it. Remove it if the device is lost or no longer yours.',
       synced: 'synced',
       title: 'Passkeys',
+    },
+    artwork: {
+      label: 'Pass artwork',
+      hint: '1125×432 or larger. Wide images are centre-cropped.',
+      tooSmall: 'Use an image at least 1125×432.',
+      tooHeavy: 'That image is too detailed. Try a simpler one.',
     },
     logo: {
       label: 'Logo',
@@ -974,6 +981,12 @@ export const DASH_COPY = {
         '削除すると、このパスキーではサインインできなくなります。端末をなくしたときや手放すときに削除してください。',
       synced: '同期あり',
       title: 'パスキー',
+    },
+    artwork: {
+      label: 'パスの画像',
+      hint: '1125×432 以上。横長の画像は中央で切り抜きます。',
+      tooSmall: '1125×432 以上の画像を選んでください。',
+      tooHeavy: '画像が複雑すぎます。もっとシンプルな画像を選んでください。',
     },
     logo: {
       label: 'ロゴ',

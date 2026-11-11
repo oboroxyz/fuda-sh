@@ -3,6 +3,7 @@ import type { Result } from '@fuda/sdk/http'
 import type { JSX } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
 
+import { ArtworkSection } from './ArtworkSection.tsx'
 import { cardUpdateBodyFrom, formFromCard } from './card-designer.ts'
 import type { DesignerForm } from './card-designer.ts'
 import { CardDesigner } from './CardDesigner.tsx'
@@ -140,6 +141,7 @@ const LoadedCardEditor = (props: EditorProps): JSX.Element => {
   return (
     <>
       <CardDesigner
+        artworkUrl={savedCard.artworkUrl}
         busy={busy}
         editing
         copy={{
@@ -160,6 +162,7 @@ const LoadedCardEditor = (props: EditorProps): JSX.Element => {
         }}
         onSubmit={submit}
       />
+      <ArtworkSection card={savedCard} issuer={props.issuer} copy={props.copy} onSaved={setSavedCard} />
       <CardRequirementSections card={savedCard} copy={props.copy} />
       {failed ? (
         <p role="alert" class="text-error">

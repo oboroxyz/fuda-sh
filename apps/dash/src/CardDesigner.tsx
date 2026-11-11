@@ -34,6 +34,7 @@ import { isPlainClick } from './plain-click.ts'
 const identityOf = (raw: string): CardIdentity => CARD_IDENTITIES.find((row) => row === raw) ?? 'none'
 
 export interface CardDesignerViewProps {
+  artworkUrl?: string | null
   requirementRegistries?: readonly string[]
   busy: boolean
   editing?: boolean
@@ -240,6 +241,9 @@ const preview = (props: CardDesignerViewProps): JSX.Element => (
         <span>{props.form.name === '' ? props.copy.namePlaceholder : props.form.name}</span>
       </div>
     </div>
+    {props.artworkUrl === null || props.artworkUrl === undefined ? null : (
+      <img alt="" class="w-full rounded-lg" src={assetUrlForDisplay(props.artworkUrl)} />
+    )}
     <div class="flex items-end justify-between gap-4">
       <div class="flex min-w-0 flex-col gap-2">
         <strong>{props.form.title}</strong>
@@ -621,6 +625,7 @@ export const CardDesignerView = (props: CardDesignerViewProps): JSX.Element => {
 export type NameCheck = (value: string) => Promise<'available' | 'taken' | 'unknown'>
 
 export interface CardDesignerProps {
+  artworkUrl?: string | null
   requirementRegistries?: readonly string[]
   busy: boolean
   editing?: boolean
@@ -797,6 +802,7 @@ export const CardDesigner = (props: CardDesignerProps): JSX.Element => {
       failure={props.failure}
       form={form}
       locationDenied={locationDenied}
+      artworkUrl={props.artworkUrl}
       savedLogoUrl={props.issuer?.logoUrl ?? null}
       onField={onField}
       onAttendance={(attendance) => {
