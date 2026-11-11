@@ -6,7 +6,7 @@ import type {
   ConnectedAppScope,
   ConnectedAppView,
 } from '@fuda/sdk'
-import { and, asc, count, desc, eq, gt, inArray, isNull, lt } from 'drizzle-orm'
+import { and, asc, desc, eq, exists, gt, inArray, isNull, lt, sql } from 'drizzle-orm'
 
 import { hashToken } from '../auth/session.ts'
 import { base64UrlOf } from '../base64url.ts'
@@ -97,25 +97,29 @@ export const registerApp = async (
   input: ConnectedAppRequest,
   now: number,
 ): Promise<ConnectedAppView | null> => {
-  const owned = await db
-    .select({ n: count() })
-    .from(connectedApps)
-    .where(eq(connectedApps.ownerAddress, owner))
-    .get()
-  if ((owned?.n ?? 0) >= APPS_PER_OWNER) {
-    return null
-  }
   const clientId = `app_${randomHex(16)}`
   const redirects = input.redirectUris.flatMap((raw) => {
     const redirectUri = normalizeRedirectUri(raw)
     return redirectUri === null ? [] : [{ clientId, origin: new URL(redirectUri).origin, redirectUri }]
   })
-  // At most CONNECTED_APP_REDIRECT_URI_MAX rows of three values: far below
-  // D1's 100-parameter limit for one statement.
-  await db.batch([
-    db.insert(connectedApps).values({ clientId, createdAt: now, name: input.name, ownerAddress: owner }),
-    db.insert(connectedAppRedirects).values(redirects),
+  const [inserted] = await db.batch([
+    db
+      .insert(connectedApps)
+      .select(sql`
+      SELECT ${clientId}, ${now}, ${input.name}, ${owner}
+      WHERE (SELECT count(*) FROM ${connectedApps} WHERE ${connectedApps.ownerAddress} = ${owner}) < ${APPS_PER_OWNER}
+    `)
+      .returning({ clientId: connectedApps.clientId }),
+    ...redirects.map((redirect) =>
+      db.insert(connectedAppRedirects).select(sql`
+      SELECT ${clientId}, ${redirect.origin}, ${redirect.redirectUri}
+      WHERE EXISTS (SELECT 1 FROM ${connectedApps} WHERE ${connectedApps.clientId} = ${clientId})
+    `),
+    ),
   ])
+  if (inserted.length === 0) {
+    return null
+  }
   return {
     clientId,
     createdAt: now,
@@ -227,10 +231,13 @@ export const redeemCode = async (
     .returning()
     .get()
   if (spent === undefined) {
-    await db
-      .update(oauthTokens)
-      .set({ revokedAt: p.now })
-      .where(and(eq(oauthTokens.codeHash, codeHash), isNull(oauthTokens.revokedAt)))
+    await db.batch([
+      db.update(oauthCodes).set({ replayedAt: p.now }).where(eq(oauthCodes.codeHash, codeHash)),
+      db
+        .update(oauthTokens)
+        .set({ revokedAt: p.now })
+        .where(and(eq(oauthTokens.codeHash, codeHash), isNull(oauthTokens.revokedAt))),
+    ])
     return null
   }
   if (
@@ -248,7 +255,7 @@ export const redeemCode = async (
     return null
   }
   const accessToken = `${ACCESS_TOKEN_PREFIX}${randomHex(32)}`
-  await db.batch([
+  const [, inserted] = await db.batch([
     db
       .update(oauthTokens)
       .set({ revokedAt: p.now })
@@ -261,19 +268,33 @@ export const redeemCode = async (
           isNull(oauthTokens.revokedAt),
         ),
       ),
-    db.insert(oauthTokens).values({
-      address: spent.address,
-      clientId: spent.clientId,
-      codeHash,
-      createdAt: p.now,
-      expiresAt: p.now + ACCESS_TOKEN_TTL_SECONDS,
-      id: crypto.randomUUID(),
-      issuerId: spent.issuerId,
-      resource: spent.resource,
-      scope: spent.scope,
-      tokenHash: await hashToken(accessToken),
-    }),
+    // A replay can arrive after spending the code and before this batch.
+    db
+      .insert(oauthTokens)
+      .select(
+        db
+          .select({
+            address: oauthCodes.address,
+            clientId: oauthCodes.clientId,
+            codeHash: oauthCodes.codeHash,
+            createdAt: sql<number>`${p.now}`.as('created_at'),
+            expiresAt: sql<number>`${p.now + ACCESS_TOKEN_TTL_SECONDS}`.as('expires_at'),
+            id: sql<string>`${crypto.randomUUID()}`.as('id'),
+            issuerId: oauthCodes.issuerId,
+            lastUsedAt: sql<null>`NULL`.as('last_used_at'),
+            resource: oauthCodes.resource,
+            revokedAt: sql<null>`NULL`.as('revoked_at'),
+            scope: oauthCodes.scope,
+            tokenHash: sql<string>`${await hashToken(accessToken)}`.as('token_hash'),
+          })
+          .from(oauthCodes)
+          .where(and(eq(oauthCodes.codeHash, codeHash), isNull(oauthCodes.replayedAt))),
+      )
+      .returning({ id: oauthTokens.id }),
   ])
+  if (inserted.length === 0) {
+    return null
+  }
   return { accessToken, expiresIn: ACCESS_TOKEN_TTL_SECONDS, issuer, scope: scopeList(spent.scope) }
 }
 
@@ -286,6 +307,9 @@ export interface AccessGrant {
   resource: string | null
   scope: ConnectedAppScope[]
 }
+
+const liveToken = (now: number) =>
+  and(isNull(oauthTokens.revokedAt), gt(oauthTokens.expiresAt, now), eq(issuerOwnerKey, oauthTokens.address))
 
 // A live token whose issuer is still owned by the principal that approved it.
 export const resolveAccessToken = async (db: Db, token: string, now: number): Promise<AccessGrant | null> => {
@@ -301,14 +325,7 @@ export const resolveAccessToken = async (db: Db, token: string, now: number): Pr
     })
     .from(oauthTokens)
     .innerJoin(issuers, eq(issuers.id, oauthTokens.issuerId))
-    .where(
-      and(
-        eq(oauthTokens.tokenHash, await hashToken(token)),
-        isNull(oauthTokens.revokedAt),
-        gt(oauthTokens.expiresAt, now),
-        eq(issuerOwnerKey, oauthTokens.address),
-      ),
-    )
+    .where(and(eq(oauthTokens.tokenHash, await hashToken(token)), liveToken(now)))
     .get()
   if (row === undefined) {
     return null
@@ -345,9 +362,7 @@ export const listGrants = async (
     .from(oauthTokens)
     .innerJoin(connectedApps, eq(connectedApps.clientId, oauthTokens.clientId))
     .innerJoin(issuers, eq(issuers.id, oauthTokens.issuerId))
-    .where(
-      and(eq(oauthTokens.address, address), isNull(oauthTokens.revokedAt), gt(oauthTokens.expiresAt, now)),
-    )
+    .where(and(eq(oauthTokens.address, address), liveToken(now)))
     .orderBy(desc(oauthTokens.createdAt), asc(oauthTokens.id))
   return rows.map(({ app, issuer, token }) => ({
     appName: app.name,
@@ -365,7 +380,18 @@ export const revokeGrant = async (db: Db, address: string, id: string, now: numb
   const revoked = await db
     .update(oauthTokens)
     .set({ revokedAt: now })
-    .where(and(eq(oauthTokens.id, id), eq(oauthTokens.address, address), isNull(oauthTokens.revokedAt)))
+    .where(
+      and(
+        eq(oauthTokens.id, id),
+        eq(oauthTokens.address, address),
+        exists(
+          db
+            .select({ id: issuers.id })
+            .from(issuers)
+            .where(and(eq(issuers.id, oauthTokens.issuerId), liveToken(now))),
+        ),
+      ),
+    )
     .returning({ id: oauthTokens.id })
     .get()
   return revoked !== undefined
