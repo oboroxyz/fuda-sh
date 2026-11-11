@@ -68,7 +68,7 @@ describe('Pass artwork section', () => {
       expect(host.querySelector('[role=alert]')?.textContent).toBe(DASH_COPY.en.logo.rejections.type)
     })
     expect(fetch).not.toHaveBeenCalled()
-    expect(button(host, DASH_COPY.en.management.save).disabled).toBe(true)
+    expect(button(host, DASH_COPY.en.artwork.save).disabled).toBe(true)
   })
 
   it('saves one prepared set, shows both Wallet layouts, and removes the saved image', async () => {
@@ -97,13 +97,13 @@ describe('Pass artwork section', () => {
     const host = mount(<Editor />)
     choose(host, new File(['png'], 'art.png', { type: 'image/png' }))
     await vi.waitFor(() => {
-      expect(button(host, DASH_COPY.en.management.save).disabled).toBe(false)
+      expect(button(host, DASH_COPY.en.artwork.save).disabled).toBe(false)
     })
     expect([...host.querySelectorAll('figcaption')].map((item) => item.textContent)).toStrictEqual([
       'Apple Wallet',
       'Google Wallet',
     ])
-    button(host, DASH_COPY.en.management.save).click()
+    button(host, DASH_COPY.en.artwork.save).click()
     await vi.waitFor(() => {
       expect(host.querySelector('img')?.getAttribute('src')).toContain('/assets/artwork/123/strip3x')
     })

@@ -168,7 +168,7 @@ export const ArtworkSection = (props: {
               void save(false)
             }}
           >
-            {props.copy.management.save}
+            {props.copy.artwork.save}
           </button>
           <button
             class="btn btn-ghost btn-sm"

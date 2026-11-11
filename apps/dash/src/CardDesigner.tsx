@@ -225,6 +225,7 @@ const PreviewQr = (): JSX.Element => (
 const preview = (props: CardDesignerViewProps): JSX.Element => (
   <div
     class="dash-card-preview"
+    data-artwork={props.artworkUrl === null || props.artworkUrl === undefined ? undefined : ''}
     style={{ background: props.form.brandColor, color: brandTextColor(props.form.brandColor) }}
   >
     <div class="dash-card-preview-top">
@@ -242,7 +243,11 @@ const preview = (props: CardDesignerViewProps): JSX.Element => (
       </div>
     </div>
     {props.artworkUrl === null || props.artworkUrl === undefined ? null : (
-      <img alt="" class="w-full rounded-lg" src={assetUrlForDisplay(props.artworkUrl)} />
+      <img
+        alt=""
+        class="aspect-[375/144] w-full rounded-lg object-cover"
+        src={assetUrlForDisplay(props.artworkUrl)}
+      />
     )}
     <div class="flex items-end justify-between gap-4">
       <div class="flex min-w-0 flex-col gap-2">

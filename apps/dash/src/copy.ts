@@ -63,7 +63,7 @@ export interface DashCopy {
     failures: { cancelled: string; network: string; rejected: string; unavailable: string; wallet: string }
   }
   passkeys: PasskeySectionCopy
-  artwork: { label: string; hint: string; tooSmall: string; tooHeavy: string }
+  artwork: { label: string; hint: string; save: string; tooSmall: string; tooHeavy: string }
   logo: {
     label: string
     choose: string
@@ -500,6 +500,7 @@ export const DASH_COPY = {
     artwork: {
       label: 'Pass artwork',
       hint: '1125×432 or larger. Wide images are centre-cropped.',
+      save: 'Save image',
       tooSmall: 'Use an image at least 1125×432.',
       tooHeavy: 'That image is too detailed. Try a simpler one.',
     },
@@ -985,6 +986,7 @@ export const DASH_COPY = {
     artwork: {
       label: 'パスの画像',
       hint: '1125×432 以上。横長の画像は中央で切り抜きます。',
+      save: '画像を保存',
       tooSmall: '1125×432 以上の画像を選んでください。',
       tooHeavy: '画像が複雑すぎます。もっとシンプルな画像を選んでください。',
     },
