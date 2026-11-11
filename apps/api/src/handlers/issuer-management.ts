@@ -12,6 +12,7 @@ import { operatorCardView } from '../issuers/views.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { operatorAuth } from '../middleware/operator-auth.ts'
 import { notifyPassesChanged } from '../pass/notify.ts'
+import { requirementsOf } from '../requirements/store.ts'
 
 const positiveInteger = (raw: string | undefined, fallback: number): number | null => {
   if (raw === undefined || raw === '') {
@@ -26,7 +27,9 @@ export const getV1IssuersMeCardsCardId = defineHandler(operatorAuth(), async (c)
   const card = await ownedCard(c, c.req.param().cardId)
   return card === undefined
     ? errorResponse(c, 'not_found', 404)
-    : jsonResponse(c, { card: operatorCardView(card, c.get('now')()) })
+    : jsonResponse(c, {
+        card: operatorCardView(card, c.get('now')(), await requirementsOf(c.get('db'), card)),
+      })
 })
 
 export const putV1IssuersMeCardsCardId = defineHandler(operatorAuth(), async (c) => {
@@ -91,7 +94,9 @@ export const putV1IssuersMeCardsCardId = defineHandler(operatorAuth(), async (c)
     return errorResponse(c, 'not_found', 404)
   }
   notifyPassesChanged(c, { cardId: updated.id })
-  return jsonResponse(c, { card: operatorCardView(updated, c.get('now')()) })
+  return jsonResponse(c, {
+    card: operatorCardView(updated, c.get('now')(), await requirementsOf(c.get('db'), updated)),
+  })
 })
 
 // docs/specs/pass-types-and-flows.md#card-integrations — a Card's optional

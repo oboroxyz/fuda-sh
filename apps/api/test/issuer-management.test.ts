@@ -153,6 +153,7 @@ describe('operator Card management', () => {
         identity: 'none',
         lockScreen: true,
         record: 'offchain',
+        requirements: [],
         slug: CARD_INPUT.card.slug,
         title: CARD_INPUT.card.title,
         validFrom: 20,

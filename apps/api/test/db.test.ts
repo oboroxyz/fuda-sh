@@ -16,6 +16,7 @@ describe('D1 schema', () => {
       'apple_pass_updates',
       'badges',
       'card_integrations',
+      'card_requirements',
       'card_stamp_settings',
       'cards',
       'challenges',

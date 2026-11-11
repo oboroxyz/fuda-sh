@@ -37,6 +37,45 @@ describe('Card description', () => {
   })
 })
 
+describe('Card identity and requirements', () => {
+  const card = { category: 'membership', slug: 'licence', title: 'Licence' }
+  const requirement = {
+    assetId: uid,
+    kind: 'erc8432-agreement',
+    registry: addr,
+  }
+
+  it('defaults requirements to none', () => {
+    expect(v.parse(CardBody, card)).toHaveProperty('requirements', [])
+  })
+
+  it('accepts identity address with a requirement, and stores it normalized', () => {
+    const out = v.parse(CardBody, {
+      ...card,
+      identity: 'address',
+      requirements: [{ ...requirement, registry: `0x${'Ab'.repeat(20)}` }],
+    })
+    expect(out.requirements).toStrictEqual([{ ...requirement, registry: `0x${'ab'.repeat(20)}` }])
+  })
+
+  it.each([
+    ['identity address without a requirement', { identity: 'address' }],
+    ['a requirement on identity none', { requirements: [requirement] }],
+    ['a requirement on identity passkey', { identity: 'passkey', requirements: [requirement] }],
+    ['a requirement on identity sensitive', { identity: 'sensitive', requirements: [requirement] }],
+    [
+      'identity address recorded on chain',
+      { identity: 'address', record: 'onchain', requirements: [requirement] },
+    ],
+    [
+      'five requirements',
+      { identity: 'address', requirements: Array.from({ length: 5 }, () => requirement) },
+    ],
+  ])('rejects %s', (_label, extra) => {
+    expect(v.safeParse(CardBody, { ...card, ...extra }).success).toBe(false)
+  })
+})
+
 describe('CardUpdateBody schema', () => {
   const update = {
     category: 'membership',
@@ -59,9 +98,12 @@ describe('CardUpdateBody schema', () => {
     })
   })
 
-  it.each(['slug', 'issuerId'])('rejects immutable or tenant-controlled field %s', (field) => {
-    expect(v.safeParse(CardUpdateBody, { ...update, [field]: 'forbidden' }).success).toBe(false)
-  })
+  it.each(['slug', 'issuerId', 'identity', 'requirements'])(
+    'rejects immutable or tenant-controlled field %s',
+    (field) => {
+      expect(v.safeParse(CardUpdateBody, { ...update, [field]: 'forbidden' }).success).toBe(false)
+    },
+  )
 
   it('rejects a partial replacement that omits editable state', () => {
     const { validityDays: _validityDays, ...partial } = update

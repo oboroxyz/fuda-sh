@@ -78,7 +78,7 @@ export const cards = sqliteTable(
     createdAt: integer('created_at').notNull(),
     description: text('description').notNull().default(''),
     id: text('id').primaryKey(),
-    identity: text('identity', { enum: ['none', 'passkey', 'sensitive'] })
+    identity: text('identity', { enum: ['none', 'passkey', 'sensitive', 'address'] })
       .notNull()
       .default('none'),
     issuerId: text('issuer_id')
@@ -276,6 +276,21 @@ export const cardIntegrations = sqliteTable('card_integrations', {
     .references(() => cards.id),
   humanBadge: integer('human_badge', { mode: 'boolean' }).notNull().default(false),
 })
+
+// docs/specs/card-requirements.md. `config` is the JSON of the parsed requirement, read back
+// through its kind's schema.
+export const cardRequirements = sqliteTable(
+  'card_requirements',
+  {
+    cardId: text('card_id')
+      .notNull()
+      .references(() => cards.id),
+    config: text('config').notNull(),
+    kind: text('kind').notNull(),
+    position: integer('position').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.cardId, t.position] })],
+)
 
 export const cardStampSettings = sqliteTable('card_stamp_settings', {
   cardId: text('card_id')

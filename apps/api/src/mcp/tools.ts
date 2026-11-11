@@ -7,9 +7,11 @@ import {
   ClaimSource,
   isOrderedWindow,
   ISSUER_PASS_STATUSES,
+  MAX_REQUIREMENTS,
   normalizeUid,
+  REQUIREMENT_KINDS,
 } from '@fuda/sdk'
-import type { ConnectedAppScope } from '@fuda/sdk'
+import type { ConnectedAppScope, Requirement } from '@fuda/sdk'
 import { and, eq } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
@@ -24,6 +26,8 @@ import { readIssuerPasses } from '../issuers/passes.ts'
 import { cardView, publicUrlFor } from '../issuers/views.ts'
 import { spendBudget } from '../middleware/rate-limit.ts'
 import { revokePass } from '../passes/revoke-pass.ts'
+import { requirementsAllowed } from '../requirements/allowlist.ts'
+import { requirementsByCard, requirementsOf } from '../requirements/store.ts'
 
 // Per issuer, per hour. These bound what a looping agent can spend on the
 // signer or undo; docs/specs/mcp.md#tools.
@@ -55,8 +59,12 @@ export interface McpTool {
 export const issuerOf = async (db: Db, issuerId: string): Promise<typeof issuers.$inferSelect | undefined> =>
   await db.select().from(issuers).where(eq(issuers.id, issuerId)).get()
 
-const toolCard = ({ c, issuer }: ToolContext, row: typeof cards.$inferSelect) => ({
-  ...cardView(row, c.get('now')()),
+const toolCard = (
+  { c, issuer }: ToolContext,
+  row: typeof cards.$inferSelect,
+  requirements: readonly Requirement[],
+) => ({
+  ...cardView(row, c.get('now')(), requirements),
   attendance: row.attendance !== 0,
   capacity: row.capacity,
   claimUrl: `${publicUrlFor(c.env.PUBLIC_BASE_URL, issuer.handle)}/${row.slug}`,
@@ -112,11 +120,12 @@ export const MCP_TOOLS: readonly McpTool[] = [
         .from(cards)
         .where(eq(cards.issuerId, context.issuer.id))
         .orderBy(cards.createdAt)
+      const requirements = await requirementsByCard(context.c.get('db'), rows)
       return {
         ok: true,
         value: {
           issuer: { handle: context.issuer.handle, name: context.issuer.name },
-          cards: rows.map((row) => toolCard(context, row)),
+          cards: rows.map((row) => toolCard(context, row, requirements.get(row.id) ?? [])),
         },
       }
     },
@@ -153,7 +162,24 @@ export const MCP_TOOLS: readonly McpTool[] = [
           type: 'string',
           enum: CARD_IDENTITIES,
           description:
-            "Who can use this card's passes, fixed once created. 'none' (the default) means whoever shows one. 'passkey' binds each pass to the passkey of the person who claimed it, so a copied QR does not admit. 'sensitive' goes further for employee badges and privacy-sensitive memberships: each pass has its own key, so a person is not linkable across venues, with no Wallet pass, QR, backup file, Stamps or integrations, and it rejects while the chain cannot be read. Members need a passkey provider that supports PRF, such as iCloud Keychain or Google Password Manager. Both need record 'offchain', and issue_pass cannot issue either, because the holder must claim it themselves at the card's claimUrl.",
+            "Who can use this card's passes, fixed once created. 'none' (the default) means whoever shows one. 'passkey' binds each pass to the passkey of the person who claimed it, so a copied QR does not admit. 'sensitive' goes further for employee badges and privacy-sensitive memberships: each pass has its own key, so a person is not linkable across venues, with no Wallet pass, QR, backup file, Stamps or integrations, and it rejects while the chain cannot be read. Members need a passkey provider that supports PRF, such as iCloud Keychain or Google Password Manager. 'address' binds each pass to an address that a requirement checks, and needs at least one entry in requirements. Each of these needs record 'offchain', and issue_pass cannot issue any of them, because the holder must claim it themselves at the card's claimUrl.",
+        },
+        requirements: {
+          type: 'array',
+          maxItems: MAX_REQUIREMENTS,
+          description:
+            "What a member must hold to claim a pass, fixed once created, all of it required. Only with identity 'address', which needs at least one. An 'erc8432-agreement' entry names an ERC-8432 registry that this deployment accepts, an assetId, and optionally a termsId. A registry that is not accepted is refused.",
+          items: {
+            type: 'object',
+            properties: {
+              kind: { type: 'string', enum: REQUIREMENT_KINDS },
+              registry: { type: 'string', pattern: '^0x[0-9a-fA-F]{40}$' },
+              assetId: { type: 'string', pattern: '^0x[0-9a-fA-F]{64}$' },
+              termsId: { type: 'string', pattern: '^0x[0-9a-fA-F]{64}$' },
+            },
+            required: ['kind', 'registry', 'assetId'],
+            additionalProperties: false,
+          },
         },
         claimFrom: unixOrNull,
         claimUntil: unixOrNull,
@@ -171,11 +197,14 @@ export const MCP_TOOLS: readonly McpTool[] = [
       if (!parsed.success) {
         return { ok: false, error: fieldErrorFor(parsed.issues, 'slug', 'bad_slug') }
       }
+      if (!requirementsAllowed(context.c.env, parsed.output.requirements)) {
+        return { ok: false, error: 'bad_input' }
+      }
       const now = context.c.get('now')()
       const card = await insertCard(context.c.get('db'), context.issuer.id, parsed.output, now)
       return card === null
         ? { ok: false, error: 'slug_taken' }
-        : { ok: true, subject: card.id, value: { card: toolCard(context, card) } }
+        : { ok: true, subject: card.id, value: { card: toolCard(context, card, parsed.output.requirements) } }
     },
   },
   {
@@ -219,7 +248,11 @@ export const MCP_TOOLS: readonly McpTool[] = [
         .returning()
       return updated === undefined
         ? { ok: false, error: 'not_found' }
-        : { ok: true, subject: updated.id, value: { card: toolCard(context, updated) } }
+        : {
+            ok: true,
+            subject: updated.id,
+            value: { card: toolCard(context, updated, await requirementsOf(db, updated)) },
+          }
     },
   },
   {
@@ -263,7 +296,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: 'issue_pass',
     title: 'Issue pass',
     description:
-      "Issue one pass under a card, for a person you are arranging it for, and return a passUrl to give them. It works even while the card's claim window is closed. Each call issues a new pass and costs on-chain gas, so do not retry after an unclear failure without checking list_passes. For flyers or posts, share the card's claimUrl instead. A card with identity 'passkey' or 'sensitive' answers holder_must_claim: its holder has to claim the pass themselves at the claimUrl.",
+      "Issue one pass under a card, for a person you are arranging it for, and return a passUrl to give them. It works even while the card's claim window is closed. Each call issues a new pass and costs on-chain gas, so do not retry after an unclear failure without checking list_passes. For flyers or posts, share the card's claimUrl instead. A card with identity 'passkey', 'sensitive' or 'address' answers holder_must_claim: its holder has to claim the pass themselves at the claimUrl.",
     inputSchema: {
       type: 'object',
       properties: {

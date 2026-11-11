@@ -83,6 +83,7 @@ export const REASONS = [
   'WRONG_VENUE',
   'BAD_CHALLENGE',
   'BAD_SIGNATURE',
+  'REQUIREMENT_UNMET',
 ] as const
 export type Reason = (typeof REASONS)[number]
 
@@ -148,6 +149,7 @@ export const ERROR_CODES = [
   'bad_redirect_uri',
   'not_app_owner',
   'app_limit',
+  'requirement_unmet',
 ] as const
 export type ErrorCode = (typeof ERROR_CODES)[number]
 

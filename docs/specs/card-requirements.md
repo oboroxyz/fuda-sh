@@ -2,7 +2,7 @@
 
 A Card may carry **requirements**. A requirement names a record outside fuda that a member must hold, such as an ERC-8432 licence agreement. fuda reads that record itself when the member claims a pass, and again each time the member presents the pass. The first kind is `erc8432-agreement`.
 
-**Status: proposed.** Nothing in this document is built. Each pull request on `feat/ip-erc8432` narrows this line to what is still missing.
+**Status: model built.** The `address` identity, requirement schemas, Card storage and API views, registry allowlist and ERC-8432 adapter are built. Issuance on these Cards is disabled. Apply, claim, licence keys and presentation checks remain proposed.
 
 API paths below are under `/v1`. Terms such as Card, Right, Holder and Member secret are defined in the [glossary](../CONTEXT.md). How requirements relate to the other ways an outside system works with fuda is in the [architecture overview](../architecture.md#outside-systems).
 

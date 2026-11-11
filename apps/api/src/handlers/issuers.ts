@@ -35,6 +35,8 @@ import { cardView, issuerSummary, issuerView, publicUrlFor, publicVenue } from '
 import { errorResponse, jsonResponse } from '../json.ts'
 import { operatorAuth } from '../middleware/operator-auth.ts'
 import { notifyPassesChanged } from '../pass/notify.ts'
+import { requirementsAllowed } from '../requirements/allowlist.ts'
+import { requirementsByCard } from '../requirements/store.ts'
 
 // The venue's ENS name as the dashboard needs it: what it is called, and whether
 // the chain has confirmed the claim. A signed-but-unused voucher reads as
@@ -68,8 +70,9 @@ const meResponse = async (c: Context<AppEnv>, issuerId: string | null): Promise<
   if (found === null) {
     return { cards: [], ens: null, issuer: null, publicUrl: null }
   }
+  const requirements = await requirementsByCard(c.get('db'), found.cards)
   return {
-    cards: found.cards.map((card) => cardView(card, c.get('now')())),
+    cards: found.cards.map((card) => cardView(card, c.get('now')(), requirements.get(card.id) ?? [])),
     ens: await ensView(c, found.issuer.handle),
     issuer: issuerView(found.issuer, c.env.API_BASE_URL),
     publicUrl: publicUrlFor(c.env.PUBLIC_BASE_URL, found.issuer.handle),
@@ -277,6 +280,9 @@ export const postV1IssuersCards = defineHandler(operatorAuth(), async (c) => {
   if (!parsed.success) {
     return errorResponse(c, fieldErrorFor(parsed.issues, 'slug', 'bad_slug'), 400)
   }
+  if (!requirementsAllowed(c.env, parsed.output.requirements)) {
+    return errorResponse(c, 'bad_input', 400)
+  }
   const { issuerId } = c.get('operator')
   if (issuerId === null) {
     return errorResponse(c, 'not_found', 404)
@@ -293,7 +299,7 @@ export const postV1IssuersCards = defineHandler(operatorAuth(), async (c) => {
   return jsonResponse(
     c,
     {
-      card: cardView(card, c.get('now')()),
+      card: cardView(card, c.get('now')(), parsed.output.requirements),
       issuer: issuerView(issuer, c.env.API_BASE_URL),
       publicUrl: publicUrlFor(c.env.PUBLIC_BASE_URL, issuer.handle),
     },
@@ -315,6 +321,7 @@ export const getV1IssuersHandle = defineHandler(async (c) => {
     c.get('db'),
     found.cards.map((card) => card.id),
   )
+  const requirements = await requirementsByCard(c.get('db'), found.cards)
   return jsonResponse(
     c,
     publicVenue(
@@ -324,6 +331,7 @@ export const getV1IssuersHandle = defineHandler(async (c) => {
       c.env.API_BASE_URL,
       configuredBadgeKinds(c.env),
       enabledByCard,
+      requirements,
     ),
   )
 })

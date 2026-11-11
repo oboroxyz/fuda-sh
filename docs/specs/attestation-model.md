@@ -151,6 +151,7 @@ Attested with `recipient = holder` and `refUID = rightUID`.
 | `DELEGATION_UID` | `apps/api/targets.jsonc` `vars` | UID of the root IssuerDelegation that every issued Entitlement references |
 | `ISSUER_ADDRESS` | `apps/api/targets.jsonc` `vars` | The configured root attester; the gate accepts only delegations attested by this address |
 | `GRAPH_START_BLOCK` | `apps/api/targets.jsonc` `vars` | Graph-manifest generation source for the rights-subgraph data-source start block; it is not read by the API |
+| `IP_REGISTRIES` | optional api `vars` | Comma-separated ERC-8432 registry addresses. Unset on deployed targets, so requirement Cards are refused there |
 | `FACTORY_ADDRESS` | `apps/api/targets.jsonc` `vars` | Coinbase Smart Wallet factory used to derive Bearer holder addresses |
 | `PUBLIC_BASE_URL` | `apps/api/targets.jsonc` `vars` | The member-facing origin a published card links to (`https://fuda.sh`; the apex redirects `/@*` to `app.fuda.sh`). `POST /issuers` and `GET /issuers/me` build `publicUrl` from it, never from the request URL |
 | `API_BASE_URL` | `apps/api/targets.jsonc` `vars` | Absolute base for the `passUrls` in `/issue` responses; its origin is the api entry in the Google Wallet `origins` claim, which also lists `https://dash.fuda.sh` and `https://app.fuda.sh` |
@@ -191,6 +192,7 @@ At verify time the gate loads the Entitlement's `refUID` and requires that it is
 | slot not consumed (SINGLE_USE, action endpoints only) | `ALREADY_USED` |
 | challenge valid (signed endpoint only) | `BAD_CHALLENGE` |
 | signature valid (signed endpoint only) | `BAD_SIGNATURE` |
+| requirement met (reserved, not wired yet) | `REQUIREMENT_UNMET` |
 
 `WRONG_VENUE` is not in this table because it precedes it: a `POST /verify` that names a `venue` is checked against the issuer behind the uid before the chain is read (see [Venues](#offchain-rights)). Every chain error fails closed. `LEVEL_REQUIRED` is checked before slot consumption, so a photographed Signed pass cannot burn its SINGLE_USE slot. `GET /verify/:uid` reports the level but never rejects on it: it is a read-only preview that answers "is this right valid?", not "may it enter by QR?".
 
@@ -200,7 +202,7 @@ The SDK's pure `rightStatus(facts, now)` owns the shared validity precedence. It
 
 A Card's `record` is `offchain` or `onchain`, set when the Card is created and fixed afterwards, because a right cannot move between the two without a new UID. New Cards default to `offchain`. A Card made before this existed stays `onchain`, and the on-chain lifecycle above applies to it unchanged.
 
-A Card's `identity` is `none`, `passkey` or `sensitive`, also fixed at creation, and defaults to `none`. `passkey` makes its passes Identified and `sensitive` makes them [Sensitive](./pass-types-and-flows.md#sensitive-use). Both need `record: offchain`: any other combination answers `400 bad_input`, and the database refuses it too.
+A Card's `identity` is `none`, `passkey`, `sensitive` or `address`, also fixed at creation, and defaults to `none`. `passkey` makes its passes Identified and `sensitive` makes them [Sensitive](./pass-types-and-flows.md#sensitive-use). `address` requires at least one fixed requirement and cannot issue passes yet. All key-bound identities need `record: offchain`: any other combination answers `400 bad_input`, and the database refuses it too.
 
 **Issuing.** The self-serve route and the MCP `issue_pass` tool sign an EAS offchain attestation (version 2) with the signer key, with no chain access and no transaction, and write the `members` row and an `offchain_attestations` row in one batch. If that write fails nothing was issued. The member number is drawn in D1 as for an on-chain pass, and is also signed into the attestation. `recipient` is the zero address, which the API reports as `holder`. The admin `POST /issue` issues only on chain. An Identified pass is issued only by [the holder's own claim](./pass-types-and-flows.md#claiming-an-identified-pass): `issue_pass` answers `holder_must_claim`.
 
@@ -297,7 +299,8 @@ Errors are `{ "error": "<code>" }` with these statuses. Every gate _decision_ is
 | `issuer_limit` | 409 | `POST /issuers` from an account that already owns ten issuers |
 | `issuer_exists` | 409 | no longer returned (an account may own several issuers, [Several issuers per account](pass-types-and-flows.md#issuer-onboarding-and-the-handle-route)); kept in the sdk's code list for older clients |
 | `bad_passkey` | 401, 403 | a member passkey ceremony refused. A claim on a passkey Card answers `403`, because the session is fine and the member app's Worker ends a session on any `401` it forwards |
-| `holder_must_claim` | 409 | MCP `issue_pass` on a passkey Card: its holder has to claim the pass themselves |
+| `holder_must_claim` | 409 | Issuance without a claimant on a key-bound Card, including `address`, whose claim is not built yet |
+| `requirement_unmet` | 403 | Reserved for a failed requirement claim check; issuance is not wired yet |
 | `bad_slug` | 400 | `POST /issuers/cards` slug fails the card-slug rule or is reserved |
 | `slug_taken` | 409 | `POST /issuers/cards` or `POST /connect/cards` slug already used by another card of the same venue |
 | `bad_redirect_uri` | 400 | connected-app registration or approval with a redirect URI that is unsafe or not registered ([Connected apps](./connected-apps.md)) |
@@ -416,6 +419,8 @@ All three `passUrls` are absolute against `API_BASE_URL` and always present, eve
 **Signature verification and RPC outages.** `POST /verify-signed` verifies possession through viem's `publicClient.verifyMessage`, which covers EOAs (ecrecover), deployed smart accounts (ERC-1271) and undeployed ones (ERC-6492) in one call. viem folds a transport error during the ERC-1271/6492 path into a `false` result, so an RPC outage surfaces as `BAD_SIGNATURE` (fail closed) rather than `502`; the burned challenge is cheap to re-mint. The api's wrapper keeps a fail-closed branch for a client that does throw — an `HttpRequestError`, `TimeoutError` or `RpcRequestError` becomes a `ChainError` and a `502` — so a viem version that stops swallowing transport failures changes the status, not the safety. Re-test this behaviour on every viem major bump.
 
 ### D1 tables that mirror or extend attestations
+
+`card_requirements(card_id, position, kind, config)` stores each Card's fixed requirements in order. The primary key is `(card_id, position)` and `config` is parsed requirement JSON.
 
 The core operational tables originate in `apps/api/migrations/0000_init.sql`. The excerpt below omits the later issuer, card, logo, and ENS extensions; `apps/api/migrations/` and `apps/api/src/db/schema.ts` define the current schema:
 
