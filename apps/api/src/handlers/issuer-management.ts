@@ -1,10 +1,10 @@
 import { asHex, CardIntegrationsBody, CardUpdateBody, ISSUER_PASS_STATUSES } from '@fuda/sdk'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 import * as v from 'valibot'
 import { defineHandler } from 'void'
 
 import { badgesByUid, withBadges } from '../badges/advisory.ts'
-import { cards, cardStampSettings } from '../db/schema.ts'
+import { cardApplicants, cards, cardStampSettings } from '../db/schema.ts'
 import { readCardIntegrations, writeCardIntegrations } from '../integrations/store.ts'
 import { ownedCard } from '../issuers/owned-card.ts'
 import { readIssuerPasses } from '../issuers/passes.ts'
@@ -175,4 +175,20 @@ export const getV1IssuersMePasses = defineHandler(operatorAuth(), async (c) => {
     }),
   )
   return jsonResponse(c, { ...listed, passes: withBadges(listed.passes, held) })
+})
+
+export const getV1IssuersMeCardsCardIdApplicants = defineHandler(operatorAuth(), async (c) => {
+  c.header('cache-control', 'no-store')
+  const card = await ownedCard(c, c.req.param().cardId)
+  if (card === undefined) {
+    return errorResponse(c, 'not_found', 404)
+  }
+  const applicants = await c
+    .get('db')
+    .select({ address: cardApplicants.address, appliedAt: cardApplicants.appliedAt })
+    .from(cardApplicants)
+    .where(eq(cardApplicants.cardId, card.id))
+    .orderBy(asc(cardApplicants.appliedAt), asc(cardApplicants.address))
+    .limit(1000)
+  return jsonResponse(c, { applicants })
 })
