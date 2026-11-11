@@ -1,15 +1,31 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import type { Context } from 'hono'
 import type { Hex } from 'viem'
 
 import { ChainError, NoSignerError, ZERO_UID } from '../chain/client.ts'
-import { members, offchainAttestations } from '../db/schema.ts'
+import type { Db } from '../db/client.ts'
+import { badges, members, offchainAttestations } from '../db/schema.ts'
 import { findVersion, parseSchemaSets } from '../eas/schemas.ts'
 import type { AcceptedVersion } from '../eas/schemas.ts'
 import { darkenMemberName } from '../ens/mirror.ts'
 import type { ActingScope, AppEnv } from '../env.ts'
+import { releasePlace } from '../issue/release-place.ts'
 import { notifyPassChanged } from '../pass/notify.ts'
 import { sendOffchainRevocation } from './offchain-chores.ts'
+
+// D1 batches are atomic. Read the stored status before changing it so concurrent
+// revokes and retries release exactly one place, including for consumed Rights.
+const markRevoked = async (db: Db, uid: Hex): Promise<void> => {
+  await db.batch([
+    releasePlace(
+      db,
+      sql`(SELECT card_id FROM members
+      WHERE attestation_uid = ${uid} AND status != 'revoked')`,
+    ),
+    db.delete(badges).where(eq(badges.uid, uid)),
+    db.update(members).set({ status: 'revoked' }).where(eq(members.attestationUid, uid)),
+  ])
+}
 
 // null means "this deployment's EAS_SCHEMAS binding is malformed" — a
 // deployment defect, not caller input, so it fails closed with the same
@@ -37,7 +53,7 @@ const revokeOffchainPass = async (c: Context<AppEnv>, uid: Hex): Promise<RevokeO
     return { error: 'no_signer', ok: false }
   }
   const db = c.get('db')
-  await db.update(members).set({ status: 'revoked' }).where(eq(members.attestationUid, uid))
+  await markRevoked(db, uid)
   try {
     await sendOffchainRevocation(db, chain, attester, uid)
   } catch (error) {
@@ -115,7 +131,7 @@ export const revokePass = async (
     }
     throw error
   }
-  await c.get('db').update(members).set({ status: 'revoked' }).where(eq(members.attestationUid, uid))
+  await markRevoked(c.get('db'), uid)
   // A name that still resolved after its right was revoked would outlive the
   // thing it names, so it goes dark on the same request.
   await darkenMemberName(c.get('db'), { now: c.get('now')(), rightUid: uid })

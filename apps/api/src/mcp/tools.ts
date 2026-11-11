@@ -83,7 +83,7 @@ const CardLimitsArgs = v.strictObject({
 })
 
 const capacitySchema = {
-  description: 'The most passes this card may ever issue; null for no limit. A revoked pass still counts.',
+  description: 'The most places this card may reserve; null for no limit. Revocation returns a place.',
   maximum: CARD_CAPACITY_MAX,
   minimum: 1,
   type: ['integer', 'null'],
