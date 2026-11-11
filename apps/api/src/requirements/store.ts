@@ -10,7 +10,7 @@ import type { cards } from '../db/schema.ts'
 
 const StoredRequirement = v.pipe(v.string(), v.parseJson(), CardRequirement)
 
-// One row per requirement, in the order the Card body listed them. At most four per Card, so
+// One row per requirement, in the order the Card body listed them. At most one per Card, so
 // the whole list binds under D1's cap on bound parameters (AGENTS.md: D1 writes).
 export const requirementRows = (
   cardId: string,

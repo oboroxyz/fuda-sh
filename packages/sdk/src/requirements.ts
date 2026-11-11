@@ -8,7 +8,7 @@ import type { Hex } from './constants.ts'
 export const REQUIREMENT_KINDS = ['erc8432-agreement'] as const
 export type RequirementKind = (typeof REQUIREMENT_KINDS)[number]
 
-export const MAX_REQUIREMENTS = 4
+export const MAX_REQUIREMENTS = 1
 
 const lowerHex = (raw: string): Hex => `0x${raw.slice(2).toLowerCase()}`
 
