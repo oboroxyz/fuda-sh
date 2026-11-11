@@ -919,11 +919,15 @@ describe('address Card controller', () => {
     licence: NonNullable<Parameters<typeof CardScreen>[0]['licence']>,
     signedIn = true,
     claimable = true,
+    claimUntil: number | null = null,
   ) => {
     const deps = io()
     deps.fetchVenue = async () =>
       await Promise.resolve({
-        body: { ...addressVenue, cards: addressVenue.cards.map((card) => ({ ...card, claimable })) },
+        body: {
+          ...addressVenue,
+          cards: addressVenue.cards.map((card) => ({ ...card, claimUntil, claimable })),
+        },
         ok: true,
       })
     const host = document.createElement('div')
@@ -1015,6 +1019,15 @@ describe('address Card controller', () => {
       expect(licence).toHaveBeenCalledOnce()
     })
     expect(licence.mock.calls[0]?.[0].action).toBe('claim')
+  })
+
+  it('says the Card is closed once its claim window has ended', async () => {
+    const licence = vi.fn<NonNullable<Parameters<typeof CardScreen>[0]['licence']>>()
+    const { host } = open(licence, true, false, 1)
+    await vi.waitFor(() => {
+      expect(host.querySelector('[role="status"]')).not.toBeNull()
+    })
+    expect(host.textContent).not.toContain('Receive pass')
   })
 
   it('reuses PRF guidance before retrying', async () => {
