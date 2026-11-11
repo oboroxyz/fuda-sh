@@ -8,6 +8,7 @@ import { ZERO_ADDRESS } from '../chain/client.ts'
 import type { Db } from '../db/client.ts'
 import { cardAddressPasses, members, passEvidence } from '../db/schema.ts'
 import type { cards } from '../db/schema.ts'
+import { presentationRequirements } from './presentation.ts'
 import { requirementAdapters } from './registry.ts'
 import { requirementsOf } from './store.ts'
 
@@ -66,9 +67,37 @@ export const existingAddressPass = async (
       }
 }
 
+const evidenceRows = (db: Db, evidence: Evidence[], uid: Hex) =>
+  evidence.map((entry, position) =>
+    db.insert(passEvidence).values({ ...entry, attestationUid: uid, position }),
+  )
+
 export const claimRows = (db: Db, cardId: string, address: Hex, evidence: Evidence[], uid: Hex) => [
   db.insert(cardAddressPasses).values({ address: address.toLowerCase(), attestationUid: uid, cardId }),
-  ...evidence.map((entry, position) =>
-    db.insert(passEvidence).values({ ...entry, attestationUid: uid, position }),
-  ),
+  ...evidenceRows(db, evidence, uid),
 ]
+
+// An address keeps its one pass. When the agreement behind that pass ended and the asset owner
+// granted another, the pass takes the new evidence instead of being issued again.
+export const renewEvidence = async (
+  db: Db,
+  chain: ChainClient,
+  card: typeof cards.$inferSelect,
+  holder: Hex,
+  uid: Hex,
+  agreementId?: Hex,
+): Promise<{ ok: true } | { ok: false; requirement: RequirementUnmet }> => {
+  const held = await presentationRequirements(db, chain, uid, holder)
+  if (held.met) {
+    return { ok: true }
+  }
+  const checked = await claimEvidence(db, chain, card, holder, agreementId)
+  if (!checked.ok) {
+    return checked
+  }
+  await db.batch([
+    db.delete(passEvidence).where(eq(passEvidence.attestationUid, uid)),
+    ...evidenceRows(db, checked.evidence, uid),
+  ])
+  return { ok: true }
+}

@@ -1,4 +1,4 @@
-import { claimMessage } from '@fuda/sdk'
+import { claimMessage, formatAgreementEvidence } from '@fuda/sdk'
 import type { CardInput, SelfServeIssueResponse } from '@fuda/sdk'
 import { env } from 'cloudflare:test'
 import { eq } from 'drizzle-orm'
@@ -60,6 +60,7 @@ const setup = async (changes: Partial<CardInput> = {}) => {
   const grant = (
     change: {
       frozen?: boolean
+      id?: Hex
       revoked?: boolean
       expiry?: bigint
       holder?: Hex
@@ -230,9 +231,7 @@ describe('requirement applications and claims', () => {
       responses.map(async (response) => await response.json<SelfServeIssueResponse>()),
     )
     expect(passes[0]).toStrictEqual(passes[1])
-    ctx.chain.failReads = true
     const repeated = await ctx.claim()
-    ctx.chain.failReads = false
     await expect(repeated.json()).resolves.toStrictEqual(passes[0])
     const evidence = await db().select().from(passEvidence)
     const current = await db().select().from(cards).get()
@@ -294,12 +293,47 @@ describe('requirement applications and claims', () => {
     },
   )
 
+  it('keeps the pass and takes the evidence of a newly granted agreement on a repeated claim', async () => {
+    const ctx = await setup()
+    ctx.grant()
+    const first = await ctx.claim()
+    const pass = await first.json<SelfServeIssueResponse>()
+    ctx.grant({ revoked: true })
+    const ended = await ctx.claim()
+    expect(ended.status).toBe(403)
+    await expect(ended.json()).resolves.toStrictEqual({
+      error: 'requirement_unmet',
+      requirement: { detail: 'no-agreement', kind: requirement.kind },
+    })
+    const regranted: Hex = `0x${'7e'.repeat(32)}`
+    ctx.grant({ id: regranted })
+    const again = await ctx.claim()
+    await expect(again.json()).resolves.toStrictEqual(pass)
+    await expect(db().select().from(cards)).resolves.toMatchObject([{ reserved: 1 }])
+    const admitted = await ctx.present(pass.uid)
+    await expect(admitted.json()).resolves.toMatchObject({
+      decision: 'ADMIT',
+      requirements: [
+        {
+          evidence: formatAgreementEvidence({
+            agreementId: regranted,
+            chainId: ctx.chain.chainId(),
+            registry: requirement.registry,
+          }),
+          kind: requirement.kind,
+        },
+      ],
+    })
+  })
+
   it('fails closed without evidence or readable chain', async () => {
     const ctx = await setup()
     ctx.grant()
     const result8 = await ctx.claim()
     const pass = await result8.json<SelfServeIssueResponse>()
     ctx.chain.failReads = true
+    const repeated = await ctx.claim()
+    expect(repeated.status).toBe(502)
     const result9 = await ctx.present(pass.uid)
     expect(result9.status).toBe(502)
     await expect(db().select().from(entryLog)).resolves.toHaveLength(0)

@@ -117,7 +117,7 @@ The holder address is lower case in the claim message. The SDK exports `claimMes
 | the chain cannot be read                   | `502 chain_error`                                             |
 | the Card is at capacity                    | `409 card_sold_out`                                           |
 
-A Card issues one pass per address. After the requirements pass, the api reserves capacity with the same mechanism as other passes. D1 commits the unique address mapping, pass and ordered evidence together. A failed batch releases the place; if a concurrent claim won, the api reads and returns that pass. A crash between reserving and writing can strand a place, as with other passes. A repeated claim by the same address answers the pass it already has and reserves no place, so a replayed signature gains nothing.
+A Card issues one pass per address. After the requirements pass, the api reserves capacity with the same mechanism as other passes. D1 commits the unique address mapping, pass and ordered evidence together. A failed batch releases the place; if a concurrent claim won, the api reads and returns that pass. A crash between reserving and writing can strand a place, as with other passes. A repeated claim by the same address reserves no place and issues nothing new, so a replayed signature gains nothing. It runs the presentation check on the pass the address already has. While that check holds, the claim answers the pass. When it fails, the claim check runs again: a newly granted agreement replaces the pass's evidence and the claim answers the same pass, and otherwise the claim answers `403 requirement_unmet`. A member whose agreement was revoked and granted again therefore keeps one pass.
 
 ### Presenting
 
@@ -133,7 +133,8 @@ An agreement puts the licence address on a public chain, as an NFT would. Claims
 
 ## Design choices
 
-- **Requirements are fixed at creation.** A pass keeps the evidence it was issued with. A Card that could change its asset later would hold passes whose evidence names another asset.
+- **Requirements are fixed at creation.** A pass's evidence names an agreement on the Card's asset. A Card that could change its asset later would hold passes whose evidence names another asset.
+- **A pass can take new evidence, and an address never gets a second pass.** The asset owner may revoke an agreement and grant another to the same address. Issuing a second pass for it would use another place and leave a dead pass in the member's list. The evidence is a D1 row beside the signed pass, not part of what was signed, so it can change while the pass stays the same.
 - **Only granted agreements count.** Attached terms are an open offer. `acquireAgreement` lets any caller take an agreement on them, and the reference `canLicense` approves any non-zero caller. The asset owner's `createAgreement` is the only path the owner controls.
 - **A Card identity of its own, not Sensitive use.** Sensitive use joins two things: a pass held by a key, and a policy of keeping as little as possible. A requirement needs the first and works against the second, because the licence address is public on chain and shared by every Card of one asset. The code already separates them. Issuance and verification follow the claimant's kind, `address`, and only the policy checks name `sensitive`. The new identity therefore reuses the first and leaves Sensitive use meaning what it meant.
 - **The key is per asset, not per pass.** The asset owner grants an agreement to one address before any pass exists. A key per pass would need one agreement per Card.
