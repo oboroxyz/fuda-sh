@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { getDb } from '../src/db/client.ts'
 import {
+  cardAddressPasses,
   cardApplicants,
   cards,
   entryLog,
@@ -354,6 +355,43 @@ describe('requirement applications and claims', () => {
       ],
     })
   })
+
+  it.each(['expired', 'revoked', 'concurrent', 'used'] as const)(
+    'handles an existing %s pass',
+    async (state) => {
+      const ctx = await setup({ category: state === 'used' ? 'ticket' : 'membership', validityDays: 1 })
+      ctx.grant()
+      const first = await ctx.claim()
+      const old = await first.json<SelfServeIssueResponse>()
+      await (state === 'used'
+        ? ctx.present(old.uid)
+        : db()
+            .update(members)
+            .set(state === 'revoked' ? { status: 'revoked' } : { validUntil: NOW - 1 })
+            .where(eq(members.attestationUid, old.uid)))
+      const responses = await Promise.all(state === 'concurrent' ? [ctx.claim(), ctx.claim()] : [ctx.claim()])
+      const passes = await Promise.all(
+        responses.map(async (response) => await response.json<SelfServeIssueResponse>()),
+      )
+      const [replacement] = passes
+      expect(responses.map((response) => response.status)).toStrictEqual(
+        state === 'concurrent' ? [200, 200] : [200],
+      )
+      expect(replacement?.uid === old.uid).toBe(state === 'used')
+      expect(passes.every((pass) => pass.uid === replacement?.uid)).toBe(true)
+      await expect(db().select().from(cardAddressPasses)).resolves.toMatchObject([
+        { attestationUid: replacement?.uid },
+      ])
+      const current = await db().select().from(cards).get()
+      const issued = await db().select().from(members)
+      const used = await db().select().from(slots)
+      expect({ issued: issued.length, reserved: current?.reserved, used: used.length }).toStrictEqual({
+        issued: state === 'used' ? 1 : 2,
+        reserved: state === 'used' ? 1 : 2,
+        used: state === 'used' ? 1 : 0,
+      })
+    },
+  )
 
   it('fails closed without evidence or readable chain', async () => {
     const ctx = await setup()

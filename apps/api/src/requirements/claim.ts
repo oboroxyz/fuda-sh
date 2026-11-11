@@ -3,6 +3,8 @@ import type { RequirementKind, RequirementUnmet, SelfServeIssueResponse } from '
 import { and, eq } from 'drizzle-orm'
 import type { Hex } from 'viem'
 
+import { walletValidity } from '../pass/wallet-status.ts'
+
 import type { ChainClient } from '../chain/client.ts'
 import { ZERO_ADDRESS } from '../chain/client.ts'
 import type { Db } from '../db/client.ts'
@@ -67,18 +69,46 @@ export const existingAddressPass = async (
       }
 }
 
+export const addressPassOver = async (db: Db, uid: Hex, now: number): Promise<boolean> => {
+  const row = await db.select().from(members).where(eq(members.attestationUid, uid)).get()
+  if (row === undefined) {
+    return false
+  }
+  const { status } = await walletValidity(db, uid, row, now)
+  return status === 'expired' || status === 'revoked'
+}
+
 const evidenceRows = (db: Db, evidence: Evidence[], uid: Hex) =>
   evidence.map((entry, position) =>
     db.insert(passEvidence).values({ ...entry, attestationUid: uid, position }),
   )
 
-export const claimRows = (db: Db, cardId: string, address: Hex, evidence: Evidence[], uid: Hex) => [
+export const claimRows = (
+  db: Db,
+  cardId: string,
+  address: Hex,
+  evidence: Evidence[],
+  uid: Hex,
+  previous?: Hex,
+) => [
+  ...(previous === undefined
+    ? []
+    : [
+        db
+          .delete(cardAddressPasses)
+          .where(
+            and(
+              eq(cardAddressPasses.cardId, cardId),
+              eq(cardAddressPasses.address, address.toLowerCase()),
+              eq(cardAddressPasses.attestationUid, previous),
+            ),
+          ),
+      ]),
   db.insert(cardAddressPasses).values({ address: address.toLowerCase(), attestationUid: uid, cardId }),
   ...evidenceRows(db, evidence, uid),
 ]
 
-// An address keeps its one pass. When the agreement behind that pass ended and the asset owner
-// granted another, the pass takes the new evidence instead of being issued again.
+// A usable pass takes new evidence when the asset owner grants another agreement.
 export const renewEvidence = async (
   db: Db,
   chain: ChainClient,
