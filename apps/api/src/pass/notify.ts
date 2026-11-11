@@ -3,6 +3,7 @@ import {
   googleConfigFrom,
   patchGoogleBadgeModules,
   patchGoogleGenericObject,
+  patchGoogleStatus,
 } from '@fuda/pass'
 import type { GoogleConfig } from '@fuda/pass'
 import type { Hex, StampSummary } from '@fuda/sdk'
@@ -18,6 +19,7 @@ import type { PassScope, PushTarget } from './apple-registrations.ts'
 import { appleWebServiceFrom } from './apple-web-service.ts'
 import type { AppleWebService } from './apple-web-service.ts'
 import { loadWalletMember } from './wallet-members.ts'
+import { walletValidity } from './wallet-status.ts'
 
 const sameDisplay = (left: StampSummary, right: StampSummary): boolean =>
   left.enabled === right.enabled &&
@@ -32,6 +34,17 @@ const syncGooglePass = async (c: Context<AppEnv>, cfg: GoogleConfig, uid: Hex): 
     const request = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
       await fetch(input, { ...init, signal })
     const accessToken = await googleAccessToken(cfg, c.get('now')(), request)
+    const member = await loadWalletMember(c.get('db'), uid)
+    if (member === undefined) {
+      return
+    }
+    await patchGoogleStatus(
+      cfg,
+      uid,
+      await walletValidity(c.get('db'), uid, member, c.get('now')()),
+      accessToken,
+      request,
+    )
     // Read after OAuth so an older, delayed job also observes credits committed
     // by newer receptions before either one patches the saved object.
     let summary = await readStampSummary(c.get('db'), uid, c.get('now')())
