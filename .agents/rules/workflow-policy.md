@@ -23,8 +23,8 @@ Every change reaches `main` through a pull request. Merge with a merge commit, n
 A feature that spans several pull requests uses one integration branch:
 
 1. Create `feat/<topic>` from `main`. Record any architectural decision in the document it belongs to first.
-2. Base every pull request on `feat/<topic>`, not on another pull request's branch. One that needs another's code waits until that code is merged there. Merge `main` in when it moves.
-3. Review and merge each pull request into `feat/<topic>`.
+2. Base each pull request on `feat/<topic>`. One that needs another's unmerged code may be based on that pull request's branch, one level deep at most. Merge `main` in when it moves.
+3. Review and merge each pull request into `feat/<topic>`, bottom-up: merge the lower one first, retarget the upper one to `feat/<topic>`, then merge it. A pull request is merged only while its base is `feat/<topic>`.
 4. Open one pull request from `feat/<topic>` to `main`. Run the full checks and an independent review of the combined change, then merge. Delete the branch last.
 
 ## Verification
