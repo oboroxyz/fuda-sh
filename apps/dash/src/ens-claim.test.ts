@@ -52,6 +52,12 @@ describe(initialClaimState, () => {
 describe(reconcileClaimState, () => {
   const unclaimed: EnsClaimView = { claimTxHash: null, expiry: null, name: NAME, status: 'unclaimed' }
 
+  it('offers a fresh claim when a previously claimed name lapses', () => {
+    expect(
+      reconcileClaimState({ claimTxHash: TX, kind: 'claimed', name: NAME }, unclaimed, null),
+    ).toStrictEqual({ kind: 'unclaimed' })
+  })
+
   it('preserves a busy claim across a same-name issuer refresh', () => {
     expect(reconcileClaimState({ kind: 'signing' }, unclaimed, null)).toStrictEqual({ kind: 'signing' })
     expect(reconcileClaimState({ kind: 'submitting', name: NAME }, unclaimed, null)).toStrictEqual({

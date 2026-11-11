@@ -16,6 +16,7 @@ import {
   signClaimVoucher,
 } from '../ens/claim.ts'
 import type { ClaimConfig } from '../ens/claim.ts'
+import { isCurrentlyClaimed } from '../ens/claimed.ts'
 import { mirrorIssuerName } from '../ens/mirror.ts'
 import { issuerEnsName } from '../ens/names.ts'
 import { sponsorable } from '../ens/paymaster.ts'
@@ -115,7 +116,7 @@ const claimRoute = (run: (c: Context<AppEnv>, context: ClaimContext) => Promise<
 // POST /ens/paymaster (docs/specs/ens-naming.md#issuer-claim-and-renewal).
 export const postV1IssuersMeEnsClaimVoucher = claimRoute(async (c, { config, issuer, owner }) => {
   const existing = await claimed(c, config, issuer.handle)
-  if (existing?.status === 'claimed') {
+  if (isCurrentlyClaimed(existing, c.get('now')())) {
     return errorResponse(c, 'already_claimed', 409)
   }
   const delegation = await deploymentDelegation(c)

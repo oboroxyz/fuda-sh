@@ -23,6 +23,7 @@ import { defineHandler } from 'void'
 import { createOperatorSession, sessionIssuerId } from '../auth/session.ts'
 import { configuredBadgeKinds } from '../badges/verifier.ts'
 import { cards, issuers } from '../db/schema.ts'
+import { isCurrentlyClaimed } from '../ens/claimed.ts'
 import { issuerEnsName } from '../ens/names.ts'
 import { ensNames } from '../ens/schema.ts'
 import type { AppEnv } from '../env.ts'
@@ -50,13 +51,14 @@ const ensView = async (c: Context<AppEnv>, handle: string): Promise<EnsClaimView
     return null
   }
   const row = await c.get('db').select().from(ensNames).where(eq(ensNames.name, name)).get()
+  const live = isCurrentlyClaimed(row, c.get('now')())
   const storedHash = row?.claimTxHash ?? null
   const claimTxHash = storedHash === null ? null : asHex(storedHash, 32)
   return {
-    claimTxHash: row?.status === 'claimed' ? claimTxHash : null,
-    expiry: row?.status === 'claimed' ? (row.expiry ?? null) : null,
+    claimTxHash: live ? claimTxHash : null,
+    expiry: live ? (row?.expiry ?? null) : null,
     name,
-    status: row?.status === 'claimed' ? 'claimed' : 'unclaimed',
+    status: live ? 'claimed' : 'unclaimed',
   }
 }
 

@@ -4,6 +4,7 @@ import type { Address } from 'viem'
 
 import type { Db } from '../db/client.ts'
 import { issuers } from '../db/schema.ts'
+import { isCurrentlyClaimed } from './claimed.ts'
 import { issuerEnsName, memberEnsName, parseFudaEnsName } from './names.ts'
 import { ensNames } from './schema.ts'
 
@@ -58,13 +59,18 @@ export const lookupEnsName = async (db: Db, input: LookupInput): Promise<EnsLook
   // A claimed name, even one that has since lapsed, never falls back here:
   // once claimed, the namespace answers from the chain or not at all
   // (docs/specs/ens-naming.md#append-only-claim-marker).
-  if (parsed.kind === 'issuer' && (row === undefined || PENDING_CLAIM.has(row.status))) {
+  if (
+    parsed.kind === 'issuer' &&
+    (row === undefined || (PENDING_CLAIM.has(row.status) && row.claimTxHash === null))
+  ) {
     return await unclaimedIssuer(db, parsed.issuerHandle)
   }
   if (
     row === undefined ||
-    (row.status !== 'offchain' && row.status !== 'claimed') ||
-    (row.expiry !== null && input.now > row.expiry)
+    !(
+      isCurrentlyClaimed(row, input.now) ||
+      (row.status === 'offchain' && (row.expiry === null || input.now <= row.expiry))
+    )
   ) {
     return null
   }

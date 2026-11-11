@@ -1,5 +1,5 @@
 import { isMemberNumber } from '@fuda/sdk'
-import { and, eq, inArray, ne } from 'drizzle-orm'
+import { and, eq, inArray, lte, ne, or } from 'drizzle-orm'
 import type { Hex } from 'viem'
 
 import type { Db } from '../db/client.ts'
@@ -101,10 +101,13 @@ export const mirrorIssuerName = async (db: Db, input: IssuerNameInput): Promise<
     return
   }
   // A voucher request can race a successful confirmation after its initial
-  // status read. Once claimed, only another confirmed write may update it.
+  // status read. Protect a live claim while allowing re-registration after expiry.
   await insert.onConflictDoUpdate({
-    set: row,
-    setWhere: ne(ensNames.status, 'claimed'),
+    set: { ...row, claimTxHash: ensNames.claimTxHash, expiry: ensNames.expiry },
+    setWhere: or(
+      ne(ensNames.status, 'claimed'),
+      input.status === 'voucher_issued' ? lte(ensNames.expiry, input.now) : undefined,
+    ),
     target: ensNames.name,
   })
 }
