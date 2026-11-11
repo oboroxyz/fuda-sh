@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import type { Result } from './api.ts'
 import { claimIsBusy, initialClaimState, reconcileClaimState, runClaim } from './ens-claim.ts'
 import type { ClaimIo, ClaimState, ClaimVoucher, ClaimVoucherResponse } from './ens-claim.ts'
+import type { PendingEnsClaim } from './ens-pending.ts'
 
 const TX: Hex = `0x${'ab'.repeat(32)}`
 const NAME = 'wassie-coffee.fuda.eth'
@@ -26,7 +27,8 @@ const io = (overrides: Partial<ClaimIo> = {}): ClaimIo => ({
     await Promise.resolve(ok<EnsClaimView>({ claimTxHash: TX, expiry: 3000, name: NAME, status: 'claimed' })),
   requestVoucher: async () =>
     await Promise.resolve(ok<ClaimVoucherResponse>({ chainId: 11_155_111, name: NAME, voucher: VOUCHER })),
-  submitClaim: async () => await Promise.resolve(TX),
+  resolveBundle: async () => await Promise.resolve({ kind: 'settled', txHash: TX }),
+  submitClaim: async () => await Promise.resolve('bundle-1'),
   ...overrides,
 })
 
@@ -67,12 +69,12 @@ describe(reconcileClaimState, () => {
   })
 
   it('preserves an in-memory receipt when storage is unavailable', () => {
-    const state: ClaimState = { failure: 'unconfirmed', kind: 'failed', name: NAME, txHash: TX }
+    const state: ClaimState = { kind: 'pending', pending: { name: NAME, txHash: TX } }
     expect(reconcileClaimState(state, unclaimed, null)).toBe(state)
   })
 
   it('lets authoritative claimed, unavailable, or renamed ENS replace local work', () => {
-    const state: ClaimState = { failure: 'unconfirmed', kind: 'failed', name: NAME, txHash: TX }
+    const state: ClaimState = { kind: 'pending', pending: { name: NAME, txHash: TX } }
     expect(reconcileClaimState(state, null, null)).toStrictEqual({ kind: 'unclaimed' })
     expect(reconcileClaimState(state, { ...unclaimed, name: 'other.fuda.eth' }, null)).toStrictEqual({
       kind: 'unclaimed',
@@ -127,10 +129,8 @@ describe(runClaim, () => {
     })
 
     expect(final).toStrictEqual({
-      failure: 'unconfirmed',
-      kind: 'failed',
-      name: 'wassie-coffee.fuda.eth',
-      txHash: TX,
+      kind: 'pending',
+      pending: { name: NAME, txHash: TX },
     })
     expect(seen.at(-2)?.kind).toBe('confirming')
   })
@@ -157,7 +157,7 @@ describe(runClaim, () => {
   })
 
   it('discards a proven failed transaction so the next retry can start fresh', async () => {
-    let pending: { name: string; txHash: Hex } | null = { name: NAME, txHash: TX }
+    let pending: PendingEnsClaim | null = { name: NAME, txHash: TX }
     const final = await runClaim(
       io({
         confirmClaim: async () =>
@@ -171,6 +171,66 @@ describe(runClaim, () => {
     )
     expect(final).toStrictEqual({ failure: 'unconfirmed', kind: 'failed' })
     expect(pending).toBeNull()
+  })
+
+  it('persists the bundle before polling and resumes after timeout without resubmission', async () => {
+    const saved: (PendingEnsClaim | null)[] = []
+    const pending = { bundleId: 'bundle-1', name: NAME }
+    const final = await runClaim(
+      io({
+        resolveBundle: async () => {
+          expect(saved).toStrictEqual([pending])
+          return await Promise.resolve({ kind: 'pending' })
+        },
+      }),
+      () => {},
+      undefined,
+      (next) => {
+        saved.push(next)
+      },
+    )
+    expect(final).toStrictEqual({ kind: 'pending', pending })
+    const resumed = await runClaim(
+      io({
+        requestVoucher: async () => await Promise.reject(new Error('must not request another voucher')),
+        submitClaim: async () => await Promise.reject(new Error('must not submit again')),
+      }),
+      () => {},
+      pending,
+      (next) => {
+        saved.push(next)
+      },
+    )
+    expect(resumed.kind).toBe('claimed')
+    expect(saved).toStrictEqual([pending, { name: NAME, txHash: TX }, null])
+  })
+
+  it('keeps the bundle after a wallet transport failure', async () => {
+    const pending = { bundleId: 'bundle-1', name: NAME }
+    const final = await runClaim(
+      io({
+        resolveBundle: async () => await Promise.reject(new Error('offline')),
+      }),
+      () => {},
+      pending,
+    )
+    expect(final).toStrictEqual({ kind: 'pending', pending })
+  })
+
+  it('clears a definitively failed bundle', async () => {
+    const saved: (PendingEnsClaim | null)[] = []
+    const final = await runClaim(
+      io({
+        resolveBundle: async () => await Promise.resolve({ kind: 'reverted' }),
+      }),
+      () => {},
+      { bundleId: 'bundle-1', name: NAME },
+      (next) => {
+        saved.push(next)
+      },
+    )
+    expect(final).toStrictEqual({ failure: 'unconfirmed', kind: 'failed' })
+    expect(saved).toStrictEqual([null])
   })
 
   it('does not submit anything when the voucher never arrives', async () => {

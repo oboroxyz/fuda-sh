@@ -253,6 +253,8 @@ export interface DashCopy {
     retry: string
     signing: string
     submitting: string
+    pending: string
+    recheck: string
     confirming: string
     claimedLabel: string
     explorer: string
@@ -712,6 +714,8 @@ export const DASH_COPY = {
       retry: 'Try again',
       signing: 'Preparing the claim…',
       submitting: 'Confirm in your wallet…',
+      pending: 'Your claim is pending. You can check again later.',
+      recheck: 'Check claim',
       confirming: 'Waiting for the chain…',
       claimedLabel: 'Claimed',
       explorer: 'View on Sepolia Etherscan',
@@ -721,7 +725,7 @@ export const DASH_COPY = {
         undelegated: 'Names cannot be claimed right now. Please try again later.',
         unconfigured: 'ENS names are not switched on for this deployment yet.',
         unsponsored: 'The transaction fee could not be covered. Please try again shortly.',
-        unconfirmed: 'The claim has not appeared on chain yet. Wait a moment and press the button again.',
+        unconfirmed: 'The claim failed. Please try again.',
       },
     },
     published: {
@@ -1173,6 +1177,8 @@ export const DASH_COPY = {
       retry: 'もう一度試す',
       signing: '取得の準備をしています…',
       submitting: 'ウォレットで承認してください…',
+      pending: '名前の取得を確認中です。しばらくしてから再確認できます。',
+      recheck: '取得状況を確認',
       confirming: 'チェーンの確認を待っています…',
       claimedLabel: '取得済み',
       explorer: 'Sepolia Etherscanで確認',
@@ -1182,7 +1188,7 @@ export const DASH_COPY = {
         undelegated: '現在は名前を取得できません。しばらくしてからもう一度試してください。',
         unconfigured: 'この環境では ENS 名がまだ有効になっていません。',
         unsponsored: '手数料を負担できませんでした。少し待ってからもう一度試してください。',
-        unconfirmed: 'チェーン上にまだ現れていません。少し待ってからボタンを押してください。',
+        unconfirmed: '名前を取得できませんでした。もう一度試してください。',
       },
     },
     published: {
