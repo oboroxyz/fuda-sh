@@ -172,6 +172,7 @@ const LoadedCardEditor = (props: EditorProps): JSX.Element => {
         </p>
       ) : null}
       {savedCard.identity !== 'sensitive' &&
+      savedCard.identity !== 'address' &&
       savedCard.category === 'membership' &&
       draft.category === 'membership' ? (
         <StampsOption

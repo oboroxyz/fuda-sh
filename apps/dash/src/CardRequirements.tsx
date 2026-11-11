@@ -10,7 +10,7 @@ import { settled } from './network-result.ts'
 import { useCopyText } from './use-copy-text.ts'
 
 export const CardRequirements = (props: { card: CardView; copy: DashCopy }): JSX.Element => (
-  <section class="card flex min-w-0 flex-col gap-3 p-5">
+  <section class="card dash-no-print flex min-w-0 flex-col gap-3 p-5">
     <h2 class="text-lg font-semibold">{props.copy.requirements.title}</h2>
     {props.card.requirements?.map((requirement) => (
       <dl key={`${requirement.registry}/${requirement.assetId}`} class="flex min-w-0 flex-col gap-2 text-sm">
@@ -107,7 +107,7 @@ export const CardApplicants = (props: {
   const clipboard = useCopyText()
   const labels = props.copy.requirements
   return (
-    <section class="card flex min-w-0 flex-col gap-3 p-5">
+    <section class="card dash-no-print flex min-w-0 flex-col gap-3 p-5">
       <h2 class="text-lg font-semibold">{labels.applicants}</h2>
       <p class="text-sm">{labels.warning}</p>
       {page?.applicants.length === 0 ? <p>{labels.empty}</p> : null}
