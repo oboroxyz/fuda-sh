@@ -71,7 +71,7 @@ describe.each(['artwork', 'poster'] as const)('Pass %s section', (kind) => {
       expect(host.querySelector('[role=alert]')?.textContent).toBe(DASH_COPY.en.logo.rejections.type)
     })
     expect(fetch).not.toHaveBeenCalled()
-    expect(button(host, DASH_COPY.en.management.save).disabled).toBe(true)
+    expect(button(host, DASH_COPY.en.artwork.save).disabled).toBe(true)
   })
 
   it('refuses an undersized crop before uploading', async () => {
@@ -121,12 +121,12 @@ describe.each(['artwork', 'poster'] as const)('Pass %s section', (kind) => {
     const host = root.querySelector<HTMLElement>(`[data-testid=card-${kind}]`)!
     choose(host, new File(['png'], 'art.png', { type: 'image/png' }))
     await vi.waitFor(() => {
-      expect(button(host, DASH_COPY.en.management.save).disabled).toBe(false)
+      expect(button(host, DASH_COPY.en.artwork.save).disabled).toBe(false)
     })
     expect([...host.querySelectorAll('figcaption')].map((item) => item.textContent)).toStrictEqual(
       kind === 'artwork' ? ['Apple Wallet', 'Google Wallet'] : [],
     )
-    button(host, DASH_COPY.en.management.save).click()
+    button(host, DASH_COPY.en.artwork.save).click()
     await vi.waitFor(() => {
       expect(host.querySelector('img')?.getAttribute('src')).toContain(`/assets/${kind}/123/${variant}`)
     })

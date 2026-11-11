@@ -239,6 +239,11 @@
   @apply mb-2 flex aspect-[1.586/1] w-full max-w-sm min-w-0 flex-col justify-between gap-4 rounded-2xl p-6 [overflow-wrap:anywhere] shadow-lg;
 }
 
+/* A banner adds a row the 1.586:1 card shape has no room for, so that card grows instead. */
+.dash-card-preview[data-artwork] {
+  aspect-ratio: auto;
+}
+
 .dash-card-preview-top {
   @apply flex items-center justify-between gap-3 text-xs font-semibold tracking-widest uppercase;
 }

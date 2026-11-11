@@ -45,6 +45,9 @@ const WalletArtworkPreview = (props: { card: OperatorCardView; issuer: IssuerVie
   )
 }
 
+// Wallet formats the issue date in the device's locale, so the sample does too.
+const ISSUED_SAMPLE = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' })
+
 const ApplePosterPreview = (props: { card: OperatorCardView; issuer: IssuerView; url: string }) => (
   <figure class="relative aspect-[358/448] w-full max-w-80 overflow-hidden rounded-2xl bg-black text-white">
     <img alt="" class="absolute inset-0 size-full object-cover" src={assetUrlForDisplay(props.url)} />
@@ -57,8 +60,8 @@ const ApplePosterPreview = (props: { card: OperatorCardView; issuer: IssuerView;
     <strong class="relative block px-4 text-xl">{props.card.title}</strong>
     <div class="absolute inset-x-0 bottom-0 flex items-center justify-between bg-black/50 p-4 backdrop-blur-sm">
       <div class="text-xs">
-        <p class="font-mono">XXXX-XXXX-XXXXX</p>
-        <p>2026-01-01</p>
+        <p class="font-mono">ABCD-E123-F5679</p>
+        <p>{ISSUED_SAMPLE.format(new Date())}</p>
       </div>
       <div class="[&>svg]:size-16">
         <PreviewQr />
@@ -225,7 +228,7 @@ const CardImageSection = (props: ArtworkSectionProps & { kind: 'artwork' | 'post
               void save(false)
             }}
           >
-            {props.copy.management.save}
+            {props.copy.artwork.save}
           </button>
           <button
             class="btn btn-ghost btn-sm"
