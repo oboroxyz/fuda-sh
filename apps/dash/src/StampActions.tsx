@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 
 import type { DashCopy } from './copy.ts'
 import { settled } from './network-result.ts'
+import { useLifetime } from './use-lifetime.ts'
 
 export interface StampIo {
   adjust: (uid: Hex, delta: number, note: string, requestId: string) => Promise<Result<StampActionResponse>>
@@ -18,6 +19,8 @@ export interface StampActionsProps {
   createRequestId?: () => string
   io: StampIo
   onDone: () => void
+  onPending: (pending: boolean) => void
+  requestIds: Map<string, string>
   summary: StampSummary
   uid: Hex
 }
@@ -250,15 +253,14 @@ export const StampActions = (props: StampActionsProps): JSX.Element => {
   const [failure, setFailure] = useState<Failure | null>(null)
   const [done, setDone] = useState<'adjust' | 'reward' | null>(null)
   const busyNow = useRef(false)
-  const mounted = useRef(true)
-  const pendingId = useRef<{ key: string; requestId: string } | null>(null)
+  const { mounted, revision } = useLifetime()
 
   useEffect(() => {
-    mounted.current = true
+    const ticket = revision.current
     void (async () => {
       try {
         const loaded = await props.io.ledger(props.uid)
-        if (mounted.current && loaded.ok) {
+        if (mounted.current && revision.current === ticket && loaded.ok) {
           setEntries(loaded.body.entries)
           setSummary(loaded.body.summary)
         }
@@ -266,9 +268,6 @@ export const StampActions = (props: StampActionsProps): JSX.Element => {
         // The scan result already shows the count; the history is a convenience.
       }
     })()
-    return () => {
-      mounted.current = false
-    }
   }, [])
 
   const run = (key: string, call: (requestId: string) => Promise<Result<StampActionResponse>>): void => {
@@ -277,11 +276,12 @@ export const StampActions = (props: StampActionsProps): JSX.Element => {
     }
     busyNow.current = true
     setBusy(true)
+    props.onPending(true)
     setFailure(null)
     setDone(null)
-    const pending = pendingId.current?.key === key ? pendingId.current : { key, requestId: newRequestId() }
-    pendingId.current = pending
-    const { requestId } = pending
+    const identity = JSON.stringify([props.uid, key])
+    const requestId = props.requestIds.get(identity) ?? newRequestId()
+    props.requestIds.set(identity, requestId)
     void (async () => {
       const outcome = await settled(async () => await call(requestId))
       if (!mounted.current) {
@@ -289,8 +289,10 @@ export const StampActions = (props: StampActionsProps): JSX.Element => {
       }
       busyNow.current = false
       setBusy(false)
+      props.onPending(false)
       if (outcome.ok) {
-        pendingId.current = null
+        props.requestIds.delete(identity)
+        revision.current += 1
         setEntries(outcome.body.entries)
         setSummary(outcome.body.summary)
         setMode('idle')
@@ -301,7 +303,7 @@ export const StampActions = (props: StampActionsProps): JSX.Element => {
         return
       }
       if (!outcome.network) {
-        pendingId.current = null
+        props.requestIds.delete(identity)
       }
       setFailure(outcome.network ? 'network' : failureOf(outcome.error))
     })()
@@ -328,7 +330,6 @@ export const StampActions = (props: StampActionsProps): JSX.Element => {
     if (!busy) {
       setMode('idle')
       setFailure(null)
-      pendingId.current = null
       props.onDone()
     }
   }

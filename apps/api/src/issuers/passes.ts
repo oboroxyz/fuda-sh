@@ -44,8 +44,8 @@ const CardStatsResultRow = v.object({
   unknown: v.number(),
 })
 
-// This precedence mirrors local gate behavior while staying explicit that old
-// rows with no issuance snapshot have an unknown operational state.
+// Keep this CASE in the order of SDK rightStatus; passes.test.ts compares every
+// combination against that evaluator, including filtering and summary counts.
 const PASS_ROWS = `
   SELECT
     m.attestation_uid AS uid,
@@ -61,6 +61,9 @@ const PASS_ROWS = `
     c.category AS cardCategory,
     CASE
       WHEN m.status = 'revoked' THEN 'revoked'
+      WHEN CAST(json_extract(o.signed, '$.message.expirationTime') AS INTEGER) != 0
+        AND ? > CAST(json_extract(o.signed, '$.message.expirationTime') AS INTEGER) THEN 'expired'
+      WHEN m.usage_model > 2 THEN 'unknown'
       WHEN m.valid_from IS NULL OR m.valid_until IS NULL OR m.usage_model IS NULL THEN 'unknown'
       WHEN m.valid_from != 0 AND ? < m.valid_from THEN 'not_yet_valid'
       WHEN m.valid_until != 0 AND ? > m.valid_until THEN 'expired'
@@ -70,6 +73,7 @@ const PASS_ROWS = `
       ELSE 'active'
     END AS status
   FROM members m
+  LEFT JOIN offchain_attestations o ON o.uid = m.attestation_uid
   LEFT JOIN cards c ON c.id = m.card_id AND c.issuer_id = m.issuer_id
   WHERE m.issuer_id = ?
 `
@@ -120,7 +124,7 @@ export const readIssuerPasses = async (
   filters: IssuerPassFilters,
 ): Promise<IssuerPassesResponse> => {
   const filtered = filteredWhere(filters)
-  const baseParams = [now, now, issuerId] as const
+  const baseParams = [now, now, now, issuerId] as const
   const stampTotals = `
     SELECT issuer_id, uid, SUM(stamps) AS stamps FROM (
       SELECT issuer_id, uid, COUNT(*) AS stamps FROM stamp_credits WHERE issuer_id = ? GROUP BY issuer_id, uid

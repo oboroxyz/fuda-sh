@@ -1,4 +1,4 @@
-import type { PassBranding } from '@fuda/pass'
+import type { PassBranding, PassValidity } from '@fuda/pass'
 import { TIER_LABEL, toQr } from '@fuda/sdk'
 import type { Level, Reason, StampSummary } from '@fuda/sdk'
 import type { Hex } from 'viem'
@@ -12,8 +12,7 @@ export interface PassRow {
   branding: PassBranding | null
   // where the venue's logo objects live, for the builders that embed bytes
   logoPrefix: string | null
-  // fuda's record of a revocation, which every revoke path writes, on-chain and offchain
-  revoked: boolean
+  validity: PassValidity
 }
 
 // null = the chain could not be read at render time.

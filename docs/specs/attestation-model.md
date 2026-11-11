@@ -194,6 +194,8 @@ At verify time the gate loads the Entitlement's `refUID` and requires that it is
 
 `WRONG_VENUE` is not in this table because it precedes it: a `POST /verify` that names a `venue` is checked against the issuer behind the uid before the chain is read (see [Venues](#offchain-rights)). Every chain error fails closed. `LEVEL_REQUIRED` is checked before slot consumption, so a photographed Signed pass cannot burn its SINGLE_USE slot. `GET /verify/:uid` reports the level but never rejects on it: it is a read-only preview that answers "is this right valid?", not "may it enter by QR?".
 
+The SDK's pure `rightStatus(facts, now)` owns the shared validity precedence. It returns both the operational status and its gate reason, using only supplied facts. Known revocation precedes EAS expiry, unsupported usage model, missing snapshot metadata, the start and end bounds, and single-use consumption. API adapters retain authentication, delegation, level and atomic slot checks in the order above. The dashboard mirrors the evaluator in SQL for filtering and paging, with exhaustive agreement tests. It reads offchain expiry from the stored signed JSON but has neither on-chain EAS expiry nor external revocation in its member snapshot. Stamp ledger mutations refuse only a locally revoked Right; they remain bookkeeping operations and permit corrections after expiry or consumption.
+
 ### Offchain rights
 
 A Card's `record` is `offchain` or `onchain`, set when the Card is created and fixed afterwards, because a right cannot move between the two without a new UID. New Cards default to `offchain`. A Card made before this existed stays `onchain`, and the on-chain lifecycle above applies to it unchanged.
@@ -218,8 +220,8 @@ The schema is `string venue,string card,string memberNumber,uint8 usageModel,uin
 | the signature recovers | `BAD_SIGNATURE` |
 | the signer is this deployment's current signer or a listed retired signer | `ISSUER_NOT_DELEGATED` |
 | schema is the offchain pass schema; signed venue and card match the row | `WRONG_SCHEMA` |
-| `expirationTime` and the validity window | `EXPIRED` / `UNKNOWN_USAGE_MODEL` / `NOT_YET_VALID` |
 | `EAS.getRevokeOffchain(originalSigner, uid) == 0`, and also under the current signer if different | `REVOKED` |
+| `expirationTime`, usage model, then validity window, as in the on-chain table | `EXPIRED` / `UNKNOWN_USAGE_MODEL` / `NOT_YET_VALID` |
 
 `IssuerDelegation` is not consulted. The level and slot checks that follow are the same as for an on-chain right, so a bare QR of an Identified pass answers `LEVEL_REQUIRED`. A Standard pass has no key to sign with, so `POST /verify-signed` answers it `BAD_SIGNATURE`.
 
@@ -231,7 +233,7 @@ The key is readable by anyone with the UID, through `GET /pass/:uid/backup`. Two
 
 **Presenting a Sensitive pass.** `POST /verify-signed` takes `{ uid, nonce, signature }`, an EIP-191 signature over `fuda-gate:<uid>:<nonce>` by the pass's own key. The api recovers the address and compares it with `holderKey`, and reads no chain for this step, so a contract signature cannot answer. A WebAuthn answer for this pass, or any other key's signature, is `BAD_SIGNATURE`, after the challenge is consumed. Keys are unique to the pass, so `holderKey` ties it to nothing else.
 
-**The chain cannot be read.** A SINGLE_USE right answers `502 chain_error` without consuming its slot. So does a Sensitive pass. Any other right is admitted with `unconfirmed: true` in the verdict. `members.status` is checked before the chain, so a pass revoked through fuda stays rejected. A revocation made directly on chain, outside fuda, is not seen until the chain can be read.
+**The chain cannot be read.** A locally invalid right still rejects with its known validity reason. An otherwise valid SINGLE_USE right answers `502 chain_error` without consuming its slot. So does a Sensitive pass. Any other right is admitted with `unconfirmed: true` in the verdict. `members.status` is checked before the chain, so a pass revoked through fuda stays rejected. A revocation made directly on chain, outside fuda, is not seen until the chain can be read.
 
 **Revoking.** `POST /revoke` and `revoke_pass` set `members.status` first, then read `getRevokeOffchain` and send `revokeOffchain` if it is unset. A failed transaction does not undo the D1 change, and the call still answers `{ revoked: true }`: the gate rejects at once, and `offchain_attestations.revoke_tx` stays NULL until the record lands. A job sends what is behind every 15 minutes, up to 20 passes a run, one transaction each, and stops at the first failure. Calling revoke again also sends it. `revoke_tx` holds the zero hash when the chain already showed the revocation.
 
@@ -381,6 +383,8 @@ Issuance is synchronous: the endpoint submits the attestation transaction and wa
 
 **`POST /issuers/:handle/:slug/issue`** is the self-serve Bearer path behind `fuda.sh/@<handle>/<slug>` (docs/specs/pass-types-and-flows.md#issuer-onboarding-and-the-handle-route). Its body accepts an optional `{ source, turnstileToken }` label and bot-check token ([capacity and source](./pass-types-and-flows.md#capacity-and-source)): the card fixes `tier` (0), `usageModel` (`SINGLE_USE` for a `ticket`, `MULTI_USE` otherwise) and the validity window — `validUntil` = claim time plus `validity_days` for a relative card, the card's own `valid_from`/`valid_until` for an absolute one, and 0 for a card that never expires. A claim outside the card's claim window answers `409 card_closed` before anything is attested. A Sensitive Card takes `{ holderAddress }` and no account credentials. A passkey Card also takes `{ webauthn }` and a member session; see [claiming an Identified pass](./pass-types-and-flows.md#claiming-an-identified-pass). The api generates the member number, derives the holder exactly as the admin Bearer path does (nonce preimage = the member number), attests, and answers the Bearer `/issue` shape plus `memberNumber`.
 
+Wallet presentations derive status through SDK `rightStatus` from stored facts, including default Slot consumption and signed offchain expiry. They are not a live chain validity check. Platform mappings and update limits are defined under [Passes](./pass-types-and-flows.md#passes).
+
 All three `passUrls` are absolute against `API_BASE_URL` and always present, even where a wallet platform is unconfigured (that route answers `501`).
 
 **`POST /revoke`** takes `{ "uid": "0x…64" }`, calls `revoke(entitlementSchemaUid, uid)` on EAS, then marks the member row `revoked`. Response `{ "revoked": true, "uid" }`. Errors: `400 bad_uid`, `501 no_signer`, `502 chain_error` (an unknown UID reverts on EAS and surfaces here; the member row is left untouched). A UID already revoked on chain skips the transaction and marks the row, so a retry after a lost answer ends in the same state.
@@ -484,7 +488,7 @@ The member app's `/rights` list combines public holder queries with passes remem
 
 Two writes are deliberately non-atomic across the chain and D1, and each leaves a trace an operator reconciles by hand:
 
-- **Orphan attestation.** `POST /issue` attests first and writes the `members` row last. If the row insert fails, the route answers `502 chain_error`, persists nothing, and logs the uid. The right exists on chain but fuda's ledger does not know it; revoke it by uid from the dashboard, or re-run the issue. A re-run attests a second right, so the orphan is the duplicate to revoke.
+- **Orphan attestation.** `POST /issue` attests first and writes the `members` row last. If the row insert fails, the route answers `502 chain_error`, persists nothing, and logs the uid. If receipt polling fails after broadcast during card issuance, it also answers `chain_error` without a member row and logs the transaction hash, the only handle available until the receipt reveals the uid. A card keeps its reserved place for both cases until hand reconciliation. A confirmed revert releases the place. The right exists or may still land on chain without fuda's ledger knowing it; inspect the transaction receipt before retrying, then revoke any orphan by uid from the dashboard, or re-run the issue. A re-run attests a second right, so the orphan is the duplicate to revoke.
 - **Lost `attendance_uid`.** Attendance is attested best-effort after the verdict; if the attest or the write-back fails, the `entry_log` row keeps `attendance_uid = NULL` and the failure is logged. The admission stands; the on-chain evidence is missing for that entry. `SELECT * FROM entry_log WHERE decision = 'ADMIT' AND attendance_uid IS NULL` lists candidates, including admissions of offchain rights, which never attest Attendance.
 
 ### Tests that pin this model

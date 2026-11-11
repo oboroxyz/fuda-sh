@@ -4,6 +4,7 @@ import { and, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import type { Context } from 'hono'
 
 import { ChainError, NoSignerError } from '../chain/client.ts'
+import { UnknownTransactionOutcomeError } from '../chain/unknown-transaction-outcome-error.ts'
 import type { Db } from '../db/client.ts'
 import { cards, members } from '../db/schema.ts'
 import type { issuers } from '../db/schema.ts'
@@ -173,8 +174,11 @@ export const issueForCard = async (
     }
     return { ok: true, pass: { ...issued, level: 'bearer', memberNumber } }
   } catch (error) {
-    // A right already on chain keeps its place, though fuda has no row for it.
-    if (!minted && !(error instanceof OrphanedRightError)) {
+    // A right that exists or may still land keeps its place for reconciliation.
+    if (error instanceof UnknownTransactionOutcomeError) {
+      // oxlint-disable-next-line no-console -- the tx hash is the only handle on a possible right with no member row
+      console.error('attest outcome unknown', { cardId: card.id, txHash: error.txHash })
+    } else if (!minted && !(error instanceof OrphanedRightError)) {
       await releasePlace(ctx.db, card.id)
     }
     if (error instanceof NoSignerError) {
