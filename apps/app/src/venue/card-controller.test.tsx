@@ -1,3 +1,5 @@
+import { setTimeout as delay } from 'node:timers/promises'
+
 import type { Locale } from '@fuda/i18n'
 // @vitest-environment happy-dom
 import type { PassBackup, PublicVenue } from '@fuda/sdk'
@@ -175,6 +177,114 @@ describe('venue controller', () => {
       })
       expect(host.textContent).toContain('iCloud Keychain')
       expect(host.textContent).toContain('Google Password Manager')
+    })
+
+    it('starts one add ceremony and disables both actions while it runs', async () => {
+      const pending = Promise.withResolvers<Awaited<ReturnType<CardSensitiveIo['addPasskey']>>>()
+      const addPasskey = vi.fn<CardSensitiveIo['addPasskey']>(async () => await pending.promise)
+      const claim = vi.fn<CardSensitiveIo['claim']>().mockResolvedValue({ failure: 'no_prf', ok: false })
+      const host = open({ addPasskey, claim })
+      await claimOn(host)
+      await vi.waitFor(() => {
+        expect(host.querySelector('[data-testid="no-prf-guidance"] .btn-primary')).not.toBeNull()
+      })
+      const add = host.querySelector<HTMLButtonElement>('[data-testid="no-prf-guidance"] .btn-primary')!
+      add.click()
+      add.click()
+      expect(addPasskey).toHaveBeenCalledOnce()
+      await vi.waitFor(() => {
+        const buttons = host.querySelectorAll<HTMLButtonElement>('[data-testid="no-prf-guidance"] button')
+        expect([...buttons].every((button) => button.disabled)).toBe(true)
+      })
+      pending.resolve({ ok: false })
+    })
+
+    it('shows a failed add and lets the member retry saving a passkey', async () => {
+      const addPasskey = vi
+        .fn<CardSensitiveIo['addPasskey']>()
+        .mockResolvedValueOnce({ ok: false })
+        .mockResolvedValueOnce({ credentialId: 'new-passkey', ok: true })
+      const claim = vi
+        .fn<CardSensitiveIo['claim']>()
+        .mockResolvedValueOnce({ failure: 'no_prf', ok: false })
+        .mockResolvedValueOnce(issued)
+      const host = open({ addPasskey, claim })
+      await claimOn(host)
+      await vi.waitFor(() => {
+        expect(host.querySelector('[data-testid="no-prf-guidance"] .btn-primary')).not.toBeNull()
+      })
+      host.querySelector<HTMLButtonElement>('[data-testid="no-prf-guidance"] .btn-primary')!.click()
+      await vi.waitFor(() => {
+        expect(host.querySelector('[role="alert"]')?.textContent).toContain('could not save your passkey')
+      })
+      expect(claim).toHaveBeenCalledOnce()
+      host.querySelector<HTMLButtonElement>('[data-testid="no-prf-guidance"] .btn-primary')!.click()
+      await vi.waitFor(() => {
+        expect(host.querySelector(`a[href="/signed?uid=${UID}"]`)).not.toBeNull()
+      })
+      expect(addPasskey).toHaveBeenCalledTimes(2)
+    })
+
+    it.each(['success', 'failure'])('ignores add %s after navigation to another card', async (outcome) => {
+      const pending = Promise.withResolvers<Awaited<ReturnType<CardSensitiveIo['addPasskey']>>>()
+      const claim = vi.fn<CardSensitiveIo['claim']>().mockResolvedValue({ failure: 'no_prf', ok: false })
+      const sensitive = { addPasskey: async () => await pending.promise, claim }
+      const screenIo: CardScreenIo = {
+        ...io(),
+        fetchVenue: async () =>
+          await Promise.resolve({
+            body: {
+              ...sensitiveVenue,
+              cards: [
+                ...sensitiveVenue.cards,
+                { ...sensitiveVenue.cards[0], slug: 'other', title: 'Other card' },
+              ],
+            },
+            ok: true,
+          }),
+      }
+      const host = document.createElement('div')
+      const RouteHost = (): JSX.Element => {
+        const [slug, setSlug] = useState('regular')
+        return (
+          <>
+            <button
+              type="button"
+              data-route
+              onClick={() => {
+                setSlug('other')
+              }}
+            >
+              Change card
+            </button>
+            <CardScreen
+              handle={venue.handle}
+              slug={slug}
+              io={screenIo}
+              sensitive={sensitive}
+              locale="en"
+              signedIn
+            />
+          </>
+        )
+      }
+      render(() => <RouteHost />, host)
+      await claimOn(host)
+      await vi.waitFor(() => {
+        expect(host.querySelector('[data-testid="no-prf-guidance"] .btn-primary')).not.toBeNull()
+      })
+      host.querySelector<HTMLButtonElement>('[data-testid="no-prf-guidance"] .btn-primary')!.click()
+      host.querySelector<HTMLButtonElement>('[data-route]')!.click()
+      await vi.waitFor(() => {
+        expect(host.querySelector('main')?.textContent).toContain('Other card')
+        expect(host.querySelector('[data-testid="no-prf-guidance"]')).toBeNull()
+      })
+      pending.resolve(outcome === 'success' ? { credentialId: 'new-passkey', ok: true } : { ok: false })
+      await pending.promise
+      await delay(0)
+      expect(claim).toHaveBeenCalledOnce()
+      expect(host.querySelector('main')?.textContent).toContain('Other card')
+      expect(host.querySelector('[role="alert"]')).toBeNull()
     })
 
     it('asks the new passkey next, once the guidance has saved one', async () => {
