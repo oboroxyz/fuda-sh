@@ -525,6 +525,10 @@ A right issued under an issuer's card (`members.card_id` set) renders branded: t
 
 The check order on every pass route is bad uid (`400 bad_uid`) → unknown uid (`404 not_found`) → platform configuration, so a `404` never reveals whether a wallet platform is configured.
 
+Wallet builders receive one SDK `rightStatus` derived from fuda's stored revocation, validity window, default Slot consumption and signed offchain EAS expiry. They do not read live chain revocations. Google maps revoked to `INACTIVE`, expired to `EXPIRED`, consumed single-use to `COMPLETED`, and other states to `ACTIVE`. Objects carry `validTimeInterval` so Wallet can expire them without a scheduled push. Each `notifyPassChanged` also patches this state, including revocation without Stamps. A missing Google object is skipped.
+
+Apple marks revoked, expired and consumed passes `voided: true`, with `No longer valid` on the front and back. A future start stays unvoided, shows a `Valid from` date on the back and reads `Not yet valid` in the updatable status field. Unknown facts read `Unknown`. The start is a display field, since Apple's store-card guidance does not support date relevance; `relevantDate` is not a validity gate. Both wallets carry the earlier nonzero validity end or signed EAS expiry, when present; Apple uses `expirationDate`. There is no timer push for date boundaries. Slot consumption alone currently sends no Wallet notification, so installed passes learn consumption on their next regeneration or another pass change.
+
 ### Apple Wallet updates
 
 fuda holds no member email, so an updated Wallet pass is how a member learns of a Stamp, a revocation or a change. Apple calls the moving parts a web service, and each deployment turns them on in two steps:
@@ -557,7 +561,7 @@ fuda holds no member email, so an updated Wallet pass is how a member learns of 
 
 **What the member sees.** Wallet shows an alert only when a field with a `changeMessage` changes value: `Stamps: 3 / 10`, `Badge: Verified human` and `Status: No longer valid`. A branding edit refreshes the pass silently.
 
-**A revoked pass.** It still answers on every route. It carries `voided: true`, a front `STATUS` row and a back `Status` of `No longer valid`, read from fuda's record of the revocation, which every revoke path writes. A pass that can be updated carries `Status: Valid` from the start, so a revocation changes a value Wallet can announce. A snapshot leaves that out, since it could go stale saying so. A revocation made directly on chain without fuda is not shown here, though the gate still rejects it.
+**An invalid pass.** It still answers on every route. Revoked, expired and consumed passes carry the invalid display described above. An updatable active pass carries `Status: Valid` so a later change can be announced. A snapshot omits that field while active because it can become stale. A revocation made directly on chain without fuda is not shown here, though the gate still rejects it.
 
 **A limit of the Worker.** APNs accepts only HTTP/2, and Cloudflare does not document which HTTP version an mTLS binding's `fetch` uses. Whether this route works is therefore known only from a deployment: see [the runbook](../runbook.md#5-apple-wallet-setup).
 

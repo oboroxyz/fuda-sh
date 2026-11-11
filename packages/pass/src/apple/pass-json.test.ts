@@ -25,7 +25,13 @@ const FULL_ENV: AppleEnv = {
   APPLE_WWDR_PEM: 'wwdr',
 }
 
-const INPUT = { holderShort: '0x1234…abcd', qr: `fuda:v1:${UID}`, tierLabel: 'VIP', uid: UID }
+const INPUT = {
+  holderShort: '0x1234…abcd',
+  qr: `fuda:v1:${UID}`,
+  tierLabel: 'VIP',
+  uid: UID,
+  validity: { status: 'active' as const, validFrom: 0, validUntil: 0 },
+}
 
 describe(appleConfigFrom, () => {
   it('reads the five secrets into a config', () => {
@@ -107,6 +113,7 @@ const branded = () =>
       qr: `fuda:v1:0x${'ab'.repeat(32)}`,
       tierLabel: 'FREE',
       uid: `0x${'ab'.repeat(32)}`,
+      validity: INPUT.validity,
     },
   )
 
@@ -156,6 +163,7 @@ describe('branded pass.json', () => {
         qr: `fuda:v1:0x${'ab'.repeat(32)}`,
         tierLabel: 'FREE',
         uid: `0x${'ab'.repeat(32)}`,
+        validity: INPUT.validity,
       },
     )
     expect(json.storeCard.backFields.at(-1)).toStrictEqual({
@@ -197,6 +205,7 @@ describe('branded pass.json', () => {
         stamps: { dailyLimit: 2, enabled: true, goal: 10, today: 1, total: 4 },
         tierLabel: 'VIP',
         uid: UID,
+        validity: INPUT.validity,
       },
     )
     expect(json.storeCard.primaryFields).toStrictEqual([{ key: 'title', value: 'Membership Card' }])
@@ -305,10 +314,47 @@ describe('an updatable or revoked pass', () => {
 
   it('marks a revoked pass void and says so, front and back, even as a snapshot', () => {
     for (const branding of [null, BRANDED]) {
-      const json = passJson(CFG, { ...INPUT, branding, revoked: true })
+      const json = passJson(CFG, {
+        ...INPUT,
+        branding,
+        validity: { status: 'revoked', validFrom: 0, validUntil: 0 },
+      })
       expect(json.voided).toBe(true)
       expect(json.storeCard.auxiliaryFields?.[0]?.value).toBe('No longer valid')
       expect(json.storeCard.backFields.find(({ key }) => key === 'status')?.value).toBe('No longer valid')
     }
+  })
+})
+
+describe('wallet status', () => {
+  it.each(['revoked', 'expired', 'consumed'] as const)('voids %s with or without updates', (status) => {
+    for (const webService of [null, { authenticationToken: 'token', url: 'https://api.fuda.sh/apple' }]) {
+      const json = passJson(CFG, {
+        ...INPUT,
+        validity: { status, validFrom: 100, validUntil: 200 },
+        webService,
+      })
+      expect(json.voided).toBe(true)
+      expect(json.expirationDate).toBe('1970-01-01T00:03:20.000Z')
+      expect(json.storeCard.backFields).toContainEqual(
+        expect.objectContaining({ key: 'status', value: 'No longer valid' }),
+      )
+    }
+  })
+
+  it('shows a future start without voiding the pass', () => {
+    const json = passJson(CFG, {
+      ...INPUT,
+      validity: { status: 'not_yet_valid', validFrom: 100, validUntil: 0 },
+      webService: { authenticationToken: 'token', url: 'https://api.fuda.sh/apple' },
+    })
+    expect(json.voided).toBeUndefined()
+    expect(json.expirationDate).toBeUndefined()
+    expect(json.storeCard.backFields).toContainEqual(
+      expect.objectContaining({ key: 'valid-from', value: '1970-01-01T00:01:40.000Z' }),
+    )
+    expect(json.storeCard.backFields).toContainEqual(
+      expect.objectContaining({ key: 'status', value: 'Not yet valid' }),
+    )
   })
 })

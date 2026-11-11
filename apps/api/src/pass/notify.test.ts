@@ -4,7 +4,7 @@ import type { Context } from 'hono'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getDb } from '../db/client.ts'
-import { badges, cards, cardStampSettings, issuers, members } from '../db/schema.ts'
+import { badges, cards, cardStampSettings, issuers, members, slots } from '../db/schema.ts'
 import type { AppEnv, Bindings } from '../env.ts'
 import { notifyPassChanged } from './notify.ts'
 
@@ -42,6 +42,7 @@ const googleBindings = async (): Promise<Partial<Bindings>> => ({
 
 describe('notifying Google Wallet of a changed pass', () => {
   beforeEach(async () => {
+    await db.delete(slots)
     await db.delete(badges)
     await db.delete(cardStampSettings)
     await db.delete(members)
@@ -87,7 +88,7 @@ describe('notifying Google Wallet of a changed pass', () => {
       if (request.method === 'GET') {
         return Response.json({ textModulesData: [{ body: 'VIP', header: 'Tier', id: 'tier' }] })
       }
-      if (requests.filter(({ method }) => method === 'PATCH').length === 1) {
+      if (requests.filter(({ method }) => method === 'PATCH').length === 2) {
         await db.update(cardStampSettings).set({ goal: 12 }).where(eq(cardStampSettings.cardId, 'card'))
       }
       return Response.json({})
@@ -97,7 +98,7 @@ describe('notifying Google Wallet of a changed pass', () => {
     expect(kept).toHaveLength(1)
     await kept[0]
     const patches = requests.filter(({ method }) => method === 'PATCH')
-    expect(JSON.stringify(await patches[1]?.json())).toContain('0 / 12')
+    expect(JSON.stringify(await patches[2]?.json())).toContain('0 / 12')
   })
 
   it('patches the stored badges, not any earlier claim', async () => {
@@ -126,6 +127,37 @@ describe('notifying Google Wallet of a changed pass', () => {
     notifyPassChanged(context(kept, await googleBindings()), UID)
     await kept[0]
     expect(bodies.at(-1)).toContain('Verified human')
+  })
+
+  it.each(['revoked', 'consumed'] as const)('patches %s even without stamps', async (status) => {
+    await db.delete(cardStampSettings)
+    await db
+      .update(members)
+      .set({
+        status: status === 'revoked' ? 'revoked' : 'active',
+        usageModel: 0,
+        validFrom: 0,
+        validUntil: 0,
+      })
+      .where(eq(members.attestationUid, UID))
+    if (status === 'consumed') {
+      await db.insert(slots).values({ consumedAt: 1, slot: 'default', uid: UID })
+    }
+    const bodies: string[] = []
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      if (new URL(request.url).host === 'oauth2.googleapis.com') {
+        return Response.json({ access_token: 'access' })
+      }
+      if (request.method === 'PATCH') {
+        bodies.push(await request.text())
+      }
+      return Response.json({ textModulesData: [] })
+    })
+    const kept: Promise<unknown>[] = []
+    notifyPassChanged(context(kept, await googleBindings()), UID)
+    await kept[0]
+    expect(bodies).toContain(JSON.stringify({ state: status === 'revoked' ? 'INACTIVE' : 'COMPLETED' }))
   })
 
   it('isolates a Google failure from the action it follows', async () => {

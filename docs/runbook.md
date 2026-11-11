@@ -166,6 +166,8 @@ For a Sensitive ticket, open `/signed?uid=<uid>&venue=<wrong-handle>` and confir
 
 Set the four `GOOGLE_*` secrets (§3). All four must be set, or `GET /pass/:uid/google` answers `501 google_not_configured`.
 
+After saving a test pass, revoke it through fuda and confirm Google moves it out of active passes. Check Worker logs for Google Wallet update failures. Expiring passes carry `validTimeInterval`; no timer push is needed.
+
 ## 5. Apple Wallet setup
 
 Request the Pass Type ID certificate early — this has real lead time and is often the long pole. Export the certificate and its PKCS#8 private key as PEM, and download the WWDR intermediate certificate.
@@ -197,7 +199,7 @@ Without these steps an installed pass stays a snapshot and still works. [The spe
 
 1. Add a pass from `/pass/<uid>/apple.pkpass`. A row appears in `apple_pass_registrations`. A pass added before the secret was set has no web service and never will, so delete it and add it again.
 2. Credit a Stamp at reception. The pass updates and a `Stamps: n / m` notification appears.
-3. Revoke the pass. It updates to `No longer valid`, with a notification.
+3. Revoke the pass. It updates to `No longer valid`, with a notification. Download an expired or consumed single-use pass and confirm it is voided too. A future-start pass shows `Valid from` without being voided. Check that a dated pass carries `expirationDate`; no timer push is sent.
 4. Delete the pass from Wallet. Its row, and the device row if it was the last, disappear.
 
 **Reading the logs after the first Stamp.** This is the one thing no test here can show, because Cloudflare does not document whether an mTLS binding's `fetch` speaks HTTP/2, which APNs requires, and a local run has no mTLS binding at all.

@@ -14,9 +14,9 @@ describe(passView, () => {
         holder: HOLDER,
         level: 'bearer',
         logoPrefix: null,
-        revoked: false,
         tier: 2,
         uid: UID,
+        validity: { status: 'active', validFrom: 0, validUntil: 0 },
       },
       { decision: 'ADMIT', reason: 'OK' },
     )
@@ -35,9 +35,9 @@ describe(passView, () => {
         holder: HOLDER,
         level: 'bearer',
         logoPrefix: null,
-        revoked: false,
         tier: 0,
         uid: UID,
+        validity: { status: 'active', validFrom: 0, validUntil: 0 },
       },
       { decision: 'REJECT', reason: 'REVOKED' },
     )
@@ -46,7 +46,15 @@ describe(passView, () => {
 
   it('reports UNKNOWN when the chain could not be read and — for a missing holder', () => {
     const view = passView(
-      { branding: null, holder: null, level: 'bearer', logoPrefix: null, revoked: false, tier: 1, uid: UID },
+      {
+        branding: null,
+        holder: null,
+        level: 'bearer',
+        logoPrefix: null,
+        tier: 1,
+        uid: UID,
+        validity: { status: 'active', validFrom: 0, validUntil: 0 },
+      },
       null,
     )
     expect(view).toMatchObject({ holderShort: '—', status: 'UNKNOWN' })
@@ -59,9 +67,9 @@ describe(passView, () => {
         holder: HOLDER,
         level: 'bearer',
         logoPrefix: null,
-        revoked: false,
         tier: 9,
         uid: UID,
+        validity: { status: 'active', validFrom: 0, validUntil: 0 },
       },
       null,
     )
@@ -77,9 +85,9 @@ describe(PassPage, () => {
         holder: `0x${'11'.repeat(20)}`,
         level: 'bearer',
         logoPrefix: null,
-        revoked: false,
         tier: 1,
         uid: UID,
+        validity: { status: 'active', validFrom: 0, validUntil: 0 },
       },
       { decision: 'ADMIT', reason: 'OK' },
     )
@@ -94,9 +102,9 @@ describe(PassPage, () => {
         holder: `0x${'11'.repeat(20)}`,
         level: 'bearer',
         logoPrefix: null,
-        revoked: false,
         tier: 1,
         uid: `0x${'ab'.repeat(32)}`,
+        validity: { status: 'active', validFrom: 0, validUntil: 0 },
       },
       { decision: 'ADMIT', reason: 'OK' },
       { dailyLimit: 2, enabled: true, goal: 10, today: 1, total: 4 },
@@ -116,9 +124,9 @@ describe(PassPage, () => {
         holder: `0x${'11'.repeat(20)}`,
         level: 'bearer',
         logoPrefix: null,
-        revoked: false,
         tier: 1,
         uid: `0x${'ab'.repeat(32)}`,
+        validity: { status: 'active', validFrom: 0, validUntil: 0 },
       },
       { decision: 'ADMIT', reason: 'OK' },
       { dailyLimit: 2, enabled: false, goal: 10, today: 0, total: 4 },
