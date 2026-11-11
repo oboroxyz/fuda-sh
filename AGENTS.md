@@ -6,7 +6,7 @@ Guidance for AI coding agents in this repository.
 
 ## Repository
 
-**fuda** is a pnpm monorepo. `apps/*` are deployable Cloudflare Workers, and direct children of `packages/*` with a `package.json` are shared packages. Projects nested under `packages/subgraphs/` build on their own, outside the workspace. `archive/` holds code that is no longer built or tested.
+**fuda** is a pnpm monorepo. `apps/*` are deployable Cloudflare Workers, and direct children of `packages/*` with a `package.json` are shared packages. Projects nested under `packages/subgraphs/` build on their own, outside the workspace. `.archive/` holds code that is no longer built or tested.
 
 Before changing product behavior or a protocol, read the relevant [specification](docs/specs/README.md). Use [the glossary](docs/CONTEXT.md) for domain terms. Setup and deployment live in [the runbook](docs/runbook.md).
 

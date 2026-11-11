@@ -25,7 +25,7 @@ class SelectionTests(unittest.TestCase):
             self.write(path + '/package.json', json.dumps({'name': name, 'dependencies': deps}))
             self.write(path + '/src/code.ts', 'export const value = 1\n')
         self.write('packages/subgraphs/rights/package.json', '{"name":"graph"}')
-        self.write('archive/substreams/erc5564/Cargo.toml', '[package]')
+        self.write('.archive/substreams/erc5564/Cargo.toml', '[package]')
         self.write('README.md', '# fixture\n')
         self.git('add', '.')
         self.git('commit', '-qm', 'base')
@@ -80,7 +80,7 @@ class SelectionTests(unittest.TestCase):
         self.assertTrue(plan['subgraph'])
 
     def test_archived_code_selects_no_lane(self):
-        self.write('archive/substreams/erc5564/Cargo.toml')
+        self.write('.archive/substreams/erc5564/Cargo.toml')
         plan = self.plan()
         self.assertFalse(plan['full'])
         self.assertEqual(plan['packages'], [])

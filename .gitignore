@@ -15,11 +15,11 @@ coverage/
 .DS_Store
 *~
 
-# Rust build output (archive/substreams). The two crates keep their lockfiles.
+# Rust build output (.archive/substreams). The two crates keep their lockfiles.
 target/
 Cargo.lock
-!/archive/substreams/erc5564/Cargo.lock
-!/archive/substreams/erc5564-eas-pipeline/Cargo.lock
+!/.archive/substreams/erc5564/Cargo.lock
+!/.archive/substreams/erc5564-eas-pipeline/Cargo.lock
 
 # Local worktrees and private notes
 .worktrees/

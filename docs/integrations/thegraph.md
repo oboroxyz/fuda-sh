@@ -1,6 +1,6 @@
 # The Graph in fuda
 
-> **Status.** fuda no longer issues or discovers +Private rights, so the rights subgraph indexes EAS only and the member app reads only rights by holder ([What left the product](../specs/pass-types-and-flows.md#what-left-the-product)). The ERC-5564 Substreams packages were archived on 2026-11-10 under [`archive/substreams`](../../archive/substreams); CI no longer builds them. Sections about the Announcer, stealth addresses and +Private, and the dated captures that used them, describe that retired path and the reusable packages, not the product.
+> **Status.** fuda no longer issues or discovers +Private rights, so the rights subgraph indexes EAS only and the member app reads only rights by holder ([What left the product](../specs/pass-types-and-flows.md#what-left-the-product)). The ERC-5564 Substreams packages were archived on 2026-11-10 under [`.archive/substreams`](../../.archive/substreams); CI no longer builds them. Sections about the Announcer, stealth addresses and +Private, and the dated captures that used them, describe that retired path and the reusable packages, not the product.
 
 **What fuda does.** A membership, a ticket or an event badge becomes a revocable on-chain record: a venue issues a right, a standard pass goes to Apple Wallet, Google Wallet or a browser, and the hosted scanner asks the fuda API to check EAS and enforce admission state in D1.
 
@@ -39,7 +39,7 @@ flowchart LR
 
 Bold is required, dotted is optional: **stop the subgraph and on-chain status becomes unavailable**; **stop the Substreams lane and nothing in the product changes**; **the gate never goes through The Graph**. Standard Wallet delivery and QR verification are Graph-independent.
 
-Deeper background: [module contracts](../../archive/substreams/SPEC.md) · [why the subgraph is the only read-path indexer](../architecture.md#authority-and-trust-boundaries) · [what left the product](../specs/pass-types-and-flows.md#what-left-the-product) · [deploying and smoke-testing the subgraph](../runbook.md)
+Deeper background: [module contracts](../../.archive/substreams/SPEC.md) · [why the subgraph is the only read-path indexer](../architecture.md#authority-and-trust-boundaries) · [what left the product](../specs/pass-types-and-flows.md#what-left-the-product) · [deploying and smoke-testing the subgraph](../runbook.md)
 
 ## The two standards underneath
 
@@ -58,13 +58,13 @@ Both contracts are **singletons deployed at the same address on every chain**. T
 
 ### 1. `fuda_erc5564`, a reusable Substreams module
 
-[`archive/substreams/erc5564/`](../../archive/substreams/erc5564)
+[`.archive/substreams/erc5564/`](../../.archive/substreams/erc5564)
 
-One map module, `map_announcements`, extracting raw ERC-5564 `Announcement` events from a **parameterized** Announcer address, defaulting to the canonical singleton. No fuda policy: it does not restrict the scheme id, decode metadata, match a viewing key or make an RPC call. The protobuf package `fuda.erc5564.v1` is the public contract, pinned in [the spec](../../archive/substreams/SPEC.md). Any other ERC-5564 consumer, a wallet, a payroll tool, a donation page, can take the same package and get announcements without writing Rust.
+One map module, `map_announcements`, extracting raw ERC-5564 `Announcement` events from a **parameterized** Announcer address, defaulting to the canonical singleton. No fuda policy: it does not restrict the scheme id, decode metadata, match a viewing key or make an RPC call. The protobuf package `fuda.erc5564.v1` is the public contract, pinned in [the spec](../../.archive/substreams/SPEC.md). Any other ERC-5564 consumer, a wallet, a payroll tool, a donation page, can take the same package and get announcements without writing Rust.
 
 ### 2. `erc5564_eas_pipeline`, the composition
 
-[`archive/substreams/erc5564-eas-pipeline/`](../../archive/substreams/erc5564-eas-pipeline)
+[`.archive/substreams/erc5564-eas-pipeline/`](../../.archive/substreams/erc5564-eas-pipeline)
 
 This package **imports the first one by `.spkg`** and composes it with an EAS module into a single stream:
 
@@ -208,14 +208,14 @@ pnpm install --frozen-lockfile
 pnpm --ignore-workspace --dir packages/subgraphs/rights install --frozen-lockfile
 
 # the two Substreams modules
-cargo test --manifest-path archive/substreams/erc5564/Cargo.toml               # 6 tests
-cargo test --manifest-path archive/substreams/erc5564-eas-pipeline/Cargo.toml  # 4 tests
+cargo test --manifest-path .archive/substreams/erc5564/Cargo.toml               # 6 tests
+cargo test --manifest-path .archive/substreams/erc5564-eas-pipeline/Cargo.toml  # 4 tests
 
 # the wasm both packages actually ship
 cargo build --release --target wasm32-unknown-unknown \
-  --manifest-path archive/substreams/erc5564/Cargo.toml
+  --manifest-path .archive/substreams/erc5564/Cargo.toml
 cargo build --release --target wasm32-unknown-unknown \
-  --manifest-path archive/substreams/erc5564-eas-pipeline/Cargo.toml
+  --manifest-path .archive/substreams/erc5564-eas-pipeline/Cargo.toml
 
 # the subgraph mappings. `subgraph.yaml`, `src/schema-uids.ts` and `generated/`
 # are gitignored; prepare reads the develop vars from apps/api/targets.jsonc.
@@ -233,7 +233,7 @@ Built with `substreams` CLI 1.22.0, crates `substreams` 0.7.6, `substreams-ether
 "It runs on other chains too" is not a checkable claim: anyone can swap an address constant and recompile for the second network. A `.spkg` makes it checkable, because the package is a **single binary file** holding wasm, manifest and protobuf. Hash the file, run it against one chain, run **that same file** against another, hash it again. Matching hashes mean nothing was rebuilt or edited; only the `-e` endpoint differed. This is possible because the Announcer is at the same address on every EVM chain, so there is no address to change.
 
 ```sh
-export ERC5564_PACKAGE=archive/substreams/erc5564/fuda-erc5564-v0.1.0.spkg
+export ERC5564_PACKAGE=.archive/substreams/erc5564/fuda-erc5564-v0.1.0.spkg
 sha256sum "$ERC5564_PACKAGE"
 
 substreams run -e "<BASE_SEPOLIA_FIREHOSE_ENDPOINT>" \
@@ -264,22 +264,22 @@ Deploying and operating the subgraph is covered in [`docs/runbook.md`](../runboo
 
 One anti-drift detail first: the subgraph's `subgraph.yaml` and schema-UID map are **generated from the API's Sepolia schema/start-block configuration** ([`scripts/prepare.ts`](../../packages/subgraphs/rights/scripts/prepare.ts)), and generation fails loudly while `EAS_SCHEMAS` or `GRAPH_START_BLOCK` are unset, so the indexer accepts the same schema UIDs as the API. Rebuild and deploy both after changing those inputs.
 
-**`archive/substreams/erc5564/`**, `fuda_erc5564` v0.1.0
+**`.archive/substreams/erc5564/`**, `fuda_erc5564` v0.1.0
 
 | File | What |
 | --- | --- |
-| [`substreams.yaml`](../../archive/substreams/erc5564/substreams.yaml) | one map module; `params` default = the canonical Announcer |
-| [`src/lib.rs`](../../archive/substreams/erc5564/src/lib.rs) | `map_announcements` handler; `extract_announcements`; full 32-byte `scheme_id` |
-| [`proto/`](../../archive/substreams/erc5564/proto) | `fuda.erc5564.v1.Announcement` / `Announcements`, the public contract |
-| [`tests/map_announcements.rs`](../../archive/substreams/erc5564/tests/map_announcements.rs) | address parsing, decoding, wrong address, failed tx, malformed logs |
+| [`substreams.yaml`](../../.archive/substreams/erc5564/substreams.yaml) | one map module; `params` default = the canonical Announcer |
+| [`src/lib.rs`](../../.archive/substreams/erc5564/src/lib.rs) | `map_announcements` handler; `extract_announcements`; full 32-byte `scheme_id` |
+| [`proto/`](../../.archive/substreams/erc5564/proto) | `fuda.erc5564.v1.Announcement` / `Announcements`, the public contract |
+| [`tests/map_announcements.rs`](../../.archive/substreams/erc5564/tests/map_announcements.rs) | address parsing, decoding, wrong address, failed tx, malformed logs |
 
-**`archive/substreams/erc5564-eas-pipeline/`**, `erc5564_eas_pipeline` v0.1.0
+**`.archive/substreams/erc5564-eas-pipeline/`**, `erc5564_eas_pipeline` v0.1.0
 
 | File | What |
 | --- | --- |
-| [`substreams.yaml`](../../archive/substreams/erc5564-eas-pipeline/substreams.yaml) | the `imports:` line and `fuda_events` inputs |
-| [`src/lib.rs`](../../archive/substreams/erc5564-eas-pipeline/src/lib.rs) | `fuda_events`; `map_eas_events`; `merge_events` |
-| [`proto/fuda.proto`](../../archive/substreams/erc5564-eas-pipeline/proto) | imports the ERC-5564 proto rather than redefining it |
+| [`substreams.yaml`](../../.archive/substreams/erc5564-eas-pipeline/substreams.yaml) | the `imports:` line and `fuda_events` inputs |
+| [`src/lib.rs`](../../.archive/substreams/erc5564-eas-pipeline/src/lib.rs) | `fuda_events`; `map_eas_events`; `merge_events` |
+| [`proto/fuda.proto`](../../.archive/substreams/erc5564-eas-pipeline/proto) | imports the ERC-5564 proto rather than redefining it |
 
 **`packages/subgraphs/rights/`**, the `fuda-rights` subgraph
 
@@ -290,4 +290,4 @@ One anti-drift detail first: the subgraph's `subgraph.yaml` and schema-UID map a
 | [`src/codecs.ts`](../../packages/subgraphs/rights/src/codecs.ts) | ABI decoders for the three EAS schema payloads |
 | [`scripts/prepare.ts`](../../packages/subgraphs/rights/scripts/prepare.ts) | generates the manifest and UID map; refuses placeholders |
 
-`packages/subgraphs/*` builds independently and is not a pnpm workspace member, and `archive/substreams/*` is no longer built; see [`AGENTS.md`](../../AGENTS.md).
+`packages/subgraphs/*` builds independently and is not a pnpm workspace member, and `.archive/substreams/*` is no longer built; see [`AGENTS.md`](../../AGENTS.md).

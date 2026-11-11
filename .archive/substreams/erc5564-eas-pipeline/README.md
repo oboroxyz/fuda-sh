@@ -7,13 +7,13 @@ This package composes the reusable raw ERC-5564 announcement module with raw Eth
 ## Build and test
 
 ```sh
-cargo test --manifest-path archive/substreams/erc5564-eas-pipeline/Cargo.toml
+cargo test --manifest-path .archive/substreams/erc5564-eas-pipeline/Cargo.toml
 cargo build --release --target wasm32-unknown-unknown \
-  --manifest-path archive/substreams/erc5564-eas-pipeline/Cargo.toml
-substreams pack archive/substreams/erc5564-eas-pipeline/substreams.yaml
+  --manifest-path .archive/substreams/erc5564-eas-pipeline/Cargo.toml
+substreams pack .archive/substreams/erc5564-eas-pipeline/substreams.yaml
 ```
 
-The imported ERC-5564 package must be packed first at `archive/substreams/erc5564/fuda-erc5564-v0.1.0.spkg`.
+The imported ERC-5564 package must be packed first at `.archive/substreams/erc5564/fuda-erc5564-v0.1.0.spkg`.
 
 ## Stream
 
@@ -21,7 +21,7 @@ Set `SUBSTREAMS_API_TOKEN` to a The Graph Market token and use the Base Sepolia 
 
 ```sh
 substreams run -e "$SUBSTREAMS_ENDPOINT" \
-  archive/substreams/erc5564-eas-pipeline/substreams.yaml fuda_events \
+  .archive/substreams/erc5564-eas-pipeline/substreams.yaml fuda_events \
   -s "$START_BLOCK" -t +100
 ```
 
