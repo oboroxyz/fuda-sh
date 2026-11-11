@@ -7,6 +7,7 @@ import { encodeDelegationV1 } from '../eas/codecs.ts'
 import type { OffchainTypedData } from '../eas/offchain.ts'
 import { ChainError, NoSignerError, ZERO_ADDRESS, ZERO_UID } from './client.ts'
 import type { AttestParams, ChainClient, RawAttestation, VerifyMessageParams } from './client.ts'
+import { UnknownTransactionOutcomeError } from './unknown-transaction-outcome-error.ts'
 
 const DEFAULT_SIGNER: Hex = `0x${'f0'.repeat(20)}`
 
@@ -39,6 +40,7 @@ export class FakeChain implements ChainClient {
   readonly txs: Hex[] = []
   failReads = false
   failWrites = false
+  unknownAttestOutcome = false
   readonly offchainRevocations = new Map<string, bigint>()
   readonly rootTimestamps = new Map<string, bigint>()
   // oxlint-disable-next-line class-methods-use-this -- injectable clock; tests replace this field wholesale
@@ -218,6 +220,9 @@ export class FakeChain implements ChainClient {
       uid,
     })
     const txHash = this.nextTx()
+    if (this.unknownAttestOutcome) {
+      throw new UnknownTransactionOutcomeError(txHash)
+    }
     return { txHash, uid }
   }
 

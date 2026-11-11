@@ -11,6 +11,7 @@ import { errorResponse } from '../json.ts'
 import { logoUrlFor } from '../media/logo.ts'
 import type { PassRow } from './pass-view.ts'
 import { loadWalletMember } from './wallet-members.ts'
+import { walletValidity } from './wallet-status.ts'
 
 export type PassRowResult = { ok: true; row: PassRow } | { ok: false; res: Response }
 
@@ -121,9 +122,9 @@ export const loadPassRow = async (c: Context<AppEnv>, rawUid: string): Promise<P
       holder: row.holder === null ? null : asHex(row.holder, 20),
       level: row.level,
       logoPrefix,
-      revoked: row.status === 'revoked',
       tier: row.tier,
       uid,
+      validity: await walletValidity(c.get('db'), uid, row, c.get('now')()),
     },
   }
 }

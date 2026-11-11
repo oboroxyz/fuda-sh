@@ -1,4 +1,4 @@
-import { USAGE_MODEL } from '@fuda/sdk'
+import { rightStatus, USAGE_MODEL } from '@fuda/sdk'
 import type { Reason } from '@fuda/sdk'
 import { eq } from 'drizzle-orm'
 import type { Hex } from 'viem'
@@ -18,7 +18,7 @@ import {
   recoverOffchainSigner,
 } from '../eas/offchain.ts'
 import type { AttestedPasskey, OffchainDomain, OffchainPassData, SignedOffchain } from '../eas/offchain.ts'
-import { checkWindow, toEntitlementView } from './verify-uid.ts'
+import { toEntitlementView } from './verify-uid.ts'
 import type { VerifyOutcome } from './verify-uid.ts'
 
 export interface OffchainRow {
@@ -120,11 +120,6 @@ const bindingReason = (signed: SignedOffchain, pass: OffchainPassData, row: Offc
     ? null
     : 'WRONG_SCHEMA'
 
-const validityReason = (signed: SignedOffchain, canonical: Entitlement, now: number): Reason | null => {
-  const expiry = signed.message.expirationTime
-  return expiry !== 0n && BigInt(now) > expiry ? 'EXPIRED' : checkWindow(canonical, now)
-}
-
 // EAS keys revocations by sender. A retry after rotation records under the
 // current key; it cannot write the original signer's record.
 const revokedOnChain = async (chain: ChainClient, attester: Hex, uid: Hex): Promise<boolean> => {
@@ -137,6 +132,17 @@ const revokedOnChain = async (chain: ChainClient, attester: Hex, uid: Hex): Prom
     return false
   }
   return (await chain.offchainRevokedAt(current, uid)) !== 0n
+}
+
+const readRevocation = async (chain: ChainClient, attester: Hex, uid: Hex): Promise<boolean | ChainError> => {
+  try {
+    return await revokedOnChain(chain, attester, uid)
+  } catch (error) {
+    if (error instanceof ChainError) {
+      return error
+    }
+    throw error
+  }
 }
 
 // docs/specs/attestation-model.md#offchain-rights: the order is the contract. D1's
@@ -160,13 +166,10 @@ export const verifyOffchain = async (
     entitlement: toEntitlementView(canonical),
     reason,
   })
-  if (row.status === 'revoked') {
+  if (rightStatus({ ...canonical, status: row.status }, deps.now).status === 'revoked') {
     return reject('REVOKED')
   }
-  const reason =
-    signatureReason(deps, uid, signed, attester) ??
-    bindingReason(signed, pass, row) ??
-    validityReason(signed, canonical, deps.now)
+  const reason = signatureReason(deps, uid, signed, attester) ?? bindingReason(signed, pass, row)
   if (reason !== null || attester === null) {
     return reject(reason ?? 'DELEGATION_CONFIG_MISSING')
   }
@@ -181,12 +184,23 @@ export const verifyOffchain = async (
     passkey: decodeHolderKey(pass.holderKey),
     reason: 'OK',
   }
-  try {
-    return (await revokedOnChain(deps.chain, attester, uid)) ? reject('REVOKED') : admit
-  } catch (error) {
-    if (error instanceof ChainError && pass.usageModel !== USAGE_MODEL.SINGLE_USE && holderAddress === null) {
-      return { ...admit, unconfirmed: true }
-    }
-    throw error
+  const revoked = await readRevocation(deps.chain, attester, uid)
+  const verdict = rightStatus(
+    {
+      ...canonical,
+      expirationTime: signed.message.expirationTime,
+      offchainRevokedAt: revoked === true ? 1n : 0n,
+    },
+    deps.now,
+  )
+  if (verdict.reason !== null) {
+    return reject(verdict.reason)
   }
+  if (revoked instanceof ChainError) {
+    if (pass.usageModel === USAGE_MODEL.SINGLE_USE || holderAddress !== null) {
+      throw revoked
+    }
+    return { ...admit, unconfirmed: true }
+  }
+  return admit
 }

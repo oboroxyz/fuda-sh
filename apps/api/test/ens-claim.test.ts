@@ -23,7 +23,7 @@ import { ensNames } from '../src/ens/schema.ts'
 import type { Bindings } from '../src/env.ts'
 import { appWith, fakeChain, testEnv } from './env.ts'
 import { configuredEnv, DEL, ROOT } from './fixtures.ts'
-import { CARD_INPUT, operator, postJson, signIn } from './operator.ts'
+import { CARD_INPUT, getJson, operator, postJson, signIn } from './operator.ts'
 
 const REGISTRAR = privateKeyToAccount(`0x${'7c'.repeat(32)}`).address
 const VOUCHER_KEY = `0x${'11'.repeat(32)}` as const
@@ -146,7 +146,7 @@ const stubChain = (
 }
 
 const withVenue = async (bindings: Bindings, chain: FakeChain = delegate(signingChain())) => {
-  const created = appWith({ chain })
+  const created = appWith({ chain, now: () => 1000 })
   const { token } = await signIn(created, bindings)
   await postJson(created, bindings, '/v1/issuers', CARD_INPUT, token)
   return { app: created, token }
@@ -315,6 +315,38 @@ describe('issuer ENS claim', () => {
       await expect(response.json()).resolves.toStrictEqual({ error: 'ens_persistence_failed' })
       await expect(rowFor(`${HANDLE}.fuda.eth`)).resolves.toBeUndefined()
     })
+
+    it.each([999, 1000, 1001])(
+      'derives the claim view and voucher eligibility at expiry %s',
+      async (expiry) => {
+        stubChain()
+        const bindings = configured()
+        const { app: venue, token } = await withVenue(bindings)
+        await postJson(venue, bindings, '/v1/issuers/me/ens/claimed', { txHash: TX_HASH }, token)
+        await getDb({ DB: env.DB })
+          .update(ensNames)
+          .set({ expiry })
+          .where(eq(ensNames.name, `${HANDLE}.fuda.eth`))
+
+        const profile = await getJson(venue, bindings, '/v1/issuers/me', token)
+        expect(profile.status).toBe(200)
+        const live = expiry > 1000
+        await expect(profile.json()).resolves.toMatchObject({
+          ens: {
+            claimTxHash: live ? TX_HASH : null,
+            expiry: live ? expiry : null,
+            status: live ? 'claimed' : 'unclaimed',
+          },
+        })
+        const response = await postJson(venue, bindings, '/v1/issuers/me/ens/claim-voucher', {}, token)
+        expect(response.status).toBe(live ? 409 : 200)
+        await expect(rowFor(`${HANDLE}.fuda.eth`)).resolves.toMatchObject({
+          claimTxHash: TX_HASH,
+          expiry,
+          status: live ? 'claimed' : 'voucher_issued',
+        })
+      },
+    )
 
     it('refuses a second voucher once the name is claimed', async () => {
       stubChain()

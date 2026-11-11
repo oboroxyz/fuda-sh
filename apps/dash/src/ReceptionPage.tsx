@@ -56,6 +56,8 @@ const ReceptionOutcome = (props: {
   body: ReceptionResponse
   copy: DashCopy['reception']
   onDone: () => void
+  onPending: (pending: boolean) => void
+  requestIds: Map<string, string>
   stamps: StampIo
   ticket: number
 }): JSX.Element => {
@@ -77,6 +79,8 @@ const ReceptionOutcome = (props: {
             summary={target.summary}
             uid={target.uid}
             onDone={props.onDone}
+            onPending={props.onPending}
+            requestIds={props.requestIds}
           />
         </div>
       )}
@@ -108,7 +112,10 @@ export const ReceptionPage = (props: ReceptionPageProps): JSX.Element => {
   // same pass remounts the stamp actions with clean state.
   const [result, setResult] = useState<{ body: ReceptionResponse; ticket: number } | null>(null)
   const [failure, setFailure] = useState<keyof DashCopy['reception']['failures'] | null>(null)
-  const retry = useRef<RetryRequest | null>(null)
+  const requests = useRef<{ reception: RetryRequest | null; stamps: Map<string, string> }>({
+    reception: null,
+    stamps: new Map(),
+  })
   const input = useRef<HTMLInputElement>(null)
   const { mounted, revision } = useLifetime()
   // A different reception endpoint (another session) starts from a clean slate.
@@ -123,12 +130,11 @@ export const ReceptionPage = (props: ReceptionPageProps): JSX.Element => {
     pendingNow.current = false
     setResult(null)
     setFailure(null)
-    retry.current = null
+    requests.current.reception = null
+    requests.current.stamps.clear()
   }, [props.receive])
   useEffect(() => {
-    if (!pending) {
-      input.current?.focus()
-    }
+    input.current?.focus()
   }, [props.receive, pending])
 
   const submit = (request: RetryRequest): void => {
@@ -150,15 +156,15 @@ export const ReceptionPage = (props: ReceptionPageProps): JSX.Element => {
       setPending(false)
       setQr('')
       if (outcome.ok) {
-        retry.current = null
+        requests.current.reception = null
         setResult({ body: outcome.body, ticket })
         return
       }
       if (outcome.network) {
-        retry.current = request
+        requests.current.reception = request
         setFailure('network')
       } else {
-        retry.current = null
+        requests.current.reception = null
         setFailure(failureOf(outcome.error))
       }
     }
@@ -190,19 +196,24 @@ export const ReceptionPage = (props: ReceptionPageProps): JSX.Element => {
               }
               event.preventDefault()
               const value = event.currentTarget.value.trim()
-              if (value !== '' && !pending) {
+              if (value !== '') {
                 submit({ qr: value, requestId: createRequestId() })
               }
             }}
           />
         </label>
-        {pending ? <p role="status">{props.copy.checking}</p> : null}
+        {pending && result === null ? <p role="status">{props.copy.checking}</p> : null}
         {result === null ? null : (
           // The ticket remounts the stamp actions for each reception, even of the same pass.
           <ReceptionOutcome
             body={result.body}
             copy={props.copy}
             onDone={() => input.current?.focus()}
+            onPending={(value) => {
+              pendingNow.current = value
+              setPending(value)
+            }}
+            requestIds={requests.current.stamps}
             stamps={props.stamps}
             ticket={result.ticket}
           />
@@ -212,8 +223,8 @@ export const ReceptionPage = (props: ReceptionPageProps): JSX.Element => {
             copy={props.copy}
             failure={failure}
             onRetry={() => {
-              if (retry.current !== null) {
-                submit(retry.current)
+              if (requests.current.reception !== null) {
+                submit(requests.current.reception)
               }
             }}
           />

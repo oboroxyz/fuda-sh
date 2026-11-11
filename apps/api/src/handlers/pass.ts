@@ -58,6 +58,7 @@ const walletPassInput = async (c: Context<AppEnv>, row: PassRow): Promise<Google
     stamps: view.stamps,
     tierLabel: view.tier,
     uid: row.uid,
+    validity: row.validity,
   }
 }
 
@@ -153,7 +154,7 @@ export const getPassUidGoogle = defineHandler(async (c) => {
 
 // Null when the deployment cannot sign a pass, which every Apple route answers as 501.
 // The same snapshot as the Google save link, plus what only a pass Wallet can refresh has:
-// the web service, and that the Right was revoked.
+// the web service.
 export const buildApplePass = async (
   c: Context<AppEnv>,
   row: PassRow,
@@ -169,7 +170,6 @@ export const buildApplePass = async (
   const service = appleWebServiceFrom(c.env)
   const input = {
     ...(await walletPassInput(c, row)),
-    revoked: row.revoked,
     webService:
       service === null
         ? null

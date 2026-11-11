@@ -1,5 +1,5 @@
 import { isMemberNumber } from '@fuda/sdk'
-import { and, eq, inArray, ne } from 'drizzle-orm'
+import { and, eq, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm'
 import type { Hex } from 'viem'
 
 import type { Db } from '../db/client.ts'
@@ -97,14 +97,23 @@ export const mirrorIssuerName = async (db: Db, input: IssuerNameInput): Promise<
     .insert(ensNames)
     .values({ ...row, createdAt: input.now, voucherIssuedAt: row.voucherIssuedAt ?? input.now })
   if (input.status === 'claimed') {
-    await insert.onConflictDoUpdate({ set: row, target: ensNames.name })
+    // Confirmations accept any matching receipt, so a replayed older claim must not
+    // replace a later registration's hash and expiry.
+    await insert.onConflictDoUpdate({
+      set: row,
+      setWhere: or(isNull(ensNames.expiry), lte(ensNames.expiry, sql`excluded.expiry`)),
+      target: ensNames.name,
+    })
     return
   }
   // A voucher request can race a successful confirmation after its initial
-  // status read. Once claimed, only another confirmed write may update it.
+  // status read. Protect a live claim while allowing re-registration after expiry.
   await insert.onConflictDoUpdate({
-    set: row,
-    setWhere: ne(ensNames.status, 'claimed'),
+    set: { ...row, claimTxHash: ensNames.claimTxHash, expiry: ensNames.expiry },
+    setWhere: or(
+      ne(ensNames.status, 'claimed'),
+      input.status === 'voucher_issued' ? lte(ensNames.expiry, input.now) : undefined,
+    ),
     target: ensNames.name,
   })
 }

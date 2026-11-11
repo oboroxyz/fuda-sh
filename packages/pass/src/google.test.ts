@@ -14,6 +14,7 @@ import {
   mergeStampModules,
   patchGoogleBadgeModules,
   patchGoogleGenericObject,
+  patchGoogleStatus,
 } from './google.ts'
 
 // 2026-09-12T00:00:00Z, the issue day the fixtures show
@@ -25,6 +26,7 @@ const INPUT: GooglePassInput = {
   qr: toQr(UID),
   tierLabel: 'VIP',
   uid: UID,
+  validity: { status: 'active', validFrom: 0, validUntil: 0 },
 }
 const ORIGINS = ['https://api.fuda.sh', 'https://dash.fuda.sh', 'https://app.fuda.sh']
 const IAT = 1_757_000_000
@@ -220,6 +222,7 @@ describe('branded generic object', () => {
         qr: `fuda:v1:0x${'ab'.repeat(32)}`,
         tierLabel: 'FREE',
         uid: `0x${'ab'.repeat(32)}`,
+        validity: INPUT.validity,
       },
     )
     expect(obj.cardTitle.defaultValue.value).toBe('Wassie Coffee')
@@ -489,5 +492,69 @@ describe('badge on a generated generic object', () => {
     const obj = buildGenericObject(CFG, { ...INPUT, badges: [BADGE] })
     expect(JSON.stringify(obj)).not.toContain('world')
     expect(JSON.stringify(obj)).not.toContain(String(BADGE.at))
+  })
+})
+
+describe('wallet status', () => {
+  it.each([
+    ['active', 'ACTIVE'],
+    ['revoked', 'INACTIVE'],
+    ['expired', 'EXPIRED'],
+    ['consumed', 'COMPLETED'],
+    ['not_yet_valid', 'ACTIVE'],
+    ['unknown', 'ACTIVE'],
+  ] as const)('maps %s to %s', async (status, state) => {
+    const { cfg } = await fixture
+    expect(
+      buildGenericObject(cfg, {
+        ...INPUT,
+        validity: { status, validFrom: 100, validUntil: 200 },
+      }),
+    ).toMatchObject({
+      state,
+      validTimeInterval: {
+        end: { date: '1970-01-01T00:03:20.000Z' },
+        start: { date: '1970-01-01T00:01:40.000Z' },
+      },
+    })
+  })
+})
+
+describe(patchGoogleStatus, () => {
+  it.each([503])('reports a Google API failure (%s)', async (status) => {
+    // oxlint-disable-next-line require-await -- Fetch-compatible test double
+    const request = async (): Promise<Response> => new Response(null, { status })
+    await expect(
+      patchGoogleStatus(
+        { classId: 'c', issuerId: '338', saEmail: 'e', saKeyPem: 'p' },
+        UID,
+        INPUT.validity,
+        'access',
+        request,
+      ),
+    ).rejects.toThrow('Google Wallet request failed (503)')
+  })
+
+  it.each([200, 404])('handles HTTP %s from the existing object endpoint', async (status) => {
+    const requests: Request[] = []
+    // oxlint-disable-next-line require-await -- Fetch-compatible test double
+    const request = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      requests.push(new Request(input, init))
+      return new Response(null, { status })
+    }
+    const update = patchGoogleStatus(
+      { classId: 'c', issuerId: '338', saEmail: 'e', saKeyPem: 'p' },
+      UID,
+      { status: 'revoked', validFrom: 0, validUntil: 0 },
+      'access',
+      request,
+    )
+    await expect(update).resolves.toBeUndefined()
+    expect(requests[0]?.method).toBe('PATCH')
+    expect(requests[0]?.url).toBe(
+      `https://walletobjects.googleapis.com/walletobjects/v1/genericObject/338.${UID.slice(2)}`,
+    )
+    expect(requests[0]?.headers.get('authorization')).toBe('Bearer access')
+    await expect(requests[0]?.json()).resolves.toStrictEqual({ state: 'INACTIVE' })
   })
 })

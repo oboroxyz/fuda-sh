@@ -5,6 +5,8 @@ import { base64urlBytes, base64urlText } from './base64url.ts'
 import { BADGE_LABELS, issuedDayText, roleLabel } from './branding.ts'
 import type { PassBranding } from './branding.ts'
 import { pemToDer } from './pem.ts'
+import { passDate } from './validity.ts'
+import type { PassValidity } from './validity.ts'
 
 export interface GoogleConfig {
   issuerId: string
@@ -33,6 +35,7 @@ export const googleConfigFrom = (env: GoogleEnv): GoogleConfig | null => {
 export interface GooglePassInput {
   // the attestation uid; its 0x-less form is the object id suffix
   uid: Hex
+  validity: PassValidity
   // FREE | REGULAR | VIP | FOUNDER, or `TIER n` for an unknown tier
   tierLabel: string
   // the holder as rendered on the pass page (`0x1234…abcd`, or `—`)
@@ -78,7 +81,8 @@ export interface GoogleGenericObject {
   linksModuleData?: LinksModule
   logo?: WalletImage
   smartTapRedemptionValue: string
-  state: string
+  state: 'ACTIVE' | 'INACTIVE' | 'EXPIRED' | 'COMPLETED'
+  validTimeInterval?: { start?: { date: string }; end?: { date: string } }
   subheader?: LocalizedString
   textModulesData: TextModule[]
 }
@@ -125,6 +129,30 @@ export const mergeBadgeModules = (
   return [...preserved, ...added]
 }
 
+const googleValidity = (validity: PassValidity): Pick<GoogleGenericObject, 'state' | 'validTimeInterval'> => {
+  const states = {
+    active: 'ACTIVE',
+    consumed: 'COMPLETED',
+    expired: 'EXPIRED',
+    not_yet_valid: 'ACTIVE',
+    revoked: 'INACTIVE',
+    unknown: 'ACTIVE',
+  } as const
+  const start = passDate(validity.validFrom)
+  const end = passDate(validity.validUntil)
+  const result: Pick<GoogleGenericObject, 'state' | 'validTimeInterval'> = { state: states[validity.status] }
+  if (start !== undefined || end !== undefined) {
+    result.validTimeInterval = {}
+    if (start !== undefined) {
+      result.validTimeInterval.start = { date: start }
+    }
+    if (end !== undefined) {
+      result.validTimeInterval.end = { date: end }
+    }
+  }
+  return result
+}
+
 // docs/specs/pass-types-and-flows.md#passes. The object id is issuer-scoped and must be unique per pass, so the
 // attestation uid (without its 0x) is the suffix.
 export const buildGenericObject = (cfg: GoogleConfig, input: GooglePassInput): GoogleGenericObject => {
@@ -133,7 +161,7 @@ export const buildGenericObject = (cfg: GoogleConfig, input: GooglePassInput): G
     classId: cfg.classId,
     id: `${cfg.issuerId}.${input.uid.slice(2)}`,
     smartTapRedemptionValue: input.qr,
-    state: 'ACTIVE',
+    ...googleValidity(input.validity),
   }
   const branding = input.branding ?? null
   if (branding === null) {
@@ -238,6 +266,26 @@ const checked = (response: Response): Response => {
     throw new Error(`Google Wallet request failed (${response.status})`)
   }
   return response
+}
+
+export const patchGoogleStatus = async (
+  cfg: GoogleConfig,
+  uid: Hex,
+  validity: PassValidity,
+  accessToken: string,
+  request: PassRequest = globalThis.fetch,
+): Promise<void> => {
+  const response = await request(
+    `https://walletobjects.googleapis.com/walletobjects/v1/genericObject/${cfg.issuerId}.${uid.slice(2)}`,
+    {
+      body: JSON.stringify(googleValidity(validity)),
+      headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
+      method: 'PATCH',
+    },
+  )
+  if (response.status !== 404) {
+    checked(response)
+  }
 }
 
 export const googleAccessToken = async (
