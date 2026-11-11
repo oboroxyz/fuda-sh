@@ -96,7 +96,7 @@ Base Account uses the selected chain in both browser apps. The dashboard also ke
 
 ### Wire constants
 
-`claimMessage(cardId, holderAddress)` builds `fuda.sh:claim:v1:<cardId>:<holderAddress in lower case>`. A requirement Card claim uses an EIP-191 personal signature by that holder. Recovery reads no chain.
+`claimMessage(cardId, holderAddress, issuedAt)` builds `fuda.sh:claim:v1:<cardId>:<holderAddress in lower case>:<issuedAt>`. A requirement Card claim uses an EIP-191 personal signature by that holder. Recovery reads no chain. `issuedAt` is Unix seconds, sent in the claim body. Missing times, times over 300 seconds old or over 60 seconds ahead, and signatures over another time answer `403 bad_signature`.
 
 Every string a client and the api must agree on byte-for-byte. Changing any of them is a protocol version bump.
 
@@ -190,10 +190,10 @@ At verify time the gate loads the Entitlement's `refUID` and requires that it is
 | `validFrom == 0 \|\| now >= validFrom` | `NOT_YET_VALID` |
 | `validUntil == 0 \|\| now <= validUntil` | `EXPIRED` |
 | delegation chain valid (see above) | `NO_DELEGATION` / `ISSUER_NOT_DELEGATED` / `DELEGATION_UNAVAILABLE` / `DELEGATION_CONFIG_MISSING` |
+| requirement met after pass checks and before any holder signature, before Slot, Entry, hook or Stamp | `REQUIREMENT_UNMET` |
 | `level == 0` (`POST /verify` only; `/verify-signed` accepts every level) | `LEVEL_REQUIRED` |
 | challenge valid (signed endpoint only) | `BAD_CHALLENGE` |
 | signature valid (signed endpoint only) | `BAD_SIGNATURE` |
-| requirement met after admission checks and any holder signature, before Slot, Entry, hook or Stamp | `REQUIREMENT_UNMET` |
 | slot not consumed (SINGLE_USE, action endpoints only) | `ALREADY_USED` |
 
 `WRONG_VENUE` is not in this table because it precedes it: a `POST /verify` that names a `venue` is checked against the issuer behind the uid before the chain is read (see [Venues](#offchain-rights)). Every chain error fails closed. `LEVEL_REQUIRED` is checked before slot consumption, so a photographed Signed pass cannot burn its SINGLE_USE slot. `GET /verify/:uid` reports the level but never rejects on it: it is a read-only preview that answers "is this right valid?", not "may it enter by QR?".
@@ -210,7 +210,7 @@ A Card's `identity` is `none`, `passkey`, `sensitive` or `address`, also fixed a
 
 Each Card accepts at most one requirement today, stored as an array. Claims search the newest 1,000 asset agreement records or read the supplied `agreementId`. Claim and presentation check the current registry allowlist before reading the registry. Removal answers `registry-not-allowed`.
 
-At every admission, the existing verification flow checks the pass and any required signature, then every requirement against stored evidence, then consumes the Slot and logs ADMIT. Missing evidence or a failed requirement returns `REJECT REQUIREMENT_UNMET` with `requirement: { kind, detail }`, logged with decision and reason. An unreadable chain returns `502 chain_error`. ADMIT adds `requirements: { kind, evidence }[]`. QR admission and venue reception run the same check using the claim address in `card_address_passes`. Previews skip it. No result is cached.
+Every verdict resolution checks the pass, then its Card requirements against stored evidence. Preview, pass-page status and Badge submission share this check with admission. Signed entry then checks the holder proof before consuming the Slot and logging ADMIT. Missing evidence or an unmet requirement returns `REJECT REQUIREMENT_UNMET` with `requirement: { kind, detail }`. An unreadable chain returns `502 chain_error`, including failed revocation reads. Requirement passes never admit unconfirmed. ADMIT adds `requirements: { kind, evidence }[]`. The subject is the claim address in `card_address_passes`. No result is cached.
 
 **Issuing.** The self-serve route and the MCP `issue_pass` tool sign an EAS offchain attestation (version 2) with the signer key, with no chain access and no transaction, and write the `members` row and an `offchain_attestations` row in one batch. If that write fails nothing was issued. The member number is drawn in D1 as for an on-chain pass, and is also signed into the attestation. `recipient` is the zero address, which the API reports as `holder`. The admin `POST /issue` issues only on chain. An Identified pass is issued only by [the holder's own claim](./pass-types-and-flows.md#claiming-an-identified-pass): `issue_pass` answers `holder_must_claim`.
 
@@ -430,7 +430,7 @@ All three `passUrls` are absolute against `API_BASE_URL` and always present, eve
 
 `card_requirements(card_id, position, kind, config)` stores each Card's fixed requirements in order. The primary key is `(card_id, position)` and `config` is parsed requirement JSON.
 
-`cards.has_requirements` is a non-null integer flag, backfilled from `card_requirements` in migration `0037` and written with the requirements in the creation batch. Card lists skip the requirements query when no flag is set. `card_address_passes` has an index on `attestation_uid` for admission lookup. Claim addresses are stored for both Wallet and address passes, without account or session ids.
+`cards.has_requirements` is a non-null integer flag, backfilled from `card_requirements` in migration `0037` and written with the requirements in the creation batch. Card lists skip the requirements query when no flag is set and no Card has `address` identity. An `address` Card always loads and checks requirements, even with a stale flag. `card_address_passes` has an index on `attestation_uid` for admission lookup. Claim addresses are stored for both Wallet and address passes, without account or session ids.
 
 The core operational tables originate in `apps/api/migrations/0000_init.sql`. The excerpt below omits the later issuer, card, logo, and ENS extensions; `apps/api/migrations/` and `apps/api/src/db/schema.ts` define the current schema:
 
