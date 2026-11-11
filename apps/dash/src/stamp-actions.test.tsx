@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DASH_COPY } from './copy.ts'
 import { ReceptionPage } from './ReceptionPage.tsx'
 import type { StampIo } from './StampActions.tsx'
-import { act, cleanup as cleanupAll, render, tap, typeInto } from './test/render.tsx'
+import { act, cleanup as cleanupAll, flush, render, tap, typeInto } from './test/render.tsx'
 
 const UID = `0x${'cd'.repeat(32)}` as const
 const summary = (total: number): StampSummary => ({ dailyLimit: 1, enabled: true, goal: 10, today: 1, total })
@@ -69,6 +69,16 @@ const baseIo = (total = 10): StampIo => ({
   ),
   redeem: vi.fn<StampIo['redeem']>(),
 })
+
+const submitAdjustment = (): void => {
+  tap(button('Adjust'))
+  const [amount, reason] = [...root.querySelectorAll<HTMLInputElement>('form input')]
+  typeInto(amount, '2')
+  typeInto(reason, 'forgot')
+  act(() => {
+    root.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+  })
+}
 
 describe('stamp actions at reception', () => {
   beforeEach(() => {
@@ -148,6 +158,110 @@ describe('stamp actions at reception', () => {
     await vi.waitFor(() => {
       expect(root.textContent).toContain('Reward recorded')
     })
+  })
+
+  it('blocks rescanning while a reward is in flight and keeps its retry id', async () => {
+    const io = baseIo()
+    const pending = Promise.withResolvers<Result<StampActionResponse>>()
+    vi.mocked(io.redeem)
+      .mockReturnValueOnce(pending.promise)
+      .mockResolvedValueOnce(done('redeem', -10, 0))
+    mount(io, 10)
+    await scan()
+    tap(button('Give the reward'))
+    tap(button('Yes, give the reward'))
+    const panel = root.querySelector('[data-testid="stamp-actions"]')
+    const input = root.querySelector('input')!
+    expect(input.disabled).toBe(true)
+    typeInto(input, `fuda:v1:${UID}`)
+    act(() => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter' }))
+    })
+    await flush()
+    expect(root.querySelector('[data-testid="stamp-actions"]')).toBe(panel)
+    expect(io.ledger).toHaveBeenCalledOnce()
+    pending.resolve({ error: 'network', network: true, ok: false, status: 0 })
+    await vi.waitFor(() => {
+      expect(input.disabled).toBe(false)
+      expect(root.textContent).toContain('may not have been saved')
+    })
+    tap(button('Try again'))
+    await vi.waitFor(() => {
+      expect(root.textContent).toContain('Reward recorded')
+    })
+    expect(vi.mocked(io.redeem).mock.calls[0]?.[1]).toBe(vi.mocked(io.redeem).mock.calls[1]?.[1])
+  })
+
+  it('retains an uncertain reward id across cancellation and a rescan', async () => {
+    const io = baseIo(20)
+    vi.mocked(io.redeem)
+      .mockResolvedValueOnce({ error: 'network', network: true, ok: false, status: 0 })
+      .mockResolvedValueOnce(done('redeem', -10, 10))
+      .mockResolvedValueOnce(done('redeem', -10, 0))
+    mount(io, 20)
+    await scan()
+    tap(button('Give the reward'))
+    tap(button('Yes, give the reward'))
+    await vi.waitFor(() => {
+      expect(root.textContent).toContain('may not have been saved')
+    })
+    tap(button('Cancel'))
+    expect(root.textContent).not.toContain('Reward recorded')
+    await scan()
+    tap(button('Give the reward'))
+    tap(button('Yes, give the reward'))
+    await vi.waitFor(() => {
+      expect(root.textContent).toContain('Reward recorded')
+    })
+    const { calls } = vi.mocked(io.redeem).mock
+    expect(calls[0]?.[1]).toBe(calls[1]?.[1])
+    tap(button('Give the reward'))
+    tap(button('Yes, give the reward'))
+    await vi.waitFor(() => {
+      expect(io.redeem).toHaveBeenCalledTimes(3)
+    })
+    expect(calls[2]?.[1]).not.toBe(calls[1]?.[1])
+  })
+
+  it('retains an uncertain adjustment id across a rescan', async () => {
+    const io = baseIo()
+    vi.mocked(io.adjust)
+      .mockResolvedValueOnce({ error: 'network', network: true, ok: false, status: 0 })
+      .mockResolvedValueOnce(done('adjust', 2, 12))
+    mount(io, 10)
+    await scan()
+    submitAdjustment()
+    await vi.waitFor(() => {
+      expect(root.textContent).toContain('may not have been saved')
+    })
+    await scan()
+    submitAdjustment()
+    await vi.waitFor(() => {
+      expect(root.textContent).toContain('Change saved')
+    })
+    const [first, second] = vi.mocked(io.adjust).mock.calls
+    expect(first).toStrictEqual([UID, 2, 'forgot', expect.any(String)])
+    expect(second).toStrictEqual(first)
+  })
+
+  it('keeps the action balance and history when an older ledger load finishes', async () => {
+    const io = baseIo()
+    const ledger = Promise.withResolvers<Awaited<ReturnType<StampIo['ledger']>>>()
+    vi.mocked(io.ledger).mockReturnValue(ledger.promise)
+    vi.mocked(io.redeem).mockResolvedValue(done('redeem', -10, 0))
+    mount(io, 10)
+    await scan()
+    tap(button('Give the reward'))
+    tap(button('Yes, give the reward'))
+    await vi.waitFor(() => {
+      expect(root.textContent).toContain('Reward recorded')
+    })
+    ledger.resolve({ body: { entries: [], summary: summary(10) }, ok: true })
+    await flush()
+    const panel = root.querySelector('[data-testid="stamp-actions"]')!
+    expect(panel.querySelector('[aria-live="polite"]')?.textContent).toBe('0 / 10')
+    expect(panel.textContent).toContain('Reward given')
+    expect(panel.textContent).not.toContain('Give the reward')
   })
 
   it('sends a signed amount with a reason and shows the new count', async () => {
