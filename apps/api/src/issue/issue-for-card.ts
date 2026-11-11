@@ -18,6 +18,7 @@ import {
   existingAddressPass,
   renewEvidence,
 } from '../requirements/claim.ts'
+import { cardHasRequirements } from '../requirements/store.ts'
 import { issueBearer, IssueConfigError } from './issue-bearer.ts'
 import { issueContext } from './issue-context.ts'
 import { issueOffchainPass, offchainDomain } from './issue-offchain.ts'
@@ -271,10 +272,10 @@ export const issueForCard = async (
   claimant: PassClaimant | null = null,
   agreementId?: Hex,
 ): Promise<CardIssueOutcome> => {
-  if ((card.identity !== 'none' || card.hasRequirements) && claimant === null) {
+  if ((card.identity !== 'none' || cardHasRequirements(card)) && claimant === null) {
     return { error: 'holder_must_claim', ok: false }
   }
-  if (card.hasRequirements) {
+  if (cardHasRequirements(card)) {
     return await issueRequirement(c, card, issuer, source, claimant, agreementId)
   }
   if (card.record === 'offchain') {

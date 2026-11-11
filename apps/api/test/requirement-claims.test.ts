@@ -223,6 +223,21 @@ describe('requirement applications and claims', () => {
     },
   )
 
+  it('checks address Cards despite a stale requirement flag', async () => {
+    const ctx = await setup()
+    ctx.grant()
+    const issued = await ctx.claim()
+    const pass = await issued.json<SelfServeIssueResponse>()
+    await db().update(cards).set({ hasRequirements: false }).where(eq(cards.id, ctx.card.id))
+    ctx.grant({ revoked: true })
+    const shown = await ctx.present(pass.uid)
+    await expect.soft(shown.json()).resolves.toMatchObject({ reason: 'REQUIREMENT_UNMET' })
+    const unproven = await ctx.send(`${path}/issue`, { holderAddress: ctx.key.address })
+    expect(unproven.status).toBe(400)
+    const listed = await ctx.app.request(`/v1/issuers/${CARD_INPUT.handle}`, {}, ctx.bindings)
+    await expect(listed.json()).resolves.toMatchObject({ cards: [{ requirements: [requirement] }] })
+  })
+
   it('fails closed when only membership revocation is unreadable', async () => {
     const ctx = await setup({ identity: 'none' })
     ctx.grant()
@@ -230,8 +245,11 @@ describe('requirement applications and claims', () => {
     const pass = await issued.json<SelfServeIssueResponse>()
     vi.spyOn(ctx.chain, 'offchainRevokedAt').mockRejectedValue(new ChainError('rpc down'))
     const qr = await ctx.send('/v1/verify', { qr: pass.qr })
-    const reception = await ctx.send('/v1/issuers/me/reception',
-      { qr: pass.qr, requestId: crypto.randomUUID() }, ctx.token)
+    const reception = await ctx.send(
+      '/v1/issuers/me/reception',
+      { qr: pass.qr, requestId: crypto.randomUUID() },
+      ctx.token,
+    )
     expect([qr.status, reception.status]).toStrictEqual([502, 502])
   })
 

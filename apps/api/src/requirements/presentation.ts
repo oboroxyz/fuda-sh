@@ -10,7 +10,7 @@ import type { Bindings } from '../env.ts'
 import { requirementsAllowed } from './allowlist.ts'
 import type { Evidence } from './claim.ts'
 import { requirementAdapters } from './registry.ts'
-import { requirementsOf } from './store.ts'
+import { cardHasRequirements, requirementsOf } from './store.ts'
 
 export type PresentationRequirements =
   | { met: true; evidence: Evidence[] }
@@ -21,20 +21,21 @@ export const presentationRequirements = async (
   chain: ChainClient,
   uid: Hex,
   env: Pick<Bindings, 'IP_REGISTRIES'>,
-  knownCard?: Pick<typeof cards.$inferSelect, 'id' | 'hasRequirements'>,
+  knownCard?: Pick<typeof cards.$inferSelect, 'id' | 'hasRequirements'> &
+    Partial<Pick<typeof cards.$inferSelect, 'identity'>>,
 ): Promise<PresentationRequirements> => {
-  if (knownCard?.hasRequirements === false) {
+  if (knownCard !== undefined && !cardHasRequirements(knownCard)) {
     return { evidence: [], met: true }
   }
   const card =
     knownCard ??
     (await db
-      .select({ hasRequirements: cards.hasRequirements, id: cards.id })
+      .select({ hasRequirements: cards.hasRequirements, id: cards.id, identity: cards.identity })
       .from(members)
       .innerJoin(cards, eq(cards.id, members.cardId))
       .where(eq(members.attestationUid, uid))
       .get())
-  if (card === undefined || !card.hasRequirements) {
+  if (card === undefined || !cardHasRequirements(card)) {
     return { evidence: [], met: true }
   }
   const address = await db

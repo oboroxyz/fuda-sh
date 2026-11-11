@@ -96,7 +96,7 @@ const withRequirements = async (
   if (out.decision !== 'ADMIT') return out
   const checked = await presentationRequirements(c.get('db'), c.get('chain'), uid, c.env, {
     id: card?.cardId ?? '',
-    hasRequirements: card?.hasRequirements ?? false,
+    hasRequirements: card?.hasRequirements === true || card?.identity === 'address',
   })
   return checked.met
     ? { ...out, ...(checked.evidence.length > 0 ? { requirements: checked.evidence } : {}) }

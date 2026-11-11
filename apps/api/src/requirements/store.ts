@@ -23,14 +23,18 @@ export const requirementRows = (
     position,
   }))
 
-type CardKey = Pick<typeof cards.$inferSelect, 'id' | 'hasRequirements'>
+type CardKey = Pick<typeof cards.$inferSelect, 'id' | 'hasRequirements'> &
+  Partial<Pick<typeof cards.$inferSelect, 'identity'>>
+
+export const cardHasRequirements = (card: Pick<CardKey, 'hasRequirements' | 'identity'>): boolean =>
+  card.hasRequirements || card.identity === 'address'
 
 // A Card without requirements costs no query. Invalid stored config fails closed.
 export const requirementsByCard = async (
   db: Db,
   listed: readonly CardKey[],
 ): Promise<Map<string, Requirement[]>> => {
-  const cardIds = listed.filter((card) => card.hasRequirements).map((card) => card.id)
+  const cardIds = listed.filter(cardHasRequirements).map((card) => card.id)
   const batches = await Promise.all(
     bindChunks(cardIds, 99).map(
       async (batch) =>

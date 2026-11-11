@@ -26,6 +26,7 @@ import { errorResponse, jsonResponse } from '../json.ts'
 import { memberBearerSession } from '../middleware/bearer-session.ts'
 import { rateLimit } from '../middleware/rate-limit.ts'
 import { existingAddressPass } from '../requirements/claim.ts'
+import { cardHasRequirements } from '../requirements/store.ts'
 import { requirementsOf } from '../requirements/store.ts'
 import { verifyTurnstile } from '../turnstile/siteverify.ts'
 
@@ -138,7 +139,7 @@ const claimFor = async (
     sensitive: v.SafeParseResult<typeof SensitiveClaimBody>
   },
 ): Promise<Claim | null> => {
-  if (card.hasRequirements) {
+  if (cardHasRequirements(card)) {
     return await addressClaimant(c, cardId, body.address)
   }
   if (card.identity === 'passkey') {
@@ -201,7 +202,7 @@ export const postV1IssuersHandleSlugIssue = defineHandler(
       return errorResponse(c, 'not_found', 404)
     }
     const { card, issuer } = found
-    const request = await claimRequest(c, card, card.hasRequirements)
+    const request = await claimRequest(c, card, cardHasRequirements(card))
     if (!request.ok) {
       return request.res
     }
@@ -215,7 +216,7 @@ export const postV1IssuersHandleSlugIssue = defineHandler(
     if (claim !== null && !claim.ok) {
       return claim.res
     }
-    if (card.hasRequirements && !isClaimable(card, c.get('now')())) {
+    if (cardHasRequirements(card) && !isClaimable(card, c.get('now')())) {
       const existing =
         claim?.claimant.kind === 'address'
           ? await existingAddressPass(c.get('db'), card.id, claim.claimant.address, c.env.API_BASE_URL)

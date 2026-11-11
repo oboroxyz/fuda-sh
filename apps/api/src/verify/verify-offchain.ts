@@ -23,6 +23,7 @@ import type { VerifyOutcome } from './verify-uid.ts'
 
 export interface OffchainRow {
   hasRequirements?: boolean | null
+  identity?: string | null
   cardId: string | null
   handle: string | null
   signed: string
@@ -34,6 +35,7 @@ export const loadVerificationRow = async (db: Db, uid: Hex) =>
   (await db
     .select({
       cardId: members.cardId,
+      identity: cards.identity,
       handle: issuers.handle,
       hasRequirements: cards.hasRequirements,
       signed: offchainAttestations.signed,
@@ -205,7 +207,12 @@ export const verifyOffchain = async (
     return reject(verdict.reason)
   }
   if (revoked instanceof ChainError) {
-    if (row.hasRequirements || pass.usageModel === USAGE_MODEL.SINGLE_USE || holderAddress !== null) {
+    if (
+      row.hasRequirements ||
+      row.identity === 'address' ||
+      pass.usageModel === USAGE_MODEL.SINGLE_USE ||
+      holderAddress !== null
+    ) {
       throw revoked
     }
     return { ...admit, unconfirmed: true }
