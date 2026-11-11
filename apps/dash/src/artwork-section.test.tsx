@@ -37,7 +37,6 @@ const issuer: IssuerView = {
   operatorAddress: null,
   tagline: '',
 }
-const savedUrl = 'https://api.test/assets/artwork/123/strip3x'
 
 const Editor = () => {
   const [current, setCurrent] = useState(card)
@@ -53,7 +52,9 @@ const choose = (host: HTMLElement, file: File) => {
 const button = (host: HTMLElement, label: string) =>
   [...host.querySelectorAll('button')].find((item) => item.textContent === label)!
 
-describe('Pass artwork section', () => {
+describe.each(['artwork', 'poster'] as const)('Pass %s section', (kind) => {
+  const variant = kind === 'artwork' ? 'strip3x' : 'poster3x'
+  const savedUrl = `https://api.test/assets/${kind}/123/${variant}`
   afterEach(() => {
     cleanup()
     vi.unstubAllGlobals()
@@ -63,7 +64,8 @@ describe('Pass artwork section', () => {
   it('explains a refused source without sending an upload', async () => {
     const fetch = vi.fn<typeof globalThis.fetch>()
     vi.stubGlobal('fetch', fetch)
-    const host = mount(<Editor />)
+    const root = mount(<Editor />)
+    const host = root.querySelector<HTMLElement>(`[data-testid=card-${kind}]`)!
     choose(host, new File(['text'], 'text.txt', { type: 'text/plain' }))
     await vi.waitFor(() => {
       expect(host.querySelector('[role=alert]')?.textContent).toBe(DASH_COPY.en.logo.rejections.type)
@@ -72,12 +74,30 @@ describe('Pass artwork section', () => {
     expect(button(host, DASH_COPY.en.management.save).disabled).toBe(true)
   })
 
+  it('refuses an undersized crop before uploading', async () => {
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi
+        .fn<() => Promise<{ close: () => void; height: number; width: number }>>()
+        .mockResolvedValue({ close: vi.fn<() => void>(), height: 100, width: 100 }),
+    )
+    const fetch = vi.fn<typeof globalThis.fetch>()
+    vi.stubGlobal('fetch', fetch)
+    const root = mount(<Editor />)
+    const host = root.querySelector<HTMLElement>(`[data-testid=card-${kind}]`)!
+    choose(host, new File(['png'], 'small.png', { type: 'image/png' }))
+    await vi.waitFor(() => {
+      expect(host.querySelector('[role=alert]')?.textContent).toBe(DASH_COPY.en[kind].tooSmall)
+    })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
   it('saves one prepared set, shows both Wallet layouts, and removes the saved image', async () => {
     vi.stubGlobal(
       'createImageBitmap',
       vi
         .fn<() => Promise<{ close: () => void; height: number; width: number }>>()
-        .mockResolvedValue({ close: vi.fn<() => void>(), height: 432, width: 1125 }),
+        .mockResolvedValue({ close: vi.fn<() => void>(), height: 1344, width: 3300 }),
     )
     vi.stubGlobal(
       'OffscreenCanvas',
@@ -92,23 +112,30 @@ describe('Pass artwork section', () => {
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
     const fetch = vi
       .fn<typeof globalThis.fetch>()
-      .mockResolvedValueOnce(Response.json({ card: { ...card, artworkUrl: savedUrl } }))
+      .mockResolvedValueOnce(
+        Response.json({ card: { ...card, [kind === 'artwork' ? 'artworkUrl' : 'posterUrl']: savedUrl } }),
+      )
       .mockResolvedValueOnce(Response.json({ card }))
     vi.stubGlobal('fetch', fetch)
-    const host = mount(<Editor />)
+    const root = mount(<Editor />)
+    const host = root.querySelector<HTMLElement>(`[data-testid=card-${kind}]`)!
     choose(host, new File(['png'], 'art.png', { type: 'image/png' }))
     await vi.waitFor(() => {
       expect(button(host, DASH_COPY.en.management.save).disabled).toBe(false)
     })
-    expect([...host.querySelectorAll('figcaption')].map((item) => item.textContent)).toStrictEqual([
-      'Apple Wallet',
-      'Google Wallet',
-    ])
+    expect([...host.querySelectorAll('figcaption')].map((item) => item.textContent)).toStrictEqual(
+      kind === 'artwork' ? ['Apple Wallet', 'Google Wallet'] : [],
+    )
     button(host, DASH_COPY.en.management.save).click()
     await vi.waitFor(() => {
-      expect(host.querySelector('img')?.getAttribute('src')).toContain('/assets/artwork/123/strip3x')
+      expect(host.querySelector('img')?.getAttribute('src')).toContain(`/assets/${kind}/123/${variant}`)
     })
-    expect(fetch.mock.calls[0]?.[1]?.body).toBeInstanceOf(FormData)
+    const requestUrl = fetch.mock.calls[0]?.[0]
+    expect([
+      requestUrl,
+      fetch.mock.calls[0]?.[1]?.body instanceof FormData,
+      fetch.mock.calls[0]?.[1]?.method,
+    ]).toStrictEqual([`/api/v1/issuers/me/cards/art-card/${kind}`, true, 'PUT'])
     button(host, DASH_COPY.en.logo.remove).click()
     await vi.waitFor(() => {
       expect(host.querySelector('img')).toBeNull()

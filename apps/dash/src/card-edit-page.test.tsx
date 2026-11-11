@@ -234,9 +234,11 @@ describe(CardEditPage, () => {
     await waitForm()
     // The integrations section stays: it is not a membership feature.
     expect(
-      [...root.querySelectorAll<HTMLDetailsElement>('details:not([data-testid=card-artwork])')].map(
-        (node) => node.dataset.testid,
-      ),
+      [
+        ...root.querySelectorAll<HTMLDetailsElement>(
+          'details:not([data-testid=card-artwork]):not([data-testid=card-poster])',
+        ),
+      ].map((node) => node.dataset.testid),
     ).toStrictEqual(['card-integrations'])
     expect(p.settings.load).not.toHaveBeenCalled()
   })
@@ -253,9 +255,11 @@ describe(CardEditPage, () => {
       root,
     )
     await waitForm()
-    expect(root.querySelectorAll<HTMLDetailsElement>('details:not([data-testid=card-artwork])')).toHaveLength(
-      0,
-    )
+    expect(
+      root.querySelectorAll<HTMLDetailsElement>(
+        'details:not([data-testid=card-artwork]):not([data-testid=card-poster])',
+      ),
+    ).toHaveLength(0)
     expect(p.settings.load).not.toHaveBeenCalled()
   })
 

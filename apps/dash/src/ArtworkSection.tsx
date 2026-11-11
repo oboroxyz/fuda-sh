@@ -1,13 +1,14 @@
 import { brandTextColor, IMAGE_SETS } from '@fuda/sdk'
 import type { IssuerView, OperatorCardView } from '@fuda/sdk'
-import { useEffect, useRef, useState } from 'preact/hooks'
+import { useEffect, useId, useRef, useState } from 'preact/hooks'
 
-import { removeArtwork, uploadArtwork } from './api.ts'
+import { removeArtwork, removePoster, uploadArtwork, uploadPoster } from './api.ts'
 import { assetUrlForDisplay } from './config.ts'
 import type { DashCopy } from './copy.ts'
 import { browserImageTools, generateImageSet, SOURCE_ACCEPT } from './logo.ts'
 import type { LogoRejection } from './logo.ts'
 import { settled } from './network-result.ts'
+import { PreviewQr } from './PreviewQr.tsx'
 
 const WalletArtworkPreview = (props: { card: OperatorCardView; issuer: IssuerView; url: string }) => {
   const { url } = props
@@ -44,12 +45,38 @@ const WalletArtworkPreview = (props: { card: OperatorCardView; issuer: IssuerVie
   )
 }
 
-const artworkRejection = (copy: DashCopy, rejection: LogoRejection | null): string | null => {
+const ApplePosterPreview = (props: { card: OperatorCardView; issuer: IssuerView; url: string }) => (
+  <figure class="relative aspect-[358/448] w-full max-w-80 overflow-hidden rounded-2xl bg-black text-white">
+    <img alt="" class="absolute inset-0 size-full object-cover" src={assetUrlForDisplay(props.url)} />
+    <div class="relative flex items-center gap-2 p-4 text-sm">
+      {props.issuer.logoUrl === null ? null : (
+        <img alt="" class="size-8 object-contain" src={assetUrlForDisplay(props.issuer.logoUrl)} />
+      )}
+      <span>{props.issuer.name}</span>
+    </div>
+    <strong class="relative block px-4 text-xl">{props.card.title}</strong>
+    <div class="absolute inset-x-0 bottom-0 flex items-center justify-between bg-black/50 p-4 backdrop-blur-sm">
+      <div class="text-xs">
+        <p class="font-mono">XXXX-XXXX-XXXXX</p>
+        <p>2026-01-01</p>
+      </div>
+      <div class="[&>svg]:size-16">
+        <PreviewQr />
+      </div>
+    </div>
+  </figure>
+)
+
+const artworkRejection = (
+  copy: DashCopy,
+  kind: 'artwork' | 'poster',
+  rejection: LogoRejection | null,
+): string | null => {
   if (rejection === null) {
     return null
   }
   if (rejection === 'tooSmall') {
-    return copy.artwork.tooSmall
+    return copy[kind].tooSmall
   }
   if (rejection === 'tooHeavy') {
     return copy.artwork.tooHeavy
@@ -57,12 +84,35 @@ const artworkRejection = (copy: DashCopy, rejection: LogoRejection | null): stri
   return copy.logo.rejections[rejection]
 }
 
-export const ArtworkSection = (props: {
+interface ArtworkSectionProps {
   card: OperatorCardView
   issuer: IssuerView
   copy: DashCopy
   onSaved: (card: OperatorCardView) => void
-}) => {
+}
+
+const IMAGE_EDITORS = {
+  artwork: {
+    Preview: WalletArtworkPreview,
+    field: 'artworkUrl',
+    remove: removeArtwork,
+    upload: uploadArtwork,
+    variant: 'strip3x',
+  },
+  poster: {
+    Preview: ApplePosterPreview,
+    field: 'posterUrl',
+    remove: removePoster,
+    upload: uploadPoster,
+    variant: 'poster3x',
+  },
+} as const
+
+const CardImageSection = (props: ArtworkSectionProps & { kind: 'artwork' | 'poster' }) => {
+  const id = useId()
+  const { kind } = props
+  const { field, upload, remove: removeImage, variant, Preview } = IMAGE_EDITORS[kind]
+  const savedUrl = props.card[field]
   const [pick, setPick] = useState<{ variants: Record<string, Blob>; url: string } | null>(null)
   const [rejection, setRejection] = useState<LogoRejection | null>(null)
   const [busy, setBusy] = useState(false)
@@ -89,7 +139,7 @@ export const ArtworkSection = (props: {
     setPick(null)
     setRejection(null)
     setFailed(false)
-    const result = await generateImageSet(file, browserImageTools, IMAGE_SETS.artwork)
+    const result = await generateImageSet(file, browserImageTools, IMAGE_SETS[kind])
     if (attempt !== generation.current) {
       return
     }
@@ -98,7 +148,7 @@ export const ArtworkSection = (props: {
       setRejection(result.reason)
       return
     }
-    const strip = result.variants.strip3x
+    const strip = result.variants[variant]
     if (strip !== undefined) {
       setPick({ url: URL.createObjectURL(strip), variants: result.variants })
     }
@@ -112,7 +162,7 @@ export const ArtworkSection = (props: {
     setBusy(true)
     setFailed(false)
     const result = await settled(async () =>
-      remove ? await removeArtwork(props.card.id) : await uploadArtwork(props.card.id, pick?.variants ?? {}),
+      remove ? await removeImage(props.card.id) : await upload(props.card.id, pick?.variants ?? {}),
     )
     if (attempt !== generation.current) {
       return
@@ -125,17 +175,22 @@ export const ArtworkSection = (props: {
       setFailed(true)
     }
   }
-  const url = pick?.url ?? props.card.artworkUrl
-  const copy = props.copy.artwork
-  const rejectionMessage = artworkRejection(props.copy, rejection)
+  const url = pick?.url ?? savedUrl
+  const copy = props.copy[kind]
+  const rejectionMessage = artworkRejection(props.copy, kind, rejection)
   return (
-    <details data-testid="card-artwork" class="rounded-box border border-[var(--fuda-border)]">
+    <details data-testid={`card-${kind}`} class="rounded-box border border-[var(--fuda-border)]">
       <summary class="cursor-pointer p-4 font-semibold">{copy.label}</summary>
       <fieldset class="flex min-w-0 flex-col gap-3 p-4 pt-0" disabled={busy}>
-        <label>
+        <legend class="sr-only">{copy.label}</legend>
+        <label for={id}>
           <span class="sr-only">{copy.label}</span>
           <input
             class="file-input w-full"
+            id={id}
+            name={kind}
+            aria-describedby={`${id}-hint`}
+            aria-invalid={rejection !== null}
             type="file"
             accept={SOURCE_ACCEPT}
             onInput={(event) => {
@@ -147,7 +202,9 @@ export const ArtworkSection = (props: {
             }}
           />
         </label>
-        <p class="text-sm opacity-70">{copy.hint}</p>
+        <p id={`${id}-hint`} class="text-sm opacity-70">
+          {copy.hint}
+        </p>
         {rejection === null ? null : (
           <p role="alert" class="text-error">
             {rejectionMessage}
@@ -158,7 +215,7 @@ export const ArtworkSection = (props: {
             {props.copy.management.saveFailed}
           </p>
         ) : null}
-        {url === null ? null : <WalletArtworkPreview card={props.card} issuer={props.issuer} url={url} />}
+        {url === null ? null : <Preview card={props.card} issuer={props.issuer} url={url} />}
         <div class="flex gap-2">
           <button
             class="btn btn-primary btn-sm"
@@ -173,7 +230,7 @@ export const ArtworkSection = (props: {
           <button
             class="btn btn-ghost btn-sm"
             type="button"
-            disabled={busy || props.card.artworkUrl === null}
+            disabled={busy || savedUrl === null}
             onClick={() => {
               void save(true)
             }}
@@ -185,3 +242,10 @@ export const ArtworkSection = (props: {
     </details>
   )
 }
+
+export const ArtworkSection = (props: ArtworkSectionProps) => (
+  <>
+    <CardImageSection {...props} kind="artwork" />
+    <CardImageSection {...props} kind="poster" />
+  </>
+)
