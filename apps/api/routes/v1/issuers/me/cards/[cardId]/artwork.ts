@@ -1,1 +1,1 @@
-export { putCardArtwork as PUT, deleteCardArtwork as DELETE } from '#api/handlers/artwork.ts'
+export { changeCardArtwork as PUT, changeCardArtwork as DELETE } from '#api/handlers/artwork.ts'

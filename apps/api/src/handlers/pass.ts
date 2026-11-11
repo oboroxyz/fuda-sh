@@ -46,19 +46,12 @@ const appleStrip = async (c: Context<AppEnv>, prefix: string | null) => {
   if (bucket === undefined || prefix === null) {
     return null
   }
-  const [strip1x, strip2x, strip3x] = await Promise.all(
-    ['strip1x', 'strip2x', 'strip3x'].map(
-      async (variant) => await readImageObject(bucket, prefix, variant, IMAGE_SETS.artwork),
-    ),
-  )
-  if (
-    strip1x === null ||
-    strip1x === undefined ||
-    strip2x === null ||
-    strip2x === undefined ||
-    strip3x === null ||
-    strip3x === undefined
-  ) {
+  const [strip1x, strip2x, strip3x] = await Promise.all([
+    readImageObject(bucket, prefix, 'strip1x', IMAGE_SETS.artwork),
+    readImageObject(bucket, prefix, 'strip2x', IMAGE_SETS.artwork),
+    readImageObject(bucket, prefix, 'strip3x', IMAGE_SETS.artwork),
+  ])
+  if (strip1x === null || strip2x === null || strip3x === null) {
     return null
   }
   return {

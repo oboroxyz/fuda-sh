@@ -13,7 +13,7 @@ import { notifyPassesChanged } from '../pass/notify.ts'
 import { requirementsOf } from '../requirements/store.ts'
 import { partsOf } from './media.ts'
 
-const changeCardArtwork = defineHandler(operatorAuth(), async (c) => {
+export const changeCardArtwork = defineHandler(operatorAuth(), async (c) => {
   c.header('cache-control', 'no-store')
   const current = await ownedCard(c, c.req.param().cardId)
   if (current === undefined) {
@@ -43,9 +43,6 @@ const changeCardArtwork = defineHandler(operatorAuth(), async (c) => {
   notifyPassesChanged(c, { cardId: current.id })
   return jsonResponse(c, { card })
 })
-
-export const putCardArtwork = defineHandler(async (c) => await changeCardArtwork(c))
-export const deleteCardArtwork = defineHandler(async (c) => await changeCardArtwork(c))
 
 export const getArtwork = defineHandler(async (c) => {
   const { id, variant } = c.req.param()
