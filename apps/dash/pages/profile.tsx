@@ -7,7 +7,7 @@ import { useCardDraft } from '../src/card-draft.ts'
 import type { ClaimState } from '../src/ens-claim.ts'
 import { initialClaimState, reconcileClaimState, runClaim } from '../src/ens-claim.ts'
 import { readPendingEnsClaim, reconcilePendingEnsClaim, writePendingEnsClaim } from '../src/ens-pending.ts'
-import { submitClaim } from '../src/ens-submit.ts'
+import { resolveClaimBundle, submitClaim } from '../src/ens-submit.ts'
 import { EnsClaim } from '../src/EnsClaim.tsx'
 import { operatorPasskeys } from '../src/operator-sign-in.ts'
 import {
@@ -44,23 +44,24 @@ export default function Profile(): JSX.Element {
     const pending = id === undefined ? null : reconcilePendingEnsClaim(id, ens)
     setClaim((state) =>
       previous === null && pending !== null
-        ? { failure: 'unconfirmed', kind: 'failed', ...pending }
+        ? { kind: 'pending', pending }
         : reconcileClaimState(state, ens, pending, previous?.value?.name),
     )
-  }, [ens])
+  }, [ens, issuer?.id])
 
-  const onClaim = (): void => {
+  const onClaim = (retained?: ReturnType<typeof readPendingEnsClaim>): void => {
     const id = issuer?.id
     const claimOnce = async (): Promise<void> => {
-      let pending = id === undefined ? undefined : (readPendingEnsClaim(id) ?? undefined)
+      let pending = retained ?? (id === undefined ? undefined : (readPendingEnsClaim(id) ?? undefined))
       const current = claim
-      if (current.kind === 'failed' && current.txHash !== undefined && current.name !== undefined) {
-        pending = { name: current.name, txHash: current.txHash }
+      if (retained === undefined && current.kind === 'pending') {
+        ;({ pending } = current)
       }
       const result = await runClaim(
         {
           confirmClaim: async (txHash) => await confirmEnsClaim(txHash),
           requestVoucher: async () => await claimVoucher(),
+          resolveBundle: resolveClaimBundle,
           submitClaim,
         },
         (next) => {
@@ -86,6 +87,13 @@ export default function Profile(): JSX.Element {
     }
     void run()
   }
+
+  useEffect(() => {
+    const pending = issuer === null ? null : reconcilePendingEnsClaim(issuer.id, ens)
+    if (pending !== null) {
+      onClaim(pending)
+    }
+  }, [issuer?.id, ens?.name])
 
   const ensSection =
     ens !== null && issuer !== null ? (

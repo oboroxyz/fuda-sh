@@ -25,7 +25,17 @@ const progressLine = (copy: DashCopy['ens'], state: ClaimState): string | null =
   if (state.kind === 'submitting') {
     return copy.submitting
   }
+  if (state.kind === 'pending') {
+    return copy.pending
+  }
   return state.kind === 'confirming' ? copy.confirming : null
+}
+
+const claimLabel = (copy: DashCopy['ens'], state: ClaimState): string => {
+  if (state.kind === 'pending') {
+    return copy.recheck
+  }
+  return state.kind === 'failed' ? copy.retry : copy.claim
 }
 
 export const EnsClaim = (props: EnsClaimProps): JSX.Element => {
@@ -80,7 +90,7 @@ export const EnsClaim = (props: EnsClaimProps): JSX.Element => {
             }}
             type="button"
           >
-            {props.state.kind === 'failed' ? props.copy.retry : props.copy.claim}
+            {claimLabel(props.copy, props.state)}
           </button>
         ) : null}
       </div>
@@ -95,7 +105,11 @@ export const EnsClaim = (props: EnsClaimProps): JSX.Element => {
         </p>
       )}
 
-      {progress === null ? null : <p class="text-sm opacity-70">{progress}</p>}
+      {progress === null ? null : (
+        <p class="text-sm opacity-70" role="status">
+          {progress}
+        </p>
+      )}
     </section>
   )
 }
