@@ -10,6 +10,7 @@ import { getDb } from '../src/db/client.ts'
 import {
   cardAddressPasses,
   cardApplicants,
+  cardIntegrations,
   stampCredits,
   cards,
   entryLog,
@@ -127,6 +128,7 @@ describe('requirement applications and claims', () => {
         'card_address_passes',
         'card_applicants',
         'card_requirements',
+        'card_integrations',
         'offchain_attestations',
         'entry_log',
         'slots',
@@ -139,6 +141,31 @@ describe('requirement applications and claims', () => {
         'rate_limits',
       ].map((table) => env.DB.prepare(`DELETE FROM ${table}`)),
     )
+  })
+
+  it('rejects an ended agreement in preview, pass status and Badge submission', async () => {
+    const ctx = await setup({ identity: 'none' })
+    ctx.grant()
+    const issued = await ctx.claim()
+    const pass = await issued.json<SelfServeIssueResponse>()
+    ctx.grant({ revoked: true })
+    const preview = await ctx.app.request(`/v1/verify/${pass.uid}`, {}, ctx.bindings)
+    await expect.soft(preview.json()).resolves.toMatchObject({
+      decision: 'REJECT',
+      reason: 'REQUIREMENT_UNMET',
+      requirement: { detail: 'agreement-inactive', kind: requirement.kind },
+    })
+    const page = await ctx.app.request(`/pass/${pass.uid}`, {}, ctx.bindings)
+    expect.soft(await page.text()).toContain('data-ok="false"')
+    Object.assign(ctx.bindings, {
+      WORLD_ACTION: 'test',
+      WORLD_APP_ID: 'app_test',
+      WORLD_RP_ID: 'rp_test',
+      WORLD_RP_SIGNING_KEY: `0x${'11'.repeat(32)}`,
+    })
+    await db().insert(cardIntegrations).values({ cardId: ctx.card.id, humanBadge: true })
+    const badge = await ctx.send('/v1/badges/human', { uid: pass.uid, payload: {} })
+    expect(badge.status).toBe(404)
   })
 
   it('issues a Bearer requirement pass and admits its QR with evidence', async () => {

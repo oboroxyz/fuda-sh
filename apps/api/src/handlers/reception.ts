@@ -120,7 +120,7 @@ export const postV1IssuersMeReception = defineHandler(operatorAuth(), async (c) 
     operatorKey: principalKey(operator.principal),
     singleUse: out.decision === 'ADMIT' && out.canonical.usageModel === USAGE_MODEL.SINGLE_USE,
     uid,
-    verdict: { ...verdictBody(out), ...checked.fields },
+    verdict: { ...verdictBody(out) },
   })
   if (receipt.uid !== uid) {
     return errorResponse(c, 'bad_input', 409)

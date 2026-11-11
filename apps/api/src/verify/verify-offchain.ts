@@ -30,7 +30,7 @@ export interface OffchainRow {
 }
 
 // null for a uid with no offchain row, which is then an on-chain question.
-export const loadOffchainRow = async (db: Db, uid: Hex): Promise<OffchainRow | null> =>
+export const loadVerificationRow = async (db: Db, uid: Hex) =>
   (await db
     .select({
       cardId: members.cardId,
@@ -39,12 +39,17 @@ export const loadOffchainRow = async (db: Db, uid: Hex): Promise<OffchainRow | n
       signed: offchainAttestations.signed,
       status: members.status,
     })
-    .from(offchainAttestations)
-    .innerJoin(members, eq(members.attestationUid, offchainAttestations.uid))
+    .from(members)
+    .leftJoin(offchainAttestations, eq(members.attestationUid, offchainAttestations.uid))
     .leftJoin(cards, eq(cards.id, members.cardId))
     .leftJoin(issuers, eq(issuers.id, members.issuerId))
-    .where(eq(offchainAttestations.uid, uid))
+    .where(eq(members.attestationUid, uid))
     .get()) ?? null
+
+export const loadOffchainRow = async (db: Db, uid: Hex): Promise<OffchainRow | null> => {
+  const row = await loadVerificationRow(db, uid)
+  return row?.signed == null ? null : { ...row, signed: row.signed }
+}
 
 const decodeOrNull = (data: Hex): OffchainPassData | null => {
   try {
