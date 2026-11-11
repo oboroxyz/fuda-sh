@@ -57,6 +57,20 @@ Run these in order; each fills a placeholder the next step or the deploy depends
 
 Apply migration `0009_session_audience.sql` before deploying the member-login API. It adds the member/operator audience to existing session storage, preserving old operator sessions. Member login uses the same API and signature-verification chain configuration as dashboard login; no new Worker, domain or member database is needed.
 
+### ERC-8432 registry for Card requirements
+
+These steps have not been run yet. No registry is deployed, and the commands below were written from the reference implementation's README and constructor, not from a deployment.
+
+A Card can require an ERC-8432 licence agreement only where the api's `IP_REGISTRIES` names a registry ([Card requirements](./specs/card-requirements.md)). The registry is the [reference implementation](https://github.com/sgc-web3/erc-8432) at commit `a2f4291`, deployed unmodified. Its README says it is not audited or meant for production, so deploy it for the develop target only.
+
+1. Install Foundry. This repository has no Solidity for the registry and does not build it.
+2. Clone the reference implementation, check out `a2f4291`, and run `forge build` and `forge test`. It has no external dependencies.
+3. Deploy `src/IPAssetRegistry.sol:IPAssetRegistry` to Base Sepolia with a funded key. The constructor takes no arguments. Verify the contract on BaseScan.
+4. Add the address to `IP_REGISTRIES` in the develop target's `vars` in `apps/api/targets.jsonc`, comma-separated if there are several, and deploy the api. The dashboard then offers the requirement when a Card is created.
+5. The asset owner registers the asset with `register`, registers terms with `registerTerms`, attaches them with `attachTerms`, and grants each applicant with `createAgreement`. fuda issues a pass only for agreements created that way. An agreement taken with `acquireAgreement` gets no pass.
+
+Use a key that holds nothing else, and fictional asset names in any public demo.
+
 ### ENSv2 parent and hybrid resolver topology
 
 The D1 migrations create the `ens_names` mirror. The API exposes `POST /ens/gateway`, and `packages/ens-contracts` contains the matching hybrid ENSIP-10 resolver, issuer registrar, pinned ETHOnline 2026 Sepolia address family, and noninteractive deployment tools. The gateway route fails closed with 503 unless all three API-side ENS bindings are present, so the ordinary deployment above does not need placeholder ENS values.
@@ -409,6 +423,8 @@ For each surface, the suite does four things:
 4. It seeds venues, cards and Rights through the public api routes.
 
 The `e2e` target is the `local` target with the stack's origins and `USE_FAKE_CHAIN=1`, in its own directory. Local secrets in `apps/api/targets/local/.env` never reach a run, admin routes stay open, and the developer's local D1 under `apps/api/targets/local/.void/` is never touched. Keep `apps/api/targets/e2e/` free of `.env` and `.dev.vars` files, because `vp preview` would read them.
+
+The target also sets `IP_REGISTRIES` to one registry address and `FAKE_AGREEMENT` to `<registry>:<assetId>:<holder>`. The fake chain starts with that one granted ERC-8432 agreement, because a running stack has no other way to grant one. `tests/app/requirement.e2e.ts` holds the key of that holder and uses it to apply, claim and present through the member app's Worker. `FAKE_AGREEMENT` is read only when the fake chain is on.
 
 The dashboard suite also covers connected-app registration, full-page PKCE approval, external-browser card creation/readback and revocation. Its external client runs on a real ephemeral loopback HTTP origin, so Chromium performs the api’s CORS checks. Operator fixtures authenticate throwaway EOAs through the real API and seed HttpOnly cookies; they do not bypass the API session checks. Two-store tests verify that drafts, issuance counts and Stamp totals reset on switching, that card edits still save, and that an actual second tab cannot cause a stale profile form to overwrite another store. Only the second tab uses DOM evaluation because the E2E SDK exposes one active screen; the main tab uses semantic screen locators.
 
