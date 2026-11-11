@@ -160,6 +160,35 @@ describe('notifying Google Wallet of a changed pass', () => {
     expect(bodies).toContain(JSON.stringify({ state: status === 'revoked' ? 'INACTIVE' : 'COMPLETED' }))
   })
 
+  it('patches a revocation committed while an older status patch was in flight', async () => {
+    await db.delete(cardStampSettings)
+    await db
+      .update(members)
+      .set({ usageModel: 1, validFrom: 0, validUntil: 0 })
+      .where(eq(members.attestationUid, UID))
+    const states: string[] = []
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      if (new URL(request.url).host === 'oauth2.googleapis.com') {
+        return Response.json({ access_token: 'access' })
+      }
+      if (request.method === 'PATCH') {
+        const body = (await request.json()) as { state?: string }
+        if (body.state !== undefined) {
+          states.push(body.state)
+          if (states.length === 1) {
+            await db.update(members).set({ status: 'revoked' }).where(eq(members.attestationUid, UID))
+          }
+        }
+      }
+      return Response.json({ textModulesData: [] })
+    })
+    const kept: Promise<unknown>[] = []
+    notifyPassChanged(context(kept, await googleBindings()), UID)
+    await kept[0]
+    expect(states).toStrictEqual(['ACTIVE', 'INACTIVE'])
+  })
+
   it('isolates a Google failure from the action it follows', async () => {
     // oxlint-disable-next-line require-await -- Fetch-compatible failure double
     vi.stubGlobal('fetch', async () => new Response(null, { status: 503 }))
