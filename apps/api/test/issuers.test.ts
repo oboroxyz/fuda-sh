@@ -122,8 +122,22 @@ describe('issuer onboarding', () => {
     })
     await expect(getDb({ DB: env.DB }).select().from(cards)).resolves.toStrictEqual([])
     const me = await getJson(app, publicEnv(), '/v1/issuers/me', token)
-    await expect(me.json()).resolves.toStrictEqual(body)
+    await expect(me.json()).resolves.toStrictEqual({ ...body, requirementRegistries: [] })
   })
+
+  it.each([
+    { configured: undefined, expected: [] },
+    { configured: 'invalid', expected: [] },
+    { configured: ` 0x${'AB'.repeat(20)},0x${'ab'.repeat(20)}`, expected: [`0x${'ab'.repeat(20)}`] },
+  ])(
+    'reports allowed requirement registries before registration: $configured',
+    async ({ configured, expected }) => {
+      const app = appWith({ chain: fakeChain(), now: () => NOW })
+      const { token } = await signIn(app, publicEnv())
+      const me = await getJson(app, { ...publicEnv(), IP_REGISTRIES: configured }, '/v1/issuers/me', token)
+      await expect(me.json()).resolves.toMatchObject({ requirementRegistries: expected })
+    },
+  )
 
   it('finds the issuer again on the next sign-in', async () => {
     const app = appWith({ chain: fakeChain(), now: () => NOW })

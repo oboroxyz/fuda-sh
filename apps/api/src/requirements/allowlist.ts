@@ -5,7 +5,7 @@ import type { Bindings } from '../env.ts'
 
 // docs/specs/card-requirements.md#rules. The registries this deployment reads, from the
 // comma-separated IP_REGISTRIES binding. Unset, or with no valid address, nothing is allowed.
-const registryAllowlist = (env: Pick<Bindings, 'IP_REGISTRIES'>): ReadonlySet<string> =>
+export const registryAllowlist = (env: Pick<Bindings, 'IP_REGISTRIES'>): ReadonlySet<string> =>
   new Set(
     (env.IP_REGISTRIES ?? '')
       .split(',')
