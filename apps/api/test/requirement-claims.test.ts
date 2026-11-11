@@ -452,6 +452,15 @@ describe('requirement applications and claims', () => {
     expect(reads).not.toHaveBeenCalled()
   })
 
+  it('does not query requirements for a pass without an address holder', async () => {
+    const database = db()
+    const select = vi.spyOn(database, 'select')
+    await expect(
+      presentationRequirements(database, fakeChain(), agreementId, null, {}),
+    ).resolves.toStrictEqual({ evidence: [], met: true })
+    expect(select).not.toHaveBeenCalled()
+  })
+
   it('fails closed without evidence or readable chain', async () => {
     const ctx = await setup()
     ctx.grant()

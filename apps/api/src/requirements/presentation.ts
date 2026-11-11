@@ -22,6 +22,9 @@ export const presentationRequirements = async (
   holder: Hex | null,
   env: Pick<Bindings, 'IP_REGISTRIES'>,
 ): Promise<PresentationRequirements> => {
+  if (holder === null) {
+    return { evidence: [], met: true }
+  }
   const card = await db
     .select({ id: cards.id, identity: cards.identity })
     .from(members)
@@ -43,7 +46,7 @@ export const presentationRequirements = async (
       return { met: false, requirement: { detail: 'registry-not-allowed', kind: requirement.kind } }
     }
     const row = stored.find((entry) => entry.position === position && entry.kind === requirement.kind)
-    if (row === undefined || holder === null) {
+    if (row === undefined) {
       return { met: false, requirement: { detail: 'agreement-inactive', kind: requirement.kind } }
     }
     // oxlint-disable-next-line no-await-in-loop -- preserve requirement order and stop on the first failure
