@@ -221,7 +221,7 @@ describe(CardScreenView, () => {
       kind: 'ready',
     })
     expect(hrefsOf(shown)).toStrictEqual([expectedHref])
-    expect(viewText(shown)).toContain('No name or contact details required')
+    expect(viewText(shown)).toContain('is saved on this device.')
   })
 
   it('renders loading, not-found and each failure message', () => {

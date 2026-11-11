@@ -1004,7 +1004,7 @@ describe.each(['address', 'none'] as const)('%s requirement Card controller', (i
       expect(licence.mock.calls.map(([input]) => input.action)).toStrictEqual(['apply', 'claim', 'claim'])
       expect(deps.issueCard).not.toHaveBeenCalled()
       expect({
-        activeNotice: host.textContent?.includes('This pass works while your licence agreement is active.'),
+        activeNotice: host.textContent?.includes('Works while your licence agreement is active.'),
         rememberedCard: readCard(venue.handle, 'regular')?.uid,
         rememberedPasses: readPassMemory().map((pass) => pass.uid),
       }).toStrictEqual({

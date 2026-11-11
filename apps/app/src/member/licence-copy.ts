@@ -20,7 +20,7 @@ interface LicenceCopy {
 
 export const LICENCE_COPY = {
   en: {
-    activePass: 'This pass works while your licence agreement is active.',
+    activePass: 'Works while your licence agreement is active.',
     address:
       'Give this licence address to the asset owner. Once they grant your agreement, receive your pass here.',
     agreement: 'View licence agreement',
@@ -48,7 +48,7 @@ export const LICENCE_COPY = {
     signIn: 'Sign in to apply',
   },
   ja: {
-    activePass: 'ライセンス契約が有効な間、このパスを使えます。',
+    activePass: 'ライセンス契約が有効な間、使えます。',
     address:
       'このライセンス用アドレスを権利者に伝えてください。契約が付与されたら、ここでパスを受け取れます。',
     agreement: 'ライセンス契約を見る',

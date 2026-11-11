@@ -127,8 +127,8 @@ export const VENUE_COPY = {
     pickCard: 'Pick a card',
     qrLabel: (name, noun) => `Your ${noun} QR code for ${name}`,
     saveBackup: 'Save a backup of this pass',
-    saveBackupHint: 'Keep it somewhere safe. Anyone who has it can use this pass.',
-    savedOnDevice: (noun) => `No name or contact details required. This ${noun} is saved on this device.`,
+    saveBackupHint: 'Anyone who has the backup can use this pass.',
+    savedOnDevice: (noun) => `This ${noun} is saved on this device.`,
     seeAllCards: (name) => `See all cards from ${name}`,
     sensitiveAlreadyHeld: 'Already have it on another device? Find it under Your passes.',
     sensitiveEntryNote:
@@ -218,8 +218,8 @@ export const VENUE_COPY = {
     pickCard: 'カードを選ぶ',
     qrLabel: (name, noun) => `${name}の${noun}のQRコード`,
     saveBackup: 'パスの控えを保存',
-    saveBackupHint: '安全な場所に保管してください。控えを持つ人は、このパスを使えます。',
-    savedOnDevice: (noun) => `氏名や連絡先は不要です。この${noun}はこの端末に保存されています。`,
+    saveBackupHint: '控えを持つ人は、このパスを使えます。',
+    savedOnDevice: (noun) => `この${noun}はこの端末に保存されています。`,
     seeAllCards: (name) => `${name}のカードをすべて見る`,
     sensitiveAlreadyHeld: '別の端末で受け取り済みの場合は、パス一覧から開けます。',
     sensitiveEntryNote:
