@@ -38,7 +38,7 @@ export const CardRequirements = (props: { card: CardView; copy: DashCopy }): JSX
         </dd>
         {requirement.termsId === undefined ? null : (
           <>
-            <dt>{props.copy.designer.requirementTerms}</dt>
+            <dt>{props.copy.requirements.terms}</dt>
             <dd class="font-mono break-all">{requirement.termsId}</dd>
           </>
         )}
@@ -119,7 +119,7 @@ export const CardApplicants = (props: {
           >
             <span class="font-mono text-sm break-all">{applicant.address}</span>
             <time class="text-sm" dateTime={new Date(applicant.appliedAt * 1000).toISOString()}>
-              {labels.applied}: {new Date(applicant.appliedAt * 1000).toLocaleString()}
+              {labels.applied}: {new Date(applicant.appliedAt * 1000).toLocaleString(labels.dateLocale)}
             </time>
             <button
               type="button"
