@@ -5,6 +5,8 @@ import type { Hex } from 'viem'
 import type { ChainClient } from '../chain/client.ts'
 import type { Db } from '../db/client.ts'
 import { cards, members, passEvidence } from '../db/schema.ts'
+import type { Bindings } from '../env.ts'
+import { requirementsAllowed } from './allowlist.ts'
 import type { Evidence } from './claim.ts'
 import { requirementAdapters } from './registry.ts'
 import { requirementsOf } from './store.ts'
@@ -18,6 +20,7 @@ export const presentationRequirements = async (
   chain: ChainClient,
   uid: Hex,
   holder: Hex | null,
+  env: Pick<Bindings, 'IP_REGISTRIES'>,
 ): Promise<PresentationRequirements> => {
   const card = await db
     .select({ id: cards.id, identity: cards.identity })
@@ -36,6 +39,9 @@ export const presentationRequirements = async (
     .orderBy(asc(passEvidence.position))
   const evidence: Evidence[] = []
   for (const [position, requirement] of requirements.entries()) {
+    if (!requirementsAllowed(env, [requirement])) {
+      return { met: false, requirement: { detail: 'registry-not-allowed', kind: requirement.kind } }
+    }
     const row = stored.find((entry) => entry.position === position && entry.kind === requirement.kind)
     if (row === undefined || holder === null) {
       return { met: false, requirement: { detail: 'agreement-inactive', kind: requirement.kind } }

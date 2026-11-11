@@ -3,13 +3,14 @@ import type { RequirementKind, RequirementUnmet, SelfServeIssueResponse } from '
 import { and, eq } from 'drizzle-orm'
 import type { Hex } from 'viem'
 
-import { walletValidity } from '../pass/wallet-status.ts'
-
 import type { ChainClient } from '../chain/client.ts'
 import { ZERO_ADDRESS } from '../chain/client.ts'
 import type { Db } from '../db/client.ts'
 import { cardAddressPasses, members, passEvidence } from '../db/schema.ts'
 import type { cards } from '../db/schema.ts'
+import type { Bindings } from '../env.ts'
+import { walletValidity } from '../pass/wallet-status.ts'
+import { requirementsAllowed } from './allowlist.ts'
 import { presentationRequirements } from './presentation.ts'
 import { requirementAdapters } from './registry.ts'
 import { requirementsOf } from './store.ts'
@@ -25,10 +26,14 @@ export const claimEvidence = async (
   chain: ChainClient,
   card: typeof cards.$inferSelect,
   holder: Hex,
+  env: Pick<Bindings, 'IP_REGISTRIES'>,
   agreementId?: Hex,
 ): Promise<ClaimEvidence> => {
   const evidence: Evidence[] = []
   for (const requirement of await requirementsOf(db, card)) {
+    if (!requirementsAllowed(env, [requirement])) {
+      return { ok: false, requirement: { detail: 'registry-not-allowed', kind: requirement.kind } }
+    }
     // oxlint-disable-next-line no-await-in-loop -- preserve the Card's requirement order and stop on the first failure
     const checked = await requirementAdapters[requirement.kind].claimCheck(
       chain,
@@ -115,13 +120,14 @@ export const renewEvidence = async (
   card: typeof cards.$inferSelect,
   holder: Hex,
   uid: Hex,
+  env: Pick<Bindings, 'IP_REGISTRIES'>,
   agreementId?: Hex,
 ): Promise<{ ok: true } | { ok: false; requirement: RequirementUnmet }> => {
-  const held = await presentationRequirements(db, chain, uid, holder)
+  const held = await presentationRequirements(db, chain, uid, holder, env)
   if (held.met) {
     return { ok: true }
   }
-  const checked = await claimEvidence(db, chain, card, holder, agreementId)
+  const checked = await claimEvidence(db, chain, card, holder, env, agreementId)
   if (!checked.ok) {
     return checked
   }

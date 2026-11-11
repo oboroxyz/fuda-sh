@@ -11,7 +11,13 @@ import { cards, members } from '../db/schema.ts'
 import type { issuers } from '../db/schema.ts'
 import { mirrorMemberName } from '../ens/mirror.ts'
 import type { AppEnv } from '../env.ts'
-import { addressPassOver, claimEvidence, claimRows, existingAddressPass, renewEvidence } from '../requirements/claim.ts'
+import {
+  addressPassOver,
+  claimEvidence,
+  claimRows,
+  existingAddressPass,
+  renewEvidence,
+} from '../requirements/claim.ts'
 import { issueBearer, IssueConfigError } from './issue-bearer.ts'
 import { issueContext } from './issue-context.ts'
 import { issueOffchainPass, offchainDomain } from './issue-offchain.ts'
@@ -149,13 +155,21 @@ const issueAddress = async (
         card,
         claimant.address,
         existing.uid,
+        c.env,
         agreementId,
       )
       return renewed.ok
         ? { ok: true, pass: existing }
         : { error: 'requirement_unmet', ok: false, requirement: renewed.requirement }
     }
-    const checked = await claimEvidence(c.get('db'), c.get('chain'), card, claimant.address, agreementId)
+    const checked = await claimEvidence(
+      c.get('db'),
+      c.get('chain'),
+      card,
+      claimant.address,
+      c.env,
+      agreementId,
+    )
     if (!checked.ok) {
       return { error: 'requirement_unmet', ok: false, requirement: checked.requirement }
     }

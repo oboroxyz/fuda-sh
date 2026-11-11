@@ -31,6 +31,7 @@ export type RequirementInput = v.InferInput<typeof CardRequirement>
 export const CardRequirements = v.pipe(v.array(CardRequirement), v.maxLength(MAX_REQUIREMENTS))
 
 export const REQUIREMENT_DETAILS = [
+  'registry-not-allowed',
   'no-agreement',
   'not-granted',
   'wrong-terms',

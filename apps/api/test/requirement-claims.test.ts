@@ -4,7 +4,7 @@ import { env } from 'cloudflare:test'
 import { eq } from 'drizzle-orm'
 import type { Hex } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getDb } from '../src/db/client.ts'
 import {
@@ -392,6 +392,38 @@ describe('requirement applications and claims', () => {
       })
     },
   )
+
+  it('stops claim and presentation when a registry is removed without reading it', async () => {
+    const ctx = await setup()
+    ctx.grant()
+    const first = await ctx.claim()
+    const pass = await first.json<SelfServeIssueResponse>()
+    ctx.bindings.IP_REGISTRIES = ''
+    const reads = [
+      vi.spyOn(ctx.chain, 'agreementCountOf'),
+      vi.spyOn(ctx.chain, 'activeAgreementsOf'),
+      vi.spyOn(ctx.chain, 'agreementOf'),
+      vi.spyOn(ctx.chain, 'isActiveAgreementHolder'),
+    ]
+    for (const read of reads) {
+      read.mockRejectedValue(new Error('Removed registry must not be read'))
+    }
+    const repeated = await ctx.claim()
+    await expect(repeated.json()).resolves.toMatchObject({ requirement: { detail: 'registry-not-allowed' } })
+    const shown = await ctx.present(pass.uid)
+    await expect(shown.json()).resolves.toMatchObject({
+      reason: 'REQUIREMENT_UNMET',
+      requirement: { detail: 'registry-not-allowed' },
+    })
+    const fresh = await ctx.send(`${path}/issue`, {
+      holderAddress: other.address,
+      signature: await other.signMessage({ message: claimMessage(ctx.card.id, other.address) }),
+    })
+    await expect(fresh.json()).resolves.toMatchObject({ requirement: { detail: 'registry-not-allowed' } })
+    for (const read of reads) {
+      expect(read).not.toHaveBeenCalled()
+    }
+  })
 
   it('fails closed without evidence or readable chain', async () => {
     const ctx = await setup()
