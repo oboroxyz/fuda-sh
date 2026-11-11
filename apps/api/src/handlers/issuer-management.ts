@@ -1,10 +1,11 @@
 import { asHex, CardIntegrationsBody, CardUpdateBody, ISSUER_PASS_STATUSES } from '@fuda/sdk'
-import { and, eq, inArray } from 'drizzle-orm'
+import type { CardApplicantsResponse } from '@fuda/sdk'
+import { and, asc, eq, gt, inArray, or } from 'drizzle-orm'
 import * as v from 'valibot'
 import { defineHandler } from 'void'
 
 import { badgesByUid, withBadges } from '../badges/advisory.ts'
-import { cards, cardStampSettings } from '../db/schema.ts'
+import { cardApplicants, cards, cardStampSettings } from '../db/schema.ts'
 import { readCardIntegrations, writeCardIntegrations } from '../integrations/store.ts'
 import { ownedCard } from '../issuers/owned-card.ts'
 import { readIssuerPasses } from '../issuers/passes.ts'
@@ -175,4 +176,50 @@ export const getV1IssuersMePasses = defineHandler(operatorAuth(), async (c) => {
     }),
   )
   return jsonResponse(c, { ...listed, passes: withBadges(listed.passes, held) })
+})
+
+// docs/specs/card-requirements.md#routes. Anyone may apply, so the list is read in pages by
+// position: a flood of early applications cannot hide the ones after it.
+const APPLICANTS_PAGE = 100
+const APPLICANT_CURSOR_RE = /^(?<at>\d{1,15}):(?<address>0x[0-9a-f]{40})$/u
+
+export const getV1IssuersMeCardsCardIdApplicants = defineHandler(operatorAuth(), async (c) => {
+  c.header('cache-control', 'no-store')
+  const card = await ownedCard(c, c.req.param().cardId)
+  if (card === undefined) {
+    return errorResponse(c, 'not_found', 404)
+  }
+  const raw = c.req.query('after')
+  const after = raw === undefined ? null : APPLICANT_CURSOR_RE.exec(raw)?.groups
+  if (after === undefined) {
+    return errorResponse(c, 'bad_input', 400)
+  }
+  // One row past the page says whether another page exists without a count.
+  const rows = await c
+    .get('db')
+    .select({ address: cardApplicants.address, appliedAt: cardApplicants.appliedAt })
+    .from(cardApplicants)
+    .where(
+      and(
+        eq(cardApplicants.cardId, card.id),
+        after === null
+          ? undefined
+          : or(
+              gt(cardApplicants.appliedAt, Number(after.at)),
+              and(
+                eq(cardApplicants.appliedAt, Number(after.at)),
+                gt(cardApplicants.address, after.address ?? ''),
+              ),
+            ),
+      ),
+    )
+    .orderBy(asc(cardApplicants.appliedAt), asc(cardApplicants.address))
+    .limit(APPLICANTS_PAGE + 1)
+  const applicants = rows.slice(0, APPLICANTS_PAGE)
+  const last = applicants.at(-1)
+  const body: CardApplicantsResponse = {
+    applicants,
+    next: rows.length > APPLICANTS_PAGE && last !== undefined ? `${last.appliedAt}:${last.address}` : null,
+  }
+  return jsonResponse(c, body)
 })

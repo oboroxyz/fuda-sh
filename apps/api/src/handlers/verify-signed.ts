@@ -18,8 +18,10 @@ import { ChainError } from '../chain/client.ts'
 import type { AttestedPasskey } from '../eas/offchain.ts'
 import type { AppEnv } from '../env.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
+import { presentationRequirements } from '../requirements/presentation.ts'
 import { admitAndHook, logEntry } from '../verify/admit.ts'
 import { consumeChallenge } from '../verify/challenge.ts'
+import type { VerifyOutcome } from '../verify/verify-uid.ts'
 import { resolveVerdict, venueHandleOf, waitUntilOf } from './verify.ts'
 
 // Which of the two 4xx codes a malformed body earns: a uid that is absent or not
@@ -67,6 +69,68 @@ const proofHolds = async (
     return await signedBy(holderAddress, message, signature)
   }
   return await c.get('chain').verifyMessage({ address: holder, message, signature })
+}
+
+const checkedRequirements = async (c: Context<AppEnv>, uid: Hex, holder: Hex | null) => {
+  try {
+    return {
+      checked: await presentationRequirements(c.get('db'), c.get('chain'), uid, holder),
+      ok: true,
+    } as const
+  } catch (error) {
+    if (error instanceof ChainError) {
+      return { ok: false, res: errorResponse(c, 'chain_error', 502) } as const
+    }
+    throw error
+  }
+}
+
+const admitSigned = async (
+  c: Context<AppEnv>,
+  uid: Hex,
+  now: number,
+  out: Extract<VerifyOutcome, { decision: 'ADMIT' }>,
+  answer: (verdict: VerifySignedResponse) => Promise<Response>,
+  withVenue: (verdict: VerifySignedResponse) => Response,
+): Promise<Response> => {
+  const db = c.get('db')
+  const { holder } = out.canonical
+  const requirements = await checkedRequirements(c, uid, out.holderAddress ?? null)
+  if (!requirements.ok) {
+    return requirements.res
+  }
+  const { checked } = requirements
+  if (!checked.met) {
+    return await answer({
+      decision: 'REJECT',
+      holder,
+      path: 'signature',
+      reason: 'REQUIREMENT_UNMET',
+      requirement: checked.requirement,
+    })
+  }
+  const outcome = await admitAndHook({
+    canonical: out.canonical,
+    db,
+    now,
+    onAdmit: c.get('onAdmit'),
+    path: 'signature',
+    uid,
+    waitUntil: waitUntilOf(c),
+  })
+  if (!outcome.admitted) {
+    return await answer({ decision: 'REJECT', holder, path: 'signature', reason: outcome.reason })
+  }
+  const admitted: VerifySignedResponse = {
+    decision: 'ADMIT',
+    holder,
+    path: 'signature',
+    reason: 'OK',
+  }
+  if (checked.evidence.length > 0) {
+    admitted.requirements = checked.evidence
+  }
+  return withVenue(admitted)
 }
 
 export const postV1VerifySigned = defineHandler(async (c) => {
@@ -178,23 +242,5 @@ export const postV1VerifySigned = defineHandler(async (c) => {
     return await answer({ decision: 'REJECT', holder, path: 'signature', reason: 'BAD_SIGNATURE' })
   }
   proven = true
-  const outcome = await admitAndHook({
-    canonical: out.canonical,
-    db,
-    now,
-    onAdmit: c.get('onAdmit'),
-    path: 'signature',
-    uid,
-    waitUntil: waitUntilOf(c),
-  })
-  if (!outcome.admitted) {
-    return await answer({ decision: 'REJECT', holder, path: 'signature', reason: outcome.reason })
-  }
-  const admitted: VerifySignedResponse = {
-    decision: 'ADMIT',
-    holder,
-    path: 'signature',
-    reason: 'OK',
-  }
-  return withVenue(admitted)
+  return await admitSigned(c, uid, now, out, answer, withVenue)
 })

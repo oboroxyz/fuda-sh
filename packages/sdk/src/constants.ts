@@ -32,6 +32,9 @@ export const hasNoHolder = (holder: string): boolean => /^0x0{40}$/u.test(holder
 export const isPasskeyPass = (right: { holder: string; level: number }): boolean =>
   right.level === 1 && hasNoHolder(right.holder)
 
+export const claimMessage = (cardId: string, holderAddress: Hex): string =>
+  `fuda.sh:claim:v1:${cardId}:${holderAddress.toLowerCase()}`
+
 export const CHALLENGE_PREFIX = 'fuda-gate:'
 export const CHALLENGE_TTL_SECONDS = 300
 

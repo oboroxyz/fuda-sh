@@ -510,3 +510,45 @@ export const applePassRegistrations = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.deviceId, t.uid] }), index('apple_pass_registrations_uid').on(t.uid)],
 )
+
+export const cardApplicants = sqliteTable(
+  'card_applicants',
+  {
+    address: text('address').notNull(),
+    appliedAt: integer('applied_at').notNull(),
+    cardId: text('card_id')
+      .notNull()
+      .references(() => cards.id),
+  },
+  (t) => [
+    primaryKey({ columns: [t.cardId, t.address] }),
+    index('card_applicants_applied').on(t.cardId, t.appliedAt, t.address),
+  ],
+)
+
+export const cardAddressPasses = sqliteTable(
+  'card_address_passes',
+  {
+    address: text('address').notNull(),
+    attestationUid: text('attestation_uid')
+      .notNull()
+      .references(() => members.attestationUid),
+    cardId: text('card_id')
+      .notNull()
+      .references(() => cards.id),
+  },
+  (t) => [primaryKey({ columns: [t.cardId, t.address] })],
+)
+
+export const passEvidence = sqliteTable(
+  'pass_evidence',
+  {
+    attestationUid: text('attestation_uid')
+      .notNull()
+      .references(() => members.attestationUid),
+    evidence: text('evidence').notNull(),
+    kind: text('kind', { enum: ['erc8432-agreement'] }).notNull(),
+    position: integer('position').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.attestationUid, t.position] })],
+)

@@ -69,7 +69,7 @@ describe('issuer onboarding', () => {
     await db.delete(issuers)
   })
 
-  it('stores address requirements and leaves claims disabled', async () => {
+  it('stores address requirements and requires a claim signature', async () => {
     const chain = fakeChain()
     const bindings = configuredEnv(seedRoot(chain), { IP_REGISTRIES: requirement.registry })
     const app = appWith({ chain, now: () => NOW })
@@ -93,8 +93,8 @@ describe('issuer onboarding', () => {
       },
       bindings,
     )
-    expect(claim.status).toBe(409)
-    await expect(claim.json()).resolves.toStrictEqual({ error: 'holder_must_claim' })
+    expect(claim.status).toBe(400)
+    await expect(claim.json()).resolves.toStrictEqual({ error: 'bad_input' })
     for (const invalid of [
       { ...input, requirements: [], slug: 'bad-one' },
       { ...input, identity: 'none', slug: 'bad-two' },
