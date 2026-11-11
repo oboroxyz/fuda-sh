@@ -2,7 +2,7 @@
 
 A Card may carry **requirements**. A requirement names a record outside fuda that a member must hold, such as an ERC-8432 licence agreement. fuda reads that record itself when the member claims a pass, and again each time the member presents the pass. The first kind is `erc8432-agreement`.
 
-**Status: API and dashboard built.** The dashboard creates Cards with one requirement, shows saved requirements and pages through applicants. Member app and licence key derivation remain proposed.
+**Status: built, not yet usable on a deployed target.** The model, the API, the member app and the dashboard are built. No registry is deployed and `IP_REGISTRIES` is unset on every deployed target, so no Card can carry a requirement there. Nothing has run against a deployed registry.
 
 API paths below are under `/v1`. Terms such as Card, Right, Holder and Member secret are defined in the [glossary](../CONTEXT.md). How requirements relate to the other ways an outside system works with fuda is in the [architecture overview](../architecture.md#outside-systems).
 
@@ -64,7 +64,7 @@ A member needs no Crypto wallet. The member app derives one key per IP asset fro
 - **Recovery is the Member secret's.** A passkey that holds a copy restores the same address. A member who starts over gets new addresses, and the asset owner revokes the old agreement and grants a new one.
 - **The label never changes.** A new label would change every address.
 
-The Vault entry for one of these passes records that its key is a licence key and which asset it belongs to, in place of a random salt.
+The Vault entry is `{ uid, licence: { chainId, registry, assetId }, venue, cardTitle }`, in place of the per-pass random salt. The app derives the scope from the first ERC-8432 requirement and its configured chain. Applying shows the licence address with a copy action. Receiving again with the same Member secret restores the same pass in the Vault.
 
 ## Flow
 

@@ -10,7 +10,7 @@ const isUncredentialed = async (request: Request): Promise<boolean> => {
   if (path === '/api/v1/challenge' || path === '/api/v1/verify-signed') {
     return true
   }
-  if (!/^\/api\/v1\/issuers\/[^/]+\/[^/]+\/issue$/u.test(path)) {
+  if (!/^\/api\/v1\/issuers\/[^/]+\/[^/]+\/(?:issue|apply)$/u.test(path)) {
     return false
   }
   const body: unknown = await request

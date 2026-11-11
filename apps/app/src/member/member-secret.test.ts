@@ -2,6 +2,8 @@ import { verifyMessage } from 'viem'
 import { describe, expect, it } from 'vitest'
 
 import {
+  licenceKeyFrom,
+  keyForEntry,
   mergeEntries,
   newMemberSecret,
   newPassSalt,
@@ -15,7 +17,7 @@ import type { VaultEntry } from './member-secret.ts'
 
 const prf = (fill: number): Uint8Array<ArrayBuffer> => new Uint8Array(32).fill(fill)
 
-const entry = (fill: string, cardTitle = 'Staff badge'): VaultEntry => ({
+const entry = (fill: string, cardTitle = 'Staff badge'): Extract<VaultEntry, { salt: string }> => ({
   cardTitle,
   salt: newPassSalt(),
   uid: `0x${fill.repeat(64)}`,
@@ -103,5 +105,50 @@ describe('the vault', () => {
     const first = entry('a')
     const second = entry('b')
     expect(mergeEntries([first], [first, second])).toStrictEqual([first, second])
+  })
+})
+
+const scope = { assetId: `0x${'cd'.repeat(32)}`, chainId: 84_532, registry: `0x${'ab'.repeat(20)}` } as const
+
+describe('licence keys', () => {
+  it('pins the HKDF label and canonical scope with an independent Node crypto vector', async () => {
+    const key = await licenceKeyFrom(prf(1), scope)
+    expect(key.address).toBe('0xd9c68db0260b6f725cecb060F118cAb847D81D10')
+    const upper = await licenceKeyFrom(prf(1), {
+      ...scope,
+      assetId: `0x${'CD'.repeat(32)}`,
+      registry: `0x${'AB'.repeat(20)}`,
+    })
+    expect(upper.address).toBe(key.address)
+  })
+
+  it('separates assets, registries, chains and members', async () => {
+    const keys = await Promise.all([
+      licenceKeyFrom(prf(1), scope),
+      licenceKeyFrom(prf(2), scope),
+      licenceKeyFrom(prf(1), { ...scope, chainId: 8453 }),
+      licenceKeyFrom(prf(1), { ...scope, assetId: `0x${'ef'.repeat(32)}` }),
+      licenceKeyFrom(prf(1), { ...scope, registry: `0x${'ef'.repeat(20)}` }),
+    ])
+    expect(new Set(keys.map((key) => key.address)).size).toBe(5)
+  })
+
+  it('opens old vault entries alongside licence entries and signs with their original keys', async () => {
+    const secret = prf(1)
+    const old = entry('a')
+    const licence = {
+      cardTitle: 'Art club',
+      licence: scope,
+      uid: `0x${'bc'.repeat(32)}`,
+      venue: 'art-club',
+    } as const
+    const entries = [old, licence]
+    await expect(openEntries(await sealEntries([old], secret), secret)).resolves.toStrictEqual([old])
+    await expect(openEntries(await sealEntries(entries, secret), secret)).resolves.toStrictEqual(entries)
+    const licenceKey = await keyForEntry(secret, licence)
+    const oldKey = await keyForEntry(secret, old)
+    const original = await passKeyFrom(secret, old.salt)
+    expect(licenceKey.address).toBe('0xd9c68db0260b6f725cecb060F118cAb847D81D10')
+    expect(oldKey.address).toBe(original.address)
   })
 })

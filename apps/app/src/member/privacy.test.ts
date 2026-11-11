@@ -23,6 +23,8 @@ describe('Sensitive proxy privacy', () => {
         { holderAddress: `0x${'11'.repeat(20)}`, turnstileToken: 'sensitive-token' },
       ],
       ['/issuers/venue-two/staff/issue', { holderAddress: `0x${'22'.repeat(20)}` }],
+      ['/issuers/art/fans/apply', { holderAddress: `0x${'33'.repeat(20)}` }],
+      ['/issuers/art/fans/issue', { holderAddress: `0x${'33'.repeat(20)}`, signature: '0x01' }],
       ['/challenge', { uid: `0x${'aa'.repeat(32)}` }],
       ['/verify-signed', { nonce: `0x${'cc'.repeat(32)}`, signature: '0x01', uid: `0x${'bb'.repeat(32)}` }],
     ] as const) {
@@ -38,14 +40,21 @@ describe('Sensitive proxy privacy', () => {
       )
       expect(response.status).toBe(200)
     }
-    expect(captured).toHaveLength(4)
-    expect(captured.map((request) => request.cookie)).toStrictEqual([null, null, null, null])
-    expect(captured.map((request) => request.authorization)).toStrictEqual([null, null, null, null])
+    expect(captured).toHaveLength(6)
+    expect(captured.map((request) => request.cookie)).toStrictEqual([null, null, null, null, null, null])
+    expect(captured.map((request) => request.authorization)).toStrictEqual([
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+    ])
     expect(JSON.parse(captured[0]?.body ?? '{}')).toMatchObject({
       holderAddress: `0x${'11'.repeat(20)}`,
       turnstileToken: 'sensitive-token',
     })
-    expect(captured[2]?.body).toContain('uid')
+    expect(captured[4]?.body).toContain('uid')
     vi.unstubAllGlobals()
   })
 
