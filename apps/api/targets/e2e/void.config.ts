@@ -24,6 +24,7 @@ export default defineConfig({
     vars: {
       ...local.cloudflare?.vars,
       API_BASE_URL: env('E2E_API_ORIGIN'),
+      IP_REGISTRIES: '0xabababababababababababababababababababab',
       PUBLIC_BASE_URL: env('E2E_APP_ORIGIN'),
       USE_FAKE_CHAIN: '1',
     },
