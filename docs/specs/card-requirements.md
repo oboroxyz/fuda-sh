@@ -100,7 +100,7 @@ sequenceDiagram
 | --- | --- |
 | `GET /issuers/:handle` | Each card adds `requirements`, so the member app knows which key to derive |
 | `POST /issuers/:handle/:slug/apply` `{ holderAddress, turnstileToken? }` | Adds the address to the Card's applicant list. `{ applied: true }`, also on a repeat. `404 not_found` on a Card with no requirement |
-| `GET /issuers/me/cards/:cardId/applicants` | Operator session. `{ applicants: { address, appliedAt }[] }`, oldest first, capped at 1,000 |
+| `GET /issuers/me/cards/:cardId/applicants` | Operator session. `{ applicants: { address, appliedAt }[], next }`, oldest first, 100 a page. `next` is the `?after=` value of the following page, or null. A malformed `after` answers `400 bad_input` |
 | `POST /issuers/:handle/:slug/issue` `{ holderAddress, signature, agreementId?, source?, turnstileToken? }` | The claim by address, with a signature and the claim check |
 
 Apply and claim omit browser credentials, as Sensitive claims do. They share the self-serve budget and the [claim bot check](./pass-types-and-flows.md#claim-bot-check). The applicant list holds the address and the time, and no account id.
@@ -117,7 +117,7 @@ The holder address is lower case in the claim message. The SDK exports `claimMes
 | the chain cannot be read                   | `502 chain_error`                                             |
 | the Card is at capacity                    | `409 card_sold_out`                                           |
 
-A Card issues one pass per address. After the requirements pass, the api reserves capacity with the same mechanism as other passes. D1 commits the unique address mapping, pass and ordered evidence together. A failed batch releases the place; if a concurrent claim won, the api reads and returns that pass. A crash between reserving and writing can strand a place, as with other passes. A repeated claim by the same address reserves no place and issues nothing new, so a replayed signature gains nothing. It runs the presentation check on the pass the address already has. While that check holds, the claim answers the pass. When it fails, the claim check runs again: a newly granted agreement replaces the pass's evidence and the claim answers the same pass, and otherwise the claim answers `403 requirement_unmet`. A member whose agreement was revoked and granted again therefore keeps one pass.
+A Card issues one pass per address. After the requirements pass, the api reserves capacity with the same mechanism as other passes. D1 commits the unique address mapping, pass and ordered evidence together. A failed batch releases the place; if a concurrent claim for the same address won, the api reads and returns that pass. One case differs: when the concurrent claims compete for a Card's last place, the one that fails to reserve it can answer `409 card_sold_out` before the other has written its pass, and a retry then answers the pass. A crash between reserving and writing can strand a place, as with other passes. A repeated claim by the same address reserves no place and issues nothing new, so a replayed signature gains nothing. It runs the presentation check on the pass the address already has. While that check holds, the claim answers the pass. When it fails, the claim check runs again: a newly granted agreement replaces the pass's evidence and the claim answers the same pass, and otherwise the claim answers `403 requirement_unmet`. A member whose agreement was revoked and granted again therefore keeps one pass.
 
 ### Presenting
 

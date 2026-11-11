@@ -136,6 +136,13 @@ export interface PasskeyRequestOptions {
 // Every /verify-signed verdict is 200 in this one shape (docs/specs/pass-types-and-flows.md#gate-protocol): no entitlement
 // or delegation view, `stage` marks the two early stops, `holder` appears once the
 // attestation was decoded.
+// The addresses that applied for a Card with requirements, oldest first. `next` is the
+// `after` value of the following page, or null on the last one.
+export interface CardApplicantsResponse {
+  applicants: { address: string; appliedAt: number }[]
+  next: string | null
+}
+
 export interface VerifySignedResponse {
   decision: 'ADMIT' | 'REJECT'
   reason: Reason

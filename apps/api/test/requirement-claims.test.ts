@@ -1,5 +1,5 @@
 import { claimMessage, formatAgreementEvidence } from '@fuda/sdk'
-import type { CardInput, SelfServeIssueResponse } from '@fuda/sdk'
+import type { CardApplicantsResponse, CardInput, SelfServeIssueResponse } from '@fuda/sdk'
 import { env } from 'cloudflare:test'
 import { eq } from 'drizzle-orm'
 import type { Hex } from 'viem'
@@ -105,9 +105,9 @@ const setup = async (changes: Partial<CardInput> = {}) => {
       uid,
     })
   }
-  const applicants = async (operatorToken = token) =>
+  const applicants = async (operatorToken = token, query = '') =>
     await app.request(
-      `/v1/issuers/me/cards/${card.id}/applicants`,
+      `/v1/issuers/me/cards/${card.id}/applicants${query}`,
       { headers: { authorization: `Bearer ${operatorToken}` } },
       bindings,
     )
@@ -150,6 +150,7 @@ describe('requirement applications and claims', () => {
     expect(listed.headers.get('cache-control')).toBe('no-store')
     await expect(listed.json()).resolves.toStrictEqual({
       applicants: [{ address: ctx.key.address.toLowerCase(), appliedAt: NOW }],
+      next: null,
     })
     const second = await signIn(ctx.app, ctx.bindings, other)
     const result1 = await ctx.applicants(second.token)
@@ -167,6 +168,34 @@ describe('requirement applications and claims', () => {
       await expect(db().select().from(cardApplicants)).resolves.toHaveLength(0)
     },
   )
+
+  it('lists applicants in pages, so early applications cannot hide later ones', async () => {
+    const ctx = await setup()
+    const rows = Array.from({ length: 101 }, (_, index) => ({
+      address: `0x${index.toString(16).padStart(40, '0')}`,
+      appliedAt: NOW,
+      cardId: ctx.card.id,
+    }))
+    await Promise.all(
+      [0, 30, 60, 90].map(
+        async (start) =>
+          await db()
+            .insert(cardApplicants)
+            .values(rows.slice(start, start + 30)),
+      ),
+    )
+    const first = await ctx.applicants()
+    const page = await first.json<CardApplicantsResponse>()
+    expect(page.applicants).toHaveLength(100)
+    expect(page.next).toBe(`${NOW}:${rows[99]?.address}`)
+    const rest = await ctx.applicants(ctx.token, `?after=${page.next}`)
+    await expect(rest.json()).resolves.toStrictEqual({
+      applicants: [{ address: rows[100]?.address, appliedAt: NOW }],
+      next: null,
+    })
+    const malformed = await ctx.applicants(ctx.token, '?after=1')
+    expect(malformed.status).toBe(400)
+  })
 
   it('checks signature, requirements, chain and capacity in order without reserving refused claims', async () => {
     const ctx = await setup({ capacity: 1 })
