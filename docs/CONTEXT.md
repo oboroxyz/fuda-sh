@@ -16,7 +16,7 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Card record**: Where a Card's Rights are recorded, fixed when the Card is created: `offchain` (the default) signs each Right with no transaction and no holder address, and `onchain` attests each Right publicly. _Avoid_: Mode, storage, chain type
 
-**Card identity**: Who can use a Card's Rights, fixed when the Card is created: `none` (the default) means whoever shows one, `passkey` binds each Right to the passkey that claimed it, `sensitive` binds each Right to a key of its own, and `address` binds each Right to an address that a Requirement checks. _Avoid_: Identity level, KYC
+**Card identity**: Who can use a Card's Rights, fixed when the Card is created: `none` (the default) means whoever shows one, `passkey` binds each Right to the passkey that claimed it, `sensitive` binds each Right to a key of its own, and `address` binds each Right to an address that a Requirement checks. A Requirement also works with `none`, giving a Wallet pass whose QR anyone can show while the claim address qualifies. _Avoid_: Identity level, KYC
 
 **Identified pass**: An offchain Right on a Card with `passkey` identity. It attests the passkey's credential ID and public key at the Signed level with no holder address, needs an Account to claim, and is presented by answering a challenge in the app, so a copied QR does not admit. _Avoid_: Passkey pass, Secure pass
 
@@ -100,9 +100,9 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Qualification**: The external fact that makes a Member eligible for a Right (registered for the event, on the roster, paid) — read from a Qualification source before issuance is triggered. _Avoid_: Eligibility, entitlement (that is the Right), registration (one kind of Qualification)
 
-**Requirement** (of a Card): A rule fixed on a Card that names a record outside fuda which a member must hold, such as an ERC-8432 licence agreement. fuda reads the record at claim and at each presentation, so the gate depends on it (see `docs/specs/card-requirements.md`). A Requirement names the Qualification that fuda checks itself. _Avoid_: Gate (as a verb), token gating, condition, Integration (that is advisory)
+**Requirement** (of a Card): A rule fixed on a Card that names a record outside fuda which a member must hold, such as an ERC-8432 licence agreement. fuda reads the record at claim and at every admission, including QR and reception, so the gate depends on it (see `docs/specs/card-requirements.md`). A Requirement names the Qualification that fuda checks itself. _Avoid_: Gate (as a verb), token gating, condition, Integration (that is advisory)
 
-**Licence key**: The key the member app derives from the Member secret for one IP asset. Its address holds the member's licence agreement and their passes on Cards that require that asset. _Avoid_: Wallet, licence wallet, pass key (that is per Right)
+**Licence key**: The key the member app derives from the Member secret for one IP asset. Its address holds the member's licence agreement. With `address` identity it also holds the pass; with `none` it is stored separately from the Wallet pass. _Avoid_: Wallet, licence wallet, pass key (that is per Right)
 
 **Integration** (of a Card): An optional external service an Issuer turns on for one Card, off by default and saved apart from the Card. A Card's integrations decide which Badge kinds its members may attach; the gate never reads them. _Avoid_: Plugin, add-on, feature flag, connector
 

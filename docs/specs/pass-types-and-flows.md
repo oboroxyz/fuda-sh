@@ -14,11 +14,12 @@ The Issuer chooses a type per Card, separately from the `membership | ticket` ca
 | --- | --- | --- | --- | --- | --- |
 | **Standard** (default) | Bearer | signed attestation in D1, batched root | none | secret UID in a QR, Device wallet | membership admits as unconfirmed; ticket rejects |
 | **Identified** | Signed | as Standard | none, public key checked directly | challenge answered in the app | as Standard |
+| **Wallet requirement** | Bearer | offchain | proved at claim, stored separately | Wallet QR, with fresh requirement checks | rejects |
 | **Address requirement** | Signed | offchain | requirement subject address | challenge signed by the holder, with fresh requirement checks | rejects |
 | **On-chain** | Bearer | on-chain attestation | fuda-owned counterfactual account | public UID in a QR, Device wallet | rejects |
 | **On-chain self-held** | Signed | on-chain attestation | the member's own, stable | challenge answered in the app | rejects |
 
-Card identity `address` requires `record: offchain` and at least one fixed [requirement](./card-requirements.md). Their Signed claims and presentations check each requirement. `none`, `passkey` and `sensitive` keep their existing behavior.
+Card identity `address` requires `record: offchain` and at least one fixed [requirement](./card-requirements.md). A requirement also accepts `identity: none` with `record: offchain`, giving an ordinary Wallet pass. Both check requirements at claim and every admission. A copied QR can use the Wallet pass while the claim address still qualifies.
 
 **Sensitive use** is a Card setting on Identified, for employee badges and privacy-sensitive memberships. It adds per-pass keys, rejects when the chain is unreadable, keeps the entry log to a minimum with a set retention period, turns Attendance and Stamps off, and disables member names. It does not hide entry from the Issuer or the gate; that still needs [anonymous membership](#u4-anonymous-membership-v2-design-not-implemented).
 
@@ -363,7 +364,7 @@ The shared `fuda.sh/@<handle>` link redirects at the zone to `app.fuda.sh/@<hand
 
 **One member, several cards.** A member who claims two cards of one venue holds two rights: two attestations, two member numbers, two passes. The numbers are unique per issuer, so the two never collide as ENS labels, and they are unrelated to each other, so neither the chain nor a name links them to one person.
 
-**A Standard card cannot be limited to one per person.** The defining property of a Standard pass is that the member has no identity at claim time: no account, no contact detail, no key. The member app remembers a claimed card on the device and shows it again instead of issuing a second one, and the per-IP budget bounds automated abuse, but neither is identity: a cleared browser, a private window, or a second device yields another card. Enforcing one-per-person needs a stable member key, so the constraint belongs to a pass type that holds one, or to a card that deliberately requires a passkey before it is claimed and so gives up one-tap sign-up.
+**A Standard card without requirements cannot be limited to one per person.** The defining property of a Standard pass is that the member has no identity at claim time: no account, no contact detail, no key. The member app remembers a claimed card on the device and shows it again instead of issuing a second one, and the per-IP budget bounds automated abuse, but neither is identity: a cleared browser, a private window, or a second device yields another card. Enforcing one-per-person needs a stable member key, so the constraint belongs to a pass type that holds one, or to a card that deliberately requires a passkey before it is claimed and so gives up one-tap sign-up.
 
 ### Capacity and source
 
@@ -392,6 +393,8 @@ Dashboard API errors that previously exposed a code in issuance, revocation, mem
 ### Bearer entry (`POST /verify`)
 
 The gate scans `fuda:v1:<uid>`, posts `{ "qr", "venue"? }`, and renders the verdict. A station configured with `?venue=<handle>` refuses another venue's pass with `WRONG_VENUE` before consuming a slot. Without a configured venue it accepts passes from any venue and says so. A verdict is always `200` and decision-shaped, and every verdict is appended to `entry_log` with `path: 'qr'`. A malformed payload answers `400 bad_qr`, and a chain read the gate cannot complete answers `502 chain_error`; neither is a decision, so neither is logged. A Signed right presented by bare QR answers `REJECT LEVEL_REQUIRED` before any slot is consumed — a photo of a Signed pass does not admit. A right on chain at a `level` fuda no longer issues (level 2, once +Private) is read like any other and then refused: `LEVEL_REQUIRED` by QR, and by signature before its challenge is spent. The full order of checks and the reason each one reports live in the [attestation model](./attestation-model.md#gate-verification-order-and-reasons).
+
+For a Card with requirements, QR admission and venue reception check the stored claim address and evidence against the chain before any Slot, Entry, hook or Stamp. Failure is `REQUIREMENT_UNMET` with `requirement: { kind, detail }`. An unreadable chain answers `502 chain_error`, even for a membership. ADMIT includes `requirements: { kind, evidence }[]`. The preview skips this check.
 
 **Three-state gate rule.** The scanner classifies what it reads: a bare uid is a read-only preview (`GET /verify/:uid`), a `fuda:v1:` payload is an admission (`POST /verify`). A preview never consumes a slot and is never logged. The display has three states, not two:
 
