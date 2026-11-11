@@ -80,6 +80,8 @@ export type CardScreenState =
       // A Sensitive pass that was issued but is not in the list yet: waiting on this
       // device, or kept nowhere and so unusable.
       unsaved?: 'device' | 'lost'
+      // Why receiving again did not renew the pass. The pass itself stays on screen.
+      renewal?: { detail: RequirementDetail } | { failure: CardFailure }
     }
   | { kind: 'error'; card: PublicCard | null; failure: CardFailure }
   // The passkey gave no PRF result, so a Sensitive card stops here and says what to do.
@@ -631,6 +633,13 @@ const readyScreen = (
         <button class="btn btn-secondary" type="button" onClick={onIssue}>
           {pick(LICENCE_COPY, locale).receiveAgain}
         </button>
+        {state.renewal === undefined ? null : (
+          <p role="alert" class="text-warning-content bg-warning mt-3 rounded-lg p-3 text-sm">
+            {'detail' in state.renewal
+              ? pick(LICENCE_COPY, locale).details[state.renewal.detail]
+              : copy.failure[state.renewal.failure]}
+          </p>
+        )}
       </div>
     ) : null}
     {humanBadgeControl(state.badge, onVerifyHuman, copy)}
@@ -1209,11 +1218,46 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
     await finishClaim(card, result, ticket)
   }
 
+  const receiveAgain = async (ready: Extract<CardScreenState, { kind: 'ready' }>): Promise<void> => {
+    if (issuing.current) {
+      return
+    }
+    issuing.current = true
+    licenceAction.current = 'claim'
+    const ticket = lifecycle.current
+    const { card } = ready
+    const check = await io.claimToken(botCheck.current)
+    const result = check.ok
+      ? await claimFor(card, claimSourceFrom(window.location.search), check.token).catch(
+          (): PasskeyClaim => ({ failure: 'network', ok: false }),
+        )
+      : ({ failure: 'bot_check_failed', ok: false } as const)
+    if (ticket !== lifecycle.current) {
+      return
+    }
+    issuing.current = false
+    if (!result.ok) {
+      setState({
+        ...ready,
+        renewal: { failure: result.failure === 'no_prf' ? 'secret_unopenable' : result.failure },
+      })
+      return
+    }
+    if ('application' in result) {
+      const { application } = result
+      setState({
+        ...ready,
+        renewal: { detail: application.kind === 'unmet' ? application.detail : 'no-agreement' },
+      })
+      return
+    }
+    await finishClaim(card, result, ticket)
+  }
+
   const onIssue = (): void => {
     const current = state
     if (current.kind === 'ready' && hasRequirements(current.card)) {
-      licenceAction.current = 'claim'
-      void issue(current.card)
+      void receiveAgain(current)
       return
     }
     if (current.kind === 'landing' || current.kind === 'applied') {

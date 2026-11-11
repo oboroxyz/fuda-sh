@@ -1,5 +1,5 @@
 import { claimMessage, formatAgreementEvidence } from '@fuda/sdk'
-import type { CardApplicantsResponse, CardInput, SelfServeIssueResponse } from '@fuda/sdk'
+import type { CardApplicantsResponse, CardInput, SelfServeIssueResponse, VerifyResponse } from '@fuda/sdk'
 import { env } from 'cloudflare:test'
 import { eq } from 'drizzle-orm'
 import type { Hex } from 'viem'
@@ -200,6 +200,24 @@ describe('requirement applications and claims', () => {
     await expect(db().select().from(cards)).resolves.toMatchObject([{ reserved: 1 }])
     const issued = await db().select().from(members)
     expect(issued.map(({ level }) => level)).toStrictEqual(['bearer'])
+  })
+
+  it('names the agreement only in an admission, not in a preview or a refusal', async () => {
+    const ctx = await setup()
+    ctx.grant()
+    const claimed = await ctx.claim()
+    const pass = await claimed.json<SelfServeIssueResponse>()
+    const preview = await ctx.app.request(`/v1/verify/${pass.uid}`, {}, ctx.bindings)
+    const refused = await ctx.send('/v1/verify', { qr: pass.qr })
+    const answers = await Promise.all(
+      [preview, refused].map(async (response) => await response.json<VerifyResponse>()),
+    )
+    expect(answers.map((answer) => [answer.decision, answer.reason, 'requirements' in answer])).toStrictEqual(
+      [
+        ['ADMIT', 'OK', false],
+        ['REJECT', 'LEVEL_REQUIRED', false],
+      ],
+    )
   })
 
   it.each([{ revoked: true }, { frozen: true }, { expiry: 1n }, { holder: other.address }])(

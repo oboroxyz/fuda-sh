@@ -56,7 +56,8 @@ export const verdictBody = (
   if (out.requirement !== undefined) {
     body.requirement = out.requirement
   }
-  if (out.requirements !== undefined) {
+  // Evidence names the agreement and so the licence address. Only an admission carries it.
+  if (out.decision === 'ADMIT' && out.requirements !== undefined) {
     body.requirements = out.requirements
   }
   return badges.length === 0 ? body : { ...body, badges }
@@ -173,7 +174,9 @@ export const getV1VerifyUid = defineHandler(async (c) => {
     return resolved.res
   }
   const badges = await badgesFor(c, uid)
-  return jsonResponse(c, verdictBody(resolved.out, badges))
+  // A preview needs only the uid, so it says whether the requirement holds and not which
+  // agreement meets it.
+  return jsonResponse(c, verdictBody({ ...resolved.out, requirements: undefined }, badges))
 })
 
 // The Handle of the venue that issued the uid, whichever way the right is

@@ -1013,14 +1013,18 @@ describe.each(['address', 'none'] as const)('%s requirement Card controller', (i
         rememberedPasses: identity === 'none' ? [uid] : [],
       })
       expect(host.textContent).toContain('after the asset owner grants a new one')
+      licence.mockResolvedValueOnce({ address, detail: 'no-agreement', kind: 'unmet' })
       click(host, 'Receive pass again')
       await vi.waitFor(() => {
-        expect(licence.mock.calls.map(([input]) => input.action)).toStrictEqual([
-          'apply',
-          'claim',
-          'claim',
-          'claim',
-        ])
+        expect({
+          claims: licence.mock.calls.length,
+          passStillShown: host.textContent?.includes('Receive pass again'),
+          refusal: host.querySelector('[role="alert"]')?.textContent,
+        }).toStrictEqual({
+          claims: 4,
+          passStillShown: true,
+          refusal: 'No active licence agreement was found. Ask the asset owner to grant one, then try again.',
+        })
       })
     },
   )

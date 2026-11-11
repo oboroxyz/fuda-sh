@@ -135,6 +135,7 @@ export type CardFailure =
   | 'card_closed'
   | 'card_sold_out'
   | 'chain_error'
+  | 'claim_time'
   | 'network'
   | 'no_signer'
   | 'not_found'

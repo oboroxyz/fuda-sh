@@ -63,9 +63,15 @@ export const receiveLicence = async (input: {
     input.token,
   )
   if (!issued.ok) {
-    return issued.error === 'requirement_unmet' && issued.requirement !== undefined
-      ? { address: key.address, detail: issued.requirement.detail, kind: 'unmet' }
-      : { failure: cardFailureOf(issued), kind: 'failed' }
+    if (issued.error === 'requirement_unmet' && issued.requirement !== undefined) {
+      return { address: key.address, detail: issued.requirement.detail, kind: 'unmet' }
+    }
+    // The api refuses a claim whose signed time is outside its window with this code, and
+    // the key just signed correctly, so the device clock is the likely cause.
+    return {
+      failure: issued.error === 'bad_signature' ? 'claim_time' : cardFailureOf(issued),
+      kind: 'failed',
+    }
   }
   if (input.identity === 'none') {
     return { claim: { body: issued.body, ok: true }, kind: 'received' }
