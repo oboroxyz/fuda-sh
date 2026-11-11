@@ -304,6 +304,7 @@ export const PASS_REASON_JA = {
   NOT_YET_VALID: '有効期間前',
   NO_DELEGATION: '発行権限がありません',
   OK: '有効',
+  REQUIREMENT_UNMET: '必要な条件を満たしていません',
   REVOKED: '失効',
   UNKNOWN_USAGE_MODEL: '対応していない利用形式です',
   WRONG_SCHEMA: '対応していない形式です',

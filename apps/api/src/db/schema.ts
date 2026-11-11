@@ -78,7 +78,7 @@ export const cards = sqliteTable(
     createdAt: integer('created_at').notNull(),
     description: text('description').notNull().default(''),
     id: text('id').primaryKey(),
-    identity: text('identity', { enum: ['none', 'passkey', 'sensitive'] })
+    identity: text('identity', { enum: ['none', 'passkey', 'sensitive', 'address'] })
       .notNull()
       .default('none'),
     issuerId: text('issuer_id')
