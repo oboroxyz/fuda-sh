@@ -346,9 +346,7 @@ describe('venue controller', () => {
       })
       await claimOn(host)
       await vi.waitFor(() => {
-        expect(host.querySelector('[role="alert"]')?.textContent).toContain(
-          'could not open your sensitive passes',
-        )
+        expect(host.querySelector('[role="alert"]')?.textContent).toContain('could not open your passes')
       })
     })
   })
@@ -887,4 +885,168 @@ describe('venue controller', () => {
       unmountAll()
     },
   )
+})
+
+const click = (host: HTMLElement, label: string): void => {
+  const button = [...host.querySelectorAll('button')].find((node) => node.textContent?.includes(label))
+  expect(button).toBeDefined()
+  button?.click()
+}
+
+describe('address Card controller', () => {
+  afterEach(() => {
+    unmountAll()
+    localStorage.clear()
+    document.body.innerHTML = ''
+    vi.restoreAllMocks()
+  })
+  const address = `0x${'12'.repeat(20)}` as const
+  const addressVenue: PublicVenue = {
+    ...venue,
+    cards: venue.cards.map((card) => ({
+      ...card,
+      identity: 'address',
+      requirements: [
+        {
+          assetId: `0x${'ab'.repeat(32)}`,
+          kind: 'erc8432-agreement',
+          registry: address,
+        },
+      ],
+    })),
+  }
+  const open = (
+    licence: NonNullable<Parameters<typeof CardScreen>[0]['licence']>,
+    signedIn = true,
+    claimable = true,
+    claimUntil: number | null = null,
+  ) => {
+    const deps = io()
+    deps.fetchVenue = async () =>
+      await Promise.resolve({
+        body: {
+          ...addressVenue,
+          cards: addressVenue.cards.map((card) => ({ ...card, claimUntil, claimable })),
+        },
+        ok: true,
+      })
+    const host = document.createElement('div')
+    render(
+      () => (
+        <CardScreen
+          handle={venue.handle}
+          slug="regular"
+          io={deps}
+          licence={licence}
+          locale="en"
+          signedIn={signedIn}
+        />
+      ),
+      host,
+    )
+    return { deps, host }
+  }
+
+  it('explains the agreement and requires sign-in before applying', async () => {
+    const licence = vi.fn<NonNullable<Parameters<typeof CardScreen>[0]['licence']>>()
+    const { deps, host } = open(licence, false)
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain('Sign in to apply')
+    })
+    expect(host.textContent).toContain('licence agreement granted by the asset owner')
+    expect(licence).not.toHaveBeenCalled()
+    expect(deps.issueCard).not.toHaveBeenCalled()
+  })
+
+  it.each(['no-agreement', 'not-granted', 'wrong-terms', 'agreement-inactive'] as const)(
+    'shows the address and %s, then receives a pass without a public QR',
+    async (detail) => {
+      const uid = `0x${'bc'.repeat(32)}` as const
+      const licence = vi
+        .fn<NonNullable<Parameters<typeof CardScreen>[0]['licence']>>()
+        .mockResolvedValueOnce({ address, kind: 'applied' })
+        .mockResolvedValueOnce({ address, detail, kind: 'unmet' })
+        .mockResolvedValueOnce({
+          claim: {
+            body: {
+              holder: address,
+              level: 'signed',
+              memberNumber: 'qj2yxphepdrka',
+              passUrls: { apple: '', google: '', web: '' },
+              qr: '',
+              uid,
+            },
+            ok: true,
+            saved: 'vault',
+          },
+          kind: 'received',
+        })
+      const { deps, host } = open(licence)
+      await vi.waitFor(() => {
+        expect(host.textContent).toContain('Apply with your passkey')
+      })
+      click(host, 'Apply with your passkey')
+      click(host, 'Apply with your passkey')
+      await vi.waitFor(() => {
+        expect(host.textContent).toContain(address)
+      })
+      expect(licence).toHaveBeenCalledOnce()
+      click(host, 'Receive pass')
+      await vi.waitFor(() => {
+        expect(host.querySelector('[role="alert"]')).not.toBeNull()
+      })
+      click(host, 'Receive pass')
+      await vi.waitFor(() => {
+        expect(host.querySelector(`a[href="/signed?uid=${uid}"]`)).not.toBeNull()
+      })
+      expect(licence.mock.calls.map(([input]) => input.action)).toStrictEqual(['apply', 'claim', 'claim'])
+      expect(deps.issueCard).not.toHaveBeenCalled()
+      expect(host.querySelector('.venue-qr')).toBeNull()
+      expect(readPassMemory()).toStrictEqual([])
+    },
+  )
+
+  it('offers to receive an existing pass when the Card has no capacity left', async () => {
+    const licence = vi
+      .fn<NonNullable<Parameters<typeof CardScreen>[0]['licence']>>()
+      .mockResolvedValue({ address, detail: 'no-agreement', kind: 'unmet' })
+    const { host } = open(licence, true, false)
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain('Receive pass')
+    })
+    click(host, 'Receive pass')
+    await vi.waitFor(() => {
+      expect(licence).toHaveBeenCalledOnce()
+    })
+    expect(licence.mock.calls[0]?.[0].action).toBe('claim')
+  })
+
+  it('says the Card is closed once its claim window has ended', async () => {
+    const licence = vi.fn<NonNullable<Parameters<typeof CardScreen>[0]['licence']>>()
+    const { host } = open(licence, true, false, 1)
+    await vi.waitFor(() => {
+      expect(host.querySelector('[role="status"]')).not.toBeNull()
+    })
+    expect(host.textContent).not.toContain('Receive pass')
+  })
+
+  it('reuses PRF guidance before retrying', async () => {
+    const licence = vi
+      .fn<NonNullable<Parameters<typeof CardScreen>[0]['licence']>>()
+      .mockResolvedValueOnce({ failure: 'no_prf', kind: 'failed' })
+      .mockResolvedValueOnce({ address, kind: 'applied' })
+    const { host } = open(licence)
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain('Apply with your passkey')
+    })
+    click(host, 'Apply with your passkey')
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain('Save a new passkey')
+    })
+    expect(host.textContent).toContain('iCloud Keychain')
+    click(host, 'Try again')
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain(address)
+    })
+  })
 })

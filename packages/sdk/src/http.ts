@@ -1,3 +1,8 @@
+import * as v from 'valibot'
+
+import { REQUIREMENT_DETAILS, REQUIREMENT_KINDS } from './requirements.ts'
+import type { RequirementUnmet } from './requirements.ts'
+
 // Every route a program calls fuda for is served under this prefix, so a
 // breaking change can ship as /v2 while /v1 keeps answering. Four families sit
 // outside it deliberately, because their URLs are held by someone fuda cannot
@@ -7,7 +12,9 @@
 // `passUrls` and by the api itself, never through `apiFetch`.
 export const API_VERSION_PREFIX = '/v1'
 
-export type Result<T> = { ok: true; body: T } | { ok: false; error: string; status: number; network: boolean }
+export type Result<T> =
+  | { ok: true; body: T }
+  | { ok: false; error: string; status: number; network: boolean; requirement?: RequirementUnmet }
 
 // The request headers as this client models them: a plain record, because the
 // merge below spreads them and spreading a `Headers` instance or an entry array
@@ -76,7 +83,20 @@ export const fetchJson = async <T>(url: string, init: ApiInit = {}): Promise<Res
     // oxlint-disable-next-line anti-slop/no-runtime-typeof -- narrowing an untyped JSON error body
     const isObject = typeof json === 'object' && json !== null
     const error = isObject && 'error' in json ? String(json.error) : `api ${res.status}`
-    return { error, network: false, ok: false, status: res.status }
+    const parsed = v.safeParse(
+      v.object({
+        requirement: v.object({
+          detail: v.picklist(REQUIREMENT_DETAILS),
+          kind: v.picklist(REQUIREMENT_KINDS),
+        }),
+      }),
+      json,
+    )
+    const result: Result<T> = { error, network: false, ok: false, status: res.status }
+    if (parsed.success) {
+      result.requirement = parsed.output.requirement
+    }
+    return result
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : 'network error',
