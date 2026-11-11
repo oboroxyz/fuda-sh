@@ -338,7 +338,7 @@ Picking a logo prepares a local preview before upload. Adding or replacing a reg
 
 The dashboard card-creation preview shows the issuer’s saved logo beside its name. Issuers without a logo omit the image; no card-specific upload is required. The preview also shows a crossed-out QR illustration with no encoded payload or visible caption.
 
-Uploading is two-phase: stage the image, then bind it to the venue. `POST /issuers/logo` (session, multipart) writes the objects under a fresh immutable prefix and stages them for 15 minutes, answering `201 { logoUploadId, expiresAt }`; `POST /issuers` accepts that id, and `POST /issuers/logo/commit` binds one to a venue that already exists. An upload is spendable once and only by the session that made it. Stale rows are swept on the next upload, so no cron is involved. Replacing a logo writes a new prefix, so a cached URL never shows the old mark.
+Uploading is two-phase: stage the image, then bind it to the venue. `POST /issuers/logo` (session, multipart) writes the objects under a fresh immutable prefix and stages them for 15 minutes, answering `201 { logoUploadId, expiresAt }`; `POST /issuers` accepts that id, and `POST /issuers/logo/commit` binds one to a venue that already exists. An upload is spendable once and only by the session that made it. Consumption and the issuer write commit in one D1 batch, so a failed creation or replacement leaves the upload reusable until expiry. The daily authentication-row cron also reclaims expired uploads and replaced logos that no issuer references. It makes pending uploads unspendable before deleting their R2 objects and retains rows until object deletion succeeds. Replacing a logo writes a new prefix. Old Google Wallet logo URLs resolve through the issuer to its current logo; Apple passes embed logo bytes. Neither needs the replaced R2 objects.
 
 `GET /assets/:handle/logo/:variant` (public) serves an object, resolving the prefix from the issuer row against a fixed variant list so no caller-supplied path reaches R2. It answers an ETag and honours `if-none-match` with a `304`.
 
@@ -378,7 +378,7 @@ The shared `fuda.sh/@<handle>` link redirects at the zone to `app.fuda.sh/@<hand
 
 ### Capacity and source
 
-A Card may have a **capacity**, the most Passes it can ever issue. A Card at capacity reads `claimable: false`, and issuing answers `409 card_sold_out` before the signer spends anything, so concurrent claims cannot pass it. A revoked Pass still counts; raise the capacity to hand out more. Lowering it below the Passes issued stops new ones and leaves those Passes alone. Capacity is set through the [MCP server](./mcp.md); the dashboard's forms neither show nor change it.
+A Card may have a **capacity**, the most places its Passes can hold. A Card at capacity reads `claimable: false`, and issuing answers `409 card_sold_out` before the signer spends anything, so concurrent claims cannot pass it. Revocation returns one place in the same atomic batch that marks the Right revoked. Repeated or concurrent revokes cannot return it twice, and the reserved count never falls below zero. Consumed and expired Passes keep their place until revoked. Lowering it below the Passes issued stops new ones and leaves those Passes alone. Capacity is set through the [MCP server](./mcp.md); the dashboard's forms neither show nor change it.
 
 A claim link may carry a **source**, `?source=spring-flyer`: 1–40 lowercase letters, digits, hyphens or underscores. `POST /issuers/:handle/:slug/issue` takes it as an optional body member `source`, and one that breaks the rule is dropped rather than refusing the claim. It is held off chain and read only by the owning Issuer. Anyone can edit a link, so a source is good for counting and never decides anything.
 
@@ -459,7 +459,9 @@ A Right can carry a **Badge**: a verified fact about the Member holding it, atta
 Saving a Badge enforces two different conflict rules:
 
 - **One Badge per (Right, kind).** A Right can carry at most one Badge of a given kind. A second attempt to badge it, verified as a different person than the one already on file, answers `409 pass_already_badged`. A repeat verification by the same person is not a conflict — it answers success, matching the record already saved.
-- **One verified person, one badged Right, per (verifier, scope).** A person who already holds a Badge on a different Right in that verifier's scope answers `409 already_badged` when trying to badge a second one.
+- **One verified person, one badged Right, per (verifier, scope).** A person who already holds a Badge on a different, unrevoked Right in that verifier's scope answers `409 already_badged` when trying to badge a second one.
+
+Revocation deletes the Right's Badges in the same atomic batch as its status change, releasing the scoped subject key so the same person can badge a re-issued Right. A proof verified concurrently with revocation cannot save a Badge on the revoked Right. The unique subject constraint still permits at most one live Badge per person in the verifier's scope. No proof or raw identity is retained.
 
 The Badge lookup on `GET /verify/:uid` and `POST /verify` is advisory: a failed or missing lookup omits the `badges` field silently and never changes the ADMIT/REJECT decision or fails a scan. Each entry in `badges` is `{ kind, verifier, at, expiresAt? }`. `apps/gate` renders a "verified human" chip when a `human` Badge is present.
 

@@ -1,5 +1,7 @@
 import { defineScheduled } from 'void'
 
+import { purgeExpiredLogos } from '../media/expired-logos.ts'
+
 const ROWS_PER_BATCH = 80
 const MAX_BATCHES_PER_RUN = 10
 const RUN_BUDGET_MS = 20_000
@@ -50,5 +52,9 @@ export const purgeExpiredAuthRows = async (database: D1Database, now: number): P
 }
 
 export const expiredAuthRowsJob = defineScheduled(async (controller, env) => {
-  await purgeExpiredAuthRows(env.DB, Math.floor(controller.scheduledTime / 1000))
+  const now = Math.floor(controller.scheduledTime / 1000)
+  await purgeExpiredAuthRows(env.DB, now)
+  if (env.MEDIA_BUCKET !== undefined) {
+    await purgeExpiredLogos(env.DB, env.MEDIA_BUCKET, now)
+  }
 })

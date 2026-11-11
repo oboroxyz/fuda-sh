@@ -4,18 +4,21 @@ import * as v from 'valibot'
 
 import { API_BASE_URL } from './config.ts'
 
-export interface PendingEnsClaim {
-  name: string
-  txHash: Hex
-}
+export type PendingEnsClaim = { name: string } & ({ txHash: Hex } | { bundleId: string })
 const key = (issuerId: string): string => `fuda:dash:ens:${API_BASE_URL}:${issuerId}`
-const PendingClaim = v.object({ name: v.pipe(v.string(), v.minLength(1)), txHash: v.string() })
+const PendingClaim = v.union([
+  v.object({ name: v.pipe(v.string(), v.minLength(1)), txHash: v.string() }),
+  v.object({ bundleId: v.pipe(v.string(), v.minLength(1)), name: v.pipe(v.string(), v.minLength(1)) }),
+])
 
 export const readPendingEnsClaim = (issuerId: string): PendingEnsClaim | null => {
   try {
     const parsed = v.safeParse(PendingClaim, JSON.parse(localStorage.getItem(key(issuerId)) ?? 'null'))
     if (!parsed.success) {
       return null
+    }
+    if ('bundleId' in parsed.output) {
+      return parsed.output
     }
     const txHash = asHex(parsed.output.txHash, 32)
     return txHash === null ? null : { name: parsed.output.name, txHash }
@@ -41,10 +44,10 @@ export const reconcilePendingEnsClaim = (
   ens: EnsClaimView | null,
 ): PendingEnsClaim | null => {
   const pending = readPendingEnsClaim(issuerId)
-  if (pending === null) {
+  if (pending === null || ens === null) {
     return null
   }
-  if (ens === null || ens.status === 'claimed' || ens.name !== pending.name) {
+  if (ens.status === 'claimed' || ens.name !== pending.name) {
     writePendingEnsClaim(issuerId, null)
     return null
   }

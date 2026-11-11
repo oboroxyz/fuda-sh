@@ -1,6 +1,6 @@
 import { IMAGE_SETS, isIssuerHandle } from '@fuda/sdk'
 import type { ImageSetSpec } from '@fuda/sdk'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNotNull } from 'drizzle-orm'
 import * as v from 'valibot'
 import { defineHandler } from 'void'
 
@@ -8,7 +8,7 @@ import { issuers } from '../db/schema.ts'
 import { issuerView } from '../issuers/views.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { IMMUTABLE_CACHE_CONTROL, isLogoVariant, logoVersion } from '../media/logo.ts'
-import { claimLogoUpload, readLogoObject, storeLogoSet } from '../media/store.ts'
+import { consumeIssuerLogo, pendingLogoPrefix, readLogoObject, storeLogoSet } from '../media/store.ts'
 import { operatorAuth } from '../middleware/operator-auth.ts'
 import { notifyPassesChanged } from '../pass/notify.ts'
 
@@ -91,16 +91,21 @@ export const postV1IssuersLogoCommit = defineHandler(operatorAuth(), async (c) =
     return errorResponse(c, 'not_found', 404)
   }
   const db = c.get('db')
-  const prefix = await claimLogoUpload(db, { id, now: c.get('now')(), sessionTokenHash: tokenHash })
-  if (prefix === null) {
+  const prefix = pendingLogoPrefix({ id, now: c.get('now')(), sessionTokenHash: tokenHash })
+  const [updated] = await db.batch([
+    db
+      .update(issuers)
+      .set({ logoPrefix: prefix })
+      .where(and(eq(issuers.id, issuerId), isNotNull(prefix)))
+      .returning(),
+    consumeIssuerLogo(db, issuerId),
+  ])
+  const [row] = updated
+  if (row === undefined) {
     return errorResponse(c, 'upload_not_found', 400)
   }
-  await db.update(issuers).set({ logoPrefix: prefix }).where(eq(issuers.id, issuerId))
   notifyPassesChanged(c, { issuerId })
-  const row = await db.select().from(issuers).where(eq(issuers.id, issuerId)).get()
-  return row === undefined
-    ? errorResponse(c, 'not_found', 404)
-    : jsonResponse(c, { issuer: issuerView(row, c.env.API_BASE_URL) })
+  return jsonResponse(c, { issuer: issuerView(row, c.env.API_BASE_URL) })
 })
 
 // Public: the venue's mark. The key is resolved from the issuer row against a

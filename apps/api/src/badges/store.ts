@@ -1,6 +1,6 @@
 import type { BadgeKind, BadgeView, Hex } from '@fuda/sdk'
 import { BADGE_KINDS } from '@fuda/sdk'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 
 import { bindChunks } from '../db/bind-chunks.ts'
 import type { Db } from '../db/client.ts'
@@ -19,7 +19,9 @@ export interface SaveBadgeInput {
 
 // 'subject' — this subject already badged another Right in this scope.
 // 'pass'    — this Right already carries a badge of this kind, from someone else.
-export type SaveBadgeResult = { ok: true; badge: BadgeView } | { ok: false; conflict: 'subject' | 'pass' }
+export type SaveBadgeResult =
+  | { ok: true; badge: BadgeView }
+  | { ok: false; conflict: 'subject' | 'pass' | 'revoked' }
 
 // Type guard to narrow string to BadgeKind, validating against BADGE_KINDS.
 const isBadgeKind = (value: string): value is BadgeKind => BADGE_KINDS.some((kind) => kind === value)
@@ -147,7 +149,16 @@ export const saveBadge = async (db: Db, input: SaveBadgeInput, raced = false): P
   // the authority and the loser re-resolves rather than throwing. It does so
   // once: an insert that still fails after the re-read is not that race.
   try {
-    await db.insert(badges).values(row)
+    const saved = await db.get<{ uid: string }>(sql`
+      INSERT INTO badges (uid, kind, verifier, scope, subject_key, credential, verified_at, expires_at)
+      SELECT ${row.uid}, ${row.kind}, ${row.verifier}, ${row.scope}, ${row.subjectKey},
+        ${row.credential}, ${row.verifiedAt}, ${row.expiresAt}
+      WHERE NOT EXISTS (SELECT 1 FROM members WHERE attestation_uid = ${row.uid} AND status = 'revoked')
+      RETURNING uid
+    `)
+    if (saved === undefined) {
+      return { conflict: 'revoked', ok: false }
+    }
   } catch (error) {
     if (raced) {
       throw error
