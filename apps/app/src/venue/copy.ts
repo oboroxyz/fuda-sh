@@ -29,6 +29,7 @@ export interface VenueCopy {
     tryAgain: string
   }
   sensitiveUnsaved: string
+  sensitiveLost: string
   enterWithPasskey: string
   getCard: (noun: string) => string
   getWithPasskey: (noun: string) => string
@@ -132,6 +133,8 @@ export const VENUE_COPY = {
       'When you arrive, confirm with your passkey and show the result to the staff. There is no code to show.',
     sensitiveFindLater:
       'You will find it under Your passes, where your passkey opens the list. If you lose every passkey that opens it, ask for a new pass.',
+    sensitiveLost:
+      'This pass was issued, but neither your list nor this browser could save it, so it cannot be used. Check that this browser can save site data, then get the card again.',
     sensitiveNoPrf: {
       addFailed: 'We could not save your passkey. Please try again.',
       addPasskey: 'Save a new passkey',
@@ -219,6 +222,8 @@ export const VENUE_COPY = {
       '会場ではパスキーで確認して、結果の画面をスタッフに見せてください。提示するコードはありません。',
     sensitiveFindLater:
       'パス一覧からパスキーを使って開けます。開けるパスキーをすべてなくした場合は、新しいパスを発行してもらってください。',
+    sensitiveLost:
+      'パスは発行されましたが、一覧にもこのブラウザにも保存できなかったため、使えません。このブラウザでサイトのデータを保存できるか確認してから、もう一度カードを受け取ってください。',
     sensitiveNoPrf: {
       addFailed: 'パスキーを保存できませんでした。もう一度お試しください。',
       addPasskey: '新しいパスキーを保存',

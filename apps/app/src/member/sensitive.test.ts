@@ -205,8 +205,8 @@ describe('opening the member secret', () => {
 describe(claimSensitive, () => {
   it('attests a new key for each pass and lists both on the device', async () => {
     const server = fakeServer()
-    await expect(claimSensitive(server.io, CARD)).resolves.toMatchObject({ ok: true, saved: true })
-    await expect(claimSensitive(server.io, CARD)).resolves.toMatchObject({ ok: true, saved: true })
+    await expect(claimSensitive(server.io, CARD)).resolves.toMatchObject({ ok: true, saved: 'vault' })
+    await expect(claimSensitive(server.io, CARD)).resolves.toMatchObject({ ok: true, saved: 'vault' })
     expect(new Set(server.claimed).size).toBe(2)
     const opened = await openMemberSecret(server.io)
     const read = opened.kind === 'open' ? await readVaultEntries(server.io, opened.secret) : null
@@ -258,7 +258,9 @@ describe(claimSensitive, () => {
       }
       return await server.io.writeVault(sealed, version, token)
     }
-    await expect(claimSensitive({ ...server.io, writeVault }, CARD)).resolves.toMatchObject({ saved: true })
+    await expect(claimSensitive({ ...server.io, writeVault }, CARD)).resolves.toMatchObject({
+      saved: 'vault',
+    })
     await expect(
       openEntries(server.vault.current ?? { ciphertext: '', iv: '' }, opened.secret),
     ).resolves.toMatchObject([{ uid: OTHER_UID }, { uid: UID }])
@@ -268,7 +270,7 @@ describe(claimSensitive, () => {
     const server = fakeServer()
     await expect(claimSensitive({ ...server.io, writeVault: failingWrite }, CARD)).resolves.toMatchObject({
       ok: true,
-      saved: false,
+      saved: 'device',
     })
     expect(server.vault.current).toBeNull()
     expect([...server.storage.items.values()].join(',')).not.toContain(UID.slice(2))
@@ -278,41 +280,57 @@ describe(claimSensitive, () => {
     expect(server.storage.items.size).toBe(0)
   })
 
-  it.each(['unavailable', 'access', 'enumerate', 'quota', 'vault'] as const)(
-    'returns the issued pass when persistence fails at %s',
-    async (failure) => {
-      const server = fakeServer()
-      const storage: ReturnType<SensitiveIo['storage']> = {
-        ...server.storage,
-        get length() {
-          return failure === 'enumerate' ? failPersistence() : server.storage.length
+  it.each([
+    ['unavailable', 'lost'],
+    ['access', 'lost'],
+    ['enumerate', 'device'],
+    ['quota', 'lost'],
+    ['vault', 'device'],
+  ] as const)('returns the issued pass when persistence fails at %s, kept on %s', async (failure, kept) => {
+    const server = fakeServer()
+    const storage: ReturnType<SensitiveIo['storage']> = {
+      ...server.storage,
+      get length() {
+        return failure === 'enumerate' ? failPersistence() : server.storage.length
+      },
+      setItem: failure === 'quota' ? failPersistence : server.storage.setItem,
+    }
+    const result = await claimSensitive(
+      {
+        ...server.io,
+        storage: () => {
+          if (failure === 'access') {
+            return failPersistence()
+          }
+          return failure === 'unavailable' ? null : storage
         },
-        setItem: failure === 'quota' ? failPersistence : server.storage.setItem,
-      }
-      const result = await claimSensitive(
-        {
-          ...server.io,
-          storage: () => {
-            if (failure === 'access') {
-              return failPersistence()
-            }
-            return failure === 'unavailable' ? null : storage
-          },
-          writeVault: failure === 'vault' ? failPersistence : failingWrite,
-        },
-        CARD,
-      )
-      expect(result).toMatchObject({ body: { uid: UID }, ok: true, saved: false })
-      expect(server.claimed).toHaveLength(1)
-    },
-  )
+        writeVault: failure === 'vault' ? failPersistence : failingWrite,
+      },
+      CARD,
+    )
+    expect(result).toMatchObject({ body: { uid: UID }, ok: true, saved: kept })
+    expect(server.claimed).toHaveLength(1)
+  })
+
+  it('still writes the vault when device storage cannot be enumerated', async () => {
+    const server = fakeServer()
+    const storage: ReturnType<SensitiveIo['storage']> = {
+      ...server.storage,
+      get length() {
+        return failPersistence()
+      },
+    }
+    const result = await claimSensitive({ ...server.io, storage: () => storage }, CARD)
+    expect(result).toMatchObject({ body: { uid: UID }, ok: true, saved: 'vault' })
+    expect(server.vault.current).not.toBeNull()
+  })
 
   it('reports a saved pass when only removing recovered pending entries fails', async () => {
     const server = fakeServer()
     await claimSensitive({ ...server.io, writeVault: failingWrite }, CARD)
     const storage: ReturnType<SensitiveIo['storage']> = { ...server.storage, removeItem: failPersistence }
     const result = await claimSensitive({ ...server.io, storage: () => storage }, CARD)
-    expect(result).toMatchObject({ body: { uid: OTHER_UID }, ok: true, saved: true })
+    expect(result).toMatchObject({ body: { uid: OTHER_UID }, ok: true, saved: 'vault' })
     expect(server.claimed).toHaveLength(2)
     // The key left behind merges without duplicates on the next read.
     expect(server.storage.items.size).toBe(1)
@@ -460,8 +478,8 @@ describe('pending recovery concurrency', () => {
     const io = { ...server.io, writeVault: failingWrite }
     const results = await Promise.all([claimSensitive(io, CARD), claimSensitive(io, CARD)])
     expect(results).toMatchObject([
-      { ok: true, saved: false },
-      { ok: true, saved: false },
+      { ok: true, saved: 'device' },
+      { ok: true, saved: 'device' },
     ])
     const recovered = opened.kind === 'open' ? await readVaultEntries(server.io, opened.secret) : null
     expect(recovered?.ok).toBe(true)

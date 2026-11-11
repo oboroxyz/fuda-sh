@@ -72,8 +72,9 @@ export type CardScreenState =
       googleHref: string | null
       appleHref: string | null
       badge: BadgeState
-      // A Sensitive pass that was issued but could not be listed yet.
-      unsaved?: boolean
+      // A Sensitive pass that was issued but is not in the list yet: waiting on this
+      // device, or kept nowhere and so unusable.
+      unsaved?: 'device' | 'lost'
     }
   | { kind: 'error'; card: PublicCard | null; failure: CardFailure }
   // The passkey gave no PRF result, so a Sensitive card stops here and says what to do.
@@ -351,26 +352,42 @@ const passkeyEntry = (card: PublicCard, issued: IssuedCard, copy: VenueCopy): JS
 
 // docs/specs/pass-types-and-flows.md#sensitive-use. No backup and nothing kept on this device
 // in the clear: the member's list is the only place this pass is written down.
-const sensitiveEntry = (issued: IssuedCard, unsaved: boolean, copy: VenueCopy): JSX.Element => (
-  <div class="venue-pass-actions">
-    <a class="btn btn-primary" href={`/signed?uid=${issued.uid}`}>
-      <FingerprintSimple />
-      {copy.enterWithPasskey}
-    </a>
-    <p class="mx-auto max-w-64 text-center text-xs leading-5 text-[var(--fuda-muted)]">
-      {copy.sensitiveEntryNote}
-    </p>
-    {unsaved ? (
-      <p role="status" class="alert alert-warning text-sm">
-        {copy.sensitiveUnsaved}
+// A Sensitive claim whose salt is not in the member's vault yet.
+const unsavedOf = (result: PasskeyClaim | SensitiveClaim): 'device' | 'lost' | undefined =>
+  'saved' in result && result.saved !== 'vault' ? result.saved : undefined
+
+const sensitiveEntry = (
+  issued: IssuedCard,
+  unsaved: 'device' | 'lost' | undefined,
+  copy: VenueCopy,
+): JSX.Element =>
+  unsaved === 'lost' ? (
+    // Without its salt nothing can sign for this pass, so there is nothing to enter with.
+    <div class="venue-pass-actions">
+      <p role="alert" class="alert alert-error text-sm">
+        {copy.sensitiveLost}
       </p>
-    ) : (
+    </div>
+  ) : (
+    <div class="venue-pass-actions">
+      <a class="btn btn-primary" href={`/signed?uid=${issued.uid}`}>
+        <FingerprintSimple />
+        {copy.enterWithPasskey}
+      </a>
       <p class="mx-auto max-w-64 text-center text-xs leading-5 text-[var(--fuda-muted)]">
-        {copy.sensitiveFindLater}
+        {copy.sensitiveEntryNote}
       </p>
-    )}
-  </div>
-)
+      {unsaved === 'device' ? (
+        <p role="status" class="alert alert-warning text-sm">
+          {copy.sensitiveUnsaved}
+        </p>
+      ) : (
+        <p class="mx-auto max-w-64 text-center text-xs leading-5 text-[var(--fuda-muted)]">
+          {copy.sensitiveFindLater}
+        </p>
+      )}
+    </div>
+  )
 
 // docs/specs/pass-types-and-flows.md#sensitive-use: the web cannot choose the passkey
 // provider, so this says which ones work and lets the member save a new passkey there.
@@ -578,7 +595,7 @@ const readyActions = (
   locale: Locale,
 ): JSX.Element => {
   if (isSensitiveCard(state.card)) {
-    return sensitiveEntry(state.issued, state.unsaved === true, copy)
+    return sensitiveEntry(state.issued, state.unsaved, copy)
   }
   return isKeyBoundCard(state.card)
     ? passkeyEntry(state.card, state.issued, copy)
@@ -875,7 +892,7 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
     card: PublicCard,
     issued: IssuedCard,
     isCurrent: () => boolean,
-    unsaved = false,
+    unsaved?: 'device' | 'lost',
   ): Promise<void> => {
     setState({
       appleHref: null,
@@ -1031,7 +1048,7 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
       // this Worker like every other call (src/pass-links.ts).
       { holder, issuedAt, memberNumber, passUrls: memberPassUrls(uid), qr: result.body.qr, uid },
       () => ticket === lifecycle.current,
-      'saved' in result && !result.saved,
+      unsavedOf(result),
     )
   }
 

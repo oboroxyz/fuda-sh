@@ -257,11 +257,21 @@ const readPending = async (io: SensitiveIo, secret: Bytes): Promise<PendingEntry
   return pending.filter((entry): entry is PendingEntry => entry !== null)
 }
 
-const keepPending = async (io: SensitiveIo, secret: Bytes, entry: VaultEntry): Promise<void> => {
-  io.storage()?.setItem(
-    `${PENDING_PREFIX}${crypto.randomUUID()}`,
-    JSON.stringify(await sealEntries([entry], secret)),
-  )
+// Whether the entry is now waiting on this device for the next list opening.
+const keepPending = async (io: SensitiveIo, secret: Bytes, entry: VaultEntry): Promise<boolean> => {
+  try {
+    const storage = io.storage()
+    if (storage === null) {
+      return false
+    }
+    storage.setItem(
+      `${PENDING_PREFIX}${crypto.randomUUID()}`,
+      JSON.stringify(await sealEntries([entry], secret)),
+    )
+    return true
+  } catch {
+    return false
+  }
 }
 
 // Best-effort: the vault already holds these entries, and a key left behind is merged
@@ -344,7 +354,9 @@ export const readVaultEntries = async (io: SensitiveIo, secret: Bytes): Promise<
 }
 
 export type SensitiveClaim =
-  | { ok: true; body: SelfServeIssueResponse; saved: boolean }
+  // Where the pass salt is kept: the member's vault, this device until the next list
+  // opening, or nowhere, which leaves the issued pass unusable.
+  | { ok: true; body: SelfServeIssueResponse; saved: 'vault' | 'device' | 'lost' }
   | { ok: false; failure: CardFailure | 'no_prf' }
 
 const failureOfOpen = (opened: Exclude<OpenedSecret, { kind: 'open' }>): CardFailure | 'no_prf' => {
@@ -386,20 +398,19 @@ export const claimSensitive = async (
   if (!issued.ok) {
     return { failure: cardFailureOf(issued), ok: false }
   }
-  try {
-    const entry: VaultEntry = { cardTitle: card.cardTitle, salt, uid: issued.body.uid, venue: card.venue }
-    const pending = await readPending(io, opened.secret)
-    const saved = await saveEntries(io, opened.secret, [...pending.flatMap((row) => row.entries), entry])
-    if (saved.ok) {
-      clearPending(io, pending)
-    } else {
-      await keepPending(io, opened.secret, entry)
-    }
-    return { body: issued.body, ok: true, saved: saved.ok }
-  } catch {
-    // Issuance cannot be undone by a failed vault or device-storage operation.
-    return { body: issued.body, ok: true, saved: false }
+  // Issuance cannot be undone, so from here every failure only changes where the salt is kept.
+  const entry: VaultEntry = { cardTitle: card.cardTitle, salt, uid: issued.body.uid, venue: card.venue }
+  // Unreadable device storage must not stop the vault write that would make it unnecessary.
+  const pending = await readPending(io, opened.secret).catch((): PendingEntry[] => [])
+  const saved = await saveEntries(io, opened.secret, [...pending.flatMap((row) => row.entries), entry]).catch(
+    (): VaultRead => ({ ok: false }),
+  )
+  if (saved.ok) {
+    clearPending(io, pending)
+    return { body: issued.body, ok: true, saved: 'vault' }
   }
+  const kept = await keepPending(io, opened.secret, entry)
+  return { body: issued.body, ok: true, saved: kept ? 'device' : 'lost' }
 }
 
 // These sentences reach the verdict screen, and entry-copy.ts holds their translations.
