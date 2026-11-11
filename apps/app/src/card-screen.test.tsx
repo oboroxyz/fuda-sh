@@ -13,6 +13,7 @@ const HOLDER: Hex = `0x${'11'.repeat(20)}`
 const card: PublicCard = {
   brandColor: '#1D4ED8',
   card: {
+    artworkUrl: null,
     category: 'membership',
     claimFrom: null,
     claimUntil: null,
@@ -32,6 +33,7 @@ const card: PublicCard = {
 }
 
 const gig = {
+  artworkUrl: null,
   category: 'ticket',
   claimFrom: null,
   claimUntil: null,
@@ -92,6 +94,40 @@ const brandStyle = (host: HTMLElement) => {
 }
 
 describe(CardScreenView, () => {
+  it.each([null, 'https://api.test/assets/artwork/example/strip3x'])(
+    'shows artwork on landing and held cards only when set to %s',
+    (artworkUrl) => {
+      const withArtwork = { ...card, card: { ...card.card, artworkUrl } }
+      const landing = render({ card: withArtwork, kind: 'landing' })
+      const held = render({
+        appleHref: null,
+        badge: { kind: 'idle' },
+        card: withArtwork,
+        googleHref: null,
+        issued,
+        kind: 'ready',
+      })
+      for (const view of [landing, held]) {
+        const banner = view.querySelector<HTMLImageElement>('.venue-brand img[src*="/artwork/"]')
+        expect(banner?.getAttribute('src') ?? null).toBe(artworkUrl)
+      }
+    },
+  )
+
+  it('places decorative artwork between the venue and title and hides a failed image', () => {
+    const view = render({
+      card: { ...card, card: { ...card.card, artworkUrl: 'https://api.test/artwork.png' } },
+      kind: 'landing',
+    })
+    const banner = view.querySelector<HTMLImageElement>('img[src="https://api.test/artwork.png"]')!
+    expect(banner.alt).toBe('')
+    expect(banner.getAttribute('loading')).toBe('lazy')
+    expect(banner.previousElementSibling?.textContent).toContain('Wassie Coffee')
+    expect(banner.nextElementSibling?.textContent).toContain('Regular')
+    banner.dispatchEvent(new Event('error'))
+    expect(banner.hidden).toBe(true)
+  })
+
   it('shows the onboarding description as multiline plain text', () => {
     const description = 'First line\n<em>Second line</em>'
     const view = render({ card: { ...card, card: { ...card.card, description } }, kind: 'landing' })

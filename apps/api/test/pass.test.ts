@@ -362,51 +362,71 @@ describe('GET /pass/:uid/card', () => {
     await db().delete(issuers)
   })
 
-  it('answers the venue card behind a self-serve right, in display form', async () => {
-    const chain = fakeChain()
-    const del = seedRoot(chain)
-    const uid = seedRight(chain, del)
-    await db().insert(issuers).values({
-      brandColor: '#112233',
-      createdAt: NOW,
-      handle: 'coffee',
-      id: 'venue',
-      logoPrefix: 'coffee/abc',
-      name: 'Wassie Coffee',
-      operatorAddress: HOLDER,
-    })
-    await db().insert(cards).values({
-      category: 'membership',
-      createdAt: NOW,
-      id: 'card',
-      issuerId: 'venue',
-      slug: 'members',
-      title: 'Members',
-    })
-    await db().insert(members).values({
-      attestationUid: uid,
-      cardId: 'card',
-      createdAt: NOW,
-      holder: HOLDER,
-      issuerId: 'venue',
-      level: 'bearer',
-      memberId: 'qj2yxphepdrka',
-      tier: 0,
-    })
-    const res = await appWith({ chain, now: () => NOW }).request(`/pass/${uid}/card`, {}, configuredEnv(del))
-    expect([res.status, res.headers.get('cache-control')]).toStrictEqual([200, 'no-store'])
-    await expect(res.json()).resolves.toStrictEqual({
-      card: {
-        artworkUrl: null,
+  it.each([null, 'artwork/12345678-1234-1234-1234-123456789abc'])(
+    'renders artwork on the web pass and card response when the prefix is %s',
+    async (artworkPrefix) => {
+      const chain = fakeChain()
+      const del = seedRoot(chain)
+      const uid = seedRight(chain, del)
+      await db().insert(issuers).values({
         brandColor: '#112233',
-        cardTitle: 'Members',
+        createdAt: NOW,
+        handle: 'coffee',
+        id: 'venue',
+        logoPrefix: 'coffee/abc',
+        name: 'Wassie Coffee',
+        operatorAddress: HOLDER,
+      })
+      await db().insert(cards).values({
+        artworkPrefix,
         category: 'membership',
-        issuerName: 'Wassie Coffee',
-        logoUrl: 'https://api.fuda.sh/assets/coffee/logo/master?v=/abc',
-        memberNumber: 'QJ2Y-XPHE-PDRKA',
-      },
-    })
-  })
+        createdAt: NOW,
+        id: 'card',
+        issuerId: 'venue',
+        slug: 'members',
+        title: 'Members',
+      })
+      await db().insert(members).values({
+        attestationUid: uid,
+        cardId: 'card',
+        createdAt: NOW,
+        holder: HOLDER,
+        issuerId: 'venue',
+        level: 'bearer',
+        memberId: 'qj2yxphepdrka',
+        tier: 0,
+      })
+      const page = await appWith({ chain, now: () => NOW }).request(`/pass/${uid}`, {}, configuredEnv(del))
+      expect(page.status).toBe(200)
+      const body = await page.text()
+      expect(body.includes('<img class="artwork"')).toBe(artworkPrefix !== null)
+      expect(
+        body.includes(
+          'src="https://api.fuda.sh/assets/artwork/12345678-1234-1234-1234-123456789abc/strip3x" alt="" loading="lazy"',
+        ),
+      ).toBe(artworkPrefix !== null)
+      const res = await appWith({ chain, now: () => NOW }).request(
+        `/pass/${uid}/card`,
+        {},
+        configuredEnv(del),
+      )
+      expect([res.status, res.headers.get('cache-control')]).toStrictEqual([200, 'no-store'])
+      await expect(res.json()).resolves.toStrictEqual({
+        card: {
+          artworkUrl:
+            artworkPrefix === null
+              ? null
+              : 'https://api.fuda.sh/assets/artwork/12345678-1234-1234-1234-123456789abc/strip3x',
+          brandColor: '#112233',
+          cardTitle: 'Members',
+          category: 'membership',
+          issuerName: 'Wassie Coffee',
+          logoUrl: 'https://api.fuda.sh/assets/coffee/logo/master?v=/abc',
+          memberNumber: 'QJ2Y-XPHE-PDRKA',
+        },
+      })
+    },
+  )
 
   it('answers card: null for an admin-issued right, which keeps the plain look', async () => {
     const chain = fakeChain()

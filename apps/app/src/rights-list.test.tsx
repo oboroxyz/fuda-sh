@@ -675,6 +675,35 @@ describe(RightsListView, () => {
     expect(viewText(view)).toContain('1 / 2 today')
   })
 
+  it.each([null, 'https://api.test/assets/artwork/example/strip3x'])(
+    'shows the saved pass artwork only when set to %s',
+    (artworkUrl) => {
+      const view = showView({
+        state: {
+          kind: 'ready',
+          result: {
+            indexUnavailable: false,
+            rows: [
+              memberRow({
+                card: {
+                  artworkUrl,
+                  brandColor: '#112233',
+                  cardTitle: 'Members',
+                  category: 'membership',
+                  issuerName: 'Wassie Coffee',
+                  logoUrl: null,
+                  memberNumber: 'QJ2Y-XPHE-PDRKA',
+                },
+              }),
+            ],
+          },
+        },
+      })
+      const banner = view.querySelector<HTMLImageElement>('.member-pass-preview img')
+      expect(banner?.getAttribute('src') ?? null).toBe(artworkUrl)
+    },
+  )
+
   it('draws a venue card in its own colour, mark, title and member number', () => {
     const view = showView({
       state: {
