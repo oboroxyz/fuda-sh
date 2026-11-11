@@ -1,4 +1,4 @@
-import { normalizeUid, parseQr, rightStatus, StampAdjustBody, StampRedeemBody } from '@fuda/sdk'
+import { normalizeUid, parseQr, StampAdjustBody, StampRedeemBody } from '@fuda/sdk'
 import type { Hex, StampLedger, StampSummary } from '@fuda/sdk'
 import { and, eq } from 'drizzle-orm'
 import type { Context } from 'hono'
@@ -24,7 +24,7 @@ const refusalOf = (
   status: 'active' | 'revoked',
   summary: StampSummary,
 ): Refusal | null => {
-  if (rightStatus({ status, usageModel: null, validFrom: null, validUntil: null }, 0).status === 'revoked') {
+  if (status === 'revoked') {
     return 'revoked'
   }
   if (!summary.enabled) {
