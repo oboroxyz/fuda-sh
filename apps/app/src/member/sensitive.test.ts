@@ -116,6 +116,10 @@ const fakeServer = (passkeys: string[] = ['one']) => {
 const failingWrite: SensitiveIo['writeVault'] = async () =>
   await Promise.resolve({ error: 'internal', network: true, ok: false, status: 502 })
 
+const failPersistence = (): never => {
+  throw new Error('storage unavailable')
+}
+
 const CARD = { cardTitle: 'Staff badge', slug: 'staff', source: null, venue: 'coffee' }
 
 describe('opening the member secret', () => {
@@ -273,6 +277,47 @@ describe(claimSensitive, () => {
     expect(read).toMatchObject({ entries: [{ uid: UID }], ok: true, version: 1 })
     expect(server.storage.items.size).toBe(0)
   })
+
+  it.each(['unavailable', 'access', 'enumerate', 'quota', 'vault', 'cleanup'] as const)(
+    'returns the issued pass when persistence fails at %s',
+    async (failure) => {
+      const server = fakeServer()
+      if (failure === 'cleanup') {
+        await claimSensitive({ ...server.io, writeVault: failingWrite }, CARD)
+      }
+      const storage: ReturnType<SensitiveIo['storage']> = {
+        ...server.storage,
+        get length() {
+          return failure === 'enumerate' ? failPersistence() : server.storage.length
+        },
+        removeItem: failure === 'cleanup' ? failPersistence : server.storage.removeItem,
+        setItem: failure === 'quota' ? failPersistence : server.storage.setItem,
+      }
+      let writeVault = failure === 'cleanup' ? server.io.writeVault : failingWrite
+      if (failure === 'vault') {
+        writeVault = failPersistence
+      }
+      const result = await claimSensitive(
+        {
+          ...server.io,
+          storage: () => {
+            if (failure === 'access') {
+              return failPersistence()
+            }
+            return failure === 'unavailable' ? null : storage
+          },
+          writeVault,
+        },
+        CARD,
+      )
+      expect(result).toMatchObject({
+        body: { uid: failure === 'cleanup' ? OTHER_UID : UID },
+        ok: true,
+        saved: false,
+      })
+      expect(server.claimed).toHaveLength(failure === 'cleanup' ? 2 : 1)
+    },
+  )
 
   it('issues nothing, and never overwrites a vault it could not read', async () => {
     const server = fakeServer()

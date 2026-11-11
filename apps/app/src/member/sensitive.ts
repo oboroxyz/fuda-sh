@@ -380,15 +380,20 @@ export const claimSensitive = async (
   if (!issued.ok) {
     return { failure: cardFailureOf(issued), ok: false }
   }
-  const entry: VaultEntry = { cardTitle: card.cardTitle, salt, uid: issued.body.uid, venue: card.venue }
-  const pending = await readPending(io, opened.secret)
-  const saved = await saveEntries(io, opened.secret, [...pending.flatMap((row) => row.entries), entry])
-  if (saved.ok) {
-    clearPending(io, pending)
-  } else {
-    await keepPending(io, opened.secret, entry)
+  try {
+    const entry: VaultEntry = { cardTitle: card.cardTitle, salt, uid: issued.body.uid, venue: card.venue }
+    const pending = await readPending(io, opened.secret)
+    const saved = await saveEntries(io, opened.secret, [...pending.flatMap((row) => row.entries), entry])
+    if (saved.ok) {
+      clearPending(io, pending)
+    } else {
+      await keepPending(io, opened.secret, entry)
+    }
+    return { body: issued.body, ok: true, saved: saved.ok }
+  } catch {
+    // Issuance cannot be undone by a failed vault or device-storage operation.
+    return { body: issued.body, ok: true, saved: false }
   }
-  return { body: issued.body, ok: true, saved: saved.ok }
 }
 
 // These sentences reach the verdict screen, and entry-copy.ts holds their translations.
