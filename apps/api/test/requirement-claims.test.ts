@@ -4,10 +4,11 @@ import { env } from 'cloudflare:test'
 import { eq } from 'drizzle-orm'
 import type { Hex } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getDb } from '../src/db/client.ts'
 import {
+  cardAddressPasses,
   cardApplicants,
   cards,
   entryLog,
@@ -16,6 +17,7 @@ import {
   passEvidence,
   slots,
 } from '../src/db/schema.ts'
+import { presentationRequirements } from '../src/requirements/presentation.ts'
 import { appWith, fakeChain } from './env.ts'
 import { configuredEnv, NOW, ROOT, seedRoot, other } from './fixtures.ts'
 import { CARD_INPUT, registerVenueWithCard, signIn } from './operator.ts'
@@ -353,6 +355,110 @@ describe('requirement applications and claims', () => {
         },
       ],
     })
+  })
+
+  it.each(['expired', 'revoked', 'concurrent', 'used'] as const)(
+    'handles an existing %s pass',
+    async (state) => {
+      const ctx = await setup({ category: state === 'used' ? 'ticket' : 'membership', validityDays: 1 })
+      ctx.grant()
+      const first = await ctx.claim()
+      const old = await first.json<SelfServeIssueResponse>()
+      await (state === 'used'
+        ? ctx.present(old.uid)
+        : db()
+            .update(members)
+            .set(state === 'revoked' ? { status: 'revoked' } : { validUntil: NOW - 1 })
+            .where(eq(members.attestationUid, old.uid)))
+      const responses = await Promise.all(state === 'concurrent' ? [ctx.claim(), ctx.claim()] : [ctx.claim()])
+      const passes = await Promise.all(
+        responses.map(async (response) => await response.json<SelfServeIssueResponse>()),
+      )
+      const [replacement] = passes
+      expect(responses.map((response) => response.status)).toStrictEqual(
+        state === 'concurrent' ? [200, 200] : [200],
+      )
+      expect(replacement?.uid === old.uid).toBe(state === 'used')
+      expect(passes.every((pass) => pass.uid === replacement?.uid)).toBe(true)
+      await expect(db().select().from(cardAddressPasses)).resolves.toMatchObject([
+        { attestationUid: replacement?.uid },
+      ])
+      const current = await db().select().from(cards).get()
+      const issued = await db().select().from(members)
+      const used = await db().select().from(slots)
+      expect({ issued: issued.length, reserved: current?.reserved, used: used.length }).toStrictEqual({
+        issued: state === 'used' ? 1 : 2,
+        reserved: state === 'used' ? 1 : 2,
+        used: state === 'used' ? 1 : 0,
+      })
+    },
+  )
+
+  it('stops claim and presentation when a registry is removed without reading it', async () => {
+    const ctx = await setup()
+    ctx.grant()
+    const first = await ctx.claim()
+    const pass = await first.json<SelfServeIssueResponse>()
+    ctx.bindings.IP_REGISTRIES = ''
+    const reads = [
+      vi.spyOn(ctx.chain, 'agreementCountOf'),
+      vi.spyOn(ctx.chain, 'activeAgreementsOf'),
+      vi.spyOn(ctx.chain, 'agreementOf'),
+      vi.spyOn(ctx.chain, 'isActiveAgreementHolder'),
+    ]
+    for (const read of reads) {
+      read.mockRejectedValue(new Error('Removed registry must not be read'))
+    }
+    const repeated = await ctx.claim()
+    await expect(repeated.json()).resolves.toMatchObject({ requirement: { detail: 'registry-not-allowed' } })
+    const shown = await ctx.present(pass.uid)
+    await expect(shown.json()).resolves.toMatchObject({
+      reason: 'REQUIREMENT_UNMET',
+      requirement: { detail: 'registry-not-allowed' },
+    })
+    const fresh = await ctx.send(`${path}/issue`, {
+      holderAddress: other.address,
+      signature: await other.signMessage({ message: claimMessage(ctx.card.id, other.address) }),
+    })
+    await expect(fresh.json()).resolves.toMatchObject({ requirement: { detail: 'registry-not-allowed' } })
+    for (const read of reads) {
+      expect(read).not.toHaveBeenCalled()
+    }
+  })
+
+  it('restores and renews outside the window, but refuses new claims after signature verification', async () => {
+    const ctx = await setup()
+    ctx.grant()
+    const first = await ctx.claim()
+    const pass = await first.json<SelfServeIssueResponse>()
+    await db()
+      .update(cards)
+      .set({ claimUntil: NOW - 1 })
+      .where(eq(cards.id, ctx.card.id))
+    const restored = await ctx.claim()
+    await expect(restored.json()).resolves.toStrictEqual(pass)
+    ctx.grant({ revoked: true })
+    ctx.grant({ id: `0x${'ef'.repeat(32)}` })
+    const renewed = await ctx.claim()
+    await expect(renewed.json()).resolves.toStrictEqual(pass)
+    const bad = await ctx.send(`${path}/issue`, { holderAddress: ctx.key.address, signature: '0x00' })
+    await expect(bad.json()).resolves.toStrictEqual({ error: 'bad_signature' })
+    const reads = vi.spyOn(ctx.chain, 'agreementCountOf')
+    const fresh = await ctx.send(`${path}/issue`, {
+      holderAddress: other.address,
+      signature: await other.signMessage({ message: claimMessage(ctx.card.id, other.address) }),
+    })
+    await expect(fresh.json()).resolves.toStrictEqual({ error: 'card_closed' })
+    expect(reads).not.toHaveBeenCalled()
+  })
+
+  it('does not query requirements for a pass without an address holder', async () => {
+    const database = db()
+    const select = vi.spyOn(database, 'select')
+    await expect(
+      presentationRequirements(database, fakeChain(), agreementId, null, {}),
+    ).resolves.toStrictEqual({ evidence: [], met: true })
+    expect(select).not.toHaveBeenCalled()
   })
 
   it('fails closed without evidence or readable chain', async () => {

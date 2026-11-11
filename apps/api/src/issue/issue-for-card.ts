@@ -11,7 +11,13 @@ import { cards, members } from '../db/schema.ts'
 import type { issuers } from '../db/schema.ts'
 import { mirrorMemberName } from '../ens/mirror.ts'
 import type { AppEnv } from '../env.ts'
-import { claimEvidence, claimRows, existingAddressPass, renewEvidence } from '../requirements/claim.ts'
+import {
+  addressPassOver,
+  claimEvidence,
+  claimRows,
+  existingAddressPass,
+  renewEvidence,
+} from '../requirements/claim.ts'
 import { issueBearer, IssueConfigError } from './issue-bearer.ts'
 import { issueContext } from './issue-context.ts'
 import { issueOffchainPass, offchainDomain } from './issue-offchain.ts'
@@ -142,31 +148,39 @@ const issueAddress = async (
   }
   try {
     const existing = await existingAddressPass(c.get('db'), card.id, claimant.address, c.env.API_BASE_URL)
-    if (existing !== null) {
+    if (existing !== null && !(await addressPassOver(c.get('db'), existing.uid, c.get('now')()))) {
       const renewed = await renewEvidence(
         c.get('db'),
         c.get('chain'),
         card,
         claimant.address,
         existing.uid,
+        c.env,
         agreementId,
       )
       return renewed.ok
         ? { ok: true, pass: existing }
         : { error: 'requirement_unmet', ok: false, requirement: renewed.requirement }
     }
-    const checked = await claimEvidence(c.get('db'), c.get('chain'), card, claimant.address, agreementId)
+    const checked = await claimEvidence(
+      c.get('db'),
+      c.get('chain'),
+      card,
+      claimant.address,
+      c.env,
+      agreementId,
+    )
     if (!checked.ok) {
       return { error: 'requirement_unmet', ok: false, requirement: checked.requirement }
     }
     const outcome = await issueOffchain(c, card, issuer, source, claimant, (uid) =>
-      claimRows(c.get('db'), card.id, claimant.address, checked.evidence, uid),
+      claimRows(c.get('db'), card.id, claimant.address, checked.evidence, uid, existing?.uid),
     )
     if (outcome.ok) {
       return outcome
     }
     const winner = await existingAddressPass(c.get('db'), card.id, claimant.address, c.env.API_BASE_URL)
-    return winner === null ? outcome : { ok: true, pass: winner }
+    return winner === null || winner.uid === existing?.uid ? outcome : { ok: true, pass: winner }
   } catch (error) {
     if (error instanceof ChainError) {
       return { error: 'chain_error', ok: false }

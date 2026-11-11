@@ -74,7 +74,7 @@ const proofHolds = async (
 const checkedRequirements = async (c: Context<AppEnv>, uid: Hex, holder: Hex | null) => {
   try {
     return {
-      checked: await presentationRequirements(c.get('db'), c.get('chain'), uid, holder),
+      checked: await presentationRequirements(c.get('db'), c.get('chain'), uid, holder, c.env),
       ok: true,
     } as const
   } catch (error) {

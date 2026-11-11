@@ -48,9 +48,9 @@ describe('a requirement', () => {
 const entry = (index: number) => ({ ...base, assetId: `0x${index.toString(16).padStart(64, '0')}` })
 
 describe('a list of requirements', () => {
-  it('accepts up to four requirements and no more', () => {
-    expect(v.safeParse(CardRequirements, [1, 2, 3, 4].map(entry)).success).toBe(true)
-    expect(v.safeParse(CardRequirements, [1, 2, 3, 4, 5].map(entry)).success).toBe(false)
+  it('accepts one requirement and no more', () => {
+    expect(v.safeParse(CardRequirements, [1].map(entry)).success).toBe(true)
+    expect(v.safeParse(CardRequirements, [1, 2].map(entry)).success).toBe(false)
   })
 })
 

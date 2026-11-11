@@ -85,29 +85,21 @@ describe('ERC-8432 requirement', () => {
     },
   )
 
-  it('continues across empty pages and examines at most 1000 asset records', async () => {
+  it.each([0, 1000])('searches the newest 1000 records, with a hint for older grant %i', async (granted) => {
     const chain = new FakeChain()
     for (let index = 0; index < 1001; index += 1) {
       chain.seedAgreement({
         ...config,
-        creationMode: 0,
-        holder: index === 150 || index === 1000 ? HOLDER : other.address,
+        creationMode: index === granted ? 0 : 1,
+        holder: HOLDER,
         id: `0x${index.toString(16).padStart(64, '0')}`,
         termsId: config.termsId ?? id,
       })
     }
-    await expect(adapter.claimCheck(chain, config, HOLDER)).resolves.toMatchObject({ met: true })
-    chain.seedAgreement({
-      ...config,
-      creationMode: 0,
-      holder: other.address,
-      id: `0x${(150).toString(16).padStart(64, '0')}`,
-      termsId: config.termsId ?? id,
-    })
-    await expect(adapter.claimCheck(chain, config, HOLDER)).resolves.toStrictEqual({
-      detail: 'no-agreement',
-      met: false,
-    })
+    await expect(adapter.claimCheck(chain, config, HOLDER)).resolves.toMatchObject({ met: granted === 1000 })
+    await expect(
+      adapter.claimCheck(chain, config, HOLDER, `0x${granted.toString(16).padStart(64, '0')}`),
+    ).resolves.toMatchObject({ met: true })
   })
 
   it('counts examined records even on empty filtered pages', async () => {

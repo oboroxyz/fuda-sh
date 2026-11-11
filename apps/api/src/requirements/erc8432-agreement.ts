@@ -43,8 +43,8 @@ export const erc8432Agreement = {
       return await checkAgreement(chain, config, holder, agreementId)
     }
     const count = await chain.agreementCountOf(config.registry, config.assetId)
-    const end = count < 1000n ? count : 1000n
-    let cursor = 0n
+    const end = count
+    let cursor = count > 1000n ? count - 1000n : 0n
     let detail: RequirementDetail = 'no-agreement'
     while (cursor < end) {
       const limit = end - cursor < 100n ? end - cursor : 100n

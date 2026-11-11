@@ -4,7 +4,6 @@ import {
   brandTextColor,
   cardBySlug,
   formatMemberNumber,
-  isClaimable,
   normalizeUid,
   passPlatform,
   qrSvg,
@@ -632,11 +631,7 @@ const landingScreen = (
   locale: Locale,
 ): JSX.Element => {
   const busy = state.kind === 'issuing'
-  // A card outside its claim window would only earn a 409, so the screen says
-  // so instead of offering a button that cannot work. A full address Card stays
-  // open inside its window, because a member who already holds its pass can receive it again.
-  const restorable =
-    state.card.card.identity === 'address' && isClaimable(state.card.card, Math.floor(Date.now() / 1000))
+  const restorable = state.card.card.identity === 'address'
   if (!state.card.card.claimable && !restorable) {
     return (
       <>

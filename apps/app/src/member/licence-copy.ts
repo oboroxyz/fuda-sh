@@ -31,6 +31,7 @@ export const LICENCE_COPY = {
         'No active licence agreement was found. Ask the asset owner to grant one, then try again.',
       'not-granted':
         'The asset owner needs to grant your agreement. An agreement you acquired yourself does not qualify.',
+      'registry-not-allowed': 'This licence registry is no longer accepted.',
       'wrong-terms':
         'Your agreement has different terms from those this card requires. Ask the asset owner, then try again.',
     },
@@ -52,6 +53,7 @@ export const LICENCE_COPY = {
       'no-agreement':
         '有効なライセンス契約が見つかりません。権利者に付与を依頼してから、もう一度お試しください。',
       'not-granted': '権利者による契約の付与が必要です。自分で取得した契約では受け取れません。',
+      'registry-not-allowed': 'このライセンス登録先は現在受け付けていません。',
       'wrong-terms':
         'このカードに必要な条件と契約の条件が異なります。権利者に確認してから、もう一度お試しください。',
     },
