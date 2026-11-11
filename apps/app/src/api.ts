@@ -200,12 +200,14 @@ export const issueAddressCard = async (
   slug: string,
   holderAddress: Hex,
   signature: Hex,
+  issuedAt: number,
   source: string | null,
   turnstileToken: string | null,
 ): Promise<Result<SelfServeIssueResponse>> =>
   await apiFetch(API_BASE_URL, issuePath(handle, slug), {
     body: JSON.stringify({
       holderAddress,
+      issuedAt,
       signature,
       source: source ?? undefined,
       turnstileToken: turnstileToken ?? undefined,

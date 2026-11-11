@@ -60,12 +60,13 @@ describe('receiving a licence pass', () => {
     const outcome = await receiveLicence(input)
     expect(outcome.kind).toBe('received')
     const signature = claim.mock.calls[0]?.[3]
+    const issuedAt = claim.mock.calls[0]?.[4]
     expect(signature).toBeDefined()
-    if (signature === undefined) {
+    if (signature === undefined || issuedAt === undefined) {
       throw new Error('No claim signature')
     }
     await expect(
-      verifyMessage({ address, message: claimMessage(input.cardId, address), signature }),
+      verifyMessage({ address, message: claimMessage(input.cardId, address, issuedAt), signature }),
     ).resolves.toBe(true)
     expect(save).toHaveBeenCalledWith(
       sensitive.defaultSensitiveIo,

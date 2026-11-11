@@ -77,7 +77,7 @@ const decodeDelegationOrNull = (version: number, data: Hex): Delegation | null =
   }
 }
 
-type DelegationResult = { ok: true; view: DelegationView } | { ok: false; reason: Reason; VerifyResponse }
+type DelegationResult = { ok: true; view: DelegationView } | { ok: false; reason: Reason }
 
 // The authority boundary: the Entitlement's refUID must be a live IssuerDelegation
 // attested by ISSUER_ADDRESS whose `issuer` field is the Entitlement's attester.

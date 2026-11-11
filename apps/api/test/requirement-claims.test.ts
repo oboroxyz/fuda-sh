@@ -101,7 +101,8 @@ const setup = async (changes: Partial<CardInput> = {}) => {
     )
   const claimBody = async () => ({
     holderAddress: key.address,
-    signature: await key.signMessage({ message: claimMessage(card.id, key.address) }),
+    issuedAt: NOW,
+    signature: await key.signMessage({ message: claimMessage(card.id, key.address, NOW) }),
   })
   const claim = async () => await send(`${path}/issue`, await claimBody())
   const present = async (uid: Hex) => {
@@ -168,7 +169,7 @@ describe('requirement applications and claims', () => {
       WORLD_RP_SIGNING_KEY: `0x${'11'.repeat(32)}`,
     })
     await db().insert(cardIntegrations).values({ cardId: ctx.card.id, humanBadge: true })
-    const badge = await ctx.send('/v1/badges/human', { uid: pass.uid, payload: {} })
+    const badge = await ctx.send('/v1/badges/human', { payload: {}, uid: pass.uid })
     expect(badge.status).toBe(404)
   })
 
@@ -226,21 +227,33 @@ describe('requirement applications and claims', () => {
     },
   )
 
+  it.each([NOW - 301, NOW + 61, undefined, NOW - 1])(
+    'refuses an expired, future, missing or differently signed claim time %s',
+    async (issuedAt) => {
+      const ctx = await setup({ identity: 'none' })
+      ctx.grant()
+      const body = await ctx.claimBody()
+      const result = await ctx.send(`${path}/issue`, { ...body, issuedAt })
+      expect(result.status).toBe(403)
+      await expect(result.json()).resolves.toStrictEqual({ error: 'bad_signature' })
+    },
+  )
+
   it('keeps requirement passes out of the account pass list', async () => {
     const ctx = await setup({ identity: 'none' })
     ctx.grant()
     const issued = await ctx.claim()
     const pass = await issued.json<SelfServeIssueResponse>()
-    await db().insert(accounts).values({ id: 'member', userHandle: 'member-handle', createdAt: NOW })
+    await db().insert(accounts).values({ createdAt: NOW, id: 'member', userHandle: 'member-handle' })
     await db()
       .insert(sessions)
       .values({
-        tokenHash: await hashToken('member-token'),
-        address: '',
         accountId: 'member',
+        address: '',
         audience: 'member',
         createdAt: NOW,
         expiresAt: NOW + 300,
+        tokenHash: await hashToken('member-token'),
       })
     const linked = await ctx.send('/v1/member/passes', { uids: [pass.uid] }, 'member-token')
     await expect(linked.json()).resolves.toStrictEqual({ linked: 0 })
@@ -622,7 +635,8 @@ describe('requirement applications and claims', () => {
     })
     const fresh = await ctx.send(`${path}/issue`, {
       holderAddress: other.address,
-      signature: await other.signMessage({ message: claimMessage(ctx.card.id, other.address) }),
+      issuedAt: NOW,
+      signature: await other.signMessage({ message: claimMessage(ctx.card.id, other.address, NOW) }),
     })
     await expect(fresh.json()).resolves.toMatchObject({ requirement: { detail: 'registry-not-allowed' } })
     for (const read of reads) {
@@ -650,7 +664,8 @@ describe('requirement applications and claims', () => {
     const reads = vi.spyOn(ctx.chain, 'agreementCountOf')
     const fresh = await ctx.send(`${path}/issue`, {
       holderAddress: other.address,
-      signature: await other.signMessage({ message: claimMessage(ctx.card.id, other.address) }),
+      issuedAt: NOW,
+      signature: await other.signMessage({ message: claimMessage(ctx.card.id, other.address, NOW) }),
     })
     await expect(fresh.json()).resolves.toStrictEqual({ error: 'card_closed' })
     expect(reads).not.toHaveBeenCalled()

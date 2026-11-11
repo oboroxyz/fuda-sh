@@ -24,7 +24,7 @@ const Verdict = v.object({
 })
 
 // Through the member app's Worker, as the app sends them: no session and no cookie.
-const viaApp = async (path: string, body: Record<string, string>): Promise<Response> =>
+const viaApp = async (path: string, body: Record<string, string | number>): Promise<Response> =>
   await fetch(`${SURFACES.app.origin}/api/v1${path}`, {
     body: JSON.stringify(body),
     headers: { 'content-type': 'application/json' },
@@ -48,11 +48,13 @@ test('a licensed address applies, receives one pass and is admitted, and another
     token: venue.operatorToken,
   })
   const path = `/issuers/${venue.handle}/moonlight-club`
+  const issuedAt = Math.floor(Date.now() / 1000)
   const claim = async (account: typeof licensed): Promise<Response> =>
     await viaApp(`${path}/issue`, {
       holderAddress: account.address,
+      issuedAt,
       signature: await account.signMessage({
-        message: `fuda.sh:claim:v1:${card.id}:${account.address.toLowerCase()}`,
+        message: `fuda.sh:claim:v1:${card.id}:${account.address.toLowerCase()}:${issuedAt}`,
       }),
     })
 
@@ -103,8 +105,9 @@ test('a licensed address applies, receives one pass and is admitted, and another
   )
   const issued = await viaApp(`/issuers/${venue.handle}/wallet-club/issue`, {
     holderAddress: licensed.address,
+    issuedAt,
     signature: await licensed.signMessage({
-      message: `fuda.sh:claim:v1:${walletCard.id}:${licensed.address.toLowerCase()}`,
+      message: `fuda.sh:claim:v1:${walletCard.id}:${licensed.address.toLowerCase()}:${issuedAt}`,
     }),
   })
   const walletPass = v.parse(v.object({ level: v.literal('bearer'), qr: v.string() }), await issued.json())

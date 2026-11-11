@@ -53,8 +53,12 @@ export const verdictBody = (
   if (out.decision === 'ADMIT' && out.unconfirmed === true) {
     body.unconfirmed = true
   }
-  if (out.requirement !== undefined) body.requirement = out.requirement
-  if (out.requirements !== undefined) body.requirements = out.requirements
+  if (out.requirement !== undefined) {
+    body.requirement = out.requirement
+  }
+  if (out.requirements !== undefined) {
+    body.requirements = out.requirements
+  }
   return badges.length === 0 ? body : { ...body, badges }
 }
 
@@ -93,21 +97,24 @@ const withRequirements = async (
   out: VerifyOutcome,
   card: Awaited<ReturnType<typeof loadVerificationRow>>,
 ): Promise<VerifyOutcome> => {
-  if (out.decision !== 'ADMIT') return out
+  if (out.decision !== 'ADMIT') {
+    return out
+  }
   const checked = await presentationRequirements(c.get('db'), c.get('chain'), uid, c.env, {
-    id: card?.cardId ?? '',
     hasRequirements: card?.hasRequirements === true || card?.identity === 'address',
+    id: card?.cardId ?? '',
   })
-  return checked.met
-    ? { ...out, ...(checked.evidence.length > 0 ? { requirements: checked.evidence } : {}) }
-    : { ...out, decision: 'REJECT', reason: 'REQUIREMENT_UNMET', requirement: checked.requirement }
+  if (!checked.met) {
+    return { ...out, decision: 'REJECT', reason: 'REQUIREMENT_UNMET', requirement: checked.requirement }
+  }
+  return checked.evidence.length > 0 ? { ...out, requirements: checked.evidence } : out
 }
 
 export const resolveVerdict = async (c: Context<AppEnv>, uid: Hex, now: number): Promise<Resolved> => {
   // An offchain right is decided from its D1 row, and needs none of the on-chain
   // configuration below (docs/specs/attestation-model.md#offchain-rights).
   const offchain = await loadVerificationRow(c.get('db'), uid)
-  if (offchain?.signed != null) {
+  if (offchain !== null && offchain.signed !== null) {
     const chain = c.get('chain')
     let deps: ReturnType<typeof offchainVerifyConfig>
     try {

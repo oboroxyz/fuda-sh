@@ -81,6 +81,6 @@ describe(challengeMessage, () => {
 
 describe(claimMessage, () => {
   it('pins the claim version and lowercases the holder address', () => {
-    expect(claimMessage('card-1', '0xAbCd')).toBe('fuda.sh:claim:v1:card-1:0xabcd')
+    expect(claimMessage('card-1', '0xAbCd', 123)).toBe('fuda.sh:claim:v1:card-1:0xabcd:123')
   })
 })

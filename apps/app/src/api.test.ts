@@ -245,7 +245,7 @@ describe('address card requests', () => {
   it('claims with a signature, omits optional values and preserves the requirement detail', async () => {
     const requirement = { detail: 'wrong-terms', kind: 'erc8432-agreement' }
     const spy = stubFetch(() => json({ error: 'requirement_unmet', requirement }, 403))
-    const result = await issueAddressCard('art', 'fan', UID, SIGNATURE, null, null)
+    const result = await issueAddressCard('art', 'fan', UID, SIGNATURE, 123, null, null)
     expect(result).toStrictEqual({
       error: 'requirement_unmet',
       network: false,
@@ -254,7 +254,7 @@ describe('address card requests', () => {
       status: 403,
     })
     expect(spy).toHaveBeenCalledWith('/api/v1/issuers/art/fan/issue', {
-      body: JSON.stringify({ holderAddress: UID, signature: SIGNATURE }),
+      body: JSON.stringify({ holderAddress: UID, issuedAt: 123, signature: SIGNATURE }),
       credentials: 'omit',
       headers: { 'content-type': 'application/json' },
       method: 'POST',

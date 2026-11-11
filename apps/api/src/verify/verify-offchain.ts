@@ -35,9 +35,9 @@ export const loadVerificationRow = async (db: Db, uid: Hex) =>
   (await db
     .select({
       cardId: members.cardId,
-      identity: cards.identity,
       handle: issuers.handle,
       hasRequirements: cards.hasRequirements,
+      identity: cards.identity,
       signed: offchainAttestations.signed,
       status: members.status,
     })
@@ -50,7 +50,7 @@ export const loadVerificationRow = async (db: Db, uid: Hex) =>
 
 export const loadOffchainRow = async (db: Db, uid: Hex): Promise<OffchainRow | null> => {
   const row = await loadVerificationRow(db, uid)
-  return row?.signed == null ? null : { ...row, signed: row.signed }
+  return row === null || row.signed === null ? null : { ...row, signed: row.signed }
 }
 
 const decodeOrNull = (data: Hex): OffchainPassData | null => {
@@ -208,7 +208,7 @@ export const verifyOffchain = async (
   }
   if (revoked instanceof ChainError) {
     if (
-      row.hasRequirements ||
+      row.hasRequirements === true ||
       row.identity === 'address' ||
       pass.usageModel === USAGE_MODEL.SINGLE_USE ||
       holderAddress !== null

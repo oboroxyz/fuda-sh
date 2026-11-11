@@ -1,5 +1,6 @@
 import {
   ClaimSource,
+  CHALLENGE_TTL_SECONDS,
   claimMessage,
   ADDRESS_RE,
   UID_RE,
@@ -26,8 +27,7 @@ import { errorResponse, jsonResponse } from '../json.ts'
 import { memberBearerSession } from '../middleware/bearer-session.ts'
 import { rateLimit } from '../middleware/rate-limit.ts'
 import { existingAddressPass } from '../requirements/claim.ts'
-import { cardHasRequirements } from '../requirements/store.ts'
-import { requirementsOf } from '../requirements/store.ts'
+import { cardHasRequirements, requirementsOf } from '../requirements/store.ts'
 import { verifyTurnstile } from '../turnstile/siteverify.ts'
 
 // Self-serve issuances per IP per hour: a venue's whole queue is a handful of
@@ -86,6 +86,7 @@ const sensitiveClaimant = (c: Context<AppEnv>, body: v.SafeParseResult<typeof Se
 const AddressClaimBody = v.object({
   agreementId: v.optional(v.pipe(v.string(), v.regex(UID_RE))),
   holderAddress: v.pipe(v.string(), v.regex(ADDRESS_RE)),
+  issuedAt: v.optional(v.unknown()),
   signature: v.string(),
 })
 
@@ -109,10 +110,15 @@ const addressClaimant = async (
       res: errorResponse(c, absent ? 'holder_must_claim' : 'bad_input', absent ? 409 : 400),
     }
   }
+  const time = v.safeParse(v.pipe(v.number(), v.safeInteger()), body.output.issuedAt)
+  const now = c.get('now')()
+  if (!time.success || now - time.output > CHALLENGE_TTL_SECONDS || time.output - now > 60) {
+    return { ok: false, res: errorResponse(c, 'bad_signature', 403) }
+  }
   const address = getAddress(body.output.holderAddress)
   try {
     const recovered = await recoverMessageAddress({
-      message: claimMessage(cardId, address),
+      message: claimMessage(cardId, address, time.output),
       signature: `0x${body.output.signature.slice(2)}`,
     })
     if (isAddressEqual(address, recovered)) {

@@ -98,7 +98,9 @@ const admitSigned = async (
     path: 'signature',
     reason: 'OK',
   }
-  if (out.requirements !== undefined) admitted.requirements = out.requirements
+  if (out.requirements !== undefined) {
+    admitted.requirements = out.requirements
+  }
   return withVenue(admitted)
 }
 
@@ -164,7 +166,9 @@ export const postV1VerifySigned = defineHandler(async (c) => {
       path: 'signature',
       reason: out.reason,
       stage: 'entitlement',
-      ...(out.requirement === undefined ? {} : { requirement: out.requirement }),
+    }
+    if (out.requirement !== undefined) {
+      verdict.requirement = out.requirement
     }
     if (out.entitlement !== undefined) {
       verdict.holder = out.entitlement.holder

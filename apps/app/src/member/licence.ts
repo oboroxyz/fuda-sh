@@ -51,12 +51,14 @@ export const receiveLicence = async (input: {
       ? { address: key.address, kind: 'applied' }
       : { failure: cardFailureOf(applied), kind: 'failed' }
   }
-  const signature = await key.signMessage({ message: claimMessage(input.cardId, key.address) })
+  const issuedAt = Math.floor(Date.now() / 1000)
+  const signature = await key.signMessage({ message: claimMessage(input.cardId, key.address, issuedAt) })
   const issued = await issueAddressCard(
     input.venue,
     input.slug,
     key.address,
     signature,
+    issuedAt,
     input.source,
     input.token,
   )

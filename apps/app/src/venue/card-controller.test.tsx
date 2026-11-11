@@ -980,7 +980,7 @@ describe.each(['address', 'none'] as const)('%s requirement Card controller', (i
           },
           kind: 'received',
         })
-      licence.mockImplementation(async () => ({ kind: 'failed', failure: 'chain_error' }))
+      licence.mockResolvedValue({ failure: 'chain_error', kind: 'failed' })
       const { deps, host } = open(licence)
       await vi.waitFor(() => {
         expect(host.textContent).toContain('Apply with your passkey')
