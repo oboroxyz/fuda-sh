@@ -1,4 +1,4 @@
-import { pick } from '@fuda/i18n'
+import { AUTH_COPY, pick } from '@fuda/i18n'
 import type { Locale } from '@fuda/i18n'
 import type { MemberSecretResponse } from '@fuda/sdk'
 import { apiFetch } from '@fuda/sdk/http'
@@ -8,11 +8,13 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 
 import { challenge, verifySigned } from '../api.ts'
 import { API_BASE_URL } from '../config.ts'
+import { signInHref } from '../route.ts'
 import { displayOf, enterSigned } from '../signed-gate.ts'
 import type { SignedDisplay } from '../signed-gate.ts'
 import { useLoad } from '../use-load.ts'
 import { MEMBER_COPY } from './copy.ts'
 import type { VaultEntry } from './member-secret.ts'
+import type { OpenedSecret } from './sensitive.ts'
 import { Verdict } from './Verdict.tsx'
 
 const holdsSecret = async (): Promise<boolean> => {
@@ -25,13 +27,13 @@ interface Opened {
   secret: Uint8Array<ArrayBuffer>
 }
 
-type Problem = 'failed' | 'notOpened'
+type Problem = Exclude<OpenedSecret, { kind: 'open' }>['kind']
 
 const readList = async (): Promise<{ list: Opened } | { problem: Problem }> => {
   const { defaultSensitiveIo, openMemberSecret, readVaultEntries } = await import('./sensitive.ts')
   const secret = await openMemberSecret(defaultSensitiveIo)
   if (secret.kind !== 'open') {
-    return { problem: secret.kind === 'failed' ? 'failed' : 'notOpened' }
+    return { problem: secret.kind }
   }
   const read = await readVaultEntries(defaultSensitiveIo, secret.secret)
   return read.ok ? { list: { entries: read.entries, secret: secret.secret } } : { problem: 'failed' }
@@ -99,16 +101,20 @@ const renderSensitiveList = (input: {
 const RecoveryActions = (props: {
   copy: (typeof MEMBER_COPY)['en']['sensitive']
   onStartOver: () => Promise<void>
+  locale: Locale
   problem: Problem | null
   startedOver: boolean | null
 }): JSX.Element => (
   <>
     {props.problem ? (
-      <div role="alert" class="alert alert-error">
+      <p
+        role={props.problem === 'cancelled' ? 'status' : 'alert'}
+        class={props.problem === 'cancelled' ? 'text-sm text-[var(--fuda-muted)]' : 'alert alert-error'}
+      >
         {props.copy[props.problem]}
-      </div>
+      </p>
     ) : null}
-    {props.problem === 'notOpened' ? (
+    {props.problem === 'unopenable' ? (
       <>
         <p class="text-sm text-[var(--fuda-muted)]">{props.copy.startOverHint}</p>
         <ConfirmAction
@@ -122,6 +128,11 @@ const RecoveryActions = (props: {
           title={props.copy.startOverTitle}
         />
       </>
+    ) : null}
+    {props.problem === 'signed_out' ? (
+      <a class="btn btn-primary w-full" href={signInHref('/rights')}>
+        {pick(AUTH_COPY, props.locale).signInWithPasskey}
+      </a>
     ) : null}
     {props.startedOver === false ? (
       <div role="alert" class="alert alert-error">
@@ -156,7 +167,9 @@ export const SensitivePasses = (props: { locale: Locale }): JSX.Element => {
     }
     busyRef.current = true
     setBusy(true)
+    setStartedOver(null)
     setProblem(null)
+    setOpened(null)
     try {
       const result = await readList()
       if (!mounted.current) {
@@ -168,6 +181,7 @@ export const SensitivePasses = (props: { locale: Locale }): JSX.Element => {
         setProblem(result.problem)
       }
     } catch {
+      setOpened(null)
       setProblem('failed')
     } finally {
       busyRef.current = false
@@ -181,6 +195,8 @@ export const SensitivePasses = (props: { locale: Locale }): JSX.Element => {
     }
     busyRef.current = true
     setBusy(true)
+    setStartedOver(null)
+    setProblem(null)
     // A chunk that fails to load must not leave the section busy for good.
     const cleared = await import('./sensitive.ts')
       .then(async ({ startSecretOver }) => await startSecretOver())
@@ -205,6 +221,7 @@ export const SensitivePasses = (props: { locale: Locale }): JSX.Element => {
     }
     busyRef.current = true
     setBusy(true)
+    setStartedOver(null)
     setProblem(null)
     try {
       const { passKeyFrom } = await import('./member-secret.ts')
@@ -221,6 +238,7 @@ export const SensitivePasses = (props: { locale: Locale }): JSX.Element => {
         setVerdict(displayOf(outcome))
       }
     } catch {
+      setOpened(null)
       setProblem('failed')
     } finally {
       busyRef.current = false
@@ -244,6 +262,7 @@ export const SensitivePasses = (props: { locale: Locale }): JSX.Element => {
           {renderList()}
           <RecoveryActions
             copy={copy()}
+            locale={props.locale}
             problem={problem}
             startedOver={startedOver}
             onStartOver={startOver}

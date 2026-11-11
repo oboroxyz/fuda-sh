@@ -2,6 +2,7 @@
 import { mount, settle } from '@fuda/ui/test'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import * as memberSecret from './member-secret.ts'
 import * as sensitive from './sensitive.ts'
 import { SensitivePasses } from './SensitivePasses.tsx'
 
@@ -67,6 +68,98 @@ describe('Sensitive screen ownership', () => {
       again.host.textContent?.includes(entry.cardTitle),
       vi.mocked(sensitive.openMemberSecret).mock.calls.length,
     ]).toStrictEqual([false, 1])
+  })
+
+  it.each([
+    ['cancelled', 'No passkey was used. You can try again.'],
+    ['no_prf', 'This passkey cannot open sensitive passes'],
+    ['signed_out', 'Sign in again'],
+    ['failed', 'The list could not be opened. Try again.'],
+    ['unopenable', 'The list was not opened.'],
+  ] as const)('handles %s without offering unrelated recovery', async (kind, message) => {
+    vi.mocked(sensitive.openMemberSecret).mockResolvedValue({ kind })
+    const view = mount(<SensitivePasses locale="en" />)
+    disposers.push(view.dispose)
+    await vi.waitFor(() => {
+      expect(view.host.querySelector('button')).not.toBeNull()
+    })
+    await settle(() => view.host.querySelector('button')?.click())
+    await vi.waitFor(() => {
+      expect(view.host.textContent).toContain(message)
+    })
+    const buttons = [...view.host.querySelectorAll('button')]
+    expect({
+      alert: view.host.querySelector('[role="alert"]') !== null,
+      list: view.host.querySelector('ul'),
+      signIn: view.host.querySelector('a')?.getAttribute('href'),
+      startOver: buttons.some((button) => button.textContent === 'Start over'),
+      status: view.host.querySelector('[role="status"]')?.textContent,
+    }).toStrictEqual({
+      alert: kind !== 'cancelled',
+      list: null,
+      signIn: kind === 'signed_out' ? '/signin?return=%2Frights' : undefined,
+      startOver: kind === 'unopenable',
+      status: kind === 'cancelled' ? message : undefined,
+    })
+    vi.mocked(sensitive.openMemberSecret).mockResolvedValue({ kind: 'open', secret })
+    await settle(() => view.host.querySelector('button')?.click())
+    await vi.waitFor(() => {
+      expect(view.host.textContent).toContain(entry.cardTitle)
+    })
+    expect(view.host.textContent).not.toContain(message)
+    expect(view.host.querySelector('[role="alert"]')).toBeNull()
+  })
+
+  it('hides the list after an entry failure and clears the problem on retry', async () => {
+    vi.spyOn(memberSecret, 'passKeyFrom').mockRejectedValue(new Error('Key unavailable'))
+    const view = mount(<SensitivePasses locale="en" />)
+    disposers.push(view.dispose)
+    await vi.waitFor(() => {
+      expect(view.host.querySelector('button')).not.toBeNull()
+    })
+    await settle(() => view.host.querySelector('button')?.click())
+    await vi.waitFor(() => {
+      expect(view.host.textContent).toContain(entry.cardTitle)
+    })
+    await settle(() => view.host.querySelector('button')?.click())
+    await vi.waitFor(() => {
+      expect(view.host.querySelector('[role="alert"]')).not.toBeNull()
+    })
+    expect(view.host.textContent).not.toContain(entry.cardTitle)
+    await settle(() => view.host.querySelector('button')?.click())
+    await vi.waitFor(() => {
+      expect(view.host.textContent).toContain(entry.cardTitle)
+    })
+    expect(view.host.querySelector('[role="alert"]')).toBeNull()
+  })
+
+  it('clears the start-over banner when a later opening fails', async () => {
+    vi.mocked(sensitive.openMemberSecret).mockResolvedValue({ kind: 'unopenable' })
+    vi.spyOn(sensitive, 'startSecretOver').mockResolvedValue(true)
+    const view = mount(<SensitivePasses locale="en" />)
+    disposers.push(view.dispose)
+    await vi.waitFor(() => {
+      expect(view.host.querySelector('button')).not.toBeNull()
+    })
+    await settle(() => view.host.querySelector('button')?.click())
+    await vi.waitFor(() => {
+      expect(view.host.textContent).toContain('Start over')
+    })
+    await settle(() =>
+      [...view.host.querySelectorAll('button')]
+        .find((button) => button.textContent === 'Start over')
+        ?.click(),
+    )
+    await settle(() => view.host.querySelector<HTMLButtonElement>('dialog .btn-error')?.click())
+    await vi.waitFor(() => {
+      expect(view.host.textContent).toContain('Done. Ask each shop')
+    })
+    vi.mocked(sensitive.openMemberSecret).mockResolvedValue({ kind: 'failed' })
+    await settle(() => view.host.querySelector('button')?.click())
+    await vi.waitFor(() => {
+      expect(view.host.querySelector('[role="alert"]')).not.toBeNull()
+    })
+    expect(view.host.textContent).not.toContain('Done. Ask each shop')
   })
 
   it('ignores a vault that opens after unmount', async () => {
