@@ -46,7 +46,7 @@ export interface ChainClient {
   readAttestation: (uid: Hex) => Promise<RawAttestation>
   /** Coinbase Smart Wallet factory getAddress(owners, nonce) — pure CREATE2 computation, nothing deployed. */
   getAddressFromFactory: (owners: Hex[], nonce: bigint) => Promise<Hex>
-  /** Submit an attestation and wait for the receipt; returns the new uid. Throws NoSignerError / ChainError. */
+  /** Submit an attestation and wait for the receipt; returns the new uid. UnknownTransactionOutcomeError carries the tx hash if receipt polling fails. Throws NoSignerError / ChainError. */
   attest: (p: AttestParams) => Promise<{ uid: Hex; txHash: Hex }>
   /** Revoke; waits for the receipt. Throws ChainError when the tx reverts (unknown or already-revoked uid). */
   revoke: (schema: Hex, uid: Hex) => Promise<{ txHash: Hex }>

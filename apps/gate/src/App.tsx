@@ -4,36 +4,94 @@ import { useLayoutEffect, useRef, useState } from 'preact/hooks'
 
 import { admitQr, previewUid } from './api.ts'
 import { cameraMode, venueHandle } from './config.ts'
+import { copy } from './copy.ts'
 import { classifyInput, displayState, unreadableInput } from './verdict.ts'
 import type { DisplayState } from './verdict.ts'
 import { Verdict } from './Verdict.tsx'
 import { EMPTY_WEDGE, wedgeKey } from './wedge.ts'
 
+type ScanState =
+  | { kind: 'scanning' }
+  | {
+      kind: 'checking'
+      controller: AbortController
+      timer: ReturnType<typeof setTimeout>
+      ignored: boolean
+    }
+  | { kind: 'verdict'; display: DisplayState }
+
+const failedCheck = (): DisplayState =>
+  displayState('admit', {
+    error: copy.couldNotCheck,
+    network: true,
+    ok: false,
+    status: 0,
+  })
+
 export const App = (): JSX.Element => {
   const venue = venueHandle(window.location.search)
-  const [state, setState] = useState<DisplayState | null>(null)
-  const busy = useRef(false)
+  const [state, renderState] = useState<ScanState>({ kind: 'scanning' })
+  const current = useRef(state)
+  const setState = (next: ScanState): void => {
+    current.current = next
+    renderState(next)
+  }
   const buffer = useRef(EMPTY_WEDGE)
 
   const onInput = async (text: string): Promise<void> => {
-    if (busy.current) {
+    if (current.current.kind === 'checking') {
+      setState({ ...current.current, ignored: true })
       return
     }
     const input = classifyInput(text)
     if (input.kind === 'invalid') {
-      setState(unreadableInput())
+      setState({ display: unreadableInput(), kind: 'verdict' })
       return
     }
-    busy.current = true
+    const controller = new AbortController()
+    const finish = (display: DisplayState): void => {
+      const active = current.current
+      if (active.kind !== 'checking' || active.controller !== controller) {
+        return
+      }
+      clearTimeout(active.timer)
+      setState({ display, kind: 'verdict' })
+    }
+    const timer = setTimeout(() => {
+      controller.abort()
+      finish(failedCheck())
+    }, 10_000)
+    setState({ controller, ignored: false, kind: 'checking', timer })
     try {
-      const result = input.kind === 'preview' ? await previewUid(input.uid) : await admitQr(input.qr, venue)
-      setState(displayState(input.kind, result))
-    } finally {
-      busy.current = false
+      const result =
+        input.kind === 'preview'
+          ? await previewUid(input.uid, controller.signal)
+          : await admitQr(input.qr, venue, controller.signal)
+      finish(displayState(input.kind, result))
+    } catch {
+      finish(failedCheck())
     }
   }
   const latestInput = useRef(onInput)
   latestInput.current = onInput
+
+  useLayoutEffect(() => {
+    if (state.kind !== 'verdict') {
+      return
+    }
+    const timer = setTimeout(
+      () => {
+        if (current.current !== state) {
+          return
+        }
+        setState({ kind: 'scanning' })
+      },
+      state.display.tone === 'green' ? 5000 : 10_000,
+    )
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [state])
 
   // The reader can fire before paint and while a verdict has no input box.
   useLayoutEffect(() => {
@@ -52,6 +110,12 @@ export const App = (): JSX.Element => {
     document.addEventListener('keydown', onKey)
     return () => {
       document.removeEventListener('keydown', onKey)
+      const active = current.current
+      current.current = { kind: 'scanning' }
+      if (active.kind === 'checking') {
+        clearTimeout(active.timer)
+        active.controller.abort()
+      }
     }
   }, [])
 
@@ -69,7 +133,7 @@ export const App = (): JSX.Element => {
           )}
         </div>
       </header>
-      {state === null ? (
+      {state.kind === 'scanning' ? (
         <Scanner
           autoFocus
           cameraMode={cameraMode(window.location.search)}
@@ -77,14 +141,24 @@ export const App = (): JSX.Element => {
             void onInput(text)
           }}
         />
-      ) : (
+      ) : null}
+      {state.kind === 'checking' ? (
+        <div
+          role="status"
+          class="bg-base-100 text-base-content fixed inset-0 flex flex-col items-center justify-center gap-4"
+        >
+          <div class="px-6 text-center text-5xl font-black">{copy.checking}</div>
+          {state.ignored ? <div class="px-6 text-center text-xl">{copy.ignored}</div> : null}
+        </div>
+      ) : null}
+      {state.kind === 'verdict' ? (
         <Verdict
-          state={state}
+          state={state.display}
           onDone={() => {
-            setState(null)
+            setState({ kind: 'scanning' })
           }}
         />
-      )}
+      ) : null}
     </main>
   )
 }

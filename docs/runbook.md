@@ -166,6 +166,8 @@ For a Sensitive ticket, open `/signed?uid=<uid>&venue=<wrong-handle>` and confir
 
 Set the four `GOOGLE_*` secrets (§3). All four must be set, or `GET /pass/:uid/google` answers `501 google_not_configured`.
 
+After saving a test pass, revoke it through fuda and confirm Google moves it out of active passes. Check Worker logs for Google Wallet update failures. Expiring passes carry `validTimeInterval`; no timer push is needed.
+
 ## 5. Apple Wallet setup
 
 Request the Pass Type ID certificate early — this has real lead time and is often the long pole. Export the certificate and its PKCS#8 private key as PEM, and download the WWDR intermediate certificate.
@@ -197,7 +199,7 @@ Without these steps an installed pass stays a snapshot and still works. [The spe
 
 1. Add a pass from `/pass/<uid>/apple.pkpass`. A row appears in `apple_pass_registrations`. A pass added before the secret was set has no web service and never will, so delete it and add it again.
 2. Credit a Stamp at reception. The pass updates and a `Stamps: n / m` notification appears.
-3. Revoke the pass. It updates to `No longer valid`, with a notification.
+3. Revoke the pass. It updates to `No longer valid`, with a notification. Download an expired or consumed single-use pass and confirm it is voided too. A future-start pass shows `Valid from` without being voided. Check that a dated pass carries `expirationDate`; no timer push is sent.
 4. Delete the pass from Wallet. Its row, and the device row if it was the last, disappear.
 
 **Reading the logs after the first Stamp.** This is the one thing no test here can show, because Cloudflare does not document whether an mTLS binding's `fetch` speaks HTTP/2, which APNs requires, and a local run has no mTLS binding at all.
@@ -468,6 +470,8 @@ This is local display state only. It does not exercise wallet submission, sponso
 
 ### Gate station with a USB QR reader
 
+The gate replaces a verdict with a neutral checking screen as soon as a new pass is scanned. A pass scanned during a check is not checked: the checking screen asks staff to scan it again after the result, and the result shown is always the pass that was checked. Checking it silently would hide that verdict while a single-use ticket may already be used, and showing a verdict while the next person is at the reader is what the checking screen prevents. Requests time out after 10 seconds and fail closed with "could not check, scan again"; thrown errors do the same. A timeout does not prove the server did not consume a ticket. Green verdicts clear after 5 seconds; red and yellow clear after 10 seconds to allow more time to read the reason. Tapping a verdict also clears it.
+
 The gate accepts a keyboard-wedge QR reader on any device, with no configuration: it scans into the page, and the payload is read whether or not a field has focus, so a scan lands while a previous verdict is still displayed. Set the reader's terminator to CR, and set the **host's** hardware-keyboard layout to U.S. — the reader sends US-layout keystrokes, and a JIS layout turns the `:` in `fuda:v1:` into `+`, which the gate then reports as "not a fuda pass". A bare uid (`0x…`) contains no `:` and still resolves, but only as a preview: no slot consumed, no Entry logged.
 
 `gate.fuda.sh/?camera=off` runs the gate as a reader-only station: no camera, no paste box, one waiting line, and no camera permission prompt. Use it on a device that stands at a desk with a USB reader, such as an iPad on a stand. The parameter is per-device, so one deployment serves both a phone or laptop that scans with its camera and a tablet that only reads the USB reader. Without the parameter the camera is used when it can be opened. The paste box is part of the camera view, so the reader-only station has no manual fallback: keep a plain `gate.fuda.sh` tab for that.
@@ -535,13 +539,14 @@ Migration `0026_sensitive_use.sql` moves `cards.identity` to a new column to wid
 
 ## 15. Offchain jobs
 
-Three jobs in `apps/api/crons/` run on every api target:
+Four jobs in `apps/api/crons/` run on every api target:
 
 | Job                    | Cron, UTC      | Purpose                                                    |
 | ---------------------- | -------------- | ---------------------------------------------------------- |
 | `offchain-roots`       | `0 * * * *`    | Timestamp new offchain roots                               |
 | `offchain-revocations` | `*/15 * * * *` | Retry failed offchain revocations                          |
 | `sensitive-entry-logs` | `0 3 * * *`    | Delete Sensitive scan logs and receipts older than 30 days |
+| `expired-auth-rows`    | `0 4 * * *`    | Delete expired auth rows after their retention period      |
 
 Each target links the directory the way it links `routes`. The first deploy that includes them adds a `scheduled` handler and cron triggers to the Worker; confirm both on the Worker's Triggers page in Cloudflare. Crons make Void republish every trigger, so each target must declare `routes`, `workers_dev` and `preview_urls` in `targets.jsonc`, matching what Cloudflare has, or the deploy stops with "dashboard-managed routes or visibility". The migrations run before that check, so a stopped deploy can leave them applied. The widened verdict columns remain readable by the previous api version.
 
@@ -580,6 +585,10 @@ WHERE c.identity = 'sensitive' AND e.at < unixepoch() - 30 * 86400;
 
 PRAGMA foreign_key_check;
 ```
+
+The daily `expired-auth-rows` job removes passkey challenges at 300 seconds, sessions at `expires_at`, and rate-limit windows after 3600 seconds. It removes OAuth tokens only after expiry or revocation is at least 24 hours old. Each statement deletes at most 80 rows and binds two parameters. A run starts at most ten batches and stops starting batches after 20 seconds. Backlogs remain for the next run. OAuth codes already expire on mint. Apple pass updates remain because registered devices have no sync deadline and the rows supply current update tags and Last-Modified times.
+
+Migration `0034_expired_auth_rows.sql` adds indexes for all five retention predicates. Apply it with `void db migrate` before deploying the api. Confirm the `0 4 * * *` trigger and observe a scheduled run after deployment.
 
 To run a job locally, start the api and use the `curl` command with the `x-void-dev-trigger` token that Void prints, setting `cron` to the job's expression. Local schedules never fire on their own.
 

@@ -1,3 +1,4 @@
+import { rightStatus } from '@fuda/sdk'
 import type { DelegationView, EntitlementView, Reason } from '@fuda/sdk'
 import type { Hex } from 'viem'
 
@@ -114,25 +115,6 @@ export const checkDelegation = async (
   return { ok: true, view: { active: d.active, issuer: d.issuer, name: d.name } }
 }
 
-// The usage model and validity window, in the table order of docs/specs/attestation-model.md#gate-verification-order-and-reasons. 0 means unbounded on
-// both ends of the window, and both bounds are inclusive.
-export const checkWindow = (
-  e: Pick<Entitlement, 'usageModel' | 'validFrom' | 'validUntil'>,
-  now: number,
-): Reason | null => {
-  if (e.usageModel > 2) {
-    return 'UNKNOWN_USAGE_MODEL'
-  }
-  const at = BigInt(now)
-  if (e.validFrom !== 0n && at < e.validFrom) {
-    return 'NOT_YET_VALID'
-  }
-  if (e.validUntil !== 0n && at > e.validUntil) {
-    return 'EXPIRED'
-  }
-  return null
-}
-
 // docs/specs/attestation-model.md#gate-verification-order-and-reasons: EAS.getAttestation, then the checks in table order. The first failure is
 // the reported reason. Level and slot checks belong to the routes (they differ
 // per entry path); this function never rejects on level.
@@ -158,18 +140,16 @@ export const verifyUid = async (deps: VerifyDeps, uid: Hex): Promise<VerifyOutco
     entitlement,
     reason,
   })
-  if (raw.revocationTime !== 0n) {
-    return reject('REVOKED')
-  }
-  // EAS-level expiry on the attestation itself, distinct from the schema's
-  // validUntil. fuda's own /issue pins it to 0; a delegated third-party
-  // attester may set it, and EAS does not reject reads of an expired uid.
-  if (raw.expirationTime !== 0n && BigInt(deps.now) > raw.expirationTime) {
-    return reject('EXPIRED')
-  }
-  const windowReason = checkWindow(canonical, deps.now)
-  if (windowReason !== null) {
-    return reject(windowReason)
+  const { reason } = rightStatus(
+    {
+      ...canonical,
+      expirationTime: raw.expirationTime,
+      revocationTime: raw.revocationTime,
+    },
+    deps.now,
+  )
+  if (reason !== null) {
+    return reject(reason)
   }
   const delegation = await checkDelegation(deps, raw.refUID, raw.attester)
   if (!delegation.ok) {

@@ -3,8 +3,9 @@ import {
   googleConfigFrom,
   patchGoogleBadgeModules,
   patchGoogleGenericObject,
+  patchGoogleStatus,
 } from '@fuda/pass'
-import type { GoogleConfig } from '@fuda/pass'
+import type { GoogleConfig, PassValidity } from '@fuda/pass'
 import type { Hex, StampSummary } from '@fuda/sdk'
 import type { Context } from 'hono'
 
@@ -18,6 +19,7 @@ import type { PassScope, PushTarget } from './apple-registrations.ts'
 import { appleWebServiceFrom } from './apple-web-service.ts'
 import type { AppleWebService } from './apple-web-service.ts'
 import { loadWalletMember } from './wallet-members.ts'
+import { walletValidity } from './wallet-status.ts'
 
 const sameDisplay = (left: StampSummary, right: StampSummary): boolean =>
   left.enabled === right.enabled &&
@@ -26,12 +28,37 @@ const sameDisplay = (left: StampSummary, right: StampSummary): boolean =>
   left.total === right.total &&
   left.today === right.today
 
+const sameValidity = (left: PassValidity, right: PassValidity): boolean =>
+  left.status === right.status && left.validFrom === right.validFrom && left.validUntil === right.validUntil
+
 const syncGooglePass = async (c: Context<AppEnv>, cfg: GoogleConfig, uid: Hex): Promise<void> => {
   try {
     const signal = AbortSignal.timeout(15_000)
     const request = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
       await fetch(input, { ...init, signal })
     const accessToken = await googleAccessToken(cfg, c.get('now')(), request)
+    const member = await loadWalletMember(c.get('db'), uid)
+    if (member === undefined) {
+      return
+    }
+    // Reread after each patch, like the Stamp loop below: a delayed job that read an
+    // older status must not leave it on the object after a newer job patched a revocation.
+    let validity = await walletValidity(c.get('db'), uid, member, c.get('now')())
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      // oxlint-disable-next-line no-await-in-loop -- convergence requires patching before observing the next durable status
+      await patchGoogleStatus(cfg, uid, validity, accessToken, request)
+      // oxlint-disable-next-line no-await-in-loop -- this sequential reread detects a concurrent durable change
+      const current = await loadWalletMember(c.get('db'), uid)
+      if (current === undefined) {
+        break
+      }
+      // oxlint-disable-next-line no-await-in-loop -- the reread status decides whether to patch again
+      const latest = await walletValidity(c.get('db'), uid, current, c.get('now')())
+      if (sameValidity(validity, latest)) {
+        break
+      }
+      validity = latest
+    }
     // Read after OAuth so an older, delayed job also observes credits committed
     // by newer receptions before either one patches the saved object.
     let summary = await readStampSummary(c.get('db'), uid, c.get('now')())

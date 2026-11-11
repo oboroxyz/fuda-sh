@@ -112,14 +112,16 @@ const EN = {
     title: 'Passkeys',
   },
   sensitive: {
+    cancelled: 'No passkey was used. You can try again.',
     empty: 'No sensitive passes yet.',
     enter: 'Enter',
     failed: 'The list could not be opened. Try again.',
     hint: 'These passes are not listed on your account where anyone else can read them. Your passkey opens the list, on this device only. If you lose every passkey that opens them, ask the shop or organization for a new pass.',
     keepThem: 'Keep them',
-    notOpened: 'The list was not opened. Use a passkey that opens sensitive passes, on a device that has it.',
+    no_prf: 'This passkey cannot open sensitive passes, because the app that saved it does not support that.',
     open: 'Show with your passkey',
     opening: 'Opening…',
+    signed_out: 'Sign in again to open your sensitive passes.',
     startOver: 'Start over',
     startOverDone:
       'Done. Ask each shop or organization for a new pass, then get it again from its card page.',
@@ -130,6 +132,8 @@ const EN = {
     startOverWarning:
       'This removes the saved recovery data and keys on this device. It does not cancel old passes. A device that still has their keys can use them. To cancel a pass, ask the shop or organization. You must confirm with a passkey on this account.',
     title: 'Sensitive passes',
+    unopenable:
+      'The list was not opened. Use a passkey that opens sensitive passes, on a device that has it.',
   },
   settings: {
     appearance: 'Appearance',
@@ -256,14 +260,16 @@ export const MEMBER_COPY = {
       title: 'パスキー',
     },
     sensitive: {
+      cancelled: 'パスキーは使われませんでした。もう一度お試しください。',
       empty: '機密パスはまだありません。',
       enter: '入場する',
       failed: '一覧を開けませんでした。もう一度お試しください。',
       hint: 'これらのパスは、他の人が読める形ではアカウントに保存されていません。一覧はパスキーを使って、この端末の中でだけ開きます。開けるパスキーをすべてなくした場合は、お店や組織で新しいパスを発行してもらってください。',
       keepThem: '残す',
-      notOpened: '一覧を開けませんでした。機密パスを開けるパスキーを、それがある端末で使ってください。',
+      no_prf: 'このパスキーを保存したアプリは必要な機能に対応していないため、機密パスを開けません。',
       open: 'パスキーで表示',
       opening: '開いています…',
+      signed_out: '機密パスを開くには、もう一度サインインしてください。',
       startOver: 'やり直す',
       startOverDone:
         '完了しました。お店や組織に新しいパスの発行を依頼し、カードのページから受け取り直してください。',
@@ -274,6 +280,7 @@ export const MEMBER_COPY = {
       startOverWarning:
         '保存済みの復元データと、この端末の鍵を削除します。以前のパスは無効にはなりません。鍵が残っている端末では引き続き使えます。パスの無効化はお店や組織に依頼してください。このアカウントのパスキーで確認する必要があります。',
       title: '機密パス',
+      unopenable: '一覧を開けませんでした。機密パスを開けるパスキーを、それがある端末で使ってください。',
     },
     settings: {
       appearance: '表示',

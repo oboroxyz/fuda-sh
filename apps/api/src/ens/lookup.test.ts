@@ -125,6 +125,19 @@ describe('ENS lookup', () => {
     ).resolves.toBeNull()
   })
 
+  it.each([9, 10, 11])('uses exclusive expiry for a claimed issuer with expiry %s', async (expiry) => {
+    const handle = `boundary-claimed-${expiry}`
+    await registerVenue(handle)
+    await insertIssuerName(handle, { expiry, status: 'claimed' })
+    await expect(
+      lookupEnsName(getDb({ DB: env.DB }), {
+        name: `${handle}.fuda.eth`,
+        now: 10,
+        parentName: 'fuda.eth',
+      }),
+    ).resolves.toStrictEqual(expiry > 10 ? { address: TARGET, expiresAt: expiry } : null)
+  })
+
   it('hides an expired name but includes its exact expiry instant', async () => {
     await insertIssuerName('expired', { expiry: 9 })
     await insertIssuerName('boundary', { expiry: 10 })

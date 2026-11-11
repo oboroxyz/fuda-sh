@@ -24,7 +24,16 @@ describe(previewUid, () => {
     expect(spy).toHaveBeenCalledWith(`/api/v1/verify/${UID}`, {
       headers: {},
       method: 'GET',
+      signal: undefined,
     })
+  })
+
+  it('passes the caller abort signal through the SDK fetch path', async () => {
+    const controller = new AbortController()
+    const spy = stubFetch(() => json(ADMIT, 200))
+    await previewUid(UID, controller.signal)
+    await admitQr(`fuda:v1:${UID}`, null, controller.signal)
+    expect(spy.mock.calls.map((call) => call[1].signal)).toStrictEqual([controller.signal, controller.signal])
   })
 
   it('maps a 4xx error body to a non-network failure', async () => {
@@ -43,6 +52,7 @@ describe(admitQr, () => {
       body: JSON.stringify({ qr: `fuda:v1:${UID}` }),
       headers: { 'content-type': 'application/json' },
       method: 'POST',
+      signal: undefined,
     })
   })
 
@@ -53,6 +63,7 @@ describe(admitQr, () => {
       body: JSON.stringify({ qr: `fuda:v1:${UID}`, venue: 'blue-bottle' }),
       headers: { 'content-type': 'application/json' },
       method: 'POST',
+      signal: undefined,
     })
   })
 
