@@ -322,8 +322,8 @@ const RequirementFields = (
   const invalid = (field: string): boolean =>
     touched.includes(field) && requirementErrors(props.form).includes(field)
   return (
-    <fieldset class="fieldset rounded-box border-base-300 border p-4">
-      <legend class="fieldset-legend">{props.copy.identityAddress}</legend>
+    <fieldset id="requirement-fields" class="fieldset rounded-box border-base-300 border p-4">
+      <legend class="fieldset-legend">{props.copy.requirementLabel}</legend>
       <label for="requirement-registry">{props.copy.requirementRegistry}</label>
       <select
         id="requirement-registry"
@@ -368,7 +368,7 @@ const RequirementFields = (
             class="input w-full font-mono"
             value={props.form.requirement[field]}
             aria-invalid={invalid(field)}
-            aria-describedby={`requirement-${field}-error`}
+            aria-describedby={invalid(field) ? `requirement-${field}-error` : undefined}
             onInput={(event) => {
               props.onField('requirement', {
                 ...props.form.requirement,
@@ -392,8 +392,61 @@ const identityHint = (props: CardDesignerViewProps): string => {
   if (props.form.identity === 'address') {
     return props.copy.identityAddressHint
   }
+  if (props.form.requirementEnabled) {
+    return props.copy.identityWalletHint
+  }
   return props.form.identity === 'sensitive' ? props.copy.identitySensitiveHint : props.copy.identityHint
 }
+
+const RequirementIdentityFields = (props: CardDesignerViewProps): JSX.Element => (
+  <>
+    {!(props.editing ?? false) && (props.requirementRegistries?.length ?? 0) > 0 ? (
+      <section class="flex min-w-0 flex-col gap-3">
+        <label class="flex items-center gap-2" for="requirement-enabled">
+          <input
+            id="requirement-enabled"
+            type="checkbox"
+            class="toggle"
+            aria-controls="requirement-fields"
+            aria-expanded={props.form.requirementEnabled}
+            checked={props.form.requirementEnabled}
+            onInput={(event) => {
+              props.onField('requirementEnabled', event.currentTarget.checked)
+            }}
+          />
+          <span>{props.copy.requirementLabel}</span>
+        </label>
+        {props.form.requirementEnabled ? <RequirementFields {...props} /> : null}
+      </section>
+    ) : null}
+
+    <div class="flex flex-col gap-1">
+      <label for="identity">{props.copy.identityLabel}</label>
+      <select
+        class="select w-full"
+        disabled={(props.editing ?? false) || props.form.record === 'onchain'}
+        id="identity"
+        onInput={(e) => {
+          props.onIdentity(identityOf(e.currentTarget.value))
+        }}
+        value={props.form.identity}
+      >
+        <option value="none">
+          {props.form.requirementEnabled ? props.copy.identityWallet : props.copy.identityNone}
+        </option>
+        {props.form.requirementEnabled || ((props.editing ?? false) && props.form.identity === 'address') ? (
+          <option value="address">{props.copy.identityAddress}</option>
+        ) : (
+          <>
+            <option value="passkey">{props.copy.identityPasskey}</option>
+            <option value="sensitive">{props.copy.identitySensitive}</option>
+          </>
+        )}
+      </select>
+      <p class="text-moderate text-sm">{identityHint(props)}</p>
+    </div>
+  </>
+)
 
 export const CardDesignerView = (props: CardDesignerViewProps): JSX.Element => {
   const editing = props.editing ?? false
@@ -480,7 +533,7 @@ export const CardDesignerView = (props: CardDesignerViewProps): JSX.Element => {
             <label for="record">{props.copy.recordLabel}</label>
             <select
               class="select w-full"
-              disabled={editing}
+              disabled={editing || props.form.requirementEnabled}
               id="record"
               onInput={(e) => {
                 props.onRecord(e.currentTarget.value === 'onchain' ? 'onchain' : 'offchain')
@@ -511,29 +564,7 @@ export const CardDesignerView = (props: CardDesignerViewProps): JSX.Element => {
             </div>
           ) : null}
 
-          <div class="flex flex-col gap-1">
-            <label for="identity">{props.copy.identityLabel}</label>
-            <select
-              class="select w-full"
-              disabled={editing || props.form.record === 'onchain'}
-              id="identity"
-              onInput={(e) => {
-                props.onIdentity(identityOf(e.currentTarget.value))
-              }}
-              value={props.form.identity}
-            >
-              <option value="none">{props.copy.identityNone}</option>
-              <option value="passkey">{props.copy.identityPasskey}</option>
-              <option value="sensitive">{props.copy.identitySensitive}</option>
-              {(props.requirementRegistries?.length ?? 0) > 0 ||
-              (editing && props.form.identity === 'address') ? (
-                <option value="address">{props.copy.identityAddress}</option>
-              ) : null}
-            </select>
-            <p class="text-moderate text-sm">{identityHint(props)}</p>
-          </div>
-
-          {props.form.identity === 'address' && !editing ? <RequirementFields {...props} /> : null}
+          <RequirementIdentityFields {...props} />
           <div class="flex flex-col gap-1">
             <label for="card-description">
               <FieldLabel label={props.copy.cardDescriptionLabel} optional={props.copy.optional} />
@@ -698,7 +729,25 @@ export const CardDesigner = (props: CardDesignerProps): JSX.Element => {
   const [locationDenied, setLocationDenied] = useState(false)
 
   const onField = <K extends keyof DesignerForm>(key: K, value: DesignerForm[K]): void => {
-    setForm((current) => ({ ...current, [key]: value }))
+    setForm((current) => {
+      if (key === 'requirementEnabled') {
+        return {
+          ...current,
+          identity: 'none',
+          record: value === true ? 'offchain' : current.record,
+          requirement:
+            value === true
+              ? {
+                  ...EMPTY_FORM.requirement,
+                  registry:
+                    props.requirementRegistries?.length === 1 ? (props.requirementRegistries[0] ?? '') : '',
+                }
+              : EMPTY_FORM.requirement,
+          requirementEnabled: value === true,
+        }
+      }
+      return { ...current, [key]: value }
+    })
   }
 
   useEffect(() => {

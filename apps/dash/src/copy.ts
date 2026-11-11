@@ -126,6 +126,8 @@ export interface DashCopy {
     scannerLabel: string
     scannerPlaceholder: string
     checking: string
+    requirementInactive: string
+    registryNotAllowed: string
     retry: string
     failures: { network: string; rejected: string; notFound: string; badQr: string; badInput: string }
     stamp: { awarded: string; daily_limit: string; disabled: string; not_admitted: string }
@@ -192,6 +194,9 @@ export interface DashCopy {
     identityNone: string
     identityPasskey: string
     identityHint: string
+    requirementLabel: string
+    identityWallet: string
+    identityWalletHint: string
     identityAddress: string
     identityAddressHint: string
     requirementRegistry: string
@@ -563,6 +568,9 @@ export const DASH_COPY = {
       scannerLabel: 'QR scanner input',
       scannerPlaceholder: 'Scan fuda:v1:… and press Enter',
       checking: 'Checking admission…',
+      requirementInactive: 'This pass’s licence agreement is not active.',
+      registryNotAllowed:
+        'This pass’s licence agreement is not active because this deployment no longer accepts its registry.',
       retry: 'Try again',
       failures: {
         network: 'The result is uncertain because fuda could not be reached. Retry this scan safely.',
@@ -652,9 +660,13 @@ export const DASH_COPY = {
       recordOnchain: 'Public on the blockchain',
       recordHint:
         'Private passes are issued at once and leave no public record of each pass. Public passes can be checked by anyone, take a little longer to issue, and cannot be erased. This cannot be changed later.',
-      identityAddress: 'ERC-8432 licence agreement',
+      requirementLabel: 'Require an ERC-8432 licence agreement',
+      identityWallet: 'Anyone who shows the pass (recommended)',
+      identityWalletHint:
+        'The pass goes into Apple Wallet and Google Wallet and is read as a QR at the gate. The licence agreement is checked at every scan. A copied QR also works while the agreement is active.',
+      identityAddress: 'Only the member’s licence key, by signature in the app',
       identityAddressHint:
-        'Members apply with an address. The asset owner grants each address an agreement in the registry, and a pass works only while that agreement is active.',
+        'The member signs in the app with their licence key. This pass has no Wallet pass and no QR, and earns no Stamps.',
       requirementRegistry: 'Registry',
       requirementAsset: 'Asset id',
       requirementTerms: 'Terms id (optional)',
@@ -1035,6 +1047,9 @@ export const DASH_COPY = {
       scannerLabel: 'QR スキャナー入力',
       scannerPlaceholder: 'fuda:v1:… を読み取って Enter',
       checking: '入場可否を確認中…',
+      requirementInactive: 'このパスのライセンス契約は有効ではありません。',
+      registryNotAllowed:
+        'この環境では契約のレジストリを受け付けなくなったため、このパスのライセンス契約は有効ではありません。',
       retry: '再試行',
       failures: {
         network: 'fuda に接続できず、結果を確定できません。同じ読み取りを安全に再試行できます。',
@@ -1124,9 +1139,13 @@ export const DASH_COPY = {
       recordOnchain: 'ブロックチェーンで公開',
       recordHint:
         '非公開のパスはすぐに発行でき、1枚ごとの公開記録が残りません。公開のパスは誰でも確認できますが、発行に少し時間がかかり、記録は消せません。あとから変更できません。',
-      identityAddress: 'ERC-8432のライセンス契約',
+      requirementLabel: 'ERC-8432のライセンス契約を必須にする',
+      identityWallet: 'パスを見せた人（おすすめ）',
+      identityWalletHint:
+        'Apple Wallet と Google Wallet に追加でき、ゲートでQRを読み取って使えます。読み取るたびにライセンス契約を確認します。契約が有効な間は、コピーしたQRでも使えます。',
+      identityAddress: 'メンバーのライセンスキーのみ（アプリで署名）',
       identityAddressHint:
-        'メンバーはアドレスで申し込みます。アセットの所有者がレジストリで各アドレスに契約を付与し、その契約が有効な間だけパスを使えます。',
+        'メンバーがアプリでライセンスキーを使って署名します。Wallet パスとQRはなく、スタンプも付きません。',
       requirementRegistry: 'レジストリ',
       requirementAsset: 'アセットID',
       requirementTerms: '利用条件ID（任意）',
