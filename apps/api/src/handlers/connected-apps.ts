@@ -8,6 +8,7 @@ import {
   TokenRequestBody,
 } from '@fuda/sdk'
 import type {
+  CardCreateResponse,
   AuthorizePreviewResponse,
   ConnectCardResponse,
   ConnectCardsResponse,
@@ -47,6 +48,8 @@ import { authorizationIssuer, mcpResourceFor } from '../mcp/resource.ts'
 import { connectedAppAuth } from '../middleware/connected-app-auth.ts'
 import { operatorAuth } from '../middleware/operator-auth.ts'
 import { DEFAULT_BUDGET, rateLimit } from '../middleware/rate-limit.ts'
+import { requirementsAllowed } from '../requirements/allowlist.ts'
+import { requirementsByCard, requirementsOf } from '../requirements/store.ts'
 
 // --- Registration and approvals, from the dashboard -------------------------
 // docs/specs/connected-apps.md#registering-an-app
@@ -307,8 +310,12 @@ export const getV1ConnectCards = defineHandler(connectedAppAuth('cards:read'), a
     .where(eq(cards.issuerId, issuer.id))
     .orderBy(cards.createdAt)
   const now = c.get('now')()
+  const requirements = await requirementsByCard(
+    c.get('db'),
+    owned.map((card) => card.id),
+  )
   const body: ConnectCardsResponse = {
-    cards: owned.map((card) => cardView(card, now)),
+    cards: owned.map((card) => cardView(card, now, requirements.get(card.id) ?? [])),
     publicUrl: publicUrlFor(c.env.PUBLIC_BASE_URL, issuer.handle),
   }
   return jsonResponse(c, body)
@@ -332,6 +339,10 @@ export const postV1ConnectCards = defineHandler(connectedAppAuth('cards:write'),
     await record(error, null)
     return errorResponse(c, error, 400)
   }
+  if (!requirementsAllowed(c.env, parsed.output.requirements)) {
+    await record('bad_input', null)
+    return errorResponse(c, 'bad_input', 400)
+  }
   const issuer = await connectedIssuer(c)
   if (issuer === undefined) {
     return errorResponse(c, 'not_found', 404)
@@ -342,15 +353,12 @@ export const postV1ConnectCards = defineHandler(connectedAppAuth('cards:write'),
     return errorResponse(c, 'slug_taken', 409)
   }
   await record(null, card.id)
-  return jsonResponse(
-    c,
-    {
-      card: cardView(card, c.get('now')()),
-      issuer: issuerView(issuer, c.env.API_BASE_URL),
-      publicUrl: publicUrlFor(c.env.PUBLIC_BASE_URL, issuer.handle),
-    },
-    201,
-  )
+  const body: CardCreateResponse = {
+    card: cardView(card, c.get('now')(), parsed.output.requirements),
+    issuer: issuerView(issuer, c.env.API_BASE_URL),
+    publicUrl: publicUrlFor(c.env.PUBLIC_BASE_URL, issuer.handle),
+  }
+  return jsonResponse(c, body, 201)
 })
 
 // Another issuer's card is "not found", never "forbidden": the token cannot
@@ -370,7 +378,7 @@ export const getV1ConnectCardsCardId = defineHandler(connectedAppAuth('cards:rea
     return errorResponse(c, 'not_found', 404)
   }
   const body: ConnectCardResponse = {
-    card: cardView(card, c.get('now')()),
+    card: cardView(card, c.get('now')(), await requirementsOf(db, card.id)),
     url: `${publicUrlFor(c.env.PUBLIC_BASE_URL, issuer.handle)}/${card.slug}`,
   }
   return jsonResponse(c, body)
