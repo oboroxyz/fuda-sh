@@ -39,6 +39,7 @@ interface ZipEntry {
 }
 
 interface InstalledPass {
+  posterGeneric?: { primaryFields: { key: string; value: string }[] }
   passTypeIdentifier: string
   teamIdentifier: string
   serialNumber: string
@@ -244,11 +245,14 @@ describe('GET /pass/:uid/apple.pkpass', () => {
     const uid = seedRight(chain, del)
     const bindings = await appleEnv(del)
     const prefix = `artwork/${crypto.randomUUID()}`
+    const posterPrefix = `poster/${crypto.randomUUID()}`
+    const logoPrefix = `logos/${crypto.randomUUID()}`
     await db().insert(issuers).values({
       brandColor: '#112233',
       createdAt: NOW,
       handle: 'art-cafe',
       id: 'art-issuer',
+      logoPrefix,
       name: 'Cafe',
       operatorAddress: HOLDER,
       tagline: '',
@@ -259,6 +263,7 @@ describe('GET /pass/:uid/apple.pkpass', () => {
       createdAt: NOW,
       id: 'art-card',
       issuerId: 'art-issuer',
+      posterPrefix,
       title: 'Coffee',
     })
     await db().insert(members).values({
@@ -280,21 +285,48 @@ describe('GET /pass/:uid/apple.pkpass', () => {
         async (variant) => await bucket.put(`${prefix}/${variant}.png`, new Uint8Array([1, 2, 3])),
       ),
     )
+    await Promise.all(
+      ['poster1x', 'poster2x', 'poster3x'].map(
+        async (variant) => await bucket.put(`${posterPrefix}/${variant}.png`, new Uint8Array([4, 5, 6])),
+      ),
+    )
+    await Promise.all(
+      ['logo1x', 'logo2x', 'logo3x'].map(
+        async (variant) => await bucket.put(`${logoPrefix}/${variant}.png`, new Uint8Array([7, 8, 9])),
+      ),
+    )
     const response = await fetchPkpass(bindings, uid)
     const entries = readZip(new Uint8Array(await response.arrayBuffer()))
     const json = await new Response(byName(entries, 'pass.json')).json<InstalledPass>()
     expect(
-      entries.filter((entry) => entry.name.startsWith('strip')).map((entry) => entry.name),
-    ).toStrictEqual(['strip.png', 'strip@2x.png', 'strip@3x.png'])
+      entries
+        .filter((entry) => /^(?:strip|artwork|primaryLogo)/u.test(entry.name))
+        .map((entry) => entry.name),
+    ).toStrictEqual([
+      'strip.png',
+      'strip@2x.png',
+      'strip@3x.png',
+      'artwork.png',
+      'artwork@2x.png',
+      'artwork@3x.png',
+      'primaryLogo.png',
+      'primaryLogo@2x.png',
+      'primaryLogo@3x.png',
+    ])
     expect(json.storeCard).toMatchObject({
       headerFields: [{ key: 'title', value: 'Coffee' }],
       primaryFields: [],
     })
     await bucket.delete(`${prefix}/strip2x.png`)
+    await bucket.delete(`${posterPrefix}/poster2x.png`)
     const fallbackResponse = await fetchPkpass(bindings, uid)
     const fallback = readZip(new Uint8Array(await fallbackResponse.arrayBuffer()))
     const fallbackJson = await new Response(byName(fallback, 'pass.json')).json<InstalledPass>()
-    expect(fallback.filter((entry) => entry.name.startsWith('strip'))).toStrictEqual([])
+    expect([
+      fallback.filter((entry) => /^(?:strip|artwork|primaryLogo)/u.test(entry.name)),
+      json.posterGeneric?.primaryFields,
+      fallbackJson.posterGeneric,
+    ]).toStrictEqual([[], [{ key: 'title', value: 'Coffee' }], undefined])
     expect(fallbackJson.storeCard.headerFields).toBeUndefined()
     expect(fallbackJson.storeCard.primaryFields).toStrictEqual([{ key: 'title', value: 'Coffee' }])
   })

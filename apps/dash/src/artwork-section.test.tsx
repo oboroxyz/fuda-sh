@@ -18,6 +18,7 @@ const card: OperatorCardView = {
   id: 'art-card',
   identity: 'none',
   lockScreen: false,
+  posterUrl: null,
   record: 'offchain',
   slug: 'coffee',
   title: 'Coffee',

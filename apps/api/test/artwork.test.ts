@@ -1,4 +1,4 @@
-import type { CardUpdateResponse, PublicVenue } from '@fuda/sdk'
+import type { CardUpdateResponse, ImageSetSpec, PublicVenue } from '@fuda/sdk'
 import { IMAGE_SETS } from '@fuda/sdk'
 import { env } from 'cloudflare:test'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -11,9 +11,10 @@ import { CARD_INPUT, registerVenueWithCard, signIn } from './operator.ts'
 
 const bindings = () => testEnv({ API_BASE_URL: 'https://api.test' })
 const db = () => getDb({ DB: env.DB })
-const form = () => {
+const form = (kind: 'artwork' | 'poster') => {
   const body = new FormData()
-  for (const [variant, size] of Object.entries(IMAGE_SETS.artwork.variants)) {
+  const spec: ImageSetSpec = IMAGE_SETS[kind]
+  for (const [variant, size] of Object.entries(spec.variants)) {
     const bytes = new Uint8Array(64)
     bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
     const view = new DataView(bytes.buffer)
@@ -25,7 +26,7 @@ const form = () => {
   return body
 }
 
-const setup = async () => {
+const setup = async (kind: 'artwork' | 'poster') => {
   const app = appWith({ chain: fakeChain(), now: () => NOW })
   const { token } = await signIn(app, bindings())
   await registerVenueWithCard(app, bindings(), CARD_INPUT, token)
@@ -36,11 +37,13 @@ const setup = async () => {
   return {
     app,
     headers: { authorization: `Bearer ${token}` },
-    path: `/v1/issuers/me/cards/${card.id}/artwork`,
+    path: `/v1/issuers/me/cards/${card.id}/${kind}`,
   }
 }
 
-describe('Card artwork', () => {
+describe.each(['artwork', 'poster'] as const)('Card %s', (kind) => {
+  const urlField = kind === 'artwork' ? 'artworkUrl' : 'posterUrl'
+  const variant = kind === 'artwork' ? 'strip3x' : 'poster3x'
   beforeEach(async () => {
     await db().delete(members)
     await db().delete(sessions)
@@ -50,14 +53,17 @@ describe('Card artwork', () => {
   })
 
   it('saves and serves the set, then stops serving after removal', async () => {
-    const { app, headers, path } = await setup()
-    const uploaded = await app.request(path, { body: form(), headers, method: 'PUT' }, bindings())
+    const { app, headers, path } = await setup(kind)
+    const uploaded = await app.request(path, { body: form(kind), headers, method: 'PUT' }, bindings())
     const { card } = await uploaded.json<CardUpdateResponse>()
-    expect(card.artworkUrl).toMatch(/^https:\/\/api.test\/assets\/artwork\/[0-9a-f-]{36}\/strip3x$/u)
+    expect(card[urlField]).toMatch(
+      new RegExp(`^https://api.test/assets/${kind}/[0-9a-f-]{36}/${variant}$`, 'u'),
+    )
     const venue = await app.request(`/v1/issuers/${CARD_INPUT.handle}`, {}, bindings())
     const publicView = await venue.json<PublicVenue>()
 
-    const url = new URL(card.artworkUrl ?? '').pathname
+    expect(Object.keys(publicView.cards[0] ?? {})).not.toContain('posterUrl')
+    const url = new URL(card[urlField] ?? '').pathname
     const image = await app.request(url, {}, bindings())
     expect([
       image.status,
@@ -77,16 +83,17 @@ describe('Card artwork', () => {
     const removedView = await withoutArtwork.json<PublicVenue>()
     const gone = await app.request(url, {}, bindings())
     expect([
-      publicView.cards[0]?.artworkUrl,
-      removal.card.artworkUrl,
+      kind === 'artwork' ? publicView.cards[0]?.artworkUrl : null,
+      removal.card[urlField],
       removedView.cards[0]?.artworkUrl,
       gone.status,
-    ]).toStrictEqual([card.artworkUrl, null, null, 404])
+    ]).toStrictEqual([kind === 'artwork' ? card[urlField] : null, null, null, 404])
   })
 
   it('requires ownership, a complete set, and a media bucket', async () => {
-    const { app, headers, path } = await setup()
-    const anonymous = await app.request(path, { body: form(), method: 'PUT' }, bindings())
+    const { app, headers, path } = await setup(kind)
+    const anonymous = await app.request(path, { body: form(kind), method: 'PUT' }, bindings())
+    const anonymousDelete = await app.request(path, { method: 'DELETE' }, bindings())
     await db().insert(issuers).values({
       brandColor: '#112233',
       createdAt: NOW,
@@ -104,22 +111,23 @@ describe('Card artwork', () => {
       title: 'Foreign',
     })
     const foreignPath = path.replace(/cards\/[^/]+/u, 'cards/foreign')
-    const foreign = await app.request(foreignPath, { body: form(), headers, method: 'PUT' }, bindings())
+    const foreign = await app.request(foreignPath, { body: form(kind), headers, method: 'PUT' }, bindings())
     const foreignDelete = await app.request(foreignPath, { headers, method: 'DELETE' }, bindings())
-    const bad = form()
-    bad.delete('strip2x')
+    const bad = form(kind)
+    bad.delete(kind === 'artwork' ? 'strip2x' : 'poster2x')
     const invalid = await app.request(path, { body: bad, headers, method: 'PUT' }, bindings())
     const unconfigured = await app.request(
       path,
-      { body: form(), headers, method: 'PUT' },
+      { body: form(kind), headers, method: 'PUT' },
       testEnv({ MEDIA_BUCKET: undefined }),
     )
     expect([
       anonymous.status,
+      anonymousDelete.status,
       foreign.status,
       foreignDelete.status,
       invalid.status,
       unconfigured.status,
-    ]).toStrictEqual([401, 404, 404, 400, 501])
+    ]).toStrictEqual([401, 401, 404, 404, 400, 501])
   })
 })

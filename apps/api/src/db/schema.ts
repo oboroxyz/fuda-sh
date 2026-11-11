@@ -87,6 +87,7 @@ export const cards = sqliteTable(
       .notNull()
       .references(() => issuers.id),
     lockScreen: integer('lock_screen').notNull().default(0),
+    posterPrefix: text('poster_prefix'),
     record: text('record', { enum: ['offchain', 'onchain'] })
       .notNull()
       .default('onchain'),
@@ -101,6 +102,7 @@ export const cards = sqliteTable(
   },
   (t) => [
     index('cards_artwork_prefix').on(t.artworkPrefix),
+    index('cards_poster_prefix').on(t.posterPrefix),
     index('cards_issuer_id').on(t.issuerId),
     uniqueIndex('cards_issuer_slug').on(t.issuerId, t.slug),
   ],

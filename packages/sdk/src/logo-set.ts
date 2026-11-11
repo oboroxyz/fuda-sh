@@ -30,6 +30,17 @@ export const IMAGE_SETS = {
       master: { height: 1024, width: 1024 },
     },
   },
+  poster: {
+    maxObjectBytes: 4 * 1024 * 1024,
+    maxSetBytes: 6 * 1024 * 1024,
+    minSource: { height: 1344, width: 1074 },
+    prefix: 'poster',
+    variants: {
+      poster1x: { height: 448, width: 358 },
+      poster2x: { height: 896, width: 716 },
+      poster3x: { height: 1344, width: 1074 },
+    },
+  },
 } as const satisfies Record<string, ImageSetSpec>
 
 // The venue logo's wire contract, shared because the two sides of it are in

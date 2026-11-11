@@ -2,7 +2,7 @@ import type { BadgeView, Hex } from '@fuda/sdk'
 import { describe, expect, it } from 'vitest'
 
 import { appleConfigFrom, passJson } from './pass-json.ts'
-import type { AppleConfig, AppleEnv } from './pass-json.ts'
+import type { AppleConfig, AppleEnv, ApplePassInput } from './pass-json.ts'
 
 // 2026-09-12T00:00:00Z, the issue day the fixtures show
 const ISSUED_AT = 1_789_171_200
@@ -361,5 +361,64 @@ describe('wallet status', () => {
     expect(json.storeCard.backFields).toContainEqual(
       expect.objectContaining({ key: 'status', value: 'Not yet valid' }),
     )
+  })
+})
+
+describe('poster generic pass', () => {
+  const branding = {
+    artworkUrl: null,
+    brandColor: '#112233',
+    cardTitle: 'Coffee',
+    category: 'membership' as const,
+    issuedAt: ISSUED_AT,
+    issuerName: 'Cafe',
+    logoUrl: null,
+    memberNumber: 'XXXX-XXXX-XXXXX',
+    venue: null,
+  }
+
+  it('places details in priority order and preserves the storeCard fallback and change alerts', () => {
+    const input: ApplePassInput = {
+      ...INPUT,
+      badges: [{ at: 1, kind: 'human', verifier: 'world' }],
+      branding,
+      hasStrip: true,
+      stamps: { dailyLimit: 1, enabled: true, goal: 10, today: 0, total: 2 },
+      validity: { ...INPUT.validity, status: 'revoked' as const },
+    }
+    const fallback = passJson(CFG, input)
+    const result = passJson(CFG, { ...input, hasPoster: true })
+    expect(result.storeCard).toStrictEqual(fallback.storeCard)
+    expect(result.posterGeneric).toStrictEqual({
+      additionalInfoFields: [
+        { changeMessage: 'Badge: %@', key: 'badge-human', label: 'BADGE', value: 'Verified human' },
+        {
+          dateStyle: 'PKDateStyleMedium',
+          ignoresTimeZone: true,
+          key: 'issued',
+          label: 'ISSUED',
+          timeStyle: 'PKDateStyleNone',
+          value: '2026-09-12T00:00:00Z',
+        },
+      ],
+      backFields: fallback.storeCard.backFields,
+      footerFields: [
+        { key: 'revoked', label: 'STATUS', value: 'No longer valid' },
+        { changeMessage: 'Stamps: %@', key: 'stamps', label: 'STAMPS', value: '2 / 10' },
+      ],
+      headerFields: [{ key: 'member', label: 'MEMBER', value: 'XXXX-XXXX-XXXXX' }],
+      primaryFields: [{ key: 'title', value: 'Coffee' }],
+    })
+    expect([
+      fallback.posterGeneric,
+      passJson(CFG, { ...INPUT, hasPoster: true }).posterGeneric,
+    ]).toStrictEqual([undefined, undefined])
+  })
+
+  it('uses the ticket role and lets the issue date reach the footer when no other details exist', () => {
+    const result = passJson(CFG, { ...INPUT, branding: { ...branding, category: 'ticket' }, hasPoster: true })
+    expect(result.posterGeneric?.headerFields[0]?.label).toBe('TICKET')
+    expect(result.posterGeneric?.footerFields.map((field) => field.key)).toStrictEqual(['issued'])
+    expect(result.posterGeneric?.additionalInfoFields).toStrictEqual([])
   })
 })
