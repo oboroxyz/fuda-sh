@@ -590,6 +590,8 @@ The daily `expired-auth-rows` job removes passkey challenges at 300 seconds, ses
 
 Migration `0034_expired_auth_rows.sql` adds indexes for all five retention predicates. Apply it with `void db migrate` before deploying the api. Confirm the `0 4 * * *` trigger and observe a scheduled run after deployment.
 
+Migration `0035_oauth_code_replay.sql` adds a nullable replay marker to `oauth_codes`; the previous api ignores it. Migration `0036_release_revoked_rights.sql` returns the Card places and deletes the Badges that Rights revoked before revocation released them still hold. Apply both with `void db migrate` immediately before deploying the api that releases on revoke: a Right revoked by the older api after `0036` and before that deploy keeps its place and Badge, and one revoked by the newer api before `0036` would be released twice, though the count never falls below zero.
+
 To run a job locally, start the api and use the `curl` command with the `x-void-dev-trigger` token that Void prints, setting `cron` to the job's expression. Local schedules never fire on their own.
 
 ## 16. Mainnet configuration supplied by the owner
