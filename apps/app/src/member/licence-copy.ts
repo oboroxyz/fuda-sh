@@ -2,6 +2,7 @@ import type { Copy } from '@fuda/i18n'
 import type { RequirementDetail } from '@fuda/sdk'
 
 interface LicenceCopy {
+  activePass: string
   requires: string
   apply: string
   signIn: string
@@ -9,6 +10,8 @@ interface LicenceCopy {
   copy: string
   copied: string
   copyFailed: string
+  receiveAgain: string
+  receiveAgainNote: string
   receive: string
   publicAddress: string
   agreement: string
@@ -17,6 +20,7 @@ interface LicenceCopy {
 
 export const LICENCE_COPY = {
   en: {
+    activePass: 'This pass works while your licence agreement is active.',
     address:
       'Give this licence address to the asset owner. Once they grant your agreement, receive your pass here.',
     agreement: 'View licence agreement',
@@ -37,10 +41,14 @@ export const LICENCE_COPY = {
     },
     publicAddress: 'Your licence address is public on chain.',
     receive: 'Receive pass',
+    receiveAgain: 'Receive pass again',
+    receiveAgainNote:
+      'Use this if the gate says your licence agreement is inactive after the asset owner grants a new one.',
     requires: 'This card requires a licence agreement granted by the asset owner.',
     signIn: 'Sign in to apply',
   },
   ja: {
+    activePass: 'ライセンス契約が有効な間、このパスを使えます。',
     address:
       'このライセンス用アドレスを権利者に伝えてください。契約が付与されたら、ここでパスを受け取れます。',
     agreement: 'ライセンス契約を見る',
@@ -59,6 +67,9 @@ export const LICENCE_COPY = {
     },
     publicAddress: 'ライセンス用アドレスはチェーン上で公開されます。',
     receive: 'パスを受け取る',
+    receiveAgain: 'パスをもう一度受け取る',
+    receiveAgainNote:
+      '権利者が新しい契約を付与した後もゲートでライセンス契約が無効と表示される場合に使ってください。',
     requires: 'このカードを受け取るには、権利者から付与されたライセンス契約が必要です。',
     signIn: 'サインインして申し込む',
   },

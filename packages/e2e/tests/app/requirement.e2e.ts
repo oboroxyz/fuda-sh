@@ -24,7 +24,7 @@ const Verdict = v.object({
 })
 
 // Through the member app's Worker, as the app sends them: no session and no cookie.
-const viaApp = async (path: string, body: Record<string, string>): Promise<Response> =>
+const viaApp = async (path: string, body: Record<string, string | number>): Promise<Response> =>
   await fetch(`${SURFACES.app.origin}/api/v1${path}`, {
     body: JSON.stringify(body),
     headers: { 'content-type': 'application/json' },
@@ -48,11 +48,13 @@ test('a licensed address applies, receives one pass and is admitted, and another
     token: venue.operatorToken,
   })
   const path = `/issuers/${venue.handle}/moonlight-club`
+  const issuedAt = Math.floor(Date.now() / 1000)
   const claim = async (account: typeof licensed): Promise<Response> =>
     await viaApp(`${path}/issue`, {
       holderAddress: account.address,
+      issuedAt,
       signature: await account.signMessage({
-        message: `fuda.sh:claim:v1:${card.id}:${account.address.toLowerCase()}`,
+        message: `fuda.sh:claim:v1:${card.id}:${account.address.toLowerCase()}:${issuedAt}`,
       }),
     })
 
@@ -84,4 +86,33 @@ test('a licensed address applies, receives one pass and is admitted, and another
   const verdict = v.parse(Verdict, await presented.json())
   expect(verdict.decision).toBe('ADMIT')
   expect(verdict.requirements?.[0]?.evidence).toBe(`ipagreement:84532:${REGISTRY}/${ASSET_ID}`)
+
+  const { card: walletCard } = await apiRequest(
+    '/issuers/cards',
+    v.object({ card: v.object({ id: v.string() }) }),
+    {
+      body: JSON.stringify({
+        category: 'membership',
+        identity: 'none',
+        record: 'offchain',
+        requirements: [{ assetId: ASSET_ID, kind: 'erc8432-agreement', registry: REGISTRY }],
+        slug: 'wallet-club',
+        title: 'Wallet Club',
+      }),
+      method: 'POST',
+      token: venue.operatorToken,
+    },
+  )
+  const issued = await viaApp(`/issuers/${venue.handle}/wallet-club/issue`, {
+    holderAddress: licensed.address,
+    issuedAt,
+    signature: await licensed.signMessage({
+      message: `fuda.sh:claim:v1:${walletCard.id}:${licensed.address.toLowerCase()}:${issuedAt}`,
+    }),
+  })
+  const walletPass = v.parse(v.object({ level: v.literal('bearer'), qr: v.string() }), await issued.json())
+  const scanned = await viaApp('/verify', { qr: walletPass.qr })
+  const walletVerdict = v.parse(Verdict, await scanned.json())
+  expect(walletVerdict.decision).toBe('ADMIT')
+  expect(walletVerdict.requirements?.[0]?.evidence).toBe(`ipagreement:84532:${REGISTRY}/${ASSET_ID}`)
 })

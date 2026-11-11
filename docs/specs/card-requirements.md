@@ -10,11 +10,15 @@ API paths below are under `/v1`. Terms such as Card, Right, Holder and Member se
 
 - **A requirement belongs to a Card and is fixed when the Card is created**, like `record` and `identity`. The Card body takes an optional `requirements` array of at most one entry. Every route that creates a Card accepts it: the dashboard, `POST /connect/cards` and the MCP `create_card` tool.
 - **Every requirement must be met.** There is no "any of".
-- **fuda checks a requirement twice.** The claim check runs before a pass is issued and records evidence. The presentation check runs on every signed presentation and reads the chain again.
+- **fuda checks a requirement twice.** The claim check runs before a pass is issued and records evidence. The presentation check reads the chain wherever a verdict is produced, including admission, preview, the pass page and Badge submission.
 - **One adapter per kind.** An adapter declares the config schema, the subject it checks, the claim check and the presentation check. Adapters live in `apps/api`. The hosted service loads no third-party adapter.
-- **The subject today is an address.** A requirement that checks an address needs a Card with `identity: address`, and a Card with that identity needs such a requirement. Any other combination answers `400 bad_input`.
+- **The subject today is an address.** A requirement accepts `identity: none` or `identity: address`, with `record: offchain`. The `address` identity needs a requirement. Requirements with `passkey`, `sensitive` or `record: onchain` answer `400 bad_input`.
 - **Contracts are allowlisted per deployment.** The api's `IP_REGISTRIES` value lists the registries it accepts, beside the other chain addresses in `apps/api/targets.jsonc`. A requirement that names another contract answers `400 bad_input`. The allowlist is checked again at claim and presentation. A removed registry is unmet with `registry-not-allowed`, without reading that registry. fuda reads only the deployment's own chain.
-- **A requirement is never an issuing shortcut.** The MCP `issue_pass` tool answers `holder_must_claim` on these Cards, as on any Card whose identity is not `none`. The admin `POST /issue` issues a Right outside any Card and takes no Card id.
+- **A requirement is never an issuing shortcut.** The MCP `issue_pass` tool answers `holder_must_claim` on requirement Cards and on Cards whose identity is not `none`. The admin `POST /issue` issues a Right outside any Card and takes no Card id.
+
+## Identity decides presentation
+
+The default, `none`, issues an ordinary Standard pass at Bearer level, with no holder key. It works in Apple Wallet and Google Wallet. Anyone holding its QR can show it. Each scan checks the agreement against the address proved at claim, stored in `card_address_passes`. Venue reception can credit Stamps while the agreement holds.
 
 ## The `address` identity
 
@@ -65,7 +69,9 @@ A member needs no Crypto wallet. The member app derives one key per IP asset fro
 - **Recovery is the Member secret's.** A passkey that holds a copy restores the same address. A member who starts over gets new addresses, and the asset owner revokes the old agreement and grants a new one.
 - **The label never changes.** A new label would change every address.
 
-The Vault entry is `{ uid, licence: { chainId, registry, assetId }, venue, cardTitle }`, in place of the per-pass random salt. The app derives the scope from the first ERC-8432 requirement and its configured chain. Applying shows the licence address with a copy action. Receiving again with the same Member secret restores the same pass in the Vault.
+For `address`, the Vault entry is `{ uid, licence: { chainId, registry, assetId }, venue, cardTitle }`, in place of the per-pass random salt. The app derives the scope from the first ERC-8432 requirement and its configured chain. Applying shows the licence address with a copy action. Receiving again with the same Member secret restores the same pass in the Vault. For `none`, the app shows the QR and platform Wallet action and remembers the pass on the device, without adding it to the Vault or account pass list. Receiving with the same Member secret restores it on another device. The account pass list refuses requirement passes, including Bearer ones, so it cannot link an account to the licence address.
+
+The ready screen for both identities offers “Receive pass again”. Use it when the gate says the agreement is inactive after the owner grants a new one. It repeats the claim to renew the stored evidence.
 
 ## Flow
 
@@ -84,11 +90,11 @@ sequenceDiagram
     Owner->>F: read the applicant addresses
     Owner->>R: createAgreement(asset, terms, licence address)
     Fan->>A: claim the pass
-    A->>F: POST …/issue { holderAddress, signature }
+    A->>F: POST …/issue { holderAddress, signature, issuedAt }
     F->>R: claim check
-    F-->>A: Signed pass held by the licence address
+    F-->>A: Wallet pass (none) or Signed pass (address)
     Fan->>A: present
-    A->>F: POST /challenge, then POST /verify-signed
+    A->>F: POST /verify (QR), or challenge and verify-signed
     F->>R: presentation check
     F-->>A: ADMIT, or REJECT REQUIREMENT_UNMET
     Owner->>R: revokeAgreement(agreementId)
@@ -99,23 +105,24 @@ sequenceDiagram
 
 | Route | Purpose |
 | --- | --- |
-| `GET /issuers/me` | Adds `requirementRegistries`, the deployment's allowed registry addresses in lower case, empty when unset. The dashboard offers the address identity only when this list is not empty |
+| `GET /issuers/me` | Adds `requirementRegistries`, the deployment's allowed registry addresses in lower case, empty when unset. The dashboard offers the requirement section only when this list is not empty |
 | `GET /issuers/:handle` | Each card adds `requirements`, so the member app knows which key to derive |
 | `POST /issuers/:handle/:slug/apply` `{ holderAddress, turnstileToken? }` | Adds the address to the Card's applicant list. `{ applied: true }`, also on a repeat. `404 not_found` on a Card with no requirement |
 | `GET /issuers/me/cards/:cardId/applicants` | Operator session. `{ applicants: { address, appliedAt }[], next }`, oldest first, 100 a page. `next` is the `?after=` value of the following page, or null. A malformed `after` answers `400 bad_input` |
-| `POST /issuers/:handle/:slug/issue` `{ holderAddress, signature, agreementId?, source?, turnstileToken? }` | The claim by address, with a signature and the claim check |
+| `POST /issuers/:handle/:slug/issue` `{ holderAddress, signature, issuedAt, agreementId?, source?, turnstileToken? }` | The claim by address, with a signature and the claim check |
 
 Apply and claim omit browser credentials, as Sensitive claims do. They share the self-serve budget and the [claim bot check](./pass-types-and-flows.md#claim-bot-check). The applicant list holds the address and the time, and no account id.
 
-The dashboard validates the registry, asset id and optional terms id before creation. Requirements are read-only afterwards. Applicants appear in their own section, oldest first, with a copy action and a warning that anyone can apply and addresses are not verified.
+The dashboard offers a separate requirement switch, off by default. Turning it on defaults to `none`, with Wallet and QR support, and also offers `address` for signature presentation. Both use private records. The dashboard validates the registry, asset id and optional terms id before creation. Requirements are read-only afterwards. Applicants appear in their own section, oldest first, with a copy action and a warning that anyone can apply and addresses are not verified.
 
 ### Claiming
 
-The holder address is lower case in the claim message. The SDK exports `claimMessage(cardId, holderAddress)`. The claim signs the string `fuda.sh:claim:v1:<cardId>:<holderAddress>` with the licence key, as an EIP-191 personal message. The api checks in this order, after the Card is found and after the bot check. An address Card verifies the signature before checking the claim window. An address with an existing pass can restore it or renew its evidence outside the window. A new address receives `409 card_closed` outside the window before requirements or capacity are checked. Apply still requires an open window.
+The holder address is lower case in the claim message. The SDK exports `claimMessage(cardId, holderAddress, issuedAt)`. The claim signs the string `fuda.sh:claim:v1:<cardId>:<holderAddress>:<issuedAt>` with the licence key, as an EIP-191 personal message. `issuedAt` is Unix seconds. A missing time, a time more than 300 seconds old or more than 60 seconds ahead answers `403 bad_signature`. The signature must cover that exact time. The api checks in this order, after the Card is found and after the bot check. A requirement Card verifies the signature before checking the claim window. An address with an existing pass can restore it or renew its evidence outside the window. A new address receives `409 card_closed` outside the window before requirements or capacity are checked. Apply still requires an open window.
 
 | Failure                                    | Answer                                                        |
 | ------------------------------------------ | ------------------------------------------------------------- |
-| no signature                               | `400 bad_input`                                               |
+| no address or signature                    | `409 holder_must_claim`                                       |
+| address but no signature                   | `400 bad_input`                                               |
 | the signature does not recover the address | `403 bad_signature`                                           |
 | a requirement is not met                   | `403 requirement_unmet`, with `requirement: { kind, detail }` |
 | the chain cannot be read                   | `502 chain_error`                                             |
@@ -125,11 +132,11 @@ A Card maps each address to its current pass. If that pass expired or was revoke
 
 ### Presenting
 
-`POST /verify-signed` runs the presentation check after the signature passes and before a Slot is consumed. A failed check answers `REJECT` with the reason `REQUIREMENT_UNMET` and `requirement: { kind, detail }`. An unreadable chain answers `502 chain_error`, as it does for any pass held by an address. No result is cached, so a revoked agreement rejects at the next presentation.
+Every verdict resolution runs the presentation check after the existing pass checks. This includes QR admission, venue reception, signed entry, preview and the public pass page. Signed entry checks the agreement before the holder proof. The check precedes any Slot, Entry, hook, Stamp or Badge write. The requirement subject comes from `card_address_passes`, not the holder key. A failed check answers `REJECT` with reason `REQUIREMENT_UNMET` and `requirement: { kind, detail }`. An unreadable agreement or revocation read answers `502 chain_error`. Requirement passes are never admitted unconfirmed. The pass page shows unknown status when the chain cannot be read. No result is cached.
 
-`GET /verify/:uid` does not run the check. A preview of these passes is yellow and admits nobody.
+Reception deliberately answers a repeated request id with its stored receipt without checking again. Stamp adjustment and redemption are the operator's decision and do not read the agreement.
 
-An `ADMIT` verdict carries `requirements: { kind, evidence }[]` in Card order. Clients can derive agreement links from the evidence URI. A pass with missing evidence rejects with `REQUIREMENT_UNMET`. Neither `GET /verify/:uid` nor `POST /verify` runs a requirement check.
+An `ADMIT` verdict carries `requirements: { kind, evidence }[]` in Card order. Clients can derive agreement links from the evidence URI. A pass with missing evidence rejects with `REQUIREMENT_UNMET`.
 
 ## What reaches the chain
 
@@ -138,11 +145,12 @@ An agreement puts the licence address on a public chain, as an NFT would. Claims
 ## Design choices
 
 - **Requirements are fixed at creation.** A pass's evidence names an agreement on the Card's asset. A Card that could change its asset later would hold passes whose evidence names another asset.
-- **A usable pass can take new evidence.** The asset owner may revoke an agreement and grant another to the same address. The evidence is a D1 row beside the signed pass, so it can change while the pass stays the same. An expired or revoked pass is replaced on a qualifying claim, using another place.
+- **A usable pass can take new evidence.** The asset owner may revoke an agreement and grant another to the same address. The evidence is a D1 row beside the pass, so it can change while the pass stays the same. An expired or revoked pass is replaced on a qualifying claim, using another place.
 - **Moving an agreement can use several places.** Transferable terms or an ERC-721 agreement let each holder in turn claim a pass. Each claim uses a place. fuda does not reclaim those places when the agreement moves.
 - **Freezing an asset does not stop admission.** In the reference implementation it does not deactivate the asset's agreements. fuda keeps admitting until the agreement itself is revoked, frozen or expired.
 - **Only granted agreements count.** Attached terms are an open offer. `acquireAgreement` lets any caller take an agreement on them, and the reference `canLicense` approves any non-zero caller. The asset owner's `createAgreement` is the only path the owner controls.
-- **A Card identity of its own, not Sensitive use.** Sensitive use joins two things: a pass held by a key, and a policy of keeping as little as possible. A requirement needs the first and works against the second, because the licence address is public on chain and shared by every Card of one asset. The code already separates them. Issuance and verification follow the claimant's kind, `address`, and only the policy checks name `sensitive`. The new identity therefore reuses the first and leaves Sensitive use meaning what it meant.
+- **Wallet is the default.** A requirement decides whether a member qualifies. Identity decides how the pass is presented. `none` keeps the Wallet and QR benefit. An Issuer chooses `address` when a copied QR must not admit, because only the licence key can present that pass.
+- **Wallet stays visible.** A Wallet card and an installed Apple pass stay as they are after an agreement ends. Wallet status comes from the pass itself. The next scan checks the agreement and rejects it.
 - **The key is per asset, not per pass.** The asset owner grants an agreement to one address before any pass exists. A key per pass would need one agreement per Card.
 - **No smart wallet.** A counterfactual wallet's signature carries the passkey's public key, so a member's addresses would link to each other. The Coinbase Smart Wallet factory also has no code on Soneium mainnet.
 - **The claim is signed.** Licence addresses are public on chain. Without a signature, anyone could claim the one pass of another member's address.

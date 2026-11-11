@@ -135,6 +135,7 @@ export type CardFailure =
   | 'card_closed'
   | 'card_sold_out'
   | 'chain_error'
+  | 'claim_time'
   | 'network'
   | 'no_signer'
   | 'not_found'
@@ -200,12 +201,14 @@ export const issueAddressCard = async (
   slug: string,
   holderAddress: Hex,
   signature: Hex,
+  issuedAt: number,
   source: string | null,
   turnstileToken: string | null,
 ): Promise<Result<SelfServeIssueResponse>> =>
   await apiFetch(API_BASE_URL, issuePath(handle, slug), {
     body: JSON.stringify({
       holderAddress,
+      issuedAt,
       signature,
       source: source ?? undefined,
       turnstileToken: turnstileToken ?? undefined,

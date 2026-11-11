@@ -11,6 +11,7 @@ const input = {
   action: 'claim',
   cardId: 'art-card',
   cardTitle: 'Art club',
+  identity: 'address',
   scope: { assetId: `0x${'cd'.repeat(32)}`, chainId: 84_532, registry: `0x${'ab'.repeat(20)}` },
   slug: 'fans',
   source: 'invitation',
@@ -59,12 +60,13 @@ describe('receiving a licence pass', () => {
     const outcome = await receiveLicence(input)
     expect(outcome.kind).toBe('received')
     const signature = claim.mock.calls[0]?.[3]
+    const issuedAt = claim.mock.calls[0]?.[4]
     expect(signature).toBeDefined()
-    if (signature === undefined) {
+    if (signature === undefined || issuedAt === undefined) {
       throw new Error('No claim signature')
     }
     await expect(
-      verifyMessage({ address, message: claimMessage(input.cardId, address), signature }),
+      verifyMessage({ address, message: claimMessage(input.cardId, address, issuedAt), signature }),
     ).resolves.toBe(true)
     expect(save).toHaveBeenCalledWith(
       sensitive.defaultSensitiveIo,
@@ -77,6 +79,19 @@ describe('receiving a licence pass', () => {
       },
       issued,
     )
+  })
+
+  it('receives a Standard pass without reading or writing the Vault', async () => {
+    open()
+    const body = { ...issued, level: 'bearer', qr: `fuda:v1:${issued.uid}` } as const
+    vi.spyOn(api, 'issueAddressCard').mockResolvedValue({ body, ok: true })
+    const save = vi.spyOn(sensitive, 'saveClaim')
+    await expect(receiveLicence({ ...input, identity: 'none' })).resolves.toStrictEqual({
+      claim: { body, ok: true },
+      kind: 'received',
+    })
+    expect(sensitive.readVaultEntries).not.toHaveBeenCalled()
+    expect(save).not.toHaveBeenCalled()
   })
 
   it.each(['no-agreement', 'not-granted', 'wrong-terms', 'agreement-inactive'] as const)(

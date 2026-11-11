@@ -658,7 +658,7 @@ The `production` target deliberately carries `routes: []`. Adding a custom domai
 
 Each surface is its own Worker, so a bad deploy is undone per surface with `void project rollback --platform cloudflare` from that frontend's directory (or `apps/api/targets/develop` for the api); it restores the previous deployment of that Worker and touches nothing else. Roll the api back first when a release changed both the api and a frontend, because a frontend bundle is built against an api contract and the older bundle is the one that matches the older api.
 
-A Worker older than Card requirements admits an `address` Card pass without checking its requirement. Do not roll the api back past this version while any such pass exists. Unset `IP_REGISTRIES` instead to stop claims and presentations of these passes.
+A Worker older than this version issues a pass on a `none` requirement Card to anyone, without an address or signature, and admits every requirement pass unchecked. Do not roll the api back past this version while a requirement Card exists. Unset `IP_REGISTRIES` instead to stop claims and presentations of these passes.
 
 Three kinds of state do not roll back with the code, and each needs its own treatment.
 

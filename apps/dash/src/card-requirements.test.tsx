@@ -30,16 +30,22 @@ const designer = (registries: string[] = []) =>
 describe('card requirements', () => {
   afterEach(cleanup)
 
-  it('offers address only when the deployment has registries', () => {
+  it('offers the requirement only when the deployment has registries', () => {
     const host = designer()
     expect(host.querySelector('option[value="address"]')).toBeNull()
-    expect(designer([registry]).querySelector('option[value="address"]')).not.toBeNull()
+    expect(host.querySelector('#requirement-enabled')).toBeNull()
+    expect(designer([registry]).querySelector('#requirement-enabled')).not.toBeNull()
   })
 
   it('preselects the only registry, validates fields in place and produces a creation body', async () => {
     const host = designer([registry])
-    choose(host.querySelector<HTMLSelectElement>('#identity')!, 'address')
-    expect(host.querySelector<HTMLSelectElement>('#requirement-registry')?.value).toBe(registry)
+    tap(host.querySelector<HTMLInputElement>('#requirement-enabled')!)
+    expect({
+      identity: host.querySelector<HTMLSelectElement>('#identity')?.value,
+      options: [...host.querySelectorAll('#identity option')].map((option) => option.getAttribute('value')),
+      registry: host.querySelector<HTMLSelectElement>('#requirement-registry')?.value,
+    }).toStrictEqual({ identity: 'none', options: ['none', 'address'], registry })
+    expect(host.textContent).toContain(DASH_COPY.en.designer.identityWalletHint)
     expect(host.querySelector('[role="alert"]')).toBeNull()
     const asset = host.querySelector<HTMLInputElement>('#requirement-assetId')!
     typeInto(asset, '0x1234')
@@ -53,10 +59,15 @@ describe('card requirements', () => {
     expect(host.querySelector('[aria-invalid="true"]')).toBeNull()
   })
 
-  it('creates requirements only in creation requests', () => {
-    const form = { ...EMPTY_FORM, identity: 'address' as const, requirement: { assetId, registry, termsId } }
+  it.each(['none', 'address'] as const)('creates %s requirements only in creation requests', (identity) => {
+    const form = {
+      ...EMPTY_FORM,
+      identity,
+      requirement: { assetId, registry, termsId },
+      requirementEnabled: true,
+    }
     expect(cardBodyFrom(form)).toMatchObject({
-      identity: 'address',
+      identity,
       record: 'offchain',
       requirements: [{ assetId, kind: 'erc8432-agreement', registry, termsId }],
     })
@@ -64,6 +75,23 @@ describe('card requirements', () => {
     const update = cardUpdateBodyFrom(form)
     expect(update).not.toHaveProperty('requirements')
     expect(update).not.toHaveProperty('identity')
+  })
+
+  it('clears fields and restores ordinary identities when switched off, then defaults to Wallet again', () => {
+    const host = designer([registry])
+    const toggle = host.querySelector<HTMLInputElement>('#requirement-enabled')!
+    tap(toggle)
+    typeInto(host.querySelector<HTMLInputElement>('#requirement-assetId')!, assetId)
+    choose(host.querySelector<HTMLSelectElement>('#identity')!, 'address')
+    tap(toggle)
+    expect(host.querySelector('#requirement-assetId')).toBeNull()
+    expect(host.querySelector<HTMLSelectElement>('#identity')?.value).toBe('none')
+    expect(
+      [...host.querySelectorAll('#identity option')].map((option) => option.getAttribute('value')),
+    ).toStrictEqual(['none', 'passkey', 'sensitive'])
+    tap(toggle)
+    expect(host.querySelector<HTMLInputElement>('#requirement-assetId')?.value).toBe('')
+    expect(host.querySelector<HTMLSelectElement>('#identity')?.value).toBe('none')
   })
 
   it('shows a saved address identity even without registries', () => {
@@ -85,12 +113,23 @@ describe('card requirements', () => {
     expect(host.querySelector('#requirement-assetId')).toBeNull()
   })
 
-  it.each(['en', 'ja'] as const)('shows read-only requirement links in %s', (locale) => {
+  it.each([
+    { identity: 'none', locale: 'en' },
+    { identity: 'none', locale: 'ja' },
+    { identity: 'address', locale: 'en' },
+    { identity: 'address', locale: 'ja' },
+  ] as const)('shows read-only requirement links for $identity in $locale', ({ locale, identity }) => {
     const card: CardView = {
       ...membershipCard,
+      identity,
       requirements: [{ assetId, kind: 'erc8432-agreement', registry, termsId }],
     }
     const host = mount(<CardRequirements card={card} copy={DASH_COPY[locale]} />)
+    expect(host.textContent).toContain(
+      identity === 'address'
+        ? DASH_COPY[locale].designer.identityAddressHint
+        : DASH_COPY[locale].designer.identityWalletHint,
+    )
     expect(host.textContent).toContain(assetId)
     expect(host.textContent).toContain(termsId)
     expect(host.querySelectorAll('a')).toHaveLength(2)

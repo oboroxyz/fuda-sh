@@ -56,7 +56,7 @@ export const existingAddressPass = async (
   baseUrl: string,
 ): Promise<SelfServeIssueResponse | null> => {
   const row = await db
-    .select({ memberNumber: members.memberId, uid: members.attestationUid })
+    .select({ level: members.level, memberNumber: members.memberId, uid: members.attestationUid })
     .from(cardAddressPasses)
     .innerJoin(members, eq(members.attestationUid, cardAddressPasses.attestationUid))
     .where(and(eq(cardAddressPasses.cardId, cardId), eq(cardAddressPasses.address, address.toLowerCase())))
@@ -66,7 +66,7 @@ export const existingAddressPass = async (
     ? null
     : {
         holder: ZERO_ADDRESS,
-        level: 'signed',
+        level: row.level,
         memberNumber: row.memberNumber,
         passUrls: passUrls(baseUrl, uid),
         qr: toQr(uid),
@@ -123,7 +123,7 @@ export const renewEvidence = async (
   env: Pick<Bindings, 'IP_REGISTRIES'>,
   agreementId?: Hex,
 ): Promise<{ ok: true } | { ok: false; requirement: RequirementUnmet }> => {
-  const held = await presentationRequirements(db, chain, uid, holder, env)
+  const held = await presentationRequirements(db, chain, uid, env, card)
   if (held.met) {
     return { ok: true }
   }

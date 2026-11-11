@@ -893,7 +893,7 @@ const click = (host: HTMLElement, label: string): void => {
   button?.click()
 }
 
-describe('address Card controller', () => {
+describe.each(['address', 'none'] as const)('%s requirement Card controller', (identity) => {
   afterEach(() => {
     unmountAll()
     localStorage.clear()
@@ -905,7 +905,7 @@ describe('address Card controller', () => {
     ...venue,
     cards: venue.cards.map((card) => ({
       ...card,
-      identity: 'address',
+      identity,
       requirements: [
         {
           assetId: `0x${'ab'.repeat(32)}`,
@@ -959,7 +959,7 @@ describe('address Card controller', () => {
   })
 
   it.each(['no-agreement', 'not-granted', 'wrong-terms', 'agreement-inactive'] as const)(
-    'shows the address and %s, then receives a pass without a public QR',
+    'shows the address and %s, then receives the pass for its identity',
     async (detail) => {
       const uid = `0x${'bc'.repeat(32)}` as const
       const licence = vi
@@ -969,18 +969,18 @@ describe('address Card controller', () => {
         .mockResolvedValueOnce({
           claim: {
             body: {
-              holder: address,
-              level: 'signed',
+              holder: identity === 'address' ? address : `0x${'00'.repeat(20)}`,
+              level: identity === 'address' ? 'signed' : 'bearer',
               memberNumber: 'qj2yxphepdrka',
               passUrls: { apple: '', google: '', web: '' },
-              qr: '',
+              qr: identity === 'address' ? '' : `fuda:v1:${uid}`,
               uid,
             },
             ok: true,
-            saved: 'vault',
           },
           kind: 'received',
         })
+      licence.mockResolvedValue({ failure: 'chain_error', kind: 'failed' })
       const { deps, host } = open(licence)
       await vi.waitFor(() => {
         expect(host.textContent).toContain('Apply with your passkey')
@@ -997,12 +997,35 @@ describe('address Card controller', () => {
       })
       click(host, 'Receive pass')
       await vi.waitFor(() => {
-        expect(host.querySelector(`a[href="/signed?uid=${uid}"]`)).not.toBeNull()
+        expect(
+          host.querySelector(identity === 'address' ? `a[href="/signed?uid=${uid}"]` : '.venue-qr'),
+        ).not.toBeNull()
       })
       expect(licence.mock.calls.map(([input]) => input.action)).toStrictEqual(['apply', 'claim', 'claim'])
       expect(deps.issueCard).not.toHaveBeenCalled()
-      expect(host.querySelector('.venue-qr')).toBeNull()
-      expect(readPassMemory()).toStrictEqual([])
+      expect({
+        activeNotice: host.textContent?.includes('This pass works while your licence agreement is active.'),
+        rememberedCard: readCard(venue.handle, 'regular')?.uid,
+        rememberedPasses: readPassMemory().map((pass) => pass.uid),
+      }).toStrictEqual({
+        activeNotice: identity === 'none',
+        rememberedCard: identity === 'none' ? uid : undefined,
+        rememberedPasses: identity === 'none' ? [uid] : [],
+      })
+      expect(host.textContent).toContain('after the asset owner grants a new one')
+      licence.mockResolvedValueOnce({ address, detail: 'no-agreement', kind: 'unmet' })
+      click(host, 'Receive pass again')
+      await vi.waitFor(() => {
+        expect({
+          claims: licence.mock.calls.length,
+          passStillShown: host.textContent?.includes('Receive pass again'),
+          refusal: host.querySelector('[role="alert"]')?.textContent,
+        }).toStrictEqual({
+          claims: 4,
+          passStillShown: true,
+          refusal: 'No active licence agreement was found. Ask the asset owner to grant one, then try again.',
+        })
+      })
     },
   )
 
@@ -1034,6 +1057,54 @@ describe('address Card controller', () => {
       expect(licence).toHaveBeenCalledOnce()
     })
     expect(licence.mock.calls[0]?.[0].action).toBe('claim')
+  })
+
+  it.runIf(identity === 'none').each([
+    ['iPhone', 'apple'],
+    ['Android', 'google'],
+  ] as const)('restores the received pass and its %s Wallet action', async (userAgent, platform) => {
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(userAgent)
+    const uid = `0x${'bc'.repeat(32)}` as const
+    const licence = vi
+      .fn<NonNullable<Parameters<typeof CardScreen>[0]['licence']>>()
+      .mockResolvedValueOnce({ address, kind: 'applied' })
+      .mockResolvedValueOnce({
+        claim: {
+          body: {
+            holder: `0x${'00'.repeat(20)}`,
+            level: 'bearer',
+            memberNumber: 'qj2yxphepdrka',
+            passUrls: { apple: '', google: '', web: '' },
+            qr: `fuda:v1:${uid}`,
+            uid,
+          },
+          ok: true,
+        },
+        kind: 'received',
+      })
+    const { host, deps } = open(licence)
+    deps.appleAvailable = async () => await Promise.resolve(true)
+    deps.googleSaveUrl = async () => await Promise.resolve('https://wallet.example/save')
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain('Apply with your passkey')
+    })
+    click(host, 'Apply with your passkey')
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain('Receive pass')
+    })
+    click(host, 'Receive pass')
+    await vi.waitFor(() => {
+      expect(
+        host.querySelector(`a[aria-label="Add to ${platform === 'apple' ? 'Apple' : 'Google'} Wallet"]`),
+      ).not.toBeNull()
+    })
+    expect(licence.mock.calls.map(([value]) => value.identity)).toStrictEqual(['none', 'none'])
+    unmountAll()
+    const restored = open(licence)
+    await vi.waitFor(() => {
+      expect(restored.host.querySelector('.venue-qr')).not.toBeNull()
+    })
+    expect(licence).toHaveBeenCalledTimes(2)
   })
 
   it('reuses PRF guidance before retrying', async () => {

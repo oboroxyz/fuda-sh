@@ -1,9 +1,9 @@
-import { and, desc, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm'
 import type { Hex } from 'viem'
 
 import { ZERO_ADDRESS } from '../chain/client.ts'
 import type { Db } from '../db/client.ts'
-import { memberPasses, members } from '../db/schema.ts'
+import { cards, memberPasses, members } from '../db/schema.ts'
 
 // docs/specs/pass-types-and-flows.md#member-sign-in. Only Bearer passes link: having the
 // uid is what using one means, so a link grants nothing new. A uid that names nothing,
@@ -15,7 +15,14 @@ export const linkPasses = async (db: Db, accountId: string, uids: readonly Hex[]
   const known = await db
     .select({ uid: members.attestationUid })
     .from(members)
-    .where(and(inArray(members.attestationUid, [...uids]), eq(members.level, 'bearer')))
+    .leftJoin(cards, eq(cards.id, members.cardId))
+    .where(
+      and(
+        inArray(members.attestationUid, [...uids]),
+        eq(members.level, 'bearer'),
+        or(isNull(cards.id), and(eq(cards.hasRequirements, false), ne(cards.identity, 'address'))),
+      ),
+    )
   const [first, ...rest] = known.map(({ uid }) =>
     db.insert(memberPasses).values({ accountId, addedAt: now, uid }).onConflictDoNothing(),
   )

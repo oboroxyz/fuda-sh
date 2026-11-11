@@ -80,6 +80,8 @@ export type CardScreenState =
       // A Sensitive pass that was issued but is not in the list yet: waiting on this
       // device, or kept nowhere and so unusable.
       unsaved?: 'device' | 'lost'
+      // Why receiving again did not renew the pass. The pass itself stays on screen.
+      renewal?: { detail: RequirementDetail } | { failure: CardFailure }
     }
   | { kind: 'error'; card: PublicCard | null; failure: CardFailure }
   // The passkey gave no PRF result, so a Sensitive card stops here and says what to do.
@@ -190,6 +192,8 @@ const memberCard = (card: PublicCard, issued: IssuedCard, copy: VenueCopy, local
       </div>
     </>,
   )
+
+const hasRequirements = (card: PublicCard): boolean => (card.card.requirements?.length ?? 0) > 0
 
 const isSensitiveCard = (card: PublicCard): boolean => card.card.identity === 'sensitive'
 
@@ -612,13 +616,32 @@ const readyScreen = (
   copy: VenueCopy,
   locale: Locale,
   onVerifyHuman: () => void,
+  onIssue: () => void,
 ): JSX.Element => (
   <>
     <section class="venue-held-card">
       {memberCard(state.card, state.issued, copy, locale)}
       {isKeyBoundCard(state.card) ? null : qrBlock(state.card, state.issued, copy)}
     </section>
+    {hasRequirements(state.card) && state.card.card.identity === 'none' ? (
+      <p class="text-center text-sm">{pick(LICENCE_COPY, locale).activePass}</p>
+    ) : null}
     {readyActions(state, copy, locale)}
+    {hasRequirements(state.card) ? (
+      <div class="text-center">
+        <p class="text-sm">{pick(LICENCE_COPY, locale).receiveAgainNote}</p>
+        <button class="btn btn-secondary" type="button" onClick={onIssue}>
+          {pick(LICENCE_COPY, locale).receiveAgain}
+        </button>
+        {state.renewal === undefined ? null : (
+          <p role="alert" class="text-warning-content bg-warning mt-3 rounded-lg p-3 text-sm">
+            {'detail' in state.renewal
+              ? pick(LICENCE_COPY, locale).details[state.renewal.detail]
+              : copy.failure[state.renewal.failure]}
+          </p>
+        )}
+      </div>
+    ) : null}
     {humanBadgeControl(state.badge, onVerifyHuman, copy)}
   </>
 )
@@ -631,7 +654,7 @@ const landingScreen = (
   locale: Locale,
 ): JSX.Element => {
   const busy = state.kind === 'issuing'
-  const restorable = state.card.card.identity === 'address'
+  const restorable = hasRequirements(state.card)
   if (!state.card.card.claimable && !restorable) {
     return (
       <>
@@ -646,7 +669,7 @@ const landingScreen = (
       </>
     )
   }
-  if (state.card.card.identity === 'address') {
+  if (hasRequirements(state.card)) {
     const text = pick(LICENCE_COPY, locale)
     const action = state.card.card.claimable ? text.apply : text.receive
     return (
@@ -795,7 +818,7 @@ const screenOf = (
     return noPrfScreen(state, onAddPasskey, onIssue, copy)
   }
   if (state.kind === 'ready') {
-    return readyScreen(state, copy, locale, onVerifyHuman)
+    return readyScreen(state, copy, locale, onVerifyHuman, onIssue)
   }
   if (state.kind === 'applied') {
     return (
@@ -1063,6 +1086,7 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
       action: card.card.claimable ? licenceAction.current : 'claim',
       cardId: card.card.id,
       cardTitle: card.card.title,
+      identity: card.card.identity === 'address' ? 'address' : 'none',
       only,
       scope: { assetId: requirement.assetId, chainId: CHAIN.id, registry: requirement.registry },
       slug: card.card.slug,
@@ -1082,7 +1106,7 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
     | SensitiveClaim
     | { ok: true; application: Extract<LicenceOutcome, { kind: 'applied' | 'unmet' }> }
   > => {
-    if (card.card.identity === 'address') {
+    if (hasRequirements(card)) {
       const outcome = await licenceFor(card, source, turnstileToken, only)
       if (outcome.kind === 'applied' || outcome.kind === 'unmet') {
         return { application: outcome, ok: true }
@@ -1194,8 +1218,48 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
     await finishClaim(card, result, ticket)
   }
 
+  const receiveAgain = async (ready: Extract<CardScreenState, { kind: 'ready' }>): Promise<void> => {
+    if (issuing.current) {
+      return
+    }
+    issuing.current = true
+    licenceAction.current = 'claim'
+    const ticket = lifecycle.current
+    const { card } = ready
+    const check = await io.claimToken(botCheck.current)
+    const result = check.ok
+      ? await claimFor(card, claimSourceFrom(window.location.search), check.token).catch(
+          (): PasskeyClaim => ({ failure: 'network', ok: false }),
+        )
+      : ({ failure: 'bot_check_failed', ok: false } as const)
+    if (ticket !== lifecycle.current) {
+      return
+    }
+    issuing.current = false
+    if (!result.ok) {
+      setState({
+        ...ready,
+        renewal: { failure: result.failure === 'no_prf' ? 'secret_unopenable' : result.failure },
+      })
+      return
+    }
+    if ('application' in result) {
+      const { application } = result
+      setState({
+        ...ready,
+        renewal: { detail: application.kind === 'unmet' ? application.detail : 'no-agreement' },
+      })
+      return
+    }
+    await finishClaim(card, result, ticket)
+  }
+
   const onIssue = (): void => {
     const current = state
+    if (current.kind === 'ready' && hasRequirements(current.card)) {
+      void receiveAgain(current)
+      return
+    }
     if (current.kind === 'landing' || current.kind === 'applied') {
       void issue(current.card)
       return

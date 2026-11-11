@@ -168,7 +168,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
           type: 'array',
           maxItems: MAX_REQUIREMENTS,
           description:
-            "What a member must hold to claim a pass, fixed once created, all of it required. Only with identity 'address', which needs at least one. An 'erc8432-agreement' entry names an ERC-8432 registry that this deployment accepts, an assetId, and optionally a termsId. A registry that is not accepted is refused.",
+            "What a member must hold to claim a pass, fixed once created, all of it required. With identity 'none' or 'address' and record 'offchain'. The default 'none' gives a Wallet QR pass checked at each scan. 'address' needs at least one and requires a key signature at entry. An 'erc8432-agreement' entry names an ERC-8432 registry that this deployment accepts, an assetId, and optionally a termsId. A registry that is not accepted is refused.",
           items: {
             type: 'object',
             properties: {
@@ -296,7 +296,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: 'issue_pass',
     title: 'Issue pass',
     description:
-      "Issue one pass under a card, for a person you are arranging it for, and return a passUrl to give them. It works even while the card's claim window is closed. Each call issues a new pass and costs on-chain gas, so do not retry after an unclear failure without checking list_passes. For flyers or posts, share the card's claimUrl instead. A card with identity 'passkey', 'sensitive' or 'address' answers holder_must_claim: its holder has to claim the pass themselves at the claimUrl.",
+      "Issue one pass under a card, for a person you are arranging it for, and return a passUrl to give them. It works even while the card's claim window is closed. Each call issues a new pass and costs on-chain gas, so do not retry after an unclear failure without checking list_passes. For flyers or posts, share the card's claimUrl instead. A card with requirements or identity 'passkey', 'sensitive' or 'address' answers holder_must_claim: its holder has to claim the pass themselves at the claimUrl.",
     inputSchema: {
       type: 'object',
       properties: {

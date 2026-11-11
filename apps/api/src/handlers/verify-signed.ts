@@ -18,7 +18,6 @@ import { ChainError } from '../chain/client.ts'
 import type { AttestedPasskey } from '../eas/offchain.ts'
 import type { AppEnv } from '../env.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
-import { presentationRequirements } from '../requirements/presentation.ts'
 import { admitAndHook, logEntry } from '../verify/admit.ts'
 import { consumeChallenge } from '../verify/challenge.ts'
 import type { VerifyOutcome } from '../verify/verify-uid.ts'
@@ -71,20 +70,6 @@ const proofHolds = async (
   return await c.get('chain').verifyMessage({ address: holder, message, signature })
 }
 
-const checkedRequirements = async (c: Context<AppEnv>, uid: Hex, holder: Hex | null) => {
-  try {
-    return {
-      checked: await presentationRequirements(c.get('db'), c.get('chain'), uid, holder, c.env),
-      ok: true,
-    } as const
-  } catch (error) {
-    if (error instanceof ChainError) {
-      return { ok: false, res: errorResponse(c, 'chain_error', 502) } as const
-    }
-    throw error
-  }
-}
-
 const admitSigned = async (
   c: Context<AppEnv>,
   uid: Hex,
@@ -95,20 +80,6 @@ const admitSigned = async (
 ): Promise<Response> => {
   const db = c.get('db')
   const { holder } = out.canonical
-  const requirements = await checkedRequirements(c, uid, out.holderAddress ?? null)
-  if (!requirements.ok) {
-    return requirements.res
-  }
-  const { checked } = requirements
-  if (!checked.met) {
-    return await answer({
-      decision: 'REJECT',
-      holder,
-      path: 'signature',
-      reason: 'REQUIREMENT_UNMET',
-      requirement: checked.requirement,
-    })
-  }
   const outcome = await admitAndHook({
     canonical: out.canonical,
     db,
@@ -127,8 +98,8 @@ const admitSigned = async (
     path: 'signature',
     reason: 'OK',
   }
-  if (checked.evidence.length > 0) {
-    admitted.requirements = checked.evidence
+  if (out.requirements !== undefined) {
+    admitted.requirements = out.requirements
   }
   return withVenue(admitted)
 }
@@ -195,6 +166,9 @@ export const postV1VerifySigned = defineHandler(async (c) => {
       path: 'signature',
       reason: out.reason,
       stage: 'entitlement',
+    }
+    if (out.requirement !== undefined) {
+      verdict.requirement = out.requirement
     }
     if (out.entitlement !== undefined) {
       verdict.holder = out.entitlement.holder

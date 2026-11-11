@@ -107,6 +107,8 @@ export interface BadgeView {
 }
 
 export interface VerifyResponse {
+  requirement?: RequirementUnmet
+  requirements?: { kind: RequirementKind; evidence: string }[]
   decision: 'ADMIT' | 'REJECT'
   reason: Reason
   entitlement?: EntitlementView

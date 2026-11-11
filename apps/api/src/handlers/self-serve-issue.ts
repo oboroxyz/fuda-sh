@@ -1,5 +1,6 @@
 import {
   ClaimSource,
+  CHALLENGE_TTL_SECONDS,
   claimMessage,
   ADDRESS_RE,
   UID_RE,
@@ -9,13 +10,13 @@ import {
   PasskeyClaimBody,
   SensitiveClaimBody,
 } from '@fuda/sdk'
-import type { CardIdentity } from '@fuda/sdk'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import { getAddress, recoverMessageAddress, isAddressEqual } from 'viem'
 import { defineHandler } from 'void'
 
 import { claimingPasskey, relyingParty } from '../auth/passkey.ts'
+import type { cards } from '../db/schema.ts'
 import { cardApplicants } from '../db/schema.ts'
 import type { AppEnv } from '../env.ts'
 import { issueForCard } from '../issue/issue-for-card.ts'
@@ -26,7 +27,7 @@ import { errorResponse, jsonResponse } from '../json.ts'
 import { memberBearerSession } from '../middleware/bearer-session.ts'
 import { rateLimit } from '../middleware/rate-limit.ts'
 import { existingAddressPass } from '../requirements/claim.ts'
-import { requirementsOf } from '../requirements/store.ts'
+import { cardHasRequirements, requirementsOf } from '../requirements/store.ts'
 import { verifyTurnstile } from '../turnstile/siteverify.ts'
 
 // Self-serve issuances per IP per hour: a venue's whole queue is a handful of
@@ -85,6 +86,7 @@ const sensitiveClaimant = (c: Context<AppEnv>, body: v.SafeParseResult<typeof Se
 const AddressClaimBody = v.object({
   agreementId: v.optional(v.pipe(v.string(), v.regex(UID_RE))),
   holderAddress: v.pipe(v.string(), v.regex(ADDRESS_RE)),
+  issuedAt: v.optional(v.unknown()),
   signature: v.string(),
 })
 
@@ -94,12 +96,29 @@ const addressClaimant = async (
   body: v.SafeParseResult<typeof AddressClaimBody>,
 ): Promise<Claim> => {
   if (!body.success) {
-    return { ok: false, res: errorResponse(c, 'bad_input', 400) }
+    const absent =
+      body.issues.some(
+        (issue) =>
+          issue.path?.some((entry) => entry.key === 'holderAddress') === true && issue.input === undefined,
+      ) &&
+      body.issues.some(
+        (issue) =>
+          issue.path?.some((entry) => entry.key === 'signature') === true && issue.input === undefined,
+      )
+    return {
+      ok: false,
+      res: errorResponse(c, absent ? 'holder_must_claim' : 'bad_input', absent ? 409 : 400),
+    }
+  }
+  const time = v.safeParse(v.pipe(v.number(), v.safeInteger()), body.output.issuedAt)
+  const now = c.get('now')()
+  if (!time.success || now - time.output > CHALLENGE_TTL_SECONDS || time.output - now > 60) {
+    return { ok: false, res: errorResponse(c, 'bad_signature', 403) }
   }
   const address = getAddress(body.output.holderAddress)
   try {
     const recovered = await recoverMessageAddress({
-      message: claimMessage(cardId, address),
+      message: claimMessage(cardId, address, time.output),
       signature: `0x${body.output.signature.slice(2)}`,
     })
     if (isAddressEqual(address, recovered)) {
@@ -118,7 +137,7 @@ const addressClaimant = async (
 
 const claimFor = async (
   c: Context<AppEnv>,
-  identity: CardIdentity,
+  card: Pick<typeof cards.$inferSelect, 'identity' | 'hasRequirements'>,
   cardId: string,
   body: {
     address: v.SafeParseResult<typeof AddressClaimBody>
@@ -126,13 +145,13 @@ const claimFor = async (
     sensitive: v.SafeParseResult<typeof SensitiveClaimBody>
   },
 ): Promise<Claim | null> => {
-  if (identity === 'address') {
+  if (cardHasRequirements(card)) {
     return await addressClaimant(c, cardId, body.address)
   }
-  if (identity === 'passkey') {
+  if (card.identity === 'passkey') {
     return await passkeyClaimant(c, body.passkey)
   }
-  return identity === 'sensitive' ? sensitiveClaimant(c, body.sensitive) : null
+  return card.identity === 'sensitive' ? sensitiveClaimant(c, body.sensitive) : null
 }
 
 // Read apart from the source so a mangled label never costs the member their token.
@@ -189,13 +208,13 @@ export const postV1IssuersHandleSlugIssue = defineHandler(
       return errorResponse(c, 'not_found', 404)
     }
     const { card, issuer } = found
-    const request = await claimRequest(c, card, card.identity === 'address')
+    const request = await claimRequest(c, card, cardHasRequirements(card))
     if (!request.ok) {
       return request.res
     }
     const { raw } = request
     const body = v.safeParse(ClaimBody, raw)
-    const claim = await claimFor(c, card.identity, card.id, {
+    const claim = await claimFor(c, card, card.id, {
       address: v.safeParse(AddressClaimBody, raw),
       passkey: v.safeParse(PasskeyClaimBody, raw),
       sensitive: v.safeParse(SensitiveClaimBody, raw),
@@ -203,7 +222,7 @@ export const postV1IssuersHandleSlugIssue = defineHandler(
     if (claim !== null && !claim.ok) {
       return claim.res
     }
-    if (card.identity === 'address' && !isClaimable(card, c.get('now')())) {
+    if (cardHasRequirements(card) && !isClaimable(card, c.get('now')())) {
       const existing =
         claim?.claimant.kind === 'address'
           ? await existingAddressPass(c.get('db'), card.id, claim.claimant.address, c.env.API_BASE_URL)

@@ -73,6 +73,7 @@ export interface DesignerForm {
   brandColor: string
   category: CardCategory
   identity: CardIdentity
+  requirementEnabled: boolean
   requirement: { registry: string; assetId: string; termsId: string }
   record: CardRecord
   // The four window fields hold `datetime-local` text; '' means unbounded.
@@ -136,6 +137,7 @@ export const EMPTY_FORM: DesignerForm = {
   name: '',
   record: 'offchain',
   requirement: { assetId: '', registry: '', termsId: '' },
+  requirementEnabled: false,
   slug: slugFromTitle(DEFAULT_TITLE),
   slugEdited: false,
   tagline: '',
@@ -282,7 +284,7 @@ export const cardBodyFrom = (form: DesignerForm): CardRequest | null => {
     ...windowsOf(form),
     ...venue,
   }
-  if (form.identity === 'address') {
+  if (form.requirementEnabled) {
     input.requirements = [requirementInput(form)]
   }
   const parsed = v.safeParse(CardBody, input)
@@ -328,6 +330,7 @@ export const formFromCard = (card: OperatorCardView): DesignerForm => ({
   identity: card.identity,
   lockScreen: card.lockScreen,
   record: card.record,
+  requirementEnabled: (card.requirements?.length ?? 0) > 0,
   slug: card.slug,
   slugEdited: true,
   title: card.title,

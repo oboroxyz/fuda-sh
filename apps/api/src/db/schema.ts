@@ -77,6 +77,7 @@ export const cards = sqliteTable(
     claimUntil: integer('claim_until'),
     createdAt: integer('created_at').notNull(),
     description: text('description').notNull().default(''),
+    hasRequirements: integer('has_requirements', { mode: 'boolean' }).notNull().default(false),
     id: text('id').primaryKey(),
     identity: text('identity', { enum: ['none', 'passkey', 'sensitive', 'address'] })
       .notNull()
@@ -537,7 +538,10 @@ export const cardAddressPasses = sqliteTable(
       .notNull()
       .references(() => cards.id),
   },
-  (t) => [primaryKey({ columns: [t.cardId, t.address] })],
+  (t) => [
+    primaryKey({ columns: [t.cardId, t.address] }),
+    index('card_address_passes_uid').on(t.attestationUid),
+  ],
 )
 
 export const passEvidence = sqliteTable(
