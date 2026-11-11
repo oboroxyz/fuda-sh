@@ -320,7 +320,7 @@ const backupLink = (issued: IssuedCard, hint: string, copy: VenueCopy): JSX.Elem
     >
       {copy.saveBackup}
     </a>
-    <p class="mx-auto max-w-64 text-center text-xs leading-5 text-[var(--fuda-muted)]">{hint}</p>
+    <p class="text-center text-xs leading-5 text-[var(--fuda-muted)]">{hint}</p>
   </>
 )
 
@@ -334,7 +334,7 @@ const passActions = (
 ): JSX.Element => (
   <div class="venue-pass-actions">
     {passAction(issued, googleHref, appleHref, copy, locale)}
-    <p class="mx-auto max-w-64 text-center text-xs leading-5 text-[var(--fuda-muted)]">
+    <p class="text-center text-xs leading-5 text-[var(--fuda-muted)]">
       {copy.savedOnDevice(nounOf(card, copy))}
     </p>
     {backupLink(issued, copy.saveBackupHint, copy)}
