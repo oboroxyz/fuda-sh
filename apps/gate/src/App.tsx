@@ -16,7 +16,7 @@ type ScanState =
       kind: 'checking'
       controller: AbortController
       timer: ReturnType<typeof setTimeout>
-      queued: string | null
+      ignored: boolean
     }
   | { kind: 'verdict'; display: DisplayState }
 
@@ -40,7 +40,7 @@ export const App = (): JSX.Element => {
 
   const onInput = async (text: string): Promise<void> => {
     if (current.current.kind === 'checking') {
-      setState({ ...current.current, queued: text })
+      setState({ ...current.current, ignored: true })
       return
     }
     const input = classifyInput(text)
@@ -56,15 +56,12 @@ export const App = (): JSX.Element => {
       }
       clearTimeout(active.timer)
       setState({ display, kind: 'verdict' })
-      if (active.queued !== null) {
-        void onInput(active.queued)
-      }
     }
     const timer = setTimeout(() => {
       controller.abort()
       finish(failedCheck())
     }, 10_000)
-    setState({ controller, kind: 'checking', queued: null, timer })
+    setState({ controller, ignored: false, kind: 'checking', timer })
     try {
       const result =
         input.kind === 'preview'
@@ -151,7 +148,7 @@ export const App = (): JSX.Element => {
           class="bg-base-100 text-base-content fixed inset-0 flex flex-col items-center justify-center gap-4"
         >
           <div class="px-6 text-center text-5xl font-black">{copy.checking}</div>
-          {state.queued === null ? null : <div class="px-6 text-center text-xl">{copy.queued}</div>}
+          {state.ignored ? <div class="px-6 text-center text-xl">{copy.ignored}</div> : null}
         </div>
       ) : null}
       {state.kind === 'verdict' ? (

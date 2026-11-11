@@ -78,31 +78,24 @@ describe(App, () => {
     expect(view.host.textContent).toContain('NOT_FOUND')
   })
 
-  it('queues only the latest scan during checking without showing the earlier verdict', async () => {
+  it('shows the checked pass verdict and asks to rescan a pass scanned during checking', async () => {
     const first = Promise.withResolvers<ApiResult>()
-    const next = Promise.withResolvers<ApiResult>()
     admit.mockReturnValueOnce(first.promise)
-    preview.mockReturnValueOnce(next.promise)
     const view = openGate()
     await settle(() => {
       scan(QR)
     })
     await settle(() => {
-      scan(QR)
       scan(UID)
     })
-    expect(view.host.textContent).toContain('only the latest scan')
-    expect(admit).toHaveBeenCalledOnce()
+    expect(view.host.textContent).toContain('scan the next pass again')
     first.resolve({ body: { decision: 'ADMIT', reason: 'OK' }, ok: true })
     await settle()
-    expect({
-      checking: view.host.textContent.includes('checking pass'),
-      previews: preview.mock.calls.length,
-    }).toStrictEqual({ checking: true, previews: 1 })
-    expect(view.host.textContent).not.toContain('ADMIT')
-    next.resolve(rejected())
-    await settle()
-    expect(view.host.textContent).toContain('NOT_FOUND')
+    expect(view.host.textContent).toContain('ADMIT')
+    expect({ admits: admit.mock.calls.length, previews: preview.mock.calls.length }).toStrictEqual({
+      admits: 1,
+      previews: 0,
+    })
   })
 
   it('replaces a green verdict with neutral checking on the next scan', async () => {
