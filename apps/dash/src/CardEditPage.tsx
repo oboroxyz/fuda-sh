@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import { cardUpdateBodyFrom, formFromCard } from './card-designer.ts'
 import type { DesignerForm } from './card-designer.ts'
 import { CardDesigner } from './CardDesigner.tsx'
+import { CardRequirementSections } from './CardRequirements.tsx'
 import { CardStampSettings } from './CardStampSettings.tsx'
 import type { CardStampIo } from './CardStampSettings.tsx'
 import type { DashCopy } from './copy.ts'
@@ -159,6 +160,7 @@ const LoadedCardEditor = (props: EditorProps): JSX.Element => {
         }}
         onSubmit={submit}
       />
+      <CardRequirementSections card={savedCard} copy={props.copy} />
       {failed ? (
         <p role="alert" class="text-error">
           {props.copy.management.saveFailed}
@@ -170,6 +172,7 @@ const LoadedCardEditor = (props: EditorProps): JSX.Element => {
         </p>
       ) : null}
       {savedCard.identity !== 'sensitive' &&
+      savedCard.identity !== 'address' &&
       savedCard.category === 'membership' &&
       draft.category === 'membership' ? (
         <StampsOption

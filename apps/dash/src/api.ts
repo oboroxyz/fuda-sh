@@ -1,4 +1,5 @@
 import type {
+  CardApplicantsResponse,
   CardCheckResponse,
   CardCreateResponse,
   EnsClaimView,
@@ -257,3 +258,13 @@ export const confirmEnsClaim = async (txHash: Hex): Promise<Result<EnsClaimView>
     body: JSON.stringify({ txHash }),
     method: 'POST',
   })
+
+export const fetchCardApplicants = async (
+  cardId: string,
+  after?: string,
+): Promise<Result<CardApplicantsResponse>> =>
+  await apiFetch<CardApplicantsResponse>(
+    API_BASE_URL,
+    `/issuers/me/cards/${encodeURIComponent(cardId)}/applicants${after === undefined ? '' : `?after=${encodeURIComponent(after)}`}`,
+    {},
+  )

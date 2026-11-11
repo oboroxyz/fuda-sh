@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   commitLogo,
+  fetchCardApplicants,
   issueRight,
   listMembers,
   readCardIntegrations,
@@ -198,5 +199,16 @@ describe('Card stamp policy requests', () => {
       headers: HEADERS,
       method: 'PUT',
     })
+  })
+})
+
+describe(fetchCardApplicants, () => {
+  it('loads applicant pages using an encoded after cursor', async () => {
+    const spy = stubFetch(() => json({ applicants: [], next: null }, 200))
+    await fetchCardApplicants('card/id', '1794390000:0x123')
+    expect(spy).toHaveBeenCalledWith(
+      '/api/v1/issuers/me/cards/card%2Fid/applicants?after=1794390000%3A0x123',
+      { headers: GET_HEADERS },
+    )
   })
 })

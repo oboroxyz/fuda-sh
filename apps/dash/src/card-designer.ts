@@ -1,5 +1,6 @@
 import {
   CardBody,
+  CardRequirements,
   CardUpdateBody,
   cardSlugProblem,
   defaultAttendance,
@@ -19,6 +20,7 @@ import type {
   CardView,
   ClaimWindow,
   OperatorCardView,
+  RequirementInput,
 } from '@fuda/sdk'
 import * as v from 'valibot'
 
@@ -71,6 +73,7 @@ export interface DesignerForm {
   brandColor: string
   category: CardCategory
   identity: CardIdentity
+  requirement: { registry: string; assetId: string; termsId: string }
   record: CardRecord
   // The four window fields hold `datetime-local` text; '' means unbounded.
   claimFrom: string
@@ -132,6 +135,7 @@ export const EMPTY_FORM: DesignerForm = {
   lockScreen: false,
   name: '',
   record: 'offchain',
+  requirement: { assetId: '', registry: '', termsId: '' },
   slug: slugFromTitle(DEFAULT_TITLE),
   slugEdited: false,
   tagline: '',
@@ -243,11 +247,30 @@ export const windowProblemOf = (form: DesignerForm): WindowProblem | null => {
   return isOrderedWindow(windows.validFrom, windows.validUntil) ? null : 'validOrder'
 }
 
+const requirementInput = (form: DesignerForm): RequirementInput => {
+  const input: RequirementInput = {
+    assetId: form.requirement.assetId,
+    kind: 'erc8432-agreement',
+    registry: form.requirement.registry,
+  }
+  if (form.requirement.termsId !== '') {
+    input.termsId = form.requirement.termsId
+  }
+  return input
+}
+
+export const requirementErrors = (form: DesignerForm): string[] => {
+  const result = v.safeParse(CardRequirements, [requirementInput(form)])
+  return result.success
+    ? []
+    : result.issues.flatMap((issue) => issue.path?.map((part) => String(part.key)) ?? [])
+}
+
 // One card's request body, or null while the form is not yet a valid one.
 export const cardBodyFrom = (form: DesignerForm): CardRequest | null => {
   const venue = form.lockScreen && form.venue !== null ? { venue: form.venue } : {}
   const attendance = form.record === 'onchain' ? { attendance: form.attendance } : {}
-  const parsed = v.safeParse(CardBody, {
+  const input: v.InferInput<typeof CardBody> = {
     ...attendance,
     category: form.category,
     description: form.description,
@@ -258,7 +281,11 @@ export const cardBodyFrom = (form: DesignerForm): CardRequest | null => {
     title: form.title,
     ...windowsOf(form),
     ...venue,
-  })
+  }
+  if (form.identity === 'address') {
+    input.requirements = [requirementInput(form)]
+  }
+  const parsed = v.safeParse(CardBody, input)
   return parsed.success ? parsed.output : null
 }
 

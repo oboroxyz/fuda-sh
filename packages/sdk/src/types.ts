@@ -301,7 +301,10 @@ export interface IssuerUpdateResponse {
 export interface DefaultCardResponse {
   issuer: IssuerView
 }
-export type IssuerMeResponse = IssuerCardsResponse | { issuer: null; cards: []; publicUrl: null; ens: null }
+export type IssuerMeResponse = (
+  | IssuerCardsResponse
+  | { issuer: null; cards: []; publicUrl: null; ens: null }
+) & { requirementRegistries?: string[] }
 
 // POST /auth/switch — a new session bound to the chosen issuer. The session
 // that asked keeps its own issuer: a token never changes which issuer it acts
