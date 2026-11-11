@@ -100,6 +100,10 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Qualification**: The external fact that makes a Member eligible for a Right (registered for the event, on the roster, paid) — read from a Qualification source before issuance is triggered. _Avoid_: Eligibility, entitlement (that is the Right), registration (one kind of Qualification)
 
+**Requirement** (of a Card): A rule fixed on a Card that names a record outside fuda which a member must hold, such as an ERC-8432 licence agreement. fuda reads the record at claim and at each presentation, so the gate depends on it (see `docs/specs/card-requirements.md`). A Requirement names the Qualification that fuda checks itself. _Avoid_: Gate (as a verb), token gating, condition, Integration (that is advisory)
+
+**Licence key**: The key the member app derives from the Member secret for one IP asset. Its address holds the member's licence agreement and their passes on Cards that require that asset. _Avoid_: Wallet, licence wallet, pass key (that is per Right)
+
 **Integration** (of a Card): An optional external service an Issuer turns on for one Card, off by default and saved apart from the Card. A Card's integrations decide which Badge kinds its members may attach; the gate never reads them. _Avoid_: Plugin, add-on, feature flag, connector
 
 **Badge**: A verified fact about the Member holding a Right, attached after issuance and naming the verifier that attested it. The `human` Badge claims one thing — that a unique person holds the Right — and more than one credential can prove it: World ID's proof of human or Japan's My Number Card. Which one answered is recorded for auditing and is never shown; the Badge names the claim, never the credential or the vendor. Advisory: a missing or failed Badge lookup never changes a gate decision. _Avoid_: Stamp (that is a loyalty credit, not a verified fact), Qualification (that is pre-issuance), credential
