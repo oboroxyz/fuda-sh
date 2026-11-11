@@ -14,8 +14,11 @@ The Issuer chooses a type per Card, separately from the `membership | ticket` ca
 | --- | --- | --- | --- | --- | --- |
 | **Standard** (default) | Bearer | signed attestation in D1, batched root | none | secret UID in a QR, Device wallet | membership admits as unconfirmed; ticket rejects |
 | **Identified** | Signed | as Standard | none, public key checked directly | challenge answered in the app | as Standard |
+| **Address requirement** (issuance disabled) | Signed | offchain | requirement subject address | proposed | proposed |
 | **On-chain** | Bearer | on-chain attestation | fuda-owned counterfactual account | public UID in a QR, Device wallet | rejects |
 | **On-chain self-held** | Signed | on-chain attestation | the member's own, stable | challenge answered in the app | rejects |
+
+Card identity `address` requires `record: offchain` and at least one fixed [requirement](./card-requirements.md). These Cards can be created, but cannot issue passes yet. `none`, `passkey` and `sensitive` keep their existing behavior.
 
 **Sensitive use** is a Card setting on Identified, for employee badges and privacy-sensitive memberships. It adds per-pass keys, rejects when the chain is unreadable, keeps the entry log to a minimum with a set retention period, turns Attendance and Stamps off, and disables member names. It does not hide entry from the Issuer or the gate; that still needs [anonymous membership](#u4-anonymous-membership-v2-design-not-implemented).
 
