@@ -44,7 +44,11 @@ export const CardRequirements = (props: { card: CardView; copy: DashCopy }): JSX
         )}
       </dl>
     ))}
-    <p class="text-sm">{props.copy.designer.identityAddressHint}</p>
+    <p class="text-sm">
+      {props.card.identity === 'address'
+        ? props.copy.designer.identityAddressHint
+        : props.copy.designer.identityWalletHint}
+    </p>
     <p class="text-sm">{props.copy.designer.requirementFixed}</p>
   </section>
 )

@@ -52,6 +52,15 @@ const stampTargetOf = (body: ReceptionResponse): { summary: StampSummary; uid: H
   return { summary, uid: body.uid }
 }
 
+const receptionReason = (copy: DashCopy['reception'], body: ReceptionResponse): string => {
+  if (body.reason !== 'REQUIREMENT_UNMET') {
+    return body.reason
+  }
+  return body.requirement?.detail === 'registry-not-allowed'
+    ? copy.registryNotAllowed
+    : copy.requirementInactive
+}
+
 const ReceptionOutcome = (props: {
   body: ReceptionResponse
   copy: DashCopy['reception']
@@ -66,7 +75,7 @@ const ReceptionOutcome = (props: {
     <div class="grid gap-3" aria-live="polite">
       <div class={props.body.decision === 'ADMIT' ? 'alert alert-success' : 'alert alert-error'}>
         <strong>{props.body.decision}</strong>
-        <span>{props.body.reason}</span>
+        <span>{receptionReason(props.copy, props.body)}</span>
       </div>
       <div class="alert" role="status">
         {stampText(props.copy, props.body)}

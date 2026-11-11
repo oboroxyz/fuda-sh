@@ -176,6 +176,34 @@ describe(ReceptionPage, () => {
   })
   /* oxlint-enable promise/prefer-await-to-callbacks, promise/no-promise-in-callback */
 
+  it.each([
+    { detail: 'agreement-inactive', locale: 'en' },
+    { detail: 'agreement-inactive', locale: 'ja' },
+    { detail: 'registry-not-allowed', locale: 'en' },
+    { detail: 'registry-not-allowed', locale: 'ja' },
+  ] as const)('explains $detail in $locale', async ({ locale, detail }) => {
+    const copy = DASH_COPY[locale].reception
+    const receive = vi.fn<ReceptionIo>().mockResolvedValue({
+      body: {
+        ...response,
+        decision: 'REJECT',
+        reason: 'REQUIREMENT_UNMET',
+        requirement: { detail, kind: 'erc8432-agreement' },
+        stamp: { status: 'not_admitted', summary: null },
+      },
+      ok: true,
+    })
+    render(<ReceptionPage copy={copy} stamps={stamps} receive={receive} />, root)
+    await scan('scan')
+    await vi.waitFor(() => {
+      expect(root.textContent).toContain(
+        detail === 'registry-not-allowed' ? copy.registryNotAllowed : copy.requirementInactive,
+      )
+    })
+    expect(root.textContent).toContain('REJECT')
+    expect(root.textContent).not.toContain('REQUIREMENT_UNMET')
+  })
+
   it('discards an in-flight result after the session IO is replaced', async () => {
     const pending = deferred<Awaited<ReturnType<ReceptionIo>>>()
     let replaceSession!: () => void
