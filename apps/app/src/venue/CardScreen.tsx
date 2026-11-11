@@ -12,6 +12,7 @@ import {
 } from '@fuda/sdk'
 import type {
   CardView,
+  RequirementDetail,
   Hex,
   PassBackup,
   PassUrls,
@@ -32,9 +33,12 @@ import { defaultHumanBadgeIo, requestHumanBadge } from '../badges.ts'
 import type { BadgeState, HumanBadgeIo } from '../badges.ts'
 import { cardKey, readCard, readCardMemory, rememberCard } from '../card-memory.ts'
 import type { CardMemoryEntry } from '../card-memory.ts'
+import { CHAIN } from '../config.ts'
 import { applePassAvailable } from '../member-pass-list.ts'
 import { addPasskey, claimWithPasskey } from '../member/auth.ts'
 import type { PasskeyClaim } from '../member/auth.ts'
+import { LICENCE_COPY } from '../member/licence-copy.ts'
+import type { LicenceOutcome, receiveLicence } from '../member/licence.ts'
 import type { SensitiveClaim } from '../member/sensitive.ts'
 import { fetchPassBackup, passBackupHref } from '../pass-backup.ts'
 import { memberPassUrls } from '../pass-links.ts'
@@ -65,6 +69,7 @@ export type CardScreenState =
   | { kind: 'choose'; venue: PublicVenue; heldSlugs: readonly string[]; defaultUnavailable?: boolean }
   | { kind: 'landing'; card: PublicCard }
   | { kind: 'issuing'; card: PublicCard }
+  | { kind: 'applied'; card: PublicCard; address: Hex; detail?: RequirementDetail }
   | {
       kind: 'ready'
       card: PublicCard
@@ -190,7 +195,7 @@ const isSensitiveCard = (card: PublicCard): boolean => card.card.identity === 's
 
 // Bound to a key, so a QR or a Wallet pass would admit nobody.
 const isKeyBoundCard = (card: PublicCard): boolean =>
-  card.card.identity === 'passkey' || isSensitiveCard(card)
+  card.card.identity === 'passkey' || card.card.identity === 'address' || isSensitiveCard(card)
 
 const cardDescription = (card: PublicCard): JSX.Element | null =>
   card.card.description === '' ? null : (
@@ -594,7 +599,7 @@ const readyActions = (
   copy: VenueCopy,
   locale: Locale,
 ): JSX.Element => {
-  if (isSensitiveCard(state.card)) {
+  if (isSensitiveCard(state.card) || state.card.card.identity === 'address') {
     return sensitiveEntry(state.issued, state.unsaved, copy)
   }
   return isKeyBoundCard(state.card)
@@ -623,6 +628,7 @@ const landingScreen = (
   copy: VenueCopy,
   onIssue: () => void,
   signedIn: boolean,
+  locale: Locale,
 ): JSX.Element => {
   const busy = state.kind === 'issuing'
   // A card outside its claim window would only earn a 409, so the screen says
@@ -638,6 +644,29 @@ const landingScreen = (
         <a class="btn" href={venueHref(state.card.handle)}>
           {copy.seeAllCards(state.card.name)}
         </a>
+      </>
+    )
+  }
+  if (state.card.card.identity === 'address') {
+    const text = pick(LICENCE_COPY, locale)
+    return (
+      <>
+        {landingCard(state.card)}
+        {cardDescription(state.card)}
+        <p class="text-sm leading-6">{text.requires}</p>
+        <p class="text-sm text-[var(--fuda-muted)]">{text.publicAddress}</p>
+        {signedIn ? (
+          <button class="btn btn-primary" type="button" disabled={busy} onClick={onIssue}>
+            {busy ? copy.gettingCard : text.apply}
+          </button>
+        ) : (
+          <a
+            class="btn btn-primary"
+            href={signInHref(`${globalThis.location.pathname}${globalThis.location.search}`)}
+          >
+            {text.signIn}
+          </a>
+        )}
       </>
     )
   }
@@ -676,6 +705,36 @@ const landingScreen = (
 
 // One screen per state. Nothing here takes typing, so rebuilding the screen on
 // a state change loses no input.
+const LicenceAddress = (props: { address: Hex; locale: Locale }): JSX.Element => {
+  const [copied, setCopied] = useState<'idle' | 'done' | 'failed'>('idle')
+  const text = pick(LICENCE_COPY, props.locale)
+  const copyAddress = async (): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(props.address)
+      setCopied('done')
+    } catch {
+      setCopied('failed')
+    }
+  }
+  const status = { done: text.copied, failed: text.copyFailed, idle: '' }
+  return (
+    <section class="flex flex-col gap-3">
+      <p class="text-sm leading-6">{text.address}</p>
+      <code class="bg-base-200 rounded-xl p-3 text-sm break-all select-all">{props.address}</code>
+      <button
+        class="btn btn-outline"
+        type="button"
+        onClick={() => {
+          void copyAddress()
+        }}
+      >
+        {text.copy}
+      </button>
+      <p role="status">{status[copied]}</p>
+    </section>
+  )
+}
+
 const screenOf = (
   state: CardScreenState,
   locale: Locale,
@@ -738,7 +797,23 @@ const screenOf = (
   if (state.kind === 'ready') {
     return readyScreen(state, copy, locale, onVerifyHuman)
   }
-  return landingScreen(state, copy, onIssue, signedIn)
+  if (state.kind === 'applied') {
+    return (
+      <>
+        {landingCard(state.card)}
+        <LicenceAddress address={state.address} locale={locale} />
+        {state.detail === undefined ? null : (
+          <p role="alert" class="alert alert-warning">
+            {pick(LICENCE_COPY, locale).details[state.detail]}
+          </p>
+        )}
+        <button class="btn btn-primary" type="button" onClick={onIssue}>
+          {pick(LICENCE_COPY, locale).receive}
+        </button>
+      </>
+    )
+  }
+  return landingScreen(state, copy, onIssue, signedIn, locale)
 }
 
 export const CardScreenView = (props: CardScreenViewProps): JSX.Element => (
@@ -859,6 +934,7 @@ export interface CardScreenProps {
   initial?: Result<PublicVenue>
   // Whether a member session cookie came with this page. The api has the last word.
   signedIn?: boolean
+  licence?: typeof receiveLicence
   sensitive?: CardSensitiveIo
   storage?: PassMemoryStorage
 }
@@ -883,6 +959,7 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
   const [sessionEnded, setSessionEnded] = useState(false)
   const issuing = useRef(false)
   const lifecycle = useRef(0)
+  const licenceAction = useRef<'apply' | 'claim'>('apply')
   const botCheck = useRef<HTMLDivElement | null>(null)
   const preloaded = useRef(props.initial)
 
@@ -925,6 +1002,7 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
     issuing.current = false
     let current = true
     const { storage } = props
+    licenceAction.current = 'apply'
     setState({ kind: 'loading' })
     void (async () => {
       const result = preloaded.current ?? (await io.fetchVenue(handle))
@@ -974,12 +1052,43 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
     }
   }, [generation, props.handle, props.slug])
 
+  const licenceFor = async (card: PublicCard, source: string | null, token: string | null, only?: string) => {
+    const requirement = card.card.requirements?.find((row) => row.kind === 'erc8432-agreement')
+    if (requirement === undefined) {
+      return { failure: 'network', kind: 'failed' } as const
+    }
+    const loaded = await import('../member/licence.ts')
+    const receive = props.licence ?? loaded.receiveLicence
+    return await receive({
+      action: licenceAction.current,
+      cardId: card.card.id,
+      cardTitle: card.card.title,
+      only,
+      scope: { assetId: requirement.assetId, chainId: CHAIN.id, registry: requirement.registry },
+      slug: card.card.slug,
+      source,
+      token,
+      venue: props.handle,
+    })
+  }
+
   const claimFor = async (
     card: PublicCard,
     source: string | null,
     turnstileToken: string | null,
     only?: string,
-  ): Promise<PasskeyClaim | SensitiveClaim> => {
+  ): Promise<
+    | PasskeyClaim
+    | SensitiveClaim
+    | { ok: true; application: Extract<LicenceOutcome, { kind: 'applied' | 'unmet' }> }
+  > => {
+    if (card.card.identity === 'address') {
+      const outcome = await licenceFor(card, source, turnstileToken, only)
+      if (outcome.kind === 'applied' || outcome.kind === 'unmet') {
+        return { application: outcome, ok: true }
+      }
+      return outcome.kind === 'received' ? outcome.claim : { failure: outcome.failure, ok: false }
+    }
     if (isSensitiveCard(card)) {
       return await sensitive.claim(
         { cardTitle: card.card.title, slug: card.card.slug, source, turnstileToken, venue: props.handle },
@@ -991,13 +1100,63 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
       : await publicClaim(io, props.handle, card.card.slug, source, turnstileToken)
   }
 
+  const showApplication = (
+    card: PublicCard,
+    outcome: Extract<LicenceOutcome, { kind: 'applied' | 'unmet' }>,
+    current: boolean,
+  ): void => {
+    if (!current) {
+      return
+    }
+    licenceAction.current = 'claim'
+    setState({
+      address: outcome.address,
+      card,
+      detail: outcome.kind === 'unmet' ? outcome.detail : undefined,
+      kind: 'applied',
+    })
+  }
+
+  const finishClaim = async (
+    card: PublicCard,
+    result: Extract<Awaited<ReturnType<typeof claimFor>>, { ok: true }>,
+    ticket: number,
+  ): Promise<void> => {
+    const current = ticket === lifecycle.current
+    const { handle, storage } = props
+    if ('application' in result) {
+      showApplication(card, result.application, current)
+      return
+    }
+    const { holder, memberNumber, uid } = result.body
+    const issuedAt = Date.now()
+    // A Sensitive pass stays out of both lists, in the clear here and synced to the account
+    // from there: the vault is its only record.
+    if (!isSensitiveCard(card) && card.card.identity !== 'address') {
+      rememberCard(handle, card.card.slug, { holder, memberNumber, uid }, storage, issuedAt)
+      rememberPass({ holder, uid }, storage, issuedAt)
+    }
+    // A submitted issuance belongs to its original venue even after navigation.
+    // Keep the public Pass, but never replace the next screen with this result.
+    if (!current) {
+      return
+    }
+    await showReady(
+      card,
+      // The api answers its own absolute URLs; the member's links go through
+      // this Worker like every other call (src/pass-links.ts).
+      { holder, issuedAt, memberNumber, passUrls: memberPassUrls(uid), qr: result.body.qr, uid },
+      () => ticket === lifecycle.current,
+      unsavedOf(result),
+    )
+  }
+
   const issue = async (card: PublicCard, only?: string): Promise<void> => {
     if (issuing.current) {
       return
     }
     issuing.current = true
     const ticket = lifecycle.current
-    const { handle, storage } = props
     setState({ card, kind: 'issuing' })
     const source = claimSourceFrom(window.location.search)
     const check = await io.claimToken(botCheck.current)
@@ -1008,7 +1167,10 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
       }
       return
     }
-    const result = await claimFor(card, source, check.token, only)
+    const result = await claimFor(card, source, check.token, only).catch((): PasskeyClaim => ({
+      failure: 'network',
+      ok: false,
+    }))
     const current = ticket === lifecycle.current
     if (current) {
       issuing.current = false
@@ -1029,32 +1191,12 @@ export const CardScreen = (props: CardScreenProps): JSX.Element => {
       setState({ card, failure: result.failure, kind: 'error' })
       return
     }
-    const { holder, memberNumber, uid } = result.body
-    const issuedAt = Date.now()
-    // A Sensitive pass stays out of both lists, in the clear here and synced to the account
-    // from there: the vault is its only record.
-    if (!isSensitiveCard(card)) {
-      rememberCard(handle, card.card.slug, { holder, memberNumber, uid }, storage, issuedAt)
-      rememberPass({ holder, uid }, storage, issuedAt)
-    }
-    // A submitted issuance belongs to its original venue even after navigation.
-    // Keep the public Pass, but never replace the next screen with this result.
-    if (!current) {
-      return
-    }
-    await showReady(
-      card,
-      // The api answers its own absolute URLs; the member's links go through
-      // this Worker like every other call (src/pass-links.ts).
-      { holder, issuedAt, memberNumber, passUrls: memberPassUrls(uid), qr: result.body.qr, uid },
-      () => ticket === lifecycle.current,
-      unsavedOf(result),
-    )
+    await finishClaim(card, result, ticket)
   }
 
   const onIssue = (): void => {
     const current = state
-    if (current.kind === 'landing') {
+    if (current.kind === 'landing' || current.kind === 'applied') {
       void issue(current.card)
       return
     }

@@ -181,3 +181,34 @@ export const cardFailureOf = (result: { status: number; error: string }): CardFa
 // The Google Wallet save link, or null when the api has no Google credentials
 // (501 `google_not_configured`) — the button stays hidden in that case.
 export const googleSaveUrl = async (url: string): Promise<string | null> => await googlePassHref(url)
+
+export const applyAddressCard = async (
+  handle: string,
+  slug: string,
+  holderAddress: Hex,
+  turnstileToken: string | null,
+): Promise<Result<{ applied: true }>> =>
+  await apiFetch(API_BASE_URL, `${issuePath(handle, slug).slice(0, -5)}apply`, {
+    body: JSON.stringify({ holderAddress, turnstileToken: turnstileToken ?? undefined }),
+    credentials: 'omit',
+    method: 'POST',
+  })
+
+export const issueAddressCard = async (
+  handle: string,
+  slug: string,
+  holderAddress: Hex,
+  signature: Hex,
+  source: string | null,
+  turnstileToken: string | null,
+): Promise<Result<SelfServeIssueResponse>> =>
+  await apiFetch(API_BASE_URL, issuePath(handle, slug), {
+    body: JSON.stringify({
+      holderAddress,
+      signature,
+      source: source ?? undefined,
+      turnstileToken: turnstileToken ?? undefined,
+    }),
+    credentials: 'omit',
+    method: 'POST',
+  })

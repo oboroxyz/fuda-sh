@@ -98,7 +98,7 @@ export const VENUE_COPY = {
       passkey_refused: 'That passkey is not on your account. Choose one you sign in with.',
       rate_limited: 'Too many cards were requested from this device. Please try again later.',
       secret_unopenable:
-        'That passkey could not open your sensitive passes here, so no card was issued. Try on the device where it was saved.',
+        'That passkey could not open your passes here, so no card was issued. Try on the device where it was saved.',
       signed_out: 'Please sign in again to get this card.',
     },
     getCard: (noun) => `Get this ${noun}`,
@@ -187,7 +187,7 @@ export const VENUE_COPY = {
       rate_limited:
         'この端末からのカード発行リクエストが多すぎます。しばらくしてからもう一度お試しください。',
       secret_unopenable:
-        'このパスキーではこの端末で機密パスを開けないため、カードは発行されませんでした。パスキーを保存した端末でお試しください。',
+        'このパスキーではこの端末でパスを開けないため、カードは発行されませんでした。パスキーを保存した端末でお試しください。',
       signed_out: 'カードを受け取るには、もう一度サインインしてください。',
     },
     getCard: (noun) => `この${noun}を受け取る`,

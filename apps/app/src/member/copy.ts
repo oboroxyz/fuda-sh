@@ -84,12 +84,12 @@ const EN = {
   passkeys: {
     add: 'Add a passkey',
     addKeepsSecret:
-      'Your device will ask you to open your sensitive passes, confirm adding a passkey with an existing one, and save the new passkey. One more confirmation may be needed to let the new passkey open them too.',
+      'Your device will ask you to open your saved passes, confirm adding a passkey with an existing one, and save the new passkey. One more confirmation may be needed to let the new passkey open them too.',
     addedWithoutCopy:
-      'The new passkey was added and you can sign in with it. It cannot open sensitive passes, because the app that saved it does not support that.',
+      'The new passkey was added and you can sign in with it. It cannot open saved passes, because the app that saved it does not support that.',
     adding: 'Adding…',
     cancel: 'Keep it',
-    cannotOpenSensitive: 'Cannot open sensitive passes',
+    cannotOpenSensitive: 'Cannot open saved passes',
     created: 'Added {date}',
     failures: {
       cancelled: 'No passkey was added. You can try again.',
@@ -97,13 +97,13 @@ const EN = {
       network: 'The service could not be reached. Try again.',
       rejected: 'That passkey was not accepted. Try again.',
       remove:
-        'That passkey could not be removed. An account must keep at least one, and at least one that opens sensitive passes.',
+        'That passkey could not be removed. An account must keep at least one, and at least one that opens saved passes.',
       unavailable: 'This is not available right now. Try again later.',
     },
     hint: 'On a new phone, sign in with your current passkey, then add one here. Moving between iPhone and Android needs this, because passkeys do not sync across them. A passkey in a second place, such as another password manager or a security key, keeps you signed in if you lose your Apple or Google account.',
     loadFailed: 'Could not load your passkeys.',
     name: 'Passkey {number}',
-    opensSensitive: 'Opens sensitive passes',
+    opensSensitive: 'Opens saved passes',
     remove: 'Remove',
     removeTitle: 'Remove this passkey?',
     removeWarning:
@@ -113,15 +113,15 @@ const EN = {
   },
   sensitive: {
     cancelled: 'No passkey was used. You can try again.',
-    empty: 'No sensitive passes yet.',
+    empty: 'No saved passes yet.',
     enter: 'Enter',
     failed: 'The list could not be opened. Try again.',
-    hint: 'These passes are not listed on your account where anyone else can read them. Your passkey opens the list, on this device only. If you lose every passkey that opens them, ask the shop or organization for a new pass.',
+    hint: 'These passes are not listed on your account where anyone else can read them. Your passkey opens the list, on this device only. If you lose every passkey that opens them, ask the shop, organization or asset owner to help you receive a new pass.',
     keepThem: 'Keep them',
-    no_prf: 'This passkey cannot open sensitive passes, because the app that saved it does not support that.',
+    no_prf: 'This passkey cannot open saved passes, because the app that saved it does not support that.',
     open: 'Show with your passkey',
     opening: 'Opening…',
-    signed_out: 'Sign in again to open your sensitive passes.',
+    signed_out: 'Sign in again to open your saved passes.',
     startOver: 'Start over',
     startOverDone:
       'Done. Ask each shop or organization for a new pass, then get it again from its card page.',
@@ -131,9 +131,8 @@ const EN = {
     startOverTitle: 'Start over?',
     startOverWarning:
       'This removes the saved recovery data and keys on this device. It does not cancel old passes. A device that still has their keys can use them. To cancel a pass, ask the shop or organization. You must confirm with a passkey on this account.',
-    title: 'Sensitive passes',
-    unopenable:
-      'The list was not opened. Use a passkey that opens sensitive passes, on a device that has it.',
+    title: 'Passes saved with your passkey',
+    unopenable: 'The list was not opened. Use a passkey that opens saved passes, on a device that has it.',
   },
   settings: {
     appearance: 'Appearance',
@@ -232,12 +231,12 @@ export const MEMBER_COPY = {
     passkeys: {
       add: 'パスキーを追加',
       addKeepsSecret:
-        '機密パスを開き、登録済みのパスキーで追加を確認した後、新しいパスキーを保存します。新しいパスキーで機密パスを開けるようにするため、さらに確認が必要な場合があります。',
+        '保存したパスを開き、登録済みのパスキーで追加を確認した後、新しいパスキーを保存します。新しいパスキーで保存したパスを開けるようにするため、さらに確認が必要な場合があります。',
       addedWithoutCopy:
-        '新しいパスキーを追加しました。サインインには使えますが、保存先のアプリが対応していないため、機密パスは開けません。',
+        '新しいパスキーを追加しました。サインインには使えますが、保存先のアプリが対応していないため、保存したパスは開けません。',
       adding: '追加中…',
       cancel: '残す',
-      cannotOpenSensitive: '機密パスは開けません',
+      cannotOpenSensitive: '保存したパスは開けません',
       created: '{date} に追加',
       failures: {
         cancelled: 'パスキーは追加されませんでした。もう一度お試しください。',
@@ -245,13 +244,13 @@ export const MEMBER_COPY = {
         network: 'サービスに接続できませんでした。もう一度お試しください。',
         rejected: 'このパスキーは受け付けられませんでした。もう一度お試しください。',
         remove:
-          'このパスキーは削除できませんでした。アカウントには最低1つ、機密パスを開けるものも最低1つ必要です。',
+          'このパスキーは削除できませんでした。アカウントには最低1つ、保存したパスを開けるものも最低1つ必要です。',
         unavailable: '現在ご利用いただけません。しばらくしてからお試しください。',
       },
       hint: '新しいスマホでは、今のパスキーでサインインしてから、ここで追加します。iPhone と Android の間ではパスキーが同期されないので、この操作が必要です。別のパスワード管理アプリやセキュリティキーにも追加しておくと、Apple や Google のアカウントを失ってもサインインできます。',
       loadFailed: 'パスキーを読み込めませんでした。',
       name: 'パスキー {number}',
-      opensSensitive: '機密パスを開けます',
+      opensSensitive: '保存したパスを開けます',
       remove: '削除',
       removeTitle: 'このパスキーを削除しますか？',
       removeWarning:
@@ -261,15 +260,15 @@ export const MEMBER_COPY = {
     },
     sensitive: {
       cancelled: 'パスキーは使われませんでした。もう一度お試しください。',
-      empty: '機密パスはまだありません。',
+      empty: '保存したパスはまだありません。',
       enter: '入場する',
       failed: '一覧を開けませんでした。もう一度お試しください。',
       hint: 'これらのパスは、他の人が読める形ではアカウントに保存されていません。一覧はパスキーを使って、この端末の中でだけ開きます。開けるパスキーをすべてなくした場合は、お店や組織で新しいパスを発行してもらってください。',
       keepThem: '残す',
-      no_prf: 'このパスキーを保存したアプリは必要な機能に対応していないため、機密パスを開けません。',
+      no_prf: 'このパスキーを保存したアプリは必要な機能に対応していないため、保存したパスを開けません。',
       open: 'パスキーで表示',
       opening: '開いています…',
-      signed_out: '機密パスを開くには、もう一度サインインしてください。',
+      signed_out: '保存したパスを開くには、もう一度サインインしてください。',
       startOver: 'やり直す',
       startOverDone:
         '完了しました。お店や組織に新しいパスの発行を依頼し、カードのページから受け取り直してください。',
@@ -279,8 +278,8 @@ export const MEMBER_COPY = {
       startOverTitle: 'やり直しますか？',
       startOverWarning:
         '保存済みの復元データと、この端末の鍵を削除します。以前のパスは無効にはなりません。鍵が残っている端末では引き続き使えます。パスの無効化はお店や組織に依頼してください。このアカウントのパスキーで確認する必要があります。',
-      title: '機密パス',
-      unopenable: '一覧を開けませんでした。機密パスを開けるパスキーを、それがある端末で使ってください。',
+      title: 'パスキーで保存したパス',
+      unopenable: '一覧を開けませんでした。保存したパスを開けるパスキーを、それがある端末で使ってください。',
     },
     settings: {
       appearance: '表示',
