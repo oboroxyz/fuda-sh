@@ -173,7 +173,7 @@ describe('notifying Google Wallet of a changed pass', () => {
         return Response.json({ access_token: 'access' })
       }
       if (request.method === 'PATCH') {
-        const body = (await request.json()) as { state?: string }
+        const body = await request.json<{ state?: string }>()
         if (body.state !== undefined) {
           states.push(body.state)
           if (states.length === 1) {

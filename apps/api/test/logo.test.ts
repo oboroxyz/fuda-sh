@@ -1,10 +1,11 @@
 import { env } from 'cloudflare:test'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getDb } from '../src/db/client.ts'
 import { cards, challenges, issuers, logoUploads, members, sessions } from '../src/db/schema.ts'
 import type { Bindings } from '../src/env.ts'
+import { purgeExpiredLogos } from '../src/media/expired-logos.ts'
 import { LOGO_SIDE } from '../src/media/logo.ts'
 import { appWith, fakeChain, testEnv } from './env.ts'
 import { configuredEnv, NOW, ROOT, seedRoot } from './fixtures.ts'
@@ -44,6 +45,14 @@ const upload = async (app: App, bindings: Bindings, token: string, form: FormDat
 
 const mediaEnv = (overrides: Partial<Bindings> = {}): Bindings =>
   testEnv({ API_BASE_URL: 'https://api.test', PUBLIC_BASE_URL: 'https://fuda.test', ...overrides })
+
+const logoBucket = (): R2Bucket => {
+  const bucket = mediaEnv().MEDIA_BUCKET
+  if (bucket === undefined) {
+    throw new Error('Test media bucket is missing')
+  }
+  return bucket
+}
 
 describe('venue logo upload', () => {
   beforeEach(async () => {
@@ -102,6 +111,139 @@ describe('venue logo upload', () => {
     expect(created.status).toBe(201)
     const row = await getDb({ DB: env.DB }).select().from(issuers).get()
     expect(row?.logoPrefix).toMatch(/^logos\/[0-9a-f-]{36}$/u)
+  })
+
+  it('keeps an upload reusable when the issuer insert fails inside D1', async () => {
+    const app = appWith({ chain: fakeChain(), now: () => NOW })
+    const bindings = mediaEnv()
+    const { token } = await signIn(app, bindings)
+    const stagedRes = await upload(app, bindings, token, logoForm())
+    const staged = await stagedRes.json<{ logoUploadId: string }>()
+    await env.DB.prepare(
+      "CREATE TRIGGER fail_logo_create BEFORE INSERT ON issuers BEGIN SELECT RAISE(ABORT, 'test failure'); END",
+    ).run()
+    try {
+      const failed = await postJson(app, bindings, '/v1/issuers', { ...CARD_INPUT, ...staged }, token)
+      expect(failed.status).toBe(409)
+      await expect(getDb({ DB: env.DB }).select().from(logoUploads).get()).resolves.toMatchObject({
+        status: 'pending',
+      })
+    } finally {
+      await env.DB.prepare('DROP TRIGGER fail_logo_create').run()
+    }
+    const retry = await postJson(app, bindings, '/v1/issuers', { ...CARD_INPUT, ...staged }, token)
+    expect(retry.status).toBe(201)
+    const issuer = await getDb({ DB: env.DB }).select().from(issuers).get()
+    expect(issuer?.logoPrefix).toMatch(/^logos\//u)
+  })
+
+  it('allows only one concurrent creation to consume an upload', async () => {
+    const app = appWith({ chain: fakeChain(), now: () => NOW })
+    const bindings = mediaEnv()
+    const { token } = await signIn(app, bindings)
+    const stagedRes = await upload(app, bindings, token, logoForm())
+    const staged = await stagedRes.json<{ logoUploadId: string }>()
+    const responses = await Promise.all(
+      ['first-logo', 'second-logo'].map(
+        async (handle) =>
+          await postJson(app, bindings, '/v1/issuers', { ...CARD_INPUT, ...staged, handle }, token),
+      ),
+    )
+    expect(responses.map((res) => res.status)).toStrictEqual([201, 201])
+    const rows = await getDb({ DB: env.DB }).select().from(issuers)
+    expect(rows.filter((row) => row.logoPrefix !== null)).toHaveLength(1)
+  })
+
+  it('reclaims stale and replaced objects but preserves a live issuer logo and old wallet URLs', async () => {
+    let now = NOW
+    const app = appWith({ chain: fakeChain(), now: () => now })
+    const bindings = mediaEnv()
+    const { token } = await signIn(app, bindings)
+    const firstRes = await upload(app, bindings, token, logoForm())
+    const first = await firstRes.json<{ logoUploadId: string }>()
+    const created = await postJson(app, bindings, '/v1/issuers', { ...CARD_INPUT, ...first }, token)
+    const { issuer } = await created.json<{ issuer: { logoUrl: string } }>()
+    const old = await getDb({ DB: env.DB })
+      .select()
+      .from(logoUploads)
+      .where(eq(logoUploads.id, first.logoUploadId))
+      .get()
+    const replacementRes = await upload(app, bindings, token, logoForm())
+    const replacement = await replacementRes.json<{ logoUploadId: string }>()
+    await postJson(app, bindings, '/v1/issuers/logo/commit', replacement, token)
+    await upload(app, bindings, token, logoForm())
+    now += 900
+    await expect(purgeExpiredLogos(env.DB, logoBucket(), now)).resolves.toBe(2)
+    await expect(logoBucket().get(`${old?.assetPrefix}/master.png`)).resolves.toBeNull()
+    const remaining = await getDb({ DB: env.DB }).select().from(logoUploads)
+    expect(remaining.map((row) => row.id)).toStrictEqual([replacement.logoUploadId])
+    const url = new URL(issuer.logoUrl)
+    const oldUrlResponse = await getJson(app, bindings, url.pathname + url.search)
+    expect(oldUrlResponse.status).toBe(200)
+    await expect(purgeExpiredLogos(env.DB, logoBucket(), now)).resolves.toBe(0)
+  })
+
+  it('retries an R2 deletion failure without allowing the expired upload to be claimed', async () => {
+    const app = appWith({ chain: fakeChain(), now: () => NOW })
+    const bindings = mediaEnv()
+    const { token } = await signIn(app, bindings)
+    const stagedRes = await upload(app, bindings, token, logoForm())
+    const staged = await stagedRes.json<{ logoUploadId: string }>()
+    const bucket = logoBucket()
+    const failure = vi.spyOn(bucket, 'delete').mockRejectedValueOnce(new Error('R2 unavailable'))
+    try {
+      await expect(purgeExpiredLogos(env.DB, bucket, NOW + 900)).rejects.toThrow('R2 unavailable')
+    } finally {
+      failure.mockRestore()
+    }
+    await expect(getDb({ DB: env.DB }).select().from(logoUploads).get()).resolves.toMatchObject({
+      status: 'committed',
+    })
+    const created = await postJson(app, bindings, '/v1/issuers', { ...CARD_INPUT, ...staged }, token)
+    const body = await created.json<{ issuer: { logoUrl: string | null } }>()
+    expect(body.issuer.logoUrl).toBeNull()
+    await expect(purgeExpiredLogos(env.DB, bucket, NOW + 900)).resolves.toBe(1)
+    await expect(getDb({ DB: env.DB }).select().from(logoUploads)).resolves.toStrictEqual([])
+  })
+
+  it('keeps a replacement reusable when the issuer update fails', async () => {
+    const app = appWith({ chain: fakeChain(), now: () => NOW })
+    const bindings = mediaEnv()
+    const { token } = await signIn(app, bindings)
+    await postJson(app, bindings, '/v1/issuers', CARD_INPUT, token)
+    const stagedRes = await upload(app, bindings, token, logoForm())
+    const staged = await stagedRes.json<{ logoUploadId: string }>()
+    await env.DB.prepare(
+      "CREATE TRIGGER fail_logo_update BEFORE UPDATE OF logo_prefix ON issuers BEGIN SELECT RAISE(ABORT, 'test failure'); END",
+    ).run()
+    try {
+      const failed = await postJson(app, bindings, '/v1/issuers/logo/commit', staged, token)
+      expect(failed.status).toBe(500)
+      await expect(getDb({ DB: env.DB }).select().from(logoUploads).get()).resolves.toMatchObject({
+        status: 'pending',
+      })
+    } finally {
+      await env.DB.prepare('DROP TRIGGER fail_logo_update').run()
+    }
+    const retry = await postJson(app, bindings, '/v1/issuers/logo/commit', staged, token)
+    expect(retry.status).toBe(200)
+  })
+
+  it('reclaims more than one bounded batch without deleting unexpired uploads', async () => {
+    const db = getDb({ DB: env.DB })
+    for (let index = 0; index < 82; index += 1) {
+      // oxlint-disable-next-line no-await-in-loop -- each insert binds fewer than D1's 100 parameters
+      await db.insert(logoUploads).values({
+        assetPrefix: `logos/${crypto.randomUUID()}`,
+        createdAt: NOW - 900,
+        expiresAt: index === 81 ? NOW + 1 : NOW,
+        id: `sweep-${index}`,
+        sessionTokenHash: 'test-session',
+      })
+    }
+    await expect(purgeExpiredLogos(env.DB, logoBucket(), NOW)).resolves.toBe(81)
+    const rows = await db.select().from(logoUploads)
+    expect(rows.map((row) => row.id)).toStrictEqual(['sweep-81'])
   })
 
   it('spends a staged upload once', async () => {
