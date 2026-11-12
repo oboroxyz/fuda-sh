@@ -238,7 +238,8 @@ export const uploadLogo = async (variants: LogoSet): Promise<Result<LogoUploadRe
   }
 }
 
-export const uploadArtwork = async (
+const uploadCardImage = async (
+  kind: 'artwork' | 'poster',
   cardId: string,
   variants: Record<string, Blob>,
 ): Promise<Result<CardUpdateResponse>> => {
@@ -246,15 +247,25 @@ export const uploadArtwork = async (
   for (const [variant, blob] of Object.entries(variants)) {
     body.append(variant, blob, `${variant}.png`)
   }
-  return await apiFetch<CardUpdateResponse>(API_BASE_URL, `/issuers/me/cards/${cardId}/artwork`, {
+  return await apiFetch<CardUpdateResponse>(API_BASE_URL, `/issuers/me/cards/${cardId}/${kind}`, {
     body,
     method: 'PUT',
   })
 }
-export const removeArtwork = async (cardId: string): Promise<Result<CardUpdateResponse>> =>
-  await apiFetch<CardUpdateResponse>(API_BASE_URL, `/issuers/me/cards/${cardId}/artwork`, {
+const removeCardImage = async (
+  kind: 'artwork' | 'poster',
+  cardId: string,
+): Promise<Result<CardUpdateResponse>> =>
+  await apiFetch<CardUpdateResponse>(API_BASE_URL, `/issuers/me/cards/${cardId}/${kind}`, {
     method: 'DELETE',
   })
+
+export const uploadArtwork = async (cardId: string, variants: Record<string, Blob>) =>
+  await uploadCardImage('artwork', cardId, variants)
+export const removeArtwork = async (cardId: string) => await removeCardImage('artwork', cardId)
+export const uploadPoster = async (cardId: string, variants: Record<string, Blob>) =>
+  await uploadCardImage('poster', cardId, variants)
+export const removePoster = async (cardId: string) => await removeCardImage('poster', cardId)
 
 // Points the venue this session already owns at a staged upload.
 export const commitLogo = async (logoUploadId: string): Promise<Result<{ issuer: IssuerView }>> =>

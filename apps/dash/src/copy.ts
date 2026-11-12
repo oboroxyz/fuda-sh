@@ -63,6 +63,7 @@ export interface DashCopy {
     failures: { cancelled: string; network: string; rejected: string; unavailable: string; wallet: string }
   }
   passkeys: PasskeySectionCopy
+  poster: { label: string; hint: string; tooSmall: string }
   artwork: { label: string; hint: string; save: string; tooSmall: string; tooHeavy: string }
   logo: {
     label: string
@@ -498,6 +499,11 @@ export const DASH_COPY = {
         'You will no longer be able to sign in with it. Remove it if the device is lost or no longer yours.',
       synced: 'synced',
       title: 'Passkeys',
+    },
+    poster: {
+      label: 'Apple poster',
+      hint: 'For Apple Wallet on iOS 27 and later. 1074×1344 or larger; tall images are centre-cropped. The bottom of the image sits under the pass details.',
+      tooSmall: 'Use an image at least 1074×1344.',
     },
     artwork: {
       label: 'Pass artwork',
@@ -986,6 +992,11 @@ export const DASH_COPY = {
         '削除すると、このパスキーではサインインできなくなります。端末をなくしたときや手放すときに削除してください。',
       synced: '同期あり',
       title: 'パスキー',
+    },
+    poster: {
+      label: 'Apple ポスター',
+      hint: 'iOS 27 以降の Apple Wallet 用。1074×1344 以上。縦長の画像は中央で切り抜きます。画像の下部にはパスの情報が重なります。',
+      tooSmall: '1074×1344 以上の画像を選んでください。',
     },
     artwork: {
       label: 'パスの画像',

@@ -82,6 +82,8 @@ export const operatorCardView = (
   attendance: row.attendance !== 0,
   identity: row.identity,
   lockScreen: row.lockScreen !== 0,
+  posterUrl:
+    row.posterPrefix === null ? null : `${baseUrl.replace(/\/$/u, '')}/assets/${row.posterPrefix}/poster3x`,
   record: row.record,
   venue: row.venueLat === null || row.venueLng === null ? null : { lat: row.venueLat, lng: row.venueLng },
 })

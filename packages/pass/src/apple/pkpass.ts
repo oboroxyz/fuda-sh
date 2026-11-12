@@ -22,11 +22,15 @@ export const buildPkpass = async (
   cfg: AppleConfig,
   input: ApplePassInput,
   now: number,
-  images: { logo?: AppleLogo | null; strip?: AppleStrip | null } = {},
+  images: { logo?: AppleLogo | null; strip?: AppleImageSet | null; poster?: AppleImageSet | null } = {},
 ): Promise<Uint8Array<ArrayBuffer>> => {
   const { logo = null, strip = null } = images
+  const poster = input.branding === null || input.branding === undefined ? null : (images.poster ?? null)
   const files = new Map<string, Uint8Array<ArrayBuffer>>([
-    ['pass.json', utf8(JSON.stringify(passJson(cfg, { ...input, hasStrip: strip !== null })))],
+    [
+      'pass.json',
+      utf8(JSON.stringify(passJson(cfg, { ...input, hasPoster: poster !== null, hasStrip: strip !== null }))),
+    ],
     ['icon.png', iconPng()],
   ])
   if (logo !== null) {
@@ -35,9 +39,19 @@ export const buildPkpass = async (
     files.set('logo@3x.png', logo.logo3x)
   }
   if (strip !== null) {
-    files.set('strip.png', strip.strip1x)
-    files.set('strip@2x.png', strip.strip2x)
-    files.set('strip@3x.png', strip.strip3x)
+    files.set('strip.png', strip.first)
+    files.set('strip@2x.png', strip.second)
+    files.set('strip@3x.png', strip.third)
+  }
+  if (poster !== null) {
+    files.set('artwork.png', poster.first)
+    files.set('artwork@2x.png', poster.second)
+    files.set('artwork@3x.png', poster.third)
+    if (logo !== null) {
+      files.set('primaryLogo.png', logo.logo1x)
+      files.set('primaryLogo@2x.png', logo.logo2x)
+      files.set('primaryLogo@3x.png', logo.logo3x)
+    }
   }
   const manifest = utf8(await manifestOf(files))
   const signature = await buildDetachedCms(cfg, manifest, now)
@@ -48,8 +62,8 @@ export const buildPkpass = async (
   ])
 }
 
-export interface AppleStrip {
-  strip1x: Uint8Array<ArrayBuffer>
-  strip2x: Uint8Array<ArrayBuffer>
-  strip3x: Uint8Array<ArrayBuffer>
+export interface AppleImageSet {
+  first: Uint8Array<ArrayBuffer>
+  second: Uint8Array<ArrayBuffer>
+  third: Uint8Array<ArrayBuffer>
 }

@@ -20,10 +20,16 @@ export type PassRowResult = { ok: true; row: PassRow } | { ok: false; res: Respo
 interface CardBranding {
   branding: PassBranding | null
   logoPrefix: string | null
+  posterPrefix: string | null
   artworkPrefix: string | null
 }
 
-const NO_BRANDING: CardBranding = { artworkPrefix: null, branding: null, logoPrefix: null }
+const NO_BRANDING: CardBranding = {
+  artworkPrefix: null,
+  branding: null,
+  logoPrefix: null,
+  posterPrefix: null,
+}
 
 export const restoreUrl = (publicBaseUrl: string, handle: string, slug: string, uid: Hex): string =>
   `${publicBaseUrl}/@${handle}${slug === '' ? '' : `/${slug}`}?uid=${uid}`
@@ -51,6 +57,7 @@ const cardBrandingOf = async (
       lockScreen: cards.lockScreen,
       logoPrefix: issuers.logoPrefix,
       name: issuers.name,
+      posterPrefix: cards.posterPrefix,
       slug: cards.slug,
       title: cards.title,
       venueLat: cards.venueLat,
@@ -90,6 +97,7 @@ const cardBrandingOf = async (
       venue,
     },
     logoPrefix: found.logoPrefix,
+    posterPrefix: found.posterPrefix,
   }
 }
 
@@ -108,7 +116,7 @@ export const loadPassRow = async (c: Context<AppEnv>, rawUid: string): Promise<P
   if (row === undefined) {
     return { ok: false, res: errorResponse(c, 'not_found', 404) }
   }
-  const { artworkPrefix, branding, logoPrefix } = await cardBrandingOf(
+  const { artworkPrefix, posterPrefix, branding, logoPrefix } = await cardBrandingOf(
     c.get('db'),
     row.cardId,
     row.memberId,
@@ -127,6 +135,7 @@ export const loadPassRow = async (c: Context<AppEnv>, rawUid: string): Promise<P
       holder: row.holder === null ? null : asHex(row.holder, 20),
       level: row.level,
       logoPrefix,
+      posterPrefix,
       tier: row.tier,
       uid,
       validity: await walletValidity(c.get('db'), uid, row, c.get('now')()),

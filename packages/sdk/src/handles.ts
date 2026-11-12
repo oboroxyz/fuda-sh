@@ -178,6 +178,7 @@ export interface CardView extends ClaimWindow, CardValidity {
 // Operator-only card hydration includes the stored fields that are intentionally
 // absent from public CardView responses.
 export interface OperatorCardView extends CardView {
+  posterUrl: string | null
   attendance: boolean
   identity: CardIdentity
   lockScreen: boolean
