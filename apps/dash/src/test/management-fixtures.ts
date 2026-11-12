@@ -1,6 +1,7 @@
 import type { CardView, IssuerPassesResponse } from '@fuda/sdk'
 
 export const membershipCard: CardView = {
+  artworkUrl: null,
   category: 'membership',
   claimFrom: null,
   claimUntil: null,

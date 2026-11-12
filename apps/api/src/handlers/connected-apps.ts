@@ -312,7 +312,7 @@ export const getV1ConnectCards = defineHandler(connectedAppAuth('cards:read'), a
   const now = c.get('now')()
   const requirements = await requirementsByCard(c.get('db'), owned)
   const body: ConnectCardsResponse = {
-    cards: owned.map((card) => cardView(card, now, requirements.get(card.id) ?? [])),
+    cards: owned.map((card) => cardView(card, now, requirements.get(card.id) ?? [], c.env.API_BASE_URL)),
     publicUrl: publicUrlFor(c.env.PUBLIC_BASE_URL, issuer.handle),
   }
   return jsonResponse(c, body)
@@ -351,7 +351,7 @@ export const postV1ConnectCards = defineHandler(connectedAppAuth('cards:write'),
   }
   await record(null, card.id)
   const body: CardCreateResponse = {
-    card: cardView(card, c.get('now')(), parsed.output.requirements),
+    card: cardView(card, c.get('now')(), parsed.output.requirements, c.env.API_BASE_URL),
     issuer: issuerView(issuer, c.env.API_BASE_URL),
     publicUrl: publicUrlFor(c.env.PUBLIC_BASE_URL, issuer.handle),
   }
@@ -375,7 +375,7 @@ export const getV1ConnectCardsCardId = defineHandler(connectedAppAuth('cards:rea
     return errorResponse(c, 'not_found', 404)
   }
   const body: ConnectCardResponse = {
-    card: cardView(card, c.get('now')(), await requirementsOf(db, card)),
+    card: cardView(card, c.get('now')(), await requirementsOf(db, card), c.env.API_BASE_URL),
     url: `${publicUrlFor(c.env.PUBLIC_BASE_URL, issuer.handle)}/${card.slug}`,
   }
   return jsonResponse(c, body)

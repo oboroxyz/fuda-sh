@@ -9,7 +9,7 @@ import type { HtmlEscapedString } from 'hono/utils/html'
 import type { PassView } from './pass-view.ts'
 
 // Self-contained: inline CSS, inline SVG, one inline script that re-reads the
-// live status from GET /v1/verify/:uid. No external assets (docs/specs/pass-types-and-flows.md#passes).
+// live status from GET /v1/verify/:uid (docs/specs/pass-types-and-flows.md#passes).
 const STYLE = `
   :root{color-scheme:light}body{margin:0;font-family:system-ui,sans-serif;background:#141414;color:#fff;display:flex;justify-content:center}
   main{max-width:420px;width:100%;padding:24px;box-sizing:border-box}
@@ -18,6 +18,7 @@ const STYLE = `
   .brand .card{background:var(--brand)}
   .venue{font-size:13px;opacity:.85;letter-spacing:.08em;text-transform:uppercase}
   .mark{width:56px;height:56px;border-radius:12px;display:block;margin:0 auto 10px;object-fit:cover}
+  .artwork{display:block;width:100%;aspect-ratio:375/144;object-fit:cover;border-radius:12px;margin:12px 0}
   .title{font-size:20px;font-weight:700;margin:4px 0 12px}
   .number{font-size:18px;font-weight:700;letter-spacing:.06em;margin:8px 0 0;font-variant-numeric:tabular-nums}
   .qr{background:#fff;border-radius:12px;padding:12px;display:inline-block}
@@ -142,6 +143,11 @@ const heading = (view: PassView): HtmlEscapedString | Promise<HtmlEscapedString>
     ? html``
     : html`${mark(view)}
         <div class="venue">${view.branding.issuerName}</div>
+        ${
+          view.branding.artworkUrl === null
+            ? html``
+            : html`<img class="artwork" src="${view.branding.artworkUrl}" alt="" loading="lazy" />`
+        }
         <div class="title">${view.branding.cardTitle}</div>`
 
 const memberLine = (view: PassView): HtmlEscapedString | Promise<HtmlEscapedString> =>

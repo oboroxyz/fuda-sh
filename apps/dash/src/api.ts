@@ -2,6 +2,7 @@ import type {
   CardApplicantsResponse,
   CardCheckResponse,
   CardCreateResponse,
+  CardUpdateResponse,
   EnsClaimView,
   CardRequest,
   HandleCheckResponse,
@@ -236,6 +237,24 @@ export const uploadLogo = async (variants: LogoSet): Promise<Result<LogoUploadRe
     }
   }
 }
+
+export const uploadArtwork = async (
+  cardId: string,
+  variants: Record<string, Blob>,
+): Promise<Result<CardUpdateResponse>> => {
+  const body = new FormData()
+  for (const [variant, blob] of Object.entries(variants)) {
+    body.append(variant, blob, `${variant}.png`)
+  }
+  return await apiFetch<CardUpdateResponse>(API_BASE_URL, `/issuers/me/cards/${cardId}/artwork`, {
+    body,
+    method: 'PUT',
+  })
+}
+export const removeArtwork = async (cardId: string): Promise<Result<CardUpdateResponse>> =>
+  await apiFetch<CardUpdateResponse>(API_BASE_URL, `/issuers/me/cards/${cardId}/artwork`, {
+    method: 'DELETE',
+  })
 
 // Points the venue this session already owns at a staged upload.
 export const commitLogo = async (logoUploadId: string): Promise<Result<{ issuer: IssuerView }>> =>

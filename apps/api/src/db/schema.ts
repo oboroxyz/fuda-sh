@@ -68,6 +68,7 @@ export const issuers = sqliteTable(
 export const cards = sqliteTable(
   'cards',
   {
+    artworkPrefix: text('artwork_prefix'),
     // docs/specs/attestation-model.md#entitlement-lifecycle: 1 when a scan writes a public
     // Attendance. Only an on-chain card can have it on.
     attendance: integer('attendance').notNull().default(0),
@@ -98,7 +99,11 @@ export const cards = sqliteTable(
     venueLat: real('venue_lat'),
     venueLng: real('venue_lng'),
   },
-  (t) => [index('cards_issuer_id').on(t.issuerId), uniqueIndex('cards_issuer_slug').on(t.issuerId, t.slug)],
+  (t) => [
+    index('cards_artwork_prefix').on(t.artworkPrefix),
+    index('cards_issuer_id').on(t.issuerId),
+    uniqueIndex('cards_issuer_slug').on(t.issuerId, t.slug),
+  ],
 )
 
 // The signed attestation behind an offchain right (docs/specs/attestation-model.md#offchain-rights).

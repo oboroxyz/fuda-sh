@@ -64,7 +64,11 @@ export const fetchJson = async <T>(url: string, init: ApiInit = {}): Promise<Res
   try {
     const res = await fetch(url, {
       ...rest,
-      headers: headersFor(headers, token, rest.body !== undefined && rest.body !== null),
+      headers: headersFor(
+        headers,
+        token,
+        rest.body !== undefined && rest.body !== null && !(rest.body instanceof FormData),
+      ),
     })
     if (res.status >= 500) {
       return { error: `api ${res.status}`, network: true, ok: false, status: res.status }

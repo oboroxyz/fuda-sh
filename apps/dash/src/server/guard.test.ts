@@ -20,6 +20,7 @@ const venue = (cards: IssuerMeResponse['cards'] = []): IssuerMeResponse => ({
 })
 const unregistered: IssuerMeResponse = { cards: [], ens: null, issuer: null, publicUrl: null }
 const card = {
+  artworkUrl: null,
   category: 'membership',
   claimFrom: null,
   claimUntil: null,

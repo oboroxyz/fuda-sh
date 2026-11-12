@@ -10,6 +10,7 @@ describe(passView, () => {
   it('maps an active ADMIT to VALID with tier label and short holder', () => {
     const view = passView(
       {
+        artworkPrefix: null,
         branding: null,
         holder: HOLDER,
         level: 'bearer',
@@ -31,6 +32,7 @@ describe(passView, () => {
   it('surfaces the REJECT reason as the status', () => {
     const view = passView(
       {
+        artworkPrefix: null,
         branding: null,
         holder: HOLDER,
         level: 'bearer',
@@ -47,6 +49,7 @@ describe(passView, () => {
   it('reports UNKNOWN when the chain could not be read and — for a missing holder', () => {
     const view = passView(
       {
+        artworkPrefix: null,
         branding: null,
         holder: null,
         level: 'bearer',
@@ -63,6 +66,7 @@ describe(passView, () => {
   it('falls back to a numbered label for a tier beyond the known ones', () => {
     const view = passView(
       {
+        artworkPrefix: null,
         branding: null,
         holder: HOLDER,
         level: 'bearer',
@@ -81,6 +85,7 @@ describe(PassPage, () => {
   it('refreshes its status from the versioned verify route', async () => {
     const view = passView(
       {
+        artworkPrefix: null,
         branding: null,
         holder: `0x${'11'.repeat(20)}`,
         level: 'bearer',
@@ -98,6 +103,7 @@ describe(PassPage, () => {
   it('renders enabled stamp progress and refreshes it from the public summary endpoint', async () => {
     const view = passView(
       {
+        artworkPrefix: null,
         branding: null,
         holder: `0x${'11'.repeat(20)}`,
         level: 'bearer',
@@ -120,6 +126,7 @@ describe(PassPage, () => {
   it('hides stamp progress when stamps are disabled', async () => {
     const view = passView(
       {
+        artworkPrefix: null,
         branding: null,
         holder: `0x${'11'.repeat(20)}`,
         level: 'bearer',

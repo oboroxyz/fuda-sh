@@ -12,6 +12,7 @@ export interface PassRow {
   branding: PassBranding | null
   // where the venue's logo objects live, for the builders that embed bytes
   logoPrefix: string | null
+  artworkPrefix: string | null
   validity: PassValidity
 }
 

@@ -57,10 +57,10 @@ describe(validateLogoSet, () => {
     const result = validateLogoSet(squareSet())
     expect(result.ok).toBe(true)
     expect(result.ok && result.objects.map((object) => object.variant)).toStrictEqual([
-      'master',
       'logo1x',
       'logo2x',
       'logo3x',
+      'master',
     ])
   })
 

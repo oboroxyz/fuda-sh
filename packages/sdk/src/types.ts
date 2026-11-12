@@ -16,6 +16,7 @@ export interface PassUrls {
 // venue's own look (GET /pass/<uid>/card). `card` is null for an admin-issued
 // right, which keeps the plain fuda look.
 export interface PassCardView {
+  artworkUrl: string | null
   issuerName: string
   cardTitle: string
   category: CardCategory

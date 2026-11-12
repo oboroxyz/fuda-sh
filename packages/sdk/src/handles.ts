@@ -153,6 +153,7 @@ export interface CardValidity {
 export const CARD_DESCRIPTION_MAX_LENGTH = 2000
 
 export interface CardView extends ClaimWindow, CardValidity {
+  artworkUrl: string | null
   id: string
   slug: string
   title: string

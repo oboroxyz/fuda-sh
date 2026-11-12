@@ -15,6 +15,7 @@ const sampleVenue: PublicVenue = {
   brandColor: '#6F4320',
   cards: [
     {
+      artworkUrl: coffeeLogo,
       category: 'membership',
       claimFrom: null,
       claimUntil: null,
@@ -29,6 +30,7 @@ const sampleVenue: PublicVenue = {
       validityDays: null,
     },
     {
+      artworkUrl: null,
       category: 'ticket',
       claimFrom: null,
       claimUntil: null,

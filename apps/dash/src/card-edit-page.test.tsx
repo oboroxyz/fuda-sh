@@ -20,6 +20,7 @@ const issuer: IssuerView = {
   tagline: '',
 }
 const card: OperatorCardView = {
+  artworkUrl: null,
   attendance: false,
   category: 'membership',
   claimFrom: 1_780_000_013,
@@ -197,7 +198,7 @@ describe(CardEditPage, () => {
     render(<CardEditPage {...p} />, root)
     await waitForm()
     expect(p.settings.load).not.toHaveBeenCalled()
-    const details = root.querySelector('details')!
+    const details = root.querySelector<HTMLDetailsElement>('details:not([data-testid])')!
     details.open = true
     details.dispatchEvent(new Event('toggle'))
     await vi.waitFor(() => {
@@ -231,9 +232,11 @@ describe(CardEditPage, () => {
     )
     await waitForm()
     // The integrations section stays: it is not a membership feature.
-    expect([...root.querySelectorAll('details')].map((node) => node.dataset.testid)).toStrictEqual([
-      'card-integrations',
-    ])
+    expect(
+      [...root.querySelectorAll<HTMLDetailsElement>('details:not([data-testid=card-artwork])')].map(
+        (node) => node.dataset.testid,
+      ),
+    ).toStrictEqual(['card-integrations'])
     expect(p.settings.load).not.toHaveBeenCalled()
   })
 
@@ -249,7 +252,9 @@ describe(CardEditPage, () => {
       root,
     )
     await waitForm()
-    expect(root.querySelectorAll('details')).toHaveLength(0)
+    expect(root.querySelectorAll<HTMLDetailsElement>('details:not([data-testid=card-artwork])')).toHaveLength(
+      0,
+    )
     expect(p.settings.load).not.toHaveBeenCalled()
   })
 

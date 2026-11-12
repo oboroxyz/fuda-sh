@@ -144,7 +144,7 @@ interface VenueBrand {
 // The api builds the mark's URL and versions it, so a replaced logo is a
 // different URL; a client that assembled one from the handle would keep
 // showing the old mark out of cache.
-const brandCard = (venue: VenueBrand, body: JSX.Element): JSX.Element => (
+const brandCard = (venue: VenueBrand, body: JSX.Element, artworkUrl?: string | null): JSX.Element => (
   <div
     class="venue-brand"
     style={{ 'background-color': venue.brandColor, color: brandTextColor(venue.brandColor) }}
@@ -163,6 +163,17 @@ const brandCard = (venue: VenueBrand, body: JSX.Element): JSX.Element => (
       )}
       <div class="min-w-0 text-sm font-semibold">{venue.name}</div>
     </div>
+    {artworkUrl !== null && artworkUrl !== undefined ? (
+      <img
+        alt=""
+        class="aspect-[375/144] w-full flex-none rounded-xl object-cover"
+        loading="lazy"
+        onError={(event) => {
+          event.currentTarget.hidden = true
+        }}
+        src={artworkUrl}
+      />
+    ) : null}
     {body}
   </div>
 )
@@ -176,6 +187,7 @@ const landingCard = (card: PublicCard): JSX.Element =>
         {card.tagline === '' ? null : <p class="text-sm leading-relaxed">{card.tagline}</p>}
       </div>
     </>,
+    card.card.artworkUrl,
   )
 
 const memberCard = (card: PublicCard, issued: IssuedCard, copy: VenueCopy, locale: Locale): JSX.Element =>
@@ -191,6 +203,7 @@ const memberCard = (card: PublicCard, issued: IssuedCard, copy: VenueCopy, local
         <div class="text-[0.6875rem]">{copy.issued(issueDateOf(issued.issuedAt, locale))}</div>
       </div>
     </>,
+    card.card.artworkUrl,
   )
 
 const hasRequirements = (card: PublicCard): boolean => (card.card.requirements?.length ?? 0) > 0

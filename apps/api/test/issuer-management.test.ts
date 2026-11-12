@@ -143,6 +143,7 @@ describe('operator Card management', () => {
     expect(response.headers.get('cache-control')).toBe('no-store')
     await expect(response.json<{ card: OperatorCardView }>()).resolves.toStrictEqual({
       card: {
+        artworkUrl: null,
         attendance: false,
         category: 'membership',
         claimFrom: 10,

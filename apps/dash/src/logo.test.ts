@@ -9,12 +9,12 @@ import {
   MAX_SOURCE_BYTES,
   withLogoResult,
 } from './logo.ts'
-import type { ImageSize, LogoResult, LogoTools, SquareCrop } from './logo.ts'
+import type { ImageSize, LogoResult, ImageTools, ImageCrop } from './logo.ts'
 
 // The pipeline never touches a DOM: the canvas and the decoder are injected, so
 // the node test run can watch exactly what would have been drawn.
 interface Drawn {
-  crop: SquareCrop
+  crop: ImageCrop
   image: ImageSize
   side: number
 }
@@ -26,7 +26,7 @@ const sourceOf = (type = 'image/png', bytes = 4096): File =>
 
 interface Fixture {
   drawn: Drawn[]
-  tools: LogoTools<ImageSize>
+  tools: ImageTools<ImageSize>
 }
 
 const fakeTools = (
@@ -34,9 +34,9 @@ const fakeTools = (
   exported: (side: number) => Blob | null = () => pngOf(64),
 ): Fixture => {
   const drawn: Drawn[] = []
-  const tools: LogoTools<ImageSize> = {
+  const tools: ImageTools<ImageSize> = {
     createCanvas: (side) => ({
-      drawSquare: (source, crop) => {
+      drawCrop: (source, crop) => {
         drawn.push({ crop, image: source, side })
       },
       toPng: async () => await Promise.resolve(exported(side)),
@@ -48,12 +48,12 @@ const fakeTools = (
 
 describe('the centre square crop', () => {
   it('takes the centre square of a wider-than-tall source', () => {
-    expect(cropOf({ height: 660, width: 1000 })).toStrictEqual({ side: 660, x: 170, y: 0 })
+    expect(cropOf({ height: 660, width: 1000 })).toStrictEqual({ height: 660, width: 660, x: 170, y: 0 })
   })
 
   it('takes the centre square of a taller-than-wide source and leaves a square alone', () => {
-    expect(cropOf({ height: 1000, width: 800 })).toStrictEqual({ side: 800, x: 0, y: 100 })
-    expect(cropOf({ height: 1024, width: 1024 })).toStrictEqual({ side: 1024, x: 0, y: 0 })
+    expect(cropOf({ height: 1000, width: 800 })).toStrictEqual({ height: 800, width: 800, x: 0, y: 100 })
+    expect(cropOf({ height: 1024, width: 1024 })).toStrictEqual({ height: 1024, width: 1024, x: 0, y: 0 })
   })
 })
 
@@ -62,7 +62,7 @@ describe('the logo pipeline', () => {
     const { drawn, tools } = fakeTools({ height: 1024, width: 1024 })
     const result = await generateLogoSet(sourceOf(), tools)
     expect(result.ok).toBe(true)
-    expect(drawn.map((entry) => entry.side)).toStrictEqual([1024, 50, 100, 150])
+    expect(drawn.map((entry) => entry.side)).toStrictEqual([50, 100, 150, 1024])
     expect(result.ok && Object.keys(result.variants).toSorted()).toStrictEqual([
       'logo1x',
       'logo2x',
@@ -76,8 +76,8 @@ describe('the logo pipeline', () => {
     const { drawn, tools } = fakeTools({ height: 700, width: 1400 })
     await generateLogoSet(sourceOf(), tools)
     expect(drawn).toHaveLength(4)
-    expect(drawn.every((entry) => entry.crop.side === 700)).toBe(true)
-    expect(drawn[0]?.crop).toStrictEqual({ side: 700, x: 350, y: 0 })
+    expect(drawn.every((entry) => entry.crop.width === 700)).toBe(true)
+    expect(drawn[0]?.crop).toStrictEqual({ height: 700, width: 700, x: 350, y: 0 })
   })
 
   it('accepts jpeg and webp sources alongside png', async () => {
@@ -96,7 +96,7 @@ describe('the logo pipeline', () => {
   })
 
   it('refuses a source over 10 MiB before decoding a byte of it', async () => {
-    const decode = vi.fn<LogoTools<ImageSize>['decode']>()
+    const decode = vi.fn<ImageTools<ImageSize>['decode']>()
     const { tools } = fakeTools({ height: 1024, width: 1024 })
     const result = await generateLogoSet(sourceOf('image/png', MAX_SOURCE_BYTES + 1), {
       ...tools,
@@ -143,5 +143,42 @@ describe('the picked logo state', () => {
     const state = withLogoResult({ ok: false, reason: 'tooSmall' }, () => 'blob:preview')
     expect(state).toStrictEqual({ pick: null, rejection: 'tooSmall' })
     expect(EMPTY_LOGO).toStrictEqual({ pick: null, rejection: null })
+  })
+})
+
+describe('Wallet artwork', () => {
+  it('centre-crops artwork and exports the three Wallet strip sizes', async () => {
+    const { generateImageSet } = await import('./logo.ts')
+    const { IMAGE_SETS } = await import('@fuda/sdk')
+    const sizes: number[][] = []
+    const crops: ImageCrop[] = []
+    const result = await generateImageSet(
+      sourceOf(),
+      {
+        createCanvas: (width, height) => {
+          sizes.push([width, height])
+          return {
+            drawCrop: (_image, crop) => {
+              crops.push(crop)
+            },
+            toPng: async () => await Promise.resolve(pngOf(64)),
+          }
+        },
+        decode: async () => await Promise.resolve({ height: 1000, width: 1500 }),
+      },
+      IMAGE_SETS.artwork,
+    )
+    expect(result.ok).toBe(true)
+    expect(sizes).toStrictEqual([
+      [375, 144],
+      [750, 288],
+      [1125, 432],
+    ])
+    expect(crops[0]).toStrictEqual({ height: 576, width: 1500, x: 0, y: 212 })
+    const { tools } = fakeTools({ height: 431, width: 1125 })
+    await expect(generateImageSet(sourceOf(), tools, IMAGE_SETS.artwork)).resolves.toStrictEqual({
+      ok: false,
+      reason: 'tooSmall',
+    })
   })
 })

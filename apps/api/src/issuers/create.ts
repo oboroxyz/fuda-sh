@@ -5,7 +5,7 @@ import { attachIssuer } from '../auth/session.ts'
 import type { OperatorSession } from '../auth/session.ts'
 import type { Db } from '../db/client.ts'
 import { cardRequirements, cards, issuers } from '../db/schema.ts'
-import { claimLogoUploadconsumeIssuerLogo, pendingLogoPrefix } from '../media/store.ts'
+import { consumeIssuerLogo, pendingLogoPrefix } from '../media/store.ts'
 import { requirementRows } from '../requirements/store.ts'
 import { ownerColumns } from './queries.ts'
 

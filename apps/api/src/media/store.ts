@@ -1,34 +1,29 @@
+import { IMAGE_SETS } from '@fuda/sdk'
+import type { ImageSetSpec } from '@fuda/sdk'
 import { and, eq, sql } from 'drizzle-orm'
 
 import type { Db } from '../db/client.ts'
 import { issuers, logoUploads } from '../db/schema.ts'
-import {
-  IMMUTABLE_CACHE_CONTROL,
-  isLogoPrefix,
-  LOGO_UPLOAD_TTL_SECONDS,
-  objectKey,
-  validateLogoSet,
-} from './logo.ts'
-import type { LogoRejection, LogoVariant } from './logo.ts'
+import { IMMUTABLE_CACHE_CONTROL, LOGO_UPLOAD_TTL_SECONDS, objectKey, validateImageSet } from './logo.ts'
+import type { LogoRejection } from './logo.ts'
 
-export type StoredUpload = { ok: true; id: string; expiresAt: number } | { ok: false; reason: LogoRejection }
-
-// Write the whole set, then stage it. A partial write is rolled back so a
-// failed upload leaves no orphans behind; the objects are immutable, so
-// nothing here ever overwrites a live logo.
-export const storeLogoSet = async (
+// Write the whole set under a fresh prefix. `record` runs inside the same
+// rollback, so a set whose bookkeeping fails leaves no orphans behind; the
+// objects are immutable, so nothing here ever overwrites a live image.
+export const storeImageSet = async (
   bucket: R2Bucket,
-  db: Db,
-  p: { parts: Map<string, Uint8Array>; sessionTokenHash: string; now: number },
-): Promise<StoredUpload> => {
-  const checked = validateLogoSet(p.parts)
+  parts: Map<string, Uint8Array>,
+  spec: ImageSetSpec,
+  record: (prefix: string) => Promise<void> = async () => {
+    await Promise.resolve()
+  },
+): Promise<{ ok: true; prefix: string } | { ok: false; reason: LogoRejection }> => {
+  const checked = validateImageSet(parts, spec)
   if (!checked.ok) {
     return checked
   }
-  const prefix = `logos/${crypto.randomUUID()}`
+  const prefix = `${spec.prefix}/${crypto.randomUUID()}`
   const written: string[] = []
-  const id = crypto.randomUUID()
-  const expiresAt = p.now + LOGO_UPLOAD_TTL_SECONDS
   try {
     for (const object of checked.objects) {
       const key = objectKey(prefix, object.variant)
@@ -38,19 +33,36 @@ export const storeLogoSet = async (
       })
       written.push(key)
     }
+    await record(prefix)
+  } catch (error) {
+    await bucket.delete(written)
+    throw error
+  }
+  return { ok: true, prefix }
+}
+
+export type StoredUpload = { ok: true; id: string; expiresAt: number } | { ok: false; reason: LogoRejection }
+
+// A logo is staged: its row lets a later issuer write claim it, and lets the
+// sweep reclaim it if nobody does.
+export const storeLogoSet = async (
+  bucket: R2Bucket,
+  db: Db,
+  p: { parts: Map<string, Uint8Array>; sessionTokenHash: string; now: number },
+): Promise<StoredUpload> => {
+  const id = crypto.randomUUID()
+  const expiresAt = p.now + LOGO_UPLOAD_TTL_SECONDS
+  const stored = await storeImageSet(bucket, p.parts, IMAGE_SETS.logo, async (assetPrefix) => {
     await db.insert(logoUploads).values({
-      assetPrefix: prefix,
+      assetPrefix,
       createdAt: p.now,
       expiresAt,
       id,
       sessionTokenHash: p.sessionTokenHash,
       status: 'pending',
     })
-  } catch (error) {
-    await bucket.delete(written)
-    throw error
-  }
-  return { expiresAt, id, ok: true }
+  })
+  return stored.ok ? { expiresAt, id, ok: true } : stored
 }
 
 // Evaluate inside the issuer write so a concurrent claim or sweep cannot
@@ -82,12 +94,16 @@ export interface LogoObject {
   etag: string
 }
 
-export const readLogoObject = async (
+export const readImageObject = async (
   bucket: R2Bucket,
   prefix: string,
-  variant: LogoVariant,
+  variant: string,
+  spec: ImageSetSpec = IMAGE_SETS.logo,
 ): Promise<LogoObject | null> => {
-  if (!isLogoPrefix(prefix)) {
+  if (
+    !new RegExp(`^${spec.prefix}/[0-9a-f-]{36}$`, 'u').test(prefix) ||
+    !Object.hasOwn(spec.variants, variant)
+  ) {
     return null
   }
   const object = await bucket.get(objectKey(prefix, variant))
@@ -96,3 +112,5 @@ export const readLogoObject = async (
   }
   return { body: await object.arrayBuffer(), etag: object.httpEtag }
 }
+
+export const readLogoObject = readImageObject

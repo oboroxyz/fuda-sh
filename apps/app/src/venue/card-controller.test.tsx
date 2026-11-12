@@ -31,6 +31,7 @@ const venue: PublicVenue = {
   brandColor: '#ffffff',
   cards: [
     {
+      artworkUrl: null,
       category: 'membership',
       claimFrom: null,
       claimUntil: null,
