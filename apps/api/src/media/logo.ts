@@ -4,7 +4,7 @@ import type { ImageSetSpec, LogoVariant } from '@fuda/sdk'
 // The variant set, its sides and its caps are the wire contract the dashboard
 // draws against, so they live in @fuda/sdk; re-exported here because this
 // module is where the api's logo rules otherwise live.
-export { isLogoVariant, LOGO_SIDE, MAX_LOGO_OBJECT_BYTES } from '@fuda/sdk'
+export { isLogoVariant, LOGO_SIDE, LOGO_VARIANTS, MAX_LOGO_OBJECT_BYTES } from '@fuda/sdk'
 export type { LogoVariant } from '@fuda/sdk'
 
 export const LOGO_UPLOAD_TTL_SECONDS = 15 * 60

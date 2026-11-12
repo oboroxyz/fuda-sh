@@ -32,6 +32,7 @@ const BundleId = v.union([
 
 const CallsStatus = v.object({
   receipts: v.optional(v.array(v.object({ transactionHash: v.string() }))),
+  status: v.optional(v.number()),
 })
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- EIP-1193 answers are untyped by contract; the schema above is that parse
@@ -60,20 +61,29 @@ const pause = async (ms: number): Promise<void> => {
   })
 }
 
-// Polls until the bundle settles. A wallet that never settles is a failure the
-// operator can retry, not a spinner that runs forever.
-const waitForCall = async (p: Eip1193Provider, id: string): Promise<Hex> => {
+export type BundleOutcome = { kind: 'settled'; txHash: Hex } | { kind: 'pending' } | { kind: 'reverted' }
+
+export const waitForCall = async (p: Eip1193Provider, id: string): Promise<BundleOutcome> => {
   for (const _attempt of Array.from({ length: POLL_LIMIT })) {
     // oxlint-disable-next-line no-await-in-loop -- polling is sequential by nature; each read decides whether to poll again
     const status = await p.request({ method: 'wallet_getCallsStatus', params: [id] })
+    const parsed = v.safeParse(CallsStatus, status)
+    if (
+      parsed.success &&
+      parsed.output.status !== undefined &&
+      parsed.output.status >= 400 &&
+      parsed.output.status < 600
+    ) {
+      return { kind: 'reverted' }
+    }
     const hash = settledHash(status)
     if (hash !== null) {
-      return hash
+      return { kind: 'settled', txHash: hash }
     }
     // oxlint-disable-next-line no-await-in-loop -- the wait between polls is the point
     await pause(POLL_MS)
   }
-  throw new Error('the wallet did not settle the claim')
+  return { kind: 'pending' }
 }
 
 // EIP-5792. The wallet bundles the call, the paymaster pays for it, and the
@@ -89,7 +99,7 @@ const waitForCall = async (p: Eip1193Provider, id: string): Promise<Hex> => {
 export const sendSponsoredCall = async (
   p: Eip1193Provider,
   input: { chainId: number; data: Hex; from: Hex; paymasterUrl: string; to: Hex },
-): Promise<Hex> => {
+): Promise<string> => {
   await p.request({
     method: 'wallet_switchEthereumChain',
     params: [{ chainId: toChainIdHex(input.chainId) }],
@@ -106,5 +116,5 @@ export const sendSponsoredCall = async (
       ? [call]
       : [{ ...call, capabilities: { paymasterService: { url: input.paymasterUrl } } }]
   const id = await p.request({ method: 'wallet_sendCalls', params })
-  return await waitForCall(p, callBundleId(id))
+  return callBundleId(id)
 }

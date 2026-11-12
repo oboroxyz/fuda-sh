@@ -24,6 +24,7 @@ import { issueContext } from './issue-context.ts'
 import { issueOffchainPass, offchainDomain } from './issue-offchain.ts'
 import type { OffchainIssueParams, PassClaimant } from './issue-offchain.ts'
 import { OrphanedRightError } from './orphaned-right-error.ts'
+import { releasePlace } from './release-place.ts'
 
 const MEMBER_NUMBER_DRAWS = 3
 
@@ -52,13 +53,6 @@ const reservePlace = async (db: Db, cardId: string): Promise<boolean> =>
     .where(and(eq(cards.id, cardId), or(isNull(cards.capacity), lt(cards.reserved, cards.capacity))))
     .returning({ id: cards.id })
     .get()) !== undefined
-
-const releasePlace = async (db: Db, cardId: string): Promise<void> => {
-  await db
-    .update(cards)
-    .set({ reserved: sql`${cards.reserved} - 1` })
-    .where(eq(cards.id, cardId))
-}
 
 export type CardIssueError = 'card_sold_out' | 'chain_error' | 'holder_must_claim' | 'internal' | 'no_signer'
 

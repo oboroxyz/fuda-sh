@@ -440,6 +440,7 @@ export const oauthCodes = sqliteTable(
       .notNull()
       .references(() => issuers.id),
     redirectUri: text('redirect_uri').notNull(),
+    replayedAt: integer('replayed_at'),
     resource: text('resource'),
     scope: text('scope').notNull(),
     usedAt: integer('used_at'),

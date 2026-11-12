@@ -5,7 +5,7 @@ import type { Hex } from 'viem'
 import { ENS_PAYMASTER_URL } from './config.ts'
 import { ENS_CHAIN_ID } from './ens-claim.ts'
 import type { ClaimVoucher } from './ens-claim.ts'
-import { baseAccountProvider, requestAccount, sendSponsoredCall } from './wallet.ts'
+import { baseAccountProvider, requestAccount, sendSponsoredCall, waitForCall } from './wallet.ts'
 
 // The claim as the registrar takes it. The voucher's own fields go on the wire
 // unchanged: the signature covers every one of them, so re-deriving any here
@@ -26,7 +26,7 @@ const claimCallData = (voucher: ClaimVoucher): Hex =>
 
 // Puts the operator's wallet on Ethereum Sepolia and sends the claim there,
 // sponsored through fuda's paymaster proxy. The operator signs; fuda pays.
-export const submitClaim = async (voucher: ClaimVoucher): Promise<Hex> => {
+export const submitClaim = async (voucher: ClaimVoucher): Promise<string> => {
   const provider = await baseAccountProvider(ENS_PAYMASTER_URL)
   const from = await requestAccount(provider)
   return await sendSponsoredCall(provider, {
@@ -37,3 +37,6 @@ export const submitClaim = async (voucher: ClaimVoucher): Promise<Hex> => {
     to: voucher.registrar,
   })
 }
+
+export const resolveClaimBundle = async (id: string) =>
+  await waitForCall(await baseAccountProvider(ENS_PAYMASTER_URL), id)

@@ -1,6 +1,8 @@
 import type { EnsClaimView, Hex } from '@fuda/sdk'
 
 import type { Result } from './api.ts'
+import type { PendingEnsClaim } from './ens-pending.ts'
+import type { BundleOutcome } from './wallet.ts'
 
 // Ethereum Sepolia, where ENSv2 lives. Base Sepolia carries the rights; the two
 // chains never meet except here (docs/specs/ens-naming.md#deployment-namespace).
@@ -43,15 +45,17 @@ export type ClaimState =
   | { kind: 'signing' }
   | { kind: 'submitting'; name: string }
   | { kind: 'confirming'; name: string }
+  | { kind: 'pending'; pending: PendingEnsClaim }
   | { kind: 'claimed'; name: string; claimTxHash: Hex | null }
-  | { kind: 'failed'; failure: ClaimFailure; name?: string; txHash?: Hex }
+  | { kind: 'failed'; failure: ClaimFailure }
 
 export interface ClaimIo {
   // Asks the api to sign the authorization the registrar checks.
   requestVoucher: () => Promise<Result<ClaimVoucherResponse>>
   // Puts the operator's wallet on Ethereum Sepolia and submits the claim there,
-  // sponsored. Resolves with the transaction hash the wallet settled on.
-  submitClaim: (voucher: ClaimVoucher) => Promise<Hex>
+  // sponsored. Resolves with the accepted bundle ID before polling.
+  submitClaim: (voucher: ClaimVoucher) => Promise<string>
+  resolveBundle: (id: string) => Promise<BundleOutcome>
   // Hands the hash back to the api, which records the claim only if the chain
   // agrees the registrar emitted it for this venue.
   confirmClaim: (txHash: Hex) => Promise<Result<EnsClaimView>>
@@ -66,7 +70,7 @@ export const initialClaimState = (ens: EnsClaimView | null): ClaimState =>
 export const reconcileClaimState = (
   current: ClaimState,
   ens: EnsClaimView | null,
-  pending: { name: string; txHash: Hex } | null,
+  pending: PendingEnsClaim | null,
   previousEnsName?: string,
 ): ClaimState => {
   if (ens === null || ens.status === 'claimed') {
@@ -81,12 +85,10 @@ export const reconcileClaimState = (
   if ((current.kind === 'submitting' || current.kind === 'confirming') && current.name === ens.name) {
     return current
   }
-  if (current.kind === 'failed' && current.name === ens.name && current.txHash !== undefined) {
+  if (current.kind === 'pending' && current.pending.name === ens.name) {
     return current
   }
-  return pending?.name === ens.name
-    ? { failure: 'unconfirmed', kind: 'failed', ...pending }
-    : initialClaimState(ens)
+  return pending?.name === ens.name ? { kind: 'pending', pending } : initialClaimState(ens)
 }
 
 // The wallet reports a refusal and a declined sponsorship as ordinary errors, so
@@ -102,85 +104,56 @@ const failureOf = (error: unknown): ClaimFailure => {
   return message.includes('paymaster') || message.includes('sponsor') ? 'unsponsored' : 'network'
 }
 
-// One press, three legs: sign, submit, confirm. Each leg reports before the next
-// begins, because the middle one waits on a person and a chain and the operator
-// should be able to see which of the three they are waiting for.
-//
-// An abandoned wallet prompt leaves nothing behind — the voucher goes unused and
-// the next press signs a fresh one at the same nonce — so failure always returns
-// to a state the operator can retry from.
 export const runClaim = async (
   io: ClaimIo,
   emit: (state: ClaimState) => void,
-  pending?: { name: string; txHash: Hex },
-  onPending?: (pending: { name: string; txHash: Hex } | null) => void,
+  retained?: PendingEnsClaim,
+  onPending?: (pending: PendingEnsClaim | null) => void,
 ): Promise<ClaimState> => {
-  if (pending !== undefined) {
+  let pending = retained
+  const finish = (state: ClaimState): ClaimState => {
+    emit(state)
+    return state
+  }
+  const failed = (): ClaimState => {
+    onPending?.(null)
+    return finish({ failure: 'unconfirmed', kind: 'failed' })
+  }
+  try {
+    if (pending === undefined) {
+      emit({ kind: 'signing' })
+      const voucher = await io.requestVoucher()
+      if (!voucher.ok) {
+        return finish({ failure: voucherFailures.get(voucher.error) ?? 'network', kind: 'failed' })
+      }
+      emit({ kind: 'submitting', name: voucher.body.name })
+      const bundleId = await io.submitClaim(voucher.body.voucher)
+      pending = { bundleId, name: voucher.body.name }
+      onPending?.(pending)
+    }
     emit({ kind: 'confirming', name: pending.name })
+    if ('bundleId' in pending) {
+      const outcome = await io.resolveBundle(pending.bundleId)
+      if (outcome.kind === 'reverted') {
+        return failed()
+      }
+      if (outcome.kind === 'pending') {
+        return finish({ kind: 'pending', pending })
+      }
+      pending = { name: pending.name, txHash: outcome.txHash }
+      onPending?.(pending)
+    }
     const confirmed = await io.confirmClaim(pending.txHash)
     if (!confirmed.ok) {
-      if (confirmed.error === 'claim_failed') {
-        onPending?.(null)
-        const state: ClaimState = { failure: 'unconfirmed', kind: 'failed' }
-        emit(state)
-        return state
-      }
-      const state: ClaimState = { failure: 'unconfirmed', kind: 'failed', ...pending }
-      emit(state)
-      return state
+      return confirmed.error === 'claim_failed' ? failed() : finish({ kind: 'pending', pending })
     }
     onPending?.(null)
-    const state: ClaimState = {
-      claimTxHash: confirmed.body.claimTxHash,
-      kind: 'claimed',
-      name: confirmed.body.name,
-    }
-    emit(state)
-    return state
-  }
-  emit({ kind: 'signing' })
-  const voucher = await io.requestVoucher()
-  if (!voucher.ok) {
-    const failure: ClaimFailure = voucherFailures.get(voucher.error) ?? 'network'
-    const state: ClaimState = { failure, kind: 'failed' }
-    emit(state)
-    return state
-  }
-
-  emit({ kind: 'submitting', name: voucher.body.name })
-  let txHash: Hex
-  try {
-    txHash = await io.submitClaim(voucher.body.voucher)
+    return finish({ claimTxHash: confirmed.body.claimTxHash, kind: 'claimed', name: confirmed.body.name })
   } catch (error) {
-    const state: ClaimState = { failure: failureOf(error), kind: 'failed' }
-    emit(state)
-    return state
+    return finish(
+      pending === undefined ? { failure: failureOf(error), kind: 'failed' } : { kind: 'pending', pending },
+    )
   }
-  onPending?.({ name: voucher.body.name, txHash })
-
-  emit({ kind: 'confirming', name: voucher.body.name })
-  const confirmed = await io.confirmClaim(txHash)
-  if (!confirmed.ok) {
-    if (confirmed.error === 'claim_failed') {
-      onPending?.(null)
-      const state: ClaimState = { failure: 'unconfirmed', kind: 'failed' }
-      emit(state)
-      return state
-    }
-    // The transaction may still be in flight; the api refuses to record a claim
-    // it cannot see. Retrying is safe and is the whole remedy.
-    const state: ClaimState = { failure: 'unconfirmed', kind: 'failed', name: voucher.body.name, txHash }
-    emit(state)
-    return state
-  }
-  const state: ClaimState = {
-    claimTxHash: confirmed.body.claimTxHash,
-    kind: 'claimed',
-    name: confirmed.body.name,
-  }
-  onPending?.(null)
-  emit(state)
-  return state
 }
 
 export const claimIsBusy = (state: ClaimState): boolean =>

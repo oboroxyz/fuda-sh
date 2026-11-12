@@ -67,6 +67,15 @@ describe(EnsClaim, () => {
     expect(textOf(rejected)).toContain(copy.retry)
   })
 
+  it('shows a pending claim with a recheck action instead of an error', () => {
+    const host = show({ kind: 'pending', pending: { bundleId: 'bundle-1', name: NAME } })
+    expect(textOf(host)).toContain(copy.pending)
+    expect(textOf(host)).toContain(copy.recheck)
+    expect(host.querySelector('button')?.disabled).toBe(false)
+    expect(host.querySelector('[role="alert"]')).toBeNull()
+    expect(host.querySelector('[role="status"]')).not.toBeNull()
+  })
+
   it('marks the failure line for assistive technology', () => {
     const host = show({ failure: 'network', kind: 'failed' })
 

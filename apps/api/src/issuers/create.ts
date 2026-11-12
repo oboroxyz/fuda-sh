@@ -5,7 +5,7 @@ import { attachIssuer } from '../auth/session.ts'
 import type { OperatorSession } from '../auth/session.ts'
 import type { Db } from '../db/client.ts'
 import { cardRequirements, cards, issuers } from '../db/schema.ts'
-import { claimLogoUpload } from '../media/store.ts'
+import { consumeIssuerLogo, pendingLogoPrefix } from '../media/store.ts'
 import { requirementRows } from '../requirements/store.ts'
 import { ownerColumns } from './queries.ts'
 
@@ -76,7 +76,7 @@ export const insertIssuer = async (
   const logoPrefix =
     input.logoUploadId === null
       ? null
-      : await claimLogoUpload(db, { id: input.logoUploadId, now, sessionTokenHash: operator.tokenHash })
+      : pendingLogoPrefix({ id: input.logoUploadId, now, sessionTokenHash: operator.tokenHash })
   const insert = db.insert(issuers).values({
     brandColor: input.brandColor,
     createdAt: now,
@@ -87,6 +87,9 @@ export const insertIssuer = async (
     ...ownerColumns(operator.principal),
     tagline: input.tagline,
   })
-  await (bindSession ? db.batch([insert, attachIssuer(db, operator.tokenHash, issuerId)]) : insert)
+  const consume = consumeIssuerLogo(db, issuerId)
+  await db.batch(
+    bindSession ? [insert, consume, attachIssuer(db, operator.tokenHash, issuerId)] : [insert, consume],
+  )
   return issuerId
 }
