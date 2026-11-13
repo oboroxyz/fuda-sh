@@ -16,11 +16,11 @@
     "@base-org/account": "2.6.0",
     "@fuda/sdk": "workspace:*",
     "@simplewebauthn/browser": "^14.0.0",
-    "@tanstack/query-core": "5.105.3",
+    "@tanstack/query-core": "5.107.1",
     "hono": "^4.13.17",
-    "preact": "11.1.1",
+    "preact": "11.2.0",
     "valibot": "^1.5.0",
-    "viem": "^2.57.16"
+    "viem": "^2.57.17"
   },
   "devDependencies": {
     "vitest": "5.1.0"
