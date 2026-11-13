@@ -31,7 +31,7 @@
     "@worldcoin/idkit-core": "^4.6.0",
     "@worldcoin/idkit-server": "^1.2.0",
     "drizzle-orm": "^0.45.4",
-    "hono": "^4.13.17",
+    "hono": "^4.13.18",
     "valibot": "^1.5.0",
     "viem": "^2.57.17"
   },
@@ -43,6 +43,6 @@
     "jsonc-parser": "3.3.1",
     "pkijs": "4.0.1",
     "vitest": "5.1.0",
-    "void": "1.7.0"
+    "void": "1.8.0"
   }
 }

@@ -155,7 +155,7 @@ Decided 2026-11-05. All three frontends use Preact through `void-preact`, with p
 
 The owner chose it to dogfood their own adapter. This is a preference, not a measured advantage. The adapter's README advises against production use, and the owner accepts that risk.
 
-- **Exact pins**: `void-preact@0.1.3`, `void@1.7.0`, `preact@11.1.1`, `preact-render-to-string@6.8.2`. A Void upgrade waits for an adapter release that supports the new version.
+- **Exact pins**: `void-preact@0.1.4`, `void@1.8.0`, `preact@11.1.1`, `preact-render-to-string@6.8.2`. A Void upgrade waits for an adapter release that supports the new version.
 - **Preact reruns component bodies.** Refs hold component lifetimes, request generations and busy guards. Pages get stable callbacks, because a function prop in an effect dependency list reruns the effect whenever the parent hands over a new function.
 - **Gate installs its reader listener with layout-effect timing**, and keeps the camera's late-stream cleanup and the duplicate-scan guard.
 - **`@fuda/ui/wallet-button` stays a Hono HTML helper**, because the API renders it on the server.
