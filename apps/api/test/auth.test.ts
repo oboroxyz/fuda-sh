@@ -39,7 +39,13 @@ describe('operator sign-in', () => {
     expect(session.issuer).toBeNull()
     const me = await getJson(app, testEnv(), '/v1/issuers/me', session.token)
     expect(me.status).toBe(200)
-    await expect(me.json()).resolves.toStrictEqual({ cards: [], ens: null, issuer: null, publicUrl: null })
+    await expect(me.json()).resolves.toStrictEqual({
+      cards: [],
+      ens: null,
+      issuer: null,
+      publicUrl: null,
+      requirementRegistries: [],
+    })
   })
 
   it('rejects a signature from another key and burns the nonce', async () => {

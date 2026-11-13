@@ -68,8 +68,9 @@ export const claimSourceFrom = (search: string): string | null => {
   return parsed.success ? parsed.output : null
 }
 
-const issuePath = (handle: string, slug: string): string =>
-  `/issuers/${encodeURIComponent(handle)}/${encodeURIComponent(slug)}/issue`
+const cardPath = (handle: string, slug: string): string =>
+  `/issuers/${encodeURIComponent(handle)}/${encodeURIComponent(slug)}`
+const issuePath = (handle: string, slug: string): string => `${cardPath(handle, slug)}/issue`
 
 // Self-serve issuance of one card: no account. The api answers 429
 // `rate_limited`, 409 `card_closed` or `card_sold_out`, 501 `no_signer`, 502
@@ -134,6 +135,7 @@ export type CardFailure =
   | 'card_closed'
   | 'card_sold_out'
   | 'chain_error'
+  | 'claim_time'
   | 'network'
   | 'no_signer'
   | 'not_found'
@@ -181,3 +183,36 @@ export const cardFailureOf = (result: { status: number; error: string }): CardFa
 // The Google Wallet save link, or null when the api has no Google credentials
 // (501 `google_not_configured`) — the button stays hidden in that case.
 export const googleSaveUrl = async (url: string): Promise<string | null> => await googlePassHref(url)
+
+export const applyAddressCard = async (
+  handle: string,
+  slug: string,
+  holderAddress: Hex,
+  turnstileToken: string | null,
+): Promise<Result<{ applied: true }>> =>
+  await apiFetch(API_BASE_URL, `${cardPath(handle, slug)}/apply`, {
+    body: JSON.stringify({ holderAddress, turnstileToken: turnstileToken ?? undefined }),
+    credentials: 'omit',
+    method: 'POST',
+  })
+
+export const issueAddressCard = async (
+  handle: string,
+  slug: string,
+  holderAddress: Hex,
+  signature: Hex,
+  issuedAt: number,
+  source: string | null,
+  turnstileToken: string | null,
+): Promise<Result<SelfServeIssueResponse>> =>
+  await apiFetch(API_BASE_URL, issuePath(handle, slug), {
+    body: JSON.stringify({
+      holderAddress,
+      issuedAt,
+      signature,
+      source: source ?? undefined,
+      turnstileToken: turnstileToken ?? undefined,
+    }),
+    credentials: 'omit',
+    method: 'POST',
+  })

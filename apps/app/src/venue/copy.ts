@@ -91,6 +91,8 @@ export const VENUE_COPY = {
       card_closed: 'This card is no longer being handed out.',
       card_sold_out: 'All of these cards have been handed out.',
       chain_error: 'Cards cannot be issued right now. Please try again later.',
+      claim_time:
+        "The request could not be verified. Check that this device's date and time are correct, then try again.",
       network: 'Could not reach fuda. Check your connection and try again.',
       no_signer: 'Cards cannot be issued right now. Please try again later.',
       not_found: 'This card is no longer available.',
@@ -98,7 +100,7 @@ export const VENUE_COPY = {
       passkey_refused: 'That passkey is not on your account. Choose one you sign in with.',
       rate_limited: 'Too many cards were requested from this device. Please try again later.',
       secret_unopenable:
-        'That passkey could not open your sensitive passes here, so no card was issued. Try on the device where it was saved.',
+        'That passkey could not open your passes here, so no card was issued. Try on the device where it was saved.',
       signed_out: 'Please sign in again to get this card.',
     },
     getCard: (noun) => `Get this ${noun}`,
@@ -125,8 +127,8 @@ export const VENUE_COPY = {
     pickCard: 'Pick a card',
     qrLabel: (name, noun) => `Your ${noun} QR code for ${name}`,
     saveBackup: 'Save a backup of this pass',
-    saveBackupHint: 'Keep it somewhere safe. Anyone who has it can use this pass.',
-    savedOnDevice: (noun) => `No name or contact details required. This ${noun} is saved on this device.`,
+    saveBackupHint: 'Anyone who has the backup can use this pass.',
+    savedOnDevice: (noun) => `This ${noun} is saved on this device.`,
     seeAllCards: (name) => `See all cards from ${name}`,
     sensitiveAlreadyHeld: 'Already have it on another device? Find it under Your passes.',
     sensitiveEntryNote:
@@ -178,6 +180,8 @@ export const VENUE_COPY = {
       card_closed: 'このカードの配布は終了しました。',
       card_sold_out: 'このカードは上限枚数に達しました。',
       chain_error: '現在カードを発行できません。しばらくしてからもう一度お試しください。',
+      claim_time:
+        'リクエストを確認できませんでした。この端末の日付と時刻が正しいか確かめて、もう一度お試しください。',
       network: 'fudaに接続できませんでした。通信状況を確認して、もう一度お試しください。',
       no_signer: '現在カードを発行できません。しばらくしてからもう一度お試しください。',
       not_found: 'このカードは利用できなくなりました。',
@@ -187,7 +191,7 @@ export const VENUE_COPY = {
       rate_limited:
         'この端末からのカード発行リクエストが多すぎます。しばらくしてからもう一度お試しください。',
       secret_unopenable:
-        'このパスキーではこの端末で機密パスを開けないため、カードは発行されませんでした。パスキーを保存した端末でお試しください。',
+        'このパスキーではこの端末でパスを開けないため、カードは発行されませんでした。パスキーを保存した端末でお試しください。',
       signed_out: 'カードを受け取るには、もう一度サインインしてください。',
     },
     getCard: (noun) => `この${noun}を受け取る`,
@@ -214,8 +218,8 @@ export const VENUE_COPY = {
     pickCard: 'カードを選ぶ',
     qrLabel: (name, noun) => `${name}の${noun}のQRコード`,
     saveBackup: 'パスの控えを保存',
-    saveBackupHint: '安全な場所に保管してください。控えを持つ人は、このパスを使えます。',
-    savedOnDevice: (noun) => `氏名や連絡先は不要です。この${noun}はこの端末に保存されています。`,
+    saveBackupHint: '控えを持つ人は、このパスを使えます。',
+    savedOnDevice: (noun) => `この${noun}はこの端末に保存されています。`,
     seeAllCards: (name) => `${name}のカードをすべて見る`,
     sensitiveAlreadyHeld: '別の端末で受け取り済みの場合は、パス一覧から開けます。',
     sensitiveEntryNote:

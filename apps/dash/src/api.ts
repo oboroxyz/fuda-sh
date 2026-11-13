@@ -1,6 +1,8 @@
 import type {
+  CardApplicantsResponse,
   CardCheckResponse,
   CardCreateResponse,
+  CardUpdateResponse,
   EnsClaimView,
   CardRequest,
   HandleCheckResponse,
@@ -236,6 +238,35 @@ export const uploadLogo = async (variants: LogoSet): Promise<Result<LogoUploadRe
   }
 }
 
+const uploadCardImage = async (
+  kind: 'artwork' | 'poster',
+  cardId: string,
+  variants: Record<string, Blob>,
+): Promise<Result<CardUpdateResponse>> => {
+  const body = new FormData()
+  for (const [variant, blob] of Object.entries(variants)) {
+    body.append(variant, blob, `${variant}.png`)
+  }
+  return await apiFetch<CardUpdateResponse>(API_BASE_URL, `/issuers/me/cards/${cardId}/${kind}`, {
+    body,
+    method: 'PUT',
+  })
+}
+const removeCardImage = async (
+  kind: 'artwork' | 'poster',
+  cardId: string,
+): Promise<Result<CardUpdateResponse>> =>
+  await apiFetch<CardUpdateResponse>(API_BASE_URL, `/issuers/me/cards/${cardId}/${kind}`, {
+    method: 'DELETE',
+  })
+
+export const uploadArtwork = async (cardId: string, variants: Record<string, Blob>) =>
+  await uploadCardImage('artwork', cardId, variants)
+export const removeArtwork = async (cardId: string) => await removeCardImage('artwork', cardId)
+export const uploadPoster = async (cardId: string, variants: Record<string, Blob>) =>
+  await uploadCardImage('poster', cardId, variants)
+export const removePoster = async (cardId: string) => await removeCardImage('poster', cardId)
+
 // Points the venue this session already owns at a staged upload.
 export const commitLogo = async (logoUploadId: string): Promise<Result<{ issuer: IssuerView }>> =>
   await apiFetch<{ issuer: IssuerView }>(API_BASE_URL, '/issuers/logo/commit', {
@@ -257,3 +288,13 @@ export const confirmEnsClaim = async (txHash: Hex): Promise<Result<EnsClaimView>
     body: JSON.stringify({ txHash }),
     method: 'POST',
   })
+
+export const fetchCardApplicants = async (
+  cardId: string,
+  after?: string,
+): Promise<Result<CardApplicantsResponse>> =>
+  await apiFetch<CardApplicantsResponse>(
+    API_BASE_URL,
+    `/issuers/me/cards/${encodeURIComponent(cardId)}/applicants${after === undefined ? '' : `?after=${encodeURIComponent(after)}`}`,
+    {},
+  )

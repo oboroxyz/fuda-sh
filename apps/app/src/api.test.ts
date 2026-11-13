@@ -2,6 +2,8 @@ import type { Hex, VerifyResponse } from '@fuda/sdk'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  applyAddressCard,
+  issueAddressCard,
   cardFailureOf,
   claimSourceFrom,
   challenge,
@@ -225,5 +227,37 @@ describe('Sensitive request privacy', () => {
       expect(request.credentials).toBe('omit')
       expect([...new Headers(request.headers).keys()]).toStrictEqual(['content-type'])
     }
+  })
+})
+
+describe('address card requests', () => {
+  it('applies without account credentials and with only the public address and bot token', async () => {
+    const spy = stubFetch(() => json({ applied: true }, 200))
+    await applyAddressCard('art club', 'fan pass', UID, 'bot')
+    expect(spy).toHaveBeenCalledWith('/api/v1/issuers/art%20club/fan%20pass/apply', {
+      body: JSON.stringify({ holderAddress: UID, turnstileToken: 'bot' }),
+      credentials: 'omit',
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    })
+  })
+
+  it('claims with a signature, omits optional values and preserves the requirement detail', async () => {
+    const requirement = { detail: 'wrong-terms', kind: 'erc8432-agreement' }
+    const spy = stubFetch(() => json({ error: 'requirement_unmet', requirement }, 403))
+    const result = await issueAddressCard('art', 'fan', UID, SIGNATURE, 123, null, null)
+    expect(result).toStrictEqual({
+      error: 'requirement_unmet',
+      network: false,
+      ok: false,
+      requirement,
+      status: 403,
+    })
+    expect(spy).toHaveBeenCalledWith('/api/v1/issuers/art/fan/issue', {
+      body: JSON.stringify({ holderAddress: UID, issuedAt: 123, signature: SIGNATURE }),
+      credentials: 'omit',
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    })
   })
 })

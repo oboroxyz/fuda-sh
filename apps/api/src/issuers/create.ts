@@ -4,8 +4,9 @@ import type { CardRequest, IssuerCreateRequest } from '@fuda/sdk'
 import { attachIssuer } from '../auth/session.ts'
 import type { OperatorSession } from '../auth/session.ts'
 import type { Db } from '../db/client.ts'
-import { cards, issuers } from '../db/schema.ts'
+import { cardRequirements, cards, issuers } from '../db/schema.ts'
 import { consumeIssuerLogo, pendingLogoPrefix } from '../media/store.ts'
+import { requirementRows } from '../requirements/store.ts'
 import { ownerColumns } from './queries.ts'
 
 const cardValues = (
@@ -19,6 +20,7 @@ const cardValues = (
   claimUntil: input.claimUntil,
   createdAt: row.createdAt,
   description: input.description,
+  hasRequirements: input.requirements.length > 0,
   id: row.id,
   identity: input.identity,
   issuerId: row.issuerId,
@@ -40,11 +42,17 @@ export const insertCard = async (
   now: number,
 ): Promise<typeof cards.$inferSelect | null> => {
   const id = crypto.randomUUID()
+  const insert = db
+    .insert(cards)
+    .values(cardValues(input, { createdAt: now, id, issuerId }))
+    .returning()
+  const requirements = requirementRows(id, input.requirements)
   try {
-    const [created] = await db
-      .insert(cards)
-      .values(cardValues(input, { createdAt: now, id, issuerId }))
-      .returning()
+    // One batch is one transaction, so a slug already taken leaves no requirement behind.
+    const [[created]] =
+      requirements.length === 0
+        ? [await insert]
+        : await db.batch([insert, db.insert(cardRequirements).values(requirements)])
     return created ?? null
   } catch {
     return null

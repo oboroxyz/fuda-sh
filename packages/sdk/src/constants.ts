@@ -32,6 +32,9 @@ export const hasNoHolder = (holder: string): boolean => /^0x0{40}$/u.test(holder
 export const isPasskeyPass = (right: { holder: string; level: number }): boolean =>
   right.level === 1 && hasNoHolder(right.holder)
 
+export const claimMessage = (cardId: string, holderAddress: Hex, issuedAt: number): string =>
+  `fuda.sh:claim:v1:${cardId}:${holderAddress.toLowerCase()}:${issuedAt}`
+
 export const CHALLENGE_PREFIX = 'fuda-gate:'
 export const CHALLENGE_TTL_SECONDS = 300
 
@@ -83,6 +86,7 @@ export const REASONS = [
   'WRONG_VENUE',
   'BAD_CHALLENGE',
   'BAD_SIGNATURE',
+  'REQUIREMENT_UNMET',
 ] as const
 export type Reason = (typeof REASONS)[number]
 
@@ -148,6 +152,7 @@ export const ERROR_CODES = [
   'bad_redirect_uri',
   'not_app_owner',
   'app_limit',
+  'requirement_unmet',
 ] as const
 export type ErrorCode = (typeof ERROR_CODES)[number]
 

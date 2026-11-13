@@ -1,5 +1,6 @@
 import type { BadgeKind, ErrorCode, Hex, ISSUER_PASS_STATUSES, Level, Reason } from './constants.ts'
 import type { CardCategory, CardView, IssuerView, OperatorCardView } from './handles.ts'
+import type { RequirementKind, RequirementUnmet } from './requirements.ts'
 
 export interface ErrorResponse {
   error: ErrorCode
@@ -15,6 +16,7 @@ export interface PassUrls {
 // venue's own look (GET /pass/<uid>/card). `card` is null for an admin-issued
 // right, which keeps the plain fuda look.
 export interface PassCardView {
+  artworkUrl: string | null
   issuerName: string
   cardTitle: string
   category: CardCategory
@@ -106,6 +108,8 @@ export interface BadgeView {
 }
 
 export interface VerifyResponse {
+  requirement?: RequirementUnmet
+  requirements?: { kind: RequirementKind; evidence: string }[]
   decision: 'ADMIT' | 'REJECT'
   reason: Reason
   entitlement?: EntitlementView
@@ -135,10 +139,19 @@ export interface PasskeyRequestOptions {
 // Every /verify-signed verdict is 200 in this one shape (docs/specs/pass-types-and-flows.md#gate-protocol): no entitlement
 // or delegation view, `stage` marks the two early stops, `holder` appears once the
 // attestation was decoded.
+// The addresses that applied for a Card with requirements, oldest first. `next` is the
+// `after` value of the following page, or null on the last one.
+export interface CardApplicantsResponse {
+  applicants: { address: string; appliedAt: number }[]
+  next: string | null
+}
+
 export interface VerifySignedResponse {
   decision: 'ADMIT' | 'REJECT'
   reason: Reason
   path: 'signature'
+  requirement?: RequirementUnmet
+  requirements?: { kind: RequirementKind; evidence: string }[]
   venue?: string
   holder?: Hex
   stage?: 'entitlement' | 'challenge'
@@ -291,7 +304,10 @@ export interface IssuerUpdateResponse {
 export interface DefaultCardResponse {
   issuer: IssuerView
 }
-export type IssuerMeResponse = IssuerCardsResponse | { issuer: null; cards: []; publicUrl: null; ens: null }
+export type IssuerMeResponse = (
+  | IssuerCardsResponse
+  | { issuer: null; cards: []; publicUrl: null; ens: null }
+) & { requirementRegistries?: string[] }
 
 // POST /auth/switch — a new session bound to the chosen issuer. The session
 // that asked keeps its own issuer: a token never changes which issuer it acts

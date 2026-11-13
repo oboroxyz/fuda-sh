@@ -20,6 +20,7 @@ import type { AppEnv } from '../env.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
 import { admitAndHook, logEntry } from '../verify/admit.ts'
 import { consumeChallenge } from '../verify/challenge.ts'
+import type { VerifyOutcome } from '../verify/verify-uid.ts'
 import { resolveVerdict, venueHandleOf, waitUntilOf } from './verify.ts'
 
 // Which of the two 4xx codes a malformed body earns: a uid that is absent or not
@@ -67,6 +68,40 @@ const proofHolds = async (
     return await signedBy(holderAddress, message, signature)
   }
   return await c.get('chain').verifyMessage({ address: holder, message, signature })
+}
+
+const admitSigned = async (
+  c: Context<AppEnv>,
+  uid: Hex,
+  now: number,
+  out: Extract<VerifyOutcome, { decision: 'ADMIT' }>,
+  answer: (verdict: VerifySignedResponse) => Promise<Response>,
+  withVenue: (verdict: VerifySignedResponse) => Response,
+): Promise<Response> => {
+  const db = c.get('db')
+  const { holder } = out.canonical
+  const outcome = await admitAndHook({
+    canonical: out.canonical,
+    db,
+    now,
+    onAdmit: c.get('onAdmit'),
+    path: 'signature',
+    uid,
+    waitUntil: waitUntilOf(c),
+  })
+  if (!outcome.admitted) {
+    return await answer({ decision: 'REJECT', holder, path: 'signature', reason: outcome.reason })
+  }
+  const admitted: VerifySignedResponse = {
+    decision: 'ADMIT',
+    holder,
+    path: 'signature',
+    reason: 'OK',
+  }
+  if (out.requirements !== undefined) {
+    admitted.requirements = out.requirements
+  }
+  return withVenue(admitted)
 }
 
 export const postV1VerifySigned = defineHandler(async (c) => {
@@ -132,6 +167,9 @@ export const postV1VerifySigned = defineHandler(async (c) => {
       reason: out.reason,
       stage: 'entitlement',
     }
+    if (out.requirement !== undefined) {
+      verdict.requirement = out.requirement
+    }
     if (out.entitlement !== undefined) {
       verdict.holder = out.entitlement.holder
     }
@@ -178,23 +216,5 @@ export const postV1VerifySigned = defineHandler(async (c) => {
     return await answer({ decision: 'REJECT', holder, path: 'signature', reason: 'BAD_SIGNATURE' })
   }
   proven = true
-  const outcome = await admitAndHook({
-    canonical: out.canonical,
-    db,
-    now,
-    onAdmit: c.get('onAdmit'),
-    path: 'signature',
-    uid,
-    waitUntil: waitUntilOf(c),
-  })
-  if (!outcome.admitted) {
-    return await answer({ decision: 'REJECT', holder, path: 'signature', reason: outcome.reason })
-  }
-  const admitted: VerifySignedResponse = {
-    decision: 'ADMIT',
-    holder,
-    path: 'signature',
-    reason: 'OK',
-  }
-  return withVenue(admitted)
+  return await admitSigned(c, uid, now, out, answer, withVenue)
 })

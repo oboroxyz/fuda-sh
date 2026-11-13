@@ -57,6 +57,27 @@ This cache supports presentation, not authorization or admission decisions. It i
 - **A connected app reaches one Issuer.** Its access token names the Issuer chosen at approval and the routes it reaches read only that Issuer; it cannot create an Issuer or act as the Operator. Only the account that registered the app can approve it.
 - **The public verify endpoints are unauthenticated by design.** `GET /v1/verify/:uid` and `POST /v1/verify` take a uid that is public on chain, so anyone who learns one can preview it. `GET /v1/verify/:uid` is a read-only preview and never consumes a slot; a bare `POST /verify` is an admission, so it burns a SINGLE_USE right's slot. What that buys an attacker, and why Signed is the answer for rights that must resist it, is in the attestation model's [threat model of the public verify endpoints](./specs/attestation-model.md#api-payloads-that-touch-attestations).
 
+## Outside systems
+
+An outside system works with fuda in one of three roles. The role says who decides that a member may hold a pass.
+
+| Role | Who decides | Path | Specification |
+| --- | --- | --- | --- |
+| Acts for an Issuer | the outside system | connected-app routes under `/v1/connect`, the MCP server at `/mcp` | [Connected apps](./specs/connected-apps.md), [MCP server](./specs/mcp.md) |
+| Holds a record that fuda reads | fuda, from that record | Card requirements | [Card requirements](./specs/card-requirements.md) |
+| Verifies a fact after issuance | nobody: a Badge is advisory | Badges, enabled per Card as an integration | [Badges](./specs/pass-types-and-flows.md#badges) |
+
+Every path ends in the same three functions of the api. `insertCard` creates a Card, `issueForCard` issues a pass under a Card, and `revokePass` revokes one. A path adds its own authentication and chooses which operations it offers. Card and pass rules, such as capacity, identity and requirements, live in those functions, so no path can skip them. The admin `POST /issue` is the one exception: it issues a Right outside any Card.
+
+| Operation                 | Dashboard | Claim page | Connected-app routes | MCP server |
+| ------------------------- | --------- | ---------- | -------------------- | ---------- |
+| Create a Card             | yes       | no         | yes                  | yes        |
+| Issue a pass under a Card | no        | yes        | no                   | yes        |
+| List passes               | yes       | no         | no                   | yes        |
+| Revoke a pass             | yes       | no         | no                   | yes        |
+
+`@fuda/sdk` is a workspace package of shared schemas, types and constants, with a generic fetch helper. It is not published and has no client for these routes.
+
 ## UX and decentralization
 
 fuda's core is decentralized and ownable: a right is an on-chain attestation that anyone can verify and the member can come to own. For UX, fuda surfaces that core through Apple, Google, and its own hosted backend. The design principle: **decentralized at the core, on rails only for UX.** The core carries the guarantees and a right's validity never leaves it; the rails add convenience on top. Strip a rail away and every function keeps working — with somewhat worse UX — because the fallback is the core itself.
@@ -97,7 +118,7 @@ Because each frontend's Worker uses `https://api.fuda.sh` unless its optional `A
 
 The deployment's configured values, and what fails when one is missing, are tabulated once in the attestation model's [chain fixtures](./specs/attestation-model.md#chain-fixtures) and [configured values](./specs/attestation-model.md#configured-values). In outline:
 
-- **`apps/api/targets.jsonc` `vars`**, one set per target — the chain addresses and the api's own base: `EAS_ADDRESS`, `EAS_SCHEMAS`, `ISSUER_ADDRESS`, `DELEGATION_UID`, `GRAPH_START_BLOCK` (the rights-subgraph manifest's generated start block; it is not read by the API), `FACTORY_ADDRESS` (the smart-wallet factory the Bearer holder address is derived from), and `API_BASE_URL` (the absolute base of the `passUrls` in an `/issue` response, and the api entry in the Google Wallet `origins` claim).
+- **`apps/api/targets.jsonc` `vars`**, one set per target — the chain addresses and the api's own base: `EAS_ADDRESS`, `EAS_SCHEMAS`, `ISSUER_ADDRESS`, `DELEGATION_UID`, `GRAPH_START_BLOCK` (the rights-subgraph manifest's generated start block; it is not read by the API), `IP_REGISTRIES` (optional comma-separated ERC-8432 registry allowlist; unset on deployed targets), `FACTORY_ADDRESS` (the smart-wallet factory the Bearer holder address is derived from), and `API_BASE_URL` (the absolute base of the `passUrls` in an `/issue` response, and the api entry in the Google Wallet `origins` claim).
 - **Worker secrets** — `SIGNER_PRIVATE_KEY`, `ADMIN_TOKEN`, `BASE_RPC_URL`, the four `GOOGLE_*` names and the five `APPLE_*` names. A wallet platform is all-or-nothing: a missing name answers `501`, never a broken pass.
 - **`USE_FAKE_CHAIN`** — local development only (`apps/api/targets/local/.env`); it swaps in an in-memory chain and is never set in a deployed environment.
 - **Frontend environment** — each Worker's optional `API_BASE_URL` var, emitted by `void.config.ts` only when explicitly set in the shell (otherwise the Worker defaults to `https://api.fuda.sh`); `VITE_GRAPH_RIGHTS_ENDPOINT` in the member app and dashboard; `VITE_ENS_PAYMASTER_URL` in the dashboard; `VITE_APP_ORIGIN` and `VITE_RP_ID` in the member app. Vite bakes the `VITE_*` values in at build time, so changing one means redeploying that app.

@@ -1,4 +1,5 @@
-import { isIssuerHandle } from '@fuda/sdk'
+import { IMAGE_SETS, isIssuerHandle } from '@fuda/sdk'
+import type { ImageSetSpec } from '@fuda/sdk'
 import { and, eq, isNotNull } from 'drizzle-orm'
 import * as v from 'valibot'
 import { defineHandler } from 'void'
@@ -6,20 +7,17 @@ import { defineHandler } from 'void'
 import { issuers } from '../db/schema.ts'
 import { issuerView } from '../issuers/views.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
-import {
-  IMMUTABLE_CACHE_CONTROL,
-  isLogoVariant,
-  LOGO_VARIANTS,
-  logoVersion,
-  MAX_LOGO_SET_BYTES,
-} from '../media/logo.ts'
+import { IMMUTABLE_CACHE_CONTROL, isLogoVariant, logoVersion } from '../media/logo.ts'
 import { consumeIssuerLogo, pendingLogoPrefix, readLogoObject, storeLogoSet } from '../media/store.ts'
 import { operatorAuth } from '../middleware/operator-auth.ts'
 import { notifyPassesChanged } from '../pass/notify.ts'
 
 const CommitBody = v.object({ logoUploadId: v.pipe(v.string(), v.minLength(1)) })
 
-const partsOf = async (request: Request): Promise<Map<string, Uint8Array> | null> => {
+export const partsOf = async (
+  request: Request,
+  spec: ImageSetSpec = IMAGE_SETS.logo,
+): Promise<Map<string, Uint8Array> | null> => {
   let form: FormData
   try {
     form = await request.formData()
@@ -38,10 +36,12 @@ const partsOf = async (request: Request): Promise<Map<string, Uint8Array> | null
     return value === null || typeof value === 'string' ? null : { file: value, variant }
   }
 
-  const files = LOGO_VARIANTS.map(asPart).filter((part): part is LogoPart => part !== null)
+  const files = Object.keys(spec.variants)
+    .map(asPart)
+    .filter((part): part is LogoPart => part !== null)
   // The set cap is applied to the declared sizes first, so a hostile body is
   // refused before the isolate reads a single byte of it.
-  if (files.reduce((sum, part) => sum + part.file.size, 0) > MAX_LOGO_SET_BYTES) {
+  if (files.reduce((sum, part) => sum + part.file.size, 0) > spec.maxSetBytes) {
     return null
   }
   const read = await Promise.all(

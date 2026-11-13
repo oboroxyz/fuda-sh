@@ -1,4 +1,5 @@
 import type { BadgeKind, Hex } from './constants.ts'
+import type { Requirement } from './requirements.ts'
 
 // The issuer Handle (docs/specs/ens-naming.md): the `/@<handle>` slug and the
 // ENS issuer label, lowercase ASCII `[a-z0-9-]`, 1–63 bytes, no edge hyphen
@@ -113,12 +114,12 @@ export const CARD_CATEGORIES: readonly CardCategory[] = ['membership', 'ticket']
 export type CardRecord = 'offchain' | 'onchain'
 export const CARD_RECORDS: readonly CardRecord[] = ['offchain', 'onchain']
 
-// Who can use a card's passes: whoever shows one, only the passkey that claimed it, or
-// only a key unique to the pass (Sensitive use). Fixed when the card is created, and both
-// bound kinds need an offchain record, because the pass attests the key rather than naming
-// a holder address.
-export type CardIdentity = 'none' | 'passkey' | 'sensitive'
-export const CARD_IDENTITIES: readonly CardIdentity[] = ['none', 'passkey', 'sensitive']
+// Who can use a card's passes: whoever shows one, only the passkey that claimed it, only a
+// key unique to the pass (Sensitive use), or only the address a requirement checks. Fixed
+// when the card is created, and every bound kind needs an offchain record, because the pass
+// attests the key rather than naming a holder address.
+export type CardIdentity = 'none' | 'passkey' | 'sensitive' | 'address'
+export const CARD_IDENTITIES: readonly CardIdentity[] = ['none', 'passkey', 'sensitive', 'address']
 export const isIdentityAllowed = (card: { identity: CardIdentity; record: CardRecord }): boolean =>
   card.identity === 'none' || card.record === 'offchain'
 export const defaultAttendance = (category: CardCategory, record: CardRecord): boolean =>
@@ -152,6 +153,7 @@ export interface CardValidity {
 export const CARD_DESCRIPTION_MAX_LENGTH = 2000
 
 export interface CardView extends ClaimWindow, CardValidity {
+  artworkUrl: string | null
   id: string
   slug: string
   title: string
@@ -168,11 +170,15 @@ export interface CardView extends ClaimWindow, CardValidity {
   // from an older API, which a client treats as none, so a card offers nothing
   // until its issuer opts in.
   badges?: readonly BadgeKind[]
+  // What a member must hold to claim a pass (docs/specs/card-requirements.md). Absent from
+  // an older API, which a client treats as none.
+  requirements?: readonly Requirement[]
 }
 
 // Operator-only card hydration includes the stored fields that are intentionally
 // absent from public CardView responses.
 export interface OperatorCardView extends CardView {
+  posterUrl: string | null
   attendance: boolean
   identity: CardIdentity
   lockScreen: boolean

@@ -24,6 +24,11 @@ export default defineConfig({
     vars: {
       ...local.cloudflare?.vars,
       API_BASE_URL: env('E2E_API_ORIGIN'),
+      // One granted agreement for packages/e2e/tests/app/requirement.e2e.ts: its holder is the
+      // address of that test's fixed key.
+      FAKE_AGREEMENT:
+        '0xabababababababababababababababababababab:0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee:0x19e7e376e7c213b7e7e7e46cc70a5dd086daff2a',
+      IP_REGISTRIES: '0xabababababababababababababababababababab',
       PUBLIC_BASE_URL: env('E2E_APP_ORIGIN'),
       USE_FAKE_CHAIN: '1',
     },

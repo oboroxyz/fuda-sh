@@ -1,7 +1,8 @@
 import { entitlementWindow, generateMemberNumber, USAGE_MODEL } from '@fuda/sdk'
-import type { IssueRequest, SelfServeIssueResponse } from '@fuda/sdk'
+import type { RequirementUnmet, IssueRequest, SelfServeIssueResponse } from '@fuda/sdk'
 import { and, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import type { Context } from 'hono'
+import type { Hex } from 'viem'
 
 import { ChainError, NoSignerError } from '../chain/client.ts'
 import { UnknownTransactionOutcomeError } from '../chain/unknown-transaction-outcome-error.ts'
@@ -10,10 +11,18 @@ import { cards, members } from '../db/schema.ts'
 import type { issuers } from '../db/schema.ts'
 import { mirrorMemberName } from '../ens/mirror.ts'
 import type { AppEnv } from '../env.ts'
+import {
+  addressPassOver,
+  claimEvidence,
+  claimRows,
+  existingAddressPass,
+  renewEvidence,
+} from '../requirements/claim.ts'
+import { cardHasRequirements } from '../requirements/store.ts'
 import { issueBearer, IssueConfigError } from './issue-bearer.ts'
 import { issueContext } from './issue-context.ts'
 import { issueOffchainPass, offchainDomain } from './issue-offchain.ts'
-import type { PassClaimant } from './issue-offchain.ts'
+import type { OffchainIssueParams, PassClaimant } from './issue-offchain.ts'
 import { OrphanedRightError } from './orphaned-right-error.ts'
 import { releasePlace } from './release-place.ts'
 
@@ -50,6 +59,7 @@ export type CardIssueError = 'card_sold_out' | 'chain_error' | 'holder_must_clai
 export type CardIssueOutcome =
   | { ok: true; pass: SelfServeIssueResponse }
   | { ok: false; error: CardIssueError }
+  | { ok: false; error: 'requirement_unmet'; requirement: RequirementUnmet }
 
 const passBody = (card: typeof cards.$inferSelect, memberNumber: string, now: number) => {
   const window = entitlementWindow(card, now)
@@ -73,6 +83,7 @@ const issueOffchain = async (
   issuer: Pick<typeof issuers.$inferSelect, 'handle' | 'id'>,
   source: string | null,
   claimant: PassClaimant | null,
+  extraRows?: OffchainIssueParams['extraRows'],
 ): Promise<CardIssueOutcome> => {
   const chain = c.get('chain')
   if (chain.offchainAttester() === null) {
@@ -97,9 +108,10 @@ const issueOffchain = async (
       body: passBody(card, memberNumber, now),
       cardId: card.id,
       chain,
-      claimant,
+      claimant: card.identity === 'none' ? null : claimant,
       db,
       domain,
+      extraRows,
       issuerHandle: issuer.handle,
       issuerId: issuer.id,
       memberNumber,
@@ -118,22 +130,80 @@ const issueOffchain = async (
   }
 }
 
-// One pass under a card (docs/specs/pass-types-and-flows.md#standard-issuance).
-// The card fixes tier, usage model and validity. Its caller decides who may ask, except on
-// a card bound to a key, whose pass can only be issued to the key that claimed it.
-export const issueForCard = async (
+const restoreRequirementPass = async (
+  c: Context<AppEnv>,
+  card: typeof cards.$inferSelect,
+  address: Hex,
+  existing: SelfServeIssueResponse | null,
+  agreementId?: Hex,
+): Promise<CardIssueOutcome | null> => {
+  if (existing === null || (await addressPassOver(c.get('db'), existing.uid, c.get('now')()))) {
+    return null
+  }
+  const renewed = await renewEvidence(
+    c.get('db'),
+    c.get('chain'),
+    card,
+    address,
+    existing.uid,
+    c.env,
+    agreementId,
+  )
+  return renewed.ok
+    ? { ok: true, pass: existing }
+    : { error: 'requirement_unmet', ok: false, requirement: renewed.requirement }
+}
+
+const issueRequirement = async (
   c: Context<AppEnv>,
   card: typeof cards.$inferSelect,
   issuer: Pick<typeof issuers.$inferSelect, 'handle' | 'id'>,
   source: string | null,
-  claimant: PassClaimant | null = null,
+  claimant: PassClaimant | null,
+  agreementId?: Hex,
 ): Promise<CardIssueOutcome> => {
-  if (card.identity !== 'none' && claimant === null) {
+  if (claimant?.kind !== 'address') {
     return { error: 'holder_must_claim', ok: false }
   }
-  if (card.record === 'offchain') {
-    return await issueOffchain(c, card, issuer, source, claimant)
+  try {
+    const existing = await existingAddressPass(c.get('db'), card.id, claimant.address, c.env.API_BASE_URL)
+    const restored = await restoreRequirementPass(c, card, claimant.address, existing, agreementId)
+    if (restored !== null) {
+      return restored
+    }
+    const checked = await claimEvidence(
+      c.get('db'),
+      c.get('chain'),
+      card,
+      claimant.address,
+      c.env,
+      agreementId,
+    )
+    if (!checked.ok) {
+      return { error: 'requirement_unmet', ok: false, requirement: checked.requirement }
+    }
+    const outcome = await issueOffchain(c, card, issuer, source, claimant, (uid) =>
+      claimRows(c.get('db'), card.id, claimant.address, checked.evidence, uid, existing?.uid),
+    )
+    if (outcome.ok) {
+      return outcome
+    }
+    const winner = await existingAddressPass(c.get('db'), card.id, claimant.address, c.env.API_BASE_URL)
+    return winner === null || winner.uid === existing?.uid ? outcome : { ok: true, pass: winner }
+  } catch (error) {
+    if (error instanceof ChainError) {
+      return { error: 'chain_error', ok: false }
+    }
+    throw error
   }
+}
+
+const issueOnchain = async (
+  c: Context<AppEnv>,
+  card: typeof cards.$inferSelect,
+  issuer: Pick<typeof issuers.$inferSelect, 'handle' | 'id'>,
+  source: string | null,
+): Promise<CardIssueOutcome> => {
   if (c.get('chain').signerAddress() === null) {
     return { error: 'no_signer', ok: false }
   }
@@ -183,4 +253,27 @@ export const issueForCard = async (
     }
     throw error
   }
+}
+
+// One pass under a card (docs/specs/pass-types-and-flows.md#standard-issuance).
+// The card fixes tier, usage model and validity. Its caller decides who may ask, except on
+// a card bound to a key, whose pass can only be issued to the key that claimed it.
+export const issueForCard = async (
+  c: Context<AppEnv>,
+  card: typeof cards.$inferSelect,
+  issuer: Pick<typeof issuers.$inferSelect, 'handle' | 'id'>,
+  source: string | null,
+  claimant: PassClaimant | null = null,
+  agreementId?: Hex,
+): Promise<CardIssueOutcome> => {
+  if ((card.identity !== 'none' || cardHasRequirements(card)) && claimant === null) {
+    return { error: 'holder_must_claim', ok: false }
+  }
+  if (cardHasRequirements(card)) {
+    return await issueRequirement(c, card, issuer, source, claimant, agreementId)
+  }
+  if (card.record === 'offchain') {
+    return await issueOffchain(c, card, issuer, source, claimant)
+  }
+  return await issueOnchain(c, card, issuer, source)
 }

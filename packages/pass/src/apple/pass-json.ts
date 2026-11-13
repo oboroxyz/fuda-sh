@@ -45,6 +45,8 @@ export interface ApplePassInput {
   qr: string
   // the venue's card, when the right was issued under one
   branding?: PassBranding | null
+  hasStrip?: boolean
+  hasPoster?: boolean
   stamps?: StampSummary | null
   // the badges on the right when the .pkpass is generated, so a member who badged
   // first and added the pass afterwards sees it at once
@@ -95,7 +97,15 @@ export interface PassJson {
   webServiceURL?: string
   barcodes: { format: string; message: string; messageEncoding: string }[]
   locations?: { latitude: number; longitude: number; relevantText: string }[]
+  posterGeneric?: {
+    headerFields: PassField[]
+    primaryFields: PassField[]
+    footerFields: PassField[]
+    additionalInfoFields: PassField[]
+    backFields: PassField[]
+  }
   storeCard: {
+    headerFields?: PassField[]
     primaryFields: PassField[]
     secondaryFields: PassField[]
     auxiliaryFields?: PassField[]
@@ -266,6 +276,10 @@ export const passJson = (cfg: AppleConfig, input: ApplePassInput): PassJson => {
   // the row below.
   // The venue location, when the card asks for it, has Wallet surface the pass
   // on the lock screen nearby.
+  const header: Pick<PassJson['storeCard'], 'headerFields'> = {}
+  if (input.hasStrip === true) {
+    header.headerFields = [{ key: 'title', value: branding.cardTitle }]
+  }
   const { label, text } = textOn(branding.brandColor)
   const stamps = input.stamps?.enabled === true ? input.stamps : null
   const locations =
@@ -282,7 +296,7 @@ export const passJson = (cfg: AppleConfig, input: ApplePassInput): PassJson => {
         }
   const stampFields: PassField[] = stamps === null ? [] : [stampField(stamps)]
   const auxiliary = auxiliaryOf([...invalidFields(input), ...stampFields, ...badgeFields(input.badges)])
-  return {
+  const result: PassJson = {
     ...base,
     ...locations,
     backgroundColor: rgbCss(hexToRgb(branding.brandColor)),
@@ -301,7 +315,8 @@ export const passJson = (cfg: AppleConfig, input: ApplePassInput): PassJson => {
         { key: 'uid', label: 'Attestation', value: input.uid },
         ...manageFields(branding.manageUrl),
       ],
-      primaryFields: [{ key: 'title', value: branding.cardTitle }],
+      ...header,
+      primaryFields: input.hasStrip === true ? [] : [{ key: 'title', value: branding.cardTitle }],
       secondaryFields: [
         { key: 'member', label: roleLabel(branding.category), value: branding.memberNumber },
         {
@@ -315,4 +330,18 @@ export const passJson = (cfg: AppleConfig, input: ApplePassInput): PassJson => {
       ],
     },
   }
+  if (input.hasPoster === true) {
+    const details = [
+      ...(result.storeCard.auxiliaryFields ?? []),
+      ...result.storeCard.secondaryFields.filter((field) => field.key === 'issued'),
+    ]
+    result.posterGeneric = {
+      additionalInfoFields: details.slice(2),
+      backFields: result.storeCard.backFields,
+      footerFields: details.slice(0, 2),
+      headerFields: [{ key: 'member', label: roleLabel(branding.category), value: branding.memberNumber }],
+      primaryFields: [{ key: 'title', value: branding.cardTitle }],
+    }
+  }
+  return result
 }

@@ -3,9 +3,11 @@ import type { Result } from '@fuda/sdk/http'
 import type { JSX } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
 
+import { ArtworkSection } from './ArtworkSection.tsx'
 import { cardUpdateBodyFrom, formFromCard } from './card-designer.ts'
 import type { DesignerForm } from './card-designer.ts'
 import { CardDesigner } from './CardDesigner.tsx'
+import { CardRequirementSections } from './CardRequirements.tsx'
 import { CardStampSettings } from './CardStampSettings.tsx'
 import type { CardStampIo } from './CardStampSettings.tsx'
 import type { DashCopy } from './copy.ts'
@@ -139,6 +141,7 @@ const LoadedCardEditor = (props: EditorProps): JSX.Element => {
   return (
     <>
       <CardDesigner
+        artworkUrl={savedCard.artworkUrl}
         busy={busy}
         editing
         copy={{
@@ -159,6 +162,8 @@ const LoadedCardEditor = (props: EditorProps): JSX.Element => {
         }}
         onSubmit={submit}
       />
+      <ArtworkSection card={savedCard} issuer={props.issuer} copy={props.copy} onSaved={setSavedCard} />
+      <CardRequirementSections card={savedCard} copy={props.copy} />
       {failed ? (
         <p role="alert" class="text-error">
           {props.copy.management.saveFailed}
@@ -170,6 +175,7 @@ const LoadedCardEditor = (props: EditorProps): JSX.Element => {
         </p>
       ) : null}
       {savedCard.identity !== 'sensitive' &&
+      savedCard.identity !== 'address' &&
       savedCard.category === 'membership' &&
       draft.category === 'membership' ? (
         <StampsOption
