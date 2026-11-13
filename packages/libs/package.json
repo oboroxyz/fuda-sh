@@ -17,7 +17,7 @@
     "@fuda/sdk": "workspace:*",
     "@simplewebauthn/browser": "^14.0.0",
     "@tanstack/query-core": "5.107.1",
-    "hono": "^4.13.17",
+    "hono": "^4.13.18",
     "preact": "11.2.0",
     "valibot": "^1.5.0",
     "viem": "^2.57.17"
