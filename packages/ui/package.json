@@ -22,7 +22,7 @@
     "cn": "0.5.2",
     "hono": "^4.13.17",
     "jsqr": "1.4.0",
-    "preact": "11.1.1"
+    "preact": "11.2.0"
   },
   "devDependencies": {
     "@babel/core": "^8.1.0",
