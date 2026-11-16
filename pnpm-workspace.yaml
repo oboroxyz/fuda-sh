@@ -28,13 +28,13 @@ overrides:
   vite@*: npm:@voidzero-dev/vite-plus-core@1.5.0
 minimumReleaseAge: 4320
 minimumReleaseAgeExclude:
-  # Void 1.8.0 (2026-11-12) and the fresh releases it requires, adopted before the age window passed.
-  - '@void/deploy-cloudflare@1.8.0'
-  - '@void/deploy-core@1.8.0'
-  - '@void/edge@1.8.0'
-  - '@void/isr@1.8.0'
-  - '@void/platform@1.8.0'
-  - void@1.8.0
+  # Void 1.9.1 (2026-11-14) and the fresh releases it requires, adopted before the age window passed.
+  - '@void/deploy-cloudflare@1.9.1'
+  - '@void/deploy-core@1.9.1'
+  - '@void/edge@1.9.1'
+  - '@void/isr@1.9.1'
+  - '@void/platform@1.9.1'
+  - void@1.9.1
   - hono@4.13.18
   - '@cloudflare/workers-types@5.20261110.1'
   - better-auth@1.7.20
@@ -55,8 +55,8 @@ minimumReleaseAgeExclude:
   - '@cloudflare/workers-utils@0.53.1'
   - miniflare@5.20261110.1-beta
   - minimatch@11.0.7
-  # The Preact adapter for Void, published 2026-11-13 and pinned exactly.
-  - void-preact@0.1.4
+  # The Preact adapter for Void, published 2026-11-15 and pinned exactly.
+  - void-preact@0.1.5
   # @cloudflare/vitest-plugin (the renamed vitest-pool-workers) 1.6.0, the first with
   # Vitest 5 support we adopt, and the fresh releases it pins exactly.
   - '@cloudflare/vitest-plugin@1.6.0'

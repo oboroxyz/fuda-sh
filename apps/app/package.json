@@ -24,7 +24,7 @@
     "preact-render-to-string": "6.8.2",
     "valibot": "^1.5.0",
     "viem": "^2.57.17",
-    "void-preact": "0.1.4"
+    "void-preact": "0.1.5"
   },
   "devDependencies": {
     "@babel/core": "^8.1.0",
@@ -34,6 +34,6 @@
     "tailwindcss": "4.3.5",
     "vite": "^8.2.2",
     "vitest": "5.1.0",
-    "void": "1.8.0"
+    "void": "1.9.1"
   }
 }
