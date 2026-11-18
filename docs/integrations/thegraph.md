@@ -1,12 +1,12 @@
 # The Graph in fuda
 
-> **Status.** fuda no longer issues or discovers +Private rights, so the rights subgraph indexes EAS only and the member app reads only rights by holder ([What left the product](../specs/pass-types-and-flows.md#what-left-the-product)). The ERC-5564 Substreams packages were archived on 2026-11-10 under [`.archive/substreams`](../../.archive/substreams); CI no longer builds them. Sections about the Announcer, stealth addresses and +Private, and the dated captures that used them, describe that retired path and the reusable packages, not the product.
+> **Status.** fuda no longer issues or discovers +Private rights, so the rights subgraph indexes EAS only and the member app reads only rights by holder ([What left the product](../specs/pass-types-and-flows.md#what-left-the-product)). The ERC-5564 Substreams packages were archived on 2026-11-10 under [`.archive/substreams`](../../.archive/substreams). CI no longer builds them. Sections about the Announcer, stealth addresses and +Private, and the dated captures that used them, describe that retired path and the reusable packages, not the product.
 
-**What fuda does.** A membership, a ticket or an event badge becomes a revocable on-chain record: a venue issues a right, a standard pass goes to Apple Wallet, Google Wallet or a browser, and the hosted scanner asks the fuda API to check EAS and enforce admission state in D1.
+**What fuda does.** A membership, a ticket or an event badge becomes a revocable on-chain record. A venue issues a right, a standard pass goes to Apple Wallet, Google Wallet or a browser, and the hosted scanner asks the fuda API to check EAS and enforce admission state in D1.
 
-**Where The Graph sits.** On the read path of two of the four surfaces. The member app and the operator dashboard query a subgraph for on-chain status. The API's own announcement cache was deleted when the subgraph landed, so there is no fallback index. The gate never touches The Graph: its API checks EAS and fails closed.
+**Where The Graph sits.** On the read path of two of the four surfaces. The member app and the operator dashboard query a subgraph for on-chain status. The API's own announcement cache was deleted when the subgraph landed, so there is no fallback index. The gate never touches The Graph. Its API checks EAS and fails closed.
 
-**Why Substreams as well.** The events fuda cares about belong to two public standards, not to fuda. Packaging the extraction as a reusable Substreams module and composing fuda's own events on top makes that separation real: the standard's half is importable by anyone, and stopping the whole lane changes nothing about the product.
+**Why Substreams as well.** The events fuda cares about belong to two public standards, not to fuda. Packaging the extraction as a reusable Substreams module and composing fuda's own events on top makes that separation real. Anyone can import the standard's half, and stopping the whole lane changes nothing about the product.
 
 ```mermaid
 flowchart LR
@@ -37,22 +37,22 @@ flowchart LR
     API ==>|"eth_call, fail-closed"| EAS
 ```
 
-Bold is required, dotted is optional: **stop the subgraph and on-chain status becomes unavailable**; **stop the Substreams lane and nothing in the product changes**; **the gate never goes through The Graph**. Standard Wallet delivery and QR verification are Graph-independent.
+Bold arrows are required, and dotted arrows are optional. **Stop the subgraph and on-chain status becomes unavailable.** **Stop the Substreams lane and nothing in the product changes.** **The gate never goes through The Graph.** Standard Wallet delivery and QR verification do not depend on The Graph.
 
 Deeper background: [module contracts](../../.archive/substreams/SPEC.md) · [why the subgraph is the only read-path indexer](../architecture.md#authority-and-trust-boundaries) · [what left the product](../specs/pass-types-and-flows.md#what-left-the-product) · [deploying and smoke-testing the subgraph](../runbook.md)
 
 ## The two standards underneath
 
-Both contracts are **singletons deployed at the same address on every chain**. The whole design leans on that fact. The Announcer is listed because the reusable Substreams package extracts from it; the product no longer writes to it.
+Both contracts are **singletons deployed at the same address on every chain**. The whole design depends on that fact. The Announcer is listed because the reusable Substreams package extracts from it. The product no longer writes to it.
 
 | Contract | Address | Scope |
 | --- | --- | --- |
 | [ERC-5564](https://eips.ethereum.org/EIPS/eip-5564) Announcer | `0x55649E01B5Df198D18D95b5cc5051630cfD45564` | same on every EVM chain |
 | [EAS](https://attest.org) | `0x4200000000000000000000000000000000000021` | same on every OP Stack chain |
 
-**ERC-5564, stealth addresses.** For +Private, the member's WebAuthn PRF passkey derives viewing and spending keys and a stealth meta-address locally. The issuer creates a fresh stealth address **per issued right**, attests the EAS right to it, and posts an `Announcement` to the canonical Announcer with the ephemeral public key, a view tag and the right UID. The recipient scans the raw announcements with the viewing key to find their rights and recover the stealth signing keys. The Announcer is a public log; it decides neither ownership nor admission. A fresh address per right avoids reusing a holder across rights; it does not hide the issuer's recipient mapping or repeated presentations of the same UID from the gate, and the address is not regenerated per visit. fuda no longer issues stealth rights. [Fluidkey](https://docs.fluidkey.com/technical-documentation/technical-walkthrough/) runs the same standard in production, and fuda borrowed two ideas from it: deriving stealth keys from a root secret so a user can re-enumerate their own addresses, and letting a stable name resolve to a fresh address per query.
+**ERC-5564, stealth addresses.** For +Private, the member's WebAuthn PRF passkey derives viewing and spending keys and a stealth meta-address locally. The issuer creates a fresh stealth address **per issued right**, attests the EAS right to it, and posts an `Announcement` to the canonical Announcer with the ephemeral public key, a view tag and the right UID. The recipient scans the raw announcements with the viewing key to find their rights and recover the stealth signing keys. The Announcer is a public log. It decides neither ownership nor admission. A fresh address per right avoids reusing a holder across rights. It does not hide the issuer's recipient mapping or repeated presentations of the same UID from the gate, and the address is not regenerated per visit. fuda no longer issues stealth rights. [Fluidkey](https://docs.fluidkey.com/technical-documentation/technical-walkthrough/) runs the same standard in production, and fuda borrowed two ideas from it: deriving stealth keys from a root secret so a user can re-enumerate their own addresses, and letting a stable name resolve to a fresh address per query.
 
-**EAS, attestations as the source of truth.** EAS is a public contract for signed, schema-typed, revocable statements. fuda puts three kinds there: a right (`Entitlement`), a venue's authority to issue (`IssuerDelegation`), and a visit (`Attendance`). The hosted gate resolves the first two by `eth_call` through the API and enforces admission with D1 state; revoked rights are rejected on the next verification. The subgraph is never the authority for admission. Live UIDs are in [Evidence](#evidence); the model is in [`attestation-model.md`](../specs/attestation-model.md).
+**EAS, attestations as the source of truth.** EAS is a public contract for signed, schema-typed, revocable statements. fuda puts three kinds there: a right (`Entitlement`), a venue's authority to issue (`IssuerDelegation`), and a visit (`Attendance`). The hosted gate resolves the first two by `eth_call` through the API and enforces admission with D1 state. Revoked rights are rejected on the next verification. The subgraph is never the authority for admission. Live UIDs are in [Evidence](#evidence), and the model is in [`attestation-model.md`](../specs/attestation-model.md).
 
 ## What was built
 
@@ -60,7 +60,7 @@ Both contracts are **singletons deployed at the same address on every chain**. T
 
 [`.archive/substreams/erc5564/`](../../.archive/substreams/erc5564)
 
-One map module, `map_announcements`, extracting raw ERC-5564 `Announcement` events from a **parameterized** Announcer address, defaulting to the canonical singleton. No fuda policy: it does not restrict the scheme id, decode metadata, match a viewing key or make an RPC call. The protobuf package `fuda.erc5564.v1` is the public contract, pinned in [the spec](../../.archive/substreams/SPEC.md). Any other ERC-5564 consumer, a wallet, a payroll tool, a donation page, can take the same package and get announcements without writing Rust.
+The package has one map module, `map_announcements`, which extracts raw ERC-5564 `Announcement` events from a **parameterized** Announcer address that defaults to the canonical singleton. It holds no fuda policy. It does not restrict the scheme id, decode metadata, match a viewing key or make an RPC call. The protobuf package `fuda.erc5564.v1` is the public contract, pinned in [the spec](../../.archive/substreams/SPEC.md). Any other ERC-5564 consumer, such as a wallet, a payroll tool or a donation page, can take the same package and get announcements without writing Rust.
 
 ### 2. `erc5564_eas_pipeline`, the composition
 
@@ -99,13 +99,13 @@ flowchart LR
     FE --> OUT["fuda.pipeline.v1.FudaEvents<br/>{ announcements[], eas_events[] }"]
 ```
 
-Everything inside `fuda_erc5564` is the standard, everything inside `erc5564_eas_pipeline` is fuda, and the seam is a `.spkg` file plus a protobuf package name. `fuda_events` places both lists side by side with **no total order** across them; `tx_hash` + `log_index` are the identity keys.
+Everything inside `fuda_erc5564` is the standard, everything inside `erc5564_eas_pipeline` is fuda, and the boundary is a `.spkg` file plus a protobuf package name. `fuda_events` places both lists side by side with **no total order** across them. The identity keys are `tx_hash` and `log_index`.
 
 ### 3. `fuda-rights`, the subgraph
 
 [`packages/subgraphs/rights/`](../../packages/subgraphs/rights)
 
-An AssemblyScript subgraph with one `ethereum/events` source (EAS `Attested`/`Revoked`) producing `Right`, `Delegation` and `Attendance` entities. It indexes the contracts directly, independently of the Substreams output, and is deployed to Subgraph Studio.
+`fuda-rights` is an AssemblyScript subgraph with one `ethereum/events` source, for EAS `Attested` and `Revoked`, that produces `Right`, `Delegation` and `Attendance` entities. It indexes the contracts directly, independently of the Substreams output, and is deployed to Subgraph Studio.
 
 ## On the product's read path
 
@@ -116,9 +116,9 @@ When the subgraph landed, the API's D1 announcement crawl and its `GET /announce
 | Member app `/rights` | Public rights by holder, combined with device memory and live API status checks | [`RightsList.tsx`](../../apps/app/src/member/RightsList.tsx) |
 | Operator dashboard, "On-chain status" | Rights by holder, Attendance by right, IssuerDelegation by issuer, shown next to the operator's own rows, never merged | [`on-chain-status.ts`](../../apps/dash/src/on-chain-status.ts), [`OnChainStatus.tsx`](../../apps/dash/src/OnChainStatus.tsx) |
 | Shared SDK | The only Graph client: three typed fetchers with full response validation, integer scalars kept as `bigint` | [`graph.ts`](../../packages/sdk/src/graph.ts) |
-| Config | `VITE_GRAPH_RIGHTS_ENDPOINT`, baked in at build time. Empty → on-chain status reports missing configuration; `/rights` falls back to device-remembered passes | [`app/config.ts`](../../apps/app/src/config.ts), [`dash/config.ts`](../../apps/dash/src/config.ts) |
+| Config | `VITE_GRAPH_RIGHTS_ENDPOINT`, baked in at build time. When it is empty, on-chain status reports missing configuration, and `/rights` falls back to device-remembered passes | [`app/config.ts`](../../apps/app/src/config.ts), [`dash/config.ts`](../../apps/dash/src/config.ts) |
 
-Gate admission and issuance are absent from that table on purpose: the gate calls the API, which checks EAS and D1; issuance writes EAS and D1.
+Gate admission and issuance are absent from that table on purpose. The gate calls the API, which checks EAS and D1, and issuance writes EAS and D1.
 
 ## Evidence
 
@@ -136,11 +136,11 @@ The identifiers and results below are dated captures, not a fresh health check. 
 | `erc5564-eas-pipeline-v0.1.0.spkg` sha256 | `408a25bc9be646f7e84ccfbd3f1b024aaaf0509bed5a93f9a89e1b50a4829dba` |
 | Attester for every capture below | `0xAA64E3814A88f4bA4588787EB04e5eACBabcd77E` |
 
-The `.spkg` files are built locally and not committed; the checksums identify the artifacts used for the Substreams captures.
+The `.spkg` files are built locally and not committed. The checksums identify the artifacts used for the Substreams captures.
 
 ### Captured from the live stream
 
-From The Graph Market on Base Sepolia. All three events belong to one +Private right, `0xe5c5a670…dacf7bf`: one right's whole life read out of a single composed stream, with the announcement arriving through the imported package unchanged.
+From The Graph Market on Base Sepolia. All three events belong to one +Private right, `0xe5c5a670…dacf7bf`. A single composed stream carries that right's whole life, and the announcement arrives through the imported package unchanged.
 
 | Event                   | Block    | Stream                                 |
 | ----------------------- | -------- | -------------------------------------- |
@@ -159,9 +159,9 @@ Real iPhone captures from `app.fuda.sh`, UI deployed from commit [`9755bd9`](htt
 | Active MULTI_USE right A | [`0xf9e9c1bf…fb025c`](https://base-sepolia.easscan.org/attestation/view/0xf9e9c1bf7df42097c29048b4497a857c4c8a966ef4d870c2ead1b6fbc3fb025c) | `0x805b27f19749Ff0F47733ab57eEcE2bE9a1c9674` | ADMIT through Sign & verify |
 | Previously revoked right | [`0xf0250f47…e04a08`](https://base-sepolia.easscan.org/attestation/view/0xf0250f47ba19f66e1870a46cff2d3c2b476efa87270d8cc3db7a2086d3e04a08) | `0x119446ABE91613BC1159ADA7fb83e28687C6823E` | REJECT / REVOKED |
 
-At 08:12:25 UTC, Studio returned A's scheme-1 announcement at block 46759404 with the expected holder and UID metadata; `_meta` reported block 46759427 and `hasIndexingErrors: false`. The announcement transaction is [`0xefa2f4bd…260b3`](https://sepolia.basescan.org/tx/0xefa2f4bdd75bb09a02c7851c38c8ae4b858dec4e503cb457aa6069105e3260b3).
+At 08:12:25 UTC, Studio returned A's scheme-1 announcement at block 46759404 with the expected holder and UID metadata. `_meta` reported block 46759427 and `hasIndexingErrors: false`. The announcement transaction is [`0xefa2f4bd…260b3`](https://sepolia.basescan.org/tx/0xefa2f4bdd75bb09a02c7851c38c8ae4b858dec4e503cb457aa6069105e3260b3).
 
-These verdicts concern two **different rights**, not one right revoked mid-capture. The result appears in the member app, not a paired physical gate, and an unlocked-list screenshot does not show the OS passkey ceremony. This is evidence for the **subgraph query lane** only. Private ENS rotation was verified separately at the time; that feature and its evidence section were removed with +Private ([Offchain rights by default](../specs/pass-types-and-flows.md#pass-types)).
+These verdicts concern two **different rights**, not one right revoked mid-capture. The result appears in the member app, not a paired physical gate, and an unlocked-list screenshot does not show the OS passkey ceremony. These captures are evidence for the **subgraph query lane** only. Private ENS rotation was verified separately at the time. That feature and its evidence section were removed with +Private ([Offchain rights by default](../specs/pass-types-and-flows.md#pass-types)).
 
 ### Verify it independently
 
@@ -174,9 +174,9 @@ None of this requires trusting this page or any fuda service. The 9/6 attestatio
 | Root delegation (active) | [`0x7bb324ad…1a6e155`](https://base-sepolia.easscan.org/attestation/view/0x7bb324ad1ec399488f18178153a046d7bcca44bb9688e72e0ce9581a61a6e155) | IssuerDelegation |
 | Attendance | [`0x0e92458a…3800d9`](https://base-sepolia.easscan.org/attestation/view/0x0e92458a6f8bb9a8053eaad0d52658f6125683198dce30e3ae9d1aca943800d9) | Attendance |
 
-The +Private right's recipient is `0x000A9A88…75431`, a one-time stealth address. The Bearer right and the Attendance share recipient `0xb682824e…e4B4`, which is how "this holder attended" is expressed without a database.
+The +Private right's recipient is `0x000A9A88…75431`, a one-time stealth address. The Bearer right and the Attendance share recipient `0xb682824e…e4B4`. The shared recipient expresses "this holder attended" without a database.
 
-The three schemas are what the subgraph's `handleAttested` decodes and what the `develop` target in [`targets.jsonc`](../../apps/api/targets.jsonc) lists in `EAS_SCHEMAS`, so explorer, Worker and indexer can be compared directly:
+The three schemas are what the subgraph's `handleAttested` decodes and what the `develop` target in [`targets.jsonc`](../../apps/api/targets.jsonc) lists in `EAS_SCHEMAS`, so you can compare the explorer, the Worker and the indexer directly:
 
 | Schema | UID | Fields |
 | --- | --- | --- |
@@ -226,11 +226,11 @@ pnpm graph:test                                                                 
 # run the same suite in Docker with `graph test -d`.
 ```
 
-Built with `substreams` CLI 1.22.0, crates `substreams` 0.7.6, `substreams-ethereum` 0.11.1, `prost` 0.13. A rebuild reproduces the checksums above only under the same toolchain; they identify the artifacts rather than promising byte-reproducibility.
+Built with `substreams` CLI 1.22.0, crates `substreams` 0.7.6, `substreams-ethereum` 0.11.1, `prost` 0.13. A rebuild reproduces the checksums above only under the same toolchain. They identify the artifacts rather than promising byte-reproducibility.
 
 ### The cross-chain proof
 
-"It runs on other chains too" is not a checkable claim: anyone can swap an address constant and recompile for the second network. A `.spkg` makes it checkable, because the package is a **single binary file** holding wasm, manifest and protobuf. Hash the file, run it against one chain, run **that same file** against another, hash it again. Matching hashes mean nothing was rebuilt or edited; only the `-e` endpoint differed. This is possible because the Announcer is at the same address on every EVM chain, so there is no address to change.
+"It runs on other chains too" is not a checkable claim: anyone can swap an address constant and recompile for the second network. A `.spkg` makes it checkable, because the package is a **single binary file** holding wasm, manifest and protobuf. Hash the file, run it against one chain, run **that same file** against another, hash it again. Matching hashes mean nothing was rebuilt or edited, and only the `-e` endpoint differed. The test works because the Announcer is at the same address on every EVM chain, so there is no address to change.
 
 ```sh
 export ERC5564_PACKAGE=.archive/substreams/erc5564/fuda-erc5564-v0.1.0.spkg
@@ -247,7 +247,7 @@ substreams run -e "<SECOND_EVM_FIREHOSE_ENDPOINT>" \
 sha256sum "$ERC5564_PACKAGE"   # must be identical to the first
 ```
 
-**What was actually run.** The identical `erc5564_eas_pipeline`, same checksum, streamed a 2,000-block range on **Base mainnet** through the same provider. It processed successfully, and that range contained no `Announcement`. So this proves the _artifact_ is portable; it does not prove fuda decoded third-party events on a second chain. Running it yourself needs a Graph Market token and two Firehose endpoints, the one procedure here a clean clone cannot execute.
+**What was actually run.** The identical `erc5564_eas_pipeline`, same checksum, streamed a 2,000-block range on **Base mainnet** through the same provider. It processed successfully, and that range contained no `Announcement`. So the run proves the _artifact_ is portable. It does not prove fuda decoded third-party events on a second chain. To run it yourself, you need a Graph Market token and two Firehose endpoints. It is the one procedure here that a clean clone cannot execute.
 
 ### That the push lane is not plumbing
 
@@ -256,13 +256,13 @@ pkill -f 'substreams run'
 pgrep -af '[s]ubstreams run' && echo 'FAIL: a runner is still active'
 ```
 
-With no runner alive, the dashboard's on-chain status still answers, and a revoked pass still scans red. That shows the **Substreams lane** is not on the read path. It does **not** show the product works without The Graph: remove the subgraph and on-chain lookups become unavailable.
+With no runner alive, the dashboard's on-chain status still answers, and a revoked pass still scans red. The check shows the **Substreams lane** is not on the read path. It does **not** show the product works without The Graph: remove the subgraph and on-chain lookups become unavailable.
 
-Deploying and operating the subgraph is covered in [`docs/runbook.md`](../runbook.md), §7 for the deploy and §9 for the smoke query against real UIDs.
+[`docs/runbook.md`](../runbook.md) covers deploying and operating the subgraph: §7 for the deploy and §9 for the smoke query against real UIDs.
 
 ## Source map
 
-One anti-drift detail first: the subgraph's `subgraph.yaml` and schema-UID map are **generated from the API's Sepolia schema/start-block configuration** ([`scripts/prepare.ts`](../../packages/subgraphs/rights/scripts/prepare.ts)), and generation fails loudly while `EAS_SCHEMAS` or `GRAPH_START_BLOCK` are unset, so the indexer accepts the same schema UIDs as the API. Rebuild and deploy both after changing those inputs.
+First, one detail keeps the indexer in step with the API. [`scripts/prepare.ts`](../../packages/subgraphs/rights/scripts/prepare.ts) **generates** the subgraph's `subgraph.yaml` and schema-UID map **from the API's Sepolia schema and start-block configuration**. Generation fails loudly while `EAS_SCHEMAS` or `GRAPH_START_BLOCK` are unset, so the indexer accepts the same schema UIDs as the API. Rebuild and deploy both after changing those inputs.
 
 **`.archive/substreams/erc5564/`**, `fuda_erc5564` v0.1.0
 
@@ -286,8 +286,8 @@ One anti-drift detail first: the subgraph's `subgraph.yaml` and schema-UID map a
 | File | What |
 | --- | --- |
 | [`schema.graphql`](../../packages/subgraphs/rights/schema.graphql) | `Right`, `Delegation` (mutable), `Attendance` (immutable) |
-| [`src/eas.ts`](../../packages/subgraphs/rights/src/eas.ts) | `handleAttested` decodes by schema UID + version; `handleRevoked` |
+| [`src/eas.ts`](../../packages/subgraphs/rights/src/eas.ts) | `handleAttested` decodes by schema UID and version; `handleRevoked` |
 | [`src/codecs.ts`](../../packages/subgraphs/rights/src/codecs.ts) | ABI decoders for the three EAS schema payloads |
 | [`scripts/prepare.ts`](../../packages/subgraphs/rights/scripts/prepare.ts) | generates the manifest and UID map; refuses placeholders |
 
-`packages/subgraphs/*` builds independently and is not a pnpm workspace member, and `.archive/substreams/*` is no longer built; see [`AGENTS.md`](../../AGENTS.md).
+`packages/subgraphs/*` builds independently and is not a pnpm workspace member. `.archive/substreams/*` is no longer built. See [`AGENTS.md`](../../AGENTS.md).

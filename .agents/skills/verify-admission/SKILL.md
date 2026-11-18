@@ -1,0 +1,123 @@
+---
+name: verify-admission
+description: Check that a SINGLE_USE fuda pass is admitted at most once and that reception never awards more stamps on a day than its daily limit, under every interleaving of concurrent gate scans, reception scans, retries, a limit change and midnight. Use before merging any change to admitSingleUse, recordReception, the verify or reception handlers, or the entry_log, slots, stamp_credits or reception_requests tables.
+---
+
+# Verify admission and stamp limits
+
+Two promises, each with the harm if it breaks:
+
+- **Single use.** A SINGLE_USE pass shows ADMIT at most once, across gate QR scans, signed admissions, reception scans and reception retries. If it breaks, one ticket gets two people in.
+- **Daily cap.** The stamps booked to a Tokyo day never exceed the highest daily limit that was in force while that day was current. A retried reception request awards at most one stamp and replays the same receipt. If it breaks, a customer collects rewards faster than the shop allows.
+
+The check is `apps/api/test/admission-interleavings.test.ts`. It cuts each request into the steps its handler takes. It enumerates every ordering of those steps across a few concurrent requests and runs each ordering against the real store functions on a fresh D1, inside workerd. Then it checks the promises against what D1 holds and what each request answered. The bounds are small, and every ordering within them runs.
+
+## Why it runs the real code
+
+Each D1 batch commits as one transaction. So every way to break a promise lives between batches, or in a read taken before a batch. Running the real store functions in every order of those steps tests the code itself, with the repo's own test runner and nothing extra to install.
+
+TLC, the TLA+ model checker, would explore larger bounds, but over a hand-written model. A model can drift from the SQL and nobody notices. This check fails as soon as the SQL changes behavior. For these two promises, that matters more than larger bounds.
+
+## Run it
+
+From the repository root, with Node 24.22 or later first on PATH:
+
+```sh
+cd apps/api && pnpm exec vp test test/admission-interleavings.test.ts
+```
+
+It takes about 7 seconds and also runs as part of `pnpm test`. A pass prints `Tests  3 passed (3)`. A failure prints the broken promise and the ordering that broke it, as step labels, for example:
+
+```text
+2 requests showed ADMIT for one SINGLE_USE pass
+    after: gateA.admit → gateB.admit → desk.readReceipt → desk.record → deskRetry.readReceipt → deskRetry.record
+```
+
+## What each step is
+
+Every label in a failure maps to code you can open. This table matches the code at commit `e753a8b`.
+
+| Label | Code | Why it is one step |
+| --- | --- | --- |
+| `gateX.admit` | `admitSingleUse` in `apps/api/src/verify/admit.ts` (slot insert plus ADMIT row in one `db.batch`), then the REJECT `logEntry` on `ALREADY_USED` in `postV1Verify`, `apps/api/src/handlers/verify.ts` | A D1 batch is one transaction. The REJECT row is a separate statement that no promise reads. |
+| `scanX.readReceipt` | `readReception(db, id)` at the top of `postV1IssuersMeReception`, `apps/api/src/handlers/reception.ts` | One read, before any write. |
+| `scanX.readClock` | `const now = c.get('now')()` in the same handler, taken before `resolveVerdict`'s chain read | The day a stamp is booked to comes from this reading, not from commit time. |
+| `scanX.record` | `recordReception`'s one `binding.batch([...])` in `apps/api/src/stamps/reception-store.ts`, with its entry, slot, credit, receipt and Sensitive statements | A D1 batch is one transaction, and its guards read inside it. |
+| `raiseLimit(n)` | The single `INSERT … ON CONFLICT DO UPDATE` in `putV1IssuersMeCardsCardIdStamps`, `apps/api/src/handlers/reception.ts`, done in the test as an `UPDATE` of `daily_limit` | One statement. |
+| `clock passes midnight` | The api clock crossing Tokyo midnight (`japanDay` in `apps/api/src/stamps/store.ts`) | The test moves its clock in one step. |
+
+Signed admission (`postV1VerifySigned`) reaches the slot through the same `admitSingleUse`, so `gateX.admit` covers it too.
+
+## Bounds and assumptions
+
+Each scenario uses one issuer and one membership card, with stamps on and a daily limit of 1:
+
+1. Single use: two gate scans, one reception scan, and a retry of it with the same request id (180 orderings). Nothing moves the clock, so each reception scan reads it inside its `record` step.
+2. Daily cap: two reception scans with different request ids, midnight, and a raise to limit 2 (180 orderings).
+3. Retry: a reception scan, its retry, and a second scan, all on one day (210 orderings).
+
+Outside these bounds:
+
+- More than four concurrent requests, more than one midnight, a lowered limit, or more than one limit change.
+- `resolveVerdict` and the chain. The check assumes every request sees a valid level-0 right with an ADMIT verdict, so it doesn't check revocation racing an admission.
+- Sensitive cards. The batch's Sensitive `UPDATE` runs but no scenario seeds a Sensitive card.
+- Stamp redemption and adjustments (`stamp-ledger.ts`), the Attendance hook, the signed path's challenge, and venues other than the one seeded.
+- D1 itself. The check relies on a batch being one transaction, which `apps/api/test/admit.test.ts` ("rolls back the first statement when the second fails") pins.
+
+A pass means no ordering within these scenarios breaks a promise. It says nothing beyond them.
+
+## Findings
+
+**Finding 1: a stamp can be booked to the previous day under a limit raised after midnight.** Seen at `e753a8b`.
+
+1. Daily limit 1. Scan A is recorded before midnight and takes the day's one stamp.
+2. Scan B reads the clock before midnight (`scanB.readClock`), then waits on the chain read.
+3. Midnight passes, and the operator raises the limit to 2.
+4. Scan B records. Its `day` is the old day, from step 2, but the batch compares that day's count, 1, against the new limit, 2, and awards the stamp.
+5. The old day ends with 2 stamps, though its limit was 1 for the whole day.
+
+It needs a reception request in flight across midnight while an operator raises the limit, so it's rare. The fix is a product decision, and the product code is unchanged. One option books the stamp to the day the batch commits. Another records the limit with the day.
+
+The test pins this finding exactly. Every violation in the daily-cap scenario must have this shape, and there must be exactly `STALE_DAY_SCHEDULES` (14) of them. Any other violation fails the test, and so does a fix, because the count drops to 0. After a fix, replace the scenario's two `expect` lines with `expect(shown(result.violations)).toStrictEqual([])`, as in the other scenarios, and delete `STALE_DAY_SCHEDULES` and `staleDayAfterRaise`.
+
+## When a change touches this code
+
+The check covers these, as of the sync commit:
+
+- `apps/api/src/verify/admit.ts`: `admitSingleUse`, `logEntry`, `admitAndHook`
+- `apps/api/src/stamps/reception-store.ts`: `recordReception`, `readReception`
+- `apps/api/src/stamps/store.ts`: `japanDay`
+- `apps/api/src/handlers/verify.ts`: `postV1Verify`, from the clock read to the REJECT log
+- `apps/api/src/handlers/verify-signed.ts`: `postV1VerifySigned`, its `admitAndHook` call
+- `apps/api/src/handlers/reception.ts`: `postV1IssuersMeReception` and `putV1IssuersMeCardsCardIdStamps`
+- The `entry_log`, `slots`, `stamp_credits`, `reception_requests` and `card_stamp_settings` tables under `apps/api/migrations/`
+
+**Sync commit: `e753a8b6074329dc0a2bcdbe7b19f0ffeccd2414`.** To see whether the check needs another look:
+
+```sh
+git diff --stat e753a8b6074329dc0a2bcdbe7b19f0ffeccd2414 -- apps/api/src/verify/admit.ts apps/api/src/stamps apps/api/src/handlers/verify.ts apps/api/src/handlers/verify-signed.ts apps/api/src/handlers/reception.ts apps/api/migrations
+```
+
+When that shows changes:
+
+1. Run the check.
+2. Re-read the step table against the changed code. A new await between a read and the batch that uses it is a new step. A write split out of a batch is two steps. A new path that writes `slots`, `stamp_credits` or an ADMIT `entry_log` row is a new request kind. Find writers with `rg -n "insert\(slots\)|INTO slots|INTO stamp_credits|admitSingleUse|recordReception" apps/api/src`.
+3. If the code's steps changed, change the step builders (`gateScan`, `receptionScan`, `raiseLimit`, `midnight`) to match, and update the expected schedule counts.
+4. Move the sync commit in this file forward only after the table and the builders describe the code at the new commit.
+
+## A real bug or a modelling error
+
+When the check fails, read the ordering in the failure step by step against the handlers. Then ask whether the handlers can run their steps in that order:
+
+- If they can, it's a real bug. Report it with the ordering in plain steps, as Finding 1 does. Don't weaken the promise, cut the scenario, or edit the expected violations to make it pass.
+- If they can't, the step builders are wrong. Either the ordering puts two steps of one request in an order the handler doesn't allow, or it splits what D1 commits in one batch. Fix the builders to match the code.
+- If the failure is a thrown error rather than a violation message, the seed or a schema change broke the test setup. `seed` inserts the rows the store functions need: an issuer with `operatorAddress`, a membership card, stamp settings, and two members.
+
+After you edit the check, prove it still catches a break. Break the real code on purpose, run the check, and restore the file. Two breaks to try:
+
+- Append `.onConflictDoNothing()` to the slot insert in `admitSingleUse`. The single-use scenario must fail with "2 requests showed ADMIT".
+- Change `< COALESCE(s.daily_limit, 1)` in `recordReception` to `< 1000`. The daily-cap and retry scenarios must fail.
+
+Restore with `git checkout -- <file>` only when the file had no other edits.
+
+Use `/pstack:maintain-formal-verification-skill` to bring this back in line after changes that skipped it.
