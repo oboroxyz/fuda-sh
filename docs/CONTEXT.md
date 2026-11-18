@@ -2,7 +2,7 @@
 
 fuda issues membership rights as on-chain attestations and verifies them at a physical gate. This glossary fixes the words used across the specs, code, and UI so that one concept has one name.
 
-It records the vocabulary of the product design, independently of what is built: a term stays here while the concept it names is part of the design, and leaves only when that concept is dropped. Absence of an implementation is never on its own a reason to remove an entry.
+It records the vocabulary of the product design, independently of what is built. A term stays here while the concept it names is part of the design, and leaves only when that concept is dropped. A missing implementation is never, on its own, a reason to remove an entry.
 
 ## Language
 
@@ -10,7 +10,7 @@ It records the vocabulary of the product design, independently of what is built:
 
 ### The right
 
-**Right**: A membership entitlement; the source of truth for what a member may do. It is either a signed EAS offchain attestation held by fuda or an on-chain EAS `Entitlement` attestation, as its Card's record decides. _Avoid_: Membership, entitlement (as a prose noun), pass, ticket, card
+**Right**: A membership entitlement, and the source of truth for what a member may do. It is either a signed EAS offchain attestation held by fuda or an on-chain EAS `Entitlement` attestation, as its Card's record decides. _Avoid_: Membership, entitlement (as a prose noun), pass, ticket, card
 
 **Retired signer**: An offchain signing address retained in `OFFCHAIN_RETIRED_SIGNERS` after its private key is removed from the Worker. Its existing Rights remain verifiable. A compromised signer must be removed from the list and its legitimate Rights reissued. _Avoid_: Retired key, delegated key
 
@@ -18,57 +18,57 @@ It records the vocabulary of the product design, independently of what is built:
 
 **Card identity**: Who can use a Card's Rights, fixed when the Card is created: `none` (the default) means whoever shows one, `passkey` binds each Right to the passkey that claimed it, and `sensitive` binds each Right to a key of its own. _Avoid_: Identity level, KYC
 
-**Identified pass**: An offchain Right on a Card with `passkey` identity. It attests the passkey's credential ID and public key at the Signed level with no holder address, needs an Account to claim, and is presented by answering a challenge in the app, so a copied QR does not admit. _Avoid_: Passkey pass, Secure pass
+**Identified pass**: An offchain Right on a Card with `passkey` identity. It attests the passkey's credential ID and public key at the Signed level, with no holder address. It needs an Account to claim. The member presents it by answering a challenge in the app, so a copied QR does not admit. _Avoid_: Passkey pass, Secure pass
 
-**Sensitive use**: The Card setting for employee badges and privacy-sensitive memberships: Card identity `sensitive`. Each Right attests a key unique to it, so one person's Rights are not linked across venues, and it has no Wallet pass, QR, backup file, Stamps or integrations. It rejects while the chain cannot be read. Entry logs keep only the Right UID, scan time and row id, with a daily purge after 30 days. A consumed Slot retains no entry time. It does not hide entry from the Issuer or the gate. _Avoid_: Private pass, Secure pass, +Private
+**Sensitive use**: The Card setting for employee badges and privacy-sensitive memberships: Card identity `sensitive`. Each Right attests a key unique to it, so one person's Rights are not linked across venues. Sensitive use has no Wallet pass, QR, backup file, Stamps or integrations. It rejects while the chain cannot be read. Entry logs keep only the Right UID, scan time and row id, with a daily purge after 30 days. A consumed Slot retains no entry time. Sensitive use does not hide entry from the Issuer or the gate. _Avoid_: Private pass, Secure pass, +Private
 
 **Member secret**: 32 random bytes a member's browser makes for Sensitive use, from which each Right's key derives. The server keeps only ciphertexts of it, one per passkey that supports PRF. _Avoid_: Recovery phrase, master key
 
 **Vault**: One ciphertext per Account, sealed under a key from the Member secret, listing that member's Sensitive Rights and the salts of their keys. Only the member's device can open it. _Avoid_: Wallet, backup
 
-**Pass**: A presentation of a Right — a Device wallet pass (`.pkpass` / Google Wallet object) or the browser-based pass page carrying the Right's QR. A Pass is not the Right, and lives in the Device wallet, never in the Crypto wallet. _Avoid_: Ticket, card, credential
+**Pass**: A presentation of a Right: a Device wallet pass (a `.pkpass` or a Google Wallet object) or the browser-based pass page that carries the Right's QR. A Pass is not the Right, and lives in the Device wallet, never in the Crypto wallet. _Avoid_: Ticket, card, credential
 
-**Device wallet**: Apple Wallet or Google Wallet — the phone's OS-level container for Passes. A distribution and presentation channel only: it holds no keys, signs nothing, and knows nothing about the chain. Bearer and non-Sensitive Signed Rights can have Passes. Sensitive Rights send no Wallet data or update notifications. Say "Apple Wallet" / "Google Wallet" when the platform matters. _Avoid_: Wallet (bare), wallet app, mobile wallet
+**Device wallet**: Apple Wallet or Google Wallet, the phone's OS-level container for Passes. It is a distribution and presentation channel only. It holds no keys, signs nothing, and knows nothing about the chain. Bearer and non-Sensitive Signed Rights can have Passes. Sensitive Rights send no Wallet data or update notifications. Say "Apple Wallet" or "Google Wallet" when the platform matters. _Avoid_: Wallet (bare), wallet app, mobile wallet
 
-**Crypto wallet** (or **wallet**): Software that controls an Ethereum key and can sign — a passkey smart wallet (Base Account) or an EOA. It is what makes a Holder _the member's_: Signed members hold one; Bearer members do not. Bare "wallet" in this glossary always means this one, never the Device wallet. _Avoid_: Account (say Holder for the address), key, signer
+**Crypto wallet** (or **wallet**): Software that controls an Ethereum key and can sign: a passkey smart wallet (Base Account) or an EOA. It is what makes a Holder _the member's_. Signed members hold one, and Bearer members do not. Bare "wallet" in this glossary always means this one, never the Device wallet. _Avoid_: Account (say Holder for the address), key, signer
 
-**Wallet rail** (or **rail**): How a Member holds signing keys — managed (fuda's key on a fuda-owned smart account), self-custody passkey, bring-your-own EOA, or a compatible smart wallet. Orthogonal to the verification level: choosing a rail never changes how a Right is verified. _Avoid_: Custody mode, wallet type, login method
+**Wallet rail** (or **rail**): How a Member holds signing keys: managed (fuda's key on a fuda-owned smart account), self-custody passkey, bring-your-own EOA, or a compatible smart wallet. It is independent of the verification level. Choosing a rail never changes how a Right is verified. _Avoid_: Custody mode, wallet type, login method
 
-**Verification level** (or **level**): The property baked into a Right at issuance that decides how it is verified. There are two: Bearer and Signed. The on-chain `level` field and the code enumerate them as `bearer` / `signed` because the gate must tell them apart. Immutable for the life of the Right. _Avoid_: Mode, tier (tier is the FREE/REGULAR/VIP/FOUNDER rank), type
+**Verification level** (or **level**): The property baked into a Right at issuance that decides how it is verified. There are two: Bearer and Signed. The on-chain `level` field and the code enumerate them as `bearer` and `signed` because the gate must tell them apart. It is immutable for the life of the Right. _Avoid_: Mode, tier (tier is the FREE/REGULAR/VIP/FOUNDER rank), type
 
-**Bearer**: The level with no Crypto wallet and no app — a Pass in the Device wallet is all the member has; the Right's QR alone admits, and a copy of the QR admits too.
+**Bearer**: The level with no Crypto wallet and no app. A Pass in the Device wallet is all the member has. The Right's QR alone admits, and a copy of the QR admits too.
 
 **Member write token**: A secret-derived credential used only to add a wrapped member-secret copy or write the encrypted Sensitive vault. The server stores its hash. It never travels with a claim, challenge, or presentation.
 
-**Start over**: A fresh account passkey assertion clears Sensitive recovery data and local keys on the initiating device. It does not revoke old passes; the Issuer cancels them.
+**Start over**: A fresh account passkey assertion clears Sensitive recovery data and local keys on the initiating device. It does not revoke old passes. The Issuer cancels them.
 
-**Signed**: The level where the member's own key must sign a one-time gate challenge — possession of the key is proven at the door.
+**Signed**: The level where the member's own key must sign a one-time gate challenge. The member proves possession of the key at the door.
 
 **Serial**: The `serial` field of a Right, reserved for reissue lineage (the predecessor Right's uid on a Level upgrade, merge, or recovery). Nothing else may use it.
 
 ### The people and addresses
 
-**Member**: The person who holds a Right. Holding one takes no identity at fuda; a Member who signs in has an Account. _Avoid_: User, customer
+**Member**: The person who holds a Right. Holding one takes no identity at fuda. A Member who signs in has an Account. _Avoid_: User, customer
 
 **Account**: What a person signs in to: a set of passkeys, with no address and no email. As a Member, it keeps Passes and is optional, and it is unrelated to the Issuer's Member id. As an Operator, it owns Issuers. One account serves both. Adding another passkey needs an existing account passkey assertion in either audience. _Avoid_: Profile, wallet
 
-**Holder**: The address a Right is attested to (`recipient`): a fuda-owned smart account for Bearer, the member's wallet for Signed. A Holder is an address; a Member is a person. _Avoid_: Owner, recipient (in prose), member address
+**Holder**: The address a Right is attested to (`recipient`): a fuda-owned smart account for Bearer, the member's wallet for Signed. A Holder is an address. A Member is a person. _Avoid_: Owner, recipient (in prose), member address
 
-**fuda-owned smart account**: The smart account that holds a `standard` Right at a stable counterfactual address, known before deployment. fuda's key controls it, so a Bearer Right can be issued before the member has any key; the member never takes control of it. _Avoid_: Counterfactual wallet (say "counterfactual" only of the address), custodial account, claim account, claimable account
+**fuda-owned smart account**: The smart account that holds a `standard` Right at a stable counterfactual address, known before deployment. fuda's key controls it, so a Bearer Right can be issued before the member has any key. The member never takes control of it. _Avoid_: Counterfactual wallet (say "counterfactual" only of the address), custodial account, claim account, claimable account
 
-**Member id**: The issuer's persistent identifier for a Member, under which that Member's several Rights are grouped. In the admin issuance path the Member id is operator-chosen free text; the generated member number (see naming) belongs to the self-serve path. _Avoid_: Representative address (say "the Signed Holder used as Member id"), username
+**Member id**: The issuer's persistent identifier for a Member, under which that Member's several Rights are grouped. In the admin issuance path the Member id is operator-chosen free text. The generated member number (see naming) belongs to the self-serve path. _Avoid_: Representative address (say "the Signed Holder used as Member id"), username
 
-**Issuer**: The party that attests a Right — the address in the EAS `attester` slot and the `issuer` field of every schema, made legitimate by an Issuer delegation. In the MVP the fuda signer attests for every Handle; from B1 each Venue's own wallet does. This is the name the specs, data model, EAS schemas, and ENS use for the organization that issues: an Issuer owns a Handle and an Issuer name, and Rights, Member numbers, and delegations are scoped to it. "Issuer" and "attester" name the same party — use Issuer in prose, `attester` only for the EAS field. _Avoid_: Venue (in specs, schemas, and code — that is the same organization seen from the shop floor, see Venue), Operator (that is a role in the dashboard, not an on-chain party), tenant, merchant
+**Issuer**: The party that attests a Right: the address in the EAS `attester` slot and the `issuer` field of every schema. An Issuer delegation makes it legitimate. In the MVP the fuda signer attests for every Handle. From B1, each Venue's own wallet does. Issuer is the name the specs, data model, EAS schemas, and ENS use for the organization that issues. An Issuer owns a Handle and an Issuer name, and Rights, Member numbers, and delegations are scoped to it. "Issuer" and "attester" name the same party. Use Issuer in prose and `attester` only for the EAS field. _Avoid_: Venue (in specs, schemas, and code, because that is the same organization seen from the shop floor; see Venue), Operator (that is a role in the dashboard, not an on-chain party), tenant, merchant
 
-**Template** (or **verification template**): The issuer's per-use-case choice of how a Right is issued, picked at issuance time — `standard` (U1: Bearer, one-tap save), or, as a v2 design that is not built, `anonymous` (U4). The issuer configures which templates are available and the default; an authorized Operator selects one at issuance, and a self-serve route binds the Handle to a template in advance so no per-member approval is needed. Members do not pick a level. A product-policy label — the Gate only ever sees the level. _Avoid_: Plan, tier, mode, pass template (that is a pass-design concept), "the member's choice"
+**Template** (or **verification template**): The issuer's per-use-case choice of how a Right is issued, picked at issuance time: `standard` (U1: Bearer, one-tap save) or, as a v2 design that is not built, `anonymous` (U4). The issuer configures which templates are available and the default. An authorized Operator selects one at issuance. A self-serve route binds the Handle to a template in advance, so no per-member approval is needed. Members do not pick a level. A Template is a product-policy label. The Gate only ever sees the level. _Avoid_: Plan, tier, mode, pass template (that is a pass-design concept), "the member's choice"
 
-**Venue**: An organization that issues Rights to its members — the shop, club, or office as the member and its staff see it. A business-domain term, not a required UI label. Member-facing and operator-facing copy uses context-specific labels such as Profile, Name, Handle and Public page so it also fits companies and communities. Wherever the organization appears as a party in a spec, schema, column, EAS field, or ENS name, it is the Issuer: one Venue is one Issuer, and Venue never appears in the data model. From B1 it holds its own smart wallet and attests its Rights itself. _Avoid_: Issuer or Venue as generic UI labels, tenant, merchant, operator, shop
+**Venue**: An organization that issues Rights to its members: the shop, club, or office as the member and its staff see it. It is a business-domain term, not a required UI label. Member-facing and operator-facing copy uses context-specific labels such as Profile, Name, Handle and Public page so it also fits companies and communities. Wherever the organization appears as a party in a spec, schema, column, EAS field, or ENS name, it is the Issuer. One Venue is one Issuer, and Venue never appears in the data model. From B1 it holds its own smart wallet and attests its Rights itself. _Avoid_: Issuer or Venue as generic UI labels, tenant, merchant, operator, shop
 
-**Handle**: An Issuer's permanent identifier — the `/@handle` slug, shaped as a DNS/ENS label so it is also the Issuer's ENS label (`<issuer>.fuda.eth`) 1:1. _Avoid_: Slug, username, venue name, issuer name (that is the ENS name built from the Handle)
+**Handle**: An Issuer's permanent identifier: the `/@handle` slug. It is shaped as a DNS and ENS label, so it is also the Issuer's ENS label (`<issuer>.fuda.eth`) 1:1. _Avoid_: Slug, username, venue name, issuer name (that is the ENS name built from the Handle)
 
 **Issuer delegation**: The `IssuerDelegation` attestation, referenced by a Right's `refUID`, that lets a gate decide whether the Right's Issuer is allowed to issue. _Avoid_: Whitelist, registry, permission
 
-**Connected app**: A program built outside fuda — typically a browser-only Figma Make app — that an Operator registers in the dashboard and approves for one Issuer, after which it acts for that Issuer through the api with an access token (see `docs/specs/connected-apps.md`). It has a client ID and no secret, never creates an Issuer, and reaches no other Issuer's data. Only the account that registered it may approve it. _Avoid_: Integration (that is a Card's optional service), plugin, API client, partner
+**Connected app**: A program built outside fuda, typically a browser-only Figma Make app, that an Operator registers in the dashboard and approves for one Issuer. After approval, it acts for that Issuer through the api with an access token (see `docs/specs/connected-apps.md`). It has a client ID and no secret, never creates an Issuer, and reaches no other Issuer's data. Only the account that registered it may approve it. _Avoid_: Integration (that is a Card's optional service), plugin, API client, partner
 
 **MCP client**: A connected app that is an AI agent tool such as Claude Code, reaching fuda through the api's MCP server with a token bound to that server.
 
@@ -76,42 +76,42 @@ It records the vocabulary of the product design, independently of what is built:
 
 **RPC fallback**: The API trying the public Base Sepolia endpoint after its preferred provider fails. It changes provider availability, not the Gate's admission rules. Contract reverts remain failures.
 
-**Gate**: Whatever reads the chain and decides ADMIT or REJECT for a presented Right — fuda's api by default, but any verifier can be a Gate. _Avoid_: Scanner (that is the `apps/gate` device), verifier (in prose), door
+**Gate**: Whatever reads the chain and decides ADMIT or REJECT for a presented Right. fuda's api is the Gate by default, but any verifier can be a Gate. _Avoid_: Scanner (that is the `apps/gate` device), verifier (in prose), door
 
-**Issuer wallet**: The Crypto wallet through which an Issuer controls its assets and authorizes operations. Optional: an Issuer owned by an Account has none. Its identity is distinct from the people or credentials controlling it, and from a service signer acting on the Issuer's behalf. _Avoid_: Operator wallet (when referring to the shared organization identity), staff wallet
+**Issuer wallet**: The Crypto wallet through which an Issuer controls its assets and authorizes operations. It is optional. An Issuer owned by an Account has none. Its identity is distinct from the people or credentials controlling it, and from a service signer acting on the Issuer's behalf. _Avoid_: Operator wallet (when referring to the shared organization identity), staff wallet
 
-**Owner credential**: A key or wallet with full control of an Issuer wallet. Several owner credentials can control the same Issuer wallet; changing a credential does not create another Issuer. An Owner credential grants wallet control, not a limited operational role. _Avoid_: Operator (that is a person), Holder (that is the recipient of a Right)
+**Owner credential**: A key or wallet with full control of an Issuer wallet. Several owner credentials can control the same Issuer wallet. Changing a credential does not create another Issuer. An Owner credential grants wallet control, not a limited operational role. _Avoid_: Operator (that is a person), Holder (that is the recipient of a Right)
 
 ### Entering
 
-**Entry path** (or **path**): How a given entry was made: `qr` (a Bearer QR was scanned) or `signature` (a challenge was signed). Level says what a Right _is_; path says how it _got in_. _Avoid_: Mode, method, flow
+**Entry path** (or **path**): How a given entry was made: `qr` (a Bearer QR was scanned) or `signature` (a challenge was signed). Level says what a Right _is_. Path says how it _got in_. _Avoid_: Mode, method, flow
 
-**Level and path, never "mode":** a Right has a **level** (Bearer, Signed) and an Entry has a **path** (`qr` or `signature`). "Mode" is not used for either. The api's `x-auth-mode` response header (`open` / `locked`) names the admin-auth state and keeps its name.
+**Level and path, never "mode":** a Right has a **level** (Bearer, Signed) and an Entry has a **path** (`qr` or `signature`). "Mode" is not used for either. The api's `x-auth-mode` response header (`open` or `locked`) names the admin-auth state and keeps its name.
 
 **Challenge**: The one-time string a Signed member signs to enter, bound to one Right and one nonce with a short lifetime. _Avoid_: Nonce (that is only the random part), token
 
-**Slot**: The unit consumed on entry by a `SINGLE_USE` Right; consumed at most once. _Avoid_: Ticket, seat, use
+**Slot**: The unit consumed on entry by a `SINGLE_USE` Right. A Slot is consumed at most once. _Avoid_: Ticket, seat, use
 
 **Entry**: One ADMIT of a Right at a Gate, recorded off-chain in the entry log. _Avoid_: Check-in, visit, scan
 
-**Stamp**: One unit of a Venue's loyalty count for a Right, awarded under the Stamp policy configured for its Card. An Entry does not necessarily earn a Stamp. When a card holds its Card's goal, the shop can give the reward: a **redemption** takes the goal off the count, and the shop can also correct the count with an **adjustment** and a reason. Both are kept in an append-only ledger, so the count is credits plus the ledger and history stays. _Avoid_: Point, visit count, check-in
+**Stamp**: One unit of a Venue's loyalty count for a Right, awarded under the Stamp policy configured for its Card. An Entry does not necessarily earn a Stamp. When a card holds its Card's goal, the shop can give the reward. A **redemption** takes the goal off the count. The shop can also correct the count with an **adjustment** and a reason. Both are kept in an append-only ledger, so the count is credits plus the ledger, and history stays. _Avoid_: Point, visit count, check-in
 
-**Member number**: The random label every Right receives at issuance: 13 characters from the 28-character alphabet `23456789acdefghjkmnpqrtuvwxy` — 12 random plus one check character — stored canonical lowercase with no separators (`qj2yxphepdrka`) and shown upper-cased in `4-4-5` groups (`QJ2Y-XPHE-PDRKA`) on the Pass and dashboard. One per Right, unique per Issuer, never sequential. It is the ENS member label (`<member-no>.<issuer>.fuda.eth`, see `docs/specs/ens-naming.md`) and is not the Member id, which groups a Member's several Rights. _Avoid_: Member id, serial (that is the Right's lineage field), sequence number
+**Member number**: The random label every Right receives at issuance: 13 characters from the 28-character alphabet `23456789acdefghjkmnpqrtuvwxy`, 12 random plus one check character. It is stored canonical lowercase with no separators (`qj2yxphepdrka`) and shown upper-cased in `4-4-5` groups (`QJ2Y-XPHE-PDRKA`) on the Pass and dashboard. One per Right, unique per Issuer, never sequential. It is the ENS member label (`<member-no>.<issuer>.fuda.eth`, see `docs/specs/ens-naming.md`) and is not the Member id, which groups a Member's several Rights. _Avoid_: Member id, serial (that is the Right's lineage field), sequence number
 
-**Qualification**: The external fact that makes a Member eligible for a Right (registered for the event, on the roster, paid) — read from a Qualification source before issuance is triggered. _Avoid_: Eligibility, entitlement (that is the Right), registration (one kind of Qualification)
+**Qualification**: The external fact that makes a Member eligible for a Right (registered for the event, on the roster, paid). It is read from a Qualification source before issuance is triggered. _Avoid_: Eligibility, entitlement (that is the Right), registration (one kind of Qualification)
 
-**Integration** (of a Card): An optional external service an Issuer turns on for one Card, off by default and saved apart from the Card. A Card's integrations decide which Badge kinds its members may attach; the gate never reads them. _Avoid_: Plugin, add-on, feature flag, connector
+**Integration** (of a Card): An optional external service an Issuer turns on for one Card, off by default and saved apart from the Card. A Card's integrations decide which Badge kinds its members may attach. The gate never reads them. _Avoid_: Plugin, add-on, feature flag, connector
 
-**Badge**: A verified fact about the Member holding a Right, attached after issuance and naming the verifier that attested it. The `human` Badge claims one thing — that a unique person holds the Right — and more than one credential can prove it: World ID's proof of human or Japan's My Number Card. Which one answered is recorded for auditing and is never shown; the Badge names the claim, never the credential or the vendor. Advisory: a missing or failed Badge lookup never changes a gate decision. _Avoid_: Stamp (that is a loyalty credit, not a verified fact), Qualification (that is pre-issuance), credential
+**Badge**: A verified fact about the Member holding a Right, attached after issuance and naming the verifier that attested it. The `human` Badge claims one thing: that a unique person holds the Right. More than one credential can prove it: World ID's proof of human or Japan's My Number Card. Which one answered is recorded for auditing and is never shown. The Badge names the claim, never the credential or the vendor. A Badge is advisory. A missing or failed Badge lookup never changes a gate decision. _Avoid_: Stamp (that is a loyalty credit, not a verified fact), Qualification (that is pre-issuance), credential
 
-**Subject key**: The opaque value a verifier returns to identify the person behind a Badge within one `(verifier, scope)` pair and nowhere else — the whole of what fuda stores about that person. For the `human` Badge it is a World ID 4.0 uniqueness nullifier, scoped to the relying party and the action, and stable for the same person and action whichever of the accepted credentials proved it — the credential is not part of the derivation; that stability is what the one-person-one-Badge rule rests on, and it is confirmed by World's documentation and protocol source rather than by a device measurement (see [the World ID research notes](research/world-id-2026-09-26.md)). A verifier that can only return a globally stable identifier must have it hashed together with the scope before storage. _Avoid_: nullifier (that is one verifier's name for it), user id, pseudonym
+**Subject key**: The opaque value a verifier returns to identify the person behind a Badge within one `(verifier, scope)` pair and nowhere else. It is the whole of what fuda stores about that person. For the `human` Badge, it is a World ID 4.0 uniqueness nullifier, scoped to the relying party and the action. It is stable for the same person and action whichever of the accepted credentials proved it, because the credential is not part of the derivation. The one-person-one-Badge rule depends on that stability. That stability is confirmed by World's documentation and protocol source, not by a device measurement (see [the World ID research notes](research/world-id-2026-09-26.md)). A verifier that can only return a globally stable identifier must have it hashed together with the scope before storage. _Avoid_: nullifier (that is one verifier's name for it), user id, pseudonym
 
-**Attendance**: The on-chain evidence of an on-chain Right’s Entry. An offchain Right has no Holder address to name, so its Entries stay in the entry log. _Avoid_: Entry record, stamp, proof of attendance
+**Attendance**: The on-chain evidence of an on-chain Right's Entry. An offchain Right has no Holder address to name, so its Entries stay in the entry log. _Avoid_: Entry record, stamp, proof of attendance
 
 ### Changing a right
 
-**Level upgrade**: Moving a Right to a higher level. Because a Right is immutable this is a revoke plus reissue whose successor carries the predecessor's uid in `serial`; the Holder does not move. _Avoid_: Claim, conversion, claim-and-merge, migration
+**Level upgrade**: Moving a Right to a higher level. Because a Right is immutable, a Level upgrade is a revoke plus reissue whose successor carries the predecessor's uid in `serial`. The Holder does not move. _Avoid_: Claim, conversion, claim-and-merge, migration
 
-**Issuer name**: The ENS subname for an Issuer (`<issuer>.fuda.eth`, label = Handle), resolving to the Issuer's wallet — offchain-first and onchain-claimable. A claimed Issuer name follows registry ownership and expiry independently of Issuer delegation revocation. Under it, each Right's Member number is a member label (`<member-no>.<issuer>.fuda.eth`, see `docs/specs/ens-naming.md`); Members as people and Operators are never named. A name never makes an Issuer legitimate. _Avoid_: Venue name, ENS handle, username, member name (that names a Right, not a person)
+**Issuer name**: The ENS subname for an Issuer (`<issuer>.fuda.eth`, whose label is the Handle). It resolves to the Issuer's wallet and is offchain-first and onchain-claimable. A claimed Issuer name follows registry ownership and expiry independently of Issuer delegation revocation. Under it, each Right's Member number is a member label (`<member-no>.<issuer>.fuda.eth`, see `docs/specs/ens-naming.md`). Members as people and Operators are never named. A name never makes an Issuer legitimate. _Avoid_: Venue name, ENS handle, username, member name (that names a Right, not a person)
 
-**Operator**: A person acting for a Venue at the dashboard or the gate (floor staff). Not an on-chain party, and never ENS-named. _Avoid_: Staff, admin (that is fuda's API authorization), issuer
+**Operator**: A person acting for a Venue at the dashboard or the gate (floor staff). An Operator is not an on-chain party and is never ENS-named. _Avoid_: Staff, admin (that is fuda's API authorization), issuer
