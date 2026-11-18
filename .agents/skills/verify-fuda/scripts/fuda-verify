@@ -1,0 +1,17 @@
+#!/bin/sh
+# Runs packages/e2e/scripts/verify.ts on Node 24.22+, with that Node first on
+# PATH so the stack's `void` and `vp` wrappers use it too. See ../SKILL.md.
+set -eu
+root=$(cd "$(dirname "$0")/../../../.." && pwd)
+ok() { "$1" -e 'const [a,b]=process.versions.node.split(".").map(Number);process.exit(a>24||(a===24&&b>=22)?0:1)' 2>/dev/null; }
+node_bin=""
+for candidate in "${FUDA_VERIFY_NODE:-}" "$(command -v node 2>/dev/null || true)" "$(mise which node 2>/dev/null || true)" "$HOME/.local/share/mise/installs/node/24/bin/node"; do
+  if [ -n "$candidate" ] && [ -x "$candidate" ] && ok "$candidate"; then node_bin=$candidate; break; fi
+done
+if [ -z "$node_bin" ]; then
+  echo "fuda-verify: no Node 24.22+ found; set FUDA_VERIFY_NODE=/path/to/node" >&2
+  exit 2
+fi
+PATH="$(dirname "$node_bin"):$PATH"
+export PATH
+exec "$node_bin" "$root/packages/e2e/scripts/verify.ts" "$@"

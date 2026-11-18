@@ -26,7 +26,7 @@ All three frontends use Preact. Shared components and page tooling live in `@fud
 
 ## Evidence
 
-Save screenshots, recordings and review evidence under `artifacts/<YYYY-MM-DD>-<task>/`, which is Git-ignored. Use `/tmp` for disposable scripts and logs. Builds and tests must not depend on either. When handing off a capture, give its absolute path, viewport, locale, theme and any fictional data.
+To prove a user-facing change on the local stack, follow `.agents/skills/verify-fuda/SKILL.md`. Save screenshots, recordings and review evidence under `artifacts/<YYYY-MM-DD>-<task>/`, which is Git-ignored. Use `/tmp` for disposable scripts and logs. Builds and tests must not depend on either. When handing off a capture, give its absolute path, viewport, locale, theme and any fictional data.
 
 ## D1 writes
 
