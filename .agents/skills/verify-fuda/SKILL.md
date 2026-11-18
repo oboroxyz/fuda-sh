@@ -19,9 +19,15 @@ Read `features/README.md` before driving, then the feature file for the flow you
 
 It runs `packages/e2e/scripts/stack.ts <surface>` in its own process group: `vp build` of `apps/api/targets/e2e`, `void db migrate` into an empty D1 under `packages/e2e/.e2e/state/<surface>`, `vp preview` of the api, then `vp dev` of the surface. It is ready when it prints a JSON line with `"ready":true`, after about 10 seconds with a warm build cache and up to 3 minutes cold. On failure it names the log, `packages/e2e/.e2e/verify/<surface>.log`. Read it, then run `down`.
 
-Requirements: dependencies installed (`pnpm install --frozen-lockfile`), Chromium for `playwright-core` 1.64.1 (the version `@e2e-dev/web` pins) in `~/.cache/ms-playwright` (`packages/e2e/node_modules/.bin/e2e-web install` if missing), and `sqlite3` on PATH for `d1()` reads.
+`up` needs these:
 
-Node: the wrapper picks Node 24.22 or later and puts it first on PATH. That matters because `void` and `vp` start through `/bin/sh` wrappers that run the first `node` on PATH, and `void` exits with "Node.js 24.22+ or 26.12+ is required" otherwise. A machine where an older Node, such as a `~/.local/bin/node` symlink, comes before mise's Node 24 on PATH hits this. Set `FUDA_VERIFY_NODE=/path/to/node` to choose one. The same PATH issue breaks a bare `pnpm e2e` here; run it as `PATH=<node 24 bin>:$PATH pnpm e2e`.
+- Dependencies installed with `pnpm install --frozen-lockfile`.
+- Chromium for `playwright-core` 1.64.1, the version `@e2e-dev/web` pins, in `~/.cache/ms-playwright`. If it is missing, run `packages/e2e/node_modules/.bin/e2e-web install`.
+- `sqlite3` on PATH, for `d1()` reads.
+
+The wrapper picks Node 24.22 or later and puts it first on PATH. `void` and `vp` start through `/bin/sh` wrappers that run the first `node` on PATH. With an older one, `void` exits with "Node.js 24.22+ or 26.12+ is required". That happens when an older Node, such as a `~/.local/bin/node` symlink, comes before Node 24 on PATH. To choose the Node yourself, set `FUDA_VERIFY_NODE=/path/to/node`.
+
+The same PATH order breaks a bare `pnpm e2e`. Run it as `PATH=<node 24 bin>:$PATH pnpm e2e`.
 
 ## Doctor
 
@@ -55,13 +61,13 @@ A journey is a TypeScript module whose default export is a `Journey` from `packa
 - `check(condition, message)`: fails the journey.
 - `signInOperator(token)`: sets the dash `fuda_operator` cookie. The admin token path is the sign-in page's "Sign in with an admin token instead" with an empty token.
 
-Write a one-off journey anywhere, such as the session's scratch folder. Import only the `Journey` type, by absolute path (`import type { Journey } from '<repo>/packages/e2e/scripts/verify.ts'`), and take everything else from `ctx`, because packages resolve only inside `packages/e2e`. Add one to `packages/e2e/journeys/` only when the feature map should keep it; that folder is linted and type-checked with the e2e package. Selectors and expected text for each flow are in `features/`.
+Write a one-off journey anywhere, such as the session's scratch folder. Import only the `Journey` type, by absolute path (`import type { Journey } from '<repo>/packages/e2e/scripts/verify.ts'`), and take everything else from `ctx`, because packages resolve only inside `packages/e2e`. Add a journey to `packages/e2e/journeys/` only when the feature map should keep it. The e2e package lints and type-checks that folder. Selectors and expected text for each flow are in `features/`.
 
 ## Evidence
 
-`drive` writes to `artifacts/<YYYY-MM-DD>-verify-<journey>/` (Git-ignored; a second argument overrides it): numbered PNG and ARIA pairs, `journey.webm`, `trace.zip` (drop it on trace.playwright.dev, which reads it in the browser without uploading it), and `journey.json`. The JSON records the commit, whether the tree was dirty, URL, viewport, locale, timezone, the page's theme, every step, every note, the result and the error. On failure it also saves a `failure` step. It prints `{"result","evidence","steps"}` and exits 1 when the journey fails.
+`drive` writes to `artifacts/<YYYY-MM-DD>-verify-<journey>/`, which is Git-ignored. A second argument picks another folder. It writes numbered PNG and ARIA pairs, `journey.webm`, `trace.zip` and `journey.json`. To read the trace, open it on trace.playwright.dev, which reads it in the browser without uploading it. The JSON records the commit, whether the tree was dirty, URL, viewport, locale, timezone, the page's theme, every step, every note, the result and the error. On failure it also saves a `failure` step. It prints `{"result","evidence","steps"}` and exits 1 when the journey fails.
 
-Proof standards:
+A journey is proof only when it meets these standards:
 
 - Go through the user's path: the screen's own controls, or the reader's keystrokes (`page.keyboard`). Never call the api's action endpoint in place of the control being proved. Seeding through the api is fine.
 - Capture the action and its result: a step before the result and a step after it, not only the final screen.
@@ -75,7 +81,13 @@ Proof standards:
 .agents/skills/verify-fuda/scripts/fuda-verify down
 ```
 
-`down` sends SIGTERM to the process group `up` started, then SIGKILL after 15 seconds. It never kills by name. It restores every `apps/*/void.lock.json` to the exact bytes it saved at `up`, because the stack rewrites them with local values. It removes `packages/e2e/.e2e/verify` and the surface's D1 state, and never touches `artifacts/`. Run it after every drive session, including failed ones. Afterwards, `git status` should show no `void.lock.json` change. If `down` reports nothing to stop but a lockfile is still modified, restore it with `git checkout -- apps/<app>/void.lock.json`, after checking that the diff contains only local values such as `API_BASE_URL: http://127.0.0.1:8797`.
+Run `down` after every drive session, including failed ones. It does these things:
+
+- Sends SIGTERM to the process group `up` started, then SIGKILL after 15 seconds. It never kills by name.
+- Restores every `apps/*/void.lock.json` to the exact bytes it saved at `up`, because the stack rewrites them with local values.
+- Removes `packages/e2e/.e2e/verify` and the surface's D1 state. It never touches `artifacts/`.
+
+Afterwards, `git status` shows no `void.lock.json` change. If `down` reports nothing to stop but a lockfile is still modified, read its diff. When the diff holds only local values, such as `API_BASE_URL: http://127.0.0.1:8797`, restore the file with `git checkout -- apps/<app>/void.lock.json`.
 
 ## Helpers
 

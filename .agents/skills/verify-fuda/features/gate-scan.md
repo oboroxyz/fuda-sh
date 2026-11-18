@@ -4,10 +4,10 @@ Staff at a door scan a member's pass on the gate. A valid pass shows a full-scre
 
 ## Sub-features
 
-- `scan-admit`: a `fuda:v1:` payload is admitted with `ADMIT`.
+- `scan-admit`: a `fuda:v1:` payload shows `ADMIT`.
 - `scan-already-used`: a second admission of a single-use Bearer Right reads `REJECT` with `ALREADY_USED`.
 - `scan-unreadable`: input that is not a pass reads `REJECT`, `not a fuda pass`, with no api call.
-- `scan-reader`: a desk reader's keystrokes plus Enter are scanned with no field focused, even while a verdict is showing.
+- `scan-reader`: the gate scans a desk reader's keystrokes and Enter when no field has focus, even while a verdict shows.
 - `scan-venue`: `?venue=<handle>` admits that shop's pass and rejects another shop's with `WRONG_VENUE — pass of another shop`.
 - `scan-no-venue`: without `?venue`, the header warns `no venue set: any shop's pass is admitted`.
 
