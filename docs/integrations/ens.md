@@ -1,10 +1,10 @@
 # ENS in fuda
 
-**What fuda does.** A membership, a ticket or an event badge becomes a revocable on-chain record: a venue issues a right, a standard pass goes to Apple Wallet, Google Wallet or a browser, and the hosted scanner asks the fuda API to check EAS and enforce admission state in D1.
+**What fuda does.** A membership, a ticket or an event badge becomes a revocable on-chain record. A venue issues a right, a standard pass goes to Apple Wallet, Google Wallet or a browser, and the hosted scanner asks the fuda API to check EAS and enforce admission state in D1.
 
-**Where ENS sits.** It names the two parties of that relationship — the venue that issues a right and the member number printed on the pass — and nothing else. **ENS names the relationship; EAS proves the right.** No admission path calls ENS. A name is a display and destination layer, never an authority.
+**Where ENS sits.** It names the two parties of that relationship and nothing else. The parties are the venue that issues a right and the member number printed on the pass. **ENS names the relationship. EAS proves the right.** No admission path calls ENS. A name is a display and destination layer, never an authority.
 
-**Why two kinds of name.** A venue's name is an entry it **owns onchain** in fuda's own ENSv2 User Registry, claimed with its own transaction. A member's name is written **offchain and free** as a best-effort side effect of standard issuance, so people who will never hold an ENS key still get an addressable credential.
+**Why two kinds of name.** A venue's name is an entry it **owns onchain** in fuda's own ENSv2 User Registry, claimed with its own transaction. fuda writes a member's name **offchain and free** as a best-effort side effect of standard issuance, so people who will never hold an ENS key still get an addressable credential.
 
 Built on the **ETHOnline 2026 ENSv2 beta deployment on Ethereum Sepolia**, not production ENS.
 
@@ -44,13 +44,13 @@ Deeper background: [naming spec](../specs/ens-naming.md) · [why one shared hybr
 |  | `<venue>.fuda.eth` | `<member-no>.<venue>.fuda.eth` |
 | --- | --- | --- |
 | Where it lives | fuda's own ENSv2 User Registry once claimed; before that, the venue's D1 record served by the gateway | offchain mirror, served by a signed CCIP-Read gateway |
-| Who owns it | the venue's own wallet | nobody — the member holds no ENS key |
+| Who owns it | the venue's own wallet | nobody, because the member holds no ENS key |
 | What it costs | one transaction, sponsored via fuda's ERC-7677 endpoint; Alchemy's paymaster pays | nothing |
 | Resolves | offchain to the operator's wallet from registration; onchain once the claim confirms, while unexpired, with no offchain fallback after that | once standard issuance writes the mirror, under an active venue namespace |
 | Goes dark | while expired or unregistered | on revoke, or when the venue namespace becomes inactive |
 | Transferable | no (role bitmap `0`) | n/a |
 
-A venue's public handle **is** its ENS label: the same `isIssuerHandle` grammar validates both. A member number is 12 random characters from a 28-character confusable-free alphabet plus a Luhn mod 28 check character, so it reveals no issue order and no member count.
+A venue's public handle **is** its ENS label, and the same `isIssuerHandle` grammar validates both. A member number is 12 random characters from a 28-character confusable-free alphabet plus a Luhn mod 28 check character, so it reveals no issue order and no member count.
 
 ## What was built
 
@@ -82,38 +82,38 @@ sequenceDiagram
     end
 ```
 
-- **Gateway answers are authenticated and routing is rechecked.** `resolveWithProof` checks target, expiry and a strict low-s signature from the authorized signer, then re-executes the request against current state and requires the same `OffchainLookup` envelope. It trusts that signer for the offchain result; it does not verify the D1 record itself.
+- **Gateway answers are authenticated and routing is rechecked.** `resolveWithProof` checks target, expiry and a strict low-s signature from the authorized signer, then re-executes the request against current state and requires the same `OffchainLookup` envelope. It trusts that signer for the offchain result. It does not verify the D1 record itself.
 - **A failed registry read never falls back offchain** (`testRegistryFailureNeverFallsBackOffchain`). Unavailable is not unclaimed.
 - **No offchain resurrection.** An append-only claim marker means a once-claimed venue namespace answers empty while expired or unregistered, instead of reverting to stale hosted data. Renewal or re-registration restores it.
 
-The resolver serves only `addr(bytes32)` and `addr(bytes32,uint256)` coin type 60. No `text`, no `contenthash`: a name here is a destination, not a profile.
+The resolver serves only `addr(bytes32)` and `addr(bytes32,uint256)` coin type 60. It serves no `text` and no `contenthash`, because a name here is a destination, not a profile.
 
 ### 2. `FudaSubnameRegistrar` — claiming, without handing over revocation
 
 [`packages/ens-contracts/contracts/FudaSubnameRegistrar.sol`](../../packages/ens-contracts/contracts/FudaSubnameRegistrar.sol)
 
-One press in the dashboard. fuda signs the permission; the venue signs the transaction.
+A claim is one press in the dashboard. fuda signs the permission, and the venue signs the transaction.
 
 | Step | What happens |
 | --- | --- |
 | 1 | `POST /v1/issuers/me/ens/claim-voucher` checks that the deployment's `IssuerDelegation` on Base is live and names its signer, reads the registrar nonce fresh, signs an EIP-712 `ClaimVoucher`, records `voucher_issued` |
-| 2 | The venue's wallet submits `claim(voucher)` as an ERC-4337 user operation. `POST /v1/ens/paymaster` (ERC-7677) accepts only `claim` or `renew` on fuda's registrar and forwards to **Alchemy's verifying paymaster**, which pays. Strip it and the claim still works; it just costs the venue gas |
+| 2 | The venue's wallet submits `claim(voucher)` as an ERC-4337 user operation. `POST /v1/ens/paymaster` (ERC-7677) accepts only `claim` or `renew` on fuda's registrar and forwards to **Alchemy's verifying paymaster**, which pays. Without the paymaster, the claim still works, and the venue pays the gas |
 | 3 | `POST /v1/issuers/me/ens/claimed` fetches the receipt, requires the registrar's own event, and only then records `claimed` |
 
-The nonce is consumed before the registry call, so a revert rolls everything back, and the EIP-712 domain is pinned to chain `11155111` at construction, so a voucher cannot be replayed onto another deployment.
+The registrar consumes the nonce before the registry call, so a revert rolls everything back. The constructor pins the EIP-712 domain to chain `11155111`, so a voucher cannot be replayed onto another deployment.
 
 **What holds the permissions apart:**
 
-- The registrar holds only **`REGISTRAR | RENEW`** on the User Registry: claim power carries **no** revocation power.
-- Claimed entries get child role bitmap **`0`**: the venue cannot transfer the name or repoint its resolver.
-- **No principal holds `UNREGISTER`.** But said plainly: **a venue name is not censorship-resistant against fuda.** The parent-owner key holds the admin bit and could grant `UNREGISTER` to itself. The root is kept, not renounced, and [ENS root custody](../specs/ens-naming.md#root-role-custody) records why.
-- A member name goes dark on revoke; a claimed venue name does not. Tying an onchain unregister to revocation would hand revocation power to a live principal, which is what the role split prevents.
+- The registrar holds only **`REGISTRAR | RENEW`** on the User Registry, so claim power carries **no** revocation power.
+- Claimed entries get child role bitmap **`0`**, so the venue cannot transfer the name or repoint its resolver.
+- **No principal holds `UNREGISTER`.** Even so, **a venue name is not censorship-resistant against fuda.** The parent-owner key holds the admin bit and could grant `UNREGISTER` to itself. The root is kept, not renounced, and [ENS root custody](../specs/ens-naming.md#root-role-custody) records why.
+- A member name goes dark on revoke, but a claimed venue name does not. Tying an onchain unregister to revocation would hand revocation power to a live principal. The role split prevents exactly that.
 
 ### 3. The gateway and the mirror
 
 [`apps/api/src/ens/`](../../apps/api/src/ens)
 
-`POST /ens/gateway` is the EIP-3668 endpoint: it decodes the request, checks the `addr` selector and node, looks the name up in the `ens_names` mirror (a never-claimed venue name in `issuers`, answering with the operator's wallet), and signs the answer over `0x1900 ‖ resolver ‖ expires ‖ keccak(request) ‖ keccak(result)`. [`mirror.ts`](../../apps/api/src/ens/mirror.ts) writes member names after standard issuance, venue names on the claim path, and darkening on revoke. Member-name writes and darkening are best-effort: they never fail the underlying issuance or revocation, and the mirror may remain missing or stale.
+`POST /ens/gateway` is the EIP-3668 endpoint. It decodes the request, checks the `addr` selector and node, looks the name up in the `ens_names` mirror, and signs the answer over `0x1900 ‖ resolver ‖ expires ‖ keccak(request) ‖ keccak(result)`. It looks up a never-claimed venue name in `issuers` and answers with the operator's wallet. [`mirror.ts`](../../apps/api/src/ens/mirror.ts) writes member names after standard issuance, venue names on the claim path, and darkening on revoke. Member-name writes and darkening are best-effort. They never fail the underlying issuance or revocation, and the mirror may remain missing or stale.
 
 ## On the product's path
 
@@ -125,13 +125,13 @@ The nonce is consumed before the registry call, so a revert rolls everything bac
 | Dashboard | Shows the venue's name and runs the one-press claim |
 | **Gate** | **Never calls ENS.** Names are never shown at the gate, never logged in Entry, never included in any public record |
 
-No fuda surface resolves a name through ENS; the dashboard prints the string the API returns. Every resolution below was done from a third-party client.
+No fuda surface resolves a name through ENS. The dashboard prints the string the API returns. Every resolution below was done from a third-party client.
 
 ## Evidence
 
 ### Deployed addresses
 
-ETHOnline 2026 ENSv2 beta deployment, Ethereum Sepolia (`11155111`), **not** production ENS. All 40 hackathon addresses are pinned in [`deployment.ts`](../../packages/ens-contracts/src/deployment.ts) with their runtime code hashes; preflight refuses a wrong chain, a mixed address family, or changed runtime code.
+ETHOnline 2026 ENSv2 beta deployment, Ethereum Sepolia (`11155111`), **not** production ENS. All 40 hackathon addresses are pinned in [`deployment.ts`](../../packages/ens-contracts/src/deployment.ts) with their runtime code hashes. Preflight refuses a wrong chain, a mixed address family, or changed runtime code.
 
 | Item                         | Value                                        |
 | ---------------------------- | -------------------------------------------- |
@@ -171,7 +171,7 @@ The voucher signer, the gateway signer and the EAS issuer key are three separate
 
 ### Verify it independently
 
-Open the hackathon ENS Explorer, <https://hackathon-deployment-portal-app.ens-cf.workers.dev/>, and enter `ethonline2026.fuda.eth`: owner, resolver, role bitmap and expiry come straight from the registry. Or resolve any of the names above from your own client, below.
+Open the hackathon ENS Explorer, <https://hackathon-deployment-portal-app.ens-cf.workers.dev/>, and enter `ethonline2026.fuda.eth`. The owner, resolver, role bitmap and expiry come straight from the registry. You can also resolve any of the names above from your own client, as [Resolve a name yourself](#resolve-a-name-yourself) shows.
 
 ## Reproduce it
 
@@ -189,11 +189,11 @@ pnpm --filter @fuda/ens-contracts test
 pnpm --filter api test
 ```
 
-`conformance.test.ts` and the Solidity suite assert the same bytes, so the gateway and the resolver cannot drift on the wire format.
+`conformance.test.ts` and the Solidity suite assert the same bytes, so the gateway and the resolver cannot disagree on the wire format.
 
 ### Against the live deployment, read-only
 
-Needs only an Ethereum Sepolia RPC URL. Every other value is public and listed in [Deployed addresses](#deployed-addresses).
+You need only an Ethereum Sepolia RPC URL. Every other value is public and listed in [Deployed addresses](#deployed-addresses).
 
 ```sh
 ENS_RPC_URL=https://… pnpm --filter @fuda/ens-contracts ens:preflight
@@ -210,7 +210,7 @@ ENS_REGISTRAR_ADDRESS=0x58AF04ff5e6DAB45ECD17bD38fC4f4BBa45778B9 \
 
 ### Resolve a name yourself
 
-viem ships production ENS addresses, so the Universal Resolver must be overridden once in the chain definition. `ENS_HACKATHON_CHAIN` does that:
+viem ships production ENS addresses, so the chain definition must override the Universal Resolver once. `ENS_HACKATHON_CHAIN` does that:
 
 ```ts
 import { ENS_HACKATHON_CHAIN } from '@fuda/ens-contracts'
@@ -229,17 +229,17 @@ Rerun the calls to establish current state.
 
 ## Source map
 
-**Contracts** — [`packages/ens-contracts/contracts/`](../../packages/ens-contracts/contracts)
+**Contracts** in [`packages/ens-contracts/contracts/`](../../packages/ens-contracts/contracts)
 
 | File | What |
 | --- | --- |
 | [`FudaResolver.sol`](../../packages/ens-contracts/contracts/FudaResolver.sol) | `resolve`: name → nearest claim marker → `getOwner` → onchain answer, selector-specific empty, or `OffchainLookup`. `resolveWithProof`: verify, re-staticcall, require an identical envelope. `markIssuer`: registrar-only, append-only |
 | [`FudaSubnameRegistrar.sol`](../../packages/ens-contracts/contracts/FudaSubnameRegistrar.sol) | `claim` / `renew` / `setVoucherSigner`; EIP-712 domain pinned to chain 11155111; registers `owner=issuer, subregistry=0, resolver=shared, roles=0`, then `markIssuer` |
-| [`interfaces/IUserRegistry.sol`](../../packages/ens-contracts/contracts/interfaces/IUserRegistry.sol) | the entire ENSv2 surface fuda consumes: `register`, `renew`, `getOwner` |
+| [`interfaces/IUserRegistry.sol`](../../packages/ens-contracts/contracts/interfaces/IUserRegistry.sol) | the entire ENSv2 interface fuda uses: `register`, `renew`, `getOwner` |
 | [`libraries/FudaECDSA.sol`](../../packages/ens-contracts/contracts/libraries/FudaECDSA.sol) | strict 65-byte low-s recovery, shared by both contracts |
-| [`test/`](../../packages/ens-contracts/test) | 70 Solidity test functions, e.g. `testRegistryFailureNeverFallsBackOffchain`, `testRegisteredIssuerHasNoTransferRole`, `testRejectsWrongChainAtConstruction`, `testAcceptsTypeScriptConformanceVector` |
+| [`test/`](../../packages/ens-contracts/test) | 70 Solidity test functions, including `testRegistryFailureNeverFallsBackOffchain`, `testRegisteredIssuerHasNoTransferRole`, `testRejectsWrongChainAtConstruction`, `testAcceptsTypeScriptConformanceVector` |
 
-**Deployment manifest and tooling** — [`packages/ens-contracts/src/`](../../packages/ens-contracts/src)
+**Deployment manifest and tooling** in [`packages/ens-contracts/src/`](../../packages/ens-contracts/src)
 
 | File | What |
 | --- | --- |
@@ -249,7 +249,7 @@ Rerun the calls to establish current state.
 | [`deploy/topology.ts`](../../packages/ens-contracts/src/deploy/topology.ts) | resumable deployment; resolver set on the parent; `REGISTRAR \| RENEW` granted |
 | [`deploy/verify.ts`](../../packages/ens-contracts/src/deploy/verify.ts) | the read-only topology check behind `ens:verify` |
 
-**Gateway, mirror and claim** — [`apps/api/src/ens/`](../../apps/api/src/ens)
+**Gateway, mirror and claim** in [`apps/api/src/ens/`](../../apps/api/src/ens)
 
 | File | What |
 | --- | --- |
@@ -260,4 +260,4 @@ Rerun the calls to establish current state.
 | [`handlers/ens-claim.ts`](../../apps/api/src/handlers/ens-claim.ts) | voucher signing, receipt-confirmed recording, paymaster sponsorship |
 | [`conformance.test.ts`](../../apps/api/src/ens/conformance.test.ts) | hex vectors shared with the Solidity suite |
 
-Handle and member-number grammar are shared by every surface: [`packages/sdk/src/member-number.ts`](../../packages/sdk/src/member-number.ts).
+Every surface uses the same handle and member-number grammar, from [`packages/sdk/src/member-number.ts`](../../packages/sdk/src/member-number.ts).

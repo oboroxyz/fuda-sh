@@ -1,6 +1,6 @@
 # Figma Make apps in fuda
 
-A store can build its own small app in Figma Make — a sign-up page, a campaign page, a tool for the counter — and have it create the store's cards in fuda. The app runs only in the browser and holds no secret: the operator approves it once in fuda, and it receives an access token for that one store. Cards created this way are published at once, and the store does not need to claim its ENS name first. The contract is in [Connected apps](../specs/connected-apps.md).
+A store can build its own small app in Figma Make, such as a sign-up page, a campaign page or a tool for the counter, and have it create the store's cards in fuda. The app runs only in the browser and holds no secret. The operator approves it once in fuda, and the app receives an access token for that one store. Cards created this way are published at once, and the store does not need to claim its ENS name first. The contract is in [Connected apps](../specs/connected-apps.md).
 
 ```mermaid
 sequenceDiagram
@@ -22,10 +22,10 @@ sequenceDiagram
 
 1. Sign in to `dash.fuda.sh` with your passkey and create your profile if you have none. Apps cannot create a profile.
 2. Publish the Figma Make app once so it has its address, for example `https://your-app.figma.site/`.
-3. In the dashboard, open **Apps**, register the app with that address as its return address, and copy the client ID. Register the editor-preview address as well if you want to test inside Figma's preview; fuda only answers pages at a registered address.
-4. Put the client ID into the app (below). It is not a secret.
+3. In the dashboard, open **Apps**, register the app with that address as its return address, and copy the client ID. To test inside Figma's preview, register the editor-preview address as well. fuda answers only pages at a registered address.
+4. Put the client ID into the app, as [the client](#the-client) shows. It is not a secret.
 
-Only the account that registered the app can approve it. An account with several profiles chooses one on the consent page; approving the app for a second profile is a separate approval with its own token, and neither token reaches the other profile's cards. The dashboard's Apps page lists every live approval and can revoke it, or delete the app with all of its approvals.
+Only the account that registered the app can approve it. An account with several profiles chooses one on the consent page. Approving the app for a second profile is a separate approval with its own token, and neither token reaches the other profile's cards. The dashboard's Apps page lists every live approval and can revoke it, or delete the app with all of its approvals.
 
 ## The client
 
@@ -142,7 +142,7 @@ if (token === null) {
 }
 ```
 
-`finishFudaConnect` checks `state` against the value saved before the redirect and trades the code for a token with the PKCE verifier; the token lives in `sessionStorage`, so it ends with the tab. A token lasts 30 days. When a call answers `401`, send the operator through `connectFuda()` again.
+`finishFudaConnect` checks `state` against the value saved before the redirect and trades the code for a token with the PKCE verifier. The token lives in `sessionStorage`, so it ends with the tab. A token lasts 30 days. When a call answers `401`, send the operator through `connectFuda()` again.
 
 ## What the app can do
 
@@ -154,7 +154,7 @@ if (token === null) {
 | `GET /v1/connect/cards/:cardId` | `cards:read` | one card and its public page |
 | `POST /v1/oauth/revoke` | — | ends the app's own token (`token`, `client_id`) |
 
-A card body is the dashboard's: `category` (`membership` or `ticket`), `slug` (lowercase letters, digits and `-`, unique within the store), `title`, and optionally `description`, `claimFrom`/`claimUntil`, `validityDays` or `validFrom`/`validUntil` (unix seconds), `lockScreen` and `venue` `{ lat, lng }`. A taken slug answers `409 slug_taken`; a malformed one `400 bad_slug`.
+A card body is the dashboard's: `category` (`membership` or `ticket`), `slug` (lowercase letters, digits and `-`, unique within the store), `title`, and optionally `description`, `claimFrom`/`claimUntil`, `validityDays` or `validFrom`/`validUntil` (unix seconds), `lockScreen` and `venue` `{ lat, lng }`. A taken slug answers `409 slug_taken`, and a malformed one answers `400 bad_slug`.
 
 ## When something is refused
 
@@ -169,11 +169,11 @@ A card body is the dashboard's: `category` (`membership` or `ticket`), `slug` (l
 
 ## Try it locally
 
-With the api on the fake chain (`pnpm dev:dash+api`, see the [runbook](../runbook.md#12-local-development)), point the client at it:
+Start the api on the fake chain with `pnpm dev:dash+api`, as [local development in the runbook](../runbook.md#12-local-development) describes. Then point the client at it:
 
 ```ts
 config.api = 'http://localhost:8787/v1'
 config.authorize = 'http://127.0.0.1:5175/oauth/authorize'
 ```
 
-Register `http://localhost:<port>/` — the port the kit's `vite` serves on — as the return address, and sign in on `127.0.0.1:5175` with a passkey.
+Register `http://localhost:<port>/` as the return address, where `<port>` is the port the kit's `vite` serves on. Then sign in on `127.0.0.1:5175` with a passkey.
