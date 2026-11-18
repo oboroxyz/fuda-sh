@@ -15,7 +15,7 @@ The repository ships the naming implementation:
 - the hybrid ENSIP-10 `FudaResolver` and voucher-gated `FudaSubnameRegistrar` contracts;
 - claim and renew EIP-712 typed-data builders and inclusive-to-exclusive expiry conversion;
 - a pinned ENSv2 deployment manifest, runtime code hashes, and strict read-only preflight; and
-- parent commit/reveal tooling, resumable topology deployment, and standalone read-only topology verification.
+- parent commit-reveal tooling, resumable topology deployment, and standalone read-only topology verification.
 
 `fuda.eth` is registered and the topology is deployed and verified on Ethereum Sepolia:
 
@@ -28,17 +28,17 @@ The repository ships the naming implementation:
 | voucher signer                 | `0x5c5DE7F78d90701066f5C52e8100B5e2c73845F9` |
 | gateway signer                 | `0xf0D345D00fA513D92ACCbc10Db721792577FcF9f` |
 
-Voucher issuance, the naming mirror and revoke lifecycle integration are implemented (see below). Live `.eth` verification through a third-party client and the `fuda.sh` DNS change remain external gates. No Gate or Entry path calls ENS or the gateway.
+Voucher issuance, the naming mirror and revoke lifecycle integration are implemented (see below). Live `.eth` verification through a third-party client and the `fuda.sh` DNS change remain external blockers. No Gate or Entry path calls ENS or the gateway.
 
 ## Claiming a name, and what writes the mirror
 
-Claiming is optional. A venue registers, creates cards, issues passes and serves its public page without ever claiming its ENS name; none of those paths reads the issuer's `ens_names` row, and none depends on `ENS_PARENT_NAME` being configured. Everywhere outside `/profile` the venue is identified by its name, its Handle and its public URL `/@<handle>`; an unclaimed venue shows nothing in place of an ENS name. The issuer's own name resolves before any claim: for a never-claimed name the gateway answers with the registered operator's wallet, read from the `issuers` table, which is the wallet a claim would make the owner. A signed but unused voucher (`voucher_issued`) or a `failed` row counts as never claimed only when it has no previous claim transaction. Once a claim is confirmed the `claimed` mirror row answers instead, and from then on the name never falls back to `issuers`, even after it expires or is unregistered (see [the claim marker](#append-only-claim-marker)). As with a claimed name, revoking the issuer's delegation does not take an unclaimed name dark. This answer makes the operator's wallet discoverable from the Handle before the operator opts into a claim; a claim would publish the same wallet onchain. Member names (`<member-no>.<issuer>.fuda.eth`) are mirrored offchain at issuance whether or not the issuer's own name is claimed. A cancelled wallet prompt or failed confirmation changes nothing but the claim itself and offers another attempt. Deployments without ENS configured show that ENS names are unavailable on `/profile` and otherwise behave the same.
+Claiming is optional. A venue registers, creates cards, issues passes and serves its public page without ever claiming its ENS name. None of those paths reads the issuer's `ens_names` row, and none depends on `ENS_PARENT_NAME` being configured. Everywhere outside `/profile` the venue is identified by its name, its Handle and its public URL `/@<handle>`. An unclaimed venue shows nothing in place of an ENS name. The issuer's own name resolves before any claim. For a never-claimed name, the gateway answers with the registered operator's wallet, read from the `issuers` table. That wallet is the one a claim would make the owner. A signed but unused voucher (`voucher_issued`) or a `failed` row counts as never claimed only when it has no previous claim transaction. Once a claim is confirmed, the `claimed` mirror row answers instead, and from then on the name never falls back to `issuers`, even after it expires or is unregistered (see [the claim marker](#append-only-claim-marker)). As with a claimed name, revoking the issuer's delegation does not take an unclaimed name dark. This answer makes the operator's wallet discoverable from the Handle before the operator opts into a claim. A claim would publish the same wallet onchain. Member names (`<member-no>.<issuer>.fuda.eth`) are mirrored offchain at issuance whether or not the issuer's own name is claimed. A cancelled wallet prompt or failed confirmation changes nothing but the claim itself and offers another attempt. Deployments without ENS configured show that ENS names are unavailable on `/profile` and otherwise behave the same.
 
-A name is held by a wallet, so only a venue owned by an address can claim one. On a venue a passkey account owns, both claim routes answer `409 wallet_required` before any chain read, the dashboard says a wallet is needed, and the never-claimed name resolves to nothing, because there is no wallet to answer with. Such a venue cannot gain a wallet later: an operator who wants a name signs in with a wallet and makes the venue there.
+A name is held by a wallet, so only a venue owned by an address can claim one. On a venue a passkey account owns, both claim routes answer `409 wallet_required` before any chain read, the dashboard says a wallet is needed, and the never-claimed name resolves to nothing, because there is no wallet to answer with. Such a venue cannot gain a wallet later. An operator who wants a name signs in with a wallet and makes the venue there.
 
-The dashboard venue identity on `/profile` shows the ENS name alongside the venue name and public URL. A confirmed claim displays a verification mark; an unclaimed name offers a Claim button in the same area, with progress and retry feedback. The mark indicates a confirmed ENS claim, not independent verification of the business. The claimed ENS name links to the issuer owner address on Sepolia Etherscan in a new tab, even when the claim transaction hash is unavailable.
+The dashboard venue identity on `/profile` shows the ENS name alongside the venue name and public URL. A confirmed claim displays a verification mark. An unclaimed name offers a Claim button in the same area, with progress and retry feedback. The mark indicates a confirmed ENS claim, not independent verification of the business. The claimed ENS name links to the issuer owner address on Sepolia Etherscan in a new tab, even when the claim transaction hash is unavailable.
 
-An operator claims their venue's name from the dashboard in one press. fuda signs the voucher; the operator's own wallet submits it on Ethereum Sepolia, sponsored, so a venue owner needs neither that chain's native token nor a second wallet:
+An operator claims their venue's name from the dashboard in one press. fuda signs the voucher. The operator's own wallet submits it on Ethereum Sepolia in a sponsored transaction, so a venue owner needs neither that chain's native token nor a second wallet:
 
 | Step | Route | What it does |
 | --- | --- | --- |
@@ -46,9 +46,9 @@ An operator claims their venue's name from the dashboard in one press. fuda sign
 | 2 | — | the operator's wallet switches to Ethereum Sepolia and calls `claim`, sponsored through `POST /v1/ens/paymaster` |
 | 3 | `POST /issuers/me/ens/claimed` | verifies the receipt carries the registrar's own `IssuerClaimed` for that exact label and issuer, then records `claimed` |
 
-A voucher that is signed and never used costs nothing: the nonce is unspent, so the next press signs a fresh voucher at the same nonce. Step 3 records a claim only when the chain agrees; anything else leaves the name pending, which is recoverable, rather than recording a claim that did not happen. Issuer claim writes must be persisted before the API reports success; persistence failure returns `503 ens_persistence_failed`. A late voucher write cannot replace a live confirmed claim with a pending one, and a replayed confirmation with an earlier expiry cannot replace a later registration's hash and expiry. At the exclusive registry expiry, the dashboard reports the name as unclaimed and a fresh voucher may move it to `voucher_issued`. The mirror retains the previous claim transaction and expiry until confirmation, so a pending re-registration never restores the never-claimed gateway fallback. Once the wallet accepts a claim, the dashboard retains its bundle ID in browser storage for the API and issuer, replacing it with the transaction hash when available. A polling timeout shows a pending claim with a recheck action. The next profile visit resumes polling and confirmation without submitting another transaction. A confirmed server state or a different current ENS name supersedes the stored receipt. A reverted receipt returns `409 claim_failed`; the dashboard clears it and allows a fresh claim attempt. Every one of these routes answers `503` until `ENS_PARENT_NAME` and all five claim bindings are configured.
+A voucher that is signed and never used costs nothing. The nonce is unspent, so the next press signs a fresh voucher at the same nonce. Step 3 records a claim only when the chain agrees. Any other result leaves the name pending, which is recoverable, instead of recording a claim that did not happen. Issuer claim writes must be persisted before the API reports success; persistence failure returns `503 ens_persistence_failed`. A late voucher write cannot replace a live confirmed claim with a pending one, and a replayed confirmation with an earlier expiry cannot replace a later registration's hash and expiry. At the exclusive registry expiry, the dashboard reports the name as unclaimed and a fresh voucher may move it to `voucher_issued`. The mirror retains the previous claim transaction and expiry until confirmation, so a pending re-registration never restores the never-claimed gateway fallback. Once the wallet accepts a claim, the dashboard retains its bundle ID in browser storage for the API and issuer, replacing it with the transaction hash when available. A polling timeout shows a pending claim with a recheck action. The next profile visit resumes polling and confirmation without submitting another transaction. A confirmed server state or a different current ENS name supersedes the stored receipt. A reverted receipt returns `409 claim_failed`, and the dashboard clears it and allows a fresh claim attempt. Every one of these routes answers `503` until `ENS_PARENT_NAME` and all five claim bindings are configured.
 
-`POST /v1/ens/paymaster` is fuda's own ERC-7677 endpoint, and it exists because no paymaster vendor can restrict sponsorship by destination contract — their allowlists are by sender, and a venue's account does not exist until it claims. It decodes the user operation's call data and pays only for `claim` and `renew` on the configured registrar, refusing anything else before the vendor is contacted, since an operation that reverts still spends the sponsor's money. The vendor key stays a Worker secret and the gas policy id is injected server-side.
+`POST /v1/ens/paymaster` is fuda's own ERC-7677 endpoint. It exists because no paymaster vendor can restrict sponsorship by destination contract. Vendor allowlists are by sender, and a venue's account does not exist until it claims. It decodes the user operation's call data and pays only for `claim` and `renew` on the configured registrar. It refuses anything else before it contacts the vendor, because an operation that reverts still spends the sponsor's money. The vendor key stays a Worker secret, and the api injects the gas policy id server-side.
 
 The `ens_names` mirror is written in exactly three places:
 
@@ -58,19 +58,19 @@ The `ens_names` mirror is written in exactly three places:
 | a right is issued under a venue | `<member-no>.<issuer>.fuda.eth`, `offchain`, holding the holder's address |
 | a right is revoked | that member name moves to `unregistered`, and lookup stops answering on the same request |
 
-Only a generated member number becomes a label. The admin path accepts free text for `memberId`, and that text never reaches the ENS namespace. A mirror write for a member never fails the operation that triggered it: a name is a convenience attached to a right, and the right is the product.
+Only a generated member number becomes a label. The admin path accepts free text for `memberId`, and that text never reaches the ENS namespace. A mirror write for a member never fails the operation that triggered it. A name is a convenience attached to a right, and the right is the product.
 
 ## Deployment namespace
 
-All ENS operations target the dedicated ETHOnline 2026 ENSv2 deployment on Ethereum Sepolia (`chainId = 11155111`). It is one indivisible address family: the package pins all 40 nonzero, unique deployment addresses and must not mix them with normal Sepolia ENS addresses. In particular, every client must override viem's normal Sepolia Universal Resolver with the dedicated proxy:
+All ENS operations target the dedicated ETHOnline 2026 ENSv2 deployment on Ethereum Sepolia (`chainId = 11155111`). It is one indivisible address family. The package pins all 40 nonzero, unique deployment addresses and must not mix them with normal Sepolia ENS addresses. In particular, every client must override viem's normal Sepolia Universal Resolver with the dedicated proxy:
 
 ```text
 0xd26f2040d083af1cd2962ba303f4bea0c4faf142
 ```
 
-The manifest also pins nonzero runtime code hashes for every protocol contract called by the tooling: `DNSAliasResolver`, `ETHRegistrar`, `ETHRegistry`, `MockUSDC`, `RootRegistry`, `UpgradableUniversalResolverProxy`, `UserRegistryImpl`, and `VerifiableFactory`. Preflight fails on a wrong chain or Universal Resolver, absent or changed runtime code, a mixed address family, unsupported or malformed ABI reads, an unavailable parent without its expected owner, or a resumed fuda contract whose owner or implementation differs.
+The manifest also pins nonzero runtime code hashes for every protocol contract the tooling calls: `DNSAliasResolver`, `ETHRegistrar`, `ETHRegistry`, `MockUSDC`, `RootRegistry`, `UpgradableUniversalResolverProxy`, `UserRegistryImpl`, and `VerifiableFactory`. Preflight fails on a wrong chain or Universal Resolver, absent or changed runtime code, a mixed address family, unsupported or malformed ABI reads, an unavailable parent without its expected owner, or a resumed fuda contract whose owner or implementation differs.
 
-The address family comes from the [ENS docs deployment table pinned at docs commit `825aca8a882b56557607fde7dc477bc9ca68e06d`](https://github.com/ensdomains/docs/blob/825aca8a882b56557607fde7dc477bc9ca68e06d/scripts/ensv2-deployments.ts#L84-L264). There is no published matching `ensdomains/contracts-v2` source ref. fuda therefore trusts the pinned addresses and observed runtime hashes, uses only its minimal ABI surface, simulates every write, validates receipt events, and verifies the resulting topology.
+The address family comes from the [ENS docs deployment table pinned at docs commit `825aca8a882b56557607fde7dc477bc9ca68e06d`](https://github.com/ensdomains/docs/blob/825aca8a882b56557607fde7dc477bc9ca68e06d/scripts/ensv2-deployments.ts#L84-L264). There is no published matching `ensdomains/contracts-v2` source ref. fuda therefore trusts the pinned addresses and observed runtime hashes, uses only its minimal ABI, simulates every write, validates receipt events, and verifies the resulting topology.
 
 ## Name hierarchy and ownership
 
@@ -81,33 +81,33 @@ fuda.eth                              parent (Ethereum Sepolia, ENSv2)
 fuda.sh  ──alias──►  fuda.eth         planned DNS alias; the zone is not changed yet
 ```
 
-- An **issuer label** is the issuer's public Handle (`/@<handle>`), restricted to lowercase ASCII `[a-z0-9-]`, 1–63 bytes, without a leading or trailing hyphen. Within this ASCII subset, [ENSIP-15](https://docs.ens.domains/ensip/15/#validate) also forbids hyphens in both the third and fourth positions (`ab--cd`, including the `xn--` Punycode prefix). The dashboard checks this before requesting availability; registration and ENS name construction use the same shared rule. Card slugs are not ENS labels and do not inherit this extra restriction. A reserved set is refused on top of that rule: fuda's own hostnames, the api's route prefixes, and the static segments under `/issuers/` (`me`, `check`, `cards`), which a venue name would otherwise shadow. A claimed label is an ENSv2 User Registry entry owned onchain by the issuer wallet.
-- A **member label** is the right's member number, exactly as printed on the pass after display formatting is removed. Member labels never become User Registry entries and members hold no ENS-side key; all member records remain offchain.
-- One shared `FudaResolver` is configured on `fuda.eth` and on every claimed issuer entry. The User Registry owns claimed issuer state; D1 owns unclaimed and member answers: never-claimed issuer names from the `issuers` table, member names from the `ens_names` mirror.
-- `fuda.sh` is intended to be a read-only alias of the `.eth` tree. The `fuda.sh` zone is DNSSEC-signed (validated by public resolvers) and carries a TXT record `ENS1 dnsalias.ens.eth sh eth`, which aliases the name through **production ENS on Ethereum mainnet** — not through this hackathon deployment's `DNSAliasResolver`. The hackathon alias record documented in the runbook has not been set, no `<venue>.fuda.sh` name resolves to a venue entry, and nothing in the product depends on the alias.
+- An **issuer label** is the issuer's public Handle (`/@<handle>`), restricted to lowercase ASCII `[a-z0-9-]`, 1–63 bytes, without a leading or trailing hyphen. Within this ASCII subset, [ENSIP-15](https://docs.ens.domains/ensip/15/#validate) also forbids hyphens in both the third and fourth positions (`ab--cd`, including the `xn--` Punycode prefix). The dashboard checks this before requesting availability. Registration and ENS name construction use the same shared rule. Card slugs are not ENS labels and do not inherit this extra restriction. A reserved set is refused on top of that rule: fuda's own hostnames, the api's route prefixes, and the static segments under `/issuers/` (`me`, `check`, `cards`), which a venue name would otherwise shadow. A claimed label is an ENSv2 User Registry entry owned onchain by the issuer wallet.
+- A **member label** is the right's member number, exactly as printed on the pass after display formatting is removed. Member labels never become User Registry entries and members hold no ENS-side key. All member records remain offchain.
+- One shared `FudaResolver` is configured on `fuda.eth` and on every claimed issuer entry. The User Registry owns claimed issuer state. D1 owns unclaimed and member answers: never-claimed issuer names from the `issuers` table, and member names from the `ens_names` mirror.
+- `fuda.sh` is intended to be a read-only alias of the `.eth` tree. The `fuda.sh` zone is DNSSEC-signed (validated by public resolvers) and carries a TXT record `ENS1 dnsalias.ens.eth sh eth`. That record aliases the name through **production ENS on Ethereum mainnet**, not through this hackathon deployment's `DNSAliasResolver`. The hackathon alias record documented in the runbook has not been set, no `<venue>.fuda.sh` name resolves to a venue entry, and nothing in the product depends on the alias.
 
 ## Member number
 
-Every self-serve right receives its own member number at issuance; admin-issued rights retain the supplied member id or holder address.
+Every self-serve right receives its own member number at issuance. Admin-issued rights retain the supplied member id or holder address.
 
 | Property | Rule |
 | --- | --- |
-| Alphabet | 28 characters `23456789acdefghjkmnpqrtuvwxy` — no `0 1 i l o`, and no `b s z` (read as `8 5 2` upper-cased) |
+| Alphabet | 28 characters `23456789acdefghjkmnpqrtuvwxy`, with no `0 1 i l o`, and no `b s z` (read as `8 5 2` upper-cased) |
 | Length | 13 characters: 12 random (~58 bits, no sequential counter) + 1 check character |
-| Check character | Luhn mod 28 over the 12 random characters (weights 2,1,2,… from the right, digit-sum carry, complement to 0 mod 28); detects every single-character error and almost all adjacent transpositions |
-| Canonical form | lowercase, no separators: `qj2yxphepdrka` — stored as-is, and this exact string is the ENS label |
+| Check character | Luhn mod 28 over the 12 random characters (weights 2,1,2,… from the right, digit-sum carry, complement to 0 mod 28). It detects every single-character error and almost all adjacent transpositions |
+| Canonical form | lowercase, no separators: `qj2yxphepdrka`, stored as-is. This exact string is the ENS label |
 | Display | display-only formatting on the pass and dashboard: upper-cased in `4-4-5` groups, `QJ2Y-XPHE-PDRKA` (the last character of the last group is the check). Any typed-in number is lower-cased and stripped of hyphens before lookup |
-| Transport | passed by scan (QR / pass / link); the check character lets any receiver reject a corrupted or mistyped number before a lookup |
+| Transport | passed by scan (QR, pass or link); the check character lets any receiver reject a corrupted or mistyped number before a lookup |
 | Uniqueness | unique per issuer; regenerated on collision |
 | Scope | one number per **right** |
 
-Hyphens never enter storage, the API, or ENS; they are added by the pass and dashboard renderers only.
+Hyphens never enter storage, the API, or ENS. Only the pass and dashboard renderers add them.
 
 Why random, not sequential: a counter would make member names enumerable, reveal issue order and issuer size, and correlate with the order of fuda's issuance onchain. Randomness costs nothing and removes all three.
 
-**Member number and the admin `memberId`.** The member number above is the identifier the self-serve issuance path generates for a right. The admin path (`POST /issue` from the dashboard) accepts `memberId` as free-text—any non-empty string the operator chooses—and stores it as-is in `members.member_id`; it is neither validated against nor converted to the member-number format. The two coexist: an admin-issued right has whatever id the operator typed, a self-serve right has a generated member number. `POST /issuers/:handle/:slug/issue` is the route that generates them: the generator and validator are `generateMemberNumber` / `isMemberNumber` in `@fuda/sdk`, and `formatMemberNumber` renders the `4-4-5` display form on passes. The number is stored in `members.member_id`. Uniqueness is scoped to the **issuer** — a partial unique index on `(issuer_id, member_id)`, with `members.issuer_id` denormalized from the card because SQLite cannot constrain across the join — because the number is a label under the issuer. Two cards of one venue therefore never mint the same number, and a member who claims both holds two unrelated numbers.
+**Member number and the admin `memberId`.** The member number above is the identifier the self-serve issuance path generates for a right. The admin path (`POST /issue` from the dashboard) accepts `memberId` as free text, meaning any non-empty string the operator chooses, and stores it as-is in `members.member_id`. That path neither validates it against the member-number format nor converts it to that format. The two coexist. An admin-issued right has whatever id the operator typed, and a self-serve right has a generated member number. `POST /issuers/:handle/:slug/issue` is the route that generates them. The generator and validator are `generateMemberNumber` and `isMemberNumber` in `@fuda/sdk`, and `formatMemberNumber` renders the `4-4-5` display form on passes. The number is stored in `members.member_id`. Uniqueness is scoped to the **issuer**, because the number is a label under the issuer. A partial unique index on `(issuer_id, member_id)` enforces it, with `members.issuer_id` denormalized from the card because SQLite cannot constrain across the join. Two cards of one venue therefore never mint the same number, and a member who claims both holds two unrelated numbers.
 
-A card's slug (`fuda.sh/@<handle>/<slug>`) is a product path and never an ENS label: the hierarchy stays `<member-no>.<issuer>.fuda.eth` with no card level.
+A card's slug (`fuda.sh/@<handle>/<slug>`) is a product path and never an ENS label. The hierarchy stays `<member-no>.<issuer>.fuda.eth` with no card level.
 
 ## Hybrid resolution
 
@@ -122,7 +122,7 @@ The member label itself is random and reveals nothing about the person.
 
 `FudaResolver` first parses and hashes the complete DNS-wire name, validates a supported ETH address record's node against that namehash, and locates an exact or nearest-ancestor claimed issuer marker. When a marker exists, it reads the issuer's current owner from the User Registry before deciding whether the query may go offchain.
 
-For legacy `addr(bytes32)`, an empty local answer encodes `address(0)`. For multicoin `addr(bytes32,uint256)` with coin type 60, it encodes `bytes("")`. Selectors eligible for offchain handling emit `OffchainLookup`; the gateway still decides which record types it supports. The current gateway answers the two ETH address forms.
+For legacy `addr(bytes32)`, an empty local answer encodes `address(0)`. For multicoin `addr(bytes32,uint256)` with coin type 60, it encodes `bytes("")`. Selectors eligible for offchain handling emit `OffchainLookup`. The gateway still decides which record types it supports. The current gateway answers the two ETH address forms.
 
 | Issuer state | Exact issuer ETH `addr` | Other exact issuer records | Member ETH `addr` | Other member records |
 | --- | --- | --- | --- | --- |
@@ -131,7 +131,7 @@ For legacy `addr(bytes32)`, an empty local answer encodes `address(0)`. For mult
 | Claimed then expired or unregistered | selector-specific zero/empty local result | local `InactiveIssuer` revert | selector-specific zero/empty local result | local `InactiveIssuer` revert |
 | Validly re-registered | new current User Registry owner, onchain | gateway after the onchain owner read | gateway after the onchain parent-owner read | gateway after the onchain parent-owner read |
 
-The active boundary is exclusive: the User Registry masks the owner when `block.timestamp >= expiry`. A registry read failure propagates and never falls back to D1. Malformed DNS names and address record/namehash mismatches fail before a registry read or gateway request.
+The active boundary is exclusive: the User Registry masks the owner when `block.timestamp >= expiry`. A registry read failure propagates and never falls back to D1. Malformed DNS names and mismatches between an address record and its namehash fail before a registry read or gateway request.
 
 **Why one shared resolver.** Claimed ownership and expiry must be enforced by ENSv2 state while member records stay offchain. ENS selects the deepest configured resolver, so a conventional resolver on a claimed issuer would stop its descendants from reaching the parent gateway.
 
@@ -145,7 +145,7 @@ Rejected:
 
 The resolver stores an append-only mapping from each full claimed issuer namehash to its User Registry label hash. Only the configured registrar may mark a label. The marker deliberately survives expiry and unregister.
 
-This creates the **no-offchain-resurrection invariant**: once an issuer label has been claimed, neither its exact name nor any member descendant may fall back to stale offchain data while that claimed namespace is inactive. It stays dark until a valid re-registration makes the User Registry return a nonzero owner again.
+The marker creates the **no-offchain-resurrection invariant**: once an issuer label has been claimed, neither its exact name nor any member descendant may fall back to stale offchain data while that claimed namespace is inactive. It stays dark until a valid re-registration makes the User Registry return a nonzero owner again.
 
 ### Signed gateway transport
 
@@ -174,7 +174,7 @@ sequenceDiagram
     Resolver-->>Client: Verified result
 ```
 
-`POST /ens/gateway` accepts `{"sender":"0x…","data":"0x…"}`. `sender` must match a configured resolver address, case-insensitively, and `data` must encode the complete ENSIP-10 `resolve(bytes,bytes)` call. Unsupported senders or names answer 404, malformed requests answer 400, incomplete configuration answers 503, and unexpected failures answer 500. Success is `{"data":"0x…"}`; every error is `{"message":"…"}`. All responses use `Cache-Control: no-store`.
+`POST /ens/gateway` accepts `{"sender":"0x…","data":"0x…"}`. `sender` must match a configured resolver address, case-insensitively, and `data` must encode the complete ENSIP-10 `resolve(bytes,bytes)` call. Unsupported senders or names answer 404, malformed requests answer 400, incomplete configuration answers 503, and unexpected failures answer 500. Success is `{"data":"0x…"}`. Every error is `{"message":"…"}`. All responses use `Cache-Control: no-store`.
 
 The endpoint is public and does not use `ADMIN_TOKEN`. It uses one fixed hourly D1 counter that admits 120 requests per client IP and requires `CF-Connecting-IP`. The resolver allowlist prevents the service from signing responses for arbitrary verifier contracts.
 
@@ -190,7 +190,7 @@ keccak256(
 )
 ```
 
-`expires` is the earlier of five minutes after the request and the name's own expiry. The callback binds the signature to the resolver, request, result, and expiry; rejects expired, malformed, invalid-recovery-id, high-s, and wrong-signer responses; then re-executes the exact signed request against the resolver. It returns the signed result only if the request still produces the current exact `OffchainLookup` envelope. Local routing, an inactive issuer, registry failure, malformed input, or any other outcome fails closed with a callback-state error. Onchain issuer answers never enter this callback and require no gateway signature.
+`expires` is the earlier of five minutes after the request and the name's own expiry. The callback binds the signature to the resolver, request, result, and expiry. It rejects expired, malformed, invalid-recovery-id, high-s, and wrong-signer responses. It then re-executes the exact signed request against the resolver. It returns the signed result only if the request still produces the current exact `OffchainLookup` envelope. Local routing, an inactive issuer, registry failure, malformed input, or any other outcome fails closed with a callback-state error. Onchain issuer answers never enter this callback and require no gateway signature.
 
 The endpoint requires all three bindings before it resolves anything:
 
@@ -223,11 +223,11 @@ chainId           = 11155111
 verifyingContract = deployed registrar address
 ```
 
-For both actions the sender is unconstrained: the voucher signature is the whole authorization. A venue owner holds no gas on Ethereum Sepolia, so the claim is submitted by the owner's own wallet under a sponsored transaction, or relayed by fuda; whoever sends it, the name lands on the signed `issuer` and the nonce it spends is that issuer's, so front-running a voucher gains nothing. The registrar requires the signed label hash to match the canonical label, the per-issuer nonce to equal the next stored nonce, `block.timestamp <= deadline`, `block.timestamp < expiry`, and a canonical 65-byte low-s ECDSA signature from the current voucher signer. It consumes the nonce before external registry calls; a reverted transaction rolls the nonce and all registry/marker effects back.
+For both actions, the sender is unconstrained. The voucher signature is the whole authorization. A venue owner holds no gas on Ethereum Sepolia, so the owner's own wallet submits the claim in a sponsored transaction, or fuda relays it. Whoever sends it, the name goes to the signed `issuer` and the nonce it spends is that issuer's, so front-running a voucher gains nothing. The registrar requires the signed label hash to match the canonical label, the per-issuer nonce to equal the next stored nonce, `block.timestamp <= deadline`, `block.timestamp < expiry`, and a canonical 65-byte low-s ECDSA signature from the current voucher signer. It consumes the nonce before external registry calls. A reverted transaction rolls back the nonce and all registry and marker effects.
 
-`expiry` is the registry's absolute, exclusive upper bound. The typed-data helper converts fuda's inclusive validity: the earliest nonzero finite bound `t` becomes `t + 1`; all-zero/unbounded bounds become `type(uint64).max`; and a finite `type(uint64).max` bound is rejected. Claim writes exactly `owner = issuer`, `subregistry = address(0)`, the shared resolver, and child role bitmap exactly `0`. The zero bitmap makes claimed issuer entries non-transferable and prevents the issuer from redirecting resolver or registry settings.
+`expiry` is the registry's absolute, exclusive upper bound. The typed-data helper converts fuda's inclusive validity: the earliest nonzero finite bound `t` becomes `t + 1`; all-zero or unbounded bounds become `type(uint64).max`; and a finite `type(uint64).max` bound is rejected. Claim writes exactly `owner = issuer`, `subregistry = address(0)`, the shared resolver, and a child role bitmap of exactly `0`. The zero bitmap makes claimed issuer entries non-transferable and prevents the issuer from redirecting resolver or registry settings.
 
-Renew requires the active User Registry owner to equal the issuer and cannot reduce expiry. An expired or unregistered label is re-registered with a fresh claim voucher instead of renewed. Signer rotation is owner-only, and the registrar exposes no unregister operation or role-granting surface.
+Renew requires the active User Registry owner to equal the issuer and cannot reduce expiry. An expired or unregistered label is re-registered with a fresh claim voucher instead of renewed. Signer rotation is owner-only, and the registrar exposes no operation that unregisters a label or grants roles.
 
 The registrar receives only root `REGISTRAR | RENEW`. It holds no `UNREGISTER` role and exposes no operation that would use one, so claim power does not imply revocation power.
 
@@ -237,23 +237,23 @@ The registrar receives only root `REGISTRAR | RENEW`. It holds no `UNREGISTER` r
 
 | Power | Form | Meaning |
 | --- | --- | --- |
-| `SET_PARENT` | held directly | `setParent(address,string)` — repoint the registry's parent |
+| `SET_PARENT` | held directly | `setParent(address,string)`, which repoints the registry's parent |
 | `UPGRADE` | held directly, and its admin bit | the registry proxy's upgrade role |
 | `REGISTRAR`, `RENEW`, `UNREGISTER` | admin bit only | `grantRootRoles` may assign them to any address |
 
-The parent owner therefore does not itself unregister an issuer entry. It can give itself that power: `grantRootRoles` assigns `UNREGISTER` to any account, its own included. What the repository verifies stops there — the pinned minimal ABI surface has no unregister call, and the matching `ensdomains/contracts-v2` source is unpublished, so the steps after the grant are the deployment's, not this repository's. The guarantee is the separation of roles, not an absence of custody. fuda holds the root of its own issuer namespace.
+The parent owner therefore does not itself unregister an issuer entry. It can give itself that power. `grantRootRoles` assigns `UNREGISTER` to any account, its own included. What the repository verifies stops there. The pinned minimal ABI has no unregister call, and the matching `ensdomains/contracts-v2` source is unpublished, so the steps after the grant belong to the deployment, not to this repository. The guarantee is the separation of roles, not an absence of custody. fuda holds the root of its own issuer namespace.
 
 **Why the root is kept.** A claim writes the issuer's child role bitmap as exactly `0`, so an issuer cannot transfer its own entry or redirect its resolver, and every recovery path has to come from the root. `FudaSubnameRegistrar` is deliberately narrow and cannot repair a mis-signed claim, respond to an abusive label or upgrade a preview-stage registry.
 
 Rejected:
 
-- **Renounce the root roles.** The honest end state for a naming layer, but it makes an upgrade impossible and leaves no recovery path. Rejected for the current deployment, not on principle; it belongs with a mainnet deployment and a real venue population, and it is one-way.
+- **Renounce the root roles.** It is the honest end state for a naming layer, but it makes an upgrade impossible and leaves no recovery path. It is rejected for the current deployment, not on principle. It belongs with a mainnet deployment and a real venue population, and it is one-way.
 - **Grant the registrar `UNREGISTER`.** A voucher-signer compromise would become a namespace-wide takedown.
-- **A multisig or timelock.** Right for production, disproportionate to a single-operator Sepolia deployment, and a timelock would block the recovery cases that motivate custody.
+- **A multisig or timelock.** It is right for production but disproportionate to a single-operator Sepolia deployment, and a timelock would block the recovery cases that motivate custody.
 
 Every surface therefore treats a name as a destination and the delegation check as the authority, because a resolving name reflects fuda's continued cooperation as well as the issuer's on-chain claim.
 
-The exact root bitmap is asserted at deployment and re-checked by the standalone verifier, so a drift in root custody fails topology verification rather than passing silently.
+Deployment asserts the exact root bitmap and the standalone verifier re-checks it, so a drift in root custody fails topology verification instead of passing silently.
 
 ## Lifecycle
 
@@ -264,20 +264,20 @@ registered venue, confirmed claim or issued right -> resolvable name
 revoked right or passed registry expiry           -> dark name
 ```
 
-Normal application flows drive every step. A registered venue's name resolves from the `issuers` table, a confirmed claim and every right issued under a venue write the mirror (see [what writes the mirror](#claiming-a-name-and-what-writes-the-mirror)), revoking a right takes its member name dark, and lookup stops answering a claimed name once its registry expiry passes. Member names carry no expiry of their own; they end with the right's revocation.
+Normal application flows drive every step. A registered venue's name resolves from the `issuers` table. A confirmed claim and every right issued under a venue write the mirror, as [what writes the mirror](#claiming-a-name-and-what-writes-the-mirror) describes. Revoking a right takes its member name dark, and lookup stops answering a claimed name once its registry expiry passes. Member names carry no expiry of their own. They end with the right's revocation.
 
-A claim voucher is signed only while the deployment's issuing delegation is live. Venues have no delegation of their own: every right a venue issues points at the one `IssuerDelegation` named by `DELEGATION_UID`. Before signing, `POST /issuers/me/ens/claim-voucher` runs the gate's own delegation check against the deployment's signer: the delegation must be root-attested under an accepted schema, active, unrevoked, and name that signer as its issuer, so a voucher is signed only when the rights this deployment issues would verify. A missing, revoked or inactive delegation, or one naming another issuer, answers `403 not_delegated`, an unreadable chain `502 chain_error`, and missing issuing bindings or no signer `503 ens_not_configured`; none of them writes a mirror row. Confirmation is not gated: a claim the chain has confirmed is recorded whatever the delegation's state. A name is not authority, so the check decides when fuda hands out names, not what a name proves, and a later revocation leaves names already claimed resolving.
+A claim voucher is signed only while the deployment's issuing delegation is live. Venues have no delegation of their own. Every right a venue issues points at the one `IssuerDelegation` named by `DELEGATION_UID`. Before signing, `POST /issuers/me/ens/claim-voucher` runs the gate's own delegation check against the deployment's signer. The delegation must be root-attested under an accepted schema, active and unrevoked, and must name that signer as its issuer, so a voucher is signed only when the rights this deployment issues would verify. A missing, revoked or inactive delegation, or one naming another issuer, answers `403 not_delegated`. An unreadable chain answers `502 chain_error`, and missing issuing bindings or no signer answer `503 ens_not_configured`. None of them writes a mirror row. Confirmation is not gated. A claim the chain has confirmed is recorded whatever the delegation's state. A name is not authority, so the check decides when fuda hands out names, not what a name proves. A later revocation leaves names already claimed resolving.
 
-Revoking an issuer's delegation does not take its claimed name dark. The name keeps resolving to the issuer's wallet, and its member descendants keep resolving, until the registry expiry passes. This is deliberate, not a missing seam: a name is a destination, the delegation check is a separate fact every surface performs, and tying revocation to an onchain unregister would require handing revocation power to a live principal. A member name does go dark when its own right is revoked, because its answer comes from the mirror.
+Revoking an issuer's delegation does not take its claimed name dark. The name keeps resolving to the issuer's wallet, and its member descendants keep resolving, until the registry expiry passes. The behavior is deliberate, not an oversight. A name is a destination, the delegation check is a separate fact every surface performs, and tying revocation to an onchain unregister would require handing revocation power to a live principal. A member name does go dark when its own right is revoked, because its answer comes from the mirror.
 
 ## Invariants
 
-- **Not authority.** A resolving name never makes an issuer legitimate or a right valid. Surfaces show the name and the delegation/right check as separate facts and fall back to the raw address when resolution fails.
+- **Not authority.** A resolving name never makes an issuer legitimate or a right valid. Surfaces show the name and the delegation and right checks as separate facts and fall back to the raw address when resolution fails.
 - **Revocation does not dark a claimed name.** A revoked delegation leaves the issuer's claimed name resolving until expiry. The mirror-backed member answers are the only ones a revocation can stop.
 - **Not in the Gate path.** Admission never waits on ENS. Member names are never shown at the Gate, written to Entry logs, or included in any public record.
 - **No offchain resurrection.** Once claimed, an inactive issuer namespace cannot fall back to stale gateway data.
 - **No self-identifying labels.** Labels are Issuer Handles or random member numbers. No email, member database id, attestation UID, or proof material is published in an ENS record.
-- **Offchain member layer.** Members never own subnames; only issuer labels are User Registry entries.
+- **Offchain member layer.** Members never own subnames. Only issuer labels are User Registry entries.
 
 ## Related specs
 
