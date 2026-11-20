@@ -28,7 +28,7 @@
     "@babel/core": "^8.1.2",
     "@preact/preset-vite": "2.10.6",
     "@tailwindcss/vite": "4.3.5",
-    "preact-render-to-string": "6.8.2",
+    "preact-render-to-string": "6.8.3",
     "vitest": "5.1.0",
     "void": "1.10.0",
     "void-preact": "0.1.6"
