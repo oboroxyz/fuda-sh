@@ -19,7 +19,7 @@
     "viem": "^2.57.17"
   },
   "devDependencies": {
-    "hardhat": "3.21.2",
+    "hardhat": "3.22.0",
     "vitest": "5.1.0"
   }
 }
