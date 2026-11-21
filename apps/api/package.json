@@ -33,7 +33,7 @@
     "drizzle-orm": "^0.45.4",
     "hono": "^4.13.19",
     "valibot": "^1.5.0",
-    "viem": "^2.57.17"
+    "viem": "^2.58.0"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "1.8.3",

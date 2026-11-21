@@ -16,7 +16,7 @@
     "test": "hardhat build && vp test && hardhat test solidity"
   },
   "dependencies": {
-    "viem": "^2.57.17"
+    "viem": "^2.58.0"
   },
   "devDependencies": {
     "hardhat": "3.22.0",
