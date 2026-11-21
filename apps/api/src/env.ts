@@ -18,6 +18,9 @@ export interface Bindings {
   BASE_RPC_URL?: string
   CHAIN_ID?: string
   EAS_ADDRESS: string
+  // The ERC-8432 registries a Card requirement may name, comma-separated
+  // (docs/specs/card-requirements.md#rules). Unset, no Card can carry a requirement.
+  IP_REGISTRIES?: string
   // The contract's own version() on this chain; offchain signatures commit to it.
   EAS_VERSION: string
   FACTORY_ADDRESS: string

@@ -12,8 +12,7 @@ import { notifyPassChanged, notifyPassesChanged } from '../pass/notify.ts'
 import { readReception, recordReception } from '../stamps/reception-store.ts'
 import { readStampSettings, readStampSummary } from '../stamps/store.ts'
 import { notifyAdmission } from '../verify/admit.ts'
-import { qrOutcome } from '../verify/qr-admission.ts'
-import { resolveVerdict, verdictBody, waitUntilOf } from './verify.ts'
+import { resolveQrVerdict, verdictBody, waitUntilOf } from './verify.ts'
 
 export const getV1IssuersMeCardsCardIdStamps = defineHandler(operatorAuth(), async (c) => {
   const card = await ownedCard(c, c.req.param().cardId)
@@ -109,11 +108,11 @@ export const postV1IssuersMeReception = defineHandler(operatorAuth(), async (c) 
     return jsonResponse(c, previous.response)
   }
   const now = c.get('now')()
-  const resolved = await resolveVerdict(c, uid, now)
-  if (!resolved.ok) {
-    return resolved.res
+  const checked = await resolveQrVerdict(c, uid, now)
+  if (!checked.ok) {
+    return checked.res
   }
-  const out = qrOutcome(resolved.out)
+  const { out } = checked
   const { inserted, receipt } = await recordReception(c.env.DB, db, {
     id,
     issuerId,
@@ -121,7 +120,7 @@ export const postV1IssuersMeReception = defineHandler(operatorAuth(), async (c) 
     operatorKey: principalKey(operator.principal),
     singleUse: out.decision === 'ADMIT' && out.canonical.usageModel === USAGE_MODEL.SINGLE_USE,
     uid,
-    verdict: verdictBody(out),
+    verdict: { ...verdictBody(out) },
   })
   if (receipt.uid !== uid) {
     return errorResponse(c, 'bad_input', 409)

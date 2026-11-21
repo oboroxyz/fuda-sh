@@ -3,6 +3,7 @@ import type { JSX } from 'preact'
 
 import { cardUrl, displayUrl } from './card-designer.ts'
 import { cardClaimText, cardValidityText } from './card-display.ts'
+import { CardRequirements, CardApplicants } from './CardRequirements.tsx'
 import type { DashCopy } from './copy.ts'
 import { isPlainClick } from './plain-click.ts'
 import { QrBlock } from './QrBlock.tsx'
@@ -59,6 +60,12 @@ export const CardDetailPage = (props: CardDetailPageProps): JSX.Element => {
             </div>
           </dl>
         </div>
+        {(card.requirements?.length ?? 0) > 0 ? (
+          <>
+            <CardRequirements card={card} copy={props.copy} />
+            <CardApplicants key={card.id} cardId={card.id} copy={props.copy} />
+          </>
+        ) : null}
         <div class="dash-print-target card p-6 print:border-0">
           <h2 class="hidden text-2xl font-bold print:block">{card.title}</h2>
           <QrBlock label={published.qrLabel} qr={url} />

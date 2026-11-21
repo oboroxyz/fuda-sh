@@ -15,6 +15,7 @@ import {
   isOrderedWindow,
   normalizeBrandColor,
 } from './handles.ts'
+import { CardRequirements } from './requirements.ts'
 
 const uid = v.pipe(v.string(), v.regex(UID_RE))
 const address = v.pipe(v.string(), v.regex(ADDRESS_RE))
@@ -177,6 +178,7 @@ const CardFields = v.object({
   identity: v.optional(v.picklist(CARD_IDENTITIES), 'none'),
   lockScreen: v.optional(v.boolean(), false),
   record: v.optional(v.picklist(CARD_RECORDS), 'offchain'),
+  requirements: v.optional(CardRequirements, []),
   slug: v.pipe(v.string(), v.check(isCardSlug)),
   title: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(60)),
   validFrom: unixOrNull,
@@ -214,6 +216,13 @@ export const CardBody = v.pipe(
   v.check(
     (card: CardFieldsOutput) => isIdentityAllowed(card),
     'a pass bound to a key must be recorded offchain',
+  ),
+  v.check(
+    (card: CardFieldsOutput) =>
+      card.requirements.length === 0
+        ? card.identity !== 'address'
+        : (card.identity === 'none' || card.identity === 'address') && card.record === 'offchain',
+    'requirements need identity none or address and record offchain; address needs a requirement',
   ),
 )
 

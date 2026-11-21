@@ -20,6 +20,7 @@ import { EAS_ABI, FACTORY_ABI } from '../eas/abi.ts'
 import type { Bindings } from '../env.ts'
 import { ChainError, NoSignerError } from './client.ts'
 import type { AttestParams, ChainClient } from './client.ts'
+import { IP_REGISTRY_ABI } from './erc8432.ts'
 import { UnknownTransactionOutcomeError } from './unknown-transaction-outcome-error.ts'
 
 const DEFAULT_RPC = parseChainConfig().publicRpc
@@ -87,6 +88,39 @@ export const createViemChain = (env: ChainBindings, transportOverride?: Transpor
   const wallet = account === null ? null : createWalletClient({ account, chain, transport })
 
   return {
+    activeAgreementsOf: async (registry, assetId, holder, cursor, limit) =>
+      await wrap(async () => {
+        const [agreementIds, nextCursor] = await publicClient.readContract({
+          abi: IP_REGISTRY_ABI,
+          address: registry,
+          args: [assetId, holder, cursor, limit],
+          functionName: 'activeAgreementsOf',
+        })
+        return { agreementIds, nextCursor }
+      }),
+
+    agreementCountOf: async (registry, assetId) =>
+      await wrap(
+        async () =>
+          await publicClient.readContract({
+            abi: IP_REGISTRY_ABI,
+            address: registry,
+            args: [assetId],
+            functionName: 'agreementCountOf',
+          }),
+      ),
+
+    agreementOf: async (registry, agreementId) =>
+      await wrap(async () => {
+        const agreement = await publicClient.readContract({
+          abi: IP_REGISTRY_ABI,
+          address: registry,
+          args: [agreementId],
+          functionName: 'agreementOf',
+        })
+        return { assetId: agreement[0], creationMode: agreement[6].creationMode, termsId: agreement[1] }
+      }),
+
     attest: async (p: AttestParams) => {
       if (wallet === null || account === null) {
         throw new NoSignerError('SIGNER_PRIVATE_KEY unset')
@@ -136,6 +170,17 @@ export const createViemChain = (env: ChainBindings, transportOverride?: Transpor
             address: factory,
             args: [owners, nonce],
             functionName: 'getAddress',
+          }),
+      ),
+
+    isActiveAgreementHolder: async (registry, agreementId, assetId, holder) =>
+      await wrap(
+        async () =>
+          await publicClient.readContract({
+            abi: IP_REGISTRY_ABI,
+            address: registry,
+            args: [agreementId, assetId, holder],
+            functionName: 'isActiveAgreementHolder',
           }),
       ),
 

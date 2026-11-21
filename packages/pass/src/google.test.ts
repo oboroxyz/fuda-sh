@@ -115,6 +115,7 @@ describe(buildGenericObject, () => {
       {
         ...INPUT,
         branding: {
+          artworkUrl: null,
           brandColor: '#6F4320',
           cardTitle: 'Membership Card',
           category: 'membership',
@@ -209,6 +210,7 @@ describe('branded generic object', () => {
       { classId: 'c', issuerId: 'i', saEmail: 'sa@example.com', saKeyPem: '' },
       {
         branding: {
+          artworkUrl: null,
           brandColor: '#6F4320',
           cardTitle: 'Membership Card',
           category: 'membership',
@@ -463,6 +465,7 @@ describe('badge on a generated generic object', () => {
       ...INPUT,
       badges: [BADGE],
       branding: {
+        artworkUrl: null,
         brandColor: '#6F4320',
         cardTitle: 'Membership Card',
         category: 'membership',
@@ -556,5 +559,28 @@ describe(patchGoogleStatus, () => {
     )
     expect(requests[0]?.headers.get('authorization')).toBe('Bearer access')
     await expect(requests[0]?.json()).resolves.toStrictEqual({ state: 'INACTIVE' })
+  })
+})
+
+describe('Wallet artwork', () => {
+  it('uses card artwork as the Google hero and omits the hero without artwork', () => {
+    const branding = {
+      artworkUrl: 'https://api.test/assets/artwork/id/strip3x',
+      brandColor: '#112233',
+      cardTitle: 'Coffee',
+      category: 'membership' as const,
+      issuedAt: ISSUED_AT,
+      issuerName: 'Cafe',
+      logoUrl: null,
+      memberNumber: 'ABCD-E123-F5679',
+      venue: null,
+    }
+    const cfg = { classId: 'c', issuerId: '338', saEmail: 'e', saKeyPem: 'p' }
+    expect(buildGenericObject(cfg, { ...INPUT, branding }).heroImage).toStrictEqual({
+      sourceUri: { uri: branding.artworkUrl },
+    })
+    expect(
+      buildGenericObject(cfg, { ...INPUT, branding: { ...branding, artworkUrl: null } }).heroImage,
+    ).toBeUndefined()
   })
 })

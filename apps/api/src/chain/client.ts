@@ -2,6 +2,7 @@
 import type { Hex } from 'viem'
 
 import type { OffchainTypedData } from '../eas/offchain.ts'
+import type { RegistryReads } from './erc8432.ts'
 
 export interface RawAttestation {
   uid: Hex
@@ -39,7 +40,7 @@ export class NoSignerError extends Error {
   override readonly name = 'NoSignerError'
 }
 
-export interface ChainClient {
+export interface ChainClient extends RegistryReads {
   /** Signer address, or null when SIGNER_PRIVATE_KEY is unset (write calls then throw NoSignerError). */
   signerAddress: () => Hex | null
   /** EAS.getAttestation via eth_call. A missing uid returns a struct with uid = 0x00…00. Throws ChainError on RPC failure. */

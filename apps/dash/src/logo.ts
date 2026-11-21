@@ -1,5 +1,5 @@
-import { LOGO_SIDE, MAX_LOGO_OBJECT_BYTES, MAX_LOGO_SET_BYTES } from '@fuda/sdk'
-import type { LogoVariant } from '@fuda/sdk'
+import { IMAGE_SETS } from '@fuda/sdk'
+import type { ImageSetSpec, LogoVariant } from '@fuda/sdk'
 
 // The venue's logo, drawn here rather than in the api: Workers have no image
 // decoder, so the browser produces the four square PNGs and the api verifies
@@ -17,10 +17,6 @@ const BYTES_PER_MIB = 1024 * 1024
 
 export const MAX_SOURCE_BYTES = 10 * BYTES_PER_MIB
 
-// Below this the 1024 master would be upscaled, and an upscaled mark looks poor
-// on a pass and on a poster.
-const MIN_SOURCE_SIDE = 660
-
 const SOURCE_TYPES = ['image/png', 'image/jpeg', 'image/webp'] as const
 
 // What a file input should offer; the pipeline rejects anything else anyway.
@@ -34,34 +30,41 @@ export type LogoRejection = 'decode' | 'encode' | 'tooHeavy' | 'tooLarge' | 'too
 export type LogoResult = { ok: true; variants: LogoSet } | { ok: false; reason: LogoRejection }
 
 export interface ImageSize {
+  close?: () => void
   height: number
   width: number
 }
 
-// The square region of the source that is drawn, in source pixels.
-export interface SquareCrop {
-  side: number
+// The region drawn from the source, in source pixels.
+export interface ImageCrop {
+  width: number
+  height: number
   x: number
   y: number
 }
 
-export interface LogoCanvas<TImage> {
-  drawSquare: (image: TImage, crop: SquareCrop) => void
+export interface ImageCanvas<TImage> {
+  drawCrop: (image: TImage, crop: ImageCrop) => void
   // null when the drawing surface was unavailable, which is an `encode` refusal
   // rather than a thrown error.
   toPng: () => Promise<Blob | null>
 }
 
-export interface LogoTools<TImage extends ImageSize> {
-  createCanvas: (side: number) => LogoCanvas<TImage>
+export interface ImageTools<TImage extends ImageSize> {
+  createCanvas: (width: number, height: number) => ImageCanvas<TImage>
   decode: (file: File) => Promise<TImage | null>
 }
 
-// The centre square of a source of any aspect: a wide photo loses its sides,
-// never its proportions.
-export const cropOf = ({ height, width }: ImageSize): SquareCrop => {
-  const side = Math.min(height, width)
-  return { side, x: Math.floor((width - side) / 2), y: Math.floor((height - side) / 2) }
+// Centre-crop to the set aspect without changing the image proportions.
+export const cropOf = ({ height, width }: ImageSize, aspect = 1): ImageCrop => {
+  const cropWidth = Math.min(width, height * aspect)
+  const cropHeight = cropWidth / aspect
+  return {
+    height: cropHeight,
+    width: cropWidth,
+    x: Math.floor((width - cropWidth) / 2),
+    y: Math.floor((height - cropHeight) / 2),
+  }
 }
 
 const isSourceType = (type: string): boolean => SOURCE_TYPES.some((accepted) => accepted === type)
@@ -74,68 +77,83 @@ const sourceRejection = (file: File): LogoRejection | null => {
   return file.size > MAX_SOURCE_BYTES ? 'tooLarge' : null
 }
 
-const withinCaps = (blobs: Blob[]): boolean =>
-  blobs.every((blob) => blob.size <= MAX_LOGO_OBJECT_BYTES) &&
-  blobs.reduce((sum, blob) => sum + blob.size, 0) <= MAX_LOGO_SET_BYTES
-
-const exportSide = async <TImage extends ImageSize>(
-  tools: LogoTools<TImage>,
-  image: TImage,
-  crop: SquareCrop,
-  side: number,
-): Promise<Blob | null> => {
-  const canvas = tools.createCanvas(side)
-  canvas.drawSquare(image, crop)
-  return await canvas.toPng()
-}
-
-// The four variants from one picked file, or the reason the file cannot be
-// used. Nothing throws: the caller shows the reason.
-export const generateLogoSet = async <TImage extends ImageSize>(
+export const generateImageSet = async <TImage extends ImageSize>(
   file: File,
-  tools: LogoTools<TImage>,
-): Promise<LogoResult> => {
+  tools: ImageTools<TImage>,
+  spec: ImageSetSpec,
+): Promise<{ ok: true; variants: Record<string, Blob> } | { ok: false; reason: LogoRejection }> => {
   const rejection = sourceRejection(file)
   if (rejection !== null) {
     return { ok: false, reason: rejection }
   }
-  const image = await tools.decode(file)
+  let image: TImage | null
+  try {
+    image = await tools.decode(file)
+  } catch {
+    return { ok: false, reason: 'decode' }
+  }
   if (image === null) {
     return { ok: false, reason: 'decode' }
   }
-  const crop = cropOf(image)
-  if (crop.side < MIN_SOURCE_SIDE) {
-    return { ok: false, reason: 'tooSmall' }
-  }
-  // One decoded source feeds all four exports, so they run together.
-  const [master, logo1x, logo2x, logo3x] = await Promise.all([
-    exportSide(tools, image, crop, LOGO_SIDE.master),
-    exportSide(tools, image, crop, LOGO_SIDE.logo1x),
-    exportSide(tools, image, crop, LOGO_SIDE.logo2x),
-    exportSide(tools, image, crop, LOGO_SIDE.logo3x),
-  ])
-  if (master === null || logo1x === null || logo2x === null || logo3x === null) {
+  try {
+    const crop = cropOf(image, spec.minSource.width / spec.minSource.height)
+    if (crop.width < spec.minSource.width || crop.height < spec.minSource.height) {
+      return { ok: false, reason: 'tooSmall' }
+    }
+    const variants: Record<string, Blob> = {}
+    for (const [variant, size] of Object.entries(spec.variants)) {
+      const canvas = tools.createCanvas(size.width, size.height)
+      canvas.drawCrop(image, crop)
+      // oxlint-disable-next-line no-await-in-loop -- export one canvas at a time to bound image memory
+      const blob = await canvas.toPng()
+      if (blob === null) {
+        return { ok: false, reason: 'encode' }
+      }
+      variants[variant] = blob
+    }
+    const blobs = Object.values(variants)
+    if (
+      blobs.some((blob) => blob.size > spec.maxObjectBytes) ||
+      blobs.reduce((sum, blob) => sum + blob.size, 0) > spec.maxSetBytes
+    ) {
+      return { ok: false, reason: 'tooHeavy' }
+    }
+    return { ok: true, variants }
+  } catch {
     return { ok: false, reason: 'encode' }
+  } finally {
+    image.close?.()
   }
-  if (!withinCaps([master, logo1x, logo2x, logo3x])) {
-    return { ok: false, reason: 'tooHeavy' }
+}
+
+export const generateLogoSet = async <TImage extends ImageSize>(
+  file: File,
+  tools: ImageTools<TImage>,
+): Promise<LogoResult> => {
+  const result = await generateImageSet(file, tools, IMAGE_SETS.logo)
+  if (!result.ok) {
+    return result
+  }
+  const { master, logo1x, logo2x, logo3x } = result.variants
+  if (master === undefined || logo1x === undefined || logo2x === undefined || logo3x === undefined) {
+    return { ok: false, reason: 'encode' }
   }
   return { ok: true, variants: { logo1x, logo2x, logo3x, master } }
 }
 
 // The browser's own decoder and canvas. The node test run injects fakes and
 // never reaches this.
-export const browserLogoTools: LogoTools<ImageBitmap> = {
-  createCanvas: (side) => {
-    const canvas = new OffscreenCanvas(side, side)
+export const browserImageTools: ImageTools<ImageBitmap> = {
+  createCanvas: (width, height) => {
+    const canvas = new OffscreenCanvas(width, height)
     const context = canvas.getContext('2d')
     return {
-      drawSquare: (image, crop) => {
+      drawCrop: (image, crop) => {
         if (context === null) {
           return
         }
         context.imageSmoothingQuality = 'high'
-        context.drawImage(image, crop.x, crop.y, crop.side, crop.side, 0, 0, side, side)
+        context.drawImage(image, crop.x, crop.y, crop.width, crop.height, 0, 0, width, height)
       },
       toPng: async () => (context === null ? null : await canvas.convertToBlob({ type: 'image/png' })),
     }

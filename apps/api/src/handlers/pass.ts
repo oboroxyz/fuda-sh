@@ -1,14 +1,14 @@
 import { buildGoogleSaveUrl, googleConfigFrom } from '@fuda/pass'
 import type { GooglePassInput } from '@fuda/pass'
 import type { AppleLogo } from '@fuda/pass/apple'
-import { passPlatform } from '@fuda/sdk'
+import { IMAGE_SETS, passPlatform } from '@fuda/sdk'
 import type { PassCardResponse } from '@fuda/sdk'
 import type { Context } from 'hono'
 import { defineHandler } from 'void'
 
 import type { AppEnv } from '../env.ts'
 import { errorResponse, jsonResponse } from '../json.ts'
-import { readLogoObject } from '../media/store.ts'
+import { readImageObject, readLogoObject } from '../media/store.ts'
 import { applePassToken, appleWebServiceFrom } from '../pass/apple-web-service.ts'
 import { passBackup } from '../pass/pass-backup.ts'
 import { loadPassRow } from '../pass/pass-row.ts'
@@ -39,6 +39,29 @@ const appleLogo = async (c: Context<AppEnv>, logoPrefix: string | null): Promise
     logo2x: new Uint8Array(logo2x.body),
     logo3x: new Uint8Array(logo3x.body),
   }
+}
+
+const appleImages = async (c: Context<AppEnv>, prefix: string | null, kind: 'artwork' | 'poster') => {
+  const bucket = c.env.MEDIA_BUCKET
+  if (bucket === undefined || prefix === null) {
+    return null
+  }
+  const spec = IMAGE_SETS[kind]
+  const objects = await Promise.all(
+    Object.keys(spec.variants).map(async (variant) => {
+      const object = await readImageObject(bucket, prefix, variant, spec)
+      return object === null ? null : new Uint8Array(object.body)
+    }),
+  )
+  const [first, second, third] = objects
+  return first === null ||
+    first === undefined ||
+    second === null ||
+    second === undefined ||
+    third === null ||
+    third === undefined
+    ? null
+    : { first, second, third }
 }
 
 // What a wallet pass shows, read when the pass is built. The badge read is
@@ -99,6 +122,7 @@ export const getPassUidCard = defineHandler(async (c) => {
       branding === null
         ? null
         : {
+            artworkUrl: branding.artworkUrl,
             brandColor: branding.brandColor,
             cardTitle: branding.cardTitle,
             category: branding.category,
@@ -179,7 +203,11 @@ export const buildApplePass = async (
           },
   }
   try {
-    return await buildPkpass(cfg, input, c.get('now')(), await appleLogo(c, row.logoPrefix))
+    return await buildPkpass(cfg, input, c.get('now')(), {
+      logo: await appleLogo(c, row.logoPrefix),
+      poster: await appleImages(c, row.posterPrefix, 'poster'),
+      strip: await appleImages(c, row.artworkPrefix, 'artwork'),
+    })
   } catch (error) {
     // An unparsable certificate or key is a misconfigured deployment, not an
     // internal defect: the endpoint reads as unconfigured and says why in the log.

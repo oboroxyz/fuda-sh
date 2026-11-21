@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import { handleStatusOf } from './card-designer.ts'
 import type { CreateFailure, FieldStatus } from './card-designer.ts'
 import type { DashCopy } from './copy.ts'
-import { browserLogoTools, EMPTY_LOGO, generateLogoSet, withLogoResult } from './logo.ts'
+import { browserImageTools, EMPTY_LOGO, generateLogoSet, withLogoResult } from './logo.ts'
 import type { LogoSet, LogoState } from './logo.ts'
 import { LogoField } from './LogoField.tsx'
 import { isPlainClick } from './plain-click.ts'
@@ -99,7 +99,7 @@ export const VenuePage = (props: VenuePageProps): JSX.Element => {
     startLogoWork()
     setLogoFailed(false)
     const run = async (): Promise<void> => {
-      const result = await generateLogoSet(file, browserLogoTools)
+      const result = await generateLogoSet(file, browserImageTools)
       if (revision !== logoRevision.current) {
         return
       }

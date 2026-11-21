@@ -68,6 +68,7 @@ export const issuers = sqliteTable(
 export const cards = sqliteTable(
   'cards',
   {
+    artworkPrefix: text('artwork_prefix'),
     // docs/specs/attestation-model.md#entitlement-lifecycle: 1 when a scan writes a public
     // Attendance. Only an on-chain card can have it on.
     attendance: integer('attendance').notNull().default(0),
@@ -77,14 +78,16 @@ export const cards = sqliteTable(
     claimUntil: integer('claim_until'),
     createdAt: integer('created_at').notNull(),
     description: text('description').notNull().default(''),
+    hasRequirements: integer('has_requirements', { mode: 'boolean' }).notNull().default(false),
     id: text('id').primaryKey(),
-    identity: text('identity', { enum: ['none', 'passkey', 'sensitive'] })
+    identity: text('identity', { enum: ['none', 'passkey', 'sensitive', 'address'] })
       .notNull()
       .default('none'),
     issuerId: text('issuer_id')
       .notNull()
       .references(() => issuers.id),
     lockScreen: integer('lock_screen').notNull().default(0),
+    posterPrefix: text('poster_prefix'),
     record: text('record', { enum: ['offchain', 'onchain'] })
       .notNull()
       .default('onchain'),
@@ -97,7 +100,12 @@ export const cards = sqliteTable(
     venueLat: real('venue_lat'),
     venueLng: real('venue_lng'),
   },
-  (t) => [index('cards_issuer_id').on(t.issuerId), uniqueIndex('cards_issuer_slug').on(t.issuerId, t.slug)],
+  (t) => [
+    index('cards_artwork_prefix').on(t.artworkPrefix),
+    index('cards_poster_prefix').on(t.posterPrefix),
+    index('cards_issuer_id').on(t.issuerId),
+    uniqueIndex('cards_issuer_slug').on(t.issuerId, t.slug),
+  ],
 )
 
 // The signed attestation behind an offchain right (docs/specs/attestation-model.md#offchain-rights).
@@ -276,6 +284,21 @@ export const cardIntegrations = sqliteTable('card_integrations', {
     .references(() => cards.id),
   humanBadge: integer('human_badge', { mode: 'boolean' }).notNull().default(false),
 })
+
+// docs/specs/card-requirements.md. `config` is the JSON of the parsed requirement, read back
+// through its kind's schema.
+export const cardRequirements = sqliteTable(
+  'card_requirements',
+  {
+    cardId: text('card_id')
+      .notNull()
+      .references(() => cards.id),
+    config: text('config').notNull(),
+    kind: text('kind').notNull(),
+    position: integer('position').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.cardId, t.position] })],
+)
 
 export const cardStampSettings = sqliteTable('card_stamp_settings', {
   cardId: text('card_id')
@@ -495,4 +518,49 @@ export const applePassRegistrations = sqliteTable(
     updatedTag: integer('updated_tag').notNull(),
   },
   (t) => [primaryKey({ columns: [t.deviceId, t.uid] }), index('apple_pass_registrations_uid').on(t.uid)],
+)
+
+export const cardApplicants = sqliteTable(
+  'card_applicants',
+  {
+    address: text('address').notNull(),
+    appliedAt: integer('applied_at').notNull(),
+    cardId: text('card_id')
+      .notNull()
+      .references(() => cards.id),
+  },
+  (t) => [
+    primaryKey({ columns: [t.cardId, t.address] }),
+    index('card_applicants_applied').on(t.cardId, t.appliedAt, t.address),
+  ],
+)
+
+export const cardAddressPasses = sqliteTable(
+  'card_address_passes',
+  {
+    address: text('address').notNull(),
+    attestationUid: text('attestation_uid')
+      .notNull()
+      .references(() => members.attestationUid),
+    cardId: text('card_id')
+      .notNull()
+      .references(() => cards.id),
+  },
+  (t) => [
+    primaryKey({ columns: [t.cardId, t.address] }),
+    index('card_address_passes_uid').on(t.attestationUid),
+  ],
+)
+
+export const passEvidence = sqliteTable(
+  'pass_evidence',
+  {
+    attestationUid: text('attestation_uid')
+      .notNull()
+      .references(() => members.attestationUid),
+    evidence: text('evidence').notNull(),
+    kind: text('kind', { enum: ['erc8432-agreement'] }).notNull(),
+    position: integer('position').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.attestationUid, t.position] })],
 )

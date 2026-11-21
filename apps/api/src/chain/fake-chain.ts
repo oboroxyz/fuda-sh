@@ -7,6 +7,7 @@ import { encodeDelegationV1 } from '../eas/codecs.ts'
 import type { OffchainTypedData } from '../eas/offchain.ts'
 import { ChainError, NoSignerError, ZERO_ADDRESS, ZERO_UID } from './client.ts'
 import type { AttestParams, ChainClient, RawAttestation, VerifyMessageParams } from './client.ts'
+import type { RegistryAgreement } from './erc8432.ts'
 import { UnknownTransactionOutcomeError } from './unknown-transaction-outcome-error.ts'
 
 const DEFAULT_SIGNER: Hex = `0x${'f0'.repeat(20)}`
@@ -36,6 +37,100 @@ const checksum = (h: Hex): Hex => getAddress(h)
 // local dev without a signer. Offline by default; local dev can supply a
 // read-only smart-wallet verifier. Uids differ between instances (see `counter`).
 export class FakeChain implements ChainClient {
+  readonly agreements = new Map<
+    string,
+    RegistryAgreement & {
+      registry: Hex
+      id: Hex
+      holder: Hex
+      expiry: bigint
+      revoked: boolean
+      frozen: boolean
+    }
+  >()
+
+  seedAgreement(
+    input: RegistryAgreement & {
+      registry: Hex
+      id: Hex
+      holder: Hex
+      expiry?: bigint
+      revoked?: boolean
+      frozen?: boolean
+    },
+  ): void {
+    this.agreements.set(`${input.registry.toLowerCase()}:${input.id.toLowerCase()}`, {
+      expiry: 0n,
+      frozen: false,
+      revoked: false,
+      ...input,
+    })
+  }
+
+  async agreementOf(registry: Hex, id: Hex): Promise<RegistryAgreement> {
+    this.checkRegistryRead()
+    return await Promise.resolve(
+      this.agreements.get(`${registry.toLowerCase()}:${id.toLowerCase()}`) ?? {
+        assetId: ZERO_UID,
+        creationMode: 0,
+        termsId: ZERO_UID,
+      },
+    )
+  }
+
+  async agreementCountOf(registry: Hex, assetId: Hex): Promise<bigint> {
+    this.checkRegistryRead()
+    return await Promise.resolve(BigInt(this.assetAgreements(registry, assetId).length))
+  }
+
+  async isActiveAgreementHolder(registry: Hex, id: Hex, assetId: Hex, holder: Hex): Promise<boolean> {
+    this.checkRegistryRead()
+    const agreement = this.agreements.get(`${registry.toLowerCase()}:${id.toLowerCase()}`)
+    return await Promise.resolve(
+      agreement !== undefined &&
+        agreement.assetId.toLowerCase() === assetId.toLowerCase() &&
+        agreement.holder.toLowerCase() === holder.toLowerCase() &&
+        holder.toLowerCase() !== ZERO_ADDRESS &&
+        !agreement.revoked &&
+        !agreement.frozen &&
+        (agreement.expiry === 0n || agreement.expiry > this.now()),
+    )
+  }
+
+  async activeAgreementsOf(
+    registry: Hex,
+    assetId: Hex,
+    holder: Hex,
+    cursor: bigint,
+    limit: bigint,
+  ): Promise<{ agreementIds: Hex[]; nextCursor: bigint }> {
+    this.checkRegistryRead()
+    const records = this.assetAgreements(registry, assetId)
+    const page = records.slice(Number(cursor), Number(cursor + limit))
+    const agreementIds: Hex[] = []
+    for (const agreement of page) {
+      // oxlint-disable-next-line no-await-in-loop -- the fake resolves immediately and preserves record order
+      if (await this.isActiveAgreementHolder(registry, agreement.id, assetId, holder)) {
+        agreementIds.push(agreement.id)
+      }
+    }
+    return { agreementIds, nextCursor: BigInt(Math.min(records.length, Number(cursor + limit))) }
+  }
+
+  private assetAgreements(registry: Hex, assetId: Hex) {
+    return [...this.agreements.values()].filter(
+      (agreement) =>
+        agreement.registry.toLowerCase() === registry.toLowerCase() &&
+        agreement.assetId.toLowerCase() === assetId.toLowerCase(),
+    )
+  }
+
+  private checkRegistryRead(): void {
+    if (this.failReads) {
+      throw new ChainError('rpc down')
+    }
+  }
+
   readonly attestations = new Map<Hex, RawAttestation>()
   readonly txs: Hex[] = []
   failReads = false

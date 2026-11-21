@@ -553,3 +553,24 @@ describe('pending entry lifetime', () => {
     expect(server.storage.items.size).toBe(0)
   })
 })
+
+describe('licence entries in the shared vault', () => {
+  it('restores and signs a licence pass on another device with the same member secret', async () => {
+    const server = fakeServer()
+    const opened = await openMemberSecret(server.io)
+    if (opened.kind !== 'open') {
+      throw new Error('Secret did not open')
+    }
+    const scope = {
+      assetId: `0x${'ab'.repeat(32)}`,
+      chainId: 84_532,
+      registry: `0x${'cd'.repeat(20)}`,
+    } as const
+    const entries: VaultEntry[] = [{ cardTitle: 'Art club', licence: scope, uid: UID, venue: 'art' }]
+    server.vault.current = { ...(await sealEntries(entries, opened.secret)), version: 1 }
+    const signature = await signForPass({ ...server.io, storage: () => null }, UID, 'entry')
+    const { licenceKeyFrom } = await import('./member-secret.ts')
+    const key = await licenceKeyFrom(opened.secret, scope)
+    await expect(verifyMessage({ address: key.address, message: 'entry', signature })).resolves.toBe(true)
+  })
+})

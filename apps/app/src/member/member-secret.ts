@@ -11,6 +11,7 @@ import type { PrivateKeyAccount } from 'viem/accounts'
 const WRAP_INFO = 'fuda.sh/member-secret/wrap/v1'
 const VAULT_INFO = 'fuda.sh/member-secret/vault/v1'
 const WRITE_INFO = 'fuda.sh/member-secret/write/v1'
+const LICENCE_KEY_INFO = 'fuda.sh/member-secret/licence-key/v1'
 const PASS_KEY_INFO = 'fuda.sh/member-secret/pass-key/v1'
 
 const SECRET_BYTES = 32
@@ -96,15 +97,38 @@ export const passKeyFrom = async (secret: Bytes, salt: string): Promise<PrivateK
   return privateKeyToAccount(key)
 }
 
+const uid = v.custom<Hex>((value) => isHex(value, { strict: true }) && size(value) === 32)
+const LicenceScopeSchema = v.object({
+  assetId: uid,
+  chainId: v.pipe(v.number(), v.integer(), v.minValue(1)),
+  registry: v.custom<Hex>((value) => isHex(value, { strict: true }) && size(value) === 20),
+})
+export type LicenceScope = v.InferOutput<typeof LicenceScopeSchema>
+
+export const licenceKeyFrom = async (secret: Bytes, scope: LicenceScope): Promise<PrivateKeyAccount> => {
+  const salt = await crypto.subtle.digest(
+    'SHA-256',
+    encoded(`${scope.chainId}:${scope.registry.toLowerCase()}:${scope.assetId.toLowerCase()}`),
+  )
+  const bits = await crypto.subtle.deriveBits(
+    { hash: 'SHA-256', info: encoded(LICENCE_KEY_INFO), name: 'HKDF', salt },
+    await hkdfBase(secret),
+    256,
+  )
+  return privateKeyToAccount(bytesToHex(new Uint8Array(bits)))
+}
+
+const entryFields = { cardTitle: v.string(), uid, venue: v.string() }
 const VaultEntries = v.array(
-  v.object({
-    cardTitle: v.string(),
-    salt: v.string(),
-    uid: v.custom<Hex>((value) => isHex(value, { strict: true }) && size(value) === 32),
-    venue: v.string(),
-  }),
+  v.union([
+    v.object({ ...entryFields, salt: v.string() }),
+    v.object({ ...entryFields, licence: LicenceScopeSchema }),
+  ]),
 )
 export type VaultEntry = v.InferOutput<typeof VaultEntries>[number]
+
+export const keyForEntry = async (secret: Bytes, entry: VaultEntry): Promise<PrivateKeyAccount> =>
+  'licence' in entry ? await licenceKeyFrom(secret, entry.licence) : await passKeyFrom(secret, entry.salt)
 
 export const sealEntries = async (entries: readonly VaultEntry[], secret: Bytes): Promise<Sealed> =>
   await seal(await aesKey(secret, VAULT_INFO), encoded(JSON.stringify(entries)))

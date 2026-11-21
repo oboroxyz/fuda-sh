@@ -4,6 +4,7 @@ import type { Hex } from './constants.ts'
 import {
   asHex,
   challengeMessage,
+  claimMessage,
   isUid,
   LEVEL_CODE,
   normalizeNonce,
@@ -75,5 +76,11 @@ describe(challengeMessage, () => {
     const uidHex = `0x${'11'.repeat(32)}` as const
     const nonce = `0x${'22'.repeat(16)}` as const
     expect(challengeMessage(uidHex, nonce)).toBe(`fuda-gate:${uidHex}:${nonce}`)
+  })
+})
+
+describe(claimMessage, () => {
+  it('pins the claim version and lowercases the holder address', () => {
+    expect(claimMessage('card-1', '0xAbCd', 123)).toBe('fuda.sh:claim:v1:card-1:0xabcd:123')
   })
 })

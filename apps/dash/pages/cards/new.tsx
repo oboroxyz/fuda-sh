@@ -14,11 +14,12 @@ export default function NewCard(): JSX.Element {
   const router = useRouter()
   const navigate = useNavigate()
   const expired = useSessionExpired()
-  const { issuer } = useOperator()
+  const { issuer, operator } = useOperator()
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<CreateFailure | null>(null)
   return (
     <CardDesigner
+      requirementRegistries={operator?.requirementRegistries ?? []}
       busy={busy}
       copy={copy.designer}
       failure={failure}

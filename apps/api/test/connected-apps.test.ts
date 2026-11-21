@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { pkceChallenge } from '../src/connected-apps/store.ts'
 import { getDb } from '../src/db/client.ts'
 import {
+  cardRequirements,
   cards,
   challenges,
   connectedAppEvents,
@@ -32,11 +33,17 @@ import { other } from './fixtures.ts'
 import { CARD_INPUT, getJson, postJson, registerVenueWithCard, SECOND_CARD, signIn } from './operator.ts'
 
 const ORIGIN = 'https://shop.figma.site'
+const requirement = {
+  assetId: `0x${'aa'.repeat(32)}`,
+  kind: 'erc8432-agreement',
+  registry: `0x${'bb'.repeat(20)}`,
+} as const
+
 const REDIRECT_URI = `${ORIGIN}/callback`
 const VERIFIER = 'v'.repeat(43)
 const STATE = 'opaque-state-123'
 
-const bindings = () => testEnv()
+const bindings = () => testEnv({ IP_REGISTRIES: requirement.registry })
 const db = () => getDb({ DB: env.DB })
 
 let clock = 1000
@@ -52,6 +59,7 @@ const clearTables = async (): Promise<void> => {
   await database.delete(rateLimits)
   await database.delete(sessions)
   await database.delete(challenges)
+  await database.delete(cardRequirements)
   await database.delete(cards)
   await database.delete(issuers)
 }
@@ -244,6 +252,21 @@ describe('connected apps', () => {
       clock += 3600
       await issuerStatus(token)
       await expect(lastUsed()).resolves.toBe(clock)
+    })
+
+    it('stores requirements through the connected Card API', async () => {
+      const owner = await ownerWithApp()
+      const token = await accessTokenFor(owner)
+      const created = await withToken('/v1/connect/cards', token, {
+        body: { ...SECOND_CARD, identity: 'address', record: 'offchain', requirements: [requirement] },
+        method: 'POST',
+      })
+      expect(created.status).toBe(201)
+      const { card } = await created.json<CardCreateResponse>()
+      expect(card.requirements).toStrictEqual([requirement])
+      const read = await withToken(`/v1/connect/cards/${card.id}`, token)
+      const readBody = await read.json<CardCreateResponse>()
+      expect(readBody.card.requirements).toStrictEqual([requirement])
     })
 
     it('records card writes for the owner, and keeps them after the app is deleted', async () => {

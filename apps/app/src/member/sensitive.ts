@@ -11,6 +11,7 @@ import { API_BASE_URL } from '../config.ts'
 import { addPasskey, bytesOfPrf, PRF_SALT } from './auth.ts'
 import type { AddPasskeyOutcome } from './auth.ts'
 import {
+  keyForEntry,
   mergeEntries,
   newMemberSecret,
   newPassSalt,
@@ -359,7 +360,7 @@ export type SensitiveClaim =
   | { ok: true; body: SelfServeIssueResponse; saved: 'vault' | 'device' | 'lost' }
   | { ok: false; failure: CardFailure | 'no_prf' }
 
-const failureOfOpen = (opened: Exclude<OpenedSecret, { kind: 'open' }>): CardFailure | 'no_prf' => {
+export const failureOfOpen = (opened: Exclude<OpenedSecret, { kind: 'open' }>): CardFailure | 'no_prf' => {
   if (opened.kind === 'no_prf') {
     return 'no_prf'
   }
@@ -370,6 +371,25 @@ const failureOfOpen = (opened: Exclude<OpenedSecret, { kind: 'open' }>): CardFai
     return 'signed_out'
   }
   return opened.kind === 'unopenable' ? 'secret_unopenable' : 'network'
+}
+
+export const saveClaim = async (
+  io: SensitiveIo,
+  secret: Bytes,
+  entry: VaultEntry,
+  body: SelfServeIssueResponse,
+): Promise<Extract<SensitiveClaim, { ok: true }>> => {
+  // Unreadable device storage must not stop the vault write that would make it unnecessary.
+  const pending = await readPending(io, secret).catch((): PendingEntry[] => [])
+  const saved = await saveEntries(io, secret, [...pending.flatMap((row) => row.entries), entry]).catch(
+    (): VaultRead => ({ ok: false }),
+  )
+  if (saved.ok) {
+    clearPending(io, pending)
+    return { body, ok: true, saved: 'vault' }
+  }
+  const kept = await keepPending(io, secret, entry)
+  return { body, ok: true, saved: kept ? 'device' : 'lost' }
 }
 
 export const claimSensitive = async (
@@ -398,19 +418,8 @@ export const claimSensitive = async (
   if (!issued.ok) {
     return { failure: cardFailureOf(issued), ok: false }
   }
-  // Issuance cannot be undone, so from here every failure only changes where the salt is kept.
   const entry: VaultEntry = { cardTitle: card.cardTitle, salt, uid: issued.body.uid, venue: card.venue }
-  // Unreadable device storage must not stop the vault write that would make it unnecessary.
-  const pending = await readPending(io, opened.secret).catch((): PendingEntry[] => [])
-  const saved = await saveEntries(io, opened.secret, [...pending.flatMap((row) => row.entries), entry]).catch(
-    (): VaultRead => ({ ok: false }),
-  )
-  if (saved.ok) {
-    clearPending(io, pending)
-    return { body: issued.body, ok: true, saved: 'vault' }
-  }
-  const kept = await keepPending(io, opened.secret, entry)
-  return { body: issued.body, ok: true, saved: kept ? 'device' : 'lost' }
+  return await saveClaim(io, opened.secret, entry, issued.body)
 }
 
 // These sentences reach the verdict screen, and entry-copy.ts holds their translations.
@@ -428,7 +437,7 @@ export const signForPass = async (io: SensitiveIo, uid: Hex, message: string): P
   if (entry === undefined) {
     throw new Error(PASS_NOT_IN_VAULT)
   }
-  const key = await passKeyFrom(opened.secret, entry.salt)
+  const key = await keyForEntry(opened.secret, entry)
   return await key.signMessage({ message })
 }
 

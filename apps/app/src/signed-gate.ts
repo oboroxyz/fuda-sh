@@ -126,6 +126,7 @@ export interface SignedDisplay {
   detail: string
   banner?: 'network'
   venue?: string
+  requirements?: VerifySignedResponse['requirements']
 }
 
 export const displayOf = (o: SignedOutcome): SignedDisplay => {
@@ -143,6 +144,9 @@ export const displayOf = (o: SignedOutcome): SignedDisplay => {
           tone: 'green',
         }
       : { detail: o.body.reason, title: 'REJECT', tone: 'red' }
+  if (o.body.decision === 'ADMIT' && o.body.requirements !== undefined) {
+    display.requirements = o.body.requirements
+  }
   if (o.body.venue !== undefined) {
     display.venue = o.body.venue
   }

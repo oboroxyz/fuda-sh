@@ -8,8 +8,11 @@ import type { BrandColorName } from './brand-colors.ts'
 import { dashMessage } from './error-copy.ts'
 import { MANAGEMENT_COPY } from './management-copy.ts'
 import type { ManagementCopy } from './management-copy.ts'
+import { REQUIREMENTS_COPY } from './requirements-copy.ts'
 
 export interface DashCopy {
+  requirements: typeof REQUIREMENTS_COPY.en
+  requirementsError: (code: string) => string
   apps: AppsCopy
   management: ManagementCopy
   chrome: {
@@ -60,6 +63,8 @@ export interface DashCopy {
     failures: { cancelled: string; network: string; rejected: string; unavailable: string; wallet: string }
   }
   passkeys: PasskeySectionCopy
+  poster: { label: string; hint: string; tooSmall: string }
+  artwork: { label: string; hint: string; save: string; tooSmall: string; tooHeavy: string }
   logo: {
     label: string
     choose: string
@@ -123,6 +128,8 @@ export interface DashCopy {
     scannerLabel: string
     scannerPlaceholder: string
     checking: string
+    requirementInactive: string
+    registryNotAllowed: string
     retry: string
     failures: { network: string; rejected: string; notFound: string; badQr: string; badInput: string }
     stamp: { awarded: string; daily_limit: string; disabled: string; not_admitted: string }
@@ -189,6 +196,17 @@ export interface DashCopy {
     identityNone: string
     identityPasskey: string
     identityHint: string
+    requirementLabel: string
+    identityWallet: string
+    identityWalletHint: string
+    identityAddress: string
+    identityAddressHint: string
+    requirementRegistry: string
+    requirementAsset: string
+    requirementTerms: string
+    requirementHexError: string
+    requirementRegistryError: string
+    requirementFixed: string
     identitySensitive: string
     identitySensitiveHint: string
     attendanceLabel: string
@@ -482,6 +500,18 @@ export const DASH_COPY = {
       synced: 'synced',
       title: 'Passkeys',
     },
+    poster: {
+      label: 'Apple poster',
+      hint: 'For Apple Wallet on iOS 27 and later. 1074×1344 or larger; tall images are centre-cropped. The bottom of the image sits under the pass details.',
+      tooSmall: 'Use an image at least 1074×1344.',
+    },
+    artwork: {
+      label: 'Pass artwork',
+      hint: '1125×432 or larger. Wide images are centre-cropped.',
+      save: 'Save image',
+      tooSmall: 'Use an image at least 1125×432.',
+      tooHeavy: 'That image is too detailed. Try a simpler one.',
+    },
     logo: {
       label: 'Logo',
       choose: 'Choose image',
@@ -554,6 +584,9 @@ export const DASH_COPY = {
       scannerLabel: 'QR scanner input',
       scannerPlaceholder: 'Scan fuda:v1:… and press Enter',
       checking: 'Checking admission…',
+      requirementInactive: 'This pass’s licence agreement is not active.',
+      registryNotAllowed:
+        'This pass’s licence agreement is not active because this deployment no longer accepts its registry.',
       retry: 'Try again',
       failures: {
         network: 'The result is uncertain because fuda could not be reached. Retry this scan safely.',
@@ -600,6 +633,8 @@ export const DASH_COPY = {
         },
       },
     },
+    requirements: REQUIREMENTS_COPY.en,
+    requirementsError: (code: string) => dashMessage(code, 'en'),
     designer: {
       title: 'Design the card',
       description: 'Your members see this card. You can run the whole programme from one link.',
@@ -641,6 +676,19 @@ export const DASH_COPY = {
       recordOnchain: 'Public on the blockchain',
       recordHint:
         'Private passes are issued at once and leave no public record of each pass. Public passes can be checked by anyone, take a little longer to issue, and cannot be erased. This cannot be changed later.',
+      requirementLabel: 'Require an ERC-8432 licence agreement',
+      identityWallet: 'Anyone who shows the pass (recommended)',
+      identityWalletHint:
+        'The pass goes into Apple Wallet and Google Wallet and is read as a QR at the gate. The licence agreement is checked at every scan. A copied QR also works while the agreement is active.',
+      identityAddress: 'Only the member’s licence key, by signature in the app',
+      identityAddressHint:
+        'The member signs in the app with their licence key. This pass has no Wallet pass and no QR, and earns no Stamps.',
+      requirementRegistry: 'Registry',
+      requirementAsset: 'Asset id',
+      requirementTerms: 'Terms id (optional)',
+      requirementHexError: 'Enter 0x followed by 64 hexadecimal characters.',
+      requirementRegistryError: 'Choose a registry.',
+      requirementFixed: 'This requirement cannot be changed after the card is created.',
       identitySensitive: 'Sensitive use: employee badges and private memberships',
       identitySensitiveHint:
         'Each pass gets its own key on the member’s device, so fuda’s records do not connect one person’s passes at different places. You still see how many passes you issued and when they were used, but not who holds them. Members need a fuda account and a passkey saved in iCloud Keychain, Google Password Manager or another app with this feature; anyone else is told how to save one. There are no stamps, Wallet passes, codes, backup files, member names or integrations, and entry is refused while the chain cannot be read. If a member loses every passkey, you revoke the pass and they get a new one. This cannot be changed later.',
@@ -945,6 +993,18 @@ export const DASH_COPY = {
       synced: '同期あり',
       title: 'パスキー',
     },
+    poster: {
+      label: 'Apple ポスター',
+      hint: 'iOS 27 以降の Apple Wallet 用。1074×1344 以上。縦長の画像は中央で切り抜きます。画像の下部にはパスの情報が重なります。',
+      tooSmall: '1074×1344 以上の画像を選んでください。',
+    },
+    artwork: {
+      label: 'パスの画像',
+      hint: '1125×432 以上。横長の画像は中央で切り抜きます。',
+      save: '画像を保存',
+      tooSmall: '1125×432 以上の画像を選んでください。',
+      tooHeavy: '画像が複雑すぎます。もっとシンプルな画像を選んでください。',
+    },
     logo: {
       label: 'ロゴ',
       choose: '画像を選ぶ',
@@ -1017,6 +1077,9 @@ export const DASH_COPY = {
       scannerLabel: 'QR スキャナー入力',
       scannerPlaceholder: 'fuda:v1:… を読み取って Enter',
       checking: '入場可否を確認中…',
+      requirementInactive: 'このパスのライセンス契約は有効ではありません。',
+      registryNotAllowed:
+        'この環境では契約のレジストリを受け付けなくなったため、このパスのライセンス契約は有効ではありません。',
       retry: '再試行',
       failures: {
         network: 'fuda に接続できず、結果を確定できません。同じ読み取りを安全に再試行できます。',
@@ -1063,6 +1126,8 @@ export const DASH_COPY = {
         },
       },
     },
+    requirements: REQUIREMENTS_COPY.ja,
+    requirementsError: (code: string) => dashMessage(code, 'ja'),
     designer: {
       title: 'カードをデザイン',
       description: 'メンバーにはこのカードが表示されます。リンク 1 本で運用できます。',
@@ -1104,6 +1169,19 @@ export const DASH_COPY = {
       recordOnchain: 'ブロックチェーンで公開',
       recordHint:
         '非公開のパスはすぐに発行でき、1枚ごとの公開記録が残りません。公開のパスは誰でも確認できますが、発行に少し時間がかかり、記録は消せません。あとから変更できません。',
+      requirementLabel: 'ERC-8432のライセンス契約を必須にする',
+      identityWallet: 'パスを見せた人（おすすめ）',
+      identityWalletHint:
+        'Apple Wallet と Google Wallet に追加でき、ゲートでQRを読み取って使えます。読み取るたびにライセンス契約を確認します。契約が有効な間は、コピーしたQRでも使えます。',
+      identityAddress: 'メンバーのライセンスキーのみ（アプリで署名）',
+      identityAddressHint:
+        'メンバーがアプリでライセンスキーを使って署名します。Wallet パスとQRはなく、スタンプも付きません。',
+      requirementRegistry: 'レジストリ',
+      requirementAsset: 'アセットID',
+      requirementTerms: '利用条件ID（任意）',
+      requirementHexError: '0xに続けて64文字の16進数を入力してください。',
+      requirementRegistryError: 'レジストリを選んでください。',
+      requirementFixed: 'この必要条件はカード作成後に変更できません。',
       identitySensitive: '機密利用: 社員証やプライバシーを守りたい会員証',
       identitySensitiveHint:
         'パスごとに会員の端末内で専用の鍵を作るため、同じ人の別の場所のパスが fuda の記録上で結び付きません。発行数と利用日時は確認できますが、誰が持っているかはわかりません。会員には fuda のアカウントと、iCloud キーチェーン、Google パスワード マネージャーなど、この機能に対応したアプリに保存したパスキーが必要です。対応していない場合は保存方法を案内します。スタンプ、Wallet パス、コード、控えのファイル、メンバー名、連携機能はなく、チェーンを読めない間は入場できません。パスキーをすべてなくした場合は、パスを取り消して新しいものを受け取ってもらいます。あとから変更できません。',

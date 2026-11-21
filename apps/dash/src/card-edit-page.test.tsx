@@ -20,6 +20,7 @@ const issuer: IssuerView = {
   tagline: '',
 }
 const card: OperatorCardView = {
+  artworkUrl: null,
   attendance: false,
   category: 'membership',
   claimFrom: 1_780_000_013,
@@ -29,6 +30,7 @@ const card: OperatorCardView = {
   id: 'card-1',
   identity: 'none',
   lockScreen: true,
+  posterUrl: null,
   record: 'offchain',
   slug: 'membership',
   title: 'Coffee members',
@@ -86,6 +88,37 @@ describe(CardEditPage, () => {
     cleanupAll()
     root.remove()
   })
+
+  it.each(['none', 'address'] as const)(
+    'shows Stamp settings only for the Wallet requirement identity %s',
+    async (identity) => {
+      const input = props()
+      const saved = {
+        ...card,
+        identity,
+        requirements: [
+          {
+            assetId: `0x${'cd'.repeat(32)}` as const,
+            kind: 'erc8432-agreement' as const,
+            registry: `0x${'ab'.repeat(20)}` as const,
+          },
+        ],
+      }
+      vi.mocked(input.load).mockResolvedValue({ body: { card: saved }, ok: true })
+      render(<CardEditPage {...input} />, root)
+      await waitForm()
+      expect(root.querySelector<HTMLSelectElement>('#identity')?.value).toBe(identity)
+      expect(
+        [...root.querySelectorAll('summary')].some(
+          (summary) => summary.textContent === DASH_COPY.en.management.stampOption,
+        ),
+      ).toBe(identity === 'none')
+      expect(root.textContent).toContain(DASH_COPY.en.requirements.title)
+      submit()
+      expect(vi.mocked(input.save).mock.calls[0]?.[1]).not.toHaveProperty('identity')
+      expect(vi.mocked(input.save).mock.calls[0]?.[1]).not.toHaveProperty('requirements')
+    },
+  )
 
   it('hydrates and saves without losing seconds, custom days, location or public URL identity', async () => {
     const p = props()
@@ -166,7 +199,7 @@ describe(CardEditPage, () => {
     render(<CardEditPage {...p} />, root)
     await waitForm()
     expect(p.settings.load).not.toHaveBeenCalled()
-    const details = root.querySelector('details')!
+    const details = root.querySelector<HTMLDetailsElement>('details:not([data-testid])')!
     details.open = true
     details.dispatchEvent(new Event('toggle'))
     await vi.waitFor(() => {
@@ -200,9 +233,13 @@ describe(CardEditPage, () => {
     )
     await waitForm()
     // The integrations section stays: it is not a membership feature.
-    expect([...root.querySelectorAll('details')].map((node) => node.dataset.testid)).toStrictEqual([
-      'card-integrations',
-    ])
+    expect(
+      [
+        ...root.querySelectorAll<HTMLDetailsElement>(
+          'details:not([data-testid=card-artwork]):not([data-testid=card-poster])',
+        ),
+      ].map((node) => node.dataset.testid),
+    ).toStrictEqual(['card-integrations'])
     expect(p.settings.load).not.toHaveBeenCalled()
   })
 
@@ -218,7 +255,11 @@ describe(CardEditPage, () => {
       root,
     )
     await waitForm()
-    expect(root.querySelectorAll('details')).toHaveLength(0)
+    expect(
+      root.querySelectorAll<HTMLDetailsElement>(
+        'details:not([data-testid=card-artwork]):not([data-testid=card-poster])',
+      ),
+    ).toHaveLength(0)
     expect(p.settings.load).not.toHaveBeenCalled()
   })
 

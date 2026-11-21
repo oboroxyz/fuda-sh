@@ -1,5 +1,6 @@
 import { LEVEL_CODE, passUrls, toQr, asHex } from '@fuda/sdk'
 import type { IssueRequest, SelfServeIssueResponse } from '@fuda/sdk'
+import type { BatchItem } from 'drizzle-orm/batch'
 import type { Hex } from 'viem'
 
 import { ZERO_ADDRESS, ZERO_UID } from '../chain/client.ts'
@@ -48,6 +49,7 @@ const holderKeyOf = (claimant: PassClaimant | null): Hex => {
 
 export interface OffchainIssueParams {
   baseUrl: string
+  extraRows?: (uid: Hex) => BatchItem<'sqlite'>[]
   body: IssueRequest
   cardId: string
   chain: ChainClient
@@ -103,13 +105,11 @@ export const issueOffchainPass = async (p: OffchainIssueParams): Promise<SelfSer
     signed: toSignedJson({ domain: p.domain, message, signature, uid }),
     uid,
   })
-  await (p.claimant?.kind === 'passkey'
-    ? p.db.batch([
-        member,
-        attestation,
-        p.db.insert(memberPasses).values({ accountId: p.claimant.accountId, addedAt: p.now, uid }),
-      ])
-    : p.db.batch([member, attestation]))
+  const extraRows = p.extraRows?.(uid) ?? []
+  if (p.claimant?.kind === 'passkey') {
+    extraRows.push(p.db.insert(memberPasses).values({ accountId: p.claimant.accountId, addedAt: p.now, uid }))
+  }
+  await p.db.batch([member, attestation, ...extraRows])
   return {
     holder: ZERO_ADDRESS,
     level,

@@ -189,4 +189,41 @@ describe('entry locale changes', () => {
     expect(root.textContent).toContain('@coffee')
     expect(root.textContent).toContain('ADMIT')
   })
+
+  it.each(['en', 'ja'] as const)('shows the agreement link and inactive licence verdict in %s', (locale) => {
+    const evidence = `ipagreement:84532:0x${'12'.repeat(20)}/0x${'ab'.repeat(32)}`
+    render(
+      () => (
+        <Verdict
+          locale={locale}
+          onDone={() => {}}
+          state={{
+            detail: '',
+            requirements: [{ evidence, kind: 'erc8432-agreement' }],
+            title: 'ADMIT',
+            tone: 'green',
+          }}
+        />
+      ),
+      root,
+    )
+    expect(root.querySelector('a')?.href).toBe(
+      `https://sepolia.basescan.org/address/0x${'12'.repeat(20)}#readContract`,
+    )
+    expect(root.textContent).toContain(locale === 'en' ? 'View licence agreement' : 'ライセンス契約を見る')
+    unmountAll()
+    render(
+      () => (
+        <Verdict
+          locale={locale}
+          onDone={() => {}}
+          state={{ detail: 'REQUIREMENT_UNMET', title: 'REJECT', tone: 'red' }}
+        />
+      ),
+      root,
+    )
+    expect(root.textContent).toContain(
+      locale === 'en' ? 'Your licence agreement is no longer active.' : 'ライセンス契約は現在無効です。',
+    )
+  })
 })

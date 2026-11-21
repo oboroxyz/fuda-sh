@@ -224,8 +224,8 @@ export const SensitivePasses = (props: { locale: Locale }): JSX.Element => {
     setStartedOver(null)
     setProblem(null)
     try {
-      const { passKeyFrom } = await import('./member-secret.ts')
-      const key = await passKeyFrom(secret, entry.salt)
+      const { keyForEntry } = await import('./member-secret.ts')
+      const key = await keyForEntry(secret, entry)
       const outcome = await enterSigned(
         {
           challenge,

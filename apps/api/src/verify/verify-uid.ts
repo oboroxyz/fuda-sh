@@ -1,5 +1,5 @@
 import { rightStatus } from '@fuda/sdk'
-import type { DelegationView, EntitlementView, Reason } from '@fuda/sdk'
+import type { DelegationView, EntitlementView, Reason, VerifyResponse } from '@fuda/sdk'
 import type { Hex } from 'viem'
 
 import { ZERO_ADDRESS, ZERO_UID } from '../chain/client.ts'
@@ -12,28 +12,30 @@ import type { VerifyDeps } from './config.ts'
 
 export type { VerifyDeps } from './config.ts'
 
-export type VerifyOutcome =
-  | {
-      decision: 'REJECT'
-      reason: Reason
-      entitlement?: EntitlementView
-      delegation?: DelegationView
-      attester?: Hex
-    }
-  | {
-      decision: 'ADMIT'
-      reason: 'OK'
-      entitlement: EntitlementView
-      delegation: DelegationView
-      attester: Hex
-      canonical: Entitlement
-      // What an Identified pass answers to, instead of the holder's address.
-      passkey?: AttestedPasskey | null
-      // What a Sensitive pass answers to: a key unique to the pass, never the holder's.
-      holderAddress?: Hex | null
-      // An offchain ADMIT whose on-chain revocation could not be read.
-      unconfirmed?: true
-    }
+export type VerifyOutcome = Pick<VerifyResponse, 'requirement' | 'requirements'> &
+  (
+    | {
+        decision: 'REJECT'
+        reason: Reason
+        entitlement?: EntitlementView
+        delegation?: DelegationView
+        attester?: Hex
+      }
+    | {
+        decision: 'ADMIT'
+        reason: 'OK'
+        entitlement: EntitlementView
+        delegation: DelegationView
+        attester: Hex
+        canonical: Entitlement
+        // What an Identified pass answers to, instead of the holder's address.
+        passkey?: AttestedPasskey | null
+        // What a Sensitive pass answers to: a key unique to the pass, never the holder's.
+        holderAddress?: Hex | null
+        // An offchain ADMIT whose on-chain revocation could not be read.
+        unconfirmed?: true
+      }
+  )
 
 export const toEntitlementView = (e: Entitlement): EntitlementView => ({
   holder: e.holder,

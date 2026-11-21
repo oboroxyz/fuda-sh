@@ -59,7 +59,7 @@ export const ENTRY_COPY = {
 } satisfies Copy<EntryCopy>
 
 const MESSAGE_COPY: Copy<Record<string, string>> = {
-  en: {},
+  en: { REQUIREMENT_UNMET: 'Your licence agreement is no longer active.' },
   ja: {
     ALREADY_USED: 'すでに使用済みです。',
     BAD_CHALLENGE: '入場確認の有効期限が切れているか、内容が無効です。',
@@ -72,6 +72,7 @@ const MESSAGE_COPY: Copy<Record<string, string>> = {
     NOT_FOUND: '権利が見つかりません。',
     NOT_YET_VALID: 'まだ有効期間が始まっていません。',
     NO_DELEGATION: '発行権限を確認できません。',
+    REQUIREMENT_UNMET: 'ライセンス契約は現在無効です。',
     REVOKED: 'この権利は取り消されています。',
     'Rights discovery is not configured.': '権利の検索が設定されていません。',
     'The passkey for this pass was not used. Try again on a device that has it.':

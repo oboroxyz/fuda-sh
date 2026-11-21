@@ -135,6 +135,17 @@ const venueFace = (card: PassCardView, copy: MemberCopy['passes']): JSX.Element 
       )}
       <span class="min-w-0 text-sm font-semibold">{card.issuerName}</span>
     </div>
+    {card.artworkUrl !== null && card.artworkUrl !== undefined ? (
+      <img
+        alt=""
+        class="aspect-[375/144] w-full flex-none rounded-xl object-cover"
+        loading="lazy"
+        onError={(event) => {
+          event.currentTarget.hidden = true
+        }}
+        src={card.artworkUrl}
+      />
+    ) : null}
     <div class="flex flex-col gap-2">
       <h2 class="text-2xl leading-tight font-bold">{card.cardTitle}</h2>
       <div class="text-[0.625rem] font-semibold tracking-[0.16em] uppercase">

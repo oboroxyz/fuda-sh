@@ -134,6 +134,38 @@ describe(displayState, () => {
     })
   })
 
+  it.each([
+    ['agreement-inactive', "This pass's licence agreement is not active."],
+    [
+      'registry-not-allowed',
+      "This pass's licence agreement is not active because this deployment no longer accepts its registry.",
+    ],
+  ] as const)('explains an unmet requirement with %s', (detail, message) => {
+    expect(
+      displayState('admit', {
+        body: {
+          decision: 'REJECT',
+          reason: 'REQUIREMENT_UNMET',
+          requirement: { detail, kind: 'erc8432-agreement' },
+        },
+        ok: true,
+      }),
+    ).toMatchObject({ detail: message, title: 'REJECT', tone: 'red' })
+  })
+
+  it('admits a pass with requirement evidence without extra door-screen text', () => {
+    expect(
+      displayState('admit', {
+        body: {
+          decision: 'ADMIT',
+          reason: 'OK',
+          requirements: [{ evidence: 'ipagreement:84532:registry/agreement', kind: 'erc8432-agreement' }],
+        },
+        ok: true,
+      }),
+    ).toMatchObject({ detail: '', title: 'ADMIT', tone: 'green' })
+  })
+
   it('is RED with the reason for a REJECT', () => {
     const s = displayState('admit', { body: { decision: 'REJECT', reason: 'LEVEL_REQUIRED' }, ok: true })
     expect(s).toMatchObject({ detail: 'LEVEL_REQUIRED', title: 'REJECT', tone: 'red' })

@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { pkceChallenge } from '../src/connected-apps/store.ts'
 import { getDb } from '../src/db/client.ts'
 import {
+  cardRequirements,
   cards,
   challenges,
   members,
@@ -24,6 +25,12 @@ import { appWith, fakeChain } from './env.ts'
 import { configuredEnv, NOW, ROOT, seedRoot } from './fixtures.ts'
 import { CARD_INPUT, getJson, postJson, registerVenueWithCard, SECOND_CARD, signIn } from './operator.ts'
 
+const requirement = {
+  assetId: `0x${'aa'.repeat(32)}`,
+  kind: 'erc8432-agreement',
+  registry: `0x${'bb'.repeat(20)}`,
+} as const
+
 const REDIRECT_URI = 'http://localhost:8080/callback'
 const VERIFIER = 'v'.repeat(43)
 const API = 'https://api.fuda.sh'
@@ -36,6 +43,7 @@ const bindings = () => ({
   ...configuredEnv(delegation),
   API_BASE_URL: API,
   DASH_BASE_URL: 'https://dash.fuda.sh',
+  IP_REGISTRIES: requirement.registry,
 })
 const app = appWith({ chain, now: () => NOW })
 const ALL_SCOPES = 'cards:read cards:write passes:read passes:issue passes:revoke'
@@ -61,6 +69,7 @@ const clearTables = async (): Promise<void> => {
   await db.delete(rateLimits)
   await db.delete(sessions)
   await db.delete(challenges)
+  await db.delete(cardRequirements)
   await db.delete(cards)
   await db.delete(issuers)
 }
@@ -491,12 +500,33 @@ describe('mcp', () => {
       expect(rows.find((row) => row.id === cardId)).toStrictEqual({ claimable: false, id: cardId, issued: 1 })
     })
 
-    it.each(['passkey', 'sensitive'] as const)(
+    it('returns stored requirements in create_card and list_cards', async () => {
+      const { token } = await approveAndExchange({ resource: RESOURCE, scope: ALL_SCOPES })
+      const created = await rpc(token, 'tools/call', {
+        arguments: { ...SECOND_CARD, identity: 'address', record: 'offchain', requirements: [requirement] },
+        name: 'create_card',
+      })
+      const schema = v.object({ id: v.string(), requirements: v.array(v.unknown()) })
+      const { card } = toolValue(v.object({ card: schema }), created)
+      expect(card.requirements).toStrictEqual([requirement])
+      const listed = await rpc(token, 'tools/call', { name: 'list_cards' })
+      expect(
+        toolValue(v.object({ cards: v.array(schema) }), listed).cards.find((row) => row.id === card.id)
+          ?.requirements,
+      ).toStrictEqual([requirement])
+    })
+
+    it.each(['passkey', 'sensitive', 'address', 'none'] as const)(
       'leaves a %s card for its holder to claim',
       async (identity) => {
         const { token } = await approveAndExchange({ resource: RESOURCE, scope: ALL_SCOPES })
         const created = await rpc(token, 'tools/call', {
-          arguments: { ...SECOND_CARD, identity, record: 'offchain' },
+          arguments: {
+            ...SECOND_CARD,
+            identity,
+            record: 'offchain',
+            requirements: identity === 'address' || identity === 'none' ? [requirement] : [],
+          },
           name: 'create_card',
         })
         const { id: cardId } = toolValue(Limited, created).card

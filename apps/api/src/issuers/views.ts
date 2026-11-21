@@ -1,9 +1,17 @@
 import { isClaimable, offerableBadgeKinds } from '@fuda/sdk'
-import type { BadgeKind, CardView, IssuerSummary, IssuerView, OperatorCardView, PublicVenue } from '@fuda/sdk'
+import type {
+  BadgeKind,
+  CardView,
+  IssuerSummary,
+  IssuerView,
+  OperatorCardView,
+  PublicVenue,
+  Requirement,
+} from '@fuda/sdk'
 import type { Hex } from 'viem'
 
 import type { cards, issuers } from '../db/schema.ts'
-import { logoUrlFor } from '../media/logo.ts'
+import { artworkUrlFor, logoUrlFor } from '../media/logo.ts'
 
 type IssuerRow = typeof issuers.$inferSelect
 type CardRow = typeof cards.$inferSelect
@@ -34,8 +42,16 @@ export const issuerSummary = (row: IssuerRow, baseUrl: string): IssuerSummary =>
 // `claimable` is decided against the api's clock, not the caller's. `badges`
 // is written only when the caller computed it (the public venue payload); an
 // operator response leaves the key out, and a client treats absence as none.
-export const cardView = (row: CardRow, now: number, badges?: readonly BadgeKind[]): CardView => {
+// `requirements` is always written, empty for a Card that has none.
+export const cardView = (
+  row: CardRow,
+  now: number,
+  requirements: readonly Requirement[],
+  baseUrl: string,
+  badges?: readonly BadgeKind[],
+): CardView => {
   const view: CardView = {
+    artworkUrl: artworkUrlFor(baseUrl, row.artworkPrefix),
     category: row.category,
     claimFrom: row.claimFrom,
     claimUntil: row.claimUntil,
@@ -43,6 +59,7 @@ export const cardView = (row: CardRow, now: number, badges?: readonly BadgeKind[
     description: row.description,
     id: row.id,
     identity: row.identity,
+    requirements,
     slug: row.slug,
     title: row.title,
     validFrom: row.validFrom,
@@ -55,11 +72,18 @@ export const cardView = (row: CardRow, now: number, badges?: readonly BadgeKind[
   return view
 }
 
-export const operatorCardView = (row: CardRow, now: number): OperatorCardView => ({
-  ...cardView(row, now),
+export const operatorCardView = (
+  row: CardRow,
+  now: number,
+  requirements: readonly Requirement[],
+  baseUrl: string,
+): OperatorCardView => ({
+  ...cardView(row, now, requirements, baseUrl),
   attendance: row.attendance !== 0,
   identity: row.identity,
   lockScreen: row.lockScreen !== 0,
+  posterUrl:
+    row.posterPrefix === null ? null : `${baseUrl.replace(/\/$/u, '')}/assets/${row.posterPrefix}/poster3x`,
   record: row.record,
   venue: row.venueLat === null || row.venueLng === null ? null : { lat: row.venueLat, lng: row.venueLng },
 })
@@ -73,11 +97,18 @@ export const publicVenue = (
   // each Card's enabled kinds (docs/specs/pass-types-and-flows.md#card-integrations);
   // a Card missing from the map has none on
   enabledByCard: ReadonlyMap<string, readonly BadgeKind[]>,
+  requirementsByCard: ReadonlyMap<string, readonly Requirement[]>,
 ): PublicVenue => ({
   badges,
   brandColor: issuer.brandColor,
   cards: cards.map((card) =>
-    cardView(card, now, offerableBadgeKinds(enabledByCard.get(card.id) ?? [], badges)),
+    cardView(
+      card,
+      now,
+      requirementsByCard.get(card.id) ?? [],
+      baseUrl,
+      offerableBadgeKinds(enabledByCard.get(card.id) ?? [], badges),
+    ),
   ),
   defaultCardSlug: issuer.defaultCardSlug,
   handle: issuer.handle,

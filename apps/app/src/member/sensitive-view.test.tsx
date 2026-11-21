@@ -72,7 +72,7 @@ describe('Sensitive screen ownership', () => {
 
   it.each([
     ['cancelled', 'No passkey was used. You can try again.'],
-    ['no_prf', 'This passkey cannot open sensitive passes'],
+    ['no_prf', 'This passkey cannot open saved passes'],
     ['signed_out', 'Sign in again'],
     ['failed', 'The list could not be opened. Try again.'],
     ['unopenable', 'The list was not opened.'],
@@ -111,7 +111,7 @@ describe('Sensitive screen ownership', () => {
   })
 
   it('hides the list after an entry failure and clears the problem on retry', async () => {
-    vi.spyOn(memberSecret, 'passKeyFrom').mockRejectedValue(new Error('Key unavailable'))
+    vi.spyOn(memberSecret, 'keyForEntry').mockRejectedValue(new Error('Key unavailable'))
     const view = mount(<SensitivePasses locale="en" />)
     disposers.push(view.dispose)
     await vi.waitFor(() => {

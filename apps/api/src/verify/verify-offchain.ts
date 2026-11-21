@@ -6,7 +6,7 @@ import type { Hex } from 'viem'
 import { ChainError, ZERO_ADDRESS, ZERO_UID } from '../chain/client.ts'
 import type { ChainClient } from '../chain/client.ts'
 import type { Db } from '../db/client.ts'
-import { issuers, members, offchainAttestations } from '../db/schema.ts'
+import { cards, issuers, members, offchainAttestations } from '../db/schema.ts'
 import type { Entitlement } from '../eas/codecs.ts'
 import {
   decodeHolderKey,
@@ -22,6 +22,8 @@ import { toEntitlementView } from './verify-uid.ts'
 import type { VerifyOutcome } from './verify-uid.ts'
 
 export interface OffchainRow {
+  hasRequirements?: boolean | null
+  identity?: string | null
   cardId: string | null
   handle: string | null
   signed: string
@@ -29,19 +31,27 @@ export interface OffchainRow {
 }
 
 // null for a uid with no offchain row, which is then an on-chain question.
-export const loadOffchainRow = async (db: Db, uid: Hex): Promise<OffchainRow | null> =>
+export const loadVerificationRow = async (db: Db, uid: Hex) =>
   (await db
     .select({
       cardId: members.cardId,
       handle: issuers.handle,
+      hasRequirements: cards.hasRequirements,
+      identity: cards.identity,
       signed: offchainAttestations.signed,
       status: members.status,
     })
-    .from(offchainAttestations)
-    .innerJoin(members, eq(members.attestationUid, offchainAttestations.uid))
+    .from(members)
+    .leftJoin(offchainAttestations, eq(members.attestationUid, offchainAttestations.uid))
+    .leftJoin(cards, eq(cards.id, members.cardId))
     .leftJoin(issuers, eq(issuers.id, members.issuerId))
-    .where(eq(offchainAttestations.uid, uid))
+    .where(eq(members.attestationUid, uid))
     .get()) ?? null
+
+export const loadOffchainRow = async (db: Db, uid: Hex): Promise<OffchainRow | null> => {
+  const row = await loadVerificationRow(db, uid)
+  return row === null || row.signed === null ? null : { ...row, signed: row.signed }
+}
 
 const decodeOrNull = (data: Hex): OffchainPassData | null => {
   try {
@@ -197,7 +207,12 @@ export const verifyOffchain = async (
     return reject(verdict.reason)
   }
   if (revoked instanceof ChainError) {
-    if (pass.usageModel === USAGE_MODEL.SINGLE_USE || holderAddress !== null) {
+    if (
+      row.hasRequirements === true ||
+      row.identity === 'address' ||
+      pass.usageModel === USAGE_MODEL.SINGLE_USE ||
+      holderAddress !== null
+    ) {
       throw revoked
     }
     return { ...admit, unconfirmed: true }

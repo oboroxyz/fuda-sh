@@ -116,6 +116,7 @@ describe('card slugs', () => {
 
 // Every card view field, so a fixture names only what its test is about.
 const card = (over: Partial<CardView>): CardView => ({
+  artworkUrl: null,
   category: 'membership',
   claimFrom: null,
   claimUntil: null,

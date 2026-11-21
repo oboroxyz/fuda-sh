@@ -104,6 +104,7 @@ export const DASH_ERROR_COPY = {
     en: 'Too many requests. Wait a moment and try again.',
     ja: '操作が集中しています。少し待ってからお試しください。',
   },
+  requirement_unmet: { en: 'The pass requirement is not met.', ja: 'パスの必要条件を満たしていません。' },
   session_changed: {
     en: 'The profile changed in another tab. Reload this page.',
     ja: '別のタブでプロフィールが切り替わりました。このページを再読み込みしてください。',

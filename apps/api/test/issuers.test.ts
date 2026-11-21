@@ -4,7 +4,7 @@ import type { Hex } from 'viem'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { getDb } from '../src/db/client.ts'
-import { cards, challenges, issuers, members, sessions } from '../src/db/schema.ts'
+import { cardRequirements, cards, challenges, issuers, members, sessions } from '../src/db/schema.ts'
 import { decodeEntitlementV1 } from '../src/eas/codecs.ts'
 import { mirrorIssuerName } from '../src/ens/mirror.ts'
 import { ensNames } from '../src/ens/schema.ts'
@@ -20,6 +20,12 @@ import {
   SECOND_CARD,
   signIn,
 } from './operator.ts'
+
+const requirement = {
+  assetId: `0x${'aa'.repeat(32)}`,
+  kind: 'erc8432-agreement',
+  registry: `0x${'bb'.repeat(20)}`,
+} as const
 
 interface Created {
   cards: []
@@ -58,8 +64,48 @@ describe('issuer onboarding', () => {
     await db.delete(members)
     await db.delete(sessions)
     await db.delete(challenges)
+    await db.delete(cardRequirements)
     await db.delete(cards)
     await db.delete(issuers)
+  })
+
+  it('stores address requirements and requires a claim signature', async () => {
+    const chain = fakeChain()
+    const bindings = configuredEnv(seedRoot(chain), { IP_REGISTRIES: requirement.registry })
+    const app = appWith({ chain, now: () => NOW })
+    const { token } = await signIn(app, bindings)
+    await registerVenueWithCard(app, bindings, CARD_INPUT, token)
+    const input = { ...SECOND_CARD, identity: 'address', record: 'offchain', requirements: [requirement] }
+    const res = await postJson(app, bindings, '/v1/issuers/cards', input, token)
+    expect(res.status).toBe(201)
+    await expect(res.json()).resolves.toMatchObject({
+      card: { identity: 'address', requirements: [requirement] },
+    })
+    const venue = await getJson(app, bindings, `/v1/issuers/${CARD_INPUT.handle}`)
+    const publicBody = await venue.json<{ cards: { requirements: unknown[] }[] }>()
+    expect(publicBody.cards[1]?.requirements).toStrictEqual([requirement])
+    const claim = await app.request(
+      `/v1/issuers/${CARD_INPUT.handle}/${SECOND_CARD.slug}/issue`,
+      {
+        body: JSON.stringify({ holderAddress: other.address }),
+        headers: { 'CF-Connecting-IP': '203.0.113.7', 'content-type': 'application/json' },
+        method: 'POST',
+      },
+      bindings,
+    )
+    expect(claim.status).toBe(400)
+    await expect(claim.json()).resolves.toStrictEqual({ error: 'bad_input' })
+    for (const invalid of [
+      { ...input, requirements: [], slug: 'bad-one' },
+      { ...input, identity: 'none', record: 'onchain', slug: 'bad-two' },
+      { ...input, requirements: [{ ...requirement, registry: `0x${'cc'.repeat(20)}` }], slug: 'bad-three' },
+    ]) {
+      // oxlint-disable-next-line no-await-in-loop -- requests reuse the same operator session
+      const refused = await postJson(app, bindings, '/v1/issuers/cards', invalid, token)
+      expect(refused.status).toBe(400)
+      // oxlint-disable-next-line no-await-in-loop -- assert the response of this request
+      await expect(refused.json()).resolves.toStrictEqual({ error: 'bad_input' })
+    }
   })
 
   it('creates a venue without cards and binds the session to it', async () => {
@@ -76,8 +122,22 @@ describe('issuer onboarding', () => {
     })
     await expect(getDb({ DB: env.DB }).select().from(cards)).resolves.toStrictEqual([])
     const me = await getJson(app, publicEnv(), '/v1/issuers/me', token)
-    await expect(me.json()).resolves.toStrictEqual(body)
+    await expect(me.json()).resolves.toStrictEqual({ ...body, requirementRegistries: [] })
   })
+
+  it.each([
+    { configured: undefined, expected: [] },
+    { configured: 'invalid', expected: [] },
+    { configured: ` 0x${'AB'.repeat(20)},0x${'ab'.repeat(20)}`, expected: [`0x${'ab'.repeat(20)}`] },
+  ])(
+    'reports allowed requirement registries before registration: $configured',
+    async ({ configured, expected }) => {
+      const app = appWith({ chain: fakeChain(), now: () => NOW })
+      const { token } = await signIn(app, publicEnv())
+      const me = await getJson(app, { ...publicEnv(), IP_REGISTRIES: configured }, '/v1/issuers/me', token)
+      await expect(me.json()).resolves.toMatchObject({ requirementRegistries: expected })
+    },
+  )
 
   it('finds the issuer again on the next sign-in', async () => {
     const app = appWith({ chain: fakeChain(), now: () => NOW })
@@ -176,6 +236,7 @@ describe('POST /issuers/:handle/issue', () => {
     await db.delete(members)
     await db.delete(sessions)
     await db.delete(challenges)
+    await db.delete(cardRequirements)
     await db.delete(cards)
     await db.delete(issuers)
   })
@@ -261,6 +322,7 @@ describe('branded passes for a self-serve right', () => {
     await db.delete(members)
     await db.delete(sessions)
     await db.delete(challenges)
+    await db.delete(cardRequirements)
     await db.delete(cards)
     await db.delete(issuers)
   })
@@ -311,6 +373,7 @@ describe('a venue with several cards', () => {
     await db.delete(members)
     await db.delete(sessions)
     await db.delete(challenges)
+    await db.delete(cardRequirements)
     await db.delete(cards)
     await db.delete(issuers)
   })
@@ -544,6 +607,7 @@ describe('the card windows', () => {
     await db.delete(members)
     await db.delete(sessions)
     await db.delete(challenges)
+    await db.delete(cardRequirements)
     await db.delete(cards)
     await db.delete(issuers)
   })
