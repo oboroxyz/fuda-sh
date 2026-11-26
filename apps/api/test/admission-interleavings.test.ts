@@ -330,7 +330,9 @@ const dailyCapCheck = async (world: World): Promise<string | null> => {
   return null
 }
 
-describe('admission and stamp promises under every interleaving', () => {
+// Each test replays every schedule against D1; under a loaded CI runner one
+// can take longer than Vitest's default 5 s.
+describe('admission and stamp promises under every interleaving', { timeout: 30_000 }, () => {
   beforeEach(seed)
 
   it('admits a SINGLE_USE pass at most once across gate scans, reception scans and a reception retry', async () => {

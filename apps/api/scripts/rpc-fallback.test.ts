@@ -73,6 +73,8 @@ const callOne: Respond = (request, response) => {
 const DEFAULT_RPC = parseChainConfig().publicRpc
 
 const signature: Hex = `0x${'11'.repeat(65)}`
+// viem returns false for the zero address before any RPC call, so verify as another account.
+const SMART_ACCOUNT = `0x${'22'.repeat(20)}` as const
 
 // Node listeners exercise viem's actual fetch, timeout, JSON-RPC errors and signing.
 describe('Base Sepolia RPC fallback', () => {
@@ -145,7 +147,7 @@ describe('Base Sepolia RPC fallback', () => {
 
     await expect(
       chainAt(primary.url, secondary.url).verifyMessage({
-        address: ZERO_ADDRESS,
+        address: SMART_ACCOUNT,
         message: 'gate challenge',
         signature,
       }),
@@ -159,7 +161,7 @@ describe('Base Sepolia RPC fallback', () => {
 
     await expect(
       chainAt(primary.url, secondary.url).verifyMessage({
-        address: ZERO_ADDRESS,
+        address: SMART_ACCOUNT,
         message: 'gate challenge',
         signature,
       }),

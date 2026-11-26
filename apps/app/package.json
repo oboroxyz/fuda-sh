@@ -21,9 +21,9 @@
     "@worldcoin/idkit-core": "^4.6.0",
     "hono": "^4.13.19",
     "preact": "11.2.0",
-    "preact-render-to-string": "6.8.2",
+    "preact-render-to-string": "6.8.3",
     "valibot": "^1.5.0",
-    "viem": "^2.57.17",
+    "viem": "^2.58.0",
     "void-preact": "0.1.6"
   },
   "devDependencies": {
