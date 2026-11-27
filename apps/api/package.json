@@ -31,14 +31,14 @@
     "@worldcoin/idkit-core": "^4.6.0",
     "@worldcoin/idkit-server": "^1.2.0",
     "drizzle-orm": "^0.45.4",
-    "hono": "^4.13.19",
+    "hono": "^4.13.21",
     "valibot": "^1.5.0",
-    "viem": "^2.58.0"
+    "viem": "^2.58.6"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "1.9.1",
     "@cloudflare/workers-types": "^5.20261124.1",
-    "asn1js": "4.0.0",
+    "asn1js": "4.1.0",
     "drizzle-kit": "^0.31.11",
     "jsonc-parser": "3.3.1",
     "pkijs": "4.0.1",

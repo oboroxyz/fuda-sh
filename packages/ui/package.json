@@ -20,7 +20,7 @@
   "dependencies": {
     "@fuda/styles": "workspace:*",
     "cn": "0.5.2",
-    "hono": "^4.13.19",
+    "hono": "^4.13.21",
     "jsqr": "1.4.0",
     "preact": "11.2.0"
   },

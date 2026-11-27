@@ -7,6 +7,6 @@
     "./base.css": "./base.css"
   },
   "dependencies": {
-    "daisyui": "5.8.1"
+    "daisyui": "5.8.2"
   }
 }

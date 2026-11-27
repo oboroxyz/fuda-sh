@@ -10,7 +10,7 @@
     "test": "vp test"
   },
   "dependencies": {
-    "viem": "^2.58.0"
+    "viem": "^2.58.6"
   },
   "devDependencies": {
     "vitest": "5.1.0"

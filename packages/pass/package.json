@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@fuda/sdk": "workspace:*",
-    "asn1js": "4.0.0",
+    "asn1js": "4.1.0",
     "pkijs": "4.0.1"
   },
   "devDependencies": {
