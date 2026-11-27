@@ -36,8 +36,8 @@
     "viem": "^2.58.0"
   },
   "devDependencies": {
-    "@cloudflare/vitest-plugin": "1.8.3",
-    "@cloudflare/workers-types": "^5.20261117.1",
+    "@cloudflare/vitest-plugin": "1.9.1",
+    "@cloudflare/workers-types": "^5.20261124.1",
     "asn1js": "4.0.0",
     "drizzle-kit": "^0.31.11",
     "jsonc-parser": "3.3.1",
