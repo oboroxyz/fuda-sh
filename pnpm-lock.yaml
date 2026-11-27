@@ -71,14 +71,14 @@ importers:
         specifier: ^0.45.4
         version: 0.45.4(@cloudflare/workers-types@5.20261124.1)(better-sqlite3@13.2.0)(kysely@0.29.7)(mysql2@3.24.6(@types/node@24.19.2))(pg@8.23.1)
       hono:
-        specifier: ^4.13.19
-        version: 4.13.19
+        specifier: ^4.13.21
+        version: 4.13.21
       valibot:
         specifier: ^1.5.0
         version: 1.5.0(typescript@7.0.2)
       viem:
-        specifier: ^2.58.0
-        version: 2.58.0(typescript@7.0.2)(zod@4.6.7)
+        specifier: ^2.58.6
+        version: 2.58.6(typescript@7.0.2)(zod@4.6.7)
     devDependencies:
       '@cloudflare/vitest-plugin':
         specifier: 1.9.1
@@ -87,8 +87,8 @@ importers:
         specifier: ^5.20261124.1
         version: 5.20261124.1
       asn1js:
-        specifier: 4.0.0
-        version: 4.0.0
+        specifier: 4.1.0
+        version: 4.1.0
       drizzle-kit:
         specifier: ^0.31.11
         version: 0.31.11
@@ -97,7 +97,7 @@ importers:
         version: 3.3.1
       pkijs:
         specifier: 4.0.1
-        version: 4.0.1(asn1js@4.0.0)
+        version: 4.0.1(asn1js@4.1.0)
       vitest:
         specifier: 5.1.0
         version: 5.1.0(@types/node@24.19.2)(@vitest/browser-preview@5.1.0)(@vitest/ui@5.1.0)(esbuild@0.28.2)(happy-dom@21.0.4)(jiti@2.7.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
@@ -132,8 +132,8 @@ importers:
         specifier: ^4.6.0
         version: 4.6.0
       hono:
-        specifier: ^4.13.19
-        version: 4.13.19
+        specifier: ^4.13.21
+        version: 4.13.21
       preact:
         specifier: 11.2.0
         version: 11.2.0(preact-render-to-string@6.8.3)
@@ -144,8 +144,8 @@ importers:
         specifier: ^1.5.0
         version: 1.5.0(typescript@7.0.2)
       viem:
-        specifier: ^2.58.0
-        version: 2.58.0(typescript@7.0.2)(zod@4.6.7)
+        specifier: ^2.58.6
+        version: 2.58.6(typescript@7.0.2)(zod@4.6.7)
       void-preact:
         specifier: 0.1.7
         version: 0.1.7(@voidzero-dev/vite-plus-core@1.5.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1))(preact-render-to-string@6.8.3)(preact@11.2.0)(supports-color@10.2.2)(void@1.12.0(@types/node@24.19.2)(kysely@0.29.7)(tsx@4.23.15)(typescript@7.0.2)(valibot@1.5.0(typescript@7.0.2))(vitest@5.1.0)(workerd@1.20261123.1)(zod@4.6.7))
@@ -202,8 +202,8 @@ importers:
         specifier: 0.5.2
         version: 0.5.2
       hono:
-        specifier: ^4.13.19
-        version: 4.13.19
+        specifier: ^4.13.21
+        version: 4.13.21
       preact:
         specifier: 11.2.0
         version: 11.2.0(preact-render-to-string@6.8.3)
@@ -214,8 +214,8 @@ importers:
         specifier: ^1.5.0
         version: 1.5.0(typescript@7.0.2)
       viem:
-        specifier: ^2.58.0
-        version: 2.58.0(typescript@7.0.2)(zod@4.6.7)
+        specifier: ^2.58.6
+        version: 2.58.6(typescript@7.0.2)(zod@4.6.7)
     devDependencies:
       '@babel/core':
         specifier: ^8.1.3
@@ -285,8 +285,8 @@ importers:
   packages/chains:
     dependencies:
       viem:
-        specifier: ^2.58.0
-        version: 2.58.0(typescript@7.0.2)(zod@4.6.7)
+        specifier: ^2.58.6
+        version: 2.58.6(typescript@7.0.2)(zod@4.6.7)
     devDependencies:
       vitest:
         specifier: 5.1.0
@@ -310,14 +310,14 @@ importers:
         specifier: ^1.5.0
         version: 1.5.0(typescript@7.0.2)
       viem:
-        specifier: ^2.58.0
-        version: 2.58.0(typescript@7.0.2)(zod@4.6.7)
+        specifier: ^2.58.6
+        version: 2.58.6(typescript@7.0.2)(zod@4.6.7)
 
   packages/ens-contracts:
     dependencies:
       viem:
-        specifier: ^2.58.0
-        version: 2.58.0(typescript@7.0.2)(zod@4.6.7)
+        specifier: ^2.58.6
+        version: 2.58.6(typescript@7.0.2)(zod@4.6.7)
     devDependencies:
       hardhat:
         specifier: 3.22.0
@@ -344,11 +344,11 @@ importers:
         specifier: ^14.0.0
         version: 14.0.0
       '@tanstack/query-core':
-        specifier: 5.107.2
-        version: 5.107.2
+        specifier: 5.108.4
+        version: 5.108.4
       hono:
-        specifier: ^4.13.19
-        version: 4.13.19
+        specifier: ^4.13.21
+        version: 4.13.21
       preact:
         specifier: 11.2.0
         version: 11.2.0(preact-render-to-string@6.8.3)
@@ -356,8 +356,8 @@ importers:
         specifier: ^1.5.0
         version: 1.5.0(typescript@7.0.2)
       viem:
-        specifier: ^2.58.0
-        version: 2.58.0(typescript@7.0.2)(zod@4.6.7)
+        specifier: ^2.58.6
+        version: 2.58.6(typescript@7.0.2)(zod@4.6.7)
     devDependencies:
       vitest:
         specifier: 5.1.0
@@ -369,11 +369,11 @@ importers:
         specifier: workspace:*
         version: link:../sdk
       asn1js:
-        specifier: 4.0.0
-        version: 4.0.0
+        specifier: 4.1.0
+        version: 4.1.0
       pkijs:
         specifier: 4.0.1
-        version: 4.0.1(asn1js@4.0.0)
+        version: 4.0.1(asn1js@4.1.0)
     devDependencies:
       vitest:
         specifier: 5.1.0
@@ -395,8 +395,8 @@ importers:
   packages/styles:
     dependencies:
       daisyui:
-        specifier: 5.8.1
-        version: 5.8.1
+        specifier: 5.8.2
+        version: 5.8.2
 
   packages/ui:
     dependencies:
@@ -407,8 +407,8 @@ importers:
         specifier: 0.5.2
         version: 0.5.2
       hono:
-        specifier: ^4.13.19
-        version: 4.13.19
+        specifier: ^4.13.21
+        version: 4.13.21
       jsqr:
         specifier: 1.4.0
         version: 1.4.0
@@ -2439,6 +2439,10 @@ packages:
     resolution: {integrity: sha512-y2oDqAwp+VPZMUYFGFFMYlXM8xinwb7ehb69+2EhbEL+n7KsykCQX5F0u3/B+BFHxCkwTyft3T1id0ugyzNHVQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
 
+  '@peculiar/utils@4.1.1':
+    resolution: {integrity: sha512-Iw+pcp/fKEmKFhM3GCBXWBnfI/KvgZiAnquogvkQf+ExvrVSaj6H0Exa3nU0LgyNRpgnOFyFFpm4T2jAcvbJ0Q==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+
   '@peculiar/x509@2.2.0':
     resolution: {integrity: sha512-adpW58ySPQMOUPv8pTKT3RIyCFqfUFt8X05ukPdtkQToXDVr8dMtxuenik1yx8tNFTbpApWsM/Hi5SzlIx48+Q==}
     engines: {node: '>=20.0.0'}
@@ -3000,8 +3004,8 @@ packages:
     peerDependencies:
       vite: ^5.2.0 || ^6 || ^7 || ^8
 
-  '@tanstack/query-core@5.107.2':
-    resolution: {integrity: sha512-npIQ9T9CpaEHgwCeqmazMtiBePlaSxfzt5qee2C8KLJnA9Kmiri0Rxls9bCdd0GXu9xCvdWA16t4GWP/bcOXbw==}
+  '@tanstack/query-core@5.108.4':
+    resolution: {integrity: sha512-2Ks5dlLWz4eXJrthOyG0qW3SLt3xx0RrQmAmN0rnmogiaaOYuWiAe6HAm9KE2b2v8nig+vraNz8fsfZ6fF6zFg==}
 
   '@testing-library/dom@10.4.2':
     resolution: {integrity: sha512-yzr2S9HyAIdhz2/6qHgbs665Q7PKVcDF05vsOlHPxG1mo36gKVesdYVeDLnXgfjJ03CrKRk08knc6+E/9m8v2Q==}
@@ -3507,8 +3511,8 @@ packages:
     resolution: {integrity: sha512-HWYi1THkOqguCiO+vwj09ZkQFD2kKEsejYHAYCtX0D80WVdoDnvRc9IukXX/jeb0T9NRWJnRtqwdbHltnFjwXA==}
     engines: {node: '>=12.0.0'}
 
-  asn1js@4.0.0:
-    resolution: {integrity: sha512-81NlooYbXCbBWL2+p1/ivGyT4AR2+bnfKYlPq/3rCoIPJSuLbdS8G70XYt561wOJnbaYfBS2HQDMENaX5hM2vA==}
+  asn1js@4.1.0:
+    resolution: {integrity: sha512-kcL7adqQpfp+n+18Hh43X5bmN97JSULs26OpJSycfQA6pWXxxPUgMZc+SqfmB3im32zno+u2qxCd7fTJxVai+A==}
     engines: {node: ^20.19.0 || >=22.12.0}
 
   assertion-error@2.0.1:
@@ -3752,8 +3756,8 @@ packages:
     resolution: {integrity: sha512-u/O3vwbptzhMs3L1fQE82ZSLHQQfto5gyZzwteVIEyeaY5Fc7R4dapF/BvRoSYFeqfBk4m0V1Vafq5Pjv25wvA==}
     engines: {node: '>= 6'}
 
-  daisyui@5.8.1:
-    resolution: {integrity: sha512-ptP4WHOJ6WltNnA5zwkg3GypOLhsyUM2FHuXCckWVEpWviioInFKsjnShCWYGYHsQ5P9bUCOH1tn45cKLeTUpg==}
+  daisyui@5.8.2:
+    resolution: {integrity: sha512-InScsDXX0pbfgvWyPQ8iTHV4rNMZdfbMo85KqlQUn62/PCIjwczViw5lbotzoXy/nPrn4qjDMmx/fspuUnjBtA==}
 
   debug@4.4.3:
     resolution: {integrity: sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==}
@@ -4213,6 +4217,10 @@ packages:
 
   hono@4.13.19:
     resolution: {integrity: sha512-KmXvQAXwcAHV+muzbIwoJ23niEB5nMoDVr9WcRkU8mvjUECm/1+7v4Jgp7P7a+H6MLFrh+vXrGonGrGS+RQfkA==}
+    engines: {node: '>=16.9.0'}
+
+  hono@4.13.21:
+    resolution: {integrity: sha512-h9UsguqfVk4kjUwLvQpHOmOaJpW10jz9lp8bvKUUa04wJG/fabKFBqXZ06D6LFaeKQZtUZRVeg0gfkTTEsX7Mw==}
     engines: {node: '>=16.9.0'}
 
   https-proxy-agent@5.0.1:
@@ -5210,8 +5218,8 @@ packages:
     resolution: {integrity: sha512-u4J1hr6Y+C/hit34GwL3eIcUf3wngT8TlYUjK7tk0jxydKLAq3sYvifjdTDA6U3KCKRcQCQDGf/srjxfZF3l7g==}
     engines: {node: '>=18.12.0'}
 
-  viem@2.58.0:
-    resolution: {integrity: sha512-oBGZGy6VptLmAATtEua71a7FzCXT5y74dQoeDP8EDHmBsWhQ34rXeHKz6tHeciKWnJ3zBT1u8sby8tAtg0gouA==}
+  viem@2.58.6:
+    resolution: {integrity: sha512-dBxl7nsHrENzD3HR/wOeeH2NcfXSwoEibTSZKJR7kcQOyqIDa50O27H2JU2ZMAQqS1QrEojaYCy6dLWIsdb9cA==}
     peerDependencies:
       mppx: '>=0.17.0'
       typescript: '>=5.0.4'
@@ -5691,7 +5699,7 @@ snapshots:
       idb-keyval: 6.2.1
       ox: 0.6.9(typescript@7.0.2)(zod@4.6.7)
       preact: 10.24.2
-      viem: 2.58.0(typescript@7.0.2)(zod@4.6.7)
+      viem: 2.58.6(typescript@7.0.2)(zod@4.6.7)
       zustand: 5.0.3
     transitivePeerDependencies:
       - '@types/react'
@@ -5916,7 +5924,7 @@ snapshots:
       jose: 6.2.15
       md5: 2.3.0
       uncrypto: 0.1.3
-      viem: 2.58.0(typescript@7.0.2)(zod@3.25.76)
+      viem: 2.58.6(typescript@7.0.2)(zod@3.25.76)
       zod: 3.25.76
     transitivePeerDependencies:
       - bufferutil
@@ -6948,6 +6956,8 @@ snapshots:
 
   '@peculiar/utils@4.1.0': {}
 
+  '@peculiar/utils@4.1.1': {}
+
   '@peculiar/x509@2.2.0':
     dependencies:
       '@peculiar/asn1-cms': 2.11.1
@@ -7597,7 +7607,7 @@ snapshots:
       tailwindcss: 4.3.5
       vite: '@voidzero-dev/vite-plus-core@1.5.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)'
 
-  '@tanstack/query-core@5.107.2': {}
+  '@tanstack/query-core@5.108.4': {}
 
   '@testing-library/dom@10.4.2':
     dependencies:
@@ -8035,9 +8045,9 @@ snapshots:
       pvutils: 1.2.0
       tslib: 2.9.1
 
-  asn1js@4.0.0:
+  asn1js@4.1.0:
     dependencies:
-      '@peculiar/utils': 4.1.0
+      '@peculiar/utils': 4.1.1
 
   assertion-error@2.0.1: {}
 
@@ -8230,7 +8240,7 @@ snapshots:
 
   css-what@6.2.2: {}
 
-  daisyui@5.8.1: {}
+  daisyui@5.8.2: {}
 
   debug@4.4.3(supports-color@10.2.2):
     dependencies:
@@ -8687,6 +8697,8 @@ snapshots:
   he@1.2.0: {}
 
   hono@4.13.19: {}
+
+  hono@4.13.21: {}
 
   https-proxy-agent@5.0.1(supports-color@10.2.2):
     dependencies:
@@ -9192,11 +9204,11 @@ snapshots:
       mlly: 1.8.2
       pathe: 2.0.3
 
-  pkijs@4.0.1(asn1js@4.0.0):
+  pkijs@4.0.1(asn1js@4.1.0):
     dependencies:
       '@noble/hashes': 2.4.0
       '@peculiar/utils': 4.1.0
-      asn1js: 4.0.0
+      asn1js: 4.1.0
       bytestreamjs: 3.0.0
 
   playwright-core@1.65.1: {}
@@ -9537,7 +9549,7 @@ snapshots:
 
   verkit@0.5.0: {}
 
-  viem@2.58.0(typescript@7.0.2)(zod@3.25.76):
+  viem@2.58.6(typescript@7.0.2)(zod@3.25.76):
     dependencies:
       '@noble/curves': 1.9.1
       '@noble/hashes': 1.8.0
@@ -9554,7 +9566,7 @@ snapshots:
       - utf-8-validate
       - zod
 
-  viem@2.58.0(typescript@7.0.2)(zod@4.6.7):
+  viem@2.58.6(typescript@7.0.2)(zod@4.6.7):
     dependencies:
       '@noble/curves': 1.9.1
       '@noble/hashes': 1.8.0
